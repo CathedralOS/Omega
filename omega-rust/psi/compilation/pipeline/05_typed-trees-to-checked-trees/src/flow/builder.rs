@@ -282,11 +282,9 @@ fn sweep<'plans>(
 }
 
 /// Roster positions grouped by an invocation that writes another machine's
-/// `state_value_inputs`: a call to a non-entry state of another machine, or an
-/// extracted lexical region and its origin machine. Ordinary machine-entry
-/// calls check the callee under its declared premises and do not couple the
-/// two machines' value-input fixed points. Groups keep roster order, inside and
-/// across groups, so adopted pages publish in that order.
+/// `state_value_inputs`: a non-entry call, an extracted or nested machine, or
+/// a private entry whose caller roster supplies the entry facts. A public
+/// entry stays on its declared premises and does not join the caller's group.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
@@ -344,6 +342,7 @@ fn machine_groups(
                 && !super::state_values::lexically_nested_machine(program, callee_machine.symbol)
                 && super::state_values::entry_state_index(program, callee_machine)
                     == Some(state_position)
+                && !super::state_values::caller_roster_supplies_entry(program, callee_machine)
             {
                 continue;
             }

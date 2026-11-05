@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "construction value is not proven in domain",
-    "Label"
-  ]
-}

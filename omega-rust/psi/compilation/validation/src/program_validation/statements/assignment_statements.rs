@@ -471,17 +471,39 @@ pub(super) fn validate<'a, 'p>(
                 diagnostics,
             );
         }
-        // A plain record can restore its predicate over several stores.
-        // Atomic residents must remain valid after each individual event.
-        if atomic.is_some()
-            && let Some(stated) = current_state.and_then(|state| {
-                crate::proof_contracts::default_domains::stored_field_where_interval(
-                    program,
-                    machine,
-                    state,
-                    assignment.target,
-                )
-            })
+        // A plain record can restore a cross-field predicate over several
+        // stores. One field's own interval is already decided by this store:
+        // a known value outside that interval cannot be repaired by a later
+        // write of a different field. Atomic residents must remain valid
+        // after each individual event even when the value's bounds are open.
+        let stated_field_interval = current_state.and_then(|state| {
+            crate::proof_contracts::default_domains::stored_field_where_interval(
+                program,
+                machine,
+                state,
+                assignment.target,
+            )
+        });
+        // An open end can still be narrowed by a later fact. A closed
+        // observation that crosses either end of the field interval is
+        // already outside it, including when the other end still overlaps.
+        let known_interval_miss = stated_field_interval.is_some_and(|stated| {
+            let wholly_outside = stated
+                .low
+                .is_some_and(|bound| interval.high.is_some_and(|high| high < bound))
+                || stated
+                    .high
+                    .is_some_and(|bound| interval.low.is_some_and(|low| low > bound));
+            let closed_cross = match (stated.low, stated.high, interval.low, interval.high) {
+                (Some(low), Some(high), Some(value_low), Some(value_high)) => {
+                    value_low < low || value_high > high
+                }
+                _ => false,
+            };
+            wholly_outside || closed_cross
+        });
+        if (atomic.is_some() || known_interval_miss)
+            && let Some(stated) = stated_field_interval
         {
             let contained = arithmetic_domains::check_where_interval_containment(
                 program,

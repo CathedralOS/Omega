@@ -44,10 +44,9 @@ guard against the expected Pair.
 The [reject twin](local/invalid/main.omg) changes only the decoder's final load
 from slot 2 to slot 1. For input 17/42, this would return 17/17. Capacity, success
 paths and storage handling remain fixed. Each twin must reject that field law,
-without unrelated formation or ownership failures. The nine positives and twins
-are also retained under
-[tests/omega/pass/facts](../../../../tests/omega/pass/facts/) and
-[tests/omega/fail/facts](../../../../tests/omega/fail/facts/).
+without unrelated formation or ownership failures. All nine positives and twins
+remain here as executable samples. Main's corpus cleanup removed their duplicate
+test folders; the original run reports retain those earlier observations.
 
 A separate runtime caller uses ordinary TryFrom, whose interface supplies no
 preservation promise. It examines both actual returned Pair fields, buffer bytes
@@ -82,20 +81,28 @@ also execute at native 0 and Terminal 0 in this run. Their precondition and
 runtime-service refusal controls reject. Four hosted Build entries are authored;
 these runtime observations are Linux x86-64 only.
 
-The PR remains unfinished. Two additional storage programs still return native
-0 but decline in Terminal Psi: a qualified write-only array and a reference into
-a byte view. Separate rebinding and nominal-cleanup controls also need precise
-baseline attribution. None of those failures is recorded as passing. The latest
-failure-only diagnostics retain the supplying reference contracts and failed
-operation name; they do not change any execution verdict.
+[Cleanup controls 41948975171](https://github.com/CathedralOS/Omega/actions/runs/41948975171)
+on source `01b061017f95a89d09d11f18f19cc36e553dee20` also pass: four
+native/Terminal exit-zero agreements and two intended rejects. The nominal hook
+prints exactly `OD` in both engines; its count-prerequisite twin rejects. The
+other programs check case retirement, retained operand cleanup and replacement
+with an untouched sibling. These are focused regression controls, not a new
+fact-row closure.
+
+Four additional storage controls remain separate repairs. The qualified-array
+and byte-view element programs return native 0 but decline in Terminal Psi;
+reference rebinding fails during lowering, and nominal cleanup fails native
+legalization. [Fixed-base comparison 41922376454](https://github.com/CathedralOS/Omega/actions/runs/41922376454)
+reproduces all four on exact base
+`b750758f9e4f2981abf643595b2f099752172e56`, at the same stages and operations.
+Their complete diagnostics match; the array comparison removes only the later
+outer diagnostic field `storage=None`. No failed positive from that comparison
+is recorded as passing. The failure diagnostics retain the supplying reference
+contracts and operation name for the next repair.
 
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
 and [earlier compiler repairs](https://github.com/CathedralOS/Omega/pull/1562)
-retain the original diagnostics. [Comparison 41772865951](https://github.com/CathedralOS/Omega/actions/runs/41772865951)
-and [comparison 41774777402](https://github.com/CathedralOS/Omega/actions/runs/41774777402)
-attribute six earlier failures to fixed main
-`db92349b9c2ef6e6e3705372ba6754b3e70e4874`. Those historical observations are
-separate from current execution evidence. The full standard Representation
+retain the earlier contract failures. The full standard Representation
 interface, reflection adapters and other hosts remain parent work.
 
 The programs exercise the following obligations. The parent task retains the

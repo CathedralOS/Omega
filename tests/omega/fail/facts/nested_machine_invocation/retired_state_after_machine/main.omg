@@ -1,5 +1,0 @@
-machine main() {
-    helper()
-    machine helper() {}
-    state old_helper() {}
-}

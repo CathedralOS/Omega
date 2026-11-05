@@ -18,6 +18,7 @@
 
 pub(super) mod calls;
 mod formation;
+mod predicates;
 pub use formation::{
     scoped_declared_integer_application_formation, scoped_integer_expression_formation,
 };
@@ -356,7 +357,13 @@ pub(crate) fn scoped_arithmetic_implication_for_declaration(
     match engine.judge(goal.expression) {
         Judgment::Proven => StrictArithmeticImplicationJudgment::Proven,
         Judgment::ConstantFalse | Judgment::Refuted => StrictArithmeticImplicationJudgment::Refuted,
-        Judgment::Unknown { .. } => StrictArithmeticImplicationJudgment::Unknown,
+        Judgment::Unknown { .. } => {
+            if predicates::matches_asserted(program, owner, &hypotheses, &goal) {
+                StrictArithmeticImplicationJudgment::Proven
+            } else {
+                StrictArithmeticImplicationJudgment::Unknown
+            }
+        }
     }
 }
 

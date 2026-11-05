@@ -8,15 +8,17 @@ machine capacity<Length [copy], machine Callback, Count: u64, const Capacity: u6
 requires machine Callback() -> u64;
 requires Length == [u8; Capacity]
 { Observation { capacity: Capacity, callback: Callback(), value: Count, evidence: Probe::probe<Length, Evidence>(&items) } }
-machine joined(flag: bool) -> Observation {
+machine joined(flag: bool, expected_first: u8) -> Observation crashes Trap {
     let left: [u8; 2] = [7, 11];
     let right: [u8; 2] = [19, 23];
     let items: [u8; 2] = match flag { true -> left, false -> right };
-    capacity<[u8; 2], marker, 7, Positive>(items)
+    let observed: Observation = capacity<[u8; 2], marker, 7, Positive>(items);
+    transition items[0] == expected_first { true -> observed false -> bad() }
+    machine bad() -> Observation crashes Trap { crash Trap; }
 }
 machine main() crashes Trap {
-    let left_result: Observation = joined(true);
-    let right_result: Observation = joined(false);
+    let left_result: Observation = joined(true, 7u8);
+    let right_result: Observation = joined(false, 19u8);
     transition left_result.capacity == 2 && left_result.callback == 7 && left_result.value == 7 && left_result.evidence == 7 && right_result.capacity == 2 && right_result.callback == 7 && right_result.value == 7 && right_result.evidence == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }

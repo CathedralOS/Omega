@@ -240,6 +240,16 @@ impl StructuralJudge<'_> {
         // A successful case test identifies this observed value's case even
         // when its declared constraints are unavailable. Record the tag
         // separately; payload and domain facts still need their own checks.
+        let observed_subject = self.completed_nominal_observation(admitted_subject);
+        if observed_subject.observation_identity_key()
+            != admitted_subject.observation_identity_key()
+        {
+            self.intake_case_guarantee(&super::CaseGuarantee {
+                subject: observed_subject,
+                data: definition.symbol,
+                case: variant.symbol,
+            });
+        }
         self.intake_case_guarantee(&super::CaseGuarantee {
             subject: admitted_subject.clone(),
             data: definition.symbol,
@@ -1631,6 +1641,7 @@ impl StructuralJudge<'_> {
                             &[],
                             type_bindings,
                             None,
+                            false,
                             judgments,
                         ),
                         super::StructuralJudgment::Refuted

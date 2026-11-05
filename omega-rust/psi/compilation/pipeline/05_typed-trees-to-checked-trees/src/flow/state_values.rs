@@ -722,6 +722,19 @@ fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
         .collect()
 }
 
+/// A non-exported body with a known caller roster. Its entry may use the
+/// completed scalars and cases those callers actually pass. A public or
+/// target-family body stays on its declared premises.
+pub(super) fn caller_roster_supplies_entry(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> bool {
+    !machine.is_public
+        && !machine.target_family_interface
+        && machine.supplies_checked_body()
+        && (validation::private_invocation_entry_is_closed(program, machine)
+            || !lexically_nested_machine(program, machine.symbol))
+}
 /// An authored machine nested inside an enclosing machine's scope belongs to
 /// that activation: its declaration-scope parent is a machine lexical scope.
 pub(super) fn lexically_nested_machine(
@@ -773,12 +786,13 @@ pub(super) fn append_entry_context(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
-    // Ordinary entry proof is declaration-owned. An extracted or authored
-    // lexical region receives its exact source activation captures instead.
-    if machine.lexical_region_origin.is_none()
+    // Ordinary entry proof is declaration-owned. An extracted region, an
+    // authored nested machine, or a closed private machine receives the
+    // exact caller roster captured for this entry.
+    let ordinary_entry = machine.lexical_region_origin.is_none()
         && !lexically_nested_machine(program, machine.symbol)
-        && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol)
-    {
+        && entry_state(program, machine).is_some_and(|entry| entry.symbol == state.symbol);
+    if ordinary_entry && !caller_roster_supplies_entry(program, machine) {
         return;
     }
     let Some(input) = build

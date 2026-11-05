@@ -374,13 +374,6 @@ pub fn owned_nominal_data_definition(
         } if arguments.is_empty() => *base_symbol,
         _ => return None,
     };
-    // Resolved `Self` names the attached machine. Its retained data symbol is
-    // the nominal storage identity, for both input and result declarations.
-    // Normalize that relation here rather than giving receiver obligations a
-    // different meaning. An absent attachment never resolves by spelling.
-    let symbol = program
-        .machine_by_symbol(symbol)
-        .map_or(symbol, |machine| machine.attached_data_symbol);
     let first = program.data_definition_by_symbol(symbol)?;
     if first.type_parameters.is_empty() {
         return Some(first);

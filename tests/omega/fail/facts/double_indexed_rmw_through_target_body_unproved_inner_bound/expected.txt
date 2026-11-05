@@ -1,2 +1,0 @@
-cannot prove requires contract for call rmw from main: 4 <= 3
-needs fact `j <= 3` here

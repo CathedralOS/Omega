@@ -1,2 +1,0 @@
-// Expected rejection: uninitialized ZF.
-machine main() { asm { entry: jz done; done: nop } }

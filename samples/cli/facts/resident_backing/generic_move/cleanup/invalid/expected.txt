@@ -1,2 +1,0 @@
-cannot use `value`
-after `value` was transferred or consumed

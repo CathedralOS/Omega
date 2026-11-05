@@ -6,7 +6,7 @@ description: Coordinate a requested Cursor cloud wave, one Task cloud subagent p
 # Cursor Swarm (Platform Adapter)
 
 This skill defines **only** the Cursor cloud `Task` transport for running each subagent on its own cloud VM and branch.
-- **Worker workflow:** Every subagent follows [advance](../advance/SKILL.md) (`/advance`) for capability selection, the 9-place sample loop, validation, and board updates. Point subagents to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
+- **Worker workflow:** Every subagent follows [advance](../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Point subagents to `.agents/skills/advance/SKILL.md` rather than duplicating `/advance` instructions.
 - **Coordinator review & landing:** Subagents push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
 
 ## 1. Cursor Cloud `Task` Tool & Environment

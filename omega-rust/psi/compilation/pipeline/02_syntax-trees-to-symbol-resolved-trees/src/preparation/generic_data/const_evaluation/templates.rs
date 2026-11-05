@@ -507,9 +507,9 @@ pub(in crate::preparation::generic_data) fn normalize_template_type_reference(
     }
 }
 
-/// Every TYPE-REFERENCE position a generic-data spelling can appear in: data
-/// FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN types. Run
-/// afresh each fixpoint round so newly-synthesized records' fields are seen.
+/// Declared type inputs for closed data specialization: fields, constants and
+/// concrete callable signatures/bodies, including bodyless requirements.
+/// Revisit newly synthesized declarations on each completion round.
 pub(in crate::preparation::generic_data) fn collect_selected_type_reference_positions(
     syntax: &SyntaxTrees,
     declarations: &[syntax_trees::item::ItemHandle],
@@ -657,7 +657,7 @@ fn visit_type_positions(
 fn collect_owned_type_reference_positions(
     syntax: &SyntaxTrees,
     declarations: &[syntax_trees::item::ItemHandle],
-    include_machines: bool,
+    include_callables: bool,
     public_only: bool,
     traversal: TypePositionTraversal,
 ) -> Vec<TypeReferenceHandle> {
@@ -720,83 +720,75 @@ fn collect_owned_type_reference_positions(
     // Generic node gives downstream representation validation two identities
     // for the same synthesized instance. Walk only expressions reachable from
     // non-generic machines; generic template bodies remain deliberately open.
-    if !include_machines {
+    if !include_callables {
         return positions;
     }
-    for machine in concrete_machine_declarations(syntax, declarations) {
-        // Satisfier arguments and signatures select the same closed carrier.
-        // All states, including inline conformance states, own their type uses.
-        for conformance in syntax.items.satisfies_clauses(machine.satisfies) {
-            for argument in
-                syntax_type_references(syntax).type_reference_handles(conformance.arguments)
-            {
-                visit_type_positions(syntax, *argument, &mut positions, false, traversal);
-            }
-        }
-        for state_handle in syntax.items.state_handles(machine.states) {
-            let state = syntax.items.state(*state_handle);
-            visit_type_positions(syntax, state.return_type, &mut positions, false, traversal);
-            for parameter in syntax.items.state_parameters(state.parameters) {
-                visit_type_positions(
-                    syntax,
-                    syntax.items.state_parameter(*parameter).type_reference,
-                    &mut positions,
-                    false,
-                    traversal,
-                );
-            }
-            for statement in syntax.items.statements(state.statements) {
-                for reference in super::super::uses::statement_type_inputs(syntax, *statement) {
-                    visit_type_positions(syntax, reference, &mut positions, false, traversal);
-                }
-            }
-        }
-    }
+    visit_callable_type_inputs(syntax, declarations, |reference, _| {
+        visit_type_positions(syntax, reference, &mut positions, false, traversal);
+    });
     positions
 }
 
-/// Source callable types admitted for original-scope constant selection.
-/// Concrete trait members own parameter/result types even when they need no
-/// instantiated signature. Open enclosing/member telescopes stay templates.
-/// Public machine exposure belongs only to the entry, never local/state storage.
+/// Collect the same declared callable inputs used by data specialization,
+/// retaining which inputs form a public signature for constant evaluation.
 pub(in crate::preparation::generic_data) fn collect_callable_type_reference_positions(
     syntax: &SyntaxTrees,
 ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
     let mut positions = Vec::new();
     let mut public_positions = Vec::new();
-    for machine in concrete_machine_declarations(syntax, syntax.root_item_handles()) {
+    visit_callable_type_inputs(
+        syntax,
+        syntax.root_item_handles(),
+        |reference, is_public_signature| {
+            let start = positions.len();
+            collect_type_positions(syntax, reference, &mut positions, true);
+            if is_public_signature {
+                public_positions.extend_from_slice(&positions[start..]);
+            }
+        },
+    );
+    (positions, public_positions)
+}
+
+/// Every concrete callable publishes its declared type inputs here. Constant
+/// evaluation and closed data specialization consume this same list, including
+/// bodyless requirements. Open declarations remain templates in both routes.
+fn visit_callable_type_inputs(
+    syntax: &SyntaxTrees,
+    declarations: &[syntax_trees::item::ItemHandle],
+    mut visit: impl FnMut(TypeReferenceHandle, bool),
+) {
+    for machine in concrete_machine_declarations(syntax, declarations) {
+        for conformance in syntax.items.satisfies_clauses(machine.satisfies) {
+            for &argument in
+                syntax_type_references(syntax).type_reference_handles(conformance.arguments)
+            {
+                visit(argument, machine.is_public);
+            }
+        }
         for (ordinal, state_handle) in syntax_items(syntax)
             .state_handles(machine.states)
             .iter()
             .enumerate()
         {
             let state = syntax.items.state(*state_handle);
-            let start = positions.len();
-            collect_type_positions(syntax, state.return_type, &mut positions, true);
+            let is_public_signature = ordinal == 0 && machine.is_public;
+            visit(state.return_type, is_public_signature);
             for parameter in syntax.items.state_parameters(state.parameters) {
-                collect_type_positions(
-                    syntax,
+                visit(
                     syntax.items.state_parameter(*parameter).type_reference,
-                    &mut positions,
-                    true,
+                    is_public_signature,
                 );
-            }
-            if ordinal == 0 && machine.is_public {
-                public_positions.extend_from_slice(&positions[start..]);
             }
             for statement in syntax.items.statements(state.statements) {
                 for reference in super::super::uses::statement_type_inputs(syntax, *statement) {
-                    collect_type_positions(syntax, reference, &mut positions, true);
+                    visit(reference, false);
                 }
             }
         }
     }
-    // Bodyless requirements reuse their authored signature when neither the
-    // trait nor the member has static operands. Their source type expressions
-    // therefore need the same formation/evaluation intake as machine headers;
-    // waiting for a new typed occurrence would leave these original types open.
-    for item in syntax.root_items() {
-        let Item::Trait(definition) = item else {
+    for &declaration in declarations {
+        let Item::Trait(definition) = syntax.root_item(declaration) else {
             continue;
         };
         if !definition.type_parameters.is_empty() {
@@ -807,20 +799,13 @@ pub(in crate::preparation::generic_data) fn collect_callable_type_reference_posi
             if !signature.type_parameters.is_empty() {
                 continue;
             }
-            let start = positions.len();
-            collect_type_positions(syntax, signature.return_type, &mut positions, true);
+            visit(signature.return_type, definition.is_public);
             for parameter in syntax.items.state_parameters(signature.parameters) {
-                collect_type_positions(
-                    syntax,
+                visit(
                     syntax.items.state_parameter(*parameter).type_reference,
-                    &mut positions,
-                    true,
+                    definition.is_public,
                 );
-            }
-            if definition.is_public {
-                public_positions.extend_from_slice(&positions[start..]);
             }
         }
     }
-    (positions, public_positions)
 }

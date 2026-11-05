@@ -1,2 +1,0 @@
-use omega::language::core::reflect;
-public machine describe<T>() -> reflect::TypeSchema { reflect::schema<T>() }

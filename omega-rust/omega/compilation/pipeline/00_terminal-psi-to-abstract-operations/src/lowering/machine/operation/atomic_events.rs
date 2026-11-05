@@ -21,15 +21,18 @@
 //! intervening effect. An effect boundary expires knowledge of residency; the
 //! next instruction observes current backing without claiming an internal
 //! writer or reusing old facts. Independent replay requires that exact latest
-//! effect on every path. Only one unanimous frontier supplies a retained edge;
-//! branch-selected writes and ambiguous mutation refuse. The backward worklist follows exact projected locations; a cycle that changes
+//! effect on every path. A unanimous frontier supplies one retained edge;
+//! different known paths retain their complete alternatives. Unknown storage
+//! or ambiguous mutation still refuses. The backward worklist follows exact projected locations; a cycle that changes
 //! a projection remains unknown rather than growing an unbounded path.
 //! Event locations stay block-local so downstream authority and native address
 //! checks use the actual arrival declaration, not an invented invocation alias.
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::atomic::AbstractAtomicLocation;
-use abstract_operations::{AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge};
+use abstract_operations::{
+    AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge, AtomicResidencySource,
+};
 use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralFieldId};
 use terminal_psi::{
     AtomicAccessEvent, Operation, OperationKind, StructuralPathSegment, StructuralTypeDeclaration,
@@ -158,30 +161,40 @@ pub(super) fn lower(
         return Err(malformed());
     }
     let reached = reaching_fact(machine, operation.id, structural_types)?;
-    let edge = |fact: &BTreeSet<Reaching>| match fact.iter().collect::<Vec<_>>().as_slice() {
-        [reaching @ (Reaching::Initial | Reaching::Atomic(_) | Reaching::Effect(_))] => {
-            Ok(**reaching)
-        }
-        _ => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
-    };
-    // One retained residency edge carries both coherence claims: whichever
-    // roster admits it, the edge answers the same reaching fact.
-    let retained = match (
-        lowered.observes_resident(),
-        lowered.joins_modification_order(),
-    ) {
-        (false, false) => None,
-        _ => Some(match edge(&reached)? {
-            Reaching::Initial => AtomicResidencyEdge::InitialResidency,
-            Reaching::Atomic(operation) => AtomicResidencyEdge::Write { operation },
-            Reaching::Effect(operation) => AtomicResidencyEdge::AfterEffect { operation },
-            Reaching::Unknown => return Err(malformed()),
-        }),
+    // Preserve every known incoming residency. First and later iterations of
+    // a loop can have different writers without losing the exact location.
+    let retained = if !lowered.observes_resident() && !lowered.joins_modification_order() {
+        None
+    } else {
+        let source = |reaching| match reaching {
+            Reaching::Initial => Ok(AtomicResidencySource::Initial),
+            Reaching::Atomic(operation) => Ok(AtomicResidencySource::Write { operation }),
+            Reaching::Effect(operation) => Ok(AtomicResidencySource::AfterEffect { operation }),
+            Reaching::Unknown => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
+        };
+        let sources = reached
+            .iter()
+            .copied()
+            .map(source)
+            .collect::<Result<Vec<_>, _>>()?;
+        Some(match sources.as_slice() {
+            [AtomicResidencySource::Initial] => AtomicResidencyEdge::InitialResidency,
+            [AtomicResidencySource::Write { operation }] => AtomicResidencyEdge::Write {
+                operation: *operation,
+            },
+            [AtomicResidencySource::AfterEffect { operation }] => {
+                AtomicResidencyEdge::AfterEffect {
+                    operation: *operation,
+                }
+            }
+            [] => return Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
+            _ => AtomicResidencyEdge::PathAlternatives { sources },
+        })
     };
     let (reads_from, modification_after) = match retained {
         None => (None, None),
         Some(edge) => (
-            lowered.observes_resident().then_some(edge),
+            lowered.observes_resident().then(|| edge.clone()),
             lowered.joins_modification_order().then_some(edge),
         ),
     };

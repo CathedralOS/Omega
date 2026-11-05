@@ -94,6 +94,7 @@ FIXTURE_TIERS = ("tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/")
 FACTS_ROOT = "samples/cli/facts/"
 MEASUREMENTS_ROOT = "wiki/drafts/measurements/"
 MEASUREMENT_LINE_LIMIT = 300
+MAX_NEW_OMG_FILES = 6
 NEAR_DUPLICATE = 0.8
 SUBJECT_LIMIT = 85
 
@@ -428,6 +429,42 @@ def changed_golden_rows(diff: str) -> set:
     return names
 
 
+def golden_row_quality_violations(diff: str) -> list:
+    """Reject newly recorded rows in corpus_outcomes.txt that carry a dirty
+    worktree stamp (+wt), record a pass/run fixture as rejected or regressed-from,
+    or record a fail fixture as unexpected or passing."""
+    removed = {line[1:] for line in diff.splitlines()
+               if line.startswith("-") and not line.startswith("---")}
+    violations = []
+    for line in diff.splitlines():
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        body = line[1:]
+        if body in removed or not body.strip() or body[0] in "#\t ":
+            continue
+        tokens = body.split()
+        if len(tokens) < 2:
+            continue
+        name, outcome = tokens[0], tokens[1]
+        for token in tokens[2:]:
+            if token.startswith("@") and token.endswith("+wt"):
+                violations.append(
+                    f"{GOLDEN}: {name} carries a dirty worktree stamp ({token}); "
+                    "commit all changes before running corpus_gate.py --record")
+        if name.startswith(("pass/", "run/")):
+            if outcome == "rejected" or any(t.startswith("regressed-from:") for t in tokens[2:]):
+                violations.append(
+                    f"{GOLDEN}: {name} is a pass/run fixture recorded as {outcome}; "
+                    "fix the fixture or compiler before recording")
+        elif name.startswith("fail/"):
+            if outcome != "rejected" or "unexpected" in tokens[2:]:
+                violations.append(
+                    f"{GOLDEN}: {name} is a fail fixture recorded as "
+                    f"{'unexpected' if 'unexpected' in tokens[2:] else outcome}; "
+                    "ensure it rejects with its expected obligation before recording")
+    return violations
+
+
 def fixture_of(path: str, rows: set, fixture_dirs: set) -> str:
     """The fixture that owns `path`: the deepest recorded row whose directory
     holds it, else the shallowest directory that holds a main.omg."""
@@ -450,9 +487,10 @@ def golden_violations(changes: list, base_rows: set, head_rows: set,
     (tier/group/.../name) that hold a main.omg at HEAD; `rewritten` names the
     rows the change added, removed or rewrote."""
     touched = set()
+    all_rows = base_rows | head_rows
     for _, path in changes:
         if not path.endswith("README.md"):
-            touched.add(fixture_of(path, base_rows | head_rows, fixture_dirs))
+            touched.add(fixture_of(path, all_rows, fixture_dirs))
     touched.discard("")
     stale = sorted(f for f in touched if f in fixture_dirs and f not in rewritten)
     orphaned = sorted(f for f in touched if f not in fixture_dirs and f in head_rows)
@@ -598,34 +636,67 @@ def show(revision: str, path: str, root: Path = ROOT) -> str:
         return ""
 
 
+def diff_hygiene_violations(changes: list) -> list:
+    """Enforce repository organization and anti-bloat guardrails on added files:
+    1. No new .omg files under samples/cli/facts/ or tests/omega/{pass,fail,run}/facts/.
+    2. At most MAX_NEW_OMG_FILES (6) new .omg files in a single PR across the tree.
+    3. No new tests/omega/corpus_*.txt files.
+    4. No new tools/swarm/waves/ files committed to git (use build/swarm/<wave>/)."""
+    violations = []
+    added_omg = []
+    for status, path in changes:
+        if status != "A":
+            continue
+        if path.endswith(".omg"):
+            added_omg.append(path)
+            if path.startswith(FACTS_ROOT) or path.startswith(
+                ("tests/omega/pass/facts/", "tests/omega/fail/facts/", "tests/omega/run/facts/")
+            ):
+                violations.append(
+                    f"{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; "
+                    f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
+                    "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
+        elif path.startswith("tests/omega/corpus_") and path.endswith(".txt"):
+            violations.append(
+                f"{path}: do not add new corpus_*.txt files; record outcomes in {GOLDEN}")
+        elif path.startswith("tools/swarm/waves/"):
+            violations.append(
+                f"{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/")
+    if len(added_omg) > MAX_NEW_OMG_FILES:
+        violations.append(
+            f"PR adds {len(added_omg)} .omg files (limit is {MAX_NEW_OMG_FILES}); "
+            "pin repairs with at most a focused positive/negative fixture pair, never a combinatorial matrix")
+    return violations
+
+
 def diff_checks(base: str, root: Path = ROOT) -> list:
     changes = []
     for line in git("diff", "--name-status", "--no-renames", base, "HEAD", root=root).splitlines():
         status, path = line.split("\t", 1)
         changes.append((status[0], path))
+    golden_diff = git("diff", "-U0", base, "HEAD", "--", GOLDEN, root=root)
     violations = golden_violations(
         changes,
         golden_rows(show(base, GOLDEN, root)),
         golden_rows(show("HEAD", GOLDEN, root)),
-        changed_golden_rows(git("diff", "-U0", base, "HEAD", "--", GOLDEN, root=root)),
+        changed_golden_rows(golden_diff),
         fixture_directories(root),
     )
+    violations += golden_row_quality_violations(golden_diff)
     violations += measurement_violations(
         changes, lambda path: len(show("HEAD", path, root).splitlines()))
+    violations += diff_hygiene_violations(changes)
     base_folders = {path.split("/")[3] for path in
                     git("ls-tree", "-r", "--name-only", base, FACTS_ROOT, root=root).split()
                     if path.count("/") >= 4}
     facts = root / FACTS_ROOT
     head_folders = {entry.name for entry in facts.iterdir() if entry.is_dir()} if facts.is_dir() else set()
     new_folders = sorted(head_folders - base_folders)
-    if new_folders:
-        readmes = {name: (facts / name / "README.md").read_text(encoding="utf-8")
-                   if (facts / name / "README.md").is_file() else ""
-                   for name in new_folders}
-        nearest = nearest_rows({name: folder_shingles(facts / name) for name in new_folders},
-                               {name: folder_shingles(facts / name)
-                                for name in sorted(head_folders & base_folders)})
-        violations += fact_row_violations(nearest, readmes)
+    for name in new_folders:
+        violations.append(
+            f"{FACTS_ROOT}{name}: new fact folders are frozen to prevent corpus bloat; "
+            f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
+            "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
     return violations
 
 

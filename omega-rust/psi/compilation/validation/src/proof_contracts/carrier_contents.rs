@@ -123,6 +123,22 @@ fn first_forbidden_content(
     visited_data: &mut HashSet<u32>,
     purpose: ContentUse,
 ) -> Option<CarrierFenceViolation> {
+    // A selected layout changes storage geometry, not the value being observed.
+    // Keep qualification checks outside the representation: a routed domain
+    // on the storage still carries its own authority restriction.
+    if !matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Constrained { .. }
+    ) && let Some(storage) = program.layout_storage_arguments(type_reference)
+    {
+        return first_forbidden_content(
+            program,
+            proof_only,
+            storage.semantic_type,
+            visited_data,
+            purpose,
+        );
+    }
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, name } => {
             // Primitive classification peels qualifications and maps dynamic

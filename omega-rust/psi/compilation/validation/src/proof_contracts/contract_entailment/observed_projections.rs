@@ -148,10 +148,15 @@ fn project_observed_value_under_cases(
                 // identity, including its admitted predicates. Only a reference
                 // child reads the producer's separately retained descriptor;
                 // unfolding the whole aggregate here can replay retired cells.
-                let source = if owned && crate::reference_shell(program, projected).is_some() {
-                    completed(value).into_semantic_value()
-                } else if owned {
-                    value.into_semantic_value()
+                let source = if owned {
+                    let completed_val = completed(value.clone()).into_semantic_value();
+                    if matches!(completed_val, StructuralTerm::Constructor { .. })
+                        || crate::reference_shell(program, projected).is_some()
+                    {
+                        completed_val
+                    } else {
+                        value.into_semantic_value()
+                    }
                 } else {
                     value
                 };
