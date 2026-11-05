@@ -1198,15 +1198,27 @@ pub(super) fn capture_guarantees(
             return;
         }
     }
+    // These declaration questions keep the same expression and telescope while
+    // completed operands are bound below. Reuse their first answers locally;
+    // the identity-meaning query still runs only when its original guard needs it.
+    let data_identity_references = binary
+        .filter(|binary| binary.operator == BinaryOperator::Equal)
+        .and_then(|_| {
+            super::super::structural_terms::data_identity_operand_references(
+                program, scope, parameters, expression,
+            )
+        });
+    let mut identity_equality = None;
+    let mut has_identity_equality = || {
+        *identity_equality.get_or_insert_with(|| {
+            super::super::structural_terms::has_identity_equality_meaning(
+                program, scope, parameters, expression,
+            )
+        })
+    };
     if let Some(binary) = binary
         && binary.operator == BinaryOperator::Equal
-        && (super::super::structural_terms::data_identity_operand_references(
-            program, scope, parameters, expression,
-        )
-        .is_some()
-            || super::super::structural_terms::has_identity_equality_meaning(
-                program, scope, parameters, expression,
-            ))
+        && (data_identity_references.is_some() || has_identity_equality())
         && let (Some(left), Some(right)) = (
             judge.bound_contract_term(
                 binary.left,
@@ -1233,10 +1245,7 @@ pub(super) fn capture_guarantees(
         let references = [binary.left, binary.right].map(|operand| {
             crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
         });
-        if let Some(references) = super::super::structural_terms::data_identity_operand_references(
-            program, scope, parameters, expression,
-        )
-        .or_else(|| {
+        if let Some(references) = data_identity_references.or_else(|| {
             crate::value_custody::expression_types::builtin_scalar_operand_references(
                 program, binary, references, None,
             )
@@ -1249,9 +1258,7 @@ pub(super) fn capture_guarantees(
             references[1],
             &right,
         ) {
-            if super::super::structural_terms::has_identity_equality_meaning(
-                program, scope, parameters, expression,
-            ) {
+            if has_identity_equality() {
                 equations.push((left, right));
             } else {
                 data_identities.push((left, right));
