@@ -139,4 +139,5 @@ pub(crate) fn value_successor(edge: EdgeId, target: BlockId) -> SuccessorEdge {
     }
 }
 
+pub(crate) mod reference_backings;
 pub(crate) mod reference_formations;

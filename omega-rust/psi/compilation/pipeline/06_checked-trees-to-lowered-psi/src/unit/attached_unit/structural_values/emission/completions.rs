@@ -332,6 +332,9 @@ impl Emission<'_, '_, '_> {
             });
         }
         self.join_memberships(std::slice::from_ref(&argument), continuation)?;
+        self.operations
+            .reference_backings
+            .record(continuation.place, argument.clone())?;
         let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),

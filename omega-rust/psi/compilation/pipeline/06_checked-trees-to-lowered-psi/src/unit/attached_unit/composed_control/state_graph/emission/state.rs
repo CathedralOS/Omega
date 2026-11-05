@@ -161,6 +161,7 @@ impl StateGraphEmission<'_, '_> {
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(
             self.catalogs.next_operation - 1,
+            self.catalogs.next_place,
             std::sync::Arc::new(
                 crate::emission::reference_formations::ReferenceFormations::prepare(
                     checked,

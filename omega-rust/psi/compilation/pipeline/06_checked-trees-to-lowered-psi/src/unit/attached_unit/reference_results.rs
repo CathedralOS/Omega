@@ -399,6 +399,7 @@ pub(crate) fn emit_carrier(
                 source: source.clone(),
             });
     }
+    operations.reference_backings.record(place, source)?;
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))
 }

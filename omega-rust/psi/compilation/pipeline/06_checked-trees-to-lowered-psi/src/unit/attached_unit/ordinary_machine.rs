@@ -1360,6 +1360,7 @@ fn establish_call_literals(
             ))?;
     let mut operations = OperationBuffer::new(
         operation_identity_base,
+        *next_place,
         std::sync::Arc::new(
             crate::emission::reference_formations::ReferenceFormations::prepare(
                 checked,

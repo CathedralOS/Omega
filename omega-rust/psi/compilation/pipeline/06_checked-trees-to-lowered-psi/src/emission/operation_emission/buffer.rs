@@ -268,6 +268,7 @@ struct StructuralMaterialization {
 }
 
 pub(crate) struct OperationBuffer {
+    pub(crate) reference_backings: crate::emission::reference_backings::ReferenceBackings,
     pub(crate) source_returns:
         Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(crate) computed_values: Vec<(
@@ -632,12 +633,16 @@ impl OperationBuffer {
 
     pub(crate) fn new(
         identity_base: u64,
+        first_place: u64,
         reference_formations: std::sync::Arc<
             crate::emission::reference_formations::ReferenceFormations,
         >,
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
+            reference_backings: crate::emission::reference_backings::ReferenceBackings::new(
+                first_place,
+            ),
             source_returns: Vec::new(),
             arrival_claims: Vec::new(),
             block_entry_claims: Vec::new(),

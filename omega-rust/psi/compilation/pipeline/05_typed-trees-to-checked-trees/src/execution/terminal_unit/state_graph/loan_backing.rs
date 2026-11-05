@@ -215,6 +215,29 @@ pub(super) fn retained_storage(
         {
             // A completed descriptor requires its whole invocation resource.
             // Missing resolution is not evidence of caller-owned storage.
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE state reference resource missing: machine={machine:?} state={state:?} call={call_handle:?} operand={operand:?} type={:?} expression={:?} completion={:?} permission={:?}",
+                    capture.type_reference,
+                    capture.expression,
+                    capture.completion,
+                    capture.descriptor_permission,
+                );
+                for (_, row) in records
+                    .call_resources(call_handle, machine, state)
+                    .into_iter()
+                    .take(8)
+                {
+                    eprintln!(
+                        "CHECKSITE available state reference resource: owner={:?} operand={:?} path={:?} source={:?} incoming={:?}",
+                        row.owner_operand,
+                        row.operand,
+                        facts.borrow.owner_segments.span(row.owner_path),
+                        row.source,
+                        row.backing_incoming_reference,
+                    );
+                }
+            }
             return Err("state loan: descriptor resource is absent");
         }
         return Ok(RetainedStorage {

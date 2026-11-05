@@ -371,11 +371,9 @@ impl StateGraphEmission<'_, '_> {
                                             ),
                                         )?;
                                         if super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values).is_some() {
-                                            let source = operations.iter().find_map(|operation| {
-                                                if operation.result.structural().is_some_and(|result| result.place == place) {
-                                                    match &operation.kind { OperationKind::EstablishReference { source, .. } => Some(source), _ => None }
-                                                } else { None }
-                                            }).ok_or(LoweringError::Unsupported("completed state reference lost its emitted formation"))?;
+                                            // The producer records the evaluated backing for both
+                                            // descriptor operations and borrowed block arrivals.
+                                            let source = operations.reference_backings.source(place)?;
                                             captured_backing = Some((source.place, source.path.clone()));
                                             if let Some(group) = self.captured_loans.group(target, target_index as u32) {
                                                 captured_loans.push((group, place));
