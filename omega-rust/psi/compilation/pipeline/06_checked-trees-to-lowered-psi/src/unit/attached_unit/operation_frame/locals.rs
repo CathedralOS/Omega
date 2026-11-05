@@ -850,6 +850,7 @@ impl OperationFrame<'_, '_> {
                     (
                         parameter.qualifications.clone(),
                         parameter.projected_qualifications.clone(),
+                        parameter.additional_input_qualifications.clone(),
                     )
                 })
                 .or_else(|| {
@@ -862,6 +863,7 @@ impl OperationFrame<'_, '_> {
                                 (
                                     result.qualifications.clone(),
                                     result.projected_qualifications.clone(),
+                                    result.additional_input_qualifications.clone(),
                                 )
                             })
                     })
@@ -875,6 +877,8 @@ impl OperationFrame<'_, '_> {
                     &source_contract.1,
                     &path,
                 );
+            let additional_input_qualifications =
+                terminal_psi::StructuralPathQualification::select_rows(&source_contract.2, &path);
             if multiplicity == language_semantics::Multiplicity::Unrestricted {
                 // Copy permission belongs to the selected child, not its
                 // enclosing owner. Passing this path as an owned argument
@@ -889,7 +893,7 @@ impl OperationFrame<'_, '_> {
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         qualifications,
                         projected_qualifications,
-                        additional_input_qualifications: Vec::new(),
+                        additional_input_qualifications,
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
@@ -913,7 +917,7 @@ impl OperationFrame<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications,
                     projected_qualifications,
-                    additional_input_qualifications: Vec::new(),
+                    additional_input_qualifications,
                 };
                 let mut arguments = vec![terminal_psi::StructuralArgument {
                     place: repair.place,
