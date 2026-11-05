@@ -98,28 +98,15 @@ fn validate_atomic_access(
     let signature = function
         .arrival_parameter(location.root)
         .ok_or_else(invalid)?;
-    let carrier = crate::unit_validation::structural_catalog::resolve_structural_path(
-        structural_types,
+    terminal_semantics::atomic_cell_type(
+        structural_types.values().copied(),
         signature.structural_type,
         &location.path,
     )
     .ok_or_else(invalid)?;
-    let terminal_psi::StructuralTypeShape::Record { fields, .. } =
-        &structural_types.get(&carrier).ok_or_else(invalid)?.shape
-    else {
-        return Err(invalid());
-    };
     // Shared access grants atomic operations only on a declared atomic cell,
     // never an ordinary same-width scalar. Observation still needs read access.
-    if !fields.iter().any(|field| {
-        field.id == location.field
-            && !field.relevance.is_erased()
-            && matches!(
-                field.field_type,
-                terminal_psi::StructuralFieldType::Atomic(_)
-                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
-            )
-    }) || !signature.qualifications.is_empty()
+    if !signature.qualifications.is_empty()
         || !signature.projected_qualifications.is_empty()
         || (event.observes_resident() && signature.access == StructuralAccess::WriteOnlyBorrow)
     {

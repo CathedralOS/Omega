@@ -1,5 +1,5 @@
 //! Repeat a baseline exclusive update until its store commits, returning that
-//! successful attempt's observed value. Address and mask stay unchanged; the
+//! successful attempt's observed value. Address and operand stay unchanged; the
 //! replacement and store status use declared scratch registers. Full barriers
 //! preserve the source ordering, and the effect record retains retry work.
 
@@ -12,6 +12,9 @@ const BARRIER: u32 = 0xd503_3fbf;
 
 pub(super) fn encode(form: AtomicForm) -> Result<Vec<u8>, Aarch64SelectedFormEncodingError> {
     let logical = match form.operation {
+        AtomicOperation::FetchAdd => 0x0b00_0000,
+        AtomicOperation::FetchSub => 0x4b00_0000,
+        AtomicOperation::Swap => 0x2a00_0000,
         AtomicOperation::FetchAnd => 0x0a00_0000,
         AtomicOperation::FetchOr => 0x2a00_0000,
         AtomicOperation::FetchXor => 0x4a00_0000,
@@ -19,10 +22,15 @@ pub(super) fn encode(form: AtomicForm) -> Result<Vec<u8>, Aarch64SelectedFormEnc
     };
     let size = u32::from(form.width.ordinal()) << 30;
     let wide = u32::from(form.width == AtomicWidth::Bits64) << 31;
+    let left = if form.operation == AtomicOperation::Swap {
+        31
+    } else {
+        11
+    };
     let words = [
         BARRIER,
         size | 0x085f_fc00 | 9 << 5 | 11, // LDAXR observed, [address].
-        wide | logical | 10 << 16 | 11 << 5 | 16, // replacement = observed OP mask.
+        wide | logical | 10 << 16 | left << 5 | 16, // replacement = observed OP operand.
         size | 0x0800_fc00 | 17 << 16 | 9 << 5 | 16, // STLXR status, replacement, [address].
         0x35ff_ffb1, // CBNZ W17, back to the exclusive load, not the old replacement.
         BARRIER,
@@ -38,6 +46,9 @@ pub(super) fn validate(
     bytes: &[u8],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let opcode = match form.operation {
+        AtomicOperation::FetchAdd => 0x0b00_0000,
+        AtomicOperation::FetchSub => 0x4b00_0000,
+        AtomicOperation::Swap => 0x2a00_0000,
         AtomicOperation::FetchAnd => 0x0a00_0000,
         AtomicOperation::FetchOr => 0x2a00_0000,
         AtomicOperation::FetchXor => 0x4a00_0000,
@@ -57,7 +68,12 @@ pub(super) fn validate(
         && words[2] & !0x801f_03ff == opcode
         && (words[2] >> 31 != 0) == (form.width == AtomicWidth::Bits64)
         && register(words[2], 16) == 10
-        && register(words[2], 5) == 11
+        && register(words[2], 5)
+            == if form.operation == AtomicOperation::Swap {
+                31
+            } else {
+                11
+            }
         && register(words[2], 0) == 16
         && words[3] & !0xc01f_03ff == 0x0800_fc00
         && (words[3] >> 30) as u8 == form.width.ordinal()
@@ -88,6 +104,9 @@ mod tests {
             (AtomicWidth::Bits64, 0xc85f_fd2b, 0xc811_fd30),
         ] {
             for (operation, narrow, wide) in [
+                (AtomicOperation::FetchAdd, 0x0b0a_0170, 0x8b0a_0170),
+                (AtomicOperation::FetchSub, 0x4b0a_0170, 0xcb0a_0170),
+                (AtomicOperation::Swap, 0x2a0a_03f0, 0xaa0a_03f0),
                 (AtomicOperation::FetchAnd, 0x0a0a_0170, 0x8a0a_0170),
                 (AtomicOperation::FetchOr, 0x2a0a_0170, 0xaa0a_0170),
                 (AtomicOperation::FetchXor, 0x4a0a_0170, 0xca0a_0170),

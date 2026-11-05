@@ -1084,8 +1084,12 @@ pub(super) fn apply_operation(
                 // stored pointer still owes its current readable loan.
                 if location.path.contains(&StructuralPathSegment::Referent) {
                     let path = match location.path.split_last() {
-                        Some((StructuralPathSegment::Case(_), prefix)) => prefix,
+                        Some((StructuralPathSegment::Field(_), prefix)) => prefix,
                         _ => &location.path,
+                    };
+                    let path = match path.split_last() {
+                        Some((StructuralPathSegment::Case(_), prefix)) => prefix,
+                        _ => path,
                     };
                     access_reference_custody(
                         function,
@@ -1105,7 +1109,7 @@ pub(super) fn apply_operation(
                         structural_types,
                         location.root,
                         &location.path,
-                        Some(location.field),
+                        None,
                     );
                     check_observation_access(
                         function,

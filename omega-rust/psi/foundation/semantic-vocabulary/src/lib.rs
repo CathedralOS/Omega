@@ -49,6 +49,7 @@ pub use boundary::program_entry::{
     ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,
     ProgramEntryVisibleParameters,
 };
+pub use storage::atomic_cell::AtomicCellType;
 pub use storage::target_carrier_layout::TargetCarrierLayout;
 
 pub use scalars::ieee_float_comparison_operation::IeeeFloatComparisonOperation;

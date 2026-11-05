@@ -434,9 +434,11 @@ pub(in crate::exit_contract) fn validate_non_return(
     encoded: &machine_code::SelectedFormEncodedRowStore,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
-        // Bitwise fetch retries until its indivisible update commits. Keep
-        // that target-relative work on both current instruction sets.
-        SelectedInstructionKind::AtomicAccess { form } if form.operation.is_bitwise_fetch() => {
+        // The canonical target realization retains its actual retry work;
+        // bounded single-attempt events remain ordinary fallthrough forms.
+        SelectedInstructionKind::AtomicAccess { form }
+            if form.operation.retries_until_commit(architecture) =>
+        {
             MachineEncodedControlEffect::AtomicRetryUntilCommitV1
         }
         SelectedInstructionKind::FloatResultPolicy { form } if form.can_trap() => {

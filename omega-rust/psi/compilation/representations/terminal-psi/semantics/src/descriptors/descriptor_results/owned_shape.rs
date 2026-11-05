@@ -83,6 +83,7 @@ fn owned_shape<'a>(
         };
         let supported = match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(_) => true,
+            StructuralTypeShape::AtomicCell(_) => true,
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(terminal_psi::StructuralAccess::SharedBorrow),

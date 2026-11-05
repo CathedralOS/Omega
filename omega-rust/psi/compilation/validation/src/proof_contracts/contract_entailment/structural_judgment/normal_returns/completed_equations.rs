@@ -20,6 +20,15 @@ pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct 
 }
 
 impl CapturedResultEquation {
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn same_guarantee(
+        &self,
+        other: &Self,
+    ) -> bool {
+        self.meaning == other.meaning
+            && self.left.same_resolution_payload(&other.left)
+            && self.right.same_resolution_payload(&other.right)
+    }
+
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn is_data_identity(
         &self,
     ) -> bool {
@@ -58,7 +67,9 @@ impl CapturedResultEquation {
             && self.right.same_resolution_payload(description)
     }
 
-    pub(super) fn public((left, right): (StructuralTerm, StructuralTerm)) -> Self {
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn public(
+        (left, right): (StructuralTerm, StructuralTerm),
+    ) -> Self {
         Self {
             left,
             right,

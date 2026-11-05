@@ -136,6 +136,30 @@ fn plan_inner(
         trace.statement(Some(statement_index));
     };
     local_phase("statement sequence: local data: initializer expression");
+    if !expressions(program).expression_is_valid(local.initial_value)
+        && validation::is_atomic_type(program, local.type_reference)
+    {
+        // A dedicated cell owns storage even when no record contains it.
+        // Declare that home without classifying its resident as an ordinary
+        // mutable scalar. Checking still owns initialization and every access;
+        // merely reserving the home supplies no resident observation or write.
+        local_phase("statement sequence: local data: atomic storage home");
+        establish_declared_home(
+            program,
+            machine,
+            state,
+            shapes,
+            binders,
+            operations,
+            structural_count,
+            structural_local_symbols,
+            structural_results,
+            index,
+            statement_index,
+            local,
+        )?;
+        return Some(LocalPlan::Planned);
+    }
     // A local with no initializer survives when its declared type
     // is zero-constructible. Structural values have a whole-shape zeroed
     // establishment root; plain primitives have a declaration-bound scalar

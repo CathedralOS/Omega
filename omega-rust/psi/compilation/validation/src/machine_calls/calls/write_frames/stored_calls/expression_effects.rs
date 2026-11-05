@@ -91,7 +91,11 @@ pub(super) fn prepare_normal_exits<'program>(
         symbols,
     };
     let mut context = context.clone();
-    let mut effects = SlotRelationTransfer::default();
+    let mut effects = SlotRelationTransfer {
+        template_dependent: context.template_dependent,
+        incomplete_calls: context.incomplete_calls.clone(),
+        ..SlotRelationTransfer::default()
+    };
     let empty = SlotRelationTransfer::default();
     let mut capture = Capture::default();
     if let TransitionGuardNode::When(guard) = transition.guard {
@@ -381,7 +385,11 @@ fn evaluate_statement(
         symbols,
     };
     let mut context = context.clone();
-    let mut effects = SlotRelationTransfer::default();
+    let mut effects = SlotRelationTransfer {
+        template_dependent: context.template_dependent,
+        incomplete_calls: context.incomplete_calls.clone(),
+        ..SlotRelationTransfer::default()
+    };
     let mut fallthrough = None;
     let empty_prefix = SlotRelationTransfer::default();
     if let StatementNode::Transition(transition) = statement {
@@ -856,6 +864,10 @@ fn install(
     next: SlotRelationTransfer,
     inference: &mut FrameInference,
 ) {
+    context.template_dependent |= next.template_dependent;
+    context
+        .incomplete_calls
+        .extend(next.incomplete_calls.iter().cloned());
     super::apply_transfer(
         program,
         &mut context.stored,

@@ -544,7 +544,6 @@ pub enum LegalizedScalarInstructionKind {
     /// observed; an RMW must never be split into a separate load and store.
     AtomicAccess {
         location: terminal_psi::StructuralArgument,
-        field: semantic_vocabulary::StructuralFieldId,
         scalar_type: semantic_vocabulary::IntegerType,
         field_byte_offset: u32,
         event: terminal_psi::AtomicAccessEvent,
