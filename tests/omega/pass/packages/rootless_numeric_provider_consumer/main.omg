@@ -1,6 +1,6 @@
 // Expected exit: 0
-// A rootless dependency's reviewed numeric declarations remain usable without
-// selecting its unused negate implementation or inventing a library entry.
+// The root explicitly chooses its library's negate provider over the competing
+// defaults. The program calls only the classifier; the library has no entry.
 use numeric_library::main;
 
 machine main() {
