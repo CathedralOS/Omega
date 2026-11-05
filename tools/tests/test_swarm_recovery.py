@@ -556,11 +556,16 @@ class SkillContracts(unittest.TestCase):
     def test_frontmatter_and_local_references(self):
         # No installed skill-creator validator is available in this executor.
         # Validate this repository's simple frontmatter and Markdown references.
-        paths = [ROOT / ".agents/skills/dot-swarm/SKILL.md",
-                 ROOT / ".agents/skills/devin-swarm/SKILL.md",
-                 ROOT / ".agents/skills/codex-swarm/SKILL.md",
-                 ROOT / ".agents/skills/cursor-swarm/SKILL.md",
-                 ROOT / ".agents/skills/dot-swarm/references/recovery.md"]
+        paths = [ROOT / ".agents/skills/swarm/SKILL.md",
+                 ROOT / ".agents/skills/swarm/references/local.md",
+                 ROOT / ".agents/skills/swarm/references/antigravity.md",
+                 ROOT / ".agents/skills/swarm/references/claude.md",
+                 ROOT / ".agents/skills/swarm/references/codex.md",
+                 ROOT / ".agents/skills/swarm/references/cursor.md",
+                 ROOT / ".agents/skills/swarm/references/devin.md",
+                 ROOT / ".agents/skills/swarm/references/dot.md",
+                 ROOT / ".agents/skills/swarm/references/host-setup.md",
+                 ROOT / ".agents/skills/swarm/references/recovery.md"]
         for path in paths:
             text = path.read_text(encoding="utf-8")
             if path.name == "SKILL.md":
@@ -576,7 +581,7 @@ class SkillContracts(unittest.TestCase):
                 self.assertTrue((path.parent / target.split("#")[0]).exists(), (path, target))
 
     def test_dot_ui_metadata_preserved(self):
-        content = (ROOT / ".agents/skills/dot-swarm/agents/openai.yaml").read_text()
+        content = (ROOT / ".agents/skills/swarm/agents/openai.yaml").read_text()
         self.assertIn('display_name: "dot swarm"', content)
         self.assertIn('default_prompt: "Use $dot-swarm to coordinate a bounded Omega wave for the program or board scope I specify."', content)
 
