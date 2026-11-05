@@ -158,6 +158,7 @@ pub(super) fn proves(
             facts,
             state_flow,
             call_flow,
+            entry_contexts,
             expression,
             call_frames,
         )
