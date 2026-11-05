@@ -323,7 +323,7 @@ pub(crate) fn check_checked_facts_recording(
         "AFTER indexed ranges",
         "psi.05.check_checked_facts.check_indexed_accesses",
     );
-    indexed_writes::record(program, facts);
+    diagnostics.extend(indexed_writes::record(program, facts));
     indexed_writes::record_assignment_indexes(program, facts);
 
     if let Err(mut termination_diagnostics) =

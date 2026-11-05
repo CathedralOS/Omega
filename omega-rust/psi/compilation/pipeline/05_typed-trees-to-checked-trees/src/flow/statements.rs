@@ -104,6 +104,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             operator_invocations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
             store_target: Handle::invalid(),
+            stored_byte_classes:
+                language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY,
             stored_destination: Handle::invalid(),
             completed_writes: HandleSpan::empty(),
             completed_unknown_write: false,

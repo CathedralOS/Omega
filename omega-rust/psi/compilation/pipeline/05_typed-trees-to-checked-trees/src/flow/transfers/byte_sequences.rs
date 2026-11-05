@@ -4,7 +4,6 @@
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
-use crate::flow::expressions;
 use crate::flow::transfers::contextual_expression_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
@@ -177,31 +176,43 @@ fn value_proves_predicate(
     })
 }
 
-/// An indexed store replaces exactly ONE byte. A PER-BYTE character class
-/// (`no_nul`, `ascii_only`) survives that replacement when the stored byte is
-/// itself in the class, so whole-carrier evidence outlives a write that retires
-/// the exact `AssignedValue` snapshot the carrier had before it.
-///
-/// `valid_utf8` is deliberately NOT preserved here: an ASCII byte can split a
-/// multi-byte scalar, so UTF-8 is reachable only as a CONSEQUENCE of the
-/// surviving ASCII class (`ByteSequencePredicate::implies`), never as a class
-/// preserved in its own right. The premise is read from the PRE-mutation
-/// contexts, so consecutive stores chain: each one re-proves the class from the
-/// class the previous store left behind.
+/// Classify only bounds retained for the completed RHS. A former source name
+/// cannot supply a class after a child has replaced its descriptor.
+pub(super) fn stored_element_classes(
+    bounds: Option<&facts::IntegerRange>,
+) -> language_semantics::byte_predicates::ByteSequencePredicateSet {
+    let mut classes = language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY;
+    let Some((minimum, maximum)) = bounds.and_then(|bounds| {
+        Some((
+            u8::try_from(bounds.minimum.to_i64()?).ok()?,
+            u8::try_from(bounds.maximum.to_i64()?).ok()?,
+        ))
+    }) else {
+        return classes;
+    };
+    if minimum > maximum {
+        return classes;
+    }
+    for predicate in validation::field_domains::ByteSequencePredicate::ALL {
+        if predicate.is_subslice_preserving() && predicate.holds_for(&[minimum, maximum]) {
+            classes.insert(predicate);
+        }
+    }
+    classes
+}
+
+/// Keep a whole-buffer predicate only when it held immediately before this
+/// store and the replacement byte preserves it. UTF-8 additionally requires
+/// ASCII backing: replacing one byte can otherwise split a multi-byte scalar.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_element_replacement_predicates(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     contexts: &mut FlowBuildContext,
     active: HandleSpan<FlowSemanticContextRef>,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
     target: ExpressionHandle,
     target_place: PlaceHandle,
-    source_expression: ExpressionHandle,
-    scalar_value: Option<&facts::ScalarValue>,
-    integer_bounds: Option<&facts::IntegerRange>,
+    stored_classes: language_semantics::byte_predicates::ByteSequencePredicateSet,
     point: ProgramPoint,
     references: &mut HandleSpan<facts::FactRef>,
 ) {
@@ -231,84 +242,10 @@ pub(super) fn append_element_replacement_predicates(
     {
         return;
     }
-    let byte = match scalar_value {
-        Some(facts::ScalarValue::Integer(value)) => {
-            value.to_i64().and_then(|value| u8::try_from(value).ok())
-        }
-        _ => None,
-    };
-    let byte = byte.or_else(|| {
-        replacement_byte(
-            program,
-            semantic,
-            contexts,
-            active,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            source_expression,
-        )
-    });
-    let bounds = byte.map(|byte| (byte, byte)).or_else(|| {
-        let bounds = integer_bounds?;
-        let minimum = u8::try_from(bounds.minimum.to_i64()?).ok()?;
-        let maximum = u8::try_from(bounds.maximum.to_i64()?).ok()?;
-        (minimum <= maximum).then_some((minimum, maximum))
-    });
-    // A stored place is in a per-byte class when its captured bounds sit
-    // inside it, or when the source place itself proves the class -- a field
-    // byte carried across a state edge can keep its class through a join that
-    // dropped the differing exact bounds each arm left behind.
-    let source_place = contextual_expression_place(
-        program,
-        semantic,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        source_expression,
-    );
-
-    // Carrier premises come only from the current pre-store snapshot.
-    // An entry candidate is not evidence after an overlapping replacement.
-    // A read of one element inherits only per-byte classes from its live
-    // container. UTF-8 membership alone says nothing about one selected byte.
-    let source_element_facts = expressions(program)
-        .indexed_node(source_expression)
-        .filter(|_| crate::values::operator_is_builtin(contexts.operators, source_expression))
-        .and_then(|indexed| {
-            contextual_expression_place(
-                program,
-                semantic,
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                indexed.collection,
-            )
-        })
-        .map(|place| facts_about_place(program, semantic, &active_facts, place));
-    let mut source_facts = None;
-    let stored_classes: Vec<_> = validation::field_domains::ByteSequencePredicate::ALL
-        .into_iter()
-        .map(|predicate| {
-            let stored = predicate.is_subslice_preserving()
-                && source_element_facts
-                    .as_ref()
-                    .is_some_and(|facts| carrier_proves_predicate(program, facts, predicate))
-                || bounds
-                    .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
-                || source_place.is_some_and(|place| {
-                    let facts = source_facts.get_or_insert_with(|| {
-                        facts_about_place(program, semantic, &active_facts, place)
-                    });
-                    carrier_proves_predicate(program, facts, predicate)
-                });
-            (predicate, stored)
-        })
-        .collect();
-    let stored_in = |predicate: validation::field_domains::ByteSequencePredicate| {
+    let stored_in = |predicate| {
         stored_classes
-            .iter()
-            .any(|(class, stored)| *class == predicate && *stored)
+            .predicates()
+            .any(|class| class.implies(predicate))
     };
     let ascii_stored = stored_in(validation::field_domains::ByteSequencePredicate::AsciiOnly);
     let mut carrier_facts = None;
@@ -349,48 +286,6 @@ pub(super) fn append_element_replacement_predicates(
         );
         semantic.append_ref(references, fact);
     }
-}
-
-// Read captured scalar values without replaying mutable operand expressions.
-#[allow(clippy::too_many_arguments)]
-fn replacement_byte(
-    program: &dyn ::validation::CheckingInput,
-    semantic: &mut FactPlan,
-    contexts: &FlowBuildContext,
-    active: HandleSpan<FlowSemanticContextRef>,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    source_expression: ExpressionHandle,
-) -> Option<u8> {
-    // Compound source syntax carries no selected arithmetic or operator authority.
-    let literal = match program.expression_table.expression(source_expression) {
-        ExpressionNode::Integer(value) => value.value_i64(),
-        _ => None,
-    };
-    let value = literal.or_else(|| {
-        let place = contextual_expression_place(
-            program,
-            semantic,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            source_expression,
-        )?;
-        let subject =
-            canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-        let facts::ScalarValue::Integer(value) = crate::values::scalar_value_at_place(
-            program,
-            semantic,
-            contexts.semantic_context_views(semantic, active),
-            &subject,
-        )?
-        else {
-            return None;
-        };
-        value.to_i64()
-    })?;
-    u8::try_from(value).ok()
 }
 
 /// Whether the carrier provably satisfies `predicate` BEFORE the store, from an

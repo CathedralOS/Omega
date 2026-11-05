@@ -198,6 +198,10 @@ pub struct FlowStatementFact {
     /// Replacement checks must join this occurrence to residual storage and
     /// reference custody; post-RHS origins may already name another backing.
     pub store_target: arena::Handle<super::FlowOperandFact>,
+    /// Per-byte classes proved for this completed RHS at this captured store.
+    /// This does not establish a whole-buffer fact, preserve other writers,
+    /// or make the destination's former source name current again.
+    pub stored_byte_classes: language_semantics::byte_predicates::ByteSequencePredicateSet,
     /// Exact established destination in the semantic place arena. Dynamic or
     /// unresolved destinations cannot supply a reaching value capture.
     pub stored_destination: facts::PlaceHandle,

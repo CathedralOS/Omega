@@ -69,6 +69,50 @@ pub(super) fn propagate_statement_transfers(
     let Some(write) = write else {
         return;
     };
+    let mut stored_byte_classes =
+        language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY;
+    if let Some(assignment) = statement.as_assignment()
+        && program
+            .expression_table
+            .indexed_node(assignment.target)
+            .is_some()
+    {
+        let (store_target, stored_value) = {
+            let retained = build.control.statements.get(statement_fact);
+            (retained.store_target, retained.stored_value)
+        };
+        if build.control.operands.is_valid(store_target)
+            && build.control.operands.is_valid(stored_value)
+        {
+            let target = build.control.operands.get(store_target);
+            let value = build.control.operands.get(stored_value);
+            if target.expression == assignment.target
+                && value.expression == assignment.value
+                && target.state_symbol == state_symbol
+                && value.state_symbol == state_symbol
+                && target.statement_index == statement_index
+                && value.statement_index == statement_index
+            {
+                let bounds = scalar_values::completed_store_integer_bounds(
+                    program,
+                    semantic,
+                    build,
+                    state_symbol,
+                    statement_index,
+                    statement,
+                    stored_value,
+                );
+                stored_byte_classes = byte_sequences::stored_element_classes(bounds.as_ref());
+            }
+        }
+        build
+            .control
+            .statements
+            .get_mut(statement_fact)
+            .stored_byte_classes = stored_byte_classes;
+    }
+    // The captured byte still owes its receiving class when the RHS replaces
+    // an intermediate descriptor. Its former name cannot acquire new facts.
     if !write.destination_is_current {
         return;
     }
@@ -152,14 +196,9 @@ pub(super) fn propagate_statement_transfers(
                 semantic,
                 build,
                 assignment_source_contexts,
-                machine_symbol,
-                state_symbol,
-                statement_index,
                 assignment.target,
                 candidate,
-                source_expression,
-                scalar_value.as_ref(),
-                integer_bounds.as_ref(),
+                stored_byte_classes,
                 point,
                 &mut refs,
             );

@@ -1,7 +1,8 @@
-//! Join the bounds check with the byte classes the assignment transfer retained.
-//! A write's Terminal obligation contains both; a bounds verdict alone cannot
-//! authorize overwriting an ASCII byte with 255. Read only the completed
-//! statement's live contexts, never a historical fact or a later restoration.
+//! Join the bounds check with the completed store's receiving-byte judgment.
+//! A bounds verdict alone cannot authorize overwriting an ASCII byte with 255.
+//! Per-byte classes constrain that exact RHS independently of the old source
+//! name. Sequence predicates additionally need the live backing evidence kept
+//! by the statement transfer, never a historical fact or a later restoration.
 //! Finite reference choices require that judgment for every captured backing,
 //! independently of whether one candidate already had the desired byte class.
 use crate::published::places::place_at;
@@ -10,8 +11,12 @@ use facts::{FactOrigin, FactPayload};
 
 use typed_trees::statement::StatementNode;
 
-pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut CheckFacts) {
+pub(super) fn record(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+) -> Vec<diagnostics::Diagnostic> {
     let mut proven = Vec::new();
+    let mut diagnostics = Vec::new();
     for (_, state_flow) in facts.flow.control.states.iter() {
         let Some(state) = program.state_by_symbol(state_flow.state_symbol) else {
             continue;
@@ -99,6 +104,7 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             };
             let declared_domains =
                 validation::field_domains::domain_constraint_symbols(program, reference);
+            let mut missing_predicate = None;
             let preserved = carriers.iter().all(|carrier| {
                 let Some(candidate_type) = validation::canonical_place_type_reference(
                     program,
@@ -119,7 +125,22 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
                     else {
                         return false;
                     };
-                    facts
+                    // The proved index is inside the unchanged extent.
+                    if required == validation::field_domains::ByteSequencePredicate::NonEmpty {
+                        return true;
+                    }
+                    // This proves only the byte arriving at the captured
+                    // destination. Other bytes and RHS writers retain their
+                    // independent backing, loan and restoration obligations.
+                    if required.is_subslice_preserving()
+                        && statement_flow
+                            .stored_byte_classes
+                            .predicates()
+                            .any(|class| class.implies(required))
+                    {
+                        return true;
+                    }
+                    let preserved = facts
                         .flow
                         .contexts
                         .semantic_context_refs
@@ -153,17 +174,31 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
                                 )
                                 .as_ref()
                                     == Some(carrier)
-                        })
+                        });
+                    if !preserved {
+                        missing_predicate = Some(required);
+                    }
+                    preserved
                 })
             });
             if preserved {
                 proven.push(assignment.target);
+            } else if let Some(required) = missing_predicate {
+                diagnostics.push(
+                    diagnostics::Diagnostic::error(format!(
+                        "cannot prove completed byte preserves {required:?} at the captured assignment destination in {}::{}",
+                        program.symbols.name(state_flow.machine_symbol),
+                        program.symbols.name(state.symbol),
+                    ))
+                    .with_source_span(program.expression_table.source_span(assignment.target)),
+                );
             }
         }
     }
     proven.sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     proven.dedup();
     facts.proven_byte_writes = proven;
+    diagnostics
 }
 
 /// Key each proven `[]` occurrence of an assignment target by the

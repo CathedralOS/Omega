@@ -225,6 +225,84 @@ fn completed_statement_place(
     Some((place, primitive))
 }
 
+/// Read this completed operand's integer observation, not its source's current
+/// name. Closed checked calculations can supply a value without storage reads;
+/// any unresolved read leaves the receiving-byte requirement unproved.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn completed_store_integer_bounds(
+    program: &dyn validation::CheckingInput,
+    semantic: &FactPlan,
+    context: &FlowBuildContext<'_>,
+    state: SymbolHandle,
+    statement_index: usize,
+    statement: &StatementNode,
+    operand: arena::Handle<checked_trees::FlowOperandFact>,
+) -> Option<facts::IntegerRange> {
+    if !context.control.operands.is_valid(operand) {
+        return None;
+    }
+    let operand = context.control.operands.get(operand);
+    let source = statement_value_source(statement)?;
+    if operand.expression != source
+        || operand.state_symbol != state
+        || operand.statement_index != statement_index
+        || crate::values::integer_type(program.primitive_type_reference(operand.type_reference)?)
+            .is_none()
+    {
+        return None;
+    }
+    let contexts = context
+        .contexts
+        .constraint_refs
+        .span(operand.constraints)?
+        .iter()
+        .filter_map(|reference| match reference.kind {
+            checked_trees::FlowConstraintKind::SemanticContext { context } => Some(context),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let completed = CanonicalPlace {
+        root: facts::PlaceRoot::Expression(operand.expression),
+        segments: Vec::new(),
+    };
+    let value = crate::values::scalar_value_at_place(
+        program,
+        semantic,
+        contexts
+            .iter()
+            .map(|context| semantic.contexts.get(*context)),
+        &completed,
+    )
+    .or_else(|| {
+        let (expression, symbols) =
+            selected_statement(program, context, state, statement_index, statement)?;
+        let (_, state) = validation::find_state(program, state)?;
+        crate::values::evaluate_checked_scalar(
+            expression,
+            &mut crate::values::PlaceScalarValues {
+                program,
+                parameters: program.state_parameters(state),
+                symbols,
+                value_at_place: |_, _| None,
+            },
+        )
+    });
+    if let Some(ScalarValue::Integer(value)) = value {
+        return Some(facts::IntegerRange {
+            minimum: value.clone(),
+            maximum: value,
+        });
+    }
+    crate::values::integer_bounds_at_place(
+        program,
+        semantic,
+        contexts
+            .iter()
+            .map(|context| semantic.contexts.get(*context)),
+        &completed,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn capture_bounds(
     program: &dyn ::validation::CheckingInput,

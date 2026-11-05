@@ -298,6 +298,21 @@ fn check_program(
         )
     })?;
     phase_profile::checkpoint("after typed preparation", "psi.05.prepare_typed_program");
+    // Keep the completed numeric costs visible if a later check times out.
+    // These are cumulative, overlapping totals, never proof inputs.
+    for scope in [
+        "psi.05.numeric.observe_prefixes",
+        "psi.05.numeric.assoc.candidate_pairs",
+        "psi.05.numeric.assoc.prove",
+        "psi.05.numeric.prove.project",
+        "psi.05.numeric.prove.prep.project",
+        "psi.05.numeric.prove.prep.install_and_admit",
+        "psi.05.numeric.prove.eq_loop",
+        "psi.05.numeric.prove.fallback",
+        "psi.05.numeric.operands.lookup",
+    ] {
+        phase_profile::checkpoint("numeric totals after typed preparation", scope);
+    }
     let deferred_entailment = validated.deferred_entailment;
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
     // Caller-visible mutation summaries depend only on the immutable typed
