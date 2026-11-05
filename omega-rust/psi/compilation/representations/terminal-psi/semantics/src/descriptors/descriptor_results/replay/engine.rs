@@ -32,7 +32,7 @@ pub(super) struct State {
 }
 pub(super) type States = BTreeMap<DescriptorPosition, State>;
 
-enum StorageResolution {
+pub(super) enum StorageResolution {
     Unique(DescriptorLocation),
     Alternatives,
 }
@@ -208,7 +208,7 @@ impl<'a> Replay<'a> {
         ))
     }
 
-    fn resolve_storage(
+    pub(super) fn resolve_storage(
         &self,
         machine: &DescriptorMachine,
         state: &State,
@@ -407,7 +407,7 @@ impl<'a> Replay<'a> {
     /// Reborrowing a whole ordinary referent captures the pointer in its
     /// descriptor, rather than a recipe which reloads that descriptor later.
     /// Borrowing a descriptor slot itself still captures the slot's address.
-    fn reference_referent_carrier(
+    pub(super) fn reference_referent_carrier(
         &self,
         machine: &DescriptorMachine,
         location: &DescriptorLocation,
@@ -775,8 +775,15 @@ impl<'a> Replay<'a> {
                     if let Some(carrier) = self.reference_referent_carrier(machine, source)? {
                         self.read(machine, before, &carrier)
                     } else {
-                        let storage = self.canonical_storage(machine, before, source)?;
-                        Some(BTreeSet::from([Origin::Storage(storage)]))
+                        match self.resolve_storage(machine, before, source)? {
+                            StorageResolution::Unique(storage) => {
+                                Some(BTreeSet::from([Origin::Storage(storage)]))
+                            }
+                            // Each alternative is already a complete backing.
+                            // Collapsing the branch to one address, or failing
+                            // the snapshot, drops origins the return recorded.
+                            StorageResolution::Alternatives => self.read(machine, before, source),
+                        }
                     };
                 merge_value(
                     &mut assigned,
@@ -2257,5 +2264,192 @@ mod snapshot_tests {
                 .len(),
             3
         );
+    }
+
+    fn scalar_type(id: u64) -> StructuralTypeDeclaration {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+        use terminal_psi::TerminalIdentityIndex;
+        StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: TerminalIdentityIndex(id as u32),
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+            )),
+            scalar_restriction: None,
+        }
+    }
+
+    fn reference_type(
+        id: u64,
+        referent: StructuralTypeId,
+        access: StructuralAccess,
+    ) -> StructuralTypeDeclaration {
+        let scalar = scalar_type(id);
+        StructuralTypeDeclaration {
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(id as u32),
+            shape: StructuralTypeShape::Reference { referent, access },
+            ..scalar
+        }
+    }
+
+    fn bare_machine(
+        id: MachineId,
+        places: Vec<DescriptorPlace>,
+        place_types: BTreeMap<PlaceId, StructuralTypeId>,
+        storage_derivations: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
+    ) -> DescriptorMachine {
+        let entry = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+        DescriptorMachine {
+            id,
+            returns: None,
+            places,
+            place_types,
+            entry,
+            flow: BTreeMap::new(),
+            case_constructors: BTreeMap::new(),
+            case_successors: BTreeMap::new(),
+            originations: BTreeMap::new(),
+            projections: BTreeMap::new(),
+            contents_queries: BTreeMap::new(),
+            contents_transfers: BTreeMap::new(),
+            payload_producers: BTreeMap::new(),
+            payload_entry_predicates: None,
+            payload_scalar_definitions: BTreeMap::new(),
+            payload_scalar_postconditions: BTreeMap::new(),
+            payload_scalar_parameters: BTreeMap::new(),
+            scalar_payload_reads: BTreeMap::new(),
+            payload_edge_predicates: BTreeMap::new(),
+            payload_scalar_bindings: BTreeMap::new(),
+            scalar_payload_writes: BTreeMap::new(),
+            payload_invalidations: BTreeMap::new(),
+            unresolved_contents_writes: BTreeSet::new(),
+            storage_derivations,
+            calls: BTreeMap::new(),
+            normal_exits: vec![entry],
+        }
+    }
+
+    #[test]
+    fn referent_contents_keep_the_pointer_backing_origin() {
+        let scalar = StructuralTypeId::new(1).unwrap();
+        let carrier = StructuralTypeId::new(2).unwrap();
+        let types = vec![
+            scalar_type(1),
+            reference_type(2, scalar, StructuralAccess::MutableBorrow),
+        ];
+        let parameter = location(1);
+        let machine = bare_machine(
+            MachineId::new(1).unwrap(),
+            vec![DescriptorPlace {
+                place: parameter.root,
+                definition: DescriptorDefinition::Parameter {
+                    position: 0,
+                    access: StructuralAccess::MutableBorrow,
+                    structural_type: carrier,
+                },
+            }],
+            BTreeMap::from([(parameter.root, carrier)]),
+            BTreeSet::new(),
+        );
+        let replay = Replay::with_slot_kind(
+            &types,
+            std::slice::from_ref(&machine),
+            DescriptorSlotKind::References,
+        );
+        let state = replay.initial(&machine).unwrap();
+        let mut referent = parameter.clone();
+        referent.path.push(DescriptorPathSegment::Referent);
+        let query = DescriptorContentsQuery::from_location(&referent);
+        let pointer = replay.read(&machine, &state, &parameter);
+        assert_eq!(
+            pointer,
+            Some(BTreeSet::from([Origin::Incoming(parameter.clone())]))
+        );
+        assert_eq!(replay.read_contents(&machine, &state, &query), pointer);
+    }
+
+    #[test]
+    fn branch_selected_storage_keeps_every_backing_origin() {
+        let scalar = StructuralTypeId::new(1).unwrap();
+        let types = vec![scalar_type(1)];
+        let left = location(1);
+        let right = location(2);
+        let selected = location(3);
+        let captured = location(4);
+        let position = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+        let machine = bare_machine(
+            MachineId::new(1).unwrap(),
+            vec![
+                DescriptorPlace {
+                    place: left.root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 0,
+                        access: StructuralAccess::MutableBorrow,
+                        structural_type: scalar,
+                    },
+                },
+                DescriptorPlace {
+                    place: right.root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 1,
+                        access: StructuralAccess::MutableBorrow,
+                        structural_type: scalar,
+                    },
+                },
+                DescriptorPlace {
+                    place: selected.root,
+                    definition: DescriptorDefinition::Arrival {
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                },
+                DescriptorPlace {
+                    place: captured.root,
+                    definition: DescriptorDefinition::Local,
+                },
+            ],
+            BTreeMap::from([
+                (left.root, scalar),
+                (right.root, scalar),
+                (selected.root, scalar),
+                (captured.root, scalar),
+            ]),
+            BTreeSet::from([(position, selected.clone(), captured.clone())]),
+        );
+        let replay = Replay::with_slot_kind(
+            &types,
+            std::slice::from_ref(&machine),
+            DescriptorSlotKind::References,
+        );
+        let origins = BTreeSet::from([
+            Origin::Storage(left.clone()),
+            Origin::Storage(right.clone()),
+        ]);
+        let mut before = State::default();
+        before
+            .slots_mut()
+            .insert(selected.clone(), Some(origins.clone()));
+        let case_storage = super::case_flow::Storage::new(&replay, &machine);
+        let after = replay
+            .transfer(
+                &machine,
+                &before,
+                &[captured.clone()],
+                [(&selected, &captured)].into_iter(),
+                super::case_flow::Transfer::Operation(position),
+                &case_storage,
+            )
+            .unwrap();
+        assert!(matches!(
+            replay.resolve_storage(&machine, &before, &selected),
+            Some(StorageResolution::Alternatives)
+        ));
+        assert_eq!(after.slots.get(&captured), Some(&Some(origins.clone())));
+        assert_eq!(replay.read(&machine, &after, &captured), Some(origins));
     }
 }
