@@ -100,6 +100,7 @@ pub(super) use structural_results::{StructuralResults, dense_result_homes};
 mod descriptor_tables;
 mod loan_completions;
 mod locals;
+mod owned_initialization;
 mod register_access;
 mod selection_retirement;
 mod stores;
