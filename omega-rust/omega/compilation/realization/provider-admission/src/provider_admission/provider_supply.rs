@@ -58,8 +58,8 @@ pub(super) fn require_reached_providers(
                         // requires the exact recorded identity above.
                         for selected_plan in selected.plans() {
                             for row in &selected_plan.rows {
-                                if let Some(identity) = selected_plan.identities.text(row.requirement_identity)
-                                    && requirement_path(identity) == requirement_path(requirement)
+                                let identity = selected_plan.identities.text(row.requirement_identity);
+                                if requirement_path(identity) == requirement_path(requirement)
                                 {
                                     eprintln!("[supply] same displayed requirement row identity={identity:?}; plan={:?}", selected_plan.name);
                                 }
