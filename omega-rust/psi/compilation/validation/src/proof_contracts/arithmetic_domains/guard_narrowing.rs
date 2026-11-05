@@ -25,15 +25,16 @@ mod parameter_bounds;
 mod predicate_facts;
 pub(super) mod projected_facts;
 mod requirements;
+pub(crate) use arrivals::{
+    CrossMachineArrivalSites, OccurrenceValueEnvironments, ReturnInference,
+    inferred_normal_return_interval, occurrence_integer_child_values, occurrence_value_environment,
+    occurrence_value_environments,
+};
 pub use arrivals::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
     occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
-};
-pub(crate) use arrivals::{
-    OccurrenceValueEnvironments, ReturnInference, inferred_normal_return_interval,
-    occurrence_integer_child_values, occurrence_value_environment, occurrence_value_environments,
 };
 use projected_facts::ProjectedOperand;
 
