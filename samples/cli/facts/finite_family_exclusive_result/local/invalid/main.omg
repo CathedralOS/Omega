@@ -6,34 +6,47 @@ machine drop_token(token: &mut Token) {
     token.drops[0] = ((token.drops[0] as u64 in Wrapping) + 1) as u64;
 }
 data Ticket { token: Token; marker: u32; }
+data Delivery { case Narrow(ticket: Ticket); case Wide(ticket: Ticket); }
 trait Family {
-    machine row<Width: u32>(ticket: Ticket) -> Ticket requires Width == 16 || Width == 32;
+    machine row<Width: u32>(ticket: Ticket) -> Delivery requires Width == 16 || Width == 32;
 }
 First satisfies Family {
-    machine row<Width: u32>(ticket: Ticket) -> Ticket requires Width == 16 || Width == 32 {
+    machine row<Width: u32>(ticket: Ticket) -> Delivery requires Width == 16 || Width == 32 {
         let mut local: [u64; 1] = [0];
-        Ticket { token: Token { drops: &mut local }, marker: Width }
+        transition Width == 16 {
+            true -> Delivery::Narrow { ticket: Ticket { token: Token { drops: &mut local }, marker: Width } }
+            false -> Delivery::Wide { ticket: Ticket { token: Token { drops: &mut local }, marker: Width } }
+        }
     }
 }
 Second satisfies Family {
-    machine row<Width: u32>(ticket: Ticket) -> Ticket requires Width == 16 || Width == 32 {
+    machine row<Width: u32>(ticket: Ticket) -> Delivery requires Width == 16 || Width == 32 {
         let mut local: [u64; 1] = [0];
-        Ticket { token: Token { drops: &mut local }, marker: Width }
+        transition Width == 16 {
+            true -> Delivery::Narrow { ticket: Ticket { token: Token { drops: &mut local }, marker: Width } }
+            false -> Delivery::Wide { ticket: Ticket { token: Token { drops: &mut local }, marker: Width } }
+        }
     }
 }
-data Stored { ticket: Ticket; }
-machine dispatch(selected: dyn Family, ticket: Ticket, width: u32) -> Ticket
+data Stored { ticket: Delivery; }
+machine dispatch(selected: dyn Family, ticket: Ticket, width: u32) -> Delivery
 requires width == 16 || width == 32
 { Family::row<width>(selected, ticket) }
-machine forward(ticket: Ticket) -> Ticket { ticket }
+machine forward(ticket: Delivery) -> Delivery { ticket }
 machine observe(selected: dyn Family, drops: &mut [u64; 1], width: u32) -> bool
 requires width == 16 || width == 32
 {
     let stored: Stored = Stored { ticket: dispatch(selected, Ticket { token: Token { drops: drops }, marker: 0 }, width) };
     transition { _ -> finish(forward(stored.ticket), width) }
-    machine finish(ticket: Ticket, width: u32) -> bool {
-        let correct: bool = ticket.marker == width;
-        correct
+    machine finish(delivery: Delivery, width: u32) -> bool {
+        transition delivery {
+            Delivery::Narrow { ticket } -> consume(ticket, width, 16)
+            Delivery::Wide { ticket } -> consume(ticket, width, 32)
+        }
+        machine consume(ticket: Ticket, width: u32, tag: u32) -> bool {
+            let correct: bool = ticket.marker == width && tag == width;
+            correct
+        }
     }
 }
 machine check(drops: &mut [u64; 1]) crashes Trap {

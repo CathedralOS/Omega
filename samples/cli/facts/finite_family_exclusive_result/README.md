@@ -4,6 +4,15 @@ Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
 Fact: A finite-family result retains its exclusive input counter through storage and forwarding, and consuming that result increments the counter once.
 
+The next requirement puts that returned ticket in a `Narrow` or `Wide` case.
+The active payload must keep the same exclusive counter and cleanup hook while
+it is stored, forwarded and consumed. The counter must still advance once per
+call, and the case and marker must match the supplied width. Only the local
+program and its local-backing twin are converted so far; current-baseline
+qualification is pending. The eight other places and the measurements below
+retain their original plain-ticket programs. No tagged-case result is claimed
+from those older runs.
+
 Each positive calls `First` at width 16 and `Second` at width 32, stores and
 forwards the returned ticket, then returns from `finish`. The ticket retains an
 exclusive borrow of the original counter. Its data declaration selects
