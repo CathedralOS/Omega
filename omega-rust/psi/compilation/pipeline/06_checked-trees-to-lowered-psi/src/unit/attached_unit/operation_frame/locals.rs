@@ -1197,7 +1197,11 @@ impl OperationFrame<'_, '_> {
                             // Referent memberships stay on the referent. Moving
                             // them onto the descriptor root would invent a new
                             // qualified carrier and lose projected identities.
-                            for row in &mut parameter.projected_qualifications {
+                            for row in parameter
+                                .projected_qualifications
+                                .iter_mut()
+                                .chain(&mut parameter.additional_input_qualifications)
+                            {
                                 row.path
                                     .insert(0, terminal_psi::StructuralPathSegment::Referent);
                             }

@@ -398,9 +398,19 @@ impl Emission<'_, '_, '_> {
                 parameter
                     .projected_qualifications
                     .retain(|domain| incoming.projected_qualifications.contains(domain));
+                parameter.additional_input_qualifications.retain(|row| {
+                    incoming.additional_input_qualifications.contains(row)
+                        && if row.path.is_empty() {
+                            parameter.qualifications.contains(&row.domain)
+                        } else {
+                            parameter.projected_qualifications.contains(row)
+                        }
+                });
             } else {
                 parameter.qualifications = incoming.qualifications;
                 parameter.projected_qualifications = incoming.projected_qualifications;
+                parameter.additional_input_qualifications =
+                    incoming.additional_input_qualifications;
             }
             if let Some(owner) = continuation
                 .remaining_owners
@@ -409,6 +419,8 @@ impl Emission<'_, '_, '_> {
             {
                 owner.value.qualifications = parameter.qualifications.clone();
                 owner.value.projected_qualifications = parameter.projected_qualifications.clone();
+                owner.value.additional_input_qualifications =
+                    parameter.additional_input_qualifications.clone();
             }
         }
         continuation.has_incoming_memberships = true;

@@ -98,7 +98,7 @@ impl TerminalExecution<'_> {
             multiplicity,
             qualifications: retained.qualifications.clone(),
             projected_qualifications: retained.projected_qualifications.clone(),
-            additional_input_qualifications: retained.additional_input_qualifications.to_vec(),
+            additional_input_qualifications: Vec::new(),
             qualification_establishments: Vec::new(),
             claims: claims
                 .iter()

@@ -41,6 +41,7 @@ pub(crate) struct StructuralSourceContract<'a> {
     pub(crate) access: StructuralAccess,
     qualifications: &'a [StructuralDomainId],
     projected_qualifications: &'a [StructuralPathQualification],
+    additional_input_qualifications: &'a [StructuralPathQualification],
     operation_result: Option<&'a StructuralOperationResult>,
 }
 
@@ -1121,6 +1122,7 @@ pub(crate) fn structural_source_contract(
             access: parameter.access,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
+            additional_input_qualifications: &parameter.additional_input_qualifications,
             operation_result: None,
         })
         .or_else(|| {
@@ -1153,6 +1155,7 @@ pub(crate) fn structural_source_contract(
                     access: StructuralAccess::SharedBorrow,
                     qualifications: qualifications.as_slice(),
                     projected_qualifications: &[],
+                    additional_input_qualifications: &[],
                     operation_result: None,
                 })
             })
@@ -1180,6 +1183,7 @@ fn trivial_affine_local_contract(
             access: StructuralAccess::Owned,
             qualifications: &[],
             projected_qualifications: &[],
+            additional_input_qualifications: &[],
             operation_result: None,
         }),
         _ => None,
@@ -1210,6 +1214,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
         access,
         qualifications: &result.qualifications,
         projected_qualifications: &result.projected_qualifications,
+        additional_input_qualifications: &result.additional_input_qualifications,
         operation_result: Some(result),
     })
 }
