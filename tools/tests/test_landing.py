@@ -29,8 +29,9 @@ class FakeGitHub:
     over time. After the script runs out the state stays as it was left.
     """
 
-    def __init__(self, script=(), checks=None, refuse_arming=None, **pull):
+    def __init__(self, script=(), checks=None, refuse_arming=None, queue_runs=(), **pull):
         self.pull = dict(PULL, **pull)
+        self.queue_runs = list(queue_runs)
         self.refuse_arming = refuse_arming
         self.checks = [check_run()] if checks is None else checks
         self.script = list(script)
@@ -43,6 +44,8 @@ class FakeGitHub:
         if arguments[:3] == ("gh", "pr", "ready"):
             self.pull["isDraft"] = False
             return ""
+        if arguments[:5] == ("gh", "api", "-X", "GET", "repos/example/repo/actions/runs?event=merge_group&per_page=50"):
+            return json.dumps({"workflow_runs": self.queue_runs})
         assert arguments[:3] == ("gh", "api", "graphql"), arguments
         query = next(a for a in arguments if a.startswith("query="))
         if "enablePullRequestAutoMerge" in query:
@@ -93,6 +96,11 @@ def queued_by_github(fake):
     """GitHub's side of an armed PR: the check passes and the queue takes it."""
     fake.checks[:] = [check_run()]
     fake.pull.update(autoMergeRequest=None, mergeQueueEntry={"position": 1, "state": "QUEUED"})
+
+
+def queue_run(conclusion="success", status="completed", created="2026-11-05T20:55:00Z"):
+    return dict(head_branch="gh-readonly-queue/main/pr-1-" + "c" * 40, status=status,
+                conclusion=conclusion, created_at=created)
 
 
 def run_land(test, fake, seconds=0):
@@ -235,6 +243,37 @@ class LandTests(unittest.TestCase):
         fake = FakeGitHub(script=[lambda fake: None, lambda fake: None, lag,
                                   update(mergeQueueEntry={"position": 1}), update(state="MERGED")])
         self.assertEqual(run_land(self, fake, seconds=60)[1], 0)
+
+    def test_passed_queue_run_while_the_pull_request_still_reads_open_waits_for_merged(self):
+        # #1921: the queue merged main, then GitHub reported no entry and OPEN
+        # for longer than one confirming read before it reported MERGED.
+        gone = update(mergeQueueEntry=None)
+        fake = FakeGitHub(queue_runs=[queue_run()],
+                          script=[lambda fake: None, lambda fake: None, gone, lambda fake: None,
+                                  lambda fake: None, lambda fake: None,
+                                  update(state="MERGED", mergeCommit={"oid": "d" * 40})])
+        pull, code = run_land(self, fake, seconds=60)
+        self.assertEqual((code, pull["state"], len(fake.enqueued)), (0, "MERGED", 1))
+
+    def test_failed_or_superseded_queue_run_is_still_removal(self):
+        for runs in ([queue_run("failure")], [queue_run("cancelled")],
+                     [queue_run(created="2026-11-05T20:00:00Z"),
+                      queue_run("failure", created="2026-11-05T20:30:00Z")]):
+            with self.subTest(runs=runs):
+                fake = FakeGitHub(queue_runs=runs,
+                                  script=[lambda fake: None, lambda fake: None, update(mergeQueueEntry=None)])
+                with self.assertRaisesRegex(landing.LandingError, "left the merge queue"):
+                    run_land(self, fake, seconds=60)
+                self.assertEqual(len(fake.enqueued), 1)
+
+    def test_passed_queue_run_that_never_merges_refuses_after_the_settle_period(self):
+        clock = iter(float(tick) for tick in range(0, 10000, 10))
+        fake = FakeGitHub(queue_runs=[queue_run()],
+                          script=[lambda fake: None, lambda fake: None, update(mergeQueueEntry=None)])
+        with mock.patch.object(landing.time, "monotonic", side_effect=lambda: next(clock)), \
+                self.assertRaisesRegex(landing.LandingError, "queue run passed but the PR is still not merged"):
+            run_land(self, fake, seconds=3600)
+        self.assertEqual(len(fake.enqueued), 1)
 
     def test_closed_while_waiting_refuses(self):
         fake = FakeGitHub(script=[lambda fake: None, lambda fake: None,
