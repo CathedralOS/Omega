@@ -500,8 +500,8 @@ fail/asm/checked_asm_compare_stale_intermediate_goal rejected 2771ms expected @0
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
-fail/asm/checked_asm_compare_wrong_entry_edge rejected 1998ms expected @ccdb99ca2214
-	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$1 == 0 (needs fact `asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/checked_asm_compare_wrong_entry_edge rejected 2931ms expected @fc51486b710a
+	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#4#zf$version$2 || asm#scratch#4#eax$version$1 == 0 (needs fact `asm#scratch#4#zf || asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/checked_asm_compare_wrong_flag_snapshot rejected 2549ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 31): snapshot & 2261 == 148
 fail/asm/checked_asm_compare_wrong_target rejected 604ms expected @ccdb99ca2214
@@ -2191,8 +2191,8 @@ fail/build/generated_resolution_source_location rejected 629ms expected @ccdb99c
 	machine `selected` is implemented twice for `local_unchecked` -- a target supplies exactly one implementation of a contract machine
 fail/build/generated_scalar_constant_range_refused rejected 1248ms expected published:none @ccdb99ca2214
 	scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
-fail/build/generated_source_base_reference_refused rejected 23045ms unexpected published:none @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/build/generated_source_base_reference_refused rejected 126276ms expected published:none @e9460cb64926
+	machine `Main::main` state `main` uses `ANSWER`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/build/generated_source_undeclared_call_refused rejected 1180ms unexpected published:none @ccdb99ca2214
 	tests/omega/fail/build/generated_source_undeclared_call_refused/.omega/generated/generated.omg:16:5: nested `state` declarations are retired; declare a nested `machine` with its own signature and contract
 fail/build/generated_source_unsealed_handoff_refused rejected 1402ms expected published:none @ccdb99ca2214
@@ -3914,17 +3914,20 @@ fail/core/generic_resident_adapter_no_authority rejected 2781ms expected @ccdb99
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
 fail/core/guaranteed_return_bound_actuals_rejected rejected 14148ms expected @ccdb99ca2214
 	exact arithmetic in machine `main` state `entry` local `second_difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 10622ms unexpected @ccdb99ca2214
+fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 128054ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 10894ms unexpected @ccdb99ca2214
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
+fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 122502ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/guarded_trap_ceiling_other_site_rejected rejected 11723ms unexpected @ccdb99ca2214
 	call from `pack` to `check_high` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/core/guarded_trap_ceiling_unbounded_addend_rejected rejected 8955ms expected @ccdb99ca2214
 	uncovered Trap crash in machine `accumulate` state `entry` cast expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
 	uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8` traps when its result lies outside `u8`, and no published `crashes Trap` route covers that condition over these operands; publish a same-cause `crashes Trap` route whose guard covers this site, or prove the operation cannot trap here
-fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 11119ms unexpected @ccdb99ca2214
+fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 121128ms expected @3f64aa42f0a9
 	call from `narrow` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	machine `narrow` has an uncovered Trap crash at statement 0; publish a same-cause `crashes` route whose guard covers this site
 fail/core/image_address_observation_does_not_grant rejected 4105ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume_granted from numeric_image_observation_is_not_a_root: unqualified in Extent::Granted in state `entry`
 fail/core/independent_content_contract_borrowed_input rejected 1218ms expected @ee4dbb4b2d56
@@ -5326,8 +5329,8 @@ fail/expressions/cast_struct_to_number_rejected rejected 13425ms expected @ccdb9
 	machine `Main::main` state `main` casts a `P` value to `i32`, but `as` converts between scalar types only
 fail/expressions/comparison_result_integer_store_rejected rejected 856ms expected @ccdb99ca2214
 	machine `Main::record` state `record` assignment stores a boolean into a `i32` place, which holds a numeric value
-fail/expressions/cross_enum_case_membership_rejected rejected 13155ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/expressions/cross_enum_case_membership_rejected rejected 66780ms expected @e9460cb64926
+	case membership must test a value of the exact declaring data type (machine `Main::main`, state `main`)
 fail/expressions/cross_type_equality_rejected rejected 7639ms expected @ccdb99ca2214
 	cannot compare `P` and `Q` with `==`/`!=`: the operands are different data types (equality requires both operands to be the same type)
 fail/expressions/declared_operator_private_helper_selected_rejected rejected 3679ms expected @630d0f945fc2
@@ -6959,20 +6962,20 @@ fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/compound_index_guard_through_call_result_rejected rejected 4862ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_const_name_rejected rejected 4568ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_const_name_rejected rejected 3720ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_field_rejected rejected 4713ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_field_rejected rejected 3744ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_local_rejected rejected 4708ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_local_rejected rejected 3680ms expected @7055dc5319e1
 	cannot prove index `b * 20 + a` is within length 200 in put::entry
 fail/facts/compound_index_guard_through_match_join_rejected rejected 4700ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 	cannot prove index `main.b * 20 + second_a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_other_machine_rejected rejected 4700ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_other_machine_rejected rejected 4344ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
-fail/facts/compound_index_guard_through_other_state_rejected rejected 4715ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_other_state_rejected rejected 3718ms expected @7055dc5319e1
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_parameter_rejected rejected 4706ms expected @68a9db4f4b07
+fail/facts/compound_index_guard_through_parameter_rejected rejected 3743ms expected @7055dc5319e1
 	cannot prove index `b * 20 + a` is within length 200 in store::entry
 fail/facts/compound_index_guard_through_target_body_rejected rejected 4675ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
@@ -14055,8 +14058,8 @@ fail/float/authored_heterogeneous_float_operator_requires rejected 1882ms unexpe
 	implicit domain weakening in argument `right` for state `Float::subtract::subtract` drops `Measured`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/float/boundary_call_guard_wrong_argument rejected 9628ms expected @ccdb99ca2214
 	argument `value` for state `from_i32` expects `i32`, got `float literal`
-fail/float/boundary_call_guard_wrong_format rejected 8745ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `Main::main::main`
+fail/float/boundary_call_guard_wrong_format rejected 59539ms expected @e9460cb64926
+	builtin `==` cannot combine `f64` and `f32`; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/builtin_operand_borrow_conflict_rejected rejected 41596ms expected @1e29a538216e
 	state `abs_f64` receives `main.values` as both mutable and read-only
 	state `pair` receives `main.values` as both mutable and read-only
@@ -19208,8 +19211,7 @@ pass/asm/checked_label_edges_exit checked 4130ms check-target:macos_arm64 @ccdb9
 pass/asm/checked_label_reverse_local_exit checked 3960ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_specialization_exit checked 4140ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_transition_exit checked 3279ms check-target:macos_arm64 @ccdb99ca2214
-pass/asm/entry_zero_branch_conditional_exit rejected 3250ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#21#eax == 0 (needs fact `asm#scratch#21#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/asm/entry_zero_branch_conditional_exit checked 4050ms check-target:linux_x86_64 @fc51486b710a
 pass/asm/finite_prefix_preserves_model_exit checked 3863ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/instruction_disposition_native rejected 6847ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
 	cannot prove ensures contract for exit from write_eoi_by_choice at statement 1: proposition:fact:model_specific_written(2059,0)
