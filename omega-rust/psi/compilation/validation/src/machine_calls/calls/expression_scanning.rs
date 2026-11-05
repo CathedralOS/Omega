@@ -148,6 +148,7 @@ struct ValueCallSite<'a> {
     call: &'a TableCallExpression,
     arguments: &'a [ExpressionHandle],
     executes: bool,
+    terminal_transfer: bool,
     unit_completion: bool,
 }
 
@@ -199,6 +200,7 @@ impl ValueCallSite<'_> {
             callee.machine,
             callee.state,
             self.executes,
+            self.terminal_transfer,
             diagnostics,
             self.expression,
             self.call,
@@ -559,6 +561,7 @@ fn validate_expression_call_bounds(
         call,
         arguments,
         executes,
+        terminal_transfer: matches!(expression_use, CallExpressionUse::TerminalResult),
         unit_completion,
     };
 

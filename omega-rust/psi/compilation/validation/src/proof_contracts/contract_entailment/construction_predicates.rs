@@ -390,6 +390,7 @@ impl ConstructionPredicates<'_> {
                     &[],
                     &type_bindings,
                     Some((machine, state)),
+                    false,
                 );
                 if super::struct_trace() {
                     eprintln!(
