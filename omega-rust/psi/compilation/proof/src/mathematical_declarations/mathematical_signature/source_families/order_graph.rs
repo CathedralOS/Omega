@@ -59,6 +59,19 @@ fn tuple(arena: &mut TermArena, values: &[TermHandle]) -> Result<TermHandle, Gra
         arena.insert(Term::Pair { first, second })
     }))
 }
+fn tuple_type(arena: &mut TermArena, fields: &[TermHandle]) -> Result<TermHandle, GraphFailure> {
+    let Some((&last, prefix)) = fields.split_last() else {
+        return Err(GraphFailure::Unavailable(
+            "the order index has no coordinate types".into(),
+        ));
+    };
+    let mut result = last;
+    for &domain in prefix.iter().rev() {
+        let codomain = proof_admission::shift(arena, result, 0, 1);
+        result = arena.insert(Term::Sigma { domain, codomain });
+    }
+    Ok(result)
+}
 fn projection(
     arena: &mut TermArena,
     mut value: TermHandle,
@@ -657,8 +670,17 @@ pub(super) fn comparison_graph(
             "the comparison graph has no ranked input".into(),
         ));
     }
-    let common = coordinates(arity, p.integer, p.function);
-    let count = common.len();
+    let coordinate_fields = coordinates(arity, p.integer, p.function);
+    let count = coordinate_fields.len();
+    let coordinate_types = coordinate_fields
+        .iter()
+        .map(|&(_, ty)| ty)
+        .collect::<Vec<_>>();
+    let index_type = tuple_type(p.arena, &coordinate_types)?;
+    // A completed evaluation has one index tuple. Retain it once in the label
+    // and relate it to the exact source actuals with one typed equality, rather
+    // than duplicating every coordinate and its own equation in each case.
+    let common = [(Key::Graph(0), index_type)];
     let mut cases = Vec::new();
     for (body_position, body) in bodies.iter().enumerate() {
         for source in &body.cases {
@@ -670,8 +692,8 @@ pub(super) fn comparison_graph(
             let payload = (0..source.values.len())
                 .flat_map(|position| {
                     [
-                        (Key::Graph(count + position * 2), p.integer),
-                        (Key::Graph(count + position * 2 + 1), p.function),
+                        (Key::Graph(1 + position * 2), p.integer),
+                        (Key::Graph(2 + position * 2), p.function),
                     ]
                 })
                 .collect::<Vec<_>>();
@@ -682,7 +704,7 @@ pub(super) fn comparison_graph(
                         .insert(Term::Variable((fields.len() - position - 1) as u32))
                 })
                 .collect::<Vec<_>>();
-            let (coordinates, locals) = values.split_at(count);
+            let (index, locals) = values.split_at(1);
             let locals = locals
                 .chunks_exact(2)
                 .map(|pair| (pair[0], pair[1]))
@@ -699,10 +721,8 @@ pub(super) fn comparison_graph(
             }
             let (rank, shift) = p.source_value(output, &locals)?;
             actuals.extend([rank, shift]);
-            let mut predicates = Vec::new();
-            for ((&(_, ty), &coordinate), &value) in common.iter().zip(coordinates).zip(&actuals) {
-                predicates.push(p.typed_equation(ty, coordinate, value));
-            }
+            let actual_index = tuple(p.arena, &actuals)?;
+            let mut predicates = vec![p.typed_equation(index_type, index[0], actual_index)];
             for (left, right) in &source.equations {
                 let (left_rank, left_shift) = p.source_value(left, &locals)?;
                 let (right_rank, right_shift) = p.source_value(right, &locals)?;
@@ -754,7 +774,10 @@ pub(super) fn comparison_graph(
             });
         }
     }
-    p.checked_family(&common, &cases, |p, values| {
+    p.checked_family(&common, &cases, |p, index| {
+        let values = (0..count)
+            .map(|position| projection(p.arena, index[0], position, count))
+            .collect::<Vec<_>>();
         let mut bound = values[count - 2];
         for position in 1..arity {
             bound = apply(p.arena, values[4 + position * 2], bound);
@@ -830,7 +853,11 @@ pub(super) fn source_return_schemas(
         .map(|body| body.parameter_types.len())
         .max()
         .unwrap_or(0);
-    let fields = coordinates(arity, p.integer, p.function);
+    let coordinate_types = coordinates(arity, p.integer, p.function)
+        .iter()
+        .map(|&(_, ty)| ty)
+        .collect::<Vec<_>>();
+    let index_type = tuple_type(p.arena, &coordinate_types)?;
     let mut ordinal = 0;
     let mut schemas = Vec::new();
     for (body_position, body) in bodies.iter().enumerate() {
@@ -883,11 +910,11 @@ pub(super) fn source_return_schemas(
                 let theorem = apply(p.arena, ranks.theorem, index);
                 rank_laws.push(apply(p.arena, theorem, witness));
             }
-            let mut proofs = fields
-                .iter()
-                .zip(&common)
-                .map(|(&(_, ty), &value)| p.arena.insert(Term::Refl { ty, value }))
-                .collect::<Vec<_>>();
+            let index = tuple(p.arena, &common)?;
+            let mut proofs = vec![p.arena.insert(Term::Refl {
+                ty: index_type,
+                value: index,
+            })];
             proofs.extend(source_equations);
             proofs.extend(rank_laws);
             let mut predicate = p.arena.insert(Term::Refl {
@@ -905,10 +932,7 @@ pub(super) fn source_return_schemas(
                     "the complete graph has no constructor for a source return".into(),
                 )
             })?;
-            let mut result = constructor;
-            for &value in &common {
-                result = apply(p.arena, result, value);
-            }
+            let mut result = apply(p.arena, constructor, index);
             for &(rank, shift) in &locals {
                 result = apply(p.arena, result, rank);
                 result = apply(p.arena, result, shift);
