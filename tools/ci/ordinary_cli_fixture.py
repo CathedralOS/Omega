@@ -23,12 +23,12 @@ def relative_project(root, selector):
     if (path.as_posix() != selector or "\\" in selector
             or any(part in (".", "..") for part in path.parts)):
         raise ValueError(f"ordinary CLI project is not a normalized path: {selector}")
-    if len(path.parts) >= 3 and path.parts[0] == "pass":
+    if len(path.parts) >= 3 and path.parts[0] in ("pass", "run"):
         relative = Path("tests/omega") / selector
     elif len(path.parts) >= 3 and path.parts[:2] == ("samples", "cli"):
         relative = Path(selector)
     else:
-        raise ValueError("ordinary CLI projects must be exact pass/... or samples/cli/... paths")
+        raise ValueError("ordinary CLI projects must be exact pass/..., run/... or samples/cli/... paths")
     project = root.resolve() / relative
     if project.resolve() != project or not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI project lacks its own tracked directory/build: {selector}")

@@ -13,6 +13,40 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[1]),
 import ordinary_cli_fixture as cli
 
 
+class ProjectSelectionTests(unittest.TestCase):
+    def test_run_fixture_keeps_its_directory_and_authored_engine_exits(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fixture = "run/domains/captured_destination"
+            relative = Path("tests/omega") / fixture
+            project = root / relative
+            project.mkdir(parents=True)
+            (project / "main.omg").write_text("machine main() {}\n")
+            (project / "build.omg").write_text("ProgramEntry\n")
+            (project / "expected_native_exit.txt").write_text("70\n")
+            interpreter = project / "expected_interpreter_exit.txt"
+            interpreter.write_text("70\n")
+            self.assertEqual(cli.relative_project(root, fixture), relative)
+            self.assertEqual(cli.expected_exit(root, fixture, "linux_x86_64"), 70)
+            interpreter.write_text("0\n")
+            with self.assertRaisesRegex(ValueError, "matching native and interpreter"):
+                cli.expected_exit(root, fixture, "linux_x86_64")
+            interpreter.write_text("70\n")
+            (project / "expected_stdout.txt").write_text("required output\n")
+            with self.assertRaisesRegex(ValueError, "cannot omit authored stream"):
+                cli.expected_exit(root, fixture, "linux_x86_64")
+
+    def test_runtime_selection_still_refuses_fail_and_noncanonical_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for selector in ("fail/domains/example", "run/domains/example/../other",
+                             "/run/domains/example", "run\\domains\\example"):
+                with self.subTest(selector=selector), self.assertRaises(ValueError):
+                    cli.relative_project(root, selector)
+            with self.assertRaisesRegex(ValueError, "lacks its own tracked directory/build"):
+                cli.relative_project(root, "run/domains/missing")
+
+
 class KeptArtifactDiagnosticsTests(unittest.TestCase):
     def observe(self, *, diagnostics=True, runtime_exit=0, inspection=0, mutate=False,
                 keep_artifact=True):
