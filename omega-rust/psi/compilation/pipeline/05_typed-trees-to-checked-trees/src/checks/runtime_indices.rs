@@ -1977,10 +1977,15 @@ impl Scope<'_> {
             .enumerate()
             .find(|(_, argument)| !self.stable_proof_argument(**argument, 0))
         {
+            let name = if self.program.expression_table.expression_is_valid(*argument) {
+                self.program.expression_table.display_name(*argument)
+            } else {
+                "unavailable source expression".to_owned()
+            };
             return Err(format!(
                 "argument {} (`{}`) is not an immutable proof input",
                 position + 1,
-                self.program.expression_table.display_name(*argument)
+                name,
             )
             .into());
         }
@@ -2032,7 +2037,7 @@ impl Scope<'_> {
                     "the source signature does not retain this erased parameter position".into(),
                 );
             }
-            // The authored proof signature keeps the original telescope even
+            // The authored proof signature keeps its original parameters even
             // when executable specialization closes another entry's indices.
             reference = source_parameters[position].type_reference;
             source_parameters_override = Some(source_parameters);
