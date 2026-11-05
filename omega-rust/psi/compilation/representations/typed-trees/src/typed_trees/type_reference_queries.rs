@@ -357,11 +357,16 @@ impl TypedTrees {
                 self.stored_value_multiplicity(*element_type)
             }
             TypeReferenceNode::Named { symbol, name } => {
-                if let Some(parameter) = self
-                    .data_type_parameters
-                    .iter()
-                    .find_map(|(_, parameter)| (parameter.symbol == *symbol).then_some(parameter))
-                {
+                // The declaration index keeps the same first full-symbol row,
+                // including cached absence. Unresolved symbols keep the old read.
+                let parameter = if symbol.is_valid() {
+                    self.first_data_type_parameter_by_symbol(*symbol)
+                } else {
+                    self.data_type_parameters.iter().find_map(|(_, parameter)| {
+                        (parameter.symbol == *symbol).then_some(parameter)
+                    })
+                };
+                if let Some(parameter) = parameter {
                     return parameter.bounds.multiplicity;
                 }
                 if types::PrimitiveType::from_name(name.as_str()).is_some() {

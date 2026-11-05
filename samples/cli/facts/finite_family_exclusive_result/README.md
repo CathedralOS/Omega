@@ -1,10 +1,9 @@
-# Cleanup of a returned exclusive counter
+# Cleanup of a returned Linear token
 
-A finite generic call returns a case containing a ticket that borrows the
-caller's counter exclusively. Storing, forwarding and consuming that ticket
-must increment the same counter exactly once. The existing compiler already
-handles this program; this change extends the earlier plain-ticket coverage
-with an active case payload. It makes no compiler change.
+A finite generic call returns a case containing a Linear token that borrows
+the caller's counter exclusively. Storing, forwarding and consuming that token
+must increment the same counter exactly once. The active case keeps the token's
+mandatory cleanup obligation through every transfer.
 
 Owning task: **FINITE-GENERIC-DISPATCH** in [TASKS.md](../../../../TASKS.md).
 
@@ -64,7 +63,61 @@ The governing rules are [ownership and cleanup](../../../../wiki/spec/language/o
 | Instructions and frames | The selected counter, case and marker survive storage and calls. This row does not establish explicit activation bounds or unrelated instructions. |
 | Native images | Native and Terminal Psi agree with the authored exit on each matching host. Other relocation and encoding requirements remain separate. |
 
-## Tagged-case results
+## Linear result
+
+The only program change from the earlier affine case is declaring `Token`
+`[linear]`. The operation, widths, case payloads, counter and expected exit stay
+the same in every place and its pinned copy. The lifetime twin still changes
+only the returned reference's backing.
+
+With compiler `948f19e774da`, the valid local program wrongly refused the call
+that forwards the stored ticket. The checker demanded replacement authority
+over the plain integer counter. Its lifetime twin stopped at that same wrong
+error, so it did not establish the intended lifetime check.
+[The baseline run](https://github.com/CathedralOS/Omega/actions/runs/42014661806)
+retains both refusals before the repair.
+
+The repair asks which writable referents can require ownership restoration.
+The existing cleanup check may prove a referent has no owned cleanup obligation;
+only then can this query omit it. Unknown referents retain the original check.
+Ordinary mutation checks remain complete, and expiring retained loans are always
+included. This introduces no special handling for finite families or cases.
+
+[Focused checking](https://github.com/CathedralOS/Omega/actions/runs/42023922300)
+with optimized compiler `2cf8f750ade0` accepts the local program and the existing
+borrowed-claim control. All six rejection controls reach their intended causes,
+including the lifetime twin, missing borrowed-storage repair, retained loans,
+undisposed Linear ownership and observing write-only storage.
+
+[The full Linux run](https://github.com/CathedralOS/Omega/actions/runs/42025261656)
+reuses that prepared compiler on program source `9df129e92410`, without rebuilding.
+All nine positives check, all nine twins report the six expected lifetime errors,
+all nine corpus and nine sample executions agree at exit 0, and all nine invalid
+samples reject. The local ordinary CLI also updates and runs at 0/0.
+
+The same complete scope passes on every matching hosted target:
+
+| Host | Run | Actual compiler | Program source |
+| --- | --- | --- | --- |
+| Linux x86-64 | [42025261656](https://github.com/CathedralOS/Omega/actions/runs/42025261656) | `2cf8f750ade0` | `9df129e92410` |
+| Linux ARM64 | [42026333825](https://github.com/CathedralOS/Omega/actions/runs/42026333825) | `9df129e92410` | `9df129e92410` |
+| macOS ARM64 | [42026338394](https://github.com/CathedralOS/Omega/actions/runs/42026338394) | `9df129e92410` | `9df129e92410` |
+| Windows x86-64 | [42026343121](https://github.com/CathedralOS/Omega/actions/runs/42026343121) | `9df129e92410` | `9df129e92410` |
+
+Each host supplies nine Source accepts, nine intended lifetime refusals, nine
+corpus and nine sample native/Terminal exit-zero agreements, nine invalid sample
+refusals and an ordinary CLI update followed by both engines at 0/0. The compiler
+inputs are identical between `2cf8f750ade0` and `9df129e92410`; the latter adds the
+eight remaining places' Linear declarations and their mirrors. All compilers
+have verified optimization level 1. The Linux replay does not become a `9df`
+compiler execution. Historical milliseconds remain when the recorded outcome is
+unchanged; actual fresh timings stay in the raw reports.
+
+These are nine ways to receive the input counter, with the common returned-case
+path described above. They do not establish nine different storage forms for
+the returned case. The broader parent task remains open.
+
+## Earlier affine case results
 
 | Matching host | Run | Actual compiler | Program source |
 | --- | --- | --- | --- |
