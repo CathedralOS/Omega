@@ -42,31 +42,15 @@ pub(super) fn validate_expression(
         ExpressionNode::Name(path) => {
             if context == Context::Runtime {
                 let mut reported = false;
-                // A transition scrutinee of erased indexed evidence is proof
-                // discrimination. The name stays inside the transition; it is
-                // not a runtime read of that parameter.
-                let transition_scrutinee = program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .any(|statement| {
-                        let typed_trees::statement::StatementNode::Transition(_) = statement else {
-                            return false;
-                        };
-                        let mut handles = Vec::new();
-                        crate::queries::expression_traversal::collect_statement_expression_trees(
-                            program,
-                            statement,
-                            &mut handles,
-                        );
-                        handles.contains(&expression)
-                    });
+                // Runtime relevance follows the admitted context, not the
+                // surrounding expression shape. Proof discrimination arrives
+                // here in Proof context; runtime control cannot read an erased
+                // parameter simply because it is a transition scrutinee.
                 for symbol in
                     expression_table(program).name_path_member_symbols(path.member_symbols)
                 {
                     reported |= report_runtime_erased_field(program, *symbol, diagnostics)
-                        || (!transition_scrutinee
-                            && report_runtime_erased_binding(program, state, *symbol, diagnostics));
+                        || report_runtime_erased_binding(program, state, *symbol, diagnostics);
                 }
                 let members = expression_table(program).name_path_members(path.members);
                 if !reported && members.len() == 2 && members[0].is_self_receiver() {
