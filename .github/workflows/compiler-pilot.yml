@@ -326,7 +326,7 @@ jobs:
           (out/'retained-origin.json').write_text(json.dumps({'settings':settings,'driver':driver,'program_source':settings['source'],'original_producer':original,'original_run_conclusion':run['conclusion'],'artifact':artifact,'archive_sha256':archive_sha256,'archive_members':saved,'actual_profiles':profiles,'host':{'system':platform.system(),'machine':platform.machine(),'version':platform.version()},'builds_rust':False},indent=2)+'\n')
           # Standard gates bind the actual guest revision; retain the observer separately.
           os.environ['GITHUB_SHA']=settings['source']
-          code=compiler_pilot.run_suite(settings['label'],(),(),producer=producer,fixtures=','.join(settings['fixtures']),cli_fixtures='')
+          code=compiler_pilot.run_suite(settings['label'],(),(),producer=producer,fixtures=','.join(settings['fixtures']),cli_fixtures=None)
           verify();producer.verify()
           latencies={}
           for name in ('checking','both'):
