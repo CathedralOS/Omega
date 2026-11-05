@@ -99,6 +99,8 @@ struct Scope<'a> {
     frames: Option<&'a CallFrameResolver<'a>>,
 }
 
+type ErasedProofIdentity = Result<NormalizedTypeIdentity, std::borrow::Cow<'static, str>>;
+
 /// A proof payload's field binders belong to its declaring case, including
 /// after an immutable local copies that payload.
 struct ErasedProofInput {
@@ -1309,9 +1311,13 @@ impl Scope<'_> {
         expression: ExpressionHandle,
         required: Application<'_>,
         erased: bool,
-        expected_proof_identity: Option<NormalizedTypeIdentity>,
+        expected_proof_identity: ErasedProofIdentity,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let (expected_proof_identity, expected_refusal) = match expected_proof_identity {
+            Ok(identity) => (Some(identity), None),
+            Err(reason) => (None, Some(reason)),
+        };
         let formal_evidence = erased
             && is_source_evidence_carrier(self.program, required.reference)
             && expected_proof_identity.is_some_and(|expected| {
@@ -1386,7 +1392,9 @@ impl Scope<'_> {
             let reason = if !is_source_evidence_carrier(self.program, reference) {
                 "the receiving type has no checked mathematical carrier"
             } else if expected_proof_identity.is_none() {
-                "the receiving indices have no stable proof identity"
+                expected_refusal
+                    .as_deref()
+                    .unwrap_or("the receiving indices have no stable proof identity")
             } else if let Some(input) = self.erased_proof_input(expression, 0) {
                 if !self.stable_proof_indices(input.reference, input.payload_owner, 0) {
                     "the source indices are not stable proof inputs"
@@ -1959,19 +1967,28 @@ impl Scope<'_> {
         parameters: &[StateParameter],
         arguments: &[ExpressionHandle],
         position: usize,
-    ) -> Option<NormalizedTypeIdentity> {
+    ) -> ErasedProofIdentity {
         use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
-        if parameters.len() != arguments.len()
-            || !arguments
-                .iter()
-                .all(|argument| self.stable_proof_argument(*argument, 0))
+        if parameters.len() != arguments.len() {
+            return Err("the call's parameter and argument counts disagree".into());
+        }
+        if let Some((position, argument)) = arguments
+            .iter()
+            .enumerate()
+            .find(|(_, argument)| !self.stable_proof_argument(**argument, 0))
         {
-            return None;
+            return Err(format!(
+                "argument {} (`{}`) is not an immutable proof input",
+                position + 1,
+                self.program.expression_table.display_name(*argument)
+            )
+            .into());
         }
         let callee = self
             .program
             .machine_by_symbol(target)
-            .or_else(|| self.program.machine_holding_state(target))?;
+            .or_else(|| self.program.machine_holding_state(target))
+            .ok_or("the call has no retained receiving machine")?;
         let (application, explicit) = match site {
             CallSite::Statement(call) => (
                 call.authored_machine_application,
@@ -1998,13 +2015,22 @@ impl Scope<'_> {
                 .or_else(|| {
                     self.program
                         .machine_holding_state(row.registration_operation)
-                })?;
-            let entry = self.program.machine_states(source).first()?;
+                })
+                .ok_or("the authored application has no source signature")?;
+            let entry = self
+                .program
+                .machine_states(source)
+                .first()
+                .ok_or("the source signature has no entry state")?;
             let source_parameters = self.program.state_parameters(entry);
             if source_parameters.len() != parameters.len()
-                || !source_parameters.get(position)?.relevance.is_erased()
+                || !source_parameters
+                    .get(position)
+                    .is_some_and(|parameter| parameter.relevance.is_erased())
             {
-                return None;
+                return Err(
+                    "the source signature does not retain this erased parameter position".into(),
+                );
             }
             // The authored proof signature keeps the original telescope even
             // when executable specialization closes another entry's indices.
@@ -2019,10 +2045,10 @@ impl Scope<'_> {
         }
         let parameters = source_parameters_override.unwrap_or(parameters);
         if !is_source_evidence_carrier(self.program, reference) {
-            return None;
+            return Err("the source signature has no checked mathematical carrier".into());
         }
         if static_parameters.len() != static_arguments.len() && !static_arguments.is_empty() {
-            return None;
+            return Err("the static parameter and argument counts disagree".into());
         }
         let mut substitutions = parameters
             .iter()
@@ -2035,7 +2061,7 @@ impl Scope<'_> {
                 TypeParameterKind::Value { .. } | TypeParameterKind::Const { .. }
             );
             if value_role && !self.stable_static_proof_argument(actual) {
-                return None;
+                return Err("a static value argument is not an immutable proof input".into());
             }
             let argument = if value_role && actual.type_reference.is_valid() {
                 IndexIdentityArgument::TypeReference(actual.type_reference)
@@ -2066,6 +2092,9 @@ impl Scope<'_> {
         });
         applied_type_identity_in_scope(self.program, reference, owner, self.machine.symbol, &scopes)
             .filter(|identity| identity.is_valid())
+            .ok_or_else(|| {
+                "the receiving indices cannot be normalized in the caller's scope".into()
+            })
     }
 
     /// An equal unspecialized spelling does not prove a dependent call's
@@ -2436,7 +2465,10 @@ pub(super) fn check(
                         .relevance
                         .is_erased()
                         .then(|| scope.proof_binding_identity(local.type_reference))
-                        .flatten(),
+                        .flatten()
+                        .ok_or_else(|| {
+                            "the binding's declared indices could not be normalized".into()
+                        }),
                     diagnostics,
                 ),
                 StatementNode::Expression(expression) if state.return_type.is_valid() => scope
@@ -2521,7 +2553,9 @@ pub(super) fn check(
                             position,
                         )
                     })
-                    .flatten(),
+                    .unwrap_or_else(|| {
+                        Err("the parameter has no checked erased-carrier signature".into())
+                    }),
                     diagnostics,
                 );
             }
