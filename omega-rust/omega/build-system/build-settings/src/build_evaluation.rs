@@ -216,7 +216,7 @@ pub fn prepare_build_evaluation(
         .unwrap_or_default();
     let prior_checks = prior_checks
         .into_iter()
-        .chain(completed_checks.iter())
+        .chain(completed_checks.iter().map(AsRef::as_ref))
         .collect::<Vec<_>>();
     let (prepared, providers, retained_check) = crate::admission::checking::prepare_checked_build(
         typed,

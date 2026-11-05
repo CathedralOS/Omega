@@ -20,7 +20,7 @@ pub(crate) struct CompletedPureBuildInputs {
     // Retain the judgment that produced this exact program. It is a candidate
     // for Psi's full input/authority match, never a replacement for admission
     // or another field in the completed-value key.
-    retained_check: Option<psi_compiler::RetainedCheck>,
+    retained_check: Option<Arc<psi_compiler::RetainedCheck>>,
     providers: crate::admission::provider_execution::BuildProviderPlans,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     // Absence is the ordinary per-invocation policy, not a reason to repeat
@@ -98,7 +98,7 @@ impl CompletedPureBuildInputs {
         }
         Some(Self {
             checked,
-            retained_check,
+            retained_check: retained_check.map(Arc::new),
             providers,
             measurement_identity,
             sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
@@ -183,7 +183,7 @@ impl PureBuildCompilation {
     /// admits this request before taking any earlier result.
     pub(crate) fn completed_checks(
         &self,
-    ) -> Result<Vec<psi_compiler::RetainedCheck>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<Vec<Arc<psi_compiler::RetainedCheck>>, Vec<diagnostics::Diagnostic>> {
         let completed = self.completed.lock().map_err(|_| {
             vec![diagnostics::Diagnostic::error(
                 "completed Pure Build owner is unavailable",
