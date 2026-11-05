@@ -33,9 +33,9 @@ formation before any observation. It supplies no observed read result.
 Incoming Source changes were checked and executed on Linux at `2bb67af4e82e`.
 The other hosts retain their measured sources: incoming changes affect Source
 checking and retain the same native layout, ISA and ABI consumers for these
-explicit variables and parameters. Records keep actual source stamps. Linux stores its combined observation in
-the existing native record; its separate combined file remains absent. All
-other native-only pins remain historical. Metadata changes do not claim
+explicit variables and parameters. Records keep actual source stamps. The separate Linux combined record file
+remains absent; its full combined report is retained with the qualification.
+Legacy native-only pins retain their original lane. Metadata changes do not claim
 execution of the final metadata commit.
 
 The original unlowerable local, initial metadata-selection failures and prior
