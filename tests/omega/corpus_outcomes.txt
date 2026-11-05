@@ -500,8 +500,8 @@ fail/asm/checked_asm_compare_stale_intermediate_goal rejected 2771ms expected @0
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
 	cannot prove ensures contract for exit from compare at statement 8: result == 37
-fail/asm/checked_asm_compare_wrong_entry_edge rejected 1998ms expected @ccdb99ca2214
-	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#7#zf$version$2 || asm#scratch#7#eax$version$1 == 0 (needs fact `asm#scratch#7#zf || asm#scratch#7#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/asm/checked_asm_compare_wrong_entry_edge rejected 2931ms expected @fc51486b710a
+	cannot prove requires contract for call countdown$assembly$portable$4$entry from countdown: asm#scratch#4#zf$version$2 || asm#scratch#4#eax$version$1 == 0 (needs fact `asm#scratch#4#zf || asm#scratch#4#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/asm/checked_asm_compare_wrong_flag_snapshot rejected 2549ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 31): snapshot & 2261 == 148
 fail/asm/checked_asm_compare_wrong_target rejected 604ms expected @ccdb99ca2214
@@ -19202,8 +19202,7 @@ pass/asm/checked_label_edges_exit checked 4130ms check-target:macos_arm64 @ccdb9
 pass/asm/checked_label_reverse_local_exit checked 3960ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_specialization_exit checked 4140ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_transition_exit checked 3279ms check-target:macos_arm64 @ccdb99ca2214
-pass/asm/entry_zero_branch_conditional_exit rejected 3250ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove requires contract for call done from countdown$assembly$portable$4$entry: asm#scratch#21#eax == 0 (needs fact `asm#scratch#21#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/asm/entry_zero_branch_conditional_exit checked 4050ms check-target:linux_x86_64 @fc51486b710a
 pass/asm/finite_prefix_preserves_model_exit checked 3863ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/instruction_disposition_native rejected 6847ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
 	cannot prove ensures contract for exit from write_eoi_by_choice at statement 1: proposition:fact:model_specific_written(2059,0)
