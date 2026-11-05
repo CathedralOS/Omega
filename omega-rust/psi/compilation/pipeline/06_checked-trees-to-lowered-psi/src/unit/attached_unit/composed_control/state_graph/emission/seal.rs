@@ -1,7 +1,6 @@
-//! Sealing one emitted state: the exit custody its returns and edges
-//! dispose of, the selection cleanups its returns publish, the rank its
-//! blocks carry, its root block, and the catalog counters and occurrence
-//! rows it hands back to the machine emission.
+//! Finish an emitted state's blocks and publish their cleanup actions, ranks
+//! and source occurrences. Attach state parameters to the exact entry block,
+//! then return the updated catalog counters to the machine emitter.
 
 use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration, ValueId,
@@ -240,8 +239,8 @@ impl StateGraphEmission<'_, '_> {
                 .collect();
             root.structural_parameters
                 .extend(self.captured_loans.declarations(position));
-            // The authored state's own erased roster rides on its root block;
-            // a plain entry's formals already live on the machine contract.
+            // Each state declares its erased parameters on its entry block.
+            // A plain machine entry declares them on the machine contract.
             root.erased_scalar_formals = self.state_erased[position].clone();
             root.erased_proof_formals =
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
