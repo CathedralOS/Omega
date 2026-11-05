@@ -560,7 +560,7 @@ pub(crate) fn retain_closed_reach_applications(
                     .ok_or(LoweringError::Unsupported(
                         "closed reach call lost its original binder",
                     ))?;
-                let matches = occurrences
+                let statement_matches = occurrences
                     .iter()
                     .filter(|occurrence| {
                         occurrence.matches_statement(
@@ -571,6 +571,25 @@ pub(crate) fn retain_closed_reach_applications(
                             == Some(call.target_state_symbol)
                     })
                     .collect::<Vec<_>>();
+                let owner_matches = statement_matches
+                    .iter()
+                    .copied()
+                    .filter(|occurrence| {
+                        module.machine(owner).is_some_and(|machine| {
+                            machine
+                                .module_invocations()
+                                .any(|invocation| invocation.site == occurrence.terminal_site)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                // Several emissions can share one source coordinate. Bind the
+                // invocations this owner actually emitted. A coordinate with
+                // no owner invocation still fails closed below.
+                let matches = if owner_matches.is_empty() {
+                    statement_matches
+                } else {
+                    owner_matches
+                };
                 if matches.is_empty() {
                     // The complete owner substitution survives without an
                     // emitted direct operation.
