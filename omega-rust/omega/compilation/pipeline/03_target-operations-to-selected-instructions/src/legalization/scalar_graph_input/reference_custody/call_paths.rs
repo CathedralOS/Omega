@@ -256,9 +256,16 @@ fn observe_direct_reference_custody(
                 {
                     return Err(invalid());
                 }
-                // A descriptor is stored data too. Direct access cannot bypass
-                // a live enclosing loan; traversing that exact ancestor is the
-                // only non-shared exemption, retained separately on each cursor.
+                // Reading the physical descriptor retains every lifetime debt.
+                // Spatial access separately recognizes the exact ancestor and
+                // the original entry's independently readable inline carrier.
+                let carrier_read = super::CarrierStorageRead::new(
+                    function,
+                    custody,
+                    types,
+                    observed_carrier_place,
+                    observed_carrier_path,
+                );
                 if let Some((_, enclosing)) = custody.leaves.iter().find(|(_, enclosing)| {
                     super::lifetime_storage_access_conflicts(
                         function,
@@ -269,15 +276,7 @@ fn observe_direct_reference_custody(
                         observed_carrier_path,
                         StructuralAccess::SharedBorrow,
                     ) || !ancestors.contains(&enclosing.identity)
-                        && super::leaf_storage_access_conflicts(
-                            function,
-                            custody,
-                            types,
-                            enclosing,
-                            observed_carrier_place,
-                            observed_carrier_path,
-                            StructuralAccess::SharedBorrow,
-                        )
+                        && carrier_read.conflicts(enclosing)
                 }) {
                     let mut error = super::observations::Refusal::StorageInterference
                         .into_error(function, custody, types, place, &path);

@@ -325,6 +325,7 @@ pass/borrows/borrow_returned_window_write_and_call built 1998ms exit:0 interpret
 pass/borrows/borrow_stated_index_disequality_mut checked 1733ms @6e42425cd720
 pass/borrows/borrowed_array_loop checked 1924ms @6e42425cd720
 pass/borrows/borrowed_case_leaf_copy_exit built 7852ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
+pass/borrows/borrowed_record_descriptor_carriers built 5697ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
 pass/borrows/borrowed_record_reference_field_state_writeback_exit built 1910ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/borrowed_record_stack_parameter_writeback_exit built 7944ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/borrows/borrowed_sum_dispatch checked 2027ms @6e42425cd720
@@ -4106,24 +4107,15 @@ pass/facts/finite_family_const_roster/other_machine built 6009ms exit:0 interpre
 pass/facts/finite_family_const_roster/other_state built 5976ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
 pass/facts/finite_family_const_roster/parameter built 6039ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
 pass/facts/finite_family_const_roster/target_body built 5981ms exit:0 interpreter-exit:0 interpreter:agrees @c7a12e81bd2a
-pass/facts/finite_family_exclusive_result/call_result rejected 823ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/const_name rejected 823ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/field rejected 822ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/local rejected 821ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/match_join rejected 816ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/other_machine rejected 816ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/other_state rejected 817ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/parameter rejected 817ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/target_body rejected 809ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_exclusive_result/call_result built 5907ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/const_name built 5936ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/field built 5955ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/local built 5926ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/match_join built 6087ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/other_machine built 6020ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/other_state built 5930ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/parameter built 5982ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
+pass/facts/finite_family_exclusive_result/target_body built 6221ms exit:0 interpreter-exit:0 interpreter:agrees @ed656648a42a
 pass/facts/finite_family_input_index/call_result built 5734ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/const_name built 5825ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/field built 5997ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
