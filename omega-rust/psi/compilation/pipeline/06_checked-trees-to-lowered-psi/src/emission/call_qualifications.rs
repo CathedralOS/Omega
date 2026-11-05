@@ -170,77 +170,111 @@ pub(crate) fn declaration_represents(
     ))
 }
 
-/// A returned fact already owed by the exact supplying loan needs no new
-/// qualification on the enclosing owner. In particular, an indexed loan owns
-/// its captured endpoint; publishing that same duty on its parent would need
-/// the runtime selector as a static qualification path. Only recorded standing
-/// duties qualify here, never the formal's additional input observations.
-pub(crate) fn captured_requirement_represents(
-    checked: &CheckedTrees,
-    machine: SymbolHandle,
-    coordinate: SourceCallCoordinate,
-    captures: &[lowered_psi::LoweredSourceLoanCapture],
-    fact: &facts::Fact,
-) -> bool {
-    let Some((_, _, _, domain)) = fact.payload.domain_membership() else {
-        return false;
-    };
-    let Some(place) = fact.place.as_place() else {
-        return false;
-    };
-    let place = checked.facts.semantic.places.get(place);
-    let segments = checked
-        .facts
-        .semantic
-        .place_segments
-        .span_or_empty(place.segments);
-    let borrow = &checked.facts.borrow;
-    let Some(call) = borrow.call_at(
-        machine,
-        coordinate.state,
-        coordinate.statement_index,
-        coordinate.call_ordinal,
-    ) else {
-        return false;
-    };
-    let call = borrow.calls.get(call);
-    let retained = call
-        .input_reference_loans
-        .map_or(&[][..], |span| borrow.loan_suppliers.span_or_empty(span));
-    captures.iter().any(|capture| {
-        let loan = borrow.loans.get(capture.loan);
-        let loan_segments = borrow.access_segments.span_or_empty(loan.segments);
-        if loan.root != place.root || !segments.starts_with(loan_segments) {
-            return false;
-        }
-        let used_here = retained.contains(&capture.loan)
-            || borrow
-                .argument_accesses
-                .span_or_empty(call.accesses)
+/// The storage duties of this call's actual references. Select the exact
+/// formation records once per invocation, before examining its returned facts.
+pub(crate) struct CallSourceRequirements<'checked> {
+    sources: Vec<(facts::PlaceRoot, &'checked [facts::PlaceSegment], usize)>,
+}
+
+impl<'checked> CallSourceRequirements<'checked> {
+    pub(crate) fn prepare(
+        checked: &'checked CheckedTrees,
+        machine: SymbolHandle,
+        coordinate: SourceCallCoordinate,
+        formations: &[crate::emission::operation_emission::buffer::SourceReferenceRequirements],
+    ) -> Self {
+        let borrow = &checked.facts.borrow;
+        let mut sources = Vec::new();
+        if let Some(call) = borrow.call_at(
+            machine,
+            coordinate.state,
+            coordinate.statement_index,
+            coordinate.call_ordinal,
+        ) {
+            let call = borrow.calls.get(call);
+            let retained = call
+                .input_reference_loans
+                .map_or(&[][..], |span| borrow.loan_suppliers.span_or_empty(span));
+            for (index, formation) in formations
                 .iter()
-                .any(|access| {
-                    access.expression == loan.formation_expression
-                        && access.root == loan.root
-                        && borrow.access_segments.span_or_empty(access.segments) == loan_segments
-                });
-        used_here
-            && capture.source_requirements.iter().any(|requirement| {
-                let selected = &segments[loan_segments.len()..];
-                requirement.semantic_domain == domain
-                    && requirement.path.len() == selected.len()
-                    && requirement
-                        .path
-                        .iter()
-                        .zip(selected)
-                        .all(|(required, actual)| {
-                            required == actual
-                                || (*required == validation::field_domains::WHOLE_ELEMENT_EXTENT
-                                    && matches!(
-                                        actual,
-                                        facts::PlaceSegment::FixedIndex { .. }
-                                            | facts::PlaceSegment::Index { .. }
-                                    ))
-                        })
-            })
-    })
+                .enumerate()
+                .filter(|(_, formation)| formation.state == coordinate.state)
+            {
+                if formation.statement_index == coordinate.statement_index {
+                    for access in borrow.argument_accesses.span_or_empty(call.accesses) {
+                        if access.expression == formation.expression {
+                            sources.push((
+                                access.root,
+                                borrow.access_segments.span_or_empty(access.segments),
+                                index,
+                            ));
+                        }
+                    }
+                }
+                for loan in retained {
+                    let loan = borrow.loans.get(*loan);
+                    if loan.statement_index == formation.statement_index
+                        && loan.formation_expression == formation.expression
+                    {
+                        sources.push((
+                            loan.root,
+                            borrow.access_segments.span_or_empty(loan.segments),
+                            index,
+                        ));
+                    }
+                }
+            }
+        }
+        Self { sources }
+    }
+
+    /// A fact already owed at the supplying endpoint needs no new qualification
+    /// on its enclosing owner. Only recorded standing duties qualify here;
+    /// additional input observations never become return promises.
+    pub(crate) fn represents(
+        &self,
+        checked: &CheckedTrees,
+        formations: &[crate::emission::operation_emission::buffer::SourceReferenceRequirements],
+        fact: &facts::Fact,
+    ) -> bool {
+        let Some((_, _, _, domain)) = fact.payload.domain_membership() else {
+            return false;
+        };
+        let Some(place) = fact.place.as_place() else {
+            return false;
+        };
+        let place = checked.facts.semantic.places.get(place);
+        let segments = checked
+            .facts
+            .semantic
+            .place_segments
+            .span_or_empty(place.segments);
+        self.sources.iter().any(|(root, prefix, formation)| {
+            if *root != place.root || !segments.starts_with(prefix) {
+                return false;
+            }
+            let selected = &segments[prefix.len()..];
+            formations[*formation]
+                .requirements
+                .iter()
+                .any(|requirement| {
+                    requirement.semantic_domain == domain
+                        && requirement.path.len() == selected.len()
+                        && requirement
+                            .path
+                            .iter()
+                            .zip(selected)
+                            .all(|(required, actual)| {
+                                required == actual
+                                    || (*required
+                                        == validation::field_domains::WHOLE_ELEMENT_EXTENT
+                                        && matches!(
+                                            actual,
+                                            facts::PlaceSegment::FixedIndex { .. }
+                                                | facts::PlaceSegment::Index { .. }
+                                        ))
+                            })
+                })
+        })
+    }
 }

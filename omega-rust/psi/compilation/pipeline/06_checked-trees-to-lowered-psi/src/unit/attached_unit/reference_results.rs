@@ -403,10 +403,17 @@ pub(crate) fn emit_carrier(
                     formation: id,
                     carrier: place,
                     source: source.clone(),
-                    source_requirements: source_requirements.clone(),
                 });
         }
     }
+    operations.reference_requirements.push(
+        crate::emission::operation_emission::buffer::SourceReferenceRequirements {
+            state: formation.state,
+            statement_index: formation.statement_index,
+            expression: formation.expression,
+            requirements: source_requirements,
+        },
+    );
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))
 }

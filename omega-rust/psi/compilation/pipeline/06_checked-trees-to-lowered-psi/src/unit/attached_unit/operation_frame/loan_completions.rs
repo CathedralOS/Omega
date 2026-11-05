@@ -97,6 +97,13 @@ impl OperationFrame<'_, '_> {
                 homes.push(facts::PlaceRoot::Symbol(parameter.symbol));
             }
         }
+        let source_requirements =
+            crate::emission::call_qualifications::CallSourceRequirements::prepare(
+                self.checked,
+                self.machine,
+                coordinate,
+                &self.operations.reference_requirements,
+            );
         for fact in for_call(self.checked, self.machine, coordinate, |root| {
             homes.contains(&root)
         }) {
@@ -138,11 +145,9 @@ impl OperationFrame<'_, '_> {
             let Some((owner, structural_type)) = home else {
                 continue;
             };
-            if crate::emission::call_qualifications::captured_requirement_represents(
+            if source_requirements.represents(
                 self.checked,
-                self.machine,
-                coordinate,
-                &self.operations.loan_captures,
+                &self.operations.reference_requirements,
                 fact,
             ) || declaration_represents(identities, self.checked, fact)?
             {
