@@ -111,6 +111,12 @@ pub(crate) fn observe_body_completion(
                     &plan,
                     &facts.qualifications.content.plans,
                 ) {
+                    trace_body_refusal(
+                        machine,
+                        state,
+                        captured.expression,
+                        "conservation equation is not established at completion",
+                    );
                     continue;
                 }
                 let mut conditions = SelectionConditions::new();
@@ -126,6 +132,12 @@ pub(crate) fn observe_body_completion(
                 let Ok(returned) = returned else {
                     // Missing/ambiguous custody has its owning checker error;
                     // a theorem cannot fill an absent claim occurrence.
+                    trace_body_refusal(
+                        machine,
+                        state,
+                        captured.expression,
+                        "completed return has no complete owned claim frontier",
+                    );
                     continue;
                 };
                 let mut input_bindings = ClaimBindings::default();
@@ -160,6 +172,12 @@ pub(crate) fn observe_body_completion(
                         })
                         .is_none()
                 {
+                    trace_body_refusal(
+                        machine,
+                        state,
+                        captured.expression,
+                        "input or output projection has no exact claim binding",
+                    );
                     continue;
                 }
                 // Result field annotations ask for these predicates; they do not
@@ -177,6 +195,12 @@ pub(crate) fn observe_body_completion(
                         path,
                     )
                 }) {
+                    trace_body_refusal(
+                        machine,
+                        state,
+                        expression,
+                        "an output domain predicate is not established at completion",
+                    );
                     continue;
                 }
                 let inputs = input_bindings.publish(facts);
@@ -193,8 +217,12 @@ pub(crate) fn observe_body_completion(
                     available_inputs: Default::default(),
                 };
                 let available = observe_body_inputs(program, facts, &conservation, places);
-                let Ok(available) = available else {
-                    continue;
+                let available = match available {
+                    Ok(available) => available,
+                    Err(reason) => {
+                        trace_body_refusal(machine, state, expression, reason);
+                        continue;
+                    }
                 };
                 let conservation = facts
                     .qualifications
@@ -207,6 +235,20 @@ pub(crate) fn observe_body_completion(
         }
     }
     observed
+}
+
+fn trace_body_refusal(
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reason: &str,
+) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE content body {}::{} expression={expression:?}: {reason}",
+            machine.name, state.name,
+        );
+    }
 }
 
 /// A machine guarantee may be consumed in another state only after the shared

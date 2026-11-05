@@ -145,6 +145,12 @@ pub(super) fn check_indexed_access(
     // A closed impossible arrival discharges both bounds through the existing
     // strict integer judgment, not a reachability flag or source-pruning rule.
     if facts.closed_integer_arrival_is_impossible(program, machine) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE index {}::{} expression={expression:?}: contradictory closed arrival",
+                machine.name, state.name
+            );
+        }
         return if spelling == OperatorSpelling::Range {
             BoundsCheckResult::ProvenRange
         } else {
@@ -550,13 +556,20 @@ fn check_known_length_index(
             // short-circuit's left operand and earlier arms' refutations. An
             // interval inside the length proves both halves, for a computed
             // index (`values[position - 1]`) as for a name.
-            if program.expression_interval(index).is_some_and(|interval| {
+            let interval = program.expression_interval(index);
+            if interval.is_some_and(|interval| {
                 interval.low.is_some_and(|low| low >= 0)
                     && interval
                         .high
                         .and_then(|high| usize::try_from(high).ok())
                         .is_some_and(|high| high < length)
             }) {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE index {}::{} index={index:?} length={length}: arithmetic occurrence interval {interval:?}",
+                        machine.name, state.name
+                    );
+                }
                 return true;
             }
             let Some(index_value) = expression_integer_value(program, facts, index) else {
@@ -641,6 +654,12 @@ fn check_known_length_index(
                                 || facts.non_negative_is_proven_via_ordering(label)
                         });
                 if upper_bound_proven && lower_bound_proven {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE index {}::{} index={index:?} length={length}: retained range facts declared={declared_range:?} standing=({standing_low:?},{standing_high:?}) ensured=({ensured_low:?},{ensured_high:?})",
+                            machine.name, state.name
+                        );
+                    }
                     return true;
                 }
                 // Tailor the diagnostic to the half that is missing, naming
@@ -662,6 +681,12 @@ fn check_known_length_index(
             };
             let valid =
                 index_value >= 0 && usize::try_from(index_value).is_ok_and(|index| index < length);
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE index {}::{} index={index:?} length={length}: captured or local integer {index_value}, valid={valid}",
+                    machine.name, state.name
+                );
+            }
             if !valid {
                 diagnostics.push(Diagnostic::error(with_attribution(
                     format!(

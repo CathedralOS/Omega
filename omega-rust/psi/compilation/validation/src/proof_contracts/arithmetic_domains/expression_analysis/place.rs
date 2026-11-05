@@ -51,9 +51,10 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     // end so `x + 1` proves Exact (a Wrapping-spilled interval is likewise
     // clamped back to the type). The same intersect-with-source-type keystone
     // the narrowing store uses.
-    let interval = place_path(program, expression)
+    let flow_interval = place_path(program, expression)
         .and_then(|path| walk.environment.get(&path))
-        .or(element_fact)
+        .or(element_fact);
+    let interval = flow_interval
         .or_else(|| range_constraint_interval(program, handle))
         .map(|proven| proven.intersect(type_range))
         .unwrap_or(type_range);
@@ -69,26 +70,21 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
             )?))
         })
         .map_or(interval, |closed| interval.intersect(closed));
-    let interval = walk
-        .state
-        .and_then(|state| {
-            walk.environment
-                .captured_integer_interval(state.symbol, expression)
-        })
-        .map_or(interval, |captured| interval.intersect(captured));
+    let captured = walk.state.and_then(|state| {
+        walk.environment
+            .captured_integer_interval(state.symbol, expression)
+    });
+    let interval = captured.map_or(interval, |captured| interval.intersect(captured));
     // Calls may clear snapshot facts without changing an immutable parameter.
     // Its checked arrival requirements remain valid at every read; the shared
     // standing-bounds query excludes mutable parameter arrival facts. A record's
     // default predicate needs proof about this read's actual storage version.
-    let interval = walk
-        .machine
-        .zip(walk.state)
-        .and_then(|(machine, state)| {
-            crate::proof_contracts::arithmetic_domains::standing_integer_interval(
-                program, machine, state, expression,
-            )
-        })
-        .map_or(interval, |standing| interval.intersect(standing));
+    let standing = walk.machine.zip(walk.state).and_then(|(machine, state)| {
+        crate::proof_contracts::arithmetic_domains::standing_integer_interval(
+            program, machine, state, expression,
+        )
+    });
+    let interval = standing.map_or(interval, |standing| interval.intersect(standing));
     let interval = walk.machine.map_or(interval, |machine| {
         super::super::ordered_values::refine_place_interval(
             program,
@@ -99,6 +95,13 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
             interval,
         )
     });
+    if interval != type_range && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE arithmetic place machine={:?} state={:?} expression={expression:?} flow={flow_interval:?} captured={captured:?} standing={standing:?} result={interval:?}",
+            walk.machine.map(|machine| machine.name.as_str()),
+            walk.state.map(|state| state.name.as_str()),
+        );
+    }
     if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some()
         && crate::reference_shell(program, handle).is_some()
     {

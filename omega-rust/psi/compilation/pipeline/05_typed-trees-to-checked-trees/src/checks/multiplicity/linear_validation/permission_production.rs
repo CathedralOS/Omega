@@ -1139,13 +1139,21 @@ fn complete_body_custody(
     let transformation_start = permission_events.len();
     // A missing conservation grants nothing; ordinary checking still owns
     // admission. Invoke this consumer only once its receiving frontier exists.
-    let _ = super::super::content_transformations::commit(
+    let committed = super::super::content_transformations::commit(
         program,
         facts,
         &body_conservations,
         places,
         permission_events,
     );
+    if let Err(reason) = committed
+        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+    {
+        eprintln!(
+            "CHECKSITE content transaction {}::{} expression={expression:?}: {reason}",
+            machine.name, state.name,
+        );
+    }
     remaining.observe_ordinary(
         program,
         &permission_events[transformation_start..],

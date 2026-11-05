@@ -6,7 +6,6 @@
 //! reaching a cycle does not invalidate caller-proven stores outside it, and
 //! acyclic helper substitution can establish a store within the cyclic body.
 use super::contracts::call_values;
-use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression as Boolean, CheckedStoredIntegerWrite, FlowCallFact,
     FlowStateFact, PerformedIntegerWrite, StoredIntegerWriteSite,
@@ -15,6 +14,8 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State};
 use validation::{CallFrameResolver, CallWriteOrigins, LocalWriteSource};
+
+mod assignment_origins;
 
 struct Invocation<'a> {
     state: &'a FlowStateFact,
@@ -35,19 +36,50 @@ struct Admission<'a> {
     decisions: Vec<CheckedStoredIntegerWrite>,
 }
 
-pub(super) fn check(
-    program: &dyn ::validation::CheckingInput,
-    facts: &mut CheckFacts,
-    frames: Option<&CallFrameResolver<'_>>,
-) -> Result<(), Vec<Diagnostic>> {
-    if !program.plan_laid_layouts.iter().any(|layout| {
+fn has_encoded_write_requirements(program: &dyn validation::CheckingInput) -> bool {
+    program.plan_laid_layouts.iter().any(|layout| {
         layout.geometries(program.typed_program()).any(|geometry| {
             geometry
                 .integer_fields
                 .iter()
                 .any(|field| !field.write_is_total)
         })
-    }) {
+    })
+}
+
+/// A prior source refusal can hide this assignment's physical-origin error.
+/// Ask the same destination owner without constructing a performed-write row.
+/// This explains an already rejected statement; it never supplies a call effect
+/// or permits source checking to continue past the original refusal.
+pub(crate) fn performed_assignment_origin_refusal(
+    program: &dyn validation::CheckingInput,
+    frames: &CallFrameResolver<'_>,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    statement: &typed_trees::statement::StatementNode,
+) -> Option<&'static str> {
+    let assignment = statement.as_assignment()?;
+    let reference =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    let value_type = validation::assignment_value_type(program, reference);
+    if !program
+        .primitive_type_reference(value_type)
+        .is_some_and(|primitive| primitive.accepts_integer_literal())
+        || validation::proof_only_classification(program).is_proof_machine(program, machine)
+        || !has_encoded_write_requirements(program)
+    {
+        return None;
+    }
+    assignment_origins::sources(program, frames, machine, state, statement_index, statement).err()
+}
+
+pub(super) fn check(
+    program: &dyn ::validation::CheckingInput,
+    facts: &mut CheckFacts,
+    frames: Option<&CallFrameResolver<'_>>,
+) -> Result<(), Vec<Diagnostic>> {
+    if !has_encoded_write_requirements(program) {
         return Ok(());
     }
     let Some(frames) = frames else {
@@ -437,15 +469,14 @@ impl<'a> Admission<'a> {
                         if rows.next().is_some() {
                             return Err("integer assignment has duplicate performed-write rows");
                         }
-                        let sources = self
-                            .frames
-                            .assignment_storage_origins(machine, statement)
-                            .ok()
-                            .map(|storage| storage.destinations)
-                            .or_else(|| {
-                                self.owned_destination(machine, body, ordinal, assignment.target)
-                            })
-                            .ok_or("performed write has unknown destination origins")?;
+                        let sources = assignment_origins::sources(
+                            self.program,
+                            self.frames,
+                            machine,
+                            body,
+                            ordinal,
+                            statement,
+                        )?;
                         for source in sources {
                             let destinations =
                                 self.destinations(machine, body, &source, self.stack.len())?;
@@ -493,50 +524,6 @@ impl<'a> Admission<'a> {
             }
         }
         Ok(())
-    }
-
-    /// Owned storage has its declaration's geometry even when the alias
-    /// inventory has no entry for it. This fallback cannot turn a reference
-    /// endpoint into ordinary storage: the whole owner must contain no loans.
-    fn owned_destination(
-        &self,
-        _machine: &Machine,
-        state: &State,
-        ordinal: usize,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<Vec<LocalWriteSource>> {
-        let place = place_at(self.program, state.symbol, ordinal, expression)?;
-        let root = place.root.as_symbol()?;
-        let reference = self
-            .program
-            .state_parameter_by_symbol(state, root)
-            .map(|parameter| parameter.type_reference)
-            .or_else(|| {
-                self.program
-                    .state_local_declaration(state, root)
-                    .map(|(_, local)| local.type_reference)
-            })?;
-        if crate::checks::type_reference_is_reference(self.program, reference)
-            || !validation::has_contents(
-                self.program,
-                reference,
-                &[],
-                validation::ContentsRequirement::CleanupOwned,
-            )
-        {
-            return None;
-        }
-        Some(vec![LocalWriteSource {
-            invocation_output: None,
-            invocation_result: None,
-            is_image_storage: false,
-            root,
-            segments: place.segments,
-            representation: None,
-            recasts: Vec::new(),
-            collection_coarse: false,
-            path: String::new(),
-        }])
     }
 
     fn destinations(

@@ -49,6 +49,7 @@ pub(crate) mod current_scalar_values;
 pub(crate) mod float_implications;
 mod runtime_indices;
 mod stored_integer_calls;
+pub(crate) use stored_integer_calls::performed_assignment_origin_refusal;
 mod zero_value_qualifications;
 
 // Ownership and custody: linear obligations, retained content, and values

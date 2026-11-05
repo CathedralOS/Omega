@@ -206,6 +206,20 @@ pub(super) fn append_state_borrow_facts(
             completed_references.as_deref(),
         )
         .map_err(|reason| {
+            let physical_reason = call_frames.and_then(|frames| {
+                crate::checks::performed_assignment_origin_refusal(
+                    program,
+                    frames,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                )
+            });
+            let reason = match physical_reason {
+                Some(physical) => format!("{reason}; {physical}"),
+                None => reason.to_owned(),
+            };
             Diagnostic::error(format!(
                 "machine `{}` state `{}` statement {}: {reason}",
                 machine.name, state.name, statement_index,
