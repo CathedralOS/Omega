@@ -250,6 +250,22 @@ impl StateGraphEmission<'_, '_> {
                     &self.state_erased_proof[position],
                 );
         }
+        if position == 0 && !self.entry_reentered {
+            // The source entry reads its machine's proof inputs. Its internal
+            // successor blocks have their own proof parameters, so only this
+            // exact source root binds references to the invocation.
+            let root = evaluation
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == self.state_ids[position])
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph entry root disappeared during evaluation",
+                ))?;
+            crate::scalar_lowering::contracts::bind_invocation_proof_references(
+                root,
+                self.state_erased_proof[position].len(),
+            )?;
+        }
         if let Some(rank) = current_rank {
             self.block_ranks.extend(
                 evaluation
