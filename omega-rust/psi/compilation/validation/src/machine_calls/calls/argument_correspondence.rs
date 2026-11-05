@@ -7,6 +7,7 @@
 
 use crate::frozen_program::expression_table;
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionNode;
 
@@ -635,21 +636,22 @@ pub(crate) fn call_binding_correspondence(
                 let index = ordinary.len() + position;
                 let formal = &executable[index];
                 let actual = actuals[index];
-                if application_parameter_origin(program, &lineage, formal.symbol).ok()
-                    != Some(parameter.symbol)
-                    || formal.is_const
-                    || formal.is_mutable
-                    || !matches!(parameter.kind, TypeParameterKind::Value { .. })
-                    || !crate::declared_carriers_match(
-                        program,
-                        type_reference,
-                        formal.type_reference,
-                    )
-                    || !runtime_source_matches(program, subject, expression, actual)
+                if application_parameter_origin(program, &lineage, formal.symbol)?
+                    != parameter.symbol
                 {
-                    return Err(
-                        "the runtime header binder has no exact captured executable argument",
-                    );
+                    return Err("the runtime argument's formal has another source binder");
+                }
+                if formal.is_const || formal.is_mutable {
+                    return Err("the runtime argument's formal is not an immutable value");
+                }
+                if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+                    return Err("the runtime argument does not belong to a Value binder");
+                }
+                if !crate::declared_carriers_match(program, type_reference, formal.type_reference) {
+                    return Err("the runtime argument's carrier differs from its source binding");
+                }
+                if !runtime_source_matches(program, subject, expression, actual) {
+                    return Err("the runtime argument differs from its retained source occurrence");
                 }
                 logical = formal.symbol;
                 runtime_parameters.push(parameter.symbol);
@@ -663,6 +665,31 @@ pub(crate) fn call_binding_correspondence(
         parameters,
         runtime_parameters,
     })
+}
+
+/// Recover the ordinary source parameters after checking this occurrence's
+/// complete executable argument correspondence. Runtime Value arguments belong
+/// to the trailing executable parameters, not to the authored source signature.
+pub fn authored_call_parameters<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    site: &CallSite<'_>,
+) -> Result<(SymbolHandle, &'program [StateParameter]), &'static str> {
+    if site.static_requirement_dispatch().is_some() {
+        return Err("a selected requirement has a separate public parameter signature");
+    }
+    let correspondence = call_binding_correspondence(program, caller, site)?;
+    let (machine, state) = crate::find_state(program, site.target_symbol(program))
+        .ok_or("the application has no exact executable entry")?;
+    let lineage = application_lineage(program, machine.symbol, correspondence.declaration)?;
+    let source_symbol = application_parameter_origin(program, &lineage, state.symbol)?;
+    let source_state = program
+        .state_by_symbol(source_symbol)
+        .ok_or("the executable entry lost its exact source state")?;
+    Ok((
+        correspondence.declaration,
+        program.state_parameters(source_state),
+    ))
 }
 
 /// A requirement keeps its public header after executable selection. Its exact
@@ -996,31 +1023,73 @@ fn runtime_source_matches(
     }
 }
 
+struct ApplicationTemplateScope {
+    machine: SymbolHandle,
+    header_parameters: OnceCell<Vec<(u32, u32)>>,
+}
+
+impl ApplicationTemplateScope {
+    fn contains_header_parameter(
+        &self,
+        program: &dyn crate::CheckingInput,
+        parameter: SymbolHandle,
+    ) -> bool {
+        let parameters = self.header_parameters.get_or_init(|| {
+            let mut parameters = program
+                .machine_by_symbol(self.machine)
+                .map(|machine| {
+                    program
+                        .machine_type_parameters(machine)
+                        .iter()
+                        .map(|parameter| {
+                            (
+                                parameter.symbol.arena_index(),
+                                parameter.symbol.generation(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            parameters.sort_unstable();
+            parameters
+        });
+        parameters
+            .binary_search(&(parameter.arena_index(), parameter.generation()))
+            .is_ok()
+    }
+}
+
 /// Retained executable-template identity, never a body or spelling search.
 fn application_lineage(
     program: &dyn crate::CheckingInput,
     mut machine: SymbolHandle,
     declaration: SymbolHandle,
-) -> Result<Vec<SymbolHandle>, &'static str> {
-    let mut lineage = Vec::new();
+) -> Result<Vec<ApplicationTemplateScope>, &'static str> {
+    let mut lineage: Vec<ApplicationTemplateScope> = Vec::new();
     while machine != declaration {
-        if lineage.contains(&machine) {
+        if lineage.iter().any(|frame| frame.machine == machine) {
             return Err("the executable application template chain is cyclic");
         }
-        lineage.push(machine);
+        lineage.push(ApplicationTemplateScope {
+            machine,
+            header_parameters: OnceCell::new(),
+        });
         machine = program
             .executable_application_template(machine)
             .ok()
             .flatten()
             .ok_or("the executable application lost its authored template")?;
     }
-    lineage.push(declaration);
+    lineage.push(ApplicationTemplateScope {
+        machine: declaration,
+        header_parameters: OnceCell::new(),
+    });
     Ok(lineage)
 }
 
 fn application_parameter_origin(
     program: &dyn crate::CheckingInput,
-    lineage: &[SymbolHandle],
+    lineage: &[ApplicationTemplateScope],
     mut parameter: SymbolHandle,
 ) -> Result<SymbolHandle, &'static str> {
     if !parameter.is_valid() {
@@ -1032,10 +1101,15 @@ fn application_parameter_origin(
             return Err("the application parameter lost its clone origin");
         }
         let parent = program.symbols.get(original).parent;
-        if parent != frame[1]
+        // Lifting a nested machine retains its enclosing static binders'
+        // original symbols in the explicit header. Their lexical parent stays
+        // outside this machine; only exact membership in that recorded header
+        // permits this template crossing. This grants no equality of values.
+        if parent != frame[1].machine
             && program
                 .machine_holding_state(parent)
-                .is_none_or(|owner| owner.symbol != frame[1])
+                .is_none_or(|owner| owner.symbol != frame[1].machine)
+            && !frame[1].contains_header_parameter(program, original)
         {
             return Err("the application parameter belongs to another template scope");
         }

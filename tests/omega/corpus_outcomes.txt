@@ -8388,32 +8388,23 @@ fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expecte
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_static_inline_result/call_result rejected 981ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/call_result rejected 6017ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/const_name rejected 4835ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/const_name rejected 982ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/field rejected 4275ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/local rejected 5188ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/field rejected 984ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/match_join rejected 5169ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/other_machine rejected 4803ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/local rejected 992ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/other_state rejected 4746ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/parameter rejected 5192ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/match_join rejected 988ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_machine rejected 975ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_state rejected 984ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/parameter rejected 976ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/target_body rejected 992ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/target_body rejected 4715ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 fail/facts/five_variant_enum_payload_bound_through_call_result_rejected rejected 2789ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_payload from payload_call: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -15090,11 +15081,15 @@ fail/generics/runtime_index_carrier_call_selected_mutated rejected 2141ms expect
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_stale rejected 2986ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_call_stale_capture rejected 6811ms expected @d70bac37d282
+	machine `probe` state `entry` cannot prove runtime index subject equality at statement 4; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_cast_stale rejected 2881ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_const rejected 330ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/generics/runtime_index_carrier_constructor_wrong_payload rejected 5983ms expected @d70bac37d282
+	machine `escape` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2536ms expected @ccdb99ca2214
 	mutable scalar loan cannot preserve a runtime index descriptor
 fail/generics/runtime_index_carrier_descriptor_borrow_call rejected 2100ms expected @ccdb99ca2214
@@ -22808,15 +22803,15 @@ pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-
 pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @f37c9cfc83e2
-pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/const_name checked 4947ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/field checked 4957ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/local checked 5914ms check-target:macos_arm64 @b31668d9a31f
-pass/facts/finite_family_static_inline_result/match_join checked 4964ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/other_machine checked 4884ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/other_state checked 4952ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/parameter checked 4895ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/target_body checked 4998ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/call_result checked 12280ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/const_name checked 12947ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/field checked 12894ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/local checked 12945ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/match_join checked 13021ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/other_machine checked 11709ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/other_state checked 11044ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/parameter checked 11842ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/target_body checked 11822ms check-target:macos_arm64 @d70bac37d282
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_field_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
@@ -25907,6 +25902,7 @@ pass/generics/runtime_index_carrier_after_earlier_descriptor_write_exit checked 
 pass/generics/runtime_index_carrier_argument_equal_exit checked 8302ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_index_carrier_array_valid checked 2645ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_result checked 2442ms @ccdb99ca2214
+pass/generics/runtime_index_carrier_call_saved_capture_exit checked 11524ms check-target:macos_arm64 @d70bac37d282
 pass/generics/runtime_index_carrier_call_selected_index checked 2197ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_selected_preserved checked 3006ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_selected_replacement checked 2920ms @ccdb99ca2214

@@ -4,8 +4,8 @@ These programs pass arrays of 16 and 32 bytes through a function selected at
 runtime. Each result must keep its exact array size and the input's first and
 last bytes. Each nested function that supplies an input must run once.
 
-Owning tasks: **FINITE-GENERIC-DISPATCH** and
-**BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
+Owning tasks: **MODULE-NAMESPACE-RESOLUTION** (including
+**FINITE-GENERIC-DISPATCH**) and **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
 
 A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
 
@@ -41,11 +41,22 @@ both original arms had the same endpoints.
 | Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
 | Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 
-Every twin selects width 32 for the first call while retaining its 16-byte
-input. Width 32 is allowed, but the input cannot meet that call's exact type.
-Both versions retain the same member bodies and runtime checks. Each valid
-program binds the four required hosted targets and expects exit 0; the existing
-target place also retains its optional macOS x86-64 binding.
+Each selected call runs inside a branch and returns through an explicit finite
+sum. Its cases retain the exact 16-byte and 32-byte payload types. The caller
+stores and forwards both results, then checks the independently expected case,
+array endpoints and implementation marker. A snapshot after the first call
+must be one; the final producer count must be two.
+
+Every twin changes only the narrow branch's selected width from 16 to 32.
+The input still contains 16 bytes, so it cannot satisfy that call's 32-byte
+parameter. Both versions retain the same member bodies and runtime checks.
+The existing rejection pins remain unchanged. A [focused constructor
+control](../../../../tests/omega/fail/generics/runtime_index_carrier_constructor_wrong_payload/main.omg)
+keeps both selected calls valid and changes only the wide output case to
+`Narrow`; its 32-byte result cannot inhabit a case declared to contain 16 bytes.
+The [local positive](local/main.omg) is that control's valid counterpart.
+Each valid program binds the four required hosted targets and expects exit 0;
+the existing target place also retains its optional macOS x86-64 binding.
 
 ## Requirements proved here
 
@@ -56,8 +67,10 @@ and the data declaration's binder remain distinct declarations even when their
 names match.
 
 The arrays carry values through the nine input places into the common selected
-calls. Each call must preserve its array size, endpoints and implementation
-marker through Terminal Psi, calling plans and native execution. The producer
+calls. These are nine input transport places and one common finite-sum return
+path, rather than nine different forms of sum storage. Each call must preserve
+its array size, endpoints and implementation marker through the returned case,
+Terminal Psi, calling plans and native execution. The producer
 counter checks that nested input evaluation occurs once. The const place stores
 copyable input arrays under const names; it does not transport an exclusive
 result through a const binding.
@@ -78,8 +91,9 @@ family supply have separate requirements.
 
 The current folder contains nine valid programs and nine reject twins, mirrored
 under `tests/omega/{pass,fail}/facts/finite_family_static_inline_result/`.
-The programs, Build declarations and expected outcomes are unchanged in this
-coverage update.
+The current programs add the explicit finite-sum return described above. The
+Build declarations and valid-program exit remain unchanged. Validation of this
+change is in progress; the table below records the earlier programs only.
 
 | Host | Compiler source | Fresh checking | Fresh corpus execution | Fresh sample execution |
 | --- | --- | --- | --- | --- |
@@ -107,9 +121,16 @@ Earlier reports also include programs that have since been retired. Those
 reports remain historical evidence in [PR #1721](https://github.com/CathedralOS/Omega/pull/1721);
 they do not describe the contents or acceptance of this folder today.
 
-The fresh results fill the previously unmeasured Windows row and remaining
-Linux ARM64 places. They establish coverage of already-working behavior, not a
-new compiler repair. Both parent tasks remain open for their wider acceptance,
+Those earlier results filled the previously unmeasured Windows row and
+remaining Linux ARM64 places. They establish coverage of the earlier programs;
+they do not validate the new finite-sum return path. Both parent tasks remain open for their wider acceptance,
 including ownership and cleanup, escaping runtime-sized results, remaining
 source migrations and product-compiler support. No owner design decision is
 needed for this coverage update.
+
+The new local program already checked and ran with native/Terminal exit-zero
+agreement before the checking repair. Its malformed output case instead reached
+a late unlowerable-body refusal. A focused repaired-compiler check now reports
+that the payload cannot retain a different captured index. This is a missing
+source check, not evidence that the old compiler executed the invalid program.
+That focused constructor source is now pinned separately from the nine width-mismatch twins. The current programs and compiler still require final execution validation.

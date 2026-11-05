@@ -606,7 +606,7 @@ pub(super) fn rewrite_selected_call_with_name(
             call.arguments = new_arguments;
             call.authored_machine_application = authored_machine_application;
             call.machine_arguments = Box::default();
-            stamp_field_subjects(program, authored_machine_application, subjects);
+            record_runtime_call_operands(program, authored_machine_application, subjects);
         }
         CallSite::Expression(handle) => {
             let ExpressionNode::Call(snapshot) = expressions_of(program).expression(handle).clone()
@@ -652,14 +652,16 @@ pub(super) fn rewrite_selected_call_with_name(
             call.arguments = new_arguments;
             call.authored_machine_application = authored_machine_application;
             call.machine_arguments = Box::default();
-            stamp_field_subjects(program, authored_machine_application, subjects);
+            record_runtime_call_operands(program, authored_machine_application, subjects);
         }
     }
 }
 
-/// A field subject has no symbol. Record the member expression on the binding
-/// so index substitution sees the same read the call argument evaluates.
-pub(super) fn stamp_field_subjects(
+/// Record the expressions this call actually receives. Preparation may copy a
+/// source recipe before specialization emits a different expression occurrence;
+/// the retained binding must name the emitted occurrence, not the earlier copy.
+/// Immutable lexical Value subjects keep their symbol-only identity.
+pub(super) fn record_runtime_call_operands(
     program: &mut TypedTrees,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     operands: &[ExpressionHandle],
@@ -683,7 +685,7 @@ pub(super) fn stamp_field_subjects(
         let Some(operand) = operands.next() else {
             break;
         };
-        if !subject.is_valid() && !expression.is_valid() {
+        if !subject.is_valid() || expression.is_valid() {
             *expression = operand;
         }
     }
