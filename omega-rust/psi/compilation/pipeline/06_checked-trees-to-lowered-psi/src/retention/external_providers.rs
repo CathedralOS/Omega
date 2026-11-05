@@ -107,23 +107,22 @@ pub(crate) fn project(
                 if !include(identities, machine.symbol, requirement, &callable) {
                     continue;
                 }
-                let provider = if machine.attached_data_symbol.is_valid() {
+                let provider_symbol =
+                    typed_trees::provider_declarations::satisfaction_provider_declaration(
+                        typed, machine,
+                    );
+                let provider = if let Some(provider_symbol) = provider_symbol {
                     Some(ExternalProviderOwner {
                         declaration: declarations::nominal(
                             identities,
                             checked,
                             sources,
-                            machine.attached_data_symbol,
+                            provider_symbol,
                         )
                         .map_err(LoweringError::Unsupported)?,
-                        identity: identities.intern(&typed.attached_data_path(machine).ok_or(
-                            LoweringError::Unsupported(
-                                "external provider has no attached owner identity",
-                            ),
-                        )?),
-                        package: checked
-                            .symbols
-                            .symbol_package_identity(machine.attached_data_symbol),
+                        identity: identities
+                            .intern(&typed.symbols.display_path(provider_symbol, "::")),
+                        package: checked.symbols.symbol_package_identity(provider_symbol),
                     })
                 } else {
                     None
@@ -173,7 +172,12 @@ pub(crate) fn project(
                 retain_declaration(requirement, candidate.requirement.clone());
                 retain_declaration(machine.symbol, candidate.realization.machine.clone());
                 if let Some(provider) = &candidate.provider {
-                    retain_declaration(machine.attached_data_symbol, provider.declaration.clone());
+                    retain_declaration(
+                        provider_symbol.ok_or(LoweringError::Unsupported(
+                            "external provider lost its exact owner",
+                        ))?,
+                        provider.declaration.clone(),
+                    );
                 }
                 candidates.push(candidate);
             }

@@ -22,6 +22,7 @@ terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" 
 target-operations = { path = "../../compilation/representations/target-operations" }
 calling-conventions = { path = "../../compilation/backend/calling-conventions" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
+provider-admission = { path = "../../compilation/realization/provider-admission" }
 
 [dev-dependencies]
 orchestration = { path = "../../build-system/orchestration" }

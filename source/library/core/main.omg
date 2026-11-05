@@ -1,0 +1,2 @@
+// Declarations configured by the bundled core Build companion.
+use omega::language::core::float_operations;

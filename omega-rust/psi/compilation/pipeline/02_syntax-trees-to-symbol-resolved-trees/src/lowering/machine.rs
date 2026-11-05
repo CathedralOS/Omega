@@ -215,6 +215,25 @@ fn lower_lexical_machine_parts(
         .as_ref()
         .map(|name| lower_name(syntax_trees, name));
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies)?;
+    let inferred_float_binding = if is_sealed_float_provider_member(lowerer, syntax_trees, machine)
+    {
+        let binding = lowerer
+            .symbol_resolved_trees
+            .external_bindings
+            .intern(language_semantics::ExternalBindingIdentity::CompilerIntrinsic);
+        for edge in lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .machine_trait_conformances
+            .span_mut_or_empty(satisfies)
+        {
+            edge.external_binding = Some(binding);
+        }
+        Some(binding)
+    } else {
+        None
+    };
     let conformance_bounds =
         lower_generic_conformance_bounds(lowerer, syntax_trees, &machine.conformance_bounds)?;
     let ranking_subjects =
@@ -277,6 +296,11 @@ fn lower_lexical_machine_parts(
             language_semantics::MachineSupplyMode::Requirement
         } else if crate::lowering::operator::is_token_bearing_boundary_signature(machine) {
             language_semantics::MachineSupplyMode::TopLevelRequirement
+        } else if let Some(binding) = inferred_float_binding {
+            language_semantics::MachineSupplyMode::ExternalRealization {
+                binding: Some(binding),
+                mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
+            }
         } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
             let (binding, mechanism) = via_binding
                 .map(|identity| {
@@ -966,4 +990,40 @@ fn lower_machine_states(
     }
 
     Ok(span)
+}
+
+/// Only the closed core map may declare implicit compiler-intrinsic supply.
+/// Typed validation must authenticate the owned row, exact public relation,
+/// complete scalar signature and numeric meaning before it can be consumed.
+fn is_sealed_float_provider_member(
+    lowerer: &Lowerer,
+    syntax_trees: &SyntaxTrees,
+    machine: &syntax::item::Machine,
+) -> bool {
+    let [edge] = syntax_trees.items.satisfies_clauses(machine.satisfies) else {
+        return false;
+    };
+    machine.bodyless
+        && machine.boundary
+        && machine.attached_data.is_none()
+        && edge.via.is_none()
+        && !edge.via_expression.is_valid()
+        && machine
+            .name
+            .as_str(syntax_trees)
+            .starts_with("NativeFloats::")
+        && lowerer
+            .sources
+            .as_ref()
+            .and_then(|sources| sources.get(machine.name.source_span().source_id))
+            .is_some_and(|file| {
+                file.origin == source::SourceOrigin::Toolchain
+                    && file
+                        .path
+                        .strip_prefix(&file.package_root)
+                        .ok()
+                        .is_some_and(|relative| {
+                            relative == std::path::Path::new("float_provider.omg")
+                        })
+            })
 }

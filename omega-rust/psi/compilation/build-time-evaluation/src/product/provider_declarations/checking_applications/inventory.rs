@@ -110,15 +110,12 @@ pub(super) fn prepare(
             rows,
         });
     }
-    // Attached satisfaction declarations group by their exact data owner and
-    // complete applied schema. A partial group stays partial; rows from two
-    // providers never form one covering candidate.
+    // Exact member satisfactions group by their recorded provider declaration
+    // and complete applied schema. Partial providers stay separate; a same-
+    // shaped member owned by another map cannot fill a missing relation.
     for machine in typed.machines().iter().filter(|machine| {
-        machine.attached_data_symbol.is_valid()
-            && typed
-                .data_definitions()
-                .iter()
-                .any(|data| data.symbol == machine.attached_data_symbol)
+        typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine)
+            .is_some()
             && !machine.target_family_interface
             && context.contains(machine.symbol)
             && typed
@@ -129,7 +126,7 @@ pub(super) fn prepare(
                 .iter()
                 .any(|receipt| receipt.instance == machine.symbol)
     }) {
-        for edge in typed.machine_trait_conformances(machine) {
+        for edge in typed_trees::provider_declarations::independent_satisfactions(typed, machine) {
             let schema = if let Some(scope) =
                 AppliedTraitScope::from_machine_conformance(typed, machine, edge)
             {
@@ -143,7 +140,12 @@ pub(super) fn prepare(
             let Some(schema) = schema else {
                 continue;
             };
-            let provider = provider_key(context, machine.attached_data_symbol, None);
+            let Some(owner) = typed_trees::provider_declarations::satisfaction_provider_declaration(
+                typed, machine,
+            ) else {
+                continue;
+            };
+            let provider = provider_key(context, owner, None);
             let position = candidates.iter().position(|candidate| {
                 candidate.provider == provider && candidate.schema.key == schema.key
             });

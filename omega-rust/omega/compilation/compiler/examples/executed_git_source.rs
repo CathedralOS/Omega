@@ -1,4 +1,6 @@
 //! Executed Git acquisition through the real application facade and two engines.
+#[path = "../tests/support/build_sequence.rs"]
+mod build_sequence;
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -549,6 +551,7 @@ fn foreign_policy_control(
         )
         .unwrap();
     let mut invocation = session.compiler().begin_package_build(request).unwrap();
+    build_sequence::prepare_package_root(&mut invocation);
     let host = invocation.execution().unwrap().host().unwrap();
     let mut activation = host.start().unwrap();
     while !activation.advance(1024).unwrap().returned {}

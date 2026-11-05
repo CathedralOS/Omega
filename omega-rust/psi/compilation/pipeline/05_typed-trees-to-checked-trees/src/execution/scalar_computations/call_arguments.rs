@@ -1,9 +1,9 @@
 mod declarations;
 
 use super::{Builder, CheckedScalarExpressionRole, ExpressionHandle, SymbolHandle};
+use crate::execution::terminal_unit::ComputationCallArguments;
 use crate::execution::terminal_unit::cleanup::projected_temporary_cleanup;
 use crate::execution::terminal_unit::strips_erased_parameter;
-use crate::execution::terminal_unit::structural_computation_argument;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
 use crate::flow::CapturedSubjectFacts;
 use crate::published::semantic::calls::shared_argument_referent;
@@ -256,6 +256,7 @@ impl Builder<'_, '_> {
         let mut structural_arguments = Vec::new();
         let mut structural_actuals = Vec::new();
         let mut temporary_cleanups = Vec::new();
+        let mut prepared_arguments = None;
         let mut captures = captures.map(|span| span.handles());
         for (argument, parameter) in arguments.iter().zip(parameters) {
             let operand = match &mut captures {
@@ -316,19 +317,23 @@ impl Builder<'_, '_> {
                         // fails. Ordinary place arguments retain their own route.
                         return None;
                     } else {
+                        let call_arguments = prepared_arguments.get_or_insert_with(|| {
+                            ComputationCallArguments::new(
+                                self.program,
+                                CapturedSubjectFacts {
+                                    semantic: self.semantic,
+                                    flow: self.flow,
+                                    borrow: self.borrow,
+                                },
+                                self.machine,
+                                state,
+                                self.flow.control.calls.get(source_call),
+                            )
+                        });
                         (|| {
                         let selectors = self.projection_selector_evaluations(*argument, *argument)?;
-                        let mut argument_plan = structural_computation_argument(
-                            self.program,
+                        let mut argument_plan = call_arguments.structural_argument(
                             &mut self.shapes,
-                            CapturedSubjectFacts {
-                                semantic: self.semantic,
-                                flow: self.flow,
-                                borrow: self.borrow,
-                            },
-                            self.machine,
-                            state,
-                            self.flow.control.calls.get(source_call),
                             *argument,
                             parameter,
                             Some(&|expression| {
@@ -342,20 +347,11 @@ impl Builder<'_, '_> {
                     })()
                     .or_else(|| {
                         let argument_ordinal = structural_arguments.len();
-                        crate::execution::terminal_unit::calls::subslice_computation_argument(
-                            self.program,
+                        call_arguments.subslice_argument(
                             &mut self.shapes,
                             self.operators,
                             self.pure,
                             self.plans,
-                            CapturedSubjectFacts {
-                                semantic: self.semantic,
-                                flow: self.flow,
-                                borrow: self.borrow,
-                            },
-                            self.machine,
-                            state,
-                            self.flow.control.calls.get(source_call),
                             *argument,
                             parameter,
                             u32::try_from(argument_ordinal).ok()?,

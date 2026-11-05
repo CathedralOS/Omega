@@ -9,10 +9,21 @@ pub(super) fn admit(
     computed: &mut ComputedBuildConfig,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let package_providers = package_inputs
+    let mut default_providers = package_inputs
         .map(|inputs| inputs.rejoin_package_provider_selections(source))
         .transpose()?
         .unwrap_or_default();
+    if let Some(defaults) = &computed.toolchain_provider_defaults {
+        let capture = defaults.toolchain_capture().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "core defaults have a different supplier kind",
+            )]
+        })?;
+        default_providers.extend(defaults.rejoin(
+            source,
+            package_compilation::ProviderDefaultsAdmission::CapturedToolchain(capture),
+        )?);
+    }
     let admitted = source.admit_product_policy(psi_compiler::ProductPolicyRequest {
         activation: computed.selected_build_machine_symbol,
         declared: &computed.declared_product_selections,
@@ -63,7 +74,7 @@ pub(super) fn admit(
     computed.config.grants = admitted.grants;
     computed.config.opaque_representation_selections = admitted.representations;
     computed.config.provider_selections = admitted.providers;
-    computed.config.package_provider_selections = package_providers;
+    computed.config.default_provider_selections = default_providers;
     computed.config.native_bindings = native_bindings;
     computed.config.service_audits = admitted.declarations.service_audits;
     computed.config.assumed_bindings = admitted.declarations.assumed_bindings;

@@ -275,24 +275,14 @@ pub(super) fn validate_establish_structural_local(
     let Some(result) = operation.result.structural() else {
         return malformed("structural local establishment has no structural result");
     };
-    // Only a standalone byte-view home may carry qualifications; the verifier
-    // authenticates them as primitive byte predicates of that carrier.
-    let byte_view_home = module.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
-            && declaration.shape.is_borrowed_view_byte_sequence()
-    });
-    if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
-        || (!result.qualifications.is_empty() && !byte_view_home)
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !matches!(
-            machine.structural_place(result.place),
-            Some(StructuralPlaceDeclaration {
-                kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
-            }) if *producer == operation.id && *structural_type == result.structural_type
-        )
-    {
+    terminal_semantics::validate_vacant_structural_local(module.structural_types.iter(), result)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    if !matches!(
+        machine.structural_place(result.place),
+        Some(StructuralPlaceDeclaration {
+            kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
+        }) if *producer == operation.id && *structural_type == result.structural_type
+    ) {
         return malformed("structural local establishment has an invalid result shape");
     }
     Ok(())
