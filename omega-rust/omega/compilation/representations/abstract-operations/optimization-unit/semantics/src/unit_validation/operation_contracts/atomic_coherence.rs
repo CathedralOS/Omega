@@ -92,6 +92,18 @@ pub(crate) fn validate_function_atomic_coherence(
                 right_path,
             )
         },
+        |place, path, field| {
+            let root = optimization_unit::field_evidence(function, place)?.root_type?;
+            let member = terminal_semantics::projected_field_declaration(
+                structural_types.values().copied(),
+                root,
+                path,
+                field,
+            )?;
+            let mut complete = path.to_vec();
+            complete.push(terminal_psi::StructuralPathSegment::Field(member.identity));
+            Some(complete)
+        },
     ) {
         Some((block, node, violation)) => Err(
             OptimizationUnitValidationError::AtomicEventCoherenceMismatch(

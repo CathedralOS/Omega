@@ -1478,34 +1478,32 @@ impl StructuralJudge<'_> {
             variant,
             |field| {
                 let selected = field_place(field.symbol)?;
-                let value = self
-                    .current_place_projection(&selected)
-                    .or_else(|| {
-                        // A retired aggregate has no whole snapshot. Its inline
-                        // child may still have a complete current field roster.
-                        // Reference descriptors are never rebuilt from contents.
-                        crate::reference_shell(self.program, field.type_reference)
-                            .is_none()
-                            .then_some(())?;
-                        let child = crate::value_custody::places::data_definition_for_type(
-                            self.program,
-                            field.type_reference,
-                        )?;
-                        self.captured_data_subject_at(
-                            &selected,
-                            child,
-                            &mut |symbol| {
-                                let mut field = selected.clone();
-                                crate::value_custody::places::push_field_place_segments(
-                                    self.program,
-                                    &mut field.segments,
-                                    symbol,
-                                );
-                                Some(field)
-                            },
-                            active,
-                        )
-                    });
+                let value = self.current_place_projection(&selected).or_else(|| {
+                    // A retired aggregate has no whole snapshot. Its inline
+                    // child may still have a complete current field roster.
+                    // Reference descriptors are never rebuilt from contents.
+                    crate::reference_shell(self.program, field.type_reference)
+                        .is_none()
+                        .then_some(())?;
+                    let child = crate::value_custody::places::data_definition_for_type(
+                        self.program,
+                        field.type_reference,
+                    )?;
+                    self.captured_data_subject_at(
+                        &selected,
+                        child,
+                        &mut |symbol| {
+                            let mut field = selected.clone();
+                            crate::value_custody::places::push_field_place_segments(
+                                self.program,
+                                &mut field.segments,
+                                symbol,
+                            );
+                            Some(field)
+                        },
+                        active,
+                    )
+                });
                 if super::super::struct_trace() {
                     eprintln!("STRUCT stored-subject field={} value={value:?}", field.name,);
                 }
@@ -2072,6 +2070,20 @@ impl StructuralJudge<'_> {
     /// Atomic cells are storage, not such values; classify their sealed atoms
     /// independently of the primitive width they use.
     pub(super) fn immutable_scalar_binding(&self, symbol: SymbolHandle) -> bool {
+        self.immutable_scalar_place(&CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(symbol),
+            segments: Vec::new(),
+        })
+    }
+
+    /// A call can change storage reached through an owned value without
+    /// replacing its immutable inline scalar fields. Follow only owned
+    /// projections: a stored reference, atomic cell or opaque projection
+    /// cannot acquire this exemption from observation invalidation.
+    pub(super) fn immutable_scalar_place(&self, place: &CanonicalPlace) -> bool {
+        let Some(symbol) = place.root.as_symbol() else {
+            return false;
+        };
         if !symbol.is_valid() {
             return false;
         }
@@ -2094,6 +2106,13 @@ impl StructuralJudge<'_> {
                 Some((local.is_mutable, local.type_reference))
             });
         let Some((false, reference)) = declaration else {
+            return false;
+        };
+        let Some(reference) = crate::value_custody::places::owned_projection_type_reference(
+            program,
+            reference,
+            &place.segments,
+        ) else {
             return false;
         };
         let reference = program

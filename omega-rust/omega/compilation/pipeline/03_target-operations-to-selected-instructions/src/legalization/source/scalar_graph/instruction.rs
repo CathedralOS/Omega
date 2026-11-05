@@ -153,7 +153,6 @@ where
                 .ok_or(Error::custody())?;
                 LegalizedScalarInstructionKind::AtomicAccess {
                     location: access.location,
-                    field: access.field,
                     scalar_type: access.scalar_type,
                     field_byte_offset: access.field_byte_offset,
                     event: access.event,

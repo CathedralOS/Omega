@@ -96,6 +96,15 @@ pub(super) fn index_structural_types(
             // storage; its exact contract is checked once `types` is complete.
             terminal_psi::StructuralTypeShape::Reference { .. } => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
+            terminal_psi::StructuralTypeShape::AtomicCell(cell) => {
+                if !cell.is_supported() || declaration.scalar_restriction.is_some() {
+                    return Err(
+                        OptimizationUnitValidationError::InvalidStructuralTypeIdentity(
+                            declaration.id,
+                        ),
+                    );
+                }
+            }
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                 | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
@@ -124,6 +133,7 @@ pub(super) fn index_structural_types(
         let referenced = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { .. } => Vec::new(),
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            | terminal_psi::StructuralTypeShape::AtomicCell(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => Vec::new(),
             terminal_psi::StructuralTypeShape::Record { fields, .. } => fields
                 .iter()

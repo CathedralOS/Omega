@@ -210,7 +210,7 @@ pass/asm/scratch_target_sibling_capture_identity_exit built 1903ms interpreter-e
 pass/asm/scratch_zero_flag_survives_move_exit built 1911ms interpreter-exit:0 @6e42425cd720
 pass/asm/state_fact_transfers_exit incomplete 1957ms interpreter:unchecked @6e42425cd720
 	`main` calls `reordered`; `reordered` has no executable body: this compiler does not lower a state of it yet (statement sequence: call count agreement); in state `reordered::entry`
-pass/atomics/atomic_global_order_operations checked 1640ms @6e42425cd720
+pass/atomics/atomic_global_order_operations built 5696ms exit:0 interpreter-exit:0 interpreter:agrees @a1da0d793346
 pass/atomics/atomic_order_surface checked 2011ms @6e42425cd720
 pass/atomics/placed_atomic_load checked 1761ms @6e42425cd720
 pass/atomics/placed_atomic_shared_store checked 1651ms @6e42425cd720
@@ -4125,68 +4125,36 @@ pass/facts/finite_family_input_index/other_machine built 5921ms exit:0 interpret
 pass/facts/finite_family_input_index/other_state built 5873ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/parameter built 5921ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/target_body built 6005ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
-pass/facts/finite_family_returned_descriptor/call_result built 5827ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/call_result built 5827ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/caller_view built 5940ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/const_name built 5947ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/field built 6054ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/const_name built 5947ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/field built 6054ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/incoming_join built 6033ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/local built 5995ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/match_join built 5987ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_machine built 5954ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/other_state built 5936ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/parameter built 5924ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/local built 5995ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/match_join built 5987ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/other_machine built 5954ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/other_state built 5936ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/facts/finite_family_returned_descriptor/parameter built 5924ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/pointer_field built 5902ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/replaced_source built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/saved_source built 5918ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
-pass/facts/finite_family_returned_descriptor/target_body built 5983ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
+pass/facts/finite_family_returned_descriptor/target_body built 5983ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/facts/finite_family_returned_descriptor/target_qualification built 5972ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply built 5930ms exit:0 interpreter-exit:0 interpreter:agrees @059fb0b41d83
 pass/facts/finite_family_static_inline_result/argument_effect rejected 820ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_static_inline_result/authored_sum rejected 818ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/call_result rejected 715ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/const_name rejected 847ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/field rejected 896ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/local rejected 763ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/match_join rejected 823ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_static_inline_result/call_result built 5945ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/const_name built 6010ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/field built 6122ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/local built 6035ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/match_join built 6054ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/nested_static rejected 768ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/other_machine rejected 871ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/other_state rejected 818ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/parameter rejected 817ms interpreter:unchecked @6e42425cd720
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_static_inline_result/other_machine built 6047ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/other_state built 6029ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
+pass/facts/finite_family_static_inline_result/parameter built 6057ms exit:0 interpreter-exit:0 interpreter:agrees @51ea1c54b2cf
 pass/facts/finite_family_static_inline_result/stale_input rejected 716ms interpreter:unchecked @6e42425cd720
 	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
 pass/facts/finite_family_static_inline_result/target_body built 6182ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
@@ -10892,6 +10860,7 @@ pass/traits/equatable_string_field_equality_exit built 7621ms exit:70 interprete
 pass/traits/equatable_synthesis checked 1982ms @6e42425cd720
 pass/traits/evidence_member_empty_output_frontier checked 1738ms @6e42425cd720
 pass/traits/exact_edge_application_and_invocation_parameters built 7890ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
+pass/traits/finite_family_case_view_result_exit built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
 pass/traits/float_contract_refinement_boundaries_exit built 4336ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/generic_dyn_contract_inventory_exit built 2164ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/generic_map_applied_contract_exit built 2227ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

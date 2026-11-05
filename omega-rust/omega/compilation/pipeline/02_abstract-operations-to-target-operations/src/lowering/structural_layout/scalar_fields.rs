@@ -6,6 +6,38 @@ use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{StructuralFieldType, StructuralTypeShape};
 
+/// The address of the same complete atomic endpoint carried by the event.
+/// Real fields retain their existing authored placement; a whole cell uses
+/// its own stored shape, never an invented containing record or member.
+pub(in crate::lowering) fn static_atomic_geometry(
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    expected: ScalarType,
+    declarations: &StructuralLayouts<'_>,
+) -> Result<(u32, u32), LoweringError> {
+    let invalid = || LoweringError::UnknownStructuralType(root);
+    terminal_semantics::atomic_cell_type(declarations.values().copied(), root, path)
+        .filter(|cell| cell.scalar_type() == expected)
+        .ok_or_else(invalid)?;
+    if let Some((terminal_psi::StructuralPathSegment::Field(_), prefix)) = path.split_last() {
+        let field = terminal_semantics::runtime_structural_field(
+            declarations.values().copied(),
+            root,
+            path,
+        )
+        .ok_or_else(invalid)?;
+        return static_field_geometry(root, prefix, field.id, expected, declarations);
+    }
+    let (selected, shape, offset, indexes) = super::runtime_projection(root, path, declarations)?;
+    if !indexes.is_empty()
+        || !matches!(declarations.get(selected).map(|row| &row.shape),
+            Some(StructuralTypeShape::AtomicCell(cell)) if cell.scalar_type() == expected)
+    {
+        return Err(invalid());
+    }
+    Ok((offset, shape.byte_size))
+}
+
 /// One static field address, including a selected payload namespace. Case is
 /// layout data, not permission: Psi has separately checked the live tag. The
 /// field declaration and its physical placement remain paired throughout.

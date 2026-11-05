@@ -215,6 +215,20 @@ fn collect(
                 stored_scalar: *scalar,
             },
         }),
+        StructuralTypeShape::AtomicCell(cell) => {
+            leaves.requires_atomic_storage = true;
+            if access == StructuralAccess::MutableBorrow {
+                leaves.leaves.push(StorageLeaf {
+                    path: path.clone(),
+                    kind: StorageLeafKind::Scalar {
+                        destination: PrimitiveStorageEndpoint::Scalar(destination.clone()),
+                        scalar: cell.scalar_type(),
+                        restriction: Some((*cell).into()),
+                        stored_scalar: cell.scalar_type(),
+                    },
+                });
+            }
+        }
         StructuralTypeShape::Record { fields, .. } => collect_fields(
             execution,
             fields,

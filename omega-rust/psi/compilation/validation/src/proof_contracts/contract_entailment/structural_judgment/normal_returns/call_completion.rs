@@ -193,6 +193,8 @@ impl<'program> StructuralJudge<'program> {
         }
         let guarantees =
             self.complete_selected_guarantees(prepared_guarantees, captured.as_ref(), 0)?;
+        let placement = self.completed_placement_geometry(prepared, captured.as_ref())?;
+        self.retain_conditional_guarantees(placement);
         self.retain_conditional_guarantees(guarantees.conditional);
         let mut equations = guarantees
             .equations
@@ -286,17 +288,27 @@ impl<'program> StructuralJudge<'program> {
             .iter()
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
+            for (fact_handle, fact) in contract
+                .facts
+                .handles()
+                .zip(program.proof_facts.span_or_empty(contract.facts))
+            {
                 if let ProofFact::Membership(guarantee) = fact {
                     if qualification_contract
                         .fact_source(contract.kind.clone(), fact)
                         .is_none()
+                        && !qualification_contract
+                            .declares_membership_obligation(contract.kind.clone(), fact_handle)
                     {
                         // A checked adapter's inherited issuer obligation is
                         // not an ordinary-call guarantee. Use the same actual
                         // declaration gate as flow's call-contract evidence.
                         continue;
                     }
+                    // A completed boundary requirement can return conserved
+                    // authority without being its issuer. Retain that exact
+                    // result obligation, as the flow owner does; this record
+                    // grants neither fresh issuance nor a custody bypass.
                     // A result qualification stated in `ensures` carries the
                     // same admission as one stated on the result type. Retain
                     // its exact detached occurrence, never a live caller name

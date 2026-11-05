@@ -92,6 +92,9 @@ fn disposable_storage<'types>(
     visiting.push(identity);
     let valid = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,
+        // Whole owned, claim-free storage can retire without observing its
+        // scalar resident, just as a record's atomic cells can.
+        StructuralTypeShape::AtomicCell(_) => true,
         StructuralTypeShape::ByteSequence(carrier) => {
             descriptor_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
         }

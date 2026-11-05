@@ -3,6 +3,7 @@
 //! initialization, primitive places, record fields, inline carriers, shared
 //! mutation and nominal cleanup.
 
+pub(crate) mod atomic_cell;
 pub(crate) mod inline_carriers;
 pub mod nominal_cleanup;
 pub mod owned_structure;

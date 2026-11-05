@@ -3,16 +3,15 @@
 //! authority, exact scalar type and ordering remain atomic-event obligations.
 //! An observed prior is the result of this event, never an added scalar load.
 
-use crate::structural_inputs::structural_reference_input::atomic_field_geometry;
+use crate::structural_inputs::structural_reference_input::atomic_cell_geometry;
 use abstract_operations::{AbstractAtomicEvent, AbstractResult};
-use semantic_vocabulary::{IntegerType, StructuralFieldId};
+use semantic_vocabulary::IntegerType;
 use terminal_psi::{
     AtomicAccessEvent, StructuralAccess, StructuralArgument, StructuralTypeDeclaration,
 };
 
 pub(in crate::legalization) struct Access {
     pub location: StructuralArgument,
-    pub field: StructuralFieldId,
     pub scalar_type: IntegerType,
     pub field_byte_offset: u32,
     pub event: AtomicAccessEvent,
@@ -132,15 +131,10 @@ pub(in crate::legalization) fn access(
     {
         return None;
     }
-    let field = terminal_semantics::projected_field_declaration(
-        types.iter(),
-        root,
-        &location.path,
-        location.field,
-    )?;
+    let cell = terminal_semantics::atomic_cell_type(types.iter(), root, &location.path)?;
     // Dedicated cell identity and logical type are independent from the
     // integer lane that the native instruction transfers.
-    let scalar_type = field.field_type.atomic_scalar_type()?;
+    let scalar_type = cell.scalar_type();
     let integer = target_operations::operations::atomic_storage_integer_type(event, scalar_type)?;
     super::scalar_shape(scalar_type)?;
     if event
@@ -151,7 +145,7 @@ pub(in crate::legalization) fn access(
     {
         return None;
     }
-    let geometry = atomic_field_geometry(root, &location.path, location.field, scalar_type, types)?;
+    let geometry = atomic_cell_geometry(root, &location.path, scalar_type, types)?;
     let offset = geometry.byte_offset;
     let byte_size = geometry.byte_size;
     if byte_size != u32::from(integer.bits() / 8) || offset % byte_size != 0 {
@@ -180,7 +174,6 @@ pub(in crate::legalization) fn access(
             access: root_access,
             path: location.path.clone(),
         },
-        field: location.field,
         scalar_type: integer,
         field_byte_offset: offset,
         event,
