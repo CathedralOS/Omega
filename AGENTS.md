@@ -92,12 +92,17 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 
 ## The sample loop
 
-When validating a language mechanism across value placements, verify it across
-the nine orthogonal transport places: `local`, `field`, `parameter`,
-`call_result`, `match_join`, `const_name`, nested `machine` (`other_state/`),
-another `machine` (`other_machine/`), and a `Build`-selected target
-implementation (`target_body/`), with `ProgramEntry` bound for all four hosted
-targets and passing `omega run --both` (exit 0) alongside its negative twin.
+When validating a language mechanism across value placements, you are carrying
+one object through the compiler. Verify that same object across the nine
+orthogonal transport places: `local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`, nested `machine` (`other_state/`), another
+`machine` (`other_machine/`), and a `Build`-selected target implementation
+(`target_body/`), with `ProgramEntry` bound for all four hosted targets and
+passing `omega run --both` (exit 0) alongside its negative twin. The pinned
+diagnostic, and the finite `tests/omega` facts fixture, is a photograph of that
+object. Done means the compiler still holds that same object. Changing the fact,
+the bound, or the operation so a place passes is repainting that photograph:
+a different object, and a green check on it does not count.
 
 ### No new `samples/cli/facts` folder bloat
 

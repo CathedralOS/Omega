@@ -142,12 +142,18 @@ pub fn selected_call_arguments<'program>(
     if lineage.last().copied() != Some((dispatch.realization_machine, dispatch.realization_state)) {
         return Err("selected call belongs to another authored realization".into());
     }
+    let authored_application = match site {
+        CallSite::Expression { call, .. } => call.authored_machine_application,
+        CallSite::Statement(call) => call.authored_machine_application,
+        CallSite::TransitionNamed { .. } => Default::default(),
+    };
     let carriers = CarrierCorrespondence::new(
         program,
         caller,
         dispatch.selection_application,
         application,
         &lineage,
+        authored_application,
     )?;
     let source = program
         .state_by_symbol(dispatch.realization_state)
@@ -159,11 +165,6 @@ pub fn selected_call_arguments<'program>(
     {
         return Err("selected call lost its admitted authored parameter correspondence".into());
     }
-    let authored_application = match site {
-        CallSite::Expression { call, .. } => call.authored_machine_application,
-        CallSite::Statement(call) => call.authored_machine_application,
-        CallSite::TransitionNamed { .. } => Default::default(),
-    };
     let runtime_bindings = if authored_application.is_valid() {
         if expression_table(program)
             .static_machine_application(authored_application)

@@ -8388,32 +8388,23 @@ fail/facts/finite_family_returned_descriptor/target_body rejected 5335ms expecte
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_static_inline_result/call_result rejected 981ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/call_result rejected 6017ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/const_name rejected 4835ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/const_name rejected 982ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/field rejected 4275ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/local rejected 5188ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/field rejected 984ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/match_join rejected 5169ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/other_machine rejected 4803ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/local rejected 992ms expected @ddc17fff6a3c
+fail/facts/finite_family_static_inline_result/other_state rejected 4746ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/parameter rejected 5192ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/match_join rejected 988ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_machine rejected 975ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/other_state rejected 984ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/parameter rejected 976ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
-fail/facts/finite_family_static_inline_result/target_body rejected 992ms expected @ddc17fff6a3c
-	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/target_body rejected 4715ms expected @d70bac37d282
 	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 fail/facts/five_variant_enum_payload_bound_through_call_result_rejected rejected 2789ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_payload from payload_call: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -15090,11 +15081,15 @@ fail/generics/runtime_index_carrier_call_selected_mutated rejected 2141ms expect
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_call_selected_stale rejected 2986ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
+fail/generics/runtime_index_carrier_call_stale_capture rejected 6811ms expected @d70bac37d282
+	machine `probe` state `entry` cannot prove runtime index subject equality at statement 4; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_cast_stale rejected 2881ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_const rejected 330ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
+fail/generics/runtime_index_carrier_constructor_wrong_payload rejected 5983ms expected @d70bac37d282
+	machine `escape` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2536ms expected @ccdb99ca2214
 	mutable scalar loan cannot preserve a runtime index descriptor
 fail/generics/runtime_index_carrier_descriptor_borrow_call rejected 2100ms expected @ccdb99ca2214
@@ -19670,8 +19665,7 @@ pass/borrows/runtime_scalar_reads_shared_result_exit checked 4052ms check-target
 pass/borrows/runtime_selected_byte_descriptor_store checked 3470ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_descriptor_after_fixed_store checked 3954ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_exclusive_descriptor_store checked 3833ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_selected_indexed_reference_exit incomplete 8935ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	`main` calls `main::other`, which calls `confirm`, which calls `captured`; `captured` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has duplicate dispositions (owned construction and selected exit)); in state `captured::entry`, statement 1
+pass/borrows/runtime_selected_indexed_reference_exit checked 10209ms check-target:macos_arm64 @787d97e293d7
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 72578ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_selected_reference_mutation_complement_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 3310ms check-target:macos_arm64 @ccdb99ca2214
@@ -22809,15 +22803,15 @@ pass/facts/finite_family_returned_descriptor/other_machine checked 6964ms check-
 pass/facts/finite_family_returned_descriptor/other_state checked 6979ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_returned_descriptor/parameter checked 6993ms check-target:macos_arm64 @f37c9cfc83e2
 pass/facts/finite_family_returned_descriptor/target_body checked 7080ms check-target:macos_arm64 @f37c9cfc83e2
-pass/facts/finite_family_static_inline_result/call_result checked 5117ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/const_name checked 4947ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/field checked 4957ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/local checked 5914ms check-target:macos_arm64 @b31668d9a31f
-pass/facts/finite_family_static_inline_result/match_join checked 4964ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/other_machine checked 4884ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/other_state checked 4952ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/parameter checked 4895ms check-target:macos_arm64 @ddc17fff6a3c
-pass/facts/finite_family_static_inline_result/target_body checked 4998ms check-target:macos_arm64 @ddc17fff6a3c
+pass/facts/finite_family_static_inline_result/call_result checked 12280ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/const_name checked 12947ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/field checked 12894ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/local checked 12945ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/match_join checked 13021ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/other_machine checked 11709ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/other_state checked 11044ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/parameter checked 11842ms check-target:macos_arm64 @d70bac37d282
+pass/facts/finite_family_static_inline_result/target_body checked 11822ms check-target:macos_arm64 @d70bac37d282
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_field_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
@@ -25908,6 +25902,7 @@ pass/generics/runtime_index_carrier_after_earlier_descriptor_write_exit checked 
 pass/generics/runtime_index_carrier_argument_equal_exit checked 8302ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_index_carrier_array_valid checked 2645ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_result checked 2442ms @ccdb99ca2214
+pass/generics/runtime_index_carrier_call_saved_capture_exit checked 11524ms check-target:macos_arm64 @d70bac37d282
 pass/generics/runtime_index_carrier_call_selected_index checked 2197ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_selected_preserved checked 3006ms @ccdb99ca2214
 pass/generics/runtime_index_carrier_call_selected_replacement checked 2920ms @ccdb99ca2214
@@ -26613,8 +26608,7 @@ pass/ownership/runtime_local_subslice_element_window_exit rejected 13122ms check
 pass/ownership/runtime_match_conditional_observation_cleanup_exit checked 23391ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_expression_moves_selected_payload_exit checked 12222ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_nested_observation_cleanup_exit checked 14857ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_match_observation_cleanup_exit incomplete 8578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	`structural_result` has no executable body: this compiler does not lower a state of it yet (state graph: result custody accounting); in state `structural_result::entry`
+pass/ownership/runtime_match_observation_cleanup_exit checked 11287ms check-target:macos_arm64 @787d97e293d7
 pass/ownership/runtime_match_projected_subject_cleanup_exit checked 10676ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_retained_observation_cleanup_exit checked 13451ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_mutable_selector_window_exit checked 17807ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -27937,12 +27931,8 @@ pass/time/static_duration_accessors checked 48566ms check-target:macos_arm64 @cc
 pass/traits/applied_callable_law_equality_exit checked 7049ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_conformance_captured_fresh_regions_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_contract_arithmetic_refinement checked 3619ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/applied_nominal_callback_closed_local_types_exit rejected 1233ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	static type tuple lost its declared binder
-	static type tuple lost its declared binder
-pass/traits/applied_nominal_callback_local_types_exit rejected 1450ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	static type tuple lost its declared binder
-	static type tuple lost its declared binder
+pass/traits/applied_nominal_callback_closed_local_types_exit checked 10984ms check-target:macos_arm64 @e08fd38eeab5
+pass/traits/applied_nominal_callback_local_types_exit checked 10439ms check-target:macos_arm64 @e08fd38eeab5
 pass/traits/applied_nominal_callback_proposition_contract checked 3031ms @ccdb99ca2214
 pass/traits/applied_nominal_callback_scopes_exit checked 4132ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_qualified_signature_region_scope_exit checked 4383ms check-target:macos_arm64 @ccdb99ca2214
@@ -28062,12 +28052,10 @@ pass/traits/runtime_qualified_byte_crash_equality_exit checked 12345ms check-tar
 pass/traits/runtime_qualified_owned_requirement_calls_exit checked 3750ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_selected_case_reference_exit checked 3322ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_selected_reference_region checked 4251ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_selected_slice_reference_exit rejected 3500ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(Unsupported("closed reach call has ambiguous emitted occurrences"))
+pass/traits/runtime_selected_slice_reference_exit checked 11329ms check-target:macos_arm64 @e08fd38eeab5
 pass/traits/runtime_trait_default_requirement_scope_exit checked 13178ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/satisfies_bound_trait_parameter_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/structural_array_crash_identity_exit rejected 19934ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(MissingCrashArgumentSource { argument: StructuralArgument { place: PlaceId(153), path: [], access: SharedBorrow } })
+pass/traits/structural_array_crash_identity_exit checked 100695ms check-target:macos_arm64 @e08fd38eeab5
 pass/traits/structural_identity_crash_contract checked 4766ms @ccdb99ca2214
 pass/traits/trait_generic_bound_static_dispatch checked 11552ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/trait_member_effects checked 3379ms @ccdb99ca2214
@@ -28329,8 +28317,7 @@ run/domains/qualified_record_view_state_arrival_exit checked 3530ms check-target
 run/domains/semantic_predicate_domain_admission rejected 2586ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call measure from later: n in u64::Distance in state `entry`
 run/domains/structural_predicate_casts checked 2784ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/structural_qualification_cast_transitions incomplete 3409ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`main` calls `main::literal`, which calls `main::field`; `main::field` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: terminal call arm: operand occurrences); in state `main::field::entry`, statement 1
+run/domains/structural_qualification_cast_transitions checked 9941ms check-target:macos_arm64 @787d97e293d7
 run/domains/structural_qualification_cast_values checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/structural_qualification_nested_values checked 3172ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/vacuous_tag_call_arguments rejected 3167ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -28421,9 +28408,7 @@ run/state_shared_nested_backing checked 2950ms check-target:macos_arm64 @ccdb99c
 run/stores/runtime_float_indexed_call_result_exit checked 340220ms check-target:macos_arm64 @72a0af2d293d
 run/stores/runtime_float_store_selector_snapshot_exit checked 339598ms check-target:macos_arm64 @72a0af2d293d
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
-run/traits/static_implementation_method_arguments rejected 1441ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	call `keep` has an invalid argument correspondence: selected executable carrier differs from its exact public application
-	call `fill` has an invalid argument correspondence: selected call has no admitted public application
+run/traits/static_implementation_method_arguments checked 11135ms check-target:macos_arm64 @e08fd38eeab5
 run/traits/target_scoped_map_method_arguments checked 6166ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
 run/variant_decimal_runtime_division checked 10069ms check-target:linux_x86_64 @ccdb99ca2214
 run/variant_record_normalization_repeats checked 305495ms check-target:linux_x86_64 @e1cfe02f1a9b

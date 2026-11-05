@@ -173,7 +173,13 @@ impl Captures<'_> {
         state: &State,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
+        // A return already on this stack is the same result this frame is
+        // defining. It contributes no second origin set; the active frame
+        // records the non-recursive arms. Depth exhaustion still fails closed.
+        if active.contains(&state.symbol) {
+            return Some(Vec::new());
+        }
+        if active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
         }
         if !crate::normal_completion_possible(self.program, state)? {
@@ -420,7 +426,12 @@ impl Captures<'_> {
         // formation route. An abstract callable has a public signature even
         // without an executable state; its region cannot become an exact
         // pointer merely because the endpoint types happen to match.
+        // A dynamic slot is that same public frontier: its selector is not a
+        // private body whose return occurrence can be matched.
         let callable = crate::call_target_symbol(self.program, call);
+        if self.program.dynamic_slot_by_symbol(callable).is_some() {
+            return Some(None);
+        }
         if crate::call_target_parameters(self.program, callable).is_none()
             || crate::call_target_return_type(self.program, callable).is_none()
         {
