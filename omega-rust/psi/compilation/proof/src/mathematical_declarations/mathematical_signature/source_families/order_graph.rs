@@ -238,29 +238,10 @@ impl Producer<'_> {
         let mut budget = budget;
         proof_admission::check_type(self.arena, &context, term, ty, &mut budget).map_err(|error| {
             #[cfg(test)]
-            if let Some(counts) = budget.normalization_counts() {
-                let mut unfoldings = counts
-                    .unfoldings
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .filter(|(_, count)| *count != 0)
-                    .collect::<Vec<_>>();
-                unfoldings.sort_unstable_by_key(|&(declaration, count)| {
-                    (std::cmp::Reverse(count), declaration)
-                });
-                eprintln!(
-                    "order kernel work role={role} remaining={} beta={} projection={} case={} identity={} induction={} squash={} boxed={} unlisted_unfoldings={}",
-                    budget.remaining(), counts.beta, counts.projection, counts.case,
-                    counts.identity, counts.induction, counts.squash, counts.boxed, counts.unlisted_unfoldings
-                );
-                for (declaration, count) in unfoldings.into_iter().take(16) {
-                    let row = &self.declarations[declaration];
-                    eprintln!(
-                        "order kernel unfolding declaration={declaration} count={count} type={} body={}",
-                        self.describe_goal(row.ty, &mut 48),
-                        row.body.map(|body| self.describe_goal(body, &mut 48)).unwrap_or_default()
-                    );
+            {
+                self.report_kernel_work(role, &budget);
+                if matches!(&error, proof_admission::CoreError::StepCeiling) {
+                    self.diagnose_check_phases(&context, term, ty, role);
                 }
             }
             GraphFailure::Kernel(format!(
@@ -268,6 +249,81 @@ impl Producer<'_> {
             ))
         })
     }
+    #[cfg(test)]
+    fn report_kernel_work(&self, role: &str, budget: &Budget) {
+        if let Some(counts) = budget.normalization_counts() {
+            let mut unfoldings = counts
+                .unfoldings
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, count)| *count != 0)
+                .collect::<Vec<_>>();
+            unfoldings.sort_unstable_by_key(|&(declaration, count)| {
+                (std::cmp::Reverse(count), declaration)
+            });
+            eprintln!(
+                "order kernel work role={role} remaining={} beta={} projection={} case={} identity={} induction={} squash={} boxed={} unlisted_unfoldings={}",
+                budget.remaining(),
+                counts.beta,
+                counts.projection,
+                counts.case,
+                counts.identity,
+                counts.induction,
+                counts.squash,
+                counts.boxed,
+                counts.unlisted_unfoldings
+            );
+            for (declaration, count) in unfoldings.into_iter().take(16) {
+                let row = &self.declarations[declaration];
+                eprintln!(
+                    "order kernel unfolding declaration={declaration} count={count} type={} body={}",
+                    self.describe_goal(row.ty, &mut 48),
+                    row.body
+                        .map(|body| self.describe_goal(body, &mut 48))
+                        .unwrap_or_default()
+                );
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn diagnose_check_phases(
+        &mut self,
+        context: &Context,
+        term: TermHandle,
+        ty: TermHandle,
+        role: &str,
+    ) {
+        // These independent probes explain an already failed check. Their
+        // results never replace that failure or establish theorem evidence.
+        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS)
+            .with_normalization_counts(self.declarations.len());
+        let expected = proof_admission::infer_sort(self.arena, context, ty, &mut budget);
+        eprintln!("order diagnostic phase=expected-type role={role} result={expected:?}");
+        self.report_kernel_work("expected-type probe", &budget);
+
+        let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS)
+            .with_normalization_counts(self.declarations.len());
+        let actual = proof_admission::infer_type(self.arena, context, term, &mut budget);
+        eprintln!("order diagnostic phase=body-inference role={role} result={actual:?}");
+        self.report_kernel_work("body-inference probe", &budget);
+        if let (Ok(sort), Ok(actual)) = (expected, actual) {
+            eprintln!(
+                "order diagnostic inferred-type={} expected-type={}",
+                self.describe_goal(actual, &mut 96),
+                self.describe_goal(ty, &mut 96)
+            );
+            let shared = self.arena.insert(Term::Sort(sort));
+            let mut budget = Budget::new(DEFAULT_CONVERSION_STEPS)
+                .with_normalization_counts(self.declarations.len());
+            let comparison =
+                proof_admission::convertible(self.arena, context, actual, ty, shared, &mut budget);
+            eprintln!("order diagnostic phase=type-conversion role={role} result={comparison:?}");
+            self.report_kernel_work("type-conversion probe", &budget);
+        }
+    }
+
     fn placeholder(
         &mut self,
         ty: TermHandle,
