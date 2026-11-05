@@ -444,11 +444,12 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         field: validation::StructuralScalarField,
     ) -> Option<ComputationHandle> {
-        // A saved operand is an expression home, not a fresh value to evaluate.
-        // Specialization reads a value-parameter descriptor from that operand
-        // after erasure has removed the carrier's runtime place. The closed
-        // integer operand of the application is the field's established value,
-        // so the observation does not borrow storage the carrier does not have.
+        // A saved operand is an expression or local home, not a fresh value to
+        // evaluate. Specialization reads a value-parameter descriptor from
+        // that operand after erasure has removed the carrier's runtime place.
+        // The closed integer operand of the application is the field's
+        // established value, so the observation does not borrow storage the
+        // carrier does not have.
         if let Some(literal) = closed_descriptor_value(self.program, &field) {
             return Some(self.insert(
                 field.primitive_type,
@@ -517,18 +518,23 @@ impl Builder<'_, '_> {
     }
 }
 
-/// The closed integer a value-parameter descriptor denotes when the read's
-/// root is a saved expression rather than a symbol home. A path below that
+/// The closed integer a value-parameter descriptor denotes. A saved expression
+/// and a saved local are the same observation: erasure leaves no runtime place,
+/// and the application's integer operand is the field. A path below that
 /// descriptor is a different observation and keeps the ordinary borrow.
 fn closed_descriptor_value(
     program: &dyn ::validation::CheckingInput,
     field: &validation::StructuralScalarField,
 ) -> Option<numerics::literals::IntegerLiteral> {
-    if !field.path.is_empty() || !matches!(field.root, facts::PlaceRoot::Expression(_)) {
+    if !field.path.is_empty()
+        || !matches!(
+            field.root,
+            facts::PlaceRoot::Expression(_) | facts::PlaceRoot::Symbol(_)
+        )
+    {
         return None;
     }
-    let (_, _, index) = program
-        .data_application_value_fields(field.type_reference)
+    let (_, _, index) = descriptor_fields(program, field.type_reference)
         .into_iter()
         .find(|(_, descriptor, _)| descriptor.symbol == field.field)?;
     let literal = program
@@ -539,4 +545,28 @@ fn closed_descriptor_value(
         landed_type,
         domain: field.domain,
     }))
+}
+
+/// Value-parameter descriptors of the carrier, after the reference shells a
+/// borrowed local spells in front of the data application.
+fn descriptor_fields(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Vec<(
+    &typed_trees::data::TypeParameter,
+    &typed_trees::data::DataField,
+    typed_trees::types::TypeReferenceHandle,
+)> {
+    let mut visited = 0u32;
+    loop {
+        if visited > 8 {
+            break;
+        }
+        visited += 1;
+        let Some(shell) = validation::reference_shell(program, reference) else {
+            break;
+        };
+        reference = shell.referee;
+    }
+    program.data_application_value_fields(reference)
 }
