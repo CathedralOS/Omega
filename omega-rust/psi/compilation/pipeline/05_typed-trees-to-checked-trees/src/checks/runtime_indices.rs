@@ -2022,11 +2022,26 @@ impl Scope<'_> {
                         .machine_holding_state(row.registration_operation)
                 })
                 .ok_or("the authored application has no source signature")?;
-            // The registered operation may name an internal state. Its own
-            // parameters are the receiving signature, not the machine's entry.
-            let source_parameters =
-                call_target_parameters(self.program, row.registration_operation)
-                    .ok_or("the source operation has no retained parameter signature")?;
+            // A generic application belongs to the whole machine. Rejoin its
+            // selected state through the recorded instantiation, so an internal
+            // transition cannot borrow the entry state's different signature.
+            let selected_state = validation::call_target_state(self.program, target)
+                .ok_or("the call has no selected receiving state")?;
+            let mut states = self.program.machine_states(source).iter().filter(|state| {
+                self.program.instantiated_machine_state_matches(
+                    callee.symbol,
+                    source.symbol,
+                    state.symbol,
+                    selected_state.symbol,
+                )
+            });
+            let source_state = states
+                .next()
+                .ok_or("the receiving state has no retained source correspondence")?;
+            if states.next().is_some() {
+                return Err("the receiving state has ambiguous source correspondence".into());
+            }
+            let source_parameters = self.program.state_parameters(source_state);
             if source_parameters.len() != parameters.len()
                 || !source_parameters
                     .get(position)
