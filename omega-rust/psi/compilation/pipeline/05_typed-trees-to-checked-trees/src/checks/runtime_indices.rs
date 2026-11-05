@@ -1923,13 +1923,13 @@ impl Scope<'_> {
         required: Application<'_>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if self
+        let has_value_indices = !self
             .program
             .type_application_value_indices(required.reference)
-            .is_empty()
-        {
-            return;
-        }
+            .is_empty();
+        // An unindexed aggregate can still receive indexed fields or case
+        // payloads. Walk construction obligations before skipping a plain leaf;
+        // only the completed value's own indices need subject comparison.
         if !expression.is_valid() {
             if self
                 .program
@@ -1950,7 +1950,9 @@ impl Scope<'_> {
             .expression_const_declaration(expression)
             .is_some()
         {
-            self.check_completed_value(expression, &required, diagnostics);
+            if has_value_indices {
+                self.check_completed_value(expression, &required, diagnostics);
+            }
             return;
         }
         match self.program.expression_table.expression(expression) {
@@ -1971,7 +1973,9 @@ impl Scope<'_> {
                         .type_application_value_indices(cast.target_type)
                         .has_runtime_values() =>
             {
-                self.check_completed_value(expression, &required, diagnostics);
+                if has_value_indices {
+                    self.check_completed_value(expression, &required, diagnostics);
+                }
                 return;
             }
             ExpressionNode::Cast(cast) => {
@@ -2105,7 +2109,9 @@ impl Scope<'_> {
             }
             _ => {}
         }
-        self.check_completed_value(expression, &required, diagnostics);
+        if has_value_indices {
+            self.check_completed_value(expression, &required, diagnostics);
+        }
     }
 
     fn check_completed_value(
