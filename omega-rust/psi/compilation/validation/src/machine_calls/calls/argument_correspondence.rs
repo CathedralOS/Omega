@@ -634,21 +634,22 @@ pub(crate) fn call_binding_correspondence(
                 let index = ordinary.len() + position;
                 let formal = &executable[index];
                 let actual = actuals[index];
-                if application_parameter_origin(program, &lineage, formal.symbol).ok()
-                    != Some(parameter.symbol)
-                    || formal.is_const
-                    || formal.is_mutable
-                    || !matches!(parameter.kind, TypeParameterKind::Value { .. })
-                    || !crate::declared_carriers_match(
-                        program,
-                        type_reference,
-                        formal.type_reference,
-                    )
-                    || !runtime_source_matches(program, subject, expression, actual)
+                if application_parameter_origin(program, &lineage, formal.symbol)?
+                    != parameter.symbol
                 {
-                    return Err(
-                        "the runtime header binder has no exact captured executable argument",
-                    );
+                    return Err("the runtime argument's formal has another source binder");
+                }
+                if formal.is_const || formal.is_mutable {
+                    return Err("the runtime argument's formal is not an immutable value");
+                }
+                if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
+                    return Err("the runtime argument does not belong to a Value binder");
+                }
+                if !crate::declared_carriers_match(program, type_reference, formal.type_reference) {
+                    return Err("the runtime argument's carrier differs from its source binding");
+                }
+                if !runtime_source_matches(program, subject, expression, actual) {
+                    return Err("the runtime argument differs from its retained source occurrence");
                 }
                 logical = formal.symbol;
                 runtime_parameters.push(parameter.symbol);
