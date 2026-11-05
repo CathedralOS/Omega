@@ -514,6 +514,7 @@ pub(super) fn check_statement_borrows<'p>(
                     super::calls::check_staged_operand_move(
                         program,
                         facts,
+                        loan_occurrences,
                         state_flow,
                         borrow_state,
                         statement,
@@ -806,6 +807,7 @@ fn check_call_mutation_borrows<'p>(
         super::calls::check_receiver_footprint_against_argument_loans(
             program,
             facts,
+            loan_occurrences,
             state_flow,
             borrow_call,
             stated_premises,
