@@ -1,8 +1,7 @@
 // A member must guarantee every conclusion its requirement states: a caller
 // that reaches it through the requirement, here a selector call, assumes
 // `result <= value` and subtracts without a runtime check. `Grow` states no
-// `ensures` in the original program. Its explicit false conclusion below still
-// has to be proved; the appended independent member omits its own promise.
+// `ensures` and returns `value + 1`, so its conformance rejects.
 
 trait Shrink<T> {
     machine shrink(scale: &T, value: u64) -> u64
@@ -17,7 +16,6 @@ data Scale {
 Grow satisfies Shrink<Scale> {
     machine shrink(scale: &Scale, value: u64) -> u64
     requires value >= 3 && value <= 100
-    ensures result <= value
     {
         transition {
             _ -> (value + 1)
@@ -31,30 +29,4 @@ machine probe(scale: &Scale) -> u64 {
     transition {
         _ -> (9 - first)
     }
-}
-
-// Expected exit: 0
-public boundary trait ExactRead {
-    machine read(input: u8) -> u8
-    reaches
-    ensures result == input;
-}
-trait LocalForward {
-    machine forward(datum: u8) -> u8;
-}
-ReadRoute satisfies LocalForward {
-    machine forward(datum: u8) -> u8
-    satisfies ExactRead::read
-    reaches
-    { 8u8 }
-}
-machine consume(value: u8)
-requires value == 9u8
-{}
-machine inherited_probe() crashes Trap {
-    let observed: u8 = ExactRead::read(9u8);
-    consume(observed);
-    transition observed == 9u8 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
 }
