@@ -1096,12 +1096,11 @@ impl Scope<'_> {
                             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                                 return false;
                             }
-                            // Specialization clones pattern bindings. A carrier
-                            // that still names the template symbol and a
-                            // parameter that names the clone are one captured
-                            // index.
-                            if same_captured_index(self.program, *left, *right)
-                                || self.supplied_index_matches(required, *right, *left)
+                            // Declaration identity does not identify a captured
+                            // value after its source changes. Specialization
+                            // must use the call's actual binding below rather
+                            // than treating cloned names as equal indices.
+                            if self.supplied_index_matches(required, *right, *left)
                                 || self.supplied_index_matches(actual, *left, *right)
                             {
                                 return true;
@@ -2438,40 +2437,6 @@ fn index_symbol(
         }
         _ => None,
     }
-}
-
-fn same_captured_index(
-    program: &dyn CheckingInput,
-    left: TypeReferenceHandle,
-    right: TypeReferenceHandle,
-) -> bool {
-    let symbol = |reference| match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
-        TypeReferenceNode::ConstExpression(expression) => {
-            match program.expression_table.expression(*expression) {
-                ExpressionNode::Name(path) => Some(path.symbol),
-                _ => None,
-            }
-        }
-        _ => None,
-    };
-    let (Some(left), Some(right)) = (symbol(left), symbol(right)) else {
-        return false;
-    };
-    if left == right {
-        return true;
-    }
-    let origin = |mut symbol: SymbolHandle| {
-        for _ in 0..8 {
-            let generated = program.symbols.get(symbol).generated_from;
-            if !generated.is_valid() {
-                break;
-            }
-            symbol = generated;
-        }
-        symbol
-    };
-    origin(left) == origin(right)
 }
 
 pub(super) fn check(

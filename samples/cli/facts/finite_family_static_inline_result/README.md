@@ -4,8 +4,8 @@ These programs pass arrays of 16 and 32 bytes through a function selected at
 runtime. Each result must keep its exact array size and the input's first and
 last bytes. Each nested function that supplies an input must run once.
 
-Owning tasks: **FINITE-GENERIC-DISPATCH** and
-**BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
+Owning tasks: **MODULE-NAMESPACE-RESOLUTION** (including
+**FINITE-GENERIC-DISPATCH**) and **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
 
 A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
 
