@@ -249,13 +249,14 @@ pub(super) fn collect(
         &mut Vec::new(),
     );
     let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
+    let plain_observation = matches!(&frozen, FrozenReferenceSelection::NotFrozen);
     let frozen_kind = match &frozen {
         FrozenReferenceSelection::NotFrozen => "not-frozen",
         FrozenReferenceSelection::Endpoint { .. } => "endpoint",
         FrozenReferenceSelection::ThroughReference => "through-reference",
         FrozenReferenceSelection::Unavailable => "unavailable",
     };
-    let resolved = if let Some(complete) = collect_completed_output(
+    let mut resolved = if let Some(complete) = collect_completed_output(
         program,
         facts,
         state,
@@ -449,6 +450,16 @@ pub(super) fn collect(
         parents,
     ) {
         complete
+    } else if collect_binding_observation(
+        program,
+        facts,
+        state,
+        capture,
+        projection,
+        output_access,
+        output,
+    ) {
+        true
     } else {
         match collect_invocation_accesses(
             program,
@@ -476,6 +487,21 @@ pub(super) fn collect(
             );
         }
         output.truncate(before);
+        // An earlier capture strategy can refuse without consulting the
+        // binding. A plain observation of that binding still has its loan.
+        if plain_observation
+            && collect_binding_observation(
+                program,
+                facts,
+                state,
+                capture,
+                projection,
+                output_access,
+                output,
+            )
+        {
+            resolved = true;
+        }
     }
     resolved
 }
@@ -1101,6 +1127,79 @@ fn collect_formed_projection(
             || row.formation_expression != capture.expression
             || row.statement_index != capture.statement_index
             || owner_place_segments(facts.borrow.owner_segments.span_or_empty(formed)) != projection
+        {
+            continue;
+        }
+        output.push(PermissionSupplier {
+            source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+            actual: Handle::invalid(),
+            backing: checked_trees::CapturedPlace {
+                incoming_reference: row.incoming_reference,
+                incoming_owner_path: facts
+                    .borrow
+                    .access_segments
+                    .span_or_empty(row.incoming_owner_path)
+                    .to_vec(),
+                root: row.root,
+                segments: facts.borrow.loan_segments(row).to_vec(),
+            },
+        });
+    }
+    output.len() > before
+}
+
+/// Reading a reference binding uses the loan that binding owns. The descriptor
+/// may be stored in the referent, so a storage-owner match on the binding
+/// place does not see it. The lexical owner is the association the checker
+/// already recorded.
+fn collect_binding_observation(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &FlowOperandFact,
+    projection: &[facts::PlaceSegment],
+    output_access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<PermissionSupplier>,
+) -> bool {
+    if !projection.is_empty()
+        || !matches!(
+            capture.completion,
+            checked_trees::FlowOperandCompletion::Observation
+        )
+    {
+        return false;
+    }
+    let Some(place) = place_at(
+        program,
+        state.state_symbol,
+        capture.statement_index,
+        capture.expression,
+    ) else {
+        return false;
+    };
+    if !place.segments.is_empty() {
+        return false;
+    }
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return false;
+    };
+    let Some((_, borrow_state)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+    else {
+        return false;
+    };
+    let before = output.len();
+    for (loan, row) in facts.borrow.state_loans(borrow_state) {
+        if row.owner_symbol != symbol
+            || row.statement_index > capture.statement_index
+            || (row.last_use_statement_index != 0
+                && row.last_use_statement_index < capture.statement_index)
+            || matches!(
+                row.lineage,
+                checked_trees::BorrowLoanLineage::LifetimeDependency
+            )
+            || row.kind.direct_reborrow_effect(output_access).is_none()
         {
             continue;
         }
