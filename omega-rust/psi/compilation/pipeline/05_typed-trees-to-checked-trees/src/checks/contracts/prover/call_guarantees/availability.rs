@@ -176,6 +176,13 @@ pub(in crate::checks) fn available<'program>(
         {
             continue;
         }
+        // An earlier live context already established this exact occurrence.
+        // Failed candidates never enter this roster and still get checked.
+        if guarantees.iter().any(|prior: &AvailableGuarantee<'_>| {
+            prior.fact == source && prior.coordinates() == (statement_index, call_ordinal)
+        }) {
+            continue;
+        }
         let Some(supplied) = invocation(program, caller, statement_index, call_ordinal) else {
             continue;
         };
@@ -228,11 +235,6 @@ pub(in crate::checks) fn available<'program>(
                     })
                     .collect()
             });
-        if guarantees.iter().any(|prior: &AvailableGuarantee<'_>| {
-            prior.fact == source && prior.coordinates() == (statement_index, call_ordinal)
-        }) {
-            continue;
-        }
         guarantees.push(AvailableGuarantee {
             expression,
             fact: source,
