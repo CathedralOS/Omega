@@ -302,7 +302,7 @@ impl<'program> StructuralJudge<'program> {
                             if program.expression_table.range_node(indexed.index).is_some()
                                 && judge.completed_builtin_coordinates(expression, scope))
                 || judge.storage_observation_invalidated(expression)
-                || discarded_value_has_no_own_effects(program, scope, expression)
+                || expression_has_no_own_effects(program, scope.0, scope.1, expression)
                 || matches!(node, ExpressionNode::Cast(cast)
                             if !cast.form.is_recast()
                                 && program.primitive_type_reference(cast.target_type).is_some()))
@@ -432,7 +432,7 @@ impl<'program> StructuralJudge<'program> {
             ) {
                 value = term;
             } else if !judge.runtime_body_values
-                || !discarded_value_has_no_own_effects(program, scope, expression)
+                || !expression_has_no_own_effects(program, scope.0, scope.1, expression)
             {
                 return None;
             }
