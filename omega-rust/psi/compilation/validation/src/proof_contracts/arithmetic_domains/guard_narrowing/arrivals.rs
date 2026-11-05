@@ -23,6 +23,8 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 
 use super::requirements::{RequirementSeeds, machine_written_paths};
 
+mod call_sites;
+pub(crate) use call_sites::CrossMachineArrivalSites;
 mod normal_returns;
 mod transition_arguments;
 pub(crate) use normal_returns::{ReturnInference, inferred_normal_return_interval};
@@ -535,56 +537,68 @@ pub(super) fn apply_cross_machine_reference_arrivals(
     environment: &mut ValueEnvironment,
 ) {
     let mut joined: Option<ValueEnvironment> = None;
-    for caller in program.machines() {
+    let sites = call_sites::prepared(program);
+    for site in sites.for_entry(callee.symbol, entry.symbol) {
+        // Coordinates belong to this immutable input. If that association is
+        // unavailable, retain no caller-derived narrowing from a partial roster.
+        let Some(caller) = program.machines().get(site.caller) else {
+            return;
+        };
         if caller.symbol == callee.symbol {
             continue;
         }
-        for state in program.machine_states(caller) {
-            for statement in program.statement_table.statements(state.statement_nodes) {
-                match statement {
-                    StatementNode::Transition(transition) => {
-                        consider_cross_machine_target(
-                            program,
-                            caller,
-                            state,
-                            &transition.guard,
-                            true,
-                            transition.target,
-                            callee,
-                            entry,
-                            &mut joined,
-                        );
-                        consider_cross_machine_target(
-                            program,
-                            caller,
-                            state,
-                            &transition.guard,
-                            false,
-                            transition.continuation,
-                            callee,
-                            entry,
-                            &mut joined,
-                        );
-                    }
-                    StatementNode::Call(call) => consider_cross_machine_call(
-                        program,
-                        caller,
-                        state,
-                        &TransitionGuardNode::Always,
-                        true,
-                        call.target_symbol,
-                        program.statement_table.expression_handles(call.arguments),
-                        callee,
-                        entry,
-                        &mut joined,
-                    ),
-                    StatementNode::Expression(_)
-                    | StatementNode::LocalData(_)
-                    | StatementNode::Assignment(_)
-                    | StatementNode::Assembly(_)
-                    | StatementNode::AssemblyFact(_) => {}
-                }
+        let Some(state) = program.machine_states(caller).get(site.state) else {
+            return;
+        };
+        let Some(statement) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(site.statement)
+        else {
+            return;
+        };
+        match (site.kind, statement) {
+            (call_sites::ArrivalSiteKind::Primary, StatementNode::Transition(transition)) => {
+                consider_cross_machine_target(
+                    program,
+                    caller,
+                    state,
+                    &transition.guard,
+                    true,
+                    transition.target,
+                    callee,
+                    entry,
+                    &mut joined,
+                );
             }
+            (call_sites::ArrivalSiteKind::Continuation, StatementNode::Transition(transition)) => {
+                consider_cross_machine_target(
+                    program,
+                    caller,
+                    state,
+                    &transition.guard,
+                    false,
+                    transition.continuation,
+                    callee,
+                    entry,
+                    &mut joined,
+                );
+            }
+            (call_sites::ArrivalSiteKind::StatementCall, StatementNode::Call(call)) => {
+                consider_cross_machine_call(
+                    program,
+                    caller,
+                    state,
+                    &TransitionGuardNode::Always,
+                    true,
+                    call.target_symbol,
+                    program.statement_table.expression_handles(call.arguments),
+                    callee,
+                    entry,
+                    &mut joined,
+                );
+            }
+            _ => return,
         }
     }
     if let Some(joined) = joined {
