@@ -1083,11 +1083,26 @@ impl<'a> Replay<'a> {
                             &destination.path,
                         )?;
                         let mut origins = BTreeSet::new();
+                        let mut known = true;
                         for origin in &slot.origins {
-                            origins.extend(self.substitute_result(machine, &before, call, origin)?);
+                            // One returned address may not substitute yet. That
+                            // carrier stays unknown. Discarding the caller's
+                            // snapshot would also drop origins established
+                            // before this call.
+                            match self.substitute_result(machine, &before, call, origin) {
+                                Some(substituted) => origins.extend(substituted),
+                                None => {
+                                    known = false;
+                                    break;
+                                }
+                            }
                         }
-                        replacements
-                            .insert(DescriptorPayloadTarget::Storage(destination), Some(origins));
+                        // An unknown result clears that carrier. Leaving the
+                        // pre-call value would prove a backing this call replaced.
+                        replacements.insert(
+                            DescriptorPayloadTarget::Storage(destination),
+                            known.then_some(origins),
+                        );
                     }
                 }
                 Self::install_contents(&mut after, replacements);
@@ -1288,15 +1303,25 @@ impl<'a> Replay<'a> {
             DescriptorStoredOrigin::Parameter {
                 position,
                 projection,
-            } => self.project(
-                machine,
-                self.read_contents(
-                    machine,
-                    state,
-                    call.argument_contents.get(*position)?.as_ref()?,
-                ),
-                Some(projection),
-            ),
+            } => {
+                // The formal exported its address. That address is the actual's
+                // slot. Walking the pointee contents instead demands a resident
+                // descriptor, so an access view over ordinary RAM has no origin.
+                let address = call
+                    .arguments
+                    .get(*position)
+                    .and_then(Option::as_ref)
+                    .and_then(|argument| self.read(machine, state, argument));
+                let value = match address {
+                    Some(origins) if !origins.is_empty() => Some(origins),
+                    _ => self.read_contents(
+                        machine,
+                        state,
+                        call.argument_contents.get(*position)?.as_ref()?,
+                    ),
+                };
+                self.project(machine, value, Some(projection))
+            }
             DescriptorStoredOrigin::IncomingSlot { position, path } => {
                 let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
                 query
