@@ -512,7 +512,7 @@ impl Producer<'_> {
             ty,
             invariant,
             constructors,
-            assumption_closure,
+            assumption_closure: assumption_closure.into_iter().collect(),
         })
     }
 }
@@ -949,7 +949,7 @@ pub(super) fn zero_comparison_schema(
     let (schema, ty) = p.abstracted(body, ty, &parameters, "zero comparison to strict descent")?;
     let signature = Signature::from_declarations(p.declarations.clone());
     let closure = judgment_assumption_closure(p.arena, &signature, &[schema, ty]);
-    Ok((schema, ty, closure))
+    Ok((schema, ty, closure.into_iter().collect()))
 }
 
 #[cfg(test)]
