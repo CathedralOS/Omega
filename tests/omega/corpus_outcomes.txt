@@ -19670,8 +19670,7 @@ pass/borrows/runtime_scalar_reads_shared_result_exit checked 4052ms check-target
 pass/borrows/runtime_selected_byte_descriptor_store checked 3470ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_descriptor_after_fixed_store checked 3954ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_exclusive_descriptor_store checked 3833ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_selected_indexed_reference_exit incomplete 8935ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	`main` calls `main::other`, which calls `confirm`, which calls `captured`; `captured` has no executable body: this compiler does not lower a statement of it yet (state graph: structural result has duplicate dispositions (owned construction and selected exit)); in state `captured::entry`, statement 1
+pass/borrows/runtime_selected_indexed_reference_exit checked 10209ms check-target:macos_arm64 @787d97e293d7
 pass/borrows/runtime_selected_reference_child_retirement_exit checked 72578ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_selected_reference_mutation_complement_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_reference_nested_restoration_exit checked 3310ms check-target:macos_arm64 @ccdb99ca2214
@@ -26613,8 +26612,7 @@ pass/ownership/runtime_local_subslice_element_window_exit rejected 13122ms check
 pass/ownership/runtime_match_conditional_observation_cleanup_exit checked 23391ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_expression_moves_selected_payload_exit checked 12222ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_nested_observation_cleanup_exit checked 14857ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/runtime_match_observation_cleanup_exit incomplete 8578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	`structural_result` has no executable body: this compiler does not lower a state of it yet (state graph: result custody accounting); in state `structural_result::entry`
+pass/ownership/runtime_match_observation_cleanup_exit checked 11287ms check-target:macos_arm64 @787d97e293d7
 pass/ownership/runtime_match_projected_subject_cleanup_exit checked 10676ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_match_retained_observation_cleanup_exit checked 13451ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_mutable_selector_window_exit checked 17807ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -28329,8 +28327,7 @@ run/domains/qualified_record_view_state_arrival_exit checked 3530ms check-target
 run/domains/semantic_predicate_domain_admission rejected 2586ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call measure from later: n in u64::Distance in state `entry`
 run/domains/structural_predicate_casts checked 2784ms check-target:macos_arm64 @ccdb99ca2214
-run/domains/structural_qualification_cast_transitions incomplete 3409ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`main` calls `main::literal`, which calls `main::field`; `main::field` has no executable body: this compiler does not lower a transition of it yet (state graph: terminator: terminal call arm: operand occurrences); in state `main::field::entry`, statement 1
+run/domains/structural_qualification_cast_transitions checked 9941ms check-target:macos_arm64 @787d97e293d7
 run/domains/structural_qualification_cast_values checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/structural_qualification_nested_values checked 3172ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/vacuous_tag_call_arguments rejected 3167ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
