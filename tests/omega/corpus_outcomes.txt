@@ -3364,6 +3364,8 @@ fail/contracts/match_contract_unknown_arm_rejected rejected 2941ms expected @ccd
 	cannot prove ensures contract for exit from fabricated at statement 0: result == match choice { true => 7, false => 8 }
 fail/contracts/match_contract_wrong_case_rejected rejected 2893ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from bits at statement 1: result == match direction { Direction => 0, Direction => 0x80000000 } | 0x400000
+fail/contracts/match_payload_contract rejected 3583ms expected @c5db983e9784
+	cannot prove ensures contract for exit from choose at statement 2: match result { Reply::Kept { number, neighbor } => <saved subject #1:1>.number == input && <saved subject #1:1>.neighbor == 23, Reply::Refused { number, neighbor } => <saved subject #1:1>.number == input && <saved subject #1:1>.neighbor == 41 }
 fail/contracts/mixed_requirement_prior_float_capture rejected 4628ms expected @ccdb99ca2214
 	cannot prove requires contract for call compare from main: value == value && replace(mut value) <= 4 (needs fact `before == after && count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/mixed_result_requirement_integer_bound rejected 4384ms expected @ccdb99ca2214
@@ -20613,6 +20615,7 @@ pass/contracts/indexed_crash_dense_scalar_namespace checked 3754ms check-target:
 pass/contracts/indexed_crash_entry_subfield_arrival checked 3683ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/invariant_identifier checked 3134ms @ccdb99ca2214
 pass/contracts/match_contract_composition_exit checked 3860ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/match_payload_contract checked 4929ms check-target:macos_arm64 @c5db983e9784
 pass/contracts/named_tail_return_contract checked 19835ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/nested_call_later_operand_preserves_storage_fact checked 3417ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/nested_call_outer_preserves_storage_fact checked 3117ms check-target:macos_arm64 @ccdb99ca2214
