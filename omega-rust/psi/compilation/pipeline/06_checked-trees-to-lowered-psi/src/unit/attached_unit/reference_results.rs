@@ -339,98 +339,6 @@ pub(crate) fn emit_carrier(
                 )
                 .map_err(LoweringError::Unsupported)?,
             );
-            if matches!(
-                storage,
-                PublishedReferenceStorage::Declared
-                    | PublishedReferenceStorage::RepresentationView(_)
-            ) {
-                // A local home's empty declaration describes storage before
-                // initialization. The checked source endpoint retains the
-                // standing obligations its completed stores must establish.
-                // Carry those obligations into the loan, not predicates inferred
-                // from its current bytes or the receiving reference annotation.
-                if !formation.backing_type.is_valid() {
-                    return Err(LoweringError::InvalidReferenceContract {
-                        supplying_type: formation.backing_type,
-                        reason: "reference formation lost its supplying type".to_owned(),
-                    });
-                }
-                let supplying = structural_declaration_by_identity(
-                    declarations,
-                    identities,
-                    formation.checked,
-                    stored_structural_identity(formation.checked, formation.backing_type),
-                    "reference formation lost its supplying carrier",
-                )?;
-                let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
-                    declaration.shape
-                else {
-                    return Err(LoweringError::InvalidReferenceContract {
-                        supplying_type: formation.backing_type,
-                        reason: "reference formation lost its reference carrier".to_owned(),
-                    });
-                };
-                if matches!(storage, PublishedReferenceStorage::Declared)
-                    && supplying.id != referent
-                {
-                    return Err(LoweringError::InvalidReferenceContract {
-                        supplying_type: formation.backing_type,
-                        reason: "reference formation source differs from its exact referent"
-                            .to_owned(),
-                    });
-                }
-                let contract = match formation.source_contract {
-                    checked_trees::CheckedReferenceSourceContract::Standing(contract) => contract,
-                    checked_trees::CheckedReferenceSourceContract::Unavailable(reason) => {
-                        return Err(LoweringError::InvalidReferenceContract {
-                            supplying_type: formation.backing_type,
-                            reason: reason.clone(),
-                        });
-                    }
-                    checked_trees::CheckedReferenceSourceContract::SeparateStorage => {
-                        return Err(LoweringError::InvalidReferenceContract {
-                            supplying_type: formation.backing_type,
-                            reason: "pointer formation has no supplying contract".to_owned(),
-                        });
-                    }
-                };
-                let projected = super::parameters::lower_projected_qualifications(
-                    identities,
-                    &contract.projected_qualifications,
-                    formation.domain_ids,
-                    supplying.id,
-                    declarations,
-                )?;
-                let whole = contract
-                    .qualifications
-                    .iter()
-                    .copied()
-                    .map(|domain| {
-                        lookup_domain_id_for_carrier(formation.domain_ids, domain, supplying.id)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                result.projected_qualifications.extend(
-                    terminal_semantics::reference_carrier_memberships(
-                        declarations.iter(),
-                        supplying.id,
-                        &whole,
-                        &projected,
-                        &[],
-                        source.access,
-                        structural_type,
-                        match &storage {
-                            PublishedReferenceStorage::RepresentationView(view) => Some(view),
-                            _ => None,
-                        },
-                    )
-                    .map_err(|reason| {
-                        LoweringError::InvalidReferenceContract {
-                            supplying_type: formation.backing_type,
-                            reason: reason.to_owned(),
-                        }
-                    })?,
-                );
-            }
             if let Some(field) =
                 terminal_semantics::runtime_structural_field(declarations.iter(), root, path)
                 && field.field_type.byte_sequence_carrier().is_some()
@@ -472,9 +380,98 @@ pub(crate) fn emit_carrier(
                 }
             }
         }
+        if matches!(
+            storage,
+            PublishedReferenceStorage::Declared | PublishedReferenceStorage::RepresentationView(_)
+        ) {
+            result
+                .projected_qualifications
+                .extend(source_contract_memberships(
+                    identities,
+                    &formation,
+                    declaration,
+                    source.access,
+                    storage,
+                    declarations,
+                )?);
+        }
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
     }
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))
+}
+
+/// A source contract belongs to the checked value, including when its storage
+/// home has no membership rows. Lower it independently of those live rows.
+fn source_contract_memberships(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    formation: &Formation<'_>,
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+    access: terminal_psi::StructuralAccess,
+    storage: PublishedReferenceStorage,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
+    let refuse = |reason: &str| LoweringError::InvalidReferenceContract {
+        supplying_type: formation.backing_type,
+        reason: reason.to_owned(),
+    };
+    let contract = match formation.source_contract {
+        checked_trees::CheckedReferenceSourceContract::Standing(contract) => contract,
+        checked_trees::CheckedReferenceSourceContract::Unavailable(reason) => {
+            return Err(refuse(reason));
+        }
+        checked_trees::CheckedReferenceSourceContract::SeparateStorage => {
+            return Err(refuse("pointer formation has no supplying contract"));
+        }
+    };
+    // A proved empty requirement list adds no membership and needs no
+    // definition for an otherwise identity-only abstract referent.
+    if contract.qualifications.is_empty() && contract.projected_qualifications.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !formation.backing_type.is_valid() {
+        return Err(refuse("reference formation lost its supplying type"));
+    }
+    let supplying = structural_declaration_by_identity(
+        declarations,
+        identities,
+        formation.checked,
+        stored_structural_identity(formation.checked, formation.backing_type),
+        "reference formation lost its supplying carrier",
+    )?;
+    let terminal_psi::StructuralTypeShape::Reference { referent, .. } = declaration.shape else {
+        return Err(refuse("reference formation lost its reference carrier"));
+    };
+    if matches!(storage, PublishedReferenceStorage::Declared) && supplying.id != referent {
+        return Err(refuse(
+            "reference formation source differs from its exact referent",
+        ));
+    }
+    let projected = super::parameters::lower_projected_qualifications(
+        identities,
+        &contract.projected_qualifications,
+        formation.domain_ids,
+        supplying.id,
+        declarations,
+    )?;
+    let whole = contract
+        .qualifications
+        .iter()
+        .map(|domain| lookup_domain_id_for_carrier(formation.domain_ids, *domain, supplying.id))
+        .collect::<Result<Vec<_>, _>>()?;
+    terminal_semantics::reference_carrier_memberships(
+        declarations.iter(),
+        supplying.id,
+        &whole,
+        &projected,
+        &[],
+        access,
+        declaration.id,
+        match &storage {
+            PublishedReferenceStorage::RepresentationView(view) => Some(view),
+            _ => None,
+        },
+    )
+    .map_err(refuse)
 }
