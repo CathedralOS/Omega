@@ -365,7 +365,9 @@ fn sequence_actions(
                         (Some(consumer), None) => (consumer, prior),
                         (None, Some(completion)) => completion,
                         (None, None) => {
-                            return Err("call boundary has no producer in its prefix or completion");
+                            return Err(
+                                "call boundary has no producer in its prefix or completion",
+                            );
                         }
                     };
                     let actions = call_actions(
