@@ -289,5 +289,10 @@
     "resume": "gh only after a clean running interval, the timed private-console interrupt and acknowledged expected exception code.",
     "stop": "q; require debugger exit zero and held runner termination. Finally close the verified kill-on-close job, independently confirm/terminate the identity-pinned runner, and reap CDB before the original 120-second boundary."
   },
-  "job": "Same original 32-GiB committed-memory limit plus kill-on-close, strict API outcomes. Explicitly assign and verify BOTH stopped runner and CDB before Source g; no parent-inheritance assumption or silent helper failure."
+  "job": "Same original 32-GiB committed-memory limit plus kill-on-close, strict API outcomes. Explicitly assign and verify BOTH stopped runner and CDB before Source g; no parent-inheritance assumption or silent helper failure.",
+  "runner_build_fingerprint": {
+    "path": "D:\\ot\\debug\\build\\compiler\\3423d6321f96b4f3\\fingerprint\\test-integration-test-corpus_runner.json",
+    "sha256": "a90b7d83b2da0f3e73f127b159abdb268b3a37cad151aad653dcf4fd9294fd4f"
+  },
+  "runner_output_directory": "D:\\ot\\debug\\build\\compiler\\3423d6321f96b4f3\\out"
 }

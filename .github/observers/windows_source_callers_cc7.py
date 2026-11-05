@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 
 
 def sha(path):
@@ -111,11 +112,20 @@ def main():
                       producer=recipe['producer'], host=platform.platform(), frozen_inputs=len(recipe['inputs']))
 
         # Bounded cached-output discovery, selected by complete original digest.
+        # The authenticated original Cargo receipt identifies mbx's actual
+        # output unit; the ordinary deps glob alone does not cover this layout.
+        fingerprint = Path(recipe['runner_build_fingerprint']['path'])
+        assert sha(fingerprint) == recipe['runner_build_fingerprint']['sha256'], 'cached runner fingerprint differs'
+        unit_output = fingerprint.parent.parent / 'out'
+        assert unit_output == Path(recipe['runner_output_directory'])
         candidates = sorted(set(Path('D:/ot/debug/deps').glob('corpus_runner*.exe'))
+                            | set(unit_output.glob('corpus_runner*.exe'))
                             | {Path('D:/ot/debug/corpus_runner.exe')})
         candidates = [path for path in candidates if path.is_file()]
-        assert 0 < len(candidates) <= 32
-        assert sum(path.stat().st_size for path in candidates) <= 1024 ** 3
+        report['runner_candidate_inventory'] = [{'path': str(path), 'bytes': path.stat().st_size}
+                                                for path in candidates]
+        assert 0 < len(candidates) <= 32, 'cached runner candidate count outside 1..32'
+        assert sum(path.stat().st_size for path in candidates) <= 1024 ** 3, 'cached runner candidate bytes exceed 1 GiB'
         rows = [{'path': str(path), 'sha256': sha(path)} for path in candidates]
         matches = [Path(row['path']) for row in rows if row['sha256'] == recipe['producer']['runner_profile']['sha256']]
         assert matches, 'no exact original runner in the restored cache'
@@ -372,6 +382,7 @@ def main():
         stderr.close()
     except Exception as error:
         report['error'] = repr(error)
+        report['error_traceback'] = traceback.format_exc()
     finally:
         # Close the owned kill-on-close job even if CDB exited first. A pinned
         # identity-verified runner is independently reaped on setup failures.
