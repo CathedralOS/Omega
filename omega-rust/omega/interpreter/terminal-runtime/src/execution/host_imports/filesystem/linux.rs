@@ -290,12 +290,12 @@ impl LinuxFilesystemImport {
             }),
         };
         super::super::admit_exact_foreign_call(&signature, declaration, binding, &native)?;
-        let layout = |argument: usize, byte_size| {
+        let layout = |argument: usize, byte_size: u64| {
             let formal = &signature.structural_parameters[argument];
             layouts
                 .iter()
                 .find(|layout| layout.structural_type == formal.structural_type)
-                .filter(|layout| layout.byte_size >= byte_size)
+                .filter(|layout| u64::from(layout.byte_size) >= byte_size)
                 .ok_or_else(|| {
                     TerminalRuntimeError::missing(
                         "runtime-filesystem",
