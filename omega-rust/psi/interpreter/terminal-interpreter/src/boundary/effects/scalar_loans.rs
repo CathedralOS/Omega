@@ -539,6 +539,37 @@ impl TerminalExecution<'_> {
     }
 }
 
+/// Projection has already authenticated the exact storage cells and bounds.
+/// Keep the formal's preservation scope when it contains those cells. A view
+/// with a separate descriptor identity instead preserves the original owner;
+/// this scope never grants access beyond the pinned endpoint. A scalar spanning
+/// unrelated owners cannot claim one owner's restoration promise for the rest.
+pub(crate) fn captured_scalar_restoration_owner(
+    storage: &PrimitiveStorage,
+    presentation: StructuralRuntimePlace,
+) -> Result<StructuralRuntimePlace, TerminalInterpretError> {
+    let owner = scalar_qualification_owner(storage);
+    if owner.is_none()
+        && matches!(
+            storage.endpoint,
+            PrimitiveStorageEndpoint::Projection { .. }
+        )
+    {
+        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+            "mutable host scalar projection has no single original restoration owner",
+        ));
+    }
+    Ok(match owner {
+        Some(owner)
+            if owner.opaque_identity != presentation.opaque_identity
+                || !owner.path.starts_with(&presentation.path) =>
+        {
+            owner.clone()
+        }
+        _ => presentation,
+    })
+}
+
 pub(crate) fn scalar_qualification_owner(
     storage: &PrimitiveStorage,
 ) -> Option<&StructuralRuntimePlace> {
