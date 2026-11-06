@@ -170,17 +170,18 @@ machine consume(value: Pair) -> bool {
     first_ok && second_ok
 }
 
-machine joined(edge: bool) -> bool {
+machine joined(edge: bool, expected: Pair) -> bool {
     let saved: Pair = match edge {
         true -> Pair { first: 0u8, last: 255u8 }
         false -> Pair { first: 17u8, last: 42u8 }
     };
-    consume(saved)
+    let observed: bool = consume(saved);
+    observed && saved.first == expected.first && saved.last == expected.last
 }
 
 machine main() crashes Trap {
-    let observed: bool = joined(false);
-    let endpoint: bool = joined(true);
+    let observed: bool = joined(false, Pair { first: 17u8, last: 42u8 });
+    let endpoint: bool = joined(true, Pair { first: 0u8, last: 255u8 });
     transition observed && endpoint { true -> done() false -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
