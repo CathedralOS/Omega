@@ -103,7 +103,11 @@ impl TypedTrees {
     /// erased trait symbol and losing named-map or machine-region custody.
     /// This inventory does not select a provider or admit an open application.
     pub fn applied_trait_roots(&self) -> Vec<AppliedTraitScope<'_>> {
-        let occurrences = crate::references::collect_program_application_occurrences(self);
+        let _guard = phase_profile::guard("psi.typed_trees.applied_trait_roots");
+        let occurrences =
+            phase_profile::scope("psi.typed_trees.applied_trait_roots.occurrences", || {
+                crate::references::collect_program_application_occurrences(self)
+            });
         self.machines()
             .iter()
             .flat_map(|machine| {
@@ -154,10 +158,9 @@ impl TypedTrees {
                         .then(|| application.scope.scope(self)).flatten()
                 }),
             )
-            .chain(source_fields::contract_application_roots(
-                self,
-                &occurrences.types,
-            ))
+            .chain(phase_profile::scope("psi.typed_trees.applied_trait_roots.contract_roots", || {
+                source_fields::contract_application_roots(self, &occurrences.types)
+            }))
             .chain(
                 occurrences
                     .requirement_applications
