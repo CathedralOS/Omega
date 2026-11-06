@@ -79,11 +79,13 @@ impl CompilationSession {
                     let completion_timings = std::mem::replace(&mut source.timings, first_timings);
                     source.timings.extend(&completion_timings);
                     self.retain(&source.retained_checks);
-                    let target_source =
-                        phase_profile::scope("omega.product.capture_target", || {
-                            PreparedProductTarget::capture(&source, Some(target), Some(&inputs))
-                        });
-                    applications.push((first_position, first_owner, source.clone(), target_source));
+                    applications.push((
+                        first_position,
+                        first_owner,
+                        source.clone(),
+                        target,
+                        inputs,
+                    ));
                     for (position, owner, member) in members {
                         let (_, target, inputs, _, prepared) = member.into_continuation();
                         let mut application = source.clone();
@@ -116,12 +118,7 @@ impl CompilationSession {
                         application.retained_checks.build = prepared.built.retained_build_check;
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);
-                        let target_source = PreparedProductTarget::capture(
-                            &application,
-                            Some(target),
-                            Some(&inputs),
-                        );
-                        applications.push((position, owner, application, target_source));
+                        applications.push((position, owner, application, target, inputs));
                     }
                 }
                 Err(diagnostics) => {
@@ -149,7 +146,8 @@ impl CompilationSession {
         // Different source-admission groups can adopt the same publication.
         // Finish the complete Source roster before any selected child starts
         // Calling or publishes code, not merely the first group's members.
-        for (position, owner, source, prepared) in applications {
+        for (position, owner, source, target, inputs) in applications {
+            let prepared = capture_beside_publication(&source, target, &inputs);
             outcomes.push((
                 position,
                 owner,
@@ -168,4 +166,45 @@ impl CompilationSession {
         }
         selected
     }
+}
+
+/// Capture a target's declarations while the shared Product code publishes.
+///
+/// Both only read the checked source, and settlement would publish the code
+/// right after the capture anyway, so the two run together. Publication's
+/// result stays in the source's retained calling program and is consumed at
+/// the same settlement step as before, so a capture refusal still wins and
+/// diagnostics keep their order. Its timing rows join the target's own.
+fn capture_beside_publication(
+    source: &compilation_products::CheckedProductSource,
+    target: target::TargetProfile,
+    inputs: &package_compilation::PackageCompilationInputs,
+) -> Result<PreparedProductTarget, Vec<diagnostics::Diagnostic>> {
+    let mut publication = if source.timings.is_enabled() {
+        artifacts::compile_timings::CompileTimings::enabled()
+    } else {
+        artifacts::compile_timings::CompileTimings::default()
+    };
+    let capture = || {
+        phase_profile::scope("omega.product.capture_target", || {
+            PreparedProductTarget::capture(source, Some(target), Some(inputs))
+        })
+    };
+    let prepared = std::thread::scope(|scope| {
+        let publish = super::checking::compile_thread::spawn_compile_worker(scope, || {
+            // The result is retained in the source; settlement reads it there.
+            let _ = crate::terminal::retain_calling_program(source, &mut publication);
+        });
+        let prepared = capture();
+        if let Ok(worker) = publish {
+            worker
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+        }
+        prepared
+    });
+    prepared.map(|mut prepared| {
+        prepared.timings.extend(&publication);
+        prepared
+    })
 }
