@@ -202,6 +202,18 @@ pub(crate) struct ProgramPrivateArrivalIndex {
 }
 
 impl ProgramPrivateArrivalIndex {
+    /// Ordinary direct callers can supply precision on demand. A callable
+    /// interface is an independent input boundary even when all of its uses
+    /// are known; its receipt planning cannot borrow main's narrower demand.
+    pub(crate) fn has_closed_private_uses(
+        &self,
+        program: &dyn CheckingInput,
+        machine: &Machine,
+    ) -> bool {
+        self.has_complete_private_uses(program, machine)
+            && !self.contract_inputs.contains_key(&machine.symbol)
+    }
+
     /// Every use must be either an ordinary invocation or a complete applied
     /// callable supply. This classification grants no input value or authority.
     pub(crate) fn has_complete_private_uses(
@@ -873,6 +885,7 @@ impl TypedReferences for ProgramPrivateUses<'_> {
         let inputs = self.callable_inputs(application);
         let program = self.program;
         let declaration = program
+            .expression_table
             .static_machine_application(application)
             .registration_operation;
         let demands = static_machine_input_parameters(program, declaration)
@@ -894,9 +907,13 @@ impl TypedReferences for ProgramPrivateUses<'_> {
                 self.supplied_argument(application, &inputs, ordinal, demand.symbol, argument);
             }
         }
-        for binding in program.static_machine_application_bindings(application) {
-            if let typed_trees::static_applications::StaticMachineBindingValue::Machine(argument) =
-                &binding.value
+        for binding in program
+            .expression_table
+            .static_machine_application_bindings(application)
+        {
+            if let typed_trees::static_applications::StaticMachineBindingValue::Machine(
+                ref argument,
+            ) = binding.value
                 && let Some(ordinal) = demands
                     .iter()
                     .position(|parameter| parameter.symbol == binding.parameter)
