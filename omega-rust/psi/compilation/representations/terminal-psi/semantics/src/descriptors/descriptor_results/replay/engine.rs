@@ -2880,80 +2880,115 @@ mod snapshot_tests {
     #[test]
     fn branch_selected_storage_keeps_every_backing_origin() {
         let scalar = StructuralTypeId::new(1).unwrap();
-        let types = vec![scalar_type(1)];
-        let left = location(1);
-        let right = location(2);
-        let selected = location(3);
-        let captured = location(4);
-        let position = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
-        let machine = bare_machine(
-            MachineId::new(1).unwrap(),
-            vec![
-                DescriptorPlace {
-                    place: left.root,
-                    definition: DescriptorDefinition::Parameter {
-                        position: 0,
-                        access: StructuralAccess::MutableBorrow,
-                        structural_type: scalar,
+        let pointer = StructuralTypeId::new(2).unwrap();
+        let pointer_to_word = StructuralTypeId::new(3).unwrap();
+        let types = vec![
+            scalar_type(1),
+            reference_type(2, scalar, StructuralAccess::MutableBorrow),
+            reference_type(3, pointer, StructuralAccess::MutableBorrow),
+        ];
+        // Selecting a scalar or a reference variable still selects storage.
+        // The latter's current pointer value must not replace its own address.
+        for (carrier, captured_type) in [(scalar, pointer), (pointer, pointer_to_word)] {
+            let left = location(1);
+            let right = location(2);
+            let selected = location(3);
+            let captured = location(4);
+            let position = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+            let machine = bare_machine(
+                MachineId::new(1).unwrap(),
+                vec![
+                    DescriptorPlace {
+                        place: left.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 0,
+                            access: StructuralAccess::MutableBorrow,
+                            structural_type: carrier,
+                        },
                     },
-                },
-                DescriptorPlace {
-                    place: right.root,
-                    definition: DescriptorDefinition::Parameter {
-                        position: 1,
-                        access: StructuralAccess::MutableBorrow,
-                        structural_type: scalar,
+                    DescriptorPlace {
+                        place: right.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position: 1,
+                            access: StructuralAccess::MutableBorrow,
+                            structural_type: carrier,
+                        },
                     },
-                },
-                DescriptorPlace {
-                    place: selected.root,
-                    definition: DescriptorDefinition::Arrival {
-                        access: StructuralAccess::MutableBorrow,
+                    DescriptorPlace {
+                        place: selected.root,
+                        definition: DescriptorDefinition::Arrival {
+                            access: StructuralAccess::MutableBorrow,
+                        },
                     },
-                },
-                DescriptorPlace {
-                    place: captured.root,
-                    definition: DescriptorDefinition::Local,
-                },
-            ],
-            BTreeMap::from([
-                (left.root, scalar),
-                (right.root, scalar),
-                (selected.root, scalar),
-                (captured.root, scalar),
-            ]),
-            BTreeSet::from([(position, selected.clone(), captured.clone())]),
-        );
-        let replay = Replay::with_slot_kind(
-            &types,
-            std::slice::from_ref(&machine),
-            DescriptorSlotKind::References,
-        );
-        let origins = BTreeSet::from([
-            Origin::Storage(left.clone()),
-            Origin::Storage(right.clone()),
-        ]);
-        let mut before = State::default();
-        before
-            .slots_mut()
-            .insert(selected.clone(), Some(origins.clone()));
-        let case_storage = super::case_flow::Storage::new(&replay, &machine);
-        let after = replay
-            .transfer(
-                &machine,
-                &before,
-                std::slice::from_ref(&captured),
-                [(&selected, &captured)].into_iter(),
-                super::case_flow::Transfer::Operation(position),
-                &case_storage,
-            )
-            .unwrap();
-        assert!(matches!(
-            replay.resolve_storage(&machine, &before, &selected),
-            Some(StorageResolution::Alternatives)
-        ));
-        assert_eq!(after.slots.get(&captured), Some(&Some(origins.clone())));
-        assert_eq!(replay.read(&machine, &after, &captured), Some(origins));
+                    DescriptorPlace {
+                        place: captured.root,
+                        definition: DescriptorDefinition::Local,
+                    },
+                ],
+                BTreeMap::from([
+                    (left.root, carrier),
+                    (right.root, carrier),
+                    (selected.root, carrier),
+                    (captured.root, captured_type),
+                ]),
+                BTreeSet::from([(position, selected.clone(), captured.clone())]),
+            );
+            let replay = Replay::with_slot_kind(
+                &types,
+                std::slice::from_ref(&machine),
+                DescriptorSlotKind::References,
+            );
+            let origins = BTreeSet::from([
+                Origin::Storage(left.clone()),
+                Origin::Storage(right.clone()),
+            ]);
+            let entry = replay.initial(&machine).unwrap();
+            let case_storage = super::case_flow::Storage::new(&replay, &machine);
+            let arrival = |source: &DescriptorLocation| {
+                let edge = crate::descriptors::descriptor_lifetimes::DescriptorFlowEdge {
+                    target: position,
+                    parameters: vec![selected.clone()],
+                    bindings: vec![
+                        crate::descriptors::descriptor_lifetimes::DescriptorFlowBinding::new(
+                            DescriptorFlowSource::Location(source.clone()),
+                            selected.clone(),
+                            StructuralAccess::MutableBorrow,
+                            StructuralAccess::MutableBorrow,
+                        )
+                        .unwrap(),
+                    ],
+                };
+                replay
+                    .transfer_edge(&machine, &entry, &edge, &case_storage)
+                    .unwrap()
+            };
+            let mut before = arrival(&left);
+            assert!(merge_state(&mut before, &arrival(&right)));
+            let after = replay
+                .transfer(
+                    &machine,
+                    &before,
+                    std::slice::from_ref(&captured),
+                    [(&selected, &captured)].into_iter(),
+                    super::case_flow::Transfer::Operation(position),
+                    &case_storage,
+                )
+                .unwrap();
+            assert!(matches!(
+                replay.resolve_storage(&machine, &before, &selected),
+                Some(StorageResolution::Alternatives)
+            ));
+            assert_eq!(
+                after.slots.get(&captured),
+                Some(&Some(origins.clone())),
+                "carrier {carrier:?}"
+            );
+            assert_eq!(
+                replay.read(&machine, &after, &captured),
+                Some(origins),
+                "carrier {carrier:?}"
+            );
+        }
     }
 }
 
