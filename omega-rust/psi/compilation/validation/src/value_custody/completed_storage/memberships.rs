@@ -14,14 +14,12 @@ use symbols::SymbolHandle;
 /// Ephemeral explanation from an attempted proof, never retained claim evidence.
 #[derive(Clone, Copy)]
 pub struct CompletedMembershipRefusal {
-    pub value: Handle<FlowOperandFact>,
-    pub path_len: usize,
     pub reason: &'static str,
 }
 
 struct MembershipWalk<'observer> {
     visiting: Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>,
-    on_refusal: &'observer mut dyn FnMut(Handle<FlowOperandFact>, usize, &'static str),
+    on_refusal: &'observer mut dyn FnMut(&'static str),
 }
 
 pub fn completed_membership(
@@ -39,7 +37,7 @@ pub fn completed_membership(
         path,
         domain,
         semantic_domain,
-        &mut |_, _, _| {},
+        &mut |_| {},
     )
 }
 
@@ -60,54 +58,10 @@ pub fn completed_membership_with_refusal(
         path,
         domain,
         semantic_domain,
-        &mut |value, path_len, reason| {
-            first_refusal.get_or_insert(CompletedMembershipRefusal {
-                value,
-                path_len,
-                reason,
-            });
+        &mut |reason| {
+            first_refusal.get_or_insert(CompletedMembershipRefusal { reason });
         },
     )
-}
-
-/// Format existing records only after an exit refused its result membership.
-pub fn completed_membership_diagnostic(
-    program: &dyn crate::CheckingInput,
-    facts: &CheckFacts,
-    value: Handle<FlowOperandFact>,
-    path: &[PlaceSegment],
-    domain: SymbolHandle,
-    semantic_domain: SemanticDomainId,
-    first_refusal: Option<CompletedMembershipRefusal>,
-) -> String {
-    let queried = super::owned_memberships::observation_diagnostic(
-        program,
-        facts,
-        value,
-        path.len(),
-        domain,
-        semantic_domain,
-    );
-    match first_refusal {
-        Some(CompletedMembershipRefusal {
-            value: refused,
-            path_len,
-            reason,
-        }) => {
-            let observation = super::owned_memberships::observation_diagnostic(
-                program,
-                facts,
-                refused,
-                path_len,
-                domain,
-                semantic_domain,
-            );
-            format!(
-                "first owned refusal: {reason}; queried: {queried}; refusal observation: {observation}"
-            )
-        }
-        None => format!("no owned refusal recorded; queried: {queried}"),
-    }
 }
 
 fn judge_completed_membership(
@@ -117,7 +71,7 @@ fn judge_completed_membership(
     path: &[PlaceSegment],
     domain: SymbolHandle,
     semantic_domain: SemanticDomainId,
-    on_refusal: &mut dyn FnMut(Handle<FlowOperandFact>, usize, &'static str),
+    on_refusal: &mut dyn FnMut(&'static str),
 ) -> bool {
     fn proves(
         program: &dyn crate::CheckingInput,
@@ -153,7 +107,7 @@ fn judge_completed_membership(
         ) {
             Some(Ok(())) => return true,
             Some(Err(reason)) => {
-                (walk.on_refusal)(value, path.len(), reason);
+                (walk.on_refusal)(reason);
                 if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                     let captured = facts.flow.control.operands.get(value);
                     eprintln!(

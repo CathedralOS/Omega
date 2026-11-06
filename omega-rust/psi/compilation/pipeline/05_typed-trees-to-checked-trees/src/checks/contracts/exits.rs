@@ -416,7 +416,7 @@ pub(super) fn check_exit_ensures(
                     fact,
                     membership_refusal,
                 )
-                .map(|detail| format!("; completed membership: {detail}"))
+                .map(|detail| format!("; {detail}"))
                 .unwrap_or_default();
                 let origin_diagnostic = if missing_origins.is_empty() {
                     String::new()

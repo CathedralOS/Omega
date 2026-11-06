@@ -688,8 +688,7 @@ impl ScalarReturnProof<'_> {
     }
 }
 
-/// Keep the failed membership's actual completed subject in ordinary diagnostics.
-/// The owning exit has already refused before this explanation reads its records.
+/// Explain a refused returned membership after its ordinary check has failed.
 pub(in crate::checks::contracts::exits) fn completed_result_domain_diagnostic(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -697,7 +696,7 @@ pub(in crate::checks::contracts::exits) fn completed_result_domain_diagnostic(
     requirement: &Fact,
     refusal: Option<validation::completed_storage::CompletedMembershipRefusal>,
 ) -> Option<String> {
-    let (_, _, domain, semantic_domain) = requirement.payload.domain_membership()?;
+    requirement.payload.domain_membership()?;
     let place = requirement.place.as_place()?;
     if !facts.semantic.places.is_valid(place) {
         return None;
@@ -711,15 +710,12 @@ pub(in crate::checks::contracts::exits) fn completed_result_domain_diagnostic(
         return None;
     }
     Some(
-        validation::completed_storage::completed_membership_diagnostic(
-            program,
-            facts,
-            exit.returned_value,
-            facts.semantic.place_segments.span_or_empty(place.segments),
-            domain,
-            semantic_domain,
-            refusal,
-        ),
+        refusal
+            .map_or(
+                "the returned value does not establish this domain",
+                |refusal| refusal.reason,
+            )
+            .to_owned(),
     )
 }
 
