@@ -204,6 +204,12 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
                     if program.pending_const_range_endpoints.contains(expression) {
                         continue;
                     }
+                    // Caller parameters need that caller's bounds and local
+                    // facts during checking. Keep the expression until then;
+                    // it is not a completed constant to publish here.
+                    if !typed_trees::domain::index_argument_is_closed(program, argument) {
+                        continue;
+                    }
                     ConstArgumentInput::Expression(*expression)
                 }
                 TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {

@@ -744,6 +744,29 @@ pub(crate) fn validate_const_data_argument(
         if program.pending_const_range_endpoints.contains(root) {
             return;
         }
+        // A caller's const parameters can leave an argument open until
+        // specialization supplies their values. Its arithmetic was checked
+        // above; the shared category check still rejects runtime inputs and
+        // a different declared type. Closed values keep their canonical replay.
+        if matches!(parameter.kind, TypeParameterKind::Const { .. })
+            && !typed_trees::domain::index_argument_is_closed(program.typed_program(), argument)
+            && crate::value_custody::const_expressions::has_carrier(
+                program,
+                *root,
+                &TypeParameterKind::Const {
+                    type_reference: parameter_type,
+                },
+                type_parameter_scope.lexical_owner,
+            )
+        {
+            return;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "const argument `{}` of `{base_name}` must be known during compilation and have type `{}`",
+            parameter.name,
+            canonical_carrier_label(program, carrier),
+        )));
+        return;
     }
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(argument)
