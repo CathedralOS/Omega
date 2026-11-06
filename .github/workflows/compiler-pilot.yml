@@ -1,11 +1,11 @@
-name: Installed entry current Source resource prefix
+name: Installed entry current Source callers
 on:
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 jobs:
-  current-resource:
+  current-callers:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -26,11 +26,11 @@ jobs:
           import hashlib, json, os, shutil, subprocess
           from pathlib import Path
           assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == os.environ['GITHUB_SHA']
-          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == '996abb6d7cc6d3884c9dce3c2c97f7ffdfa3ae5e'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == 'ac6900a36b75086117e2d204cc3705ade0f545a7'
           stage = Path(os.environ['RUNNER_TEMP']) / 'installed-entry-current-observer'
           stage.mkdir(exist_ok=False)
           files = {}
-          for name in ['run_installed_entry_current_resource.py', 'installed_entry_current_recipe.json', 'installed_entry_current_inputs.json']:
+          for name in ['run_installed_entry_current_resource.py', 'installed_entry_current_recipe.json', 'installed_entry_current_inputs.json', 'run_installed_entry_current_gdb.py', 'installed_entry_current_gdb_recipe.json', 'setup_installed_entry_current_gdb.py']:
               data = (Path('.github') / name).read_bytes()
               (stage / name).write_bytes(data)
               files[name] = hashlib.sha256(data).hexdigest()
@@ -41,6 +41,18 @@ jobs:
           ref: c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30
           fetch-depth: 1
           persist-credentials: false
+      - name: Prefer existing GNU GDB or install signed official Ubuntu package
+        timeout-minutes: 5
+        run: python "$RUNNER_TEMP/installed-entry-current-observer/setup_installed_entry_current_gdb.py"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: installed-entry-current-callers-setup-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/installed-entry-current-gdb-setup/
+          include-hidden-files: true
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
       - name: Authenticate the complete immutable producer remotely without compiling
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,15 +71,17 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      - name: Observe at most twenty seconds with a six GiB runner RSS early stop
-        run: python "$RUNNER_TEMP/installed-entry-current-observer/run_installed_entry_current_resource.py" observe --recipe "$RUNNER_TEMP/installed-entry-current-observer/installed_entry_current_recipe.json"
+      - name: Observe active Source frames with the same bounded RSS stop and cleanup
+        run: python "$RUNNER_TEMP/installed-entry-current-observer/run_installed_entry_current_gdb.py" --recipe "$RUNNER_TEMP/installed-entry-current-observer/installed_entry_current_gdb_recipe.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-current-resource-observations-${{ github.sha }}-${{ github.run_attempt }}
+          name: installed-entry-current-callers-observations-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            build/installed-entry-current-resource/*.json
-            build/installed-entry-current-resource/*.txt
+            build/installed-entry-current-callers/observation.json
+            build/installed-entry-current-callers/gdb.stdout
+            build/installed-entry-current-callers/gdb.stderr
+            build/installed-entry-current-callers/source.records.txt
           include-hidden-files: true
           if-no-files-found: warn
           compression-level: 0

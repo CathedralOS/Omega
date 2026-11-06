@@ -1,0 +1,46 @@
+{
+  "source": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+  "tree": "2f5c870985a45be25f0cb3f962df4e4b4e5d294a",
+  "target": "linux_x86_64",
+  "fixture": "pass/build/installed_entry_ram_live_stack_exit",
+  "origin_run": 42211807335,
+  "artifact": {
+    "id": 13501490052,
+    "name": "compiler-regression-Linux-X64-c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30-1",
+    "size_in_bytes": 554308734,
+    "digest": "sha256:33ff83109d3b215525c8a192283e4eb315de1d8d384ec0e5831f417b43d2ffb8"
+  },
+  "runner_sha256": "05ad4f58798a10c1983fa08c02971c699689aa320bf75226914d6db39f8dbec5",
+  "input_count": 358,
+  "observer_files": {
+    "run_installed_entry_current_resource.py": "ff779e3e15b483b5fd48d22588b329a35085d8cc1099d901d3f26c23d5808fd5",
+    "installed_entry_current_recipe.json": "96353456f95b3793e58a8b829245307f3a9fbe863aa26ef187a1f565fd920e27",
+    "installed_entry_current_inputs.json": "32a539e374d6ae1d122bc52dace10642fd228d27cf0f435fcdd72b12f71ad644",
+    "run_installed_entry_current_gdb.py": "6ba082286e5ff62c0f72e90c2d6ef9a8e7033129d35473126aef35979aaf7bff",
+    "setup_installed_entry_current_gdb.py": "b3267f48fd04a9e45fed939ec102992be48a992e1aaaf9f4a5b1cbea5bb31f6f"
+  },
+  "source_seconds": 20,
+  "outer_stop_seconds": 22,
+  "held_cleanup_seconds": 30,
+  "snapshots_source_seconds": [
+    12,
+    14,
+    16
+  ],
+  "rss_early_stop_bytes": 6442450944,
+  "fixture_seconds": 120,
+  "workers": 1,
+  "phase_profile": false,
+  "diagnostic_only": true,
+  "tool_setup": "Prefer the existing executable GNU GDB. Only if absent, bounded apt update60s/install120s with5s kill grace, no retries and15s transport timeouts, restricted to existing official signed Ubuntu noble sources and original archive keyring. Setup uses sudo only for package acquisition; controller/GDB/Source stay normal-user. Missing/unusable GDB, unsupported MI or refused child launch fails closed before further workload. No Swift, alternate tool, kernel/sysctl/capability/ptrace change or Rust build.",
+  "launch": "GDB MI3 launches exactly one no-argument original runner as its own child. No attach. Executable hash, heldPID/start/parent and exact source-root protocol are required. Inferior environment is an explicit credential-free allowlist plus original root/library/fixture settings. Preserve normal ASLR.",
+  "frames": "At most three all-thread snapshots,32frames per thread, function/source/PC only. No inferior function call, expression evaluation, argument/local printing, auto-load scripts/filters/init files, debuginfod or network symbols. Raw console/MI channels are bounded and streamed.",
+  "stopping": "Monitor only owned descendant resources every pump\u22640.1s; stream counters once per second. Stop at6GiB SourceRSS or20s Source/22s outer acquisition budget. Partial captures and early stops remain explicit, never Source verdicts. Independent held session/pidfd TERM/KILL/reap must finish\u226430s even after log/discovery/repeated-signal failures. External service SIGKILL remains unrecoverable.",
+  "reused_mi_reference": "build/atomic-global-order-20261104/integrated_linux_source_callers.py, accepted a98d helper and actual42153751552; source/workload/short bounds and resource-aware pump are newly bound here.",
+  "primary_docs": [
+    "https://sourceware.org/gdb/current/onlinedocs/gdb.html/GDB_002fMI-Program-Execution.html",
+    "https://sourceware.org/gdb/current/onlinedocs/gdb.html/Backtrace.html",
+    "https://sourceware.org/gdb/current/onlinedocs/gdb.html/Calling.html"
+  ],
+  "limits": "Active stacks and owned counters only. No allocation-caller, dominant-cost, OOM, Source acceptance, engine, sample or parent closure claim."
+}
