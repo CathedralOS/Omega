@@ -59,6 +59,7 @@ jobs:
       # Large calling-policy checks use about 2.8 GiB each. Run one fixture
       # at a time to reduce concurrent memory pressure.
       OMEGA_CORPUS_JOBS: '1'
+      OMEGA_CORPUS_FIXTURE_SECS: '120'
       RUST_MIN_STACK: '67108864'
       # Match Linux/macOS post-merge storage; Windows keeps its short target path.
       CARGO_TARGET_DIR: /tmp/ot
@@ -90,6 +91,7 @@ jobs:
                         warm_cache_ref='refs/heads/main',
                         warm_cache_source='07301d6612988eacde667d9e8be12a60800600a9',
                         cache_use='Normally visible completed default-main build objects only. Fixed source remains edd0; no historical execution is reused.')
+          record['unit_tests'] = {'table-tests': {'filter': 'callable_applications::table::tests::', 'expected_names': ['typed_trees::callable_applications::table::tests::invocation_generations_keep_separate_rows_in_arena_order', 'typed_trees::callable_applications::table::tests::recycled_row_slots_return_to_their_arena_position', 'typed_trees::callable_applications::table::tests::clones_replacement_and_record_recovery_keep_their_own_associations', 'typed_trees::callable_applications::table::tests::signature_and_requirement_updates_cannot_change_invocation_ownership', 'typed_trees::callable_applications::table::tests::absent_invocations_and_trait_only_tables_have_no_machine_rows', 'typed_trees::callable_applications::table::tests::record_recovery_budgets_association_before_allocating_for_handles', 'typed_trees::callable_applications::table::tests::small_record_recovery_charges_every_preallocated_association_buffer']}, 'contract-record-test': {'filter': 'callable_applications::machine_selections::record_tests::', 'expected_names': ['typed_trees::callable_applications::machine_selections::record_tests::selected_contract_records_keep_caller_bindings_and_completion_state']}}
           (output / 'driver.json').write_text(json.dumps(record, indent=2) + chr(10))
           print(json.dumps(record, sort_keys=True))
       - name: Retain the fixed published source prerequisite
@@ -139,7 +141,7 @@ jobs:
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         shell: python
         run: |
-          import datetime, hashlib, json, os, shutil, subprocess, sys, time
+          import datetime, hashlib, json, os, re, shutil, subprocess, sys, time
           from pathlib import Path
           sys.path.insert(0, str(Path.cwd() / 'tools'))
           import build_slot
@@ -187,16 +189,35 @@ jobs:
                                                  '--phase', 'prepare'], environment)
               if code:
                   raise SystemExit(code)
-              for name, selected in (
-                  ('table-tests', 'callable_applications::table::tests::'),
-                  ('contract-record-test', 'callable_applications::machine_selections::record_tests::'),
-              ):
-                  arguments = ([tool, 'nextest', 'run', '--locked', '-p', 'typed-trees', selected]
+              for name, unit in driver['unit_tests'].items():
+                  selected = unit['filter']
+                  arguments = ([tool, 'nextest', 'run', '--locked', '-p', 'typed-trees',
+                                '--color', 'never', '--status-level', 'pass', '--retries', '0', selected]
                                if Path(tool).stem == 'mbx' else
                                [tool, 'test', '--locked', '-p', 'typed-trees', '--lib', selected, '--', '--nocapture'])
                   code = command(name, arguments, environment)
                   if code:
                       raise SystemExit(code)
+                  text = (output / (name + '.stdout')).read_text() + chr(10) + (output / (name + '.stderr')).read_text()
+                  text = re.sub(r'\x1b\[[0-9;]*m', '', text)
+                  if Path(tool).stem == 'mbx':
+                      passed = {line.split()[-1] for line in text.splitlines()
+                                if re.match(r'^\s*PASS(?:\s|$)', line)}
+                      summaries = [(int(total), int(success)) for total, success in
+                                   re.findall(r'(\d+) tests? run:\s*(\d+) passed', text)]
+                  else:
+                      passed = set(re.findall(r'^test (\S+) \.\.\. ok$', text, re.MULTILINE))
+                      summaries = [(int(total), int(total)) for total in
+                                   re.findall(r'test result: ok\. (\d+) passed; 0 failed; 0 ignored; 0 measured;', text)]
+                  expected = set(unit['expected_names'])
+                  verified = passed == expected and summaries == [(len(expected), len(expected))]
+                  receipt = dict(passed=verified, expected_names=sorted(expected),
+                                 actual_passing_names=sorted(passed), summaries=summaries,
+                                 source=source, driver=driver['driver_revision'])
+                  (output / (name + '-verification.json')).write_text(json.dumps(receipt, indent=2) + chr(10))
+                  print(json.dumps(dict(unit=name, **receipt)), flush=True)
+                  if not verified:
+                      raise SystemExit('Unit names/count differ from the frozen expected passing roster')
       - name: Upload the prepared producer and build receipts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
