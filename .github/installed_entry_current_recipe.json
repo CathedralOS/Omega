@@ -179,7 +179,7 @@
   },
   "fixture": "pass/build/installed_entry_ram_live_stack_exit",
   "observer_files": {
-    "run_installed_entry_current_resource.py": "299471ac38f5168167d049c8803e67df5d569426178609c89303550a4a4e7aea",
+    "run_installed_entry_current_resource.py": "ff779e3e15b483b5fd48d22588b329a35085d8cc1099d901d3f26c23d5808fd5",
     "installed_entry_current_inputs.json": "32a539e374d6ae1d122bc52dace10642fd228d27cf0f435fcdd72b12f71ad644"
   },
   "prefix_seconds": 20,
@@ -191,5 +191,6 @@
   "diagnostic_only": true,
   "scope": "Only the unchanged first live-stack Source fixture. No engines, sample workflow, Build/oracle/source change or Rust build/test. An early stopped prefix is not a Source verdict.",
   "resource_scope": "Only owned PID/start/session/group/executable and process memory/CPU counters; no environment, global process inventory, profiler, debugger, install, permission or system change.",
-  "cleanup": "New session root held unreaped; transitive owned child pidfds and exact starts retained. Discovery/report/signal exceptions cannot skip independently attempted TERM/KILL/reap. Repeated cleanup-phase signals record failure without unwinding. External service SIGKILL remains unrecoverable."
+  "cleanup": "New session root held unreaped; transitive owned child pidfds and exact starts retained. Discovery/report/signal exceptions cannot skip independently attempted TERM/KILL/reap. Repeated cleanup-phase signals record failure without unwinding. External service SIGKILL remains unrecoverable.",
+  "runner_roles": "For already held descendants whose executable path and digest match the prepared runner, compare only two exact known argv byte shapes: executable plus --build-profile, or executable alone. Record role names only. Both retain cleanup custody; only the no-argument Source PID supplies runner RSS. Unexpected argument shape fails closed without printing argument bytes. No authenticated Source PID means no Source observation."
 }

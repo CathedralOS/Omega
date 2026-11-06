@@ -217,13 +217,30 @@ def register(pid, parent=None):
         if after['start_ticks'] != before['start_ticks'] or (parent is not None and after['ppid'] != parent):
             return
         image = Path(os.readlink(f'/proc/{pid}/exe')).resolve()
-        if image == producer.runner.resolve():
-            assert runner_pid is None, 'More than one owned runner'
-            assert sha(Path(f'/proc/{pid}/exe').read_bytes()) == recipe['original_producer']['runner_profile']['sha256']
-            runner_pid = pid
-        seen[pid] = dict(fd=fd, start_ticks=after['start_ticks'], image=str(image))
+        # Custody precedes role classification, so even an unexpected invocation
+        # remains held for cleanup. Argument bytes are never logged or retained.
+        seen[pid] = dict(fd=fd, start_ticks=after['start_ticks'], image=str(image), role='owned_descendant')
         fd = None
-        emit('owned_process', pid=pid, parent=parent, executable=str(image), **after)
+        if image == producer.runner.resolve():
+            expected = os.fsencode(str(producer.runner.resolve())) + b'\0'
+            profile_query = expected + b'--build-profile\0'
+            with Path(f'/proc/{pid}/cmdline').open('rb') as stream:
+                invocation = stream.read(len(profile_query) + 1)
+            assert stat(pid)['start_ticks'] == after['start_ticks']
+            assert Path(os.readlink(f'/proc/{pid}/exe')).resolve() == image
+            if invocation == profile_query:
+                role = 'compiler_profile_query'
+            elif invocation == expected:
+                role = 'source_no_arguments'
+            else:
+                raise RuntimeError('Unexpected argument shape for the owned expected runner')
+            del invocation
+            seen[pid]['role'] = role
+            assert sha(Path(f'/proc/{pid}/exe').read_bytes()) == recipe['original_producer']['runner_profile']['sha256']
+            if role == 'source_no_arguments':
+                assert runner_pid is None, 'More than one owned Source runner'
+                runner_pid = pid
+        emit('owned_process', pid=pid, parent=parent, executable=str(image), role=seen[pid]['role'], **after)
     except (FileNotFoundError, ProcessLookupError):
         pass
     finally:
@@ -269,11 +286,11 @@ def snapshot(stream):
         try:
             current = stat(pid)
             assert current['start_ticks'] == identity['start_ticks']
-            counters.append(dict(pid=pid, **current))
+            counters.append(dict(pid=pid, role=identity['role'], **current))
             if pid == runner_pid:
                 rss = current['rss_pages'] * os.sysconf('SC_PAGE_SIZE')
         except (FileNotFoundError, ProcessLookupError):
-            counters.append(dict(pid=pid, start_ticks=identity['start_ticks'], exited=True))
+            counters.append(dict(pid=pid, role=identity['role'], start_ticks=identity['start_ticks'], exited=True))
     if stream:
         emit('owned_resources', elapsed=round(time.monotonic() - began, 3), runner_pid=runner_pid,
             runner_rss_bytes=rss, page_bytes=os.sysconf('SC_PAGE_SIZE'), clock_ticks=os.sysconf('SC_CLK_TCK'),
