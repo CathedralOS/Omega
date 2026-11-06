@@ -1,8 +1,8 @@
 {
   "schema": "omega-reviewed-compiler-input-map-v1",
-  "compiled_source": "866772a2fdabc4729db112067ba8eed1e86c8e05",
+  "compiled_source": "e0192b3c9dcec365b303b8637afa6ff0e54817f8",
   "compiler_inputs": {
-    "omega-rust": "df6310138ac6c92653d054c482e2a5c1a172098e",
+    "omega-rust": "74aae674c862abf6d66851a8123141f633120084",
     "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
     "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
     "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -15,12 +15,12 @@
   },
   "provenance": {
     "role_scope_sha256": "0a523e008cd9a63a893ca56c041c690173206eaf01e4f4d0bf114feb82db33d9",
-    "limits": "Same four frozen source checks, now tracing the actual Source06 required-call refusal after Source05 root-grant consumption was observed. New call logger is failure-only behind CHECK_SITES with original predicates/order/error unchanged. Includes reviewed primitive-store scalar observation repair and unrun grant boundary tests. No engines, normal performance qualification, canonical receiving or full98 claim.",
+    "limits": "Same four frozen source checks, tracing actual emitted owner/block and specialization remaps for the observed duplicate source call. All matching predicates, errors, helpers, frozen inputs and oracles remain unchanged. Includes reviewed test-only pointer-withholding fixture, separately unqualified until its own run finishes. No engines, normal performance qualification, canonical receiving or full98 claim.",
     "handle_order_review_sha256": "51a710751f4510bfe2d1651c3cd0b5b067fc68d12f15aa8844af2bd2bc9cfddf",
     "opaque_graph_review_sha256": "91f53ee67c8f9e3caa2c624cedb9ed515a5ebb451ed19dba3557f303a3f0070a",
     "prepared_catalog_scope_sha256": "be9159e01b118aa0d4f9c48f3b4aa84b7000a4020937bc92dd550df20e0302ce",
     "source05_failure_context_scope_sha256": "be3e6b8acc4650cb3268060e8c3d82c5444aa2213b2810903a01a995a35755f8",
-    "parent_normalized_source_map_sha256": "daa25a587c18717d4ecd3a834cf2f2f93c6b1696b27c8537b99ab76127a7401e",
+    "parent_normalized_source_map_sha256": "87455da636259e4911bf490064a44c29980fa523dc874e0d1ee4266577a428f3",
     "source05_output_range_scope_sha256": "85b4189c9db1b25eb2d6eb686553dba668813901877700ad879e98b2a6bdab6e",
     "range_refinement_scope_sha256": "d2e6cbd290e7bf399ccceedb53742a50b3c8ac593429490d9a69db495e7848d7",
     "output_source_review_diff_sha256": "5ffdd6b34d6b1041ffc51a50a4fef5fc9c1c79d2bddd0c24d04ade577d32b358",
@@ -32,6 +32,10 @@
     "grant_boundary_tests_source": "63c8ccce24cf315059328d3378a35d6812d78b9b",
     "primitive_store_observation_source": "3012986e944750b588ae6f11deccd4fa969e8b33",
     "required_call_diagnostic_source": "866772a2fdabc4729db112067ba8eed1e86c8e05",
-    "required_call_diagnostic_diff_sha256": "94bad8f095250c522f011061ed80cf480a7e862b0161c3730b280a588a037fce"
+    "required_call_diagnostic_diff_sha256": "94bad8f095250c522f011061ed80cf480a7e862b0161c3730b280a588a037fce",
+    "pointer_withholding_test_source": "1d688fb63dd20b927549e41537368de02a6fb499",
+    "emitted_call_diagnostic_source": "e0192b3c9dcec365b303b8637afa6ff0e54817f8",
+    "emitted_call_diagnostic_diff_sha256": "fc5579f29b6a872b4aa44bdfbc10a5301f4b3bcbf9c33db4b2331c95bac2ffd9",
+    "emitted_call_diagnostic_review_proof_sha256": "bc2d2f7c1aaed11311fe4f7531b91fb50f2eff87ef3a4c439d9e77d26b5d984d"
   }
 }

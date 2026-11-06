@@ -756,6 +756,13 @@ impl OperationBuffer {
             source_target: target,
             frontier_before_call: frontier_before_call.clone(),
         });
+        if self.source_calls.len() <= 32 && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        {
+            eprintln!(
+                "CHECKSITE source-call-emitted buffer_first_32_position={} origin={coordinate:?} source_site={source_site:?} terminal_site={terminal_site:?} source_target={target:?}",
+                self.source_calls.len(),
+            );
+        }
         Ok(())
     }
 

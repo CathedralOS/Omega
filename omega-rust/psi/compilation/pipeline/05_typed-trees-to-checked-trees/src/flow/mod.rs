@@ -53,6 +53,8 @@ pub(crate) use guard_predicates::{
     GuardObservation, saved_guard_observations, transition_guard_observations,
 };
 mod expression;
+#[cfg(test)]
+pub(crate) use expression::pointer_withholding_fixture;
 mod observations;
 pub(crate) use observations::{
     CapturedSubjectFacts, captured_case_subject, captured_case_subject_result,
