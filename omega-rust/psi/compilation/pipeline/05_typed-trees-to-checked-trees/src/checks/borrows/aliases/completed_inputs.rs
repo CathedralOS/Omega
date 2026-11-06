@@ -6,14 +6,28 @@ use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, FlowCallFact, FlowStateFact,
 };
-use std::collections::HashMap;
 
 use super::same_carrier_generation;
 
-type InvocationArguments<'program> = HashMap<
-    typed_trees::expression::ExpressionHandle,
-    Option<&'program [typed_trees::expression::ExpressionHandle]>,
->;
+pub(in crate::checks::borrows) struct InvocationArguments<'program> {
+    rows: Vec<(
+        typed_trees::expression::ExpressionHandle,
+        Option<&'program [typed_trees::expression::ExpressionHandle]>,
+    )>,
+}
+
+impl<'program> InvocationArguments<'program> {
+    pub(in crate::checks::borrows) fn get(
+        &self,
+        expression: &typed_trees::expression::ExpressionHandle,
+    ) -> Option<&Option<&'program [typed_trees::expression::ExpressionHandle]>> {
+        let position = self
+            .rows
+            .binary_search_by_key(expression, |(expression, _)| *expression)
+            .ok()?;
+        Some(&self.rows[position].1)
+    }
+}
 
 /// Typed traversal and borrow collection do not count the same operations.
 /// Keep each expression's identity, rather than sharing their ordinal numbers.
@@ -48,15 +62,22 @@ fn input_argument_index<'program>(
         ),
     >,
 ) -> InvocationArguments<'program> {
-    let mut rows = InvocationArguments::new();
+    let mut inputs = inputs
+        .into_iter()
+        .filter(|(expression, _)| expression.is_valid())
+        .collect::<Vec<_>>();
+    inputs.sort_unstable_by_key(|(expression, _)| *expression);
+    let mut rows: Vec<(_, Option<&[_]>)> = Vec::with_capacity(inputs.len());
     for (expression, arguments) in inputs {
-        if expression.is_valid() {
-            rows.entry(expression)
-                .and_modify(|row| *row = None)
-                .or_insert(Some(arguments));
+        if let Some((prior, roster)) = rows.last_mut()
+            && *prior == expression
+        {
+            *roster = None;
+        } else {
+            rows.push((expression, Some(arguments)));
         }
     }
-    rows
+    InvocationArguments { rows }
 }
 
 /// Construction authenticates the exact call input and its saved storage
