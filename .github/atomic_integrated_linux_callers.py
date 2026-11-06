@@ -8,6 +8,12 @@ try:
  assert os.geteuid()!=0 and git('rev-parse','HEAD')==RECIPE['source'] and git('rev-parse','HEAD^{tree}')==RECIPE['tree'] and not git('status','--porcelain')
  for p,obj in RECIPE['objects'].items():assert git('rev-parse','HEAD:'+p)==obj
  for p,h in RECIPE['inputs'].items():assert sha((R/p).read_bytes())==h
+ setup=read(R/'build/atomic-integrated-linux-gdb-setup/summary.json');assert setup['passed'] and setup['uid']==os.geteuid()!=0
+ gdb=shutil.which('gdb');assert gdb==setup['gdb']['path'] and sha(Path(gdb).read_bytes())==setup['gdb']['sha256']
+ version=subprocess.run([gdb,'--version'],capture_output=True,timeout=10,check=True);(OUT/'gdb-version.stdout').write_bytes(version.stdout)
+ record['debugger_setup']=setup
+ assert hasattr(os,'pidfd_open') and hasattr(signal,'pidfd_send_signal')
+ probe=os.pidfd_open(os.getpid());os.close(probe)
  run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(RECIPE['origin_run'])],text=True));assert run['head_sha']==RECIPE['source'] and run['status']=='completed' and run['conclusion']=='failure'
  artifact=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/artifacts/'+str(RECIPE['artifact']['id'])],text=True))
  for k in ['id','name','size_in_bytes','digest']:assert artifact[k]==RECIPE['artifact'][k]
@@ -43,13 +49,11 @@ try:
   saved=read(binary.with_name(binary.name+'.verified-profile.json'));assert saved['source_revision']==RECIPE['source'] and saved['source_tree']==RECIPE['tree'] and saved['observation']==original[kind+'_profile']
   actual=compiler_pilot.corpus_gate.require_optimized(binary);assert actual['sha256']==original[kind+'_profile']['sha256'] and actual['profile']==original[kind+'_profile']['profile'];observed_profiles[kind]=actual
  def verify():
+  assert sha(Path(gdb).read_bytes())==setup['gdb']['sha256']
   assert git('rev-parse','HEAD')==RECIPE['source'] and not git('status','--porcelain')
   for p,h in RECIPE['inputs'].items():assert sha((R/p).read_bytes())==h
   for kind,binary in binaries.items():assert compiler_pilot.corpus_gate.require_optimized(binary)==observed_profiles[kind]
- verify();gdb=shutil.which('gdb');assert gdb
- assert hasattr(os,'pidfd_open') and hasattr(signal,'pidfd_send_signal')
- probe=os.pidfd_open(os.getpid());os.close(probe)
- version=subprocess.run([gdb,'--version'],capture_output=True,timeout=10,check=True);(OUT/'gdb-version.stdout').write_bytes(version.stdout)
+ verify()
  cache=OUT/'source-cache';cache.mkdir();env={k:os.environ[k] for k in ['PATH','HOME','LANG','LC_ALL','TMPDIR','LD_LIBRARY_PATH'] if k in os.environ}
  env.update(RUST_MIN_STACK='67108864',OMEGA_LIBRARY_ROOT=str(R/'source/library'),XDG_CACHE_HOME=str(cache),OMEGA_CORPUS_ROOT=str(R),OMEGA_CORPUS_FIXTURE_FILTER=RECIPE['fixture'],OMEGA_CORPUS_FIXTURE_SECS='120',OMEGA_CORPUS_JOBS='1',OMEGA_CORPUS_RECORDS=str(OUT/'source.records.txt'))
  assert not any(k in env for k in ['GH_TOKEN','GITHUB_TOKEN','OMEGA_PHASE_PROFILE','OMEGA_CORPUS_NATIVE','OMEGA_CORPUS_INTERPRETED','OMEGA_CORPUS_NATIVE_TARGET','OMEGA_CORPUS_CHECKED_INTERPRETER'])

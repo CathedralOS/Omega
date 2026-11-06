@@ -27,6 +27,46 @@ jobs:
           ref: 86c4ccf817c3878b15052a1d54b0e31e1cca3122
           fetch-depth: 1
           persist-credentials: false
+      - name: Prepare GDB within the bounded ephemeral setup budget
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          python - <<'SETUP'
+          from pathlib import Path
+          import hashlib,json,os,shutil,subprocess,time
+          out=Path('build/atomic-integrated-linux-gdb-setup');out.mkdir(parents=True,exist_ok=False)
+          report={'passed':False,'uid':os.geteuid(),'existing_candidates':[],'package_steps':[],'gdb':None}
+          def find_usable():
+           name=shutil.which('gdb')
+           if name:
+            try:
+             r=subprocess.run([name,'--version'],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=10)
+             report['existing_candidates'].append({'path':name,'exit':r.returncode,'version':r.stdout.decode(errors='replace').strip()})
+             if r.returncode==0:return {'path':name,'sha256':hashlib.sha256(Path(name).read_bytes()).hexdigest(),'version':r.stdout.decode(errors='replace').strip()}
+            except subprocess.TimeoutExpired:report['existing_candidates'].append({'path':name,'error':'Version query exceeded ten seconds.'})
+           return None
+          try:
+           assert os.geteuid()!=0
+           report['gdb']=find_usable()
+           if report['gdb'] is None:
+            options=['-o','Acquire::Retries=0','-o','Acquire::http::Timeout=15','-o','Acquire::https::Timeout=15','-o','DPkg::Lock::Timeout=10','-o','Dpkg::Use-Pty=0','-qq']
+            for label,seconds,args in [('update',60,['update']),('install',120,['install','-y','--no-install-recommends','gdb'])]:
+             command=['sudo','--non-interactive','timeout','--signal=TERM','--kill-after=5s',str(seconds)+'s','apt-get']+options+args
+             began=time.monotonic()
+             with (out/(label+'.stdout')).open('wb') as stdout,(out/(label+'.stderr')).open('wb') as stderr:
+              row={'step':label,'command':command,'deadline_seconds':seconds}
+              try:row['exit']=subprocess.run(command,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,env=dict(os.environ,DEBIAN_FRONTEND='noninteractive'),timeout=seconds+15).returncode
+              except subprocess.TimeoutExpired:row.update(exit=None,error='The package wrapper exceeded its bounded deadline.')
+             row['seconds']=round(time.monotonic()-began,3);report['package_steps'].append(row)
+             if row.get('exit')!=0:break
+            else:report['gdb']=find_usable()
+           report['passed']=report['gdb'] is not None
+          except Exception as error:report['error']=str(error)
+          finally:
+           report['limits']='Ephemeral signed distro package setup only. Prefer an existing usable debugger. Update/install have 60/120-second deadlines, 5-second kill grace, no retries and 15-second transport waits. Debugger and Source remain ordinary-user. No ptrace-policy, other permission or compiler-build change. Setup failure leaves producer acquisition and Source unexecuted.'
+           (out/'summary.json').write_text(json.dumps(report,indent=2)+'\n')
+          raise SystemExit(0 if report['passed'] else 1)
+          SETUP
       - name: Authenticate the retained producer and capture two bounded caller snapshots
         run: python "$RUNNER_TEMP/atomic_integrated_linux_callers.py" "$RUNNER_TEMP/atomic_integrated_linux_callers.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -38,6 +78,14 @@ jobs:
             !build/atomic-integrated-linux-callers/producer.zip
             !build/atomic-integrated-linux-callers/retained/**
             !build/atomic-integrated-linux-callers/source-cache/**
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: atomic-integrated-linux-debugger-setup-${{ github.run_id }}
+          path: build/atomic-integrated-linux-gdb-setup/
           include-hidden-files: true
           compression-level: 0
           retention-days: 30
