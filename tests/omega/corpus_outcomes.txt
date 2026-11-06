@@ -8593,6 +8593,46 @@ fail/facts/fixed_layout_bit_observation_through_parameter_rejected rejected 659m
 	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
 fail/facts/fixed_layout_bit_observation_through_target_body_rejected rejected 683ms expected @2ba727eefb59+wt
 	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_reference_readback_through_call_result_wrong_region_rejected rejected 10001ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4868` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+fail/facts/fixed_layout_reference_readback_through_const_name_wrong_region_rejected rejected 9965ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4866` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_field_wrong_region_rejected rejected 9966ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4867` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_local_wrong_region_rejected rejected 9845ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_match_join_wrong_region_rejected rejected 9924ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4866` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_other_machine_wrong_region_rejected rejected 10184ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4870` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_other_state_wrong_region_rejected rejected 10127ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4869` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_parameter_wrong_region_rejected rejected 10079ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4869` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_target_body_wrong_region_rejected rejected 10320ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4922` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_wrong_region_rejected rejected 9954ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/facts/fixed_layout_storage_through_call_result_rejected rejected 4235ms expected @6d8ad13849e1
 	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/fixed_layout_storage_through_const_name_rejected rejected 2352ms expected @6d8ad13849e1
@@ -22957,6 +22997,16 @@ pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit checked 16930m
 pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit checked 17000ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit checked 15989ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit checked 25426ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_reference_readback_exit checked 11744ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_call_result_exit checked 11671ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_const_name_exit checked 11493ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_field_exit checked 11555ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_local_exit checked 11593ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_match_join_exit checked 11554ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_other_machine_exit checked 11853ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_other_state_exit checked 11732ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_parameter_exit checked 11730ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_target_body_exit checked 11896ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_storage_through_call_result_exit checked 10268ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @6d8ad13849e1
 pass/facts/fixed_layout_storage_through_const_name_exit checked 11207ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @6d8ad13849e1
 pass/facts/fixed_layout_storage_through_field_exit checked 10597ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @6d8ad13849e1
