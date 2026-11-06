@@ -1,7 +1,8 @@
-//! Exact normal-call descriptor generations. The checking evaluator supplies
-//! an entry/invocation/join graph; each node borrows its authentic predecessor
-//! roster and records the output's existing permission suppliers. Alternatives
-//! merge once. Published statement lifetimes remain owned by the state builder.
+//! A call publishes its returned references before the next operand uses them.
+//! A promised opaque result owns the completion's permission and retains every
+//! input lifetime. Stored replacements keep their exact earlier suppliers.
+//! The checking evaluator supplies the ordered entry/call/join graph; named
+//! bindings retain its completed values rather than creating another grant.
 
 use super::super::state::{BorrowFactArenas, append_carrier_loans};
 use super::super::tracker::StateLoanTracker;
@@ -20,7 +21,7 @@ pub(in crate::borrow) fn append_reference_custody(
     calls: arena::HandleSpan<BorrowCallFact>,
     loans: &mut arena::HandleSpan<BorrowLoanFact>,
     history: &mut Vec<StateLoanTracker>,
-    incoming: &[StateLoanTracker],
+    statement_entry: &[StateLoanTracker],
 ) -> Result<Option<Vec<StateLoanTracker>>, diagnostics::Diagnostic> {
     let Some(schedule) = frames
         .and_then(|frames| frames.stored_reference_call_contexts(machine, state, statement_index))
@@ -45,7 +46,9 @@ pub(in crate::borrow) fn append_reference_custody(
                     )
                 });
             }
-            StoredReferenceCallContext::Entry if contexts.is_empty() => Some(incoming.to_vec()),
+            StoredReferenceCallContext::Entry if contexts.is_empty() => {
+                Some(statement_entry.to_vec())
+            }
             StoredReferenceCallContext::Entry => {
                 return Err(diagnostics::Diagnostic::error(
                     "normal reference-slot context repeats its entry",
@@ -112,10 +115,6 @@ pub(in crate::borrow) fn append_reference_custody(
                         .loan_suppliers
                         .insert_many(incoming.iter().map(|loan| loan.handle)),
                 );
-                if effects.is_empty() {
-                    contexts.push(Some(incoming.clone()));
-                    continue;
-                }
                 let mut destinations = arena::HandleSpan::empty();
                 for effect in &effects {
                     let segments = arenas
@@ -155,6 +154,19 @@ pub(in crate::borrow) fn append_reference_custody(
                     .collect::<Vec<_>>();
                 let mut produced =
                     crate::borrow::loans::stored_reference_effect_loans(program, effects, incoming);
+                produced.extend(
+                    crate::borrow::loans::complete_invocation_results(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        statement_entry,
+                        incoming,
+                        frames,
+                    )
+                    .map_err(diagnostics::Diagnostic::error)?,
+                );
                 for loan in &mut produced {
                     loan.formation_expression = expression;
                 }

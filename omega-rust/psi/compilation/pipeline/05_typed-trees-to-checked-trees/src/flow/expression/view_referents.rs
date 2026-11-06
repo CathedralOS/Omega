@@ -50,6 +50,70 @@ use validation::{
 };
 
 impl Execution<'_, '_, '_> {
+    /// A returned value acquires its permission at this exact completion,
+    /// before an enclosing call can consume it. Its ordinary lifetime ledger
+    /// then retains the whole result cohort through any saved carrier.
+    pub(super) fn retain_invocation_permissions(
+        &mut self,
+        invocation: Handle<FlowCallFact>,
+        capture: &FlowOperandFact,
+    ) {
+        if !self.context.control.calls.is_valid(invocation) {
+            return;
+        }
+        let actual = self.context.control.calls.get(invocation);
+        let Some(call) = self.borrow.call_at(
+            self.machine.symbol,
+            self.state.symbol,
+            actual.statement_index,
+            actual.call_ordinal,
+        ) else {
+            return;
+        };
+        let source = self.borrow.calls.get(call);
+        if actual.authored_expression != capture.expression
+            || source.authored_expression != capture.expression
+            || source.target_symbol != actual.target_symbol
+            || actual.statement_index != capture.statement_index
+        {
+            return;
+        }
+        let loans = source
+            .completed_reference_loans
+            .handles()
+            .filter(|loan| {
+                let row = self.borrow.loans.get(*loan);
+                crate::borrow::is_completed_invocation_value(self.borrow, row)
+                    && row.established_by_call == call
+                    && row.formation_expression == capture.expression
+                    && self
+                        .context
+                        .contexts
+                        .constraint_refs
+                        .span_or_empty(capture.constraints)
+                        .iter()
+                        .any(|reference| {
+                            matches!(reference.kind,
+                        FlowConstraintKind::BorrowLoan { loan: active } if active == *loan)
+                        })
+            })
+            .collect::<Vec<_>>();
+        if loans.is_empty() {
+            return;
+        }
+        let formation_value = self.context.control.operands.append(*capture);
+        for loan in loans {
+            self.context.borrow_lifetimes.activations.append(
+                checked_trees::FlowBorrowActivationFact {
+                    source: checked_trees::FlowInvalidationSource::Statement {
+                        statement_index: self.statement_index,
+                    },
+                    loan,
+                    formation_value,
+                },
+            );
+        }
+    }
     /// Bind a prepared pointer resource to the actual completed slot read.
     /// The access certificate precedes activation: this child permission can
     /// never establish the read that supplies it. Owned copies and selections

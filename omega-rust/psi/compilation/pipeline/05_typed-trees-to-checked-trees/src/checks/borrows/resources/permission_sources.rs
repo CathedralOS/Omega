@@ -1263,6 +1263,11 @@ fn is_completed_return(
                 == facts.borrow.owner_segments.span_or_empty(path)
         })
         && expression == capture.expression
+        && (!row.established_by_call.is_valid()
+            || facts
+                .flow
+                .borrow_loan_constraints(capture.constraints)
+                .any(|active| active == loan))
         && row.root == facts::PlaceRoot::Expression(expression)
         && state.calls.handles().any(|invocation| {
             let call = facts.flow.control.calls.get(invocation);

@@ -797,6 +797,15 @@ pub(super) fn relative_result_loans(
             _ => return Ok(None),
         };
         let contract = available!(call_view_return_contract(program, state_symbol, call));
+        let completed = TableLocalData {
+            initial_value: expression,
+            type_reference: contract.return_type_reference(program),
+            ..local_data.clone()
+        };
+        if let Some(loans) = super::invocation_results::retain(program, &completed, loan_trackers)?
+        {
+            return Ok(Some(limit_access(loans, &access_limits)));
+        }
         if matches!(contract.source(program), ViewReturnSource::NotApplicable) {
             return Ok(super::invocation_results::form(
                 program,

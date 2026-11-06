@@ -1,4 +1,6 @@
-//! Statement loans: the borrows a `let` or an assignment forms. Each loan
+//! Loans carried by completed values, saved bindings and replacement stores.
+//! A normal opaque call publishes its result through `complete_invocation_results`;
+//! bindings retain that same result before forming any new reference. Each loan
 //! records its owner (the local, and the field path inside it that holds the
 //! reference), the place it borrows, its access kind and its lineage.
 //!
@@ -13,9 +15,9 @@
 //!   a reference or borrow-carrying data, handled as the equivalent `let`
 //!   with the field path prefixed to each loan's owner path.
 //!
-//! For a reference `let`, `returned_carriers` is tried first, for a value
-//! taken from a call result whose fields carry borrows, and a `match` lends
-//! each arm's target. Otherwise the borrowed place comes from the borrow,
+//! An already evaluated carrier retains all its reference leaves and input
+//! lifetimes. New call results use `returned_carriers`; a selection retains
+//! every possible arm's source. Other formations obtain their place from a borrow,
 //! recast, place expression or view-returning call
 //! (`helper_call_borrow_loan_place`, which resolves the call's returned-view
 //! source through `view_link`). A place rooted at a local that already holds
@@ -73,6 +75,8 @@ mod descriptor_loads;
 pub(super) use descriptor_loads::prepare as prepare_descriptor_loads;
 
 mod invocation_results;
+pub(in crate::borrow) use invocation_results::complete as complete_invocation_results;
+pub(crate) use invocation_results::is_completed_value as is_completed_invocation_value;
 mod reference_borrows;
 pub(in crate::borrow) use aggregate_loans::borrowed_initializer_loans;
 use aggregate_loans::*;
@@ -469,6 +473,9 @@ fn binding_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
+    if let Some(loans) = invocation_results::retain(program, local_data, loan_trackers)? {
+        return Ok(loans);
+    }
     let sources = BorrowFormationSources {
         statement_entry: loan_trackers,
         call_frames,
