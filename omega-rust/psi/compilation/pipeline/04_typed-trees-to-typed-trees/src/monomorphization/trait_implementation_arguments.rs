@@ -12,6 +12,7 @@ use typed_trees::name::Identifier;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 
 pub(super) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let _guard = phase_profile::guard("psi.04.trait_implementation_arguments");
     let calling_traits = typed_trees::calling_vocabulary::standard_calling_vocabularies(program)
         .iter()
         .map(|(calling, policy)| (calling.symbol, policy.symbol))
