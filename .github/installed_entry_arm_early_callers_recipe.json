@@ -1,0 +1,38 @@
+{
+  "schema": "omega-installed-entry-arm-early-callers-v1",
+  "parent": "44fca3509d2ef5897ecf751d11db6608853a60a6",
+  "compiler_source": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
+  "origin_run": 42202380872,
+  "fixture": "pass/build/installed_entry_ram_live_stack_exit",
+  "runner_sha256": "48a105111a81cba5a18e7f0b881f30cb490fd4612f751c45ebf2d48f8f0b14e6",
+  "cli_sha256": "624349119e5c36cdad0235d626793d5d0fe969926dcead3584d2758234f545b2",
+  "tool": "/usr/share/swift/usr/bin/lldb",
+  "limits": {
+    "snapshots": [
+      15,
+      25,
+      35
+    ],
+    "max_threads": 64,
+    "max_frames_per_thread": 32,
+    "outer_stop_seconds": 50,
+    "outer_term_until_seconds": 55,
+    "outer_kill_until_seconds": 58,
+    "outer_reap_until_seconds": 59,
+    "outer_cleanup_ceiling_seconds": 60,
+    "original_fixture_seconds": 120,
+    "workers": 1,
+    "phase_profile": false
+  },
+  "meaning": "Active callers and per-process counters only; no allocation/OOM/CPU-share/qualification inference. Original18/13/19 acceptance remains owed.",
+  "setup": "Existing root-owned non-writable Swift LLDB only; two bounded probes before retained cache/materialization. Missing tool/Python/local symbols/server or denied normal-user launch fails closed. No install or alternate profiler.",
+  "privacy": "No inherited credentials, init scripts, symbol scripts, network symbols, argument/local values, inferior expressions or host-wide capture. Own-process child launch and pidfd/start/session identity only.",
+  "references": [
+    "https://lldb.llvm.org/use/aarch64-linux.html",
+    "https://lldb.llvm.org/python_api/lldb.SBTarget.html",
+    "https://lldb.llvm.org/python_api/lldb.SBProcess.html",
+    "https://lldb.llvm.org/python_api/lldb.SBThread.html",
+    "https://docs.swift.org/latest/documentation/swiftlydocs/use-toolchains/",
+    "https://lldb.llvm.org/use/formatting.html"
+  ]
+}

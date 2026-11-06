@@ -1,4 +1,4 @@
-name: Diagnose installed entry source process resources on ARM
+name: Observe early installed entry Source callers on ARM
 on:
   workflow_dispatch:
 permissions:
@@ -17,11 +17,20 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 3
+          fetch-depth: 4
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
+      - name: Probe the existing Swift debugger without installing tools
+        run: python -u .github/run_installed_entry_arm_early_callers.py tools
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: installed-entry-arm-early-tool-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/installed-entry-arm-debugger-tool.json
+          if-no-files-found: warn
+          retention-days: 7
       - name: Authenticate the immutable original preparation and unchanged scope
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,7 +64,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-arm-resource-preparation-${{ github.sha }}-${{ github.run_attempt }}
+          name: installed-entry-arm-early-preparation-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             build/installed-entry-linux_arm64/*.json
             build/installed-entry-linux_arm64/producer-replay-*/*.json
@@ -64,20 +73,20 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      - name: Observe a bounded source prefix and owned process resources
+      - name: Observe the first Source fixture at fifteen twenty-five and thirty-five seconds
         if: ${{ !cancelled() && steps.materialize.outcome == 'success' }}
-        run: python -u .github/run_installed_entry_arm_resource_diagnostic.py
+        run: python -u .github/run_installed_entry_arm_early_callers.py observe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-arm-resource-observations-${{ github.sha }}-${{ github.run_attempt }}
+          name: installed-entry-arm-early-observations-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             build/installed-entry-linux_arm64/*.json
             build/installed-entry-linux_arm64/*.stdout
             build/installed-entry-linux_arm64/*.stderr
             build/installed-entry-linux_arm64/source/
             build/installed-entry-linux_arm64/artifacts-*/
-            build/installed-entry-linux_arm64/samples/
+            build/installed-entry-linux_arm64/early-source.records.txt
           include-hidden-files: true
           if-no-files-found: warn
           compression-level: 0
