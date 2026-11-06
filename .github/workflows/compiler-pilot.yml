@@ -128,10 +128,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
+          key: compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-3139bb5027bc1b1a6d187eb73d6f03000b53c54d
+          fail-on-cache-miss: true
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
@@ -153,17 +151,17 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
+      # Retain this newly built producer under its own source identity before
+      # executable observations start. The restored predecessor stays available.
       - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.producer-preparation.outcome == 'success'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
