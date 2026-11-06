@@ -16,11 +16,11 @@ use semantic_vocabulary::{
 };
 use std::borrow::Cow;
 use terminal_psi::{
-    ArrayExtent, BindingRelevance, StructuralAccess, StructuralFieldDeclaration,
+    ArrayExtent, BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalDynamicDispatchCatalog, TerminalIdentityTableBuilder,
-    TerminalPsiIdentity,
+    TerminalPsiIdentity, VocabularyMarker,
 };
 use terminal_semantics::descriptor_results::DescriptorSlotKind;
 
@@ -138,7 +138,12 @@ fn unchanged_borrowed_holder_returns_when_reachable_pointer_array_exceeds_invent
         }],
     };
     let plan = AbstractOperationPlan {
-        psi: TerminalPsiIdentity::from_canonical_bytes(b"unchanged ingress over inventory cap"),
+        // Explicit raw-unit test identity, following the existing identity tests.
+        // This asserts neither canonical Terminal admission nor runtime authority.
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
+        },
         entry: machine,
         structural_types: types.into(),
         boundary_machines: Vec::new(),
