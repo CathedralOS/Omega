@@ -46,37 +46,25 @@ pub fn reconstruct_reference_output_catalog(
     unavailable.sort_unstable();
     unavailable.dedup();
     view.identity = optimization_unit::recompute_psi_optimization_unit_identity(&view);
-    let functions = view
-        .functions
-        .iter()
-        .map(|function| (function.machine, function))
-        .collect::<BTreeMap<_, _>>();
-    if functions.len() != view.functions.len() {
-        return Err(
-            crate::OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None },
-        );
-    }
-    let boundaries = view
-        .boundary_machines
-        .iter()
-        .map(|boundary| (boundary.id, boundary))
-        .collect::<BTreeMap<_, _>>();
-    if boundaries.len() != view.boundary_machines.len() {
-        return Err(
-            crate::OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None },
-        );
-    }
-    let services = crate::unit_validation::services::index_service_catalog(&view)?;
-    let (types, domains) =
-        crate::unit_validation::structural_catalog::index_structural_catalogs(&view)?;
-    let function_catalogs = crate::unit_validation::function_structure::FunctionCatalogs {
-        unit: &view,
-        functions: &functions,
-        boundary_machines: &boundaries,
-        services: &services,
-        structural_types: &types,
-        structural_domains: &domains,
-    };
+    let catalogs = crate::unit_validation::prepare_unit_catalogs(&view)?;
+    prepare_reference_output_catalog(
+        &catalogs.function_catalogs(),
+        admitted_cycle_machines,
+        &unavailable,
+    )
+}
+
+/// Reuse the exact catalogs already prepared by the ordinary unit owner. The
+/// external normalization route prepares its own view once before entering.
+pub(crate) fn prepare_reference_output_catalog(
+    function_catalogs: &crate::unit_validation::function_structure::FunctionCatalogs<'_, '_>,
+    admitted_cycle_machines: &[MachineId],
+    unavailable: &[MachineId],
+) -> Result<ReferenceOutputCatalog, crate::OptimizationUnitValidationError> {
+    let view = function_catalogs.unit;
+    let functions = function_catalogs.functions;
+    let boundaries = function_catalogs.boundary_machines;
+    let types = function_catalogs.structural_types;
     let mut accesses = crate::current_ownership::CallAccesses::new(
         &functions,
         boundaries.values().copied(),
@@ -106,7 +94,7 @@ pub fn reconstruct_reference_output_catalog(
         .iter()
         .map(|function| {
             crate::unit_validation::function_structure::prepare_function(
-                &function_catalogs,
+                function_catalogs,
                 function,
                 &cycles,
                 &mut accesses,
@@ -186,9 +174,9 @@ pub fn reconstruct_reference_output_catalog(
             position,
             &machine_order,
             &dependencies,
-            &unavailable,
+            unavailable,
             &prepared,
-            &function_catalogs,
+            function_catalogs,
             &mut accesses,
             &outputs,
         );
