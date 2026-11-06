@@ -108,30 +108,54 @@ pub(crate) fn machine_type_equations(
     )
 }
 
-pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn validate_declarations(
+    syntax: &SyntaxTrees,
+    selection: Option<&ConstantSelection<'_>>,
+) -> Result<(), Vec<Diagnostic>> {
     for item in syntax.root_items() {
         let Some(machine) = item.as_machine() else {
             continue;
         };
         let equations = machine_type_equations(syntax, machine);
-        if equations.is_empty() {
-            continue;
+        if !equations.is_empty() {
+            // Explicit attached calls have the same selected declaration and
+            // source links as free calls, so their tuples use `complete` below.
+            // Implicit operator/conformance selection still needs its own complete
+            // application context; an attachment alone is not such a selection.
+            if (machine.spelling.is_some() || !machine.satisfies.is_empty())
+                && equations
+                    .iter()
+                    .any(type_equations::TypeEquation::requires_argument_recovery)
+            {
+                return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls; operator and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
+            }
+            for equation in equations {
+                equation
+                    .validate_kind("machine")
+                    .map_err(|error| vec![error])?;
+            }
         }
-        // Explicit attached calls have the same selected declaration and
-        // source links as free calls, so their tuples use `complete` below.
-        // Implicit operator/conformance selection still needs its own complete
-        // application context; an attachment alone is not such a selection.
-        if (machine.spelling.is_some() || !machine.satisfies.is_empty())
-            && equations
-                .iter()
-                .any(type_equations::TypeEquation::requires_argument_recovery)
-        {
-            return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls; operator and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
-        }
-        for equation in equations {
+        // Closed definitions are entry predicates, so the recovery filter
+        // above does not see them. A const operand still has to fail the
+        // closed-type fence before operand retention reports a mix.
+        for equation in type_equations::classify_type_equations(
+            syntax,
+            syntax.items.type_parameters(machine.type_parameters),
+            &syntax.items.requirement_facts(machine.contracts),
+        ) {
             equation
-                .validate_kind("machine")
-                .map_err(|error| vec![error])?;
+                .reject_unclosed_names(syntax, selection)
+                .map_err(|error| {
+                    let mut diagnostic = Diagnostic::error(format!(
+                        "generic machine `{}` {}",
+                        machine.name.as_str(syntax),
+                        error.message
+                    ));
+                    if let Some(span) = error.source_span {
+                        diagnostic = diagnostic.with_source_span(span);
+                    }
+                    vec![diagnostic]
+                })?;
         }
     }
     Ok(())
