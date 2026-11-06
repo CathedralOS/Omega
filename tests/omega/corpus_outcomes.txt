@@ -3439,6 +3439,17 @@ fail/contracts/overwritten_requirement_cannot_rule_out_branch rejected 2011ms ex
 	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/primitive_float_equality_not_reflexive rejected 6594ms expected @ceec2d4e7d8b
 	cannot prove ensures contract for exit from wrong_reflexivity at statement 0: result == value
+fail/contracts/private_counter_callable_input_alternatives rejected 7939ms expected @edd05427fd02
+	cannot prove requires contract for call require_zero from zero_or_one: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_zero from zero_or_any: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_callback_input rejected 7904ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_provider_input rejected 7632ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_public_input rejected 7553ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_second_arrival rejected 7576ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 570ms expected @cdaaea7fffc3
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1634ms expected @ad7c6890a897+wt
@@ -9864,35 +9875,24 @@ fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms e
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_call_result_rejected rejected 2254ms expected @ccdb99ca2214
-	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-	cannot prove requires contract for call compute from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_const_name_rejected rejected 1933ms expected @ccdb99ca2214
-	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_computed_root_through_field_rejected rejected 2685ms expected @ccdb99ca2214
-	statement 5 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/match_computed_root_through_local_rejected rejected 1769ms expected @ccdb99ca2214
-	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_computed_root_through_match_join_rejected rejected 1728ms expected @ccdb99ca2214
-	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/match_computed_root_through_other_machine_rejected rejected 2304ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_call_result_rejected rejected 7542ms expected @edd05427fd02
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/match_computed_root_through_const_name_rejected rejected 7608ms expected @edd05427fd02
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/match_computed_root_through_field_rejected rejected 7585ms expected @edd05427fd02
+	statement 5 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 4; its last use is at statement 6)
+fail/facts/match_computed_root_through_local_rejected rejected 7562ms expected @edd05427fd02
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/match_computed_root_through_match_join_rejected rejected 7561ms expected @edd05427fd02
+	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 7)
+fail/facts/match_computed_root_through_other_machine_rejected rejected 7638ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_other_state_rejected rejected 2046ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_other_state_rejected rejected 7567ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_parameter_rejected rejected 3824ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_parameter_rejected rejected 7637ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_target_body_rejected rejected 2484ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_target_body_rejected rejected 7549ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/match_effectful_subject_custody_through_call_result_rejected rejected 6156ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
 fail/facts/match_effectful_subject_custody_through_const_name_rejected rejected 4545ms expected @17ba37eb5f9c
@@ -19742,7 +19742,7 @@ pass/borrows/runtime_state_arrival_recast_footprint_exit checked 3665ms check-ta
 pass/borrows/runtime_state_boolean_reference_exit checked 18197ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_fixed_element_reference_exit checked 15170ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 18286ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_static_callback_snapshot_exit checked 3670ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_static_callback_snapshot_exit checked 10437ms check-target:macos_arm64 @edd05427fd02
 pass/borrows/runtime_stored_boolean_reference_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_stored_carrier_exchange_exit rejected 3323ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	state `unchanged` receives `second_retired.values` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 12)
@@ -22756,8 +22756,7 @@ pass/facts/erased_reference_contract_through_other_state_exit rejected 3054ms ch
 	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-pass/facts/erased_reference_contract_through_parameter_exit rejected 3255ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+pass/facts/erased_reference_contract_through_parameter_exit checked 9765ms check-target:macos_arm64 @edd05427fd02
 pass/facts/erased_reference_contract_through_target_body_exit checked 3169ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_call_result_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_const_name_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
@@ -23447,23 +23446,15 @@ pass/facts/machine_tuple_dispatch_through_other_machine_exit checked 2843ms chec
 pass/facts/machine_tuple_dispatch_through_other_state_exit checked 2467ms check-target:macos_arm64 @dacae466db1d+wt
 pass/facts/machine_tuple_dispatch_through_parameter_exit checked 2593ms check-target:macos_arm64 @dacae466db1d+wt
 pass/facts/machine_tuple_dispatch_through_target_body_exit checked 2670ms check-target:macos_arm64 @dacae466db1d+wt
-pass/facts/match_computed_root_through_call_result_exit rejected 2686ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_const_name_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_field_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_local_exit checked 3581ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_match_join_exit checked 3760ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_other_machine_exit rejected 3047ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_other_state_exit rejected 3101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_parameter_exit rejected 2793ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_target_body_exit rejected 3120ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_computed_root_through_call_result_exit checked 9788ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_const_name_exit checked 9818ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_field_exit checked 9838ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_local_exit checked 9824ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_match_join_exit checked 9771ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_other_machine_exit checked 9833ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_other_state_exit checked 9865ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_parameter_exit checked 9872ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_target_body_exit checked 20133ms check-target:macos_arm64 terminal-inspections:match @edd05427fd02
 pass/facts/match_effectful_subject_custody_through_call_result_exit checked 13140ms check-target:macos_arm64 @17ba37eb5f9c
 pass/facts/match_effectful_subject_custody_through_const_name_exit checked 13206ms check-target:macos_arm64 @17ba37eb5f9c
 pass/facts/match_effectful_subject_custody_through_field_exit checked 10959ms check-target:macos_arm64 @17ba37eb5f9c

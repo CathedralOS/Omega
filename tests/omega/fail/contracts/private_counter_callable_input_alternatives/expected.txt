@@ -1,0 +1,2 @@
+cannot prove requires contract for call require_zero from zero_or_one: visits == 0
+cannot prove requires contract for call require_zero from zero_or_any: visits == 0

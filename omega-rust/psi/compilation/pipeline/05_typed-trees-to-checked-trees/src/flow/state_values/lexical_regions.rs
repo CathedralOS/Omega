@@ -47,6 +47,18 @@ pub(in crate::flow) fn record<'plans>(
         call.statement_index,
         call.call_ordinal,
     );
+    // A supplied callable is checked under every input its interface admits.
+    // Those independent input states were seeded before flow begins; importing
+    // this wrapper's actuals as well could strengthen the interface condition.
+    if let Some(site) = site
+        && validation::with_private_invocation_inputs(program, owner, |inputs| {
+            inputs
+                .iter()
+                .any(|input| input.bounds_static_call(program, site))
+        }) == Some(true)
+    {
+        return;
+    }
     let parameters = program.state_parameters(destination);
     let authenticated = super::caller_roster_supplies_entry(program, owner)
         && site.is_some_and(|site| {

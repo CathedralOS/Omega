@@ -544,6 +544,7 @@ impl ExpressionTable {
             .insert_many(arguments.iter().cloned());
         self.static_machine_applications
             .insert(StaticMachineApplication {
+                callable_contract_source: StaticMachineApplicationHandle::invalid(),
                 registration_operation,
                 lexical_owner: SymbolHandle::invalid(),
                 target,

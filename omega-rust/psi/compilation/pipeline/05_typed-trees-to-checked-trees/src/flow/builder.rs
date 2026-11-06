@@ -168,6 +168,7 @@ fn build_group<'plans>(
     build: &mut FlowBuildContext<'plans>,
     machines: &[usize],
 ) {
+    super::state_values::seed_contract_inputs(inputs.program, build, machines);
     if converge(inputs, semantic, build, machines) {
         return;
     }
