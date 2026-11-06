@@ -98,3 +98,6 @@ pub(super) fn source_use(
     }
     Ok(Some(use_index))
 }
+
+#[cfg(test)]
+mod tests;
