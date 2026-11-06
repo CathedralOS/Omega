@@ -508,3 +508,6 @@ fn evaluated_captures_on_route(
     }
     Ok(seen)
 }
+
+#[cfg(test)]
+mod pointer_withholding_tests;

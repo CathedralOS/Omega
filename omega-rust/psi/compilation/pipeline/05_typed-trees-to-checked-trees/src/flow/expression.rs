@@ -41,6 +41,8 @@ mod call_storage;
 mod dispatch;
 mod dispatch_copies;
 mod live_memberships;
+#[cfg(test)]
+pub(crate) mod pointer_withholding_fixture;
 mod reference_projection;
 mod result_facts;
 mod result_memberships;
