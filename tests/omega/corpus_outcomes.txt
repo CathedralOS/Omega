@@ -3045,6 +3045,8 @@ fail/collections/stored_reference_array_sibling_extent rejected 2529ms expected 
 	cannot prove requires contract for call observe from main: windows[0].len == windows[1].len (needs fact `windows[0].len == windows[1].len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/collections/stored_reference_array_stale_extent rejected 2744ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && saved == 1 (needs fact `windows[0].len == 1 && saved == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/collections/typed_run_sum_array_double_drop rejected 13033ms expected @13ea3514f6f2
+	cannot use `value` in machine `released` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/collections/vec_duplicate_cleanup rejected 29599ms expected @66ee9999011e+wt
 	cannot use `vector` in machine `finish` state `entry` (statement 1) after `vector` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `vector` first
 fail/collections/vec_invalidated_loan_after_growth rejected 30570ms expected @66ee9999011e+wt
@@ -20575,6 +20577,7 @@ pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target
 pass/collections/shared_slice_view_dropped_receiver checked 86576ms check-target:macos_arm64 @898dd1bf8987
 pass/collections/std_option_runtime_match_exit checked 17317ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/std_option_surface checked 2089ms @ccdb99ca2214
+pass/collections/typed_run_sum_array_exit checked 19670ms check-target:macos_arm64 @13ea3514f6f2
 pass/collections/view_record_element_member_read_exit checked 20495ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/zero_length_byte_array_admission checked 2088ms @ccdb99ca2214
 pass/compile_time/const_overload_nested_dependency_exit checked 4023ms check-target:macos_arm64 @ccdb99ca2214
