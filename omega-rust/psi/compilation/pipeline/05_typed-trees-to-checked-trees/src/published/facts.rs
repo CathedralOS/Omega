@@ -174,14 +174,23 @@ pub(crate) fn build_check_facts<'program>(
     // not rebuild the same symbol tables.
     let pre_flow_guard = phase_profile::guard("psi.05.build_check_facts.pre_flow_facts");
     let program: &dyn validation::CheckingInput = program_context;
-    let call_frames = validation::CallFrameResolver::new(program);
-    let borrow = build_borrow_facts(program, call_frames.as_ref())?;
-    let mut values = build_value_facts(program, proof_plan);
-    let mut operators = build_operator_facts(program, &values);
+    let call_frames = phase_profile::scope(PRE_FLOW_CALL_FRAMES, || {
+        validation::CallFrameResolver::new(program)
+    });
+    let borrow = phase_profile::scope(PRE_FLOW_BORROW, || {
+        build_borrow_facts(program, call_frames.as_ref())
+    })?;
+    let mut values =
+        phase_profile::scope(PRE_FLOW_VALUES, || build_value_facts(program, proof_plan));
+    let mut operators = phase_profile::scope(PRE_FLOW_OPERATORS, || {
+        build_operator_facts(program, &values)
+    });
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
     operators.decided_formations = validation_facts.decided_formations.clone();
     operators.trap_free_expressions = validation_facts.trap_free_expressions.clone();
-    let mut proof = build_proof_facts(program, proof_plan, &borrow, &operators)?;
+    let mut proof = phase_profile::scope(PRE_FLOW_PROOF, || {
+        build_proof_facts(program, proof_plan, &borrow, &operators)
+    })?;
     for decision in integer_assignments {
         let proof::obligations::ProofObligation::BoundedAssignment(assignment) =
             proof_plan.obligations.get(decision.obligation)
@@ -212,21 +221,28 @@ pub(crate) fn build_check_facts<'program>(
         &validation_facts.float_meaning_projection_invocations,
         &validation_facts.float_meaning_equality_propositions,
     )?;
+    let bind_proof_guard = phase_profile::guard(PRE_FLOW_BIND_PROOF);
     crate::published::proof::bind_proof_output_call_facts(program, &mut proof)?;
     crate::published::proof::bind_evidence_forwarding_facts(program, &mut proof)?;
     crate::published::proof::bind_outcome_specific_arm_facts(program, &mut proof)?;
     crate::published::proof::bind_evidence_projection_facts(program, &mut proof)?;
-    let semantic =
-        build_semantic_facts(program, &proof, &operators).map_err(|diagnostic| vec![diagnostic])?;
-    let domains = build_domain_facts(program, &semantic);
+    drop(bind_proof_guard);
+    let semantic = phase_profile::scope(PRE_FLOW_SEMANTIC, || {
+        build_semantic_facts(program, &proof, &operators)
+    })
+    .map_err(|diagnostic| vec![diagnostic])?;
+    let domains = phase_profile::scope(PRE_FLOW_DOMAINS, || build_domain_facts(program, &semantic));
     // Meaning selection depends only on declarations and signatures. Complete
     // selected scalar plans before flow captures their evaluated local values.
-    select_pending_domain_operator_meanings(program, &mut operators);
+    phase_profile::scope(PRE_FLOW_MEANINGS, || {
+        select_pending_domain_operator_meanings(program, &mut operators)
+    });
     bind_boundary_operator_application_demands(
         program,
         &validation_facts.boundary_operator_applications,
         &mut operators,
     )?;
+    let scalar_guard = phase_profile::guard(PRE_FLOW_SCALAR);
     values.scalar_expressions = crate::values::build_checked_scalar_expression_plans(
         program,
         &operators,
@@ -234,6 +250,7 @@ pub(crate) fn build_check_facts<'program>(
         &mut values.proof_terms.terms,
     );
     values.scalar_expressions.seal_expressions();
+    drop(scalar_guard);
     // Form source flow and custody first. Their selected cleanup dispositions
     // complete the implicit execution graph; only then may effects and the
     // stronger capability, termination and callable-contract judgments publish.
@@ -850,3 +867,14 @@ impl FlowConstruction {
             && inputs.operators == prepared.operators
     }
 }
+
+const PRE_FLOW_CALL_FRAMES: &str = "psi.05.build_check_facts.pre_flow_facts.call_frames";
+const PRE_FLOW_BORROW: &str = "psi.05.build_check_facts.pre_flow_facts.borrow";
+const PRE_FLOW_VALUES: &str = "psi.05.build_check_facts.pre_flow_facts.values";
+const PRE_FLOW_OPERATORS: &str = "psi.05.build_check_facts.pre_flow_facts.operators";
+const PRE_FLOW_PROOF: &str = "psi.05.build_check_facts.pre_flow_facts.proof";
+const PRE_FLOW_BIND_PROOF: &str = "psi.05.build_check_facts.pre_flow_facts.bind_proof";
+const PRE_FLOW_SEMANTIC: &str = "psi.05.build_check_facts.pre_flow_facts.semantic";
+const PRE_FLOW_DOMAINS: &str = "psi.05.build_check_facts.pre_flow_facts.domains";
+const PRE_FLOW_MEANINGS: &str = "psi.05.build_check_facts.pre_flow_facts.meanings";
+const PRE_FLOW_SCALAR: &str = "psi.05.build_check_facts.pre_flow_facts.scalar_expressions";
