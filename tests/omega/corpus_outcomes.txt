@@ -19847,12 +19847,7 @@ pass/build/dependency_implementation_closure rejected 873ms regressed-from:check
 pass/build/described_runner_entry_left_exit checked 17644ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/described_runner_entry_right_exit checked 19223ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/descriptor_table_round_trip checked 74924ms check-target:linux_x86_64 @fe5c93add7a4
-pass/build/discarded_provider_selection_exit rejected 3180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
-	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
-	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+pass/build/discarded_provider_selection_exit checked 92927ms check-target:macos_arm64 @be6d06836d20
 pass/build/entry_schema_same_leaf_exit checked 3941ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/executed_dependency_shared_source_exit checked 3885ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/executed_dependency_source_join_exit checked 4489ms check-target:macos_arm64 @ccdb99ca2214
