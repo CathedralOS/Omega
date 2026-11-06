@@ -46,16 +46,18 @@ pub fn project_checked_product_context(
     let checked = Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
     let mut facts = checked.facts;
     retain_facts(&mut facts, &retained, &pruned, &index);
-    // Build-only bounds were checked in their own context. Shared owners keep
-    // their requirements; an unknown owner remains an obligation.
-    facts.integer_range_obligations.retain(|obligation| {
-        owner_retained(
-            &checked.typed.symbols,
-            &original,
-            &selected,
-            obligation.owner(),
-        )
-    });
+    // Pending conditions belong to their declaration's context. Shared owners
+    // keep their requirements; an unknown owner remains an obligation.
+    let in_product = |owner| owner_retained(&checked.typed.symbols, &original, &selected, owner);
+    facts
+        .integer_range_obligations
+        .retain(|obligation| in_product(obligation.owner()));
+    facts
+        .constant_predicate_obligations
+        .retain(|obligation| in_product(obligation.caller()));
+    facts
+        .constant_recipe_obligations
+        .retain(|obligation| in_product(obligation.owner()));
     Arc::new(CheckedTrees::with_roots(typed, facts))
 }
 
