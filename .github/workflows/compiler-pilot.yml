@@ -1,140 +1,40 @@
-name: Compiler queue pilot
-
+name: Qualify premise cache ownership on Mac
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/..., run/... and fail/... IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      record_results:
-        description: Record the selected corpus source checks for review, without changing the published golden
-        type: boolean
-        default: false
-      compiler_diagnostics:
-        description: Enable verbose compiler diagnostics for a focused run
-        type: boolean
-        default: false
-      structural_trace:
-        description: Include full ownership and state traces for a focused diagnostic run
-        type: boolean
-        default: false
-      phase_profile:
-        description: Record compiler phase timings for a focused attribution run
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; merge-group checks keep running.
-# Retained @plan requests run independently. Ordinary manual builds still share
-# one revision and host group.
-concurrency:
-  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && (startsWith(inputs.fixtures, '@') && github.run_id || github.sha) || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_INCREMENTAL: '0'
+  CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+  CARGO_BUILD_FINGERPRINT: content
+  RUST_MIN_STACK: '67108864'
+  OMEGA_CORPUS_JOBS: '1'
+  OMEGA_CORPUS_FIXTURE_SECS: '120'
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  matching-host:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host: macos_arm64
+            runner: macos-15
+            target_dir: /tmp/ot
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 270
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
-      RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
+      NATIVE_HOST: ${{ matrix.host }}
+      CARGO_TARGET_DIR: ${{ matrix.target_dir }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 18e46dd7fb89b6ce4a89cbf8bbceb05b33a7dec0
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - name: Select the retained compiler cache from its validated plan
-        id: replay-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
-      - name: Restore the exact retained compiler cache
-        id: replay-build-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.replay-cache.outputs.key }}
-          fail-on-cache-miss: true
-      - name: Refuse an absent or partial retained compiler cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
-        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         id: build-cache
-        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         with:
           path: |
             ~/.cargo/registry
@@ -142,81 +42,1174 @@ jobs:
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Prepare and retain the optimized producer
-        id: producer-preparation
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+            compiler-regression-macos15-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            compiler-regression-macos15-macOS-ARM64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-
+      - name: Record normal cache lookup and explicit cold-build policy
         env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-          OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
-        run: python tools/ci/compiler_pilot.py --phase prepare
-      - name: Upload the prepared producer and build receipts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+          OBSERVED_CACHE_KEY: ${{ steps.build-cache.outputs.cache-matched-key }}
+          PRIMARY_CACHE_HIT: ${{ steps.build-cache.outputs.cache-hit }}
+          CURRENT_MANIFEST_CACHE_PREFIX: compiler-regression-macos15-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+        shell: python
+        run: |
+          import json,os,pathlib,re
+          out=pathlib.Path('build/compiler-pilot/premise-cache-ownership-host');out.mkdir(parents=True,exist_ok=True)
+          matched=os.environ.get('OBSERVED_CACHE_KEY','')
+          current=os.environ['CURRENT_MANIFEST_CACHE_PREFIX']
+          legacy='compiler-regression-macos15-macOS-ARM64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-'
+          assert re.fullmatch(r'compiler-regression-macos15-macOS-ARM64-[0-9a-f]{64}-',current)
+          assert not matched or matched.startswith((current,legacy))
+          disposition='miss' if not matched else 'current_manifest' if matched.startswith(current) else 'legacy_manifest'
+          (out/'cache-lookup.json').write_text(json.dumps({'matched_key':matched,'lookup_miss':not bool(matched),'primary_cache_hit':os.environ.get('PRIMARY_CACHE_HIT',''),'cold_build_permitted':True,'current_manifest_prefix':current,'legacy_fallback_prefix':legacy,'matched_manifest_scope':disposition,'policy':'Normal current/default-branch cache lookup only, current manifest first and explicit old-manifest fallback second. One canonical optimized source build on miss; no sibling-scope cache, prebuilt binary shortcut or automatic retry.'},indent=2)+'\n')
+      - name: Prepare the exact optimized compiler and run 40 focused tests
+        id: preparation
+        shell: bash
+        run: |
+          python - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='18e46dd7fb89b6ce4a89cbf8bbceb05b33a7dec0';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          sha=lambda data:hashlib.sha256(data).hexdigest()
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          assert compiler_pilot.corpus_gate.host_target()==target=='macos_arm64'
+          assert os.environ['OMEGA_CORPUS_JOBS']=='1' and os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          inputs={'source/library/README.md': '1c4b8205176817fa8f434a9dc98533ac143c6e0ac5bd29e7733dc7a7dc4c5917',
+           'source/library/alloc/build.omg': '7e2ceee9a760a528a8258d67f578e8a0f641a67ad26bd1ba84bf9261f6555f14',
+           'source/library/alloc/bump.omg': 'ae94f131622d2817e589defcca00e669ef9883de3c7a562e3d955d215fb3ca8d',
+           'source/library/alloc/main.omg': '417edeed95556dad5f2b971625458b71d49e74aa0cd812108659ab263eccf940',
+           'source/library/alloc/vec.omg': 'b95dac0f69a03754009aaa6f4d95e0a9ee899566c6f1107979fe127cb2b35030',
+           'source/library/blocking-executor/build.omg': 'b09bbce1281a080d73db6c6a90b7b06a8b3196af03938e1e68a5d281244d987d',
+           'source/library/blocking-executor/executor.omg': '1c6c925807663a8be02b5261559923848384d43cf6f479dd9659dd8adf06e362',
+           'source/library/blocking-executor/main.omg': '0d86baaa3867d51c29b5e146f0f363676049aca709f181d597730e044a6c8fd4',
+           'source/library/blocking-executor/queue.omg': 'a8559109c4614970b2d638c4f45e8f3733f9fb45edfa19fd6ece0877f11db415',
+           'source/library/core/activation.omg': '8a801bf20b3ba1f12ad89cf7f31ebf30b58ce828793cce787602f12b378011e1',
+           'source/library/core/algebra.omg': '9b398ebe8147c69da12e4e76aaf845b2cd0adfc3ccef58657352427a2be4b368',
+           'source/library/core/arena.omg': '1ed545ffc20a139bef89db4787abcb9850760496459b8c1cb2e24b4b47bfbc0f',
+           'source/library/core/array.omg': '8475298774460d6823c47bbd03a7b1fd1bccade0be29c5160f56aaa832e3b862',
+           'source/library/core/assembly.omg': '59f31f1af00d3180693f39cde47e5a4ff08fdc20e36f6d97e38aea1377713f15',
+           'source/library/core/assembly_model.omg': 'fc18b838fb2866cb40c116936998c30fc204d0e4cb2be13de9790747fec9c924',
+           'source/library/core/atomic.omg': '9be58e4b42ee56546896e68067ac1356678514b89ed78fd95633ce9bb6278a3b',
+           'source/library/core/build.omg': '5fe6ec9cfe493b25fcf400eafc8df404d819cebfefc7a7074cd281fb14359f37',
+           'source/library/core/c_layout.omg': '0549fd3542786bba54471e60451efca3b486f25bc7696d20cf856da1fa5d4edf',
+           'source/library/core/cauchy.omg': 'c8244b9b6bdb9d63090998f56a2ef81644751d3e7658ec7c678a2eb1b1c107ed',
+           'source/library/core/code_layout.omg': 'd60c1e5d7af2211855f231813e3ab3185c8f07b89f22eda27d50b0f09485b1f6',
+           'source/library/core/code_segment.omg': 'a6325408aab55d269d2325fc8d68e300eb79299c585fc0901c791d280ba9b7f8',
+           'source/library/core/complex.omg': 'ff87af686b8cc3924baa835358107bab5fee3d6519f6402e83ee4f36c092eed8',
+           'source/library/core/content.omg': 'e492260d91704cd7acf80816083748e144c4010c5b0375689671b5fcd882deef',
+           'source/library/core/conversion.omg': '35ba3c9bfd11b8575c66acec246a47f17159b3d2781f8ab772325d70de850718',
+           'source/library/core/data_segment.omg': '50d796b144994a594c90f3559c6ef27dc19b9d6563530eb109dc935ce5a35f7b',
+           'source/library/core/device.omg': '2a83f8d59d75b590d03d8d64fd1c596bc55a8b5f091917cd0e2b96ef24513202',
+           'source/library/core/drop.omg': '6e9291c7dcf87547e612ed061561fe505e2c289bab853efe4ed2e42d2ca468ff',
+           'source/library/core/extent.omg': 'd8db0ece5b4d9f10ffa1c8cd79b538d4863e482a9c2757ef076668ebf9bdef03',
+           'source/library/core/external_binding.omg': '85e12a3043ee54047fce1499d15bc72efafb196687de0b6b9f71444e77229cde',
+           'source/library/core/filesystem_authority.omg': '99d99ab7a334c02d5807ab0b405bdcb3ee3e479abd6e9542b2d0ac9110940a82',
+           'source/library/core/fixed_vec.omg': '47e764a2cd3c5698dcd7133ef433f86e1bbd8182dc5cc2d365074bf87b701090',
+           'source/library/core/float.omg': 'a85f6128796f325b63a59993c7a1be79d93ecdd069f048f93ba6af1586231d41',
+           'source/library/core/float_accuracy.omg': '13a6588eaa0f4079c26dcaeff87ca6af4714de85503c1b57559a75719a73e314',
+           'source/library/core/float_format.omg': 'b226b82c067bb771f67afd0dac0f6d3292e96ae5b6d8f6514e45f396251067f1',
+           'source/library/core/float_meaning.omg': '7d4db28b4313fae9fc2b4b9bad94b689f09be53ab13ee24dcd03a4229db93b68',
+           'source/library/core/float_operations.omg': '6803ae543d400fa21c90806fbd3c70610657f54d2cb54169f6d17157590d0688',
+           'source/library/core/float_order.omg': '4615ab1edf7e9c159e725ac829d459e7a43ef3451753a24f09b6b197d9cb4211',
+           'source/library/core/float_provider.omg': '82fcdeee590b893cd9301085040d56212a5506a3e9e69c3b648693e43c909324',
+           'source/library/core/format_lineage.omg': 'd1b1693ea2f039dc4f74fdb0eb807cbc4a5e9f99bd9054862e77849e8abf7dcf',
+           'source/library/core/int.omg': 'c243116b743bc71696e793006aeff7a9aac32e307e8feefe2c48e33417ea1864',
+           'source/library/core/integer.omg': 'ea66601ed8be27b434c45ce337f904587da63201b13ef959a737a27939c5b815',
+           'source/library/core/interrupt.omg': '27e708d754b5aa0cf4544f43b14fa4004eaff54ecd9a593a0ff9bf9f2c7fb936',
+           'source/library/core/iteration.omg': 'c086484294a47fa9d21ff39f215b43822429e82c5c6bb81712b359c25082dbdf',
+           'source/library/core/layout.omg': 'ffc4b3c56d0d43ae2a871e8d3943df19237fb0c270f68480fc7515956fbcd67a',
+           'source/library/core/linear_algebra.omg': '10c8a96afe181a92d958c4f566b705485f9fc2fd48d9473764aef857c0b354b9',
+           'source/library/core/main.omg': '686287f7436b84f3f9138764aa7f310d6f0f024eaeaf4e29f504e2403d56b6d8',
+           'source/library/core/math.omg': '0cf56548ab39c00787c4732b363393fb90e32015b1e9d3b18e24bd7772879e44',
+           'source/library/core/matrix_layout.omg': '98596f3630d2964951aa1123ae0a783e34d10619607c7ca7026cd07a2481c5c1',
+           'source/library/core/nat.omg': '1ab74b959aa4ee7cd7c43c8831b4381d73afbfbf1d2b418741328946e137bc5b',
+           'source/library/core/nat_metric.omg': '8f3c0a5bfd6fbc3ba0007436a87f8733257fcf9e608574b10eb3ebe3b8a6024d',
+           'source/library/core/native_execution_authority.omg': '369890c7fbb5b86e50a2fdd7471193442a34d3cf3c50880f90f7a85bd966b720',
+           'source/library/core/numeric_conversion.omg': 'd6025109f03bd7a00b380356e4ed563f7c71bc50feefc4ba3269edd3785c11ca',
+           'source/library/core/option.omg': '336a593fe4c77c96253718ce8a65ba851db99f9bfe1fb7abbd40f9e8569edadb',
+           'source/library/core/presentation_authority.omg': '55f97d0f8a05f5a976a0a30b506d4fc42ea16a18dea51f987d5677199fcaf9d5',
+           'source/library/core/process_authority.omg': 'ee6a26d734deaccf1a803e3bbff0b6aa4df08846a36124e5e642c478e333df07',
+           'source/library/core/process_exit.omg': '6ff9daba6a70e09db8367f90ff18a39c599dfea9ceb512cbda204ff700a0789f',
+           'source/library/core/program_image.omg': 'fc4c0cf6e8015431f5ab963fd7f2fa2fe651e6a1458f6c93da159eda4a57ad9f',
+           'source/library/core/ptr.omg': '5356de96870c4dcf8e52b05e877d297e00a2c71d698b8715a31ad8c08bb3f60a',
+           'source/library/core/rat.omg': '1c4f1ed60bed9395bb843590d7c951c23c590c95a8216ebd6ef9a7c6771cb2f5',
+           'source/library/core/real.omg': '2b3ed03c8567f1d3052bfcc6468b196eab0be767eaf121e0243d23bf98e75b48',
+           'source/library/core/reflect.omg': '3588e4597e5396af0f253a8faf71aa3ea11a8a6911f224cbaa15504cbd3dbd23',
+           'source/library/core/relation.omg': 'e2ee07b137e2c3ae1922e9b6dfe7a9877a4fe1d45edc61da484bc21d836ac297',
+           'source/library/core/representation.omg': '17a6e03c1901bbb3da9488d38b343d33b84721f44453966bc461ac6051126086',
+           'source/library/core/run.omg': '9bdb0ff37321b2b121c4892423bc131931bb93724f9e054e7858b8bf7c0787b1',
+           'source/library/core/seq.omg': 'cedbc5945f7741216d398d472e12f947f17cb5484f98b0c9779d9da2d385698d',
+           'source/library/core/sha256.omg': 'a98361567eb4442c2c990aff467374a10f9c9ddb3dbfb69fbc8cc28d04884583',
+           'source/library/core/slice.omg': 'd315632a3d69a5dc799e88eb162317ed39d67937f5eeee5a42a98a050afa34b6',
+           'source/library/core/slice_views.omg': 'e1905daa75b6fe8db9b485213892b7a253a42430c7436103eba2224797857daa',
+           'source/library/core/task.omg': 'a84168714a1bdbbc7d4ca0f5d3c17f7a88c884fd9dccb3bccf9e26e1bdb5597d',
+           'source/library/core/task_register.omg': 'e24a90e7a420a238115511834f88d8fc61b3aad368f68b1496bfce5660a6cd9c',
+           'source/library/core/time_authority.omg': '2a1ecc75b1b4b97193a7e8e7fd05bab6c4956f519f2aaf54ab88586df25a93e1',
+           'source/library/core/units.omg': '729a2bb44d0306c32eb42268324cbb8e0d89cba08583619501c5bd376a5d2c86',
+           'source/library/core/vec.omg': '3967c855446e800f82ed7c034c6e95630141df041e9b5141988295898350b486',
+           'source/library/core/wait_wake.omg': '8afcc11b7d27e1ac5c6acf093810cfabcb1f970006ebab75816890edd35a78aa',
+           'source/library/core/wire.omg': '160efe9d92f92fdab022326e99ff57a278604767ae531833d0b217011b417a62',
+           'source/library/std/build.omg': 'cdbbb123e104f21dbb9b192119e076ec653be35e13ab72843cdae37befcd45f3',
+           'source/library/std/calling.omg': '9fbd8deaf6006a4f8ff0098c9f215c5ba66803aa302144739947ffd8fe2fbc94',
+           'source/library/std/clock.omg': '9c812bbe05c2ff7bf665bb71be0e966807a2da5322c4980dce214a99f74880aa',
+           'source/library/std/console.omg': '7a09f99ca49fa7807cc6e9d385ed5b5a4a6064183496043ebfba5dc400176a10',
+           'source/library/std/darwin_calling.omg': '8ded2adfff396de7a438b010e52ce4345f73627d7f9f1920d4c0477a7c033c70',
+           'source/library/std/entry_shapes.omg': '7bfafec9f87f500e4be3bd2c5f346fb0c4453398f4611fbfcd72699efaf17ab6',
+           'source/library/std/filesystem.omg': 'b7445d229242f73bbd7c3ae17fb76686f5297f0bb784bf13ecf7ec97424f6306',
+           'source/library/std/filesystem_host.omg': 'fc43a5045ca2b287b4cc62ef5b9ea079916cfd5c862f729a35b7a06da73b64d2',
+           'source/library/std/macos_gui.omg': 'd77d7c6c63ab1da3963801cf8e332979a47611bf17c7aedf156bb4d02944593a',
+           'source/library/std/macos_image.omg': '9cb6895722b14b7d0f27b0098cc481aa345cbcb76446f4550ca915a6b35ae0ab',
+           'source/library/std/main.omg': '963f8655814ce864e0f59995fb777a35fc08859a6753d0ee5205e840aeefa78b',
+           'source/library/std/posix_byte_view_calling.omg': '37ee12290da93a93ec2611f81aecd503221487531d9e0e0434e8bc68ef6d9e6e',
+           'source/library/std/posix_filesystem_adapter.omg': 'f9d314ea97c6454d7a467fc1c881e7bc1f786d30af8474c6bb6fce66d00c50ff',
+           'source/library/std/posix_filesystem_host.omg': '7d5cc4ff79ee747539d96443e1898b8f8e977e14adfcdde7188bb3e8a9b68e36',
+           'source/library/std/process_exit.omg': '176c2f4f973a1e51551dd6b30d83c70d1f0e0f3da0631229c40c1ce4cee94ca3',
+           'source/library/std/targets/linux_arm64.omg': '84b1531498851bf39d0118e3372aa83cbb6a7e97ab238b4a651f68e980caf8db',
+           'source/library/std/targets/linux_arm64/clock_impl.omg': '081386b86b79b42a2fe447f3d137910f4d8af24ba7bcaf58038bcf80732344de',
+           'source/library/std/targets/linux_arm64/console_impl.omg': '07ffd2ba49a05b3ee776a3a2edb99d6a5adc7c8172f66ab581c4bc59c5468cec',
+           'source/library/std/targets/linux_arm64/entry.omg': 'cd19ce187c3176e752b8c6c42af15a7b212921c34fb497bfe0c26ad3a2961f24',
+           'source/library/std/targets/linux_arm64/filesystem_impl.omg': '1c64e3d5b7d4f9d4567c4f220eacef710c53f38341e4b96f59c3da03f274b233',
+           'source/library/std/targets/linux_arm64/posix_filesystem_impl.omg': '37687cc29f4d582d1a527a2b8c0ca1cab5b5c20e29c322b77c87b213c4029a9b',
+           'source/library/std/targets/linux_arm64/process_exit_impl.omg': 'faee0497fb8972fed86730d3daa93d9412408d41b88324b53cba58a063b208a5',
+           'source/library/std/targets/linux_arm64/time_host_impl.omg': 'dceca5582618fe79331dd054443d2c6e736c334019be5fc3b4abb06fcb4fa541',
+           'source/library/std/targets/linux_x86_64.omg': 'e9614e94d70ba5406ae4ccb6fb365a0c6b2a95108de7762f1982c903f91c3965',
+           'source/library/std/targets/linux_x86_64/clock_impl.omg': '9070181d4cf4b63d92227ad06296b7869d8324ab0ee057279e6eb29145b493d7',
+           'source/library/std/targets/linux_x86_64/console_impl.omg': '8a7dbc73a801e40be06e93c5fab91b05387b10037538a88aa5bc20b8e5718bde',
+           'source/library/std/targets/linux_x86_64/entry.omg': '8cd4883d7658d3ecc68742243e0f4e6e0788fedce09e063607596ff86ca45e6b',
+           'source/library/std/targets/linux_x86_64/filesystem_impl.omg': '41f9b3f071a2a82b942029179ed19e9bada4563ab3f9ef7a9a691f7b9ee59635',
+           'source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg': '99e3d7cd7d72c7f5a5a75f886c90d4c5b07fcd9186c3c62e8f7516e63121d98d',
+           'source/library/std/targets/linux_x86_64/process_exit_impl.omg': '30d8f1d85491adfb53db5f7473671f61d155f0a805da1e3207b7c2e1cec84c66',
+           'source/library/std/targets/linux_x86_64/time_host_impl.omg': '36b16cb563077ccac7ae85f9805ae27b4acaaeedd66610a49b453d67aaf98097',
+           'source/library/std/targets/macos_arm64.omg': 'e6840a086a0265363f6c0c9c95cbec9edf85512f9e834167895b339aa40825a1',
+           'source/library/std/targets/macos_arm64/clock_impl.omg': '701d129008a28fd1cb63a2dc3bc3885c39278947a76de34b2452c729f2029c33',
+           'source/library/std/targets/macos_arm64/console_impl.omg': '6033f6928bdc4a281d4a31d98c02797025f1562c6f6d57ca419e4cea5b29578a',
+           'source/library/std/targets/macos_arm64/entry.omg': '59e0eab05c8f892009454eb4318d643f3a10b567081b37f9a099f7f1d6f91546',
+           'source/library/std/targets/macos_arm64/filesystem_abi.omg': '14a12c108d2590f0ef812fcc638bc4e42aba6cc275bf8bd479c9ad37655565c2',
+           'source/library/std/targets/macos_arm64/filesystem_impl.omg': 'aa5473acbad9bfe9264b00770a5644692dd3e59b112f3b3b15a2034256f36440',
+           'source/library/std/targets/macos_arm64/posix_filesystem_impl.omg': 'ee1f67cb50da18733723dfccb3d4bc3d0c56fc97bea680ceb4ea1f5365507fcd',
+           'source/library/std/targets/macos_arm64/process_exit_impl.omg': '430abf139bad47dc53b232455155d4c2ed4de94d4a78e495a97c073da4c3573a',
+           'source/library/std/targets/macos_arm64/time_host_impl.omg': '46e7c58a857ab304f5c476059596663e2407547f9c5edd85d789f05b3a5991c7',
+           'source/library/std/targets/macos_x86_64.omg': '6390191487ebc95a7ec1131b4e8416cdec94f214d84eabca90d5ac56a4507df5',
+           'source/library/std/targets/macos_x86_64/console_impl.omg': '1850e5627da3dae680645a6fe8092a1ad0a9a90d1ff2e459a2d01f9cb540adb8',
+           'source/library/std/targets/macos_x86_64/entry.omg': '7be3781f183978a4d14a0fbb9df9d5d33905a78cad7a2cb50b01ad2ff75f7cb1',
+           'source/library/std/targets/macos_x86_64/process_exit_impl.omg': '7758dc035d9454db301aefac1ae4548b4383023cbcc23b4ed1695c59d9356a24',
+           'source/library/std/targets/uefi_x86_64.omg': '77b16f0553c13fdc6f3a42b1b6c4911adc7dbd0ed5332a33310c6b3d884ab5e2',
+           'source/library/std/targets/uefi_x86_64/entry.omg': 'fa6e4fa7391ada822535cbaa7d14016644b27a75c63c901e953e789aa4829003',
+           'source/library/std/targets/uefi_x86_64/handoff.omg': '32b4078f9eae37a9b9faf128ebeebad71f271ddfb22a3357118286f88fe00c35',
+           'source/library/std/targets/uefi_x86_64/integrity.omg': '436dbd0b23af3eb2a42d21b0891946c053da2bbd22d8639aba9823cae29bfde7',
+           'source/library/std/targets/uefi_x86_64/tables.omg': '11b1de141602a40e82db89ab205d9b2f585091a3489a4bfa75872b350eb1af73',
+           'source/library/std/targets/windows_x86_64.omg': '7888fd18d5abcc5a9f5c5789d37f8662fd1d54922aef8f4c9ee5d3a3a0406b91',
+           'source/library/std/targets/windows_x86_64/console_impl.omg': '5175c4201129aed2d279d8d3018f38340a0e34ee165b19b083d644513225f5cd',
+           'source/library/std/targets/windows_x86_64/entry.omg': 'eaef882e8b574021a38392c08676b9aa7a30fb24e13ac1c31307b79d50a12f34',
+           'source/library/std/targets/windows_x86_64/filesystem/copy.omg': 'bd068eeafe032fe25aa543bc5aba4c74fe80fdafe2d017a1f568b7ca4fb44e84',
+           'source/library/std/targets/windows_x86_64/filesystem/directory.omg': '8044e302c5cb2c831c8691ed537da892b5f314a5d32fb279a72ba32d5d4eb41c',
+           'source/library/std/targets/windows_x86_64/filesystem/errors.omg': '5b229d1c6c434f45599d2a080c32737263de57cee66e18b408a53ca7f80a83a4',
+           'source/library/std/targets/windows_x86_64/filesystem/handles.omg': '27c8c23c61f403e8cffdaba78ff9a1d231c2b863b6ca0c0743d0c7dc29b367fa',
+           'source/library/std/targets/windows_x86_64/filesystem/locking.omg': 'f18d15a5dda6879b594491d2cd1095e15f07d868b0c131e4effb4817e6c297b8',
+           'source/library/std/targets/windows_x86_64/filesystem/metadata.omg': '2f38719cc8872171016ca2ba9306850ed1e61cb53dcbc9f9c56c7eed2015d752',
+           'source/library/std/targets/windows_x86_64/filesystem/paths.omg': 'c5510a8d36a3a64dd0be67e53763d9f68fbfa8e99ff9eeec8e1705ec8424a617',
+           'source/library/std/targets/windows_x86_64/filesystem/provider.omg': '431212682f321bce89da1b0b9a89cd5f56dda935bc3a88ec9d37a238eff68ec0',
+           'source/library/std/targets/windows_x86_64/filesystem/sequences.omg': '653102df18d1c00aa4b79022ebbdae882e24ae09f0f5b279d62420a40ee0d345',
+           'source/library/std/targets/windows_x86_64/filesystem_impl.omg': '64369358c6b38666e819835e2154ed15124c4338097a428d459cb812501cd95f',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg': 'dd8339eed78b3a67249fafd1067aa298c9ac48a4af54baab41634560f6f8e091',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg': 'e27e8d40f8c1b7a70138c81822b6dad66e7f237a3ca93f364a51962d69787034',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg': '53bae575b252133a99b3b47c0983fdab30af2003382e5a0ac0cee4ee9a5b681a',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/native.omg': 'e6e8a68edc50e666e678a7efc6051e1ad8c7d782d99cea23db1104b2dd826fbf',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg': 'fcd305c6f980c837950b305e8777f27ac615fa0a094026af4eef3c2baaf86aec',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg': 'afbc12780b96c459b6f7b990ac8b365ac241a38b9f63340bb39257df5fecbb46',
+           'source/library/std/targets/windows_x86_64/process_exit_impl.omg': 'c6cc28c82d4d80f43f1a7ac476936da5d593a53a26ef0e0f055a9c079bfc5a87',
+           'source/library/std/targets/windows_x86_64/time_host_impl.omg': '9f8a2fac9028d13b2572c3bfb89cf562c7e6aa899bcce07f84a7258d7c2c725a',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_calling.omg': 'a40dbad40b2e02d546cac7fe6a54d05dbbcf6842581b291b85a436cbe29e60c7',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_control.omg': '4f4844e76d0b181bfef71bc01434750afc9d609144fb07dea96d106a4985f5c7',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg': 'a30387944e29657417eae165440c0c5cb7f7a53ea71893f39f7de7166db10b32',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg': 'a1bdf637efeb9c03791edf8cbf598ee0f853175c81f8400e07932bd044132414',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory_native.omg': '861111183d91f92e4136c348b65847724e8c12fbe8cfed1944cacb0d0429ed02',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg': '7c3867b6700323946e4d14a7625833862e7a44837b6a20b78aa82aadb7bf7013',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_file_control_native.omg': '67b6c70cc82dab23c42ba3db7ee38434c3c8a4a63c48db546ace9bf8cb931a42',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_impl.omg': '22f236efddb3c2271d0b5aa7a25216c52ebc6046132cdad7421401378c6f094b',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg': '1f98a21779bf73e819ca392bec7140c2d9e44ee1d02c23b32afceb247da40671',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_lock_native.omg': 'df03f298557be49f994ddf3d60ffd104fe3ec9da6dbe40abf7f4d165973781d1',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg': 'd6f915a77a7b2fd1cba1271c2efbdb55d0cca4d12afc094b2a3efd7f1cbcb0a8',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_metadata_native.omg': 'b3c9dd7a15fe53848d3e0f66ba048aa426ceddc47c132c34c34c57caabbd0d2d',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_native.omg': '219a6285c608a65fd4081f3620668c36804b67adecb8cef4ad2c64b66e60060f',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg': '479ec6a2fdfc86205075d450089dc49a2480d21b334ac211d99b093ea3a13c82',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg': '673e8b3331e5f3b89afd553d38675a3f51e472472140a14cf916d896e92c0db3',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg': '08fdc03cab28420ba7d2b75314d469748f2dcc09fd26dadaa60ce9396205fe82',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position.omg': 'fd732662ebff82d66337b281170263fae90e51f6170ce720c2a3e49f822fca89',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position_native.omg': '43c50dce03c207ae5e7134dab1e2740e238e823eba363f82e2c1932dbbed1620',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg': '3f5f2a787b97ee5b3fbfc5b9d743f5ac4a43bf86f604cbf2215c62c61d5aa4a8',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_private_handles.omg': 'fd117dfa8dca56b8d084047bd245e724829d482e2744dde095b578b60a5fef06',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg': '1ba727888454ff7693fea63bb9adca9350917bf4640935ffcb8820a83efa24a0',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_data.omg': 'a7e00804e237df52f2b9ca9f4d4de88491ae52f7d0b9833fea20fde3df18055d',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_native.omg': 'a8f1065fe25021a2c9553cdd1a346bb3a1823cd5ab7d17a147b8adc3d17ee8c1',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg': '580322a1d64477cf093b500d6a11c383123fbde289375fa5a20e6743e625efbb',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_transfer_native.omg': '0eef1a4d3cf23a17c3af8b65049465f84dcdab22475f8d23a71e30b6c6b491c3',
+           'source/library/std/targets/windows_x86_64/windows_gui_impl.omg': '60d847a11f394e59b0fe798857798ddfe1249b3ecdca7e0fd4bbe3b8100378c4',
+           'source/library/std/tests/callback_materialization_closure.omg': '49ea071f0827540af6882dcff24a04c416a6e26ab44d2d9c6ccb90e1da38da58',
+           'source/library/std/tests/direct_callback_parameter.omg': '426947bdbb10bad23f4bf1fa0996b27cb948ca0a21966c5989772f12b1a03d8f',
+           'source/library/std/time.omg': 'ea9c32ee63f68f8b26b6fbe958ec3676d6ee3c1663def3faee594d6b21b7948a',
+           'source/library/std/time_host.omg': '1274706e9a0fc615ed6a20e918f32630db89bcac1d90f42bdd58b1968112175d',
+           'source/library/std/windows_filesystem_host.omg': 'f7db0271334fc52acdff2d07918d9f1ab54b0a019cd4a50f7aac0fd1d9973bce',
+           'source/library/std/windows_gui_host.omg': '90c5cf0f578f13c6307e6dd9235c9cc58146c648a10d0aa662ba3bb9ce2a415f',
+           'tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/expected.txt': '413ff8cc0ca5d5b857a4f3b9e157f89af083cc0d8394578ac345e0ddc4717be8',
+           'tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/main.omg': 'edae08a7e7e04d629958d4e21327a0d4eee81bf10084e5c8b9224972f19678a9',
+           'tests/omega/fail/borrow/undeclared_lifetime_tag/expected.txt': 'a9776910a8b704535bb677b7a3b3029a0177f0887125b21744fa253806432307',
+           'tests/omega/fail/borrow/undeclared_lifetime_tag/main.omg': '1b9a6e2b886031b2d2c09537f2c43128049c6360ef440ae607c82137f9ff723f',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/build.omg': '385d32ce284165c23d7a8d11dedb66e3ab26d4d42e7820a8489d3fbfc26dfba2',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/expected.txt': '83c6eddc570991544805f74448212578da6a2a3e282814b9364b5d92f1a36d75',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/main.omg': '4aac6853f1ee677af2675d784c5d32d7eb151a9dee8ca39fe2cad7402378fdfa',
+           'tests/omega/fail/borrows/generic_call_output_source_write/README.md': 'e27bbd679001e6609e9a551867cbe02a99ae6ee4fcc1c454cf8a63b7454ef02a',
+           'tests/omega/fail/borrows/generic_call_output_source_write/build.omg': '90b96dc5f25c294037435b937c222277291c912e85ea1e7e44d1503002379863',
+           'tests/omega/fail/borrows/generic_call_output_source_write/expected.txt': '9a1fc1c716c99eb87d729bd9c688651454f11f615ca24ea9e77527ac8f4ce357',
+           'tests/omega/fail/borrows/generic_call_output_source_write/main.omg': '9fed160dbb31dd726b97d016b20ade892bc3ad5c80aa217cdeb9717664a5f23a',
+           'tests/omega/fail/borrows/private_arrival_default_domain_weak_bound/expected.txt': '1a88e1cf073a2d58d8fa2d3fbf4f821eb2805175340b4cf5043ea3b5d1641c98',
+           'tests/omega/fail/borrows/private_arrival_default_domain_weak_bound/main.omg': '449377261321809214c3e2d6fec026a7d5025f0e18b020c34dcc855810bea24b',
+           'tests/omega/fail/borrows/selected_reference_record_helper_local_escape/expected.txt': '90cf7bb10b137a1c0512a51b7bdd5d8c8d636707c1ea158c9817f472b00bbc87',
+           'tests/omega/fail/borrows/selected_reference_record_helper_local_escape/main.omg': 'eb80e9a5014b60208d7156f70b90a400aba68b438a8cb888928b6b32f6440171',
+           'tests/omega/fail/cases/nested_payload_read_after_case_replacement/expected.txt': 'ec39ff24c0ea7dd303137ea18d77ac2b51926f2a43c39da43d30f9b452cb17e7',
+           'tests/omega/fail/cases/nested_payload_read_after_case_replacement/main.omg': 'd688c4c7180b90b9aa86b4262f16b357e83f529e78659d1ee28b64459c0059b7',
+           'tests/omega/fail/contracts/executable_float_box_equality_not_identity/expected.txt': '83f1bf1bd073fca0efa91c961e34725eb93c0dbe0a499dcb43b44dd463b5ac7b',
+           'tests/omega/fail/contracts/executable_float_box_equality_not_identity/main.omg': 'dcc3c4c5bf278ef19dc14acc6c52a861fe0f72744af0da317855dc4518034f62',
+           'tests/omega/fail/contracts/mutable_owned_call_ensures_keeps_poststate/expected.txt': '5a5d2176709019586a7ff5be1ed7b34c4160473cf124d745fe6cbdbfe7da15f2',
+           'tests/omega/fail/contracts/mutable_owned_call_ensures_keeps_poststate/main.omg': 'eb1215c5964d9ff4aa60f93d949ed69ea2714a4bca18d13297fe3520573af975',
+           'tests/omega/fail/contracts/nested_case_guarantee_unselected_sibling/expected.txt': '827700bf0825333d8651e3afd2a814ac00a84dbf2eaa1ba90a50ecff54303f90',
+           'tests/omega/fail/contracts/nested_case_guarantee_unselected_sibling/main.omg': 'c4e70ca55e480caaf8db32644499cf0e5eebe04ffc3b51dff80ac8a0a6d97a88',
+           'tests/omega/fail/contracts/saved_call_case_guarantee_replaced_by_call/expected.txt': '6678244a6a508fcd152496bc915a1e48ce324e3811382ef17cac0b476c8e271d',
+           'tests/omega/fail/contracts/saved_call_case_guarantee_replaced_by_call/main.omg': 'ee0c1a79cb63c7cfa5f4fdb57daa3ad1d7e6f4a5d362eb195be71c5a2c5dcb32',
+           'tests/omega/fail/data/constructor_distinct_field_versions/expected.txt': 'cac1de6fd3822e8134cb4dc7056d5ae4a47c9b7e479e8452c04b5be68798dd77',
+           'tests/omega/fail/data/constructor_distinct_field_versions/main.omg': 'ae2622309697565c369a8b0a3f182594d0d9015f1b4d051975c27790b41e0c03',
+           'tests/omega/fail/data/constructor_prior_operand_write/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+           'tests/omega/fail/data/constructor_prior_operand_write/main.omg': 'bf7dc8a87db4ece9f004bb9bc87ec18b1e1eedfd26977fc18c3884dedb446c13',
+           'tests/omega/fail/float/constructed_ieee_unknown_nan/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+           'tests/omega/fail/float/constructed_ieee_unknown_nan/main.omg': 'b3513eb8c7595f5fde1b398ed6950a83c45ebfcca407c69ba4af413b43fce9d3',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/README.md': '018d7ac99eb0c899d26f97d63fe2fe2f6f669eb155298631f24250a62d646136',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/expected.txt': '5216d0f2c14c441f91ed576c7edc5f217374d4a490f5e1d410ff9f8ead63a883',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/main.omg': '3fde883362c607bc505716ddde84008de137109716a652e51d3649f75283c914',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/build.omg': '3d0ab5ac601d5913375b3cdf399eedfa6594856e2809b7223824a014a2360310',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/expected.txt': 'a1ffc97d0c51250e40b9b936c4b36c6e34d10523b2ce1000891213e4c5a0ea13',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/main.omg': '6008f09a23caec11c9b0a03f37dc1368fe50c68843b79432b46df4cb4f0852f2',
+           'tests/omega/fail/generics/generic_carrier_equation_mismatch/expected.txt': '939f57ebe8efbf566e9c828f9bd48396bed403e50fa700509a7b8d54851cc6f7',
+           'tests/omega/fail/generics/generic_carrier_equation_mismatch/main.omg': '8934cb90b2dd25bd3efabaa5bc92b0222672ac9772552dfd057086622e176788',
+           'tests/omega/fail/generics/phantom_owned_constructor_unproved/expected.txt': '4463c2231b9b1e2af0ab4ffc21a836a147b73c020ed02692e6c6b209ff5ad332',
+           'tests/omega/fail/generics/phantom_owned_constructor_unproved/main.omg': 'cd62c7240fbd32bc1e3a4b4278c48052ec55dcc1dc68ecb3dc1f5104d5a53429',
+           'tests/omega/fail/ownership/whole_borrowed_missing_repair/expected.txt': 'c93d31ec30460f79a69e7e1ee6178e5ed3e4f3ace56dd8a3ced59206970b57c3',
+           'tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg': '570739dc41be917bdd6b3954e72b8d59d9b8b3cbd219f0b0637814dc26161f04',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/build.omg': '614902b6be94b620ae795d1da742373e97f2c7cf82a1771e0d357bcc8ac14c75',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/expected.txt': '10d7a402c489caa59140b9791caae2994ee589ab2f2933bb2273a01cb671f694',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/main.omg': 'e67b7a72f6feb21733748d927176d4ce4ba75b4878bcb4f71a9fd86fd775b09e',
+           'tests/omega/fail/proofs/runtime_case_guarantee_wrong_return/expected.txt': '4df38530093633038a7324bcc5121a47e75b5c333311ffa9849a9be58fe49e99',
+           'tests/omega/fail/proofs/runtime_case_guarantee_wrong_return/main.omg': '82335889f4105092e69802ca2beff12d90634828d0f73e6dfa37993915c6bbcd',
+           'tests/omega/fail/proofs/selected_case_equality_does_not_establish_membership/expected.txt': '95c9798d405d1dc561c874803e24d02f672be3aacf1cbf37ad38d4676b775583',
+           'tests/omega/fail/proofs/selected_case_equality_does_not_establish_membership/main.omg': '8bc0f4e20d1f8c12018bc0f0f4301fcf55a980790151d9e705e2bdacf8b6fd1f',
+           'tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound/expected.txt': '379e28ae4ad861a91a304111fb4d625a082cf52c47d7047f7440f9dcad8e9167',
+           'tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound/main.omg': '5633be4535dcb3f4568ec9cdc59c293b7d266f1eb635e85c9b1bbc3f6b02ee24',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/build.omg': '4d1bdeccd3a39637b3564c168cd807e344a4e3bc2598bbb4b8f158827e859321',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/main.omg': '6b2cb59e80542f417131c3ef9b45994d32ef058fa382f3ebed2f6d4b0a1f7df9',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/README.md': '20a9e12b5bdf7eabe10355ef49bdb04ac17c2a50a4c36d1a0e7475d7ee7e4059',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/build.omg': 'd3c44e2d1da3a357423137391506abc7720f436c28f06a2bb04d3428d3da1ddd',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/main.omg': 'da8275565860421331cf9037d417b5a82c6c2a446e563261560be6cbef7accc2',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/build.omg': '2d633324e72da527f22b2fd18507d3e22f10c3b1618c7d61dfe5d3a39d53fdf8',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/main.omg': '365ebf157caf27d27a86591b3261a1ae4a8311c335dd8b9f10c9f8ef4dc61dbc',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/build.omg': 'b35ce54ab8b0289e17fb19745b2ad981fdf87807560c7bb14667508420714e7c',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/main.omg': '3f32f3280f3aa8116fa54b440a3066183a12397f16bec4997d510ddb76f9b543',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/build.omg': '285689cc07134f285903cb376d663efc6ba16b94baf22cedceb383f619db1b4f',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/main.omg': '303cdf48e2d1db7b61e0fb499f301401020df6c2a983069f2a9ae5cd02fe9f72',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/build.omg': 'de5b1e40d67c7a4ce3dc400fb3c60afce82f03004e8a106681b22df28577439f',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/main.omg': 'b0065c7b194e91d119daddc4228bd2ae1f73f6ea942347156a009083e00ae0d5',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/build.omg': '9283d44d9cccaedf3e6fb27c3029418db166eedf4354576ea43dff73acada0dc',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/main.omg': '9cfa86033d71f3707e62effa2c88e3b0f9891c10943edc6b74cde8dd238b0244',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/build.omg': '759a179f89c8982efecd3c4e16192a6309a568de5cf2f95ad088d3bc9e9a3ebf',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/main.omg': '98e8aa51fca8e8b8396046b9a932b49f6e4cb6cdff6df5cf0b246b5353f4a69a',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/build.omg': 'aa37cf0e6c0ab081c71c6c174fbfd01b43066386da636acb54fd72ad1a450a15',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/expected_native_exit.txt': '13c1dc569ae4a0d7f90d8f83d22fc9c8fa526e133f8fea0f9526c8533c4d8da3',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg': '836a91eb9644eda9320269203dc09d464f134db13f034e8913cf6506f24dde42',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/README.md': '661fab92aa01bab89746f912a9b2094c25d49d819740c886ef65a45b7a127b8c',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/build.omg': '7a7baea772c6c8f1863abb9731aa725a204d474414405645e09559ae0df6199b',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/expected_native_exit.txt': '10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/main.omg': '504a673682bb074ef9b7ea0f9b4c735c54256e523f34ce0d6248e1a03b589f4a',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/README.md': '0ffe6ce964a73ac24b0704a223a847eb148f4eaadd3fa30d04db5c7dfe91be01',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/build.omg': '320b86c84ec224526f90a4f77ef809326b86a92b2a38fc94d052696ec17caf92',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/main.omg': 'be5a5d4a0180651086ddadf39e1c79436ed099de49644627517d6f90512582f0',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/README.md': 'd0b6dc11aa88767d7593c76474af726c1275b6afcf153ae61e90618822fb4a39',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/build.omg': '6e6a07686a3086bd380e09e3522fef655eed73617c994352053f06b5bc8f8b8f',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/expected_native_exit.txt': '084c799cd551dd1d8d5c5f9a5d593b2e931f5e36122ee5c793c1d08a19839cc0',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/main.omg': '97e7a62029c280095af14c3ddf030c03479e2a0aa4c4ccf8049402b84381483c',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/README.md': '87c737174fd87bea9aac7376d5fb9339a0217609bd774510eee6f45c376566a5',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/build.omg': '614902b6be94b620ae795d1da742373e97f2c7cf82a1771e0d357bcc8ac14c75',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/main.omg': 'cbcc0f7e393cce9b79d213c11fb6163c4e196b6cd18cab89cf96beb74ac01acb'}
+          for path,digest in inputs.items():assert sha((root/path).read_bytes())==digest
+          os.environ['GITHUB_SHA']=source
+
+          import build_slot,subprocess
+          all_positive=['pass/generics/runtime_generic_carrier_equation_exit',
+           'pass/ownership/runtime_whole_borrowed_transform_exit',
+           'pass/arithmetic/runtime_composite_bound_arrivals_exit',
+           'pass/core/aggregate_snapshot_copy_exit',
+           'pass/float/constructed_ieee_predicates_exit',
+           'pass/contracts/saved_call_case_guarantee_requires_exit',
+           'pass/contracts/completed_unit_call_post_case',
+           'pass/generics/omitted_data_binder_range_equation',
+           'pass/borrows/runtime_case_descriptor_retirement_exit',
+           'pass/contracts/nested_case_guarantee_disjunction_exit',
+           'pass/generics/runtime_phantom_owned_constructor_exit',
+           'pass/proofs/finite_boolean_policy_exit',
+           'pass/borrows/borrowed_field_helper_output_exit']
+          all_negative=['fail/arithmetic/composite_bound_arrival_unbounded_predecessor',
+           'fail/borrows/private_arrival_default_domain_weak_bound',
+           'fail/references/rebound_parameter_reference_drops_referent_bound',
+           'fail/contracts/mutable_owned_call_ensures_keeps_poststate',
+           'fail/ownership/whole_borrowed_missing_repair',
+           'fail/generics/generic_carrier_equation_mismatch',
+           'fail/data/constructor_distinct_field_versions',
+           'fail/data/constructor_prior_operand_write',
+           'fail/borrows/empty_array_snapshot_requires_read_authority',
+           'fail/float/constructed_ieee_unknown_nan',
+           'fail/float/mathematical_generic_ieee_equality_requires_non_nan',
+           'fail/float/public_class_contract_ieee_equality_retains_zero_sign',
+           'fail/contracts/executable_float_box_equality_not_identity',
+           'fail/contracts/saved_call_case_guarantee_replaced_by_call',
+           'fail/proofs/runtime_case_guarantee_wrong_return',
+           'fail/proofs/selected_case_equality_does_not_establish_membership',
+           'fail/cases/nested_payload_read_after_case_replacement',
+           'fail/contracts/nested_case_guarantee_unselected_sibling',
+           'fail/generics/phantom_owned_constructor_unproved',
+           'fail/proofs/finite_boolean_policy_exit',
+           'fail/borrows/generic_call_output_source_write',
+           'fail/borrow/undeclared_lifetime_tag',
+           'fail/borrows/selected_reference_record_helper_local_escape']
+          output=root/'build/compiler-pilot/premise-cache-ownership-host'
+          output.mkdir(parents=True,exist_ok=True)
+          (output/'driver.json').write_text(json.dumps({'source':source,'driver':driver,'target':target},indent=2)+'\n')
+          import re,shutil,signal,time
+          with build_slot.hold(root,timeout=900):
+              preparation_status=compiler_pilot.run_suite('compiler-pilot/premise-cache-ownership-host',tuple(all_positive),tuple(all_negative),phase='prepare')
+              if preparation_status:raise SystemExit(preparation_status)
+              # The canonical preparation has already written producer/profile/Cargo evidence.
+              # Preserve its useful Cargo objects even if a later unit count or test fails.
+              with open(os.environ['GITHUB_OUTPUT'],'a') as marker:marker.write('compiler_prepared=true\n')
+              scopes=[('term-identity',
+            'term_identity::resolution_payload_tests',
+            4,
+            ['proof_contracts::contract_entailment::structural_judgment::term_identity::resolution_payload_tests::argument_children_keep_order_length_and_callback_short_circuit',
+             'proof_contracts::contract_entailment::structural_judgment::term_identity::resolution_payload_tests::payload_comparison_keeps_authority_on_the_last_of_three_fields',
+             'proof_contracts::contract_entailment::structural_judgment::term_identity::resolution_payload_tests::repeated_array_traversal_and_substitution_are_independent_of_extent',
+             'proof_contracts::contract_entailment::structural_judgment::term_identity::resolution_payload_tests::payload_comparison_keeps_hidden_descriptors_and_nested_authority']),
+           ('resolution-queries',
+            'resolution_queries::',
+            23,
+            ['proof_contracts::contract_entailment::structural_judgment::resolution_queries::completed_read_roster_tests::unavailable_collectors_do_not_publish_completed_empty_reads',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::depth_tests::nested_arithmetic_queries_keep_the_active_resolution_budget',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::completed_read_roster_tests::published_reads_are_a_snapshot_and_replay_in_order',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::guard_depth_tests::completed_guards_keep_the_active_resolution_depth',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::predicate_tests::value_resolution_and_predicate_answers_remain_distinct',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::term_mode_tests::entering_a_question_preserves_its_caller_term_mode',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::term_mode_tests::completed_reads_keep_the_observed_mode_across_caller_mode_changes',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::term_mode_tests::cached_child_reads_replay_their_original_mode_into_the_parent',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::body_reads_reach_current_and_ancestor_field_observers',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::bucket_collisions_preserve_capture_proofs_and_recurrence_inputs',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::cached_child_reads_reach_the_parent_without_exporting_local_cycles',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::changed_query_inputs_decline_dependency_reuse',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::changing_field_observers_invalidates_enclosing_queries_not_recurrence',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::completed_queries_keep_full_authority_depth_and_premise_context',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::completed_query_keys_do_not_keep_replaced_premise_payloads_alive',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::completed_queries_keep_premise_and_returned_storage_inputs_distinct',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::conditional_reuse_matches_uncached_queries_for_every_three_question_stack',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::field_dependency_recording_reuses_only_the_same_accumulating_trace',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::recurrence_reads_allow_unrelated_frames_but_reject_changed_cycle_answers',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::static_selection_landings_remain_distinct_recurrence_inputs',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::static_selection_landings_survive_completed_query_reuse',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::work_domain_tests::cheap_leaf_queries_do_not_evict_completed_applications',
+             'proof_contracts::contract_entailment::structural_judgment::resolution_queries::work_domain_tests::bucket_eviction_keeps_recent_queries_and_removes_old_indices']),
+           ('stored-values',
+            'stored_values::tests',
+            6,
+            ['proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::finds_each_slot_and_no_absent_one',
+             'proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::walks_past_unequal_coordinates_that_share_a_key',
+             'proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::updates_reach_the_first_equal_value',
+             'proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::repeated_coordinate_resolves_to_first_position',
+             'proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::removal_keeps_lookups_exact',
+             'proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::values_at_yields_each_equal_value_in_stored_order']),
+           ('declaration-predicates',
+            'declaration_predicates::tests::',
+            5,
+            ['machine_calls::structural_call_custody::declaration_predicates::tests::declaration_roster_guards_owned_payload_coupling_before_observing_fields',
+             'machine_calls::structural_call_custody::declaration_predicates::tests::outer_storage_cannot_hide_an_unsupported_payload_predicate',
+             'machine_calls::structural_call_custody::declaration_predicates::tests::unresolved_nested_array_extents_cannot_hide_payload_requirements',
+             'machine_calls::structural_call_custody::declaration_predicates::tests::carrier_implied_case_roster_does_not_expand_array_elements',
+             'machine_calls::structural_call_custody::declaration_predicates::tests::own_fact_reuse::own_fact_reuse_preserves_original_storage_walks_and_alias_cycles']),
+           ('expression-collection',
+            'expression_traversal::collection_tests::',
+            2,
+            ['queries::expression_traversal::collection_tests::batched_roots_keep_seed_order_full_generations_and_shared_children',
+             'queries::expression_traversal::collection_tests::proof_fact_roots_keep_order_and_independent_lists'])]
+              aggregate={'source':source,'driver':driver,'expected_existing_tests':40,'original_existing_test_count':38,'new_graph_test_count':2,'no_new_tests':False,'total_test_budget_seconds':1200,'fresh_test_execution':True,'scopes':[],'passed':False}
+              all_began=time.monotonic()
+              for label,filter_text,expected,names in scopes:
+                  command=(['mbx','nextest','run','-p','validation','--status-level','pass','-E','test('+filter_text+')'] if shutil.which('mbx') else ['cargo','test','-p','validation','--lib',filter_text])
+                  began=time.monotonic();test={'source':source,'driver':driver,'command':command,'filter':filter_text,'expected_existing_tests':expected,'expected_names':names,'no_new_tests':False,'started':True};process=None
+                  def stop_test_process():
+                      if process is None or process.poll() is not None:return
+                      os.killpg(process.pid,signal.SIGTERM)
+                      try:process.wait(timeout=5)
+                      except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=5)
+                  stdout_name=label+'-tests.stdout';stderr_name=label+'-tests.stderr'
+                  try:
+                      with (output/stdout_name).open('wb') as stdout,(output/stderr_name).open('wb') as stderr:
+                          process=subprocess.Popen(command,cwd=root,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,start_new_session=True)
+                          test['exit']=process.wait(timeout=max(0.001,1200-(time.monotonic()-all_began)))
+                      output_text=(output/stdout_name).read_text(errors='replace')+(output/stderr_name).read_text(errors='replace')
+                      test['existing_test_count_confirmed']=bool(re.search(r'test result: ok[.] '+str(expected)+r' passed; 0 failed|'+str(expected)+r' tests run: '+str(expected)+r' passed',output_text))
+                      test['named_existing_tests_confirmed']=all(name in output_text for name in names)
+                      test['passed']=test['exit']==0 and test['existing_test_count_confirmed'] and test['named_existing_tests_confirmed']
+                  except Exception as error:
+                      test['passed']=False;test['error']=str(error)
+                  finally:
+                      stop_test_process()
+                      test['seconds']=round(time.monotonic()-began,3)
+                      test['channels']={name:{'bytes':(output/name).stat().st_size,'sha256':hashlib.sha256((output/name).read_bytes()).hexdigest()} for name in [stdout_name,stderr_name] if (output/name).exists()}
+                      aggregate['scopes'].append(test)
+                      aggregate['seconds']=round(time.monotonic()-all_began,3)
+                      aggregate['passed']=len(aggregate['scopes'])==5 and all(item['passed'] for item in aggregate['scopes'])
+                      (output/'term-comparison-tests.json').write_text(json.dumps(aggregate,indent=2)+'\n')
+                  if not test['passed']:break
+              producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+              raise SystemExit(0 if aggregate['passed'] else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
+          name: core-float-premise-cache-ownership-preparation-${{ matrix.host }}-${{ github.run_id }}
+          path: build/compiler-pilot/premise-cache-ownership-host/
+          include-hidden-files: true
           compression-level: 0
-          retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
-      - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+          retention-days: 30
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: always() && !cancelled() && steps.preparation.outputs.compiler_prepared == 'true' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Enable requested compiler diagnostics
-        if: github.event_name == 'workflow_dispatch' && inputs.compiler_diagnostics
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PROVIDER_DEBUG=1\nOMEGA_COMPILER_CHECK_SITES=1\n')"
-      - name: Enable requested compiler phase timings
-        if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
-      - name: Enable requested ownership and state tracing
-        if: github.event_name == 'workflow_dispatch' && inputs.structural_trace
-        run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_STRUCT_TRACE=1\n')"
-      - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-          OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
-        run: python tools/ci/compiler_pilot.py --phase consume
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
+      - name: Verify retirement and lifetime refusals before remaining customers
+        id: functional
+        shell: bash
+        run: |
+          python - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='18e46dd7fb89b6ce4a89cbf8bbceb05b33a7dec0';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          sha=lambda data:hashlib.sha256(data).hexdigest()
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          assert compiler_pilot.corpus_gate.host_target()==target=='macos_arm64'
+          assert os.environ['OMEGA_CORPUS_JOBS']=='1' and os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          inputs={'source/library/README.md': '1c4b8205176817fa8f434a9dc98533ac143c6e0ac5bd29e7733dc7a7dc4c5917',
+           'source/library/alloc/build.omg': '7e2ceee9a760a528a8258d67f578e8a0f641a67ad26bd1ba84bf9261f6555f14',
+           'source/library/alloc/bump.omg': 'ae94f131622d2817e589defcca00e669ef9883de3c7a562e3d955d215fb3ca8d',
+           'source/library/alloc/main.omg': '417edeed95556dad5f2b971625458b71d49e74aa0cd812108659ab263eccf940',
+           'source/library/alloc/vec.omg': 'b95dac0f69a03754009aaa6f4d95e0a9ee899566c6f1107979fe127cb2b35030',
+           'source/library/blocking-executor/build.omg': 'b09bbce1281a080d73db6c6a90b7b06a8b3196af03938e1e68a5d281244d987d',
+           'source/library/blocking-executor/executor.omg': '1c6c925807663a8be02b5261559923848384d43cf6f479dd9659dd8adf06e362',
+           'source/library/blocking-executor/main.omg': '0d86baaa3867d51c29b5e146f0f363676049aca709f181d597730e044a6c8fd4',
+           'source/library/blocking-executor/queue.omg': 'a8559109c4614970b2d638c4f45e8f3733f9fb45edfa19fd6ece0877f11db415',
+           'source/library/core/activation.omg': '8a801bf20b3ba1f12ad89cf7f31ebf30b58ce828793cce787602f12b378011e1',
+           'source/library/core/algebra.omg': '9b398ebe8147c69da12e4e76aaf845b2cd0adfc3ccef58657352427a2be4b368',
+           'source/library/core/arena.omg': '1ed545ffc20a139bef89db4787abcb9850760496459b8c1cb2e24b4b47bfbc0f',
+           'source/library/core/array.omg': '8475298774460d6823c47bbd03a7b1fd1bccade0be29c5160f56aaa832e3b862',
+           'source/library/core/assembly.omg': '59f31f1af00d3180693f39cde47e5a4ff08fdc20e36f6d97e38aea1377713f15',
+           'source/library/core/assembly_model.omg': 'fc18b838fb2866cb40c116936998c30fc204d0e4cb2be13de9790747fec9c924',
+           'source/library/core/atomic.omg': '9be58e4b42ee56546896e68067ac1356678514b89ed78fd95633ce9bb6278a3b',
+           'source/library/core/build.omg': '5fe6ec9cfe493b25fcf400eafc8df404d819cebfefc7a7074cd281fb14359f37',
+           'source/library/core/c_layout.omg': '0549fd3542786bba54471e60451efca3b486f25bc7696d20cf856da1fa5d4edf',
+           'source/library/core/cauchy.omg': 'c8244b9b6bdb9d63090998f56a2ef81644751d3e7658ec7c678a2eb1b1c107ed',
+           'source/library/core/code_layout.omg': 'd60c1e5d7af2211855f231813e3ab3185c8f07b89f22eda27d50b0f09485b1f6',
+           'source/library/core/code_segment.omg': 'a6325408aab55d269d2325fc8d68e300eb79299c585fc0901c791d280ba9b7f8',
+           'source/library/core/complex.omg': 'ff87af686b8cc3924baa835358107bab5fee3d6519f6402e83ee4f36c092eed8',
+           'source/library/core/content.omg': 'e492260d91704cd7acf80816083748e144c4010c5b0375689671b5fcd882deef',
+           'source/library/core/conversion.omg': '35ba3c9bfd11b8575c66acec246a47f17159b3d2781f8ab772325d70de850718',
+           'source/library/core/data_segment.omg': '50d796b144994a594c90f3559c6ef27dc19b9d6563530eb109dc935ce5a35f7b',
+           'source/library/core/device.omg': '2a83f8d59d75b590d03d8d64fd1c596bc55a8b5f091917cd0e2b96ef24513202',
+           'source/library/core/drop.omg': '6e9291c7dcf87547e612ed061561fe505e2c289bab853efe4ed2e42d2ca468ff',
+           'source/library/core/extent.omg': 'd8db0ece5b4d9f10ffa1c8cd79b538d4863e482a9c2757ef076668ebf9bdef03',
+           'source/library/core/external_binding.omg': '85e12a3043ee54047fce1499d15bc72efafb196687de0b6b9f71444e77229cde',
+           'source/library/core/filesystem_authority.omg': '99d99ab7a334c02d5807ab0b405bdcb3ee3e479abd6e9542b2d0ac9110940a82',
+           'source/library/core/fixed_vec.omg': '47e764a2cd3c5698dcd7133ef433f86e1bbd8182dc5cc2d365074bf87b701090',
+           'source/library/core/float.omg': 'a85f6128796f325b63a59993c7a1be79d93ecdd069f048f93ba6af1586231d41',
+           'source/library/core/float_accuracy.omg': '13a6588eaa0f4079c26dcaeff87ca6af4714de85503c1b57559a75719a73e314',
+           'source/library/core/float_format.omg': 'b226b82c067bb771f67afd0dac0f6d3292e96ae5b6d8f6514e45f396251067f1',
+           'source/library/core/float_meaning.omg': '7d4db28b4313fae9fc2b4b9bad94b689f09be53ab13ee24dcd03a4229db93b68',
+           'source/library/core/float_operations.omg': '6803ae543d400fa21c90806fbd3c70610657f54d2cb54169f6d17157590d0688',
+           'source/library/core/float_order.omg': '4615ab1edf7e9c159e725ac829d459e7a43ef3451753a24f09b6b197d9cb4211',
+           'source/library/core/float_provider.omg': '82fcdeee590b893cd9301085040d56212a5506a3e9e69c3b648693e43c909324',
+           'source/library/core/format_lineage.omg': 'd1b1693ea2f039dc4f74fdb0eb807cbc4a5e9f99bd9054862e77849e8abf7dcf',
+           'source/library/core/int.omg': 'c243116b743bc71696e793006aeff7a9aac32e307e8feefe2c48e33417ea1864',
+           'source/library/core/integer.omg': 'ea66601ed8be27b434c45ce337f904587da63201b13ef959a737a27939c5b815',
+           'source/library/core/interrupt.omg': '27e708d754b5aa0cf4544f43b14fa4004eaff54ecd9a593a0ff9bf9f2c7fb936',
+           'source/library/core/iteration.omg': 'c086484294a47fa9d21ff39f215b43822429e82c5c6bb81712b359c25082dbdf',
+           'source/library/core/layout.omg': 'ffc4b3c56d0d43ae2a871e8d3943df19237fb0c270f68480fc7515956fbcd67a',
+           'source/library/core/linear_algebra.omg': '10c8a96afe181a92d958c4f566b705485f9fc2fd48d9473764aef857c0b354b9',
+           'source/library/core/main.omg': '686287f7436b84f3f9138764aa7f310d6f0f024eaeaf4e29f504e2403d56b6d8',
+           'source/library/core/math.omg': '0cf56548ab39c00787c4732b363393fb90e32015b1e9d3b18e24bd7772879e44',
+           'source/library/core/matrix_layout.omg': '98596f3630d2964951aa1123ae0a783e34d10619607c7ca7026cd07a2481c5c1',
+           'source/library/core/nat.omg': '1ab74b959aa4ee7cd7c43c8831b4381d73afbfbf1d2b418741328946e137bc5b',
+           'source/library/core/nat_metric.omg': '8f3c0a5bfd6fbc3ba0007436a87f8733257fcf9e608574b10eb3ebe3b8a6024d',
+           'source/library/core/native_execution_authority.omg': '369890c7fbb5b86e50a2fdd7471193442a34d3cf3c50880f90f7a85bd966b720',
+           'source/library/core/numeric_conversion.omg': 'd6025109f03bd7a00b380356e4ed563f7c71bc50feefc4ba3269edd3785c11ca',
+           'source/library/core/option.omg': '336a593fe4c77c96253718ce8a65ba851db99f9bfe1fb7abbd40f9e8569edadb',
+           'source/library/core/presentation_authority.omg': '55f97d0f8a05f5a976a0a30b506d4fc42ea16a18dea51f987d5677199fcaf9d5',
+           'source/library/core/process_authority.omg': 'ee6a26d734deaccf1a803e3bbff0b6aa4df08846a36124e5e642c478e333df07',
+           'source/library/core/process_exit.omg': '6ff9daba6a70e09db8367f90ff18a39c599dfea9ceb512cbda204ff700a0789f',
+           'source/library/core/program_image.omg': 'fc4c0cf6e8015431f5ab963fd7f2fa2fe651e6a1458f6c93da159eda4a57ad9f',
+           'source/library/core/ptr.omg': '5356de96870c4dcf8e52b05e877d297e00a2c71d698b8715a31ad8c08bb3f60a',
+           'source/library/core/rat.omg': '1c4f1ed60bed9395bb843590d7c951c23c590c95a8216ebd6ef9a7c6771cb2f5',
+           'source/library/core/real.omg': '2b3ed03c8567f1d3052bfcc6468b196eab0be767eaf121e0243d23bf98e75b48',
+           'source/library/core/reflect.omg': '3588e4597e5396af0f253a8faf71aa3ea11a8a6911f224cbaa15504cbd3dbd23',
+           'source/library/core/relation.omg': 'e2ee07b137e2c3ae1922e9b6dfe7a9877a4fe1d45edc61da484bc21d836ac297',
+           'source/library/core/representation.omg': '17a6e03c1901bbb3da9488d38b343d33b84721f44453966bc461ac6051126086',
+           'source/library/core/run.omg': '9bdb0ff37321b2b121c4892423bc131931bb93724f9e054e7858b8bf7c0787b1',
+           'source/library/core/seq.omg': 'cedbc5945f7741216d398d472e12f947f17cb5484f98b0c9779d9da2d385698d',
+           'source/library/core/sha256.omg': 'a98361567eb4442c2c990aff467374a10f9c9ddb3dbfb69fbc8cc28d04884583',
+           'source/library/core/slice.omg': 'd315632a3d69a5dc799e88eb162317ed39d67937f5eeee5a42a98a050afa34b6',
+           'source/library/core/slice_views.omg': 'e1905daa75b6fe8db9b485213892b7a253a42430c7436103eba2224797857daa',
+           'source/library/core/task.omg': 'a84168714a1bdbbc7d4ca0f5d3c17f7a88c884fd9dccb3bccf9e26e1bdb5597d',
+           'source/library/core/task_register.omg': 'e24a90e7a420a238115511834f88d8fc61b3aad368f68b1496bfce5660a6cd9c',
+           'source/library/core/time_authority.omg': '2a1ecc75b1b4b97193a7e8e7fd05bab6c4956f519f2aaf54ab88586df25a93e1',
+           'source/library/core/units.omg': '729a2bb44d0306c32eb42268324cbb8e0d89cba08583619501c5bd376a5d2c86',
+           'source/library/core/vec.omg': '3967c855446e800f82ed7c034c6e95630141df041e9b5141988295898350b486',
+           'source/library/core/wait_wake.omg': '8afcc11b7d27e1ac5c6acf093810cfabcb1f970006ebab75816890edd35a78aa',
+           'source/library/core/wire.omg': '160efe9d92f92fdab022326e99ff57a278604767ae531833d0b217011b417a62',
+           'source/library/std/build.omg': 'cdbbb123e104f21dbb9b192119e076ec653be35e13ab72843cdae37befcd45f3',
+           'source/library/std/calling.omg': '9fbd8deaf6006a4f8ff0098c9f215c5ba66803aa302144739947ffd8fe2fbc94',
+           'source/library/std/clock.omg': '9c812bbe05c2ff7bf665bb71be0e966807a2da5322c4980dce214a99f74880aa',
+           'source/library/std/console.omg': '7a09f99ca49fa7807cc6e9d385ed5b5a4a6064183496043ebfba5dc400176a10',
+           'source/library/std/darwin_calling.omg': '8ded2adfff396de7a438b010e52ce4345f73627d7f9f1920d4c0477a7c033c70',
+           'source/library/std/entry_shapes.omg': '7bfafec9f87f500e4be3bd2c5f346fb0c4453398f4611fbfcd72699efaf17ab6',
+           'source/library/std/filesystem.omg': 'b7445d229242f73bbd7c3ae17fb76686f5297f0bb784bf13ecf7ec97424f6306',
+           'source/library/std/filesystem_host.omg': 'fc43a5045ca2b287b4cc62ef5b9ea079916cfd5c862f729a35b7a06da73b64d2',
+           'source/library/std/macos_gui.omg': 'd77d7c6c63ab1da3963801cf8e332979a47611bf17c7aedf156bb4d02944593a',
+           'source/library/std/macos_image.omg': '9cb6895722b14b7d0f27b0098cc481aa345cbcb76446f4550ca915a6b35ae0ab',
+           'source/library/std/main.omg': '963f8655814ce864e0f59995fb777a35fc08859a6753d0ee5205e840aeefa78b',
+           'source/library/std/posix_byte_view_calling.omg': '37ee12290da93a93ec2611f81aecd503221487531d9e0e0434e8bc68ef6d9e6e',
+           'source/library/std/posix_filesystem_adapter.omg': 'f9d314ea97c6454d7a467fc1c881e7bc1f786d30af8474c6bb6fce66d00c50ff',
+           'source/library/std/posix_filesystem_host.omg': '7d5cc4ff79ee747539d96443e1898b8f8e977e14adfcdde7188bb3e8a9b68e36',
+           'source/library/std/process_exit.omg': '176c2f4f973a1e51551dd6b30d83c70d1f0e0f3da0631229c40c1ce4cee94ca3',
+           'source/library/std/targets/linux_arm64.omg': '84b1531498851bf39d0118e3372aa83cbb6a7e97ab238b4a651f68e980caf8db',
+           'source/library/std/targets/linux_arm64/clock_impl.omg': '081386b86b79b42a2fe447f3d137910f4d8af24ba7bcaf58038bcf80732344de',
+           'source/library/std/targets/linux_arm64/console_impl.omg': '07ffd2ba49a05b3ee776a3a2edb99d6a5adc7c8172f66ab581c4bc59c5468cec',
+           'source/library/std/targets/linux_arm64/entry.omg': 'cd19ce187c3176e752b8c6c42af15a7b212921c34fb497bfe0c26ad3a2961f24',
+           'source/library/std/targets/linux_arm64/filesystem_impl.omg': '1c64e3d5b7d4f9d4567c4f220eacef710c53f38341e4b96f59c3da03f274b233',
+           'source/library/std/targets/linux_arm64/posix_filesystem_impl.omg': '37687cc29f4d582d1a527a2b8c0ca1cab5b5c20e29c322b77c87b213c4029a9b',
+           'source/library/std/targets/linux_arm64/process_exit_impl.omg': 'faee0497fb8972fed86730d3daa93d9412408d41b88324b53cba58a063b208a5',
+           'source/library/std/targets/linux_arm64/time_host_impl.omg': 'dceca5582618fe79331dd054443d2c6e736c334019be5fc3b4abb06fcb4fa541',
+           'source/library/std/targets/linux_x86_64.omg': 'e9614e94d70ba5406ae4ccb6fb365a0c6b2a95108de7762f1982c903f91c3965',
+           'source/library/std/targets/linux_x86_64/clock_impl.omg': '9070181d4cf4b63d92227ad06296b7869d8324ab0ee057279e6eb29145b493d7',
+           'source/library/std/targets/linux_x86_64/console_impl.omg': '8a7dbc73a801e40be06e93c5fab91b05387b10037538a88aa5bc20b8e5718bde',
+           'source/library/std/targets/linux_x86_64/entry.omg': '8cd4883d7658d3ecc68742243e0f4e6e0788fedce09e063607596ff86ca45e6b',
+           'source/library/std/targets/linux_x86_64/filesystem_impl.omg': '41f9b3f071a2a82b942029179ed19e9bada4563ab3f9ef7a9a691f7b9ee59635',
+           'source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg': '99e3d7cd7d72c7f5a5a75f886c90d4c5b07fcd9186c3c62e8f7516e63121d98d',
+           'source/library/std/targets/linux_x86_64/process_exit_impl.omg': '30d8f1d85491adfb53db5f7473671f61d155f0a805da1e3207b7c2e1cec84c66',
+           'source/library/std/targets/linux_x86_64/time_host_impl.omg': '36b16cb563077ccac7ae85f9805ae27b4acaaeedd66610a49b453d67aaf98097',
+           'source/library/std/targets/macos_arm64.omg': 'e6840a086a0265363f6c0c9c95cbec9edf85512f9e834167895b339aa40825a1',
+           'source/library/std/targets/macos_arm64/clock_impl.omg': '701d129008a28fd1cb63a2dc3bc3885c39278947a76de34b2452c729f2029c33',
+           'source/library/std/targets/macos_arm64/console_impl.omg': '6033f6928bdc4a281d4a31d98c02797025f1562c6f6d57ca419e4cea5b29578a',
+           'source/library/std/targets/macos_arm64/entry.omg': '59e0eab05c8f892009454eb4318d643f3a10b567081b37f9a099f7f1d6f91546',
+           'source/library/std/targets/macos_arm64/filesystem_abi.omg': '14a12c108d2590f0ef812fcc638bc4e42aba6cc275bf8bd479c9ad37655565c2',
+           'source/library/std/targets/macos_arm64/filesystem_impl.omg': 'aa5473acbad9bfe9264b00770a5644692dd3e59b112f3b3b15a2034256f36440',
+           'source/library/std/targets/macos_arm64/posix_filesystem_impl.omg': 'ee1f67cb50da18733723dfccb3d4bc3d0c56fc97bea680ceb4ea1f5365507fcd',
+           'source/library/std/targets/macos_arm64/process_exit_impl.omg': '430abf139bad47dc53b232455155d4c2ed4de94d4a78e495a97c073da4c3573a',
+           'source/library/std/targets/macos_arm64/time_host_impl.omg': '46e7c58a857ab304f5c476059596663e2407547f9c5edd85d789f05b3a5991c7',
+           'source/library/std/targets/macos_x86_64.omg': '6390191487ebc95a7ec1131b4e8416cdec94f214d84eabca90d5ac56a4507df5',
+           'source/library/std/targets/macos_x86_64/console_impl.omg': '1850e5627da3dae680645a6fe8092a1ad0a9a90d1ff2e459a2d01f9cb540adb8',
+           'source/library/std/targets/macos_x86_64/entry.omg': '7be3781f183978a4d14a0fbb9df9d5d33905a78cad7a2cb50b01ad2ff75f7cb1',
+           'source/library/std/targets/macos_x86_64/process_exit_impl.omg': '7758dc035d9454db301aefac1ae4548b4383023cbcc23b4ed1695c59d9356a24',
+           'source/library/std/targets/uefi_x86_64.omg': '77b16f0553c13fdc6f3a42b1b6c4911adc7dbd0ed5332a33310c6b3d884ab5e2',
+           'source/library/std/targets/uefi_x86_64/entry.omg': 'fa6e4fa7391ada822535cbaa7d14016644b27a75c63c901e953e789aa4829003',
+           'source/library/std/targets/uefi_x86_64/handoff.omg': '32b4078f9eae37a9b9faf128ebeebad71f271ddfb22a3357118286f88fe00c35',
+           'source/library/std/targets/uefi_x86_64/integrity.omg': '436dbd0b23af3eb2a42d21b0891946c053da2bbd22d8639aba9823cae29bfde7',
+           'source/library/std/targets/uefi_x86_64/tables.omg': '11b1de141602a40e82db89ab205d9b2f585091a3489a4bfa75872b350eb1af73',
+           'source/library/std/targets/windows_x86_64.omg': '7888fd18d5abcc5a9f5c5789d37f8662fd1d54922aef8f4c9ee5d3a3a0406b91',
+           'source/library/std/targets/windows_x86_64/console_impl.omg': '5175c4201129aed2d279d8d3018f38340a0e34ee165b19b083d644513225f5cd',
+           'source/library/std/targets/windows_x86_64/entry.omg': 'eaef882e8b574021a38392c08676b9aa7a30fb24e13ac1c31307b79d50a12f34',
+           'source/library/std/targets/windows_x86_64/filesystem/copy.omg': 'bd068eeafe032fe25aa543bc5aba4c74fe80fdafe2d017a1f568b7ca4fb44e84',
+           'source/library/std/targets/windows_x86_64/filesystem/directory.omg': '8044e302c5cb2c831c8691ed537da892b5f314a5d32fb279a72ba32d5d4eb41c',
+           'source/library/std/targets/windows_x86_64/filesystem/errors.omg': '5b229d1c6c434f45599d2a080c32737263de57cee66e18b408a53ca7f80a83a4',
+           'source/library/std/targets/windows_x86_64/filesystem/handles.omg': '27c8c23c61f403e8cffdaba78ff9a1d231c2b863b6ca0c0743d0c7dc29b367fa',
+           'source/library/std/targets/windows_x86_64/filesystem/locking.omg': 'f18d15a5dda6879b594491d2cd1095e15f07d868b0c131e4effb4817e6c297b8',
+           'source/library/std/targets/windows_x86_64/filesystem/metadata.omg': '2f38719cc8872171016ca2ba9306850ed1e61cb53dcbc9f9c56c7eed2015d752',
+           'source/library/std/targets/windows_x86_64/filesystem/paths.omg': 'c5510a8d36a3a64dd0be67e53763d9f68fbfa8e99ff9eeec8e1705ec8424a617',
+           'source/library/std/targets/windows_x86_64/filesystem/provider.omg': '431212682f321bce89da1b0b9a89cd5f56dda935bc3a88ec9d37a238eff68ec0',
+           'source/library/std/targets/windows_x86_64/filesystem/sequences.omg': '653102df18d1c00aa4b79022ebbdae882e24ae09f0f5b279d62420a40ee0d345',
+           'source/library/std/targets/windows_x86_64/filesystem_impl.omg': '64369358c6b38666e819835e2154ed15124c4338097a428d459cb812501cd95f',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg': 'dd8339eed78b3a67249fafd1067aa298c9ac48a4af54baab41634560f6f8e091',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg': 'e27e8d40f8c1b7a70138c81822b6dad66e7f237a3ca93f364a51962d69787034',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg': '53bae575b252133a99b3b47c0983fdab30af2003382e5a0ac0cee4ee9a5b681a',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/native.omg': 'e6e8a68edc50e666e678a7efc6051e1ad8c7d782d99cea23db1104b2dd826fbf',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg': 'fcd305c6f980c837950b305e8777f27ac615fa0a094026af4eef3c2baaf86aec',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg': 'afbc12780b96c459b6f7b990ac8b365ac241a38b9f63340bb39257df5fecbb46',
+           'source/library/std/targets/windows_x86_64/process_exit_impl.omg': 'c6cc28c82d4d80f43f1a7ac476936da5d593a53a26ef0e0f055a9c079bfc5a87',
+           'source/library/std/targets/windows_x86_64/time_host_impl.omg': '9f8a2fac9028d13b2572c3bfb89cf562c7e6aa899bcce07f84a7258d7c2c725a',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_calling.omg': 'a40dbad40b2e02d546cac7fe6a54d05dbbcf6842581b291b85a436cbe29e60c7',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_control.omg': '4f4844e76d0b181bfef71bc01434750afc9d609144fb07dea96d106a4985f5c7',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg': 'a30387944e29657417eae165440c0c5cb7f7a53ea71893f39f7de7166db10b32',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg': 'a1bdf637efeb9c03791edf8cbf598ee0f853175c81f8400e07932bd044132414',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory_native.omg': '861111183d91f92e4136c348b65847724e8c12fbe8cfed1944cacb0d0429ed02',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg': '7c3867b6700323946e4d14a7625833862e7a44837b6a20b78aa82aadb7bf7013',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_file_control_native.omg': '67b6c70cc82dab23c42ba3db7ee38434c3c8a4a63c48db546ace9bf8cb931a42',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_impl.omg': '22f236efddb3c2271d0b5aa7a25216c52ebc6046132cdad7421401378c6f094b',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg': '1f98a21779bf73e819ca392bec7140c2d9e44ee1d02c23b32afceb247da40671',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_lock_native.omg': 'df03f298557be49f994ddf3d60ffd104fe3ec9da6dbe40abf7f4d165973781d1',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg': 'd6f915a77a7b2fd1cba1271c2efbdb55d0cca4d12afc094b2a3efd7f1cbcb0a8',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_metadata_native.omg': 'b3c9dd7a15fe53848d3e0f66ba048aa426ceddc47c132c34c34c57caabbd0d2d',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_native.omg': '219a6285c608a65fd4081f3620668c36804b67adecb8cef4ad2c64b66e60060f',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg': '479ec6a2fdfc86205075d450089dc49a2480d21b334ac211d99b093ea3a13c82',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg': '673e8b3331e5f3b89afd553d38675a3f51e472472140a14cf916d896e92c0db3',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg': '08fdc03cab28420ba7d2b75314d469748f2dcc09fd26dadaa60ce9396205fe82',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position.omg': 'fd732662ebff82d66337b281170263fae90e51f6170ce720c2a3e49f822fca89',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position_native.omg': '43c50dce03c207ae5e7134dab1e2740e238e823eba363f82e2c1932dbbed1620',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg': '3f5f2a787b97ee5b3fbfc5b9d743f5ac4a43bf86f604cbf2215c62c61d5aa4a8',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_private_handles.omg': 'fd117dfa8dca56b8d084047bd245e724829d482e2744dde095b578b60a5fef06',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg': '1ba727888454ff7693fea63bb9adca9350917bf4640935ffcb8820a83efa24a0',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_data.omg': 'a7e00804e237df52f2b9ca9f4d4de88491ae52f7d0b9833fea20fde3df18055d',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_native.omg': 'a8f1065fe25021a2c9553cdd1a346bb3a1823cd5ab7d17a147b8adc3d17ee8c1',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg': '580322a1d64477cf093b500d6a11c383123fbde289375fa5a20e6743e625efbb',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_transfer_native.omg': '0eef1a4d3cf23a17c3af8b65049465f84dcdab22475f8d23a71e30b6c6b491c3',
+           'source/library/std/targets/windows_x86_64/windows_gui_impl.omg': '60d847a11f394e59b0fe798857798ddfe1249b3ecdca7e0fd4bbe3b8100378c4',
+           'source/library/std/tests/callback_materialization_closure.omg': '49ea071f0827540af6882dcff24a04c416a6e26ab44d2d9c6ccb90e1da38da58',
+           'source/library/std/tests/direct_callback_parameter.omg': '426947bdbb10bad23f4bf1fa0996b27cb948ca0a21966c5989772f12b1a03d8f',
+           'source/library/std/time.omg': 'ea9c32ee63f68f8b26b6fbe958ec3676d6ee3c1663def3faee594d6b21b7948a',
+           'source/library/std/time_host.omg': '1274706e9a0fc615ed6a20e918f32630db89bcac1d90f42bdd58b1968112175d',
+           'source/library/std/windows_filesystem_host.omg': 'f7db0271334fc52acdff2d07918d9f1ab54b0a019cd4a50f7aac0fd1d9973bce',
+           'source/library/std/windows_gui_host.omg': '90c5cf0f578f13c6307e6dd9235c9cc58146c648a10d0aa662ba3bb9ce2a415f',
+           'tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/expected.txt': '413ff8cc0ca5d5b857a4f3b9e157f89af083cc0d8394578ac345e0ddc4717be8',
+           'tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/main.omg': 'edae08a7e7e04d629958d4e21327a0d4eee81bf10084e5c8b9224972f19678a9',
+           'tests/omega/fail/borrow/undeclared_lifetime_tag/expected.txt': 'a9776910a8b704535bb677b7a3b3029a0177f0887125b21744fa253806432307',
+           'tests/omega/fail/borrow/undeclared_lifetime_tag/main.omg': '1b9a6e2b886031b2d2c09537f2c43128049c6360ef440ae607c82137f9ff723f',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/build.omg': '385d32ce284165c23d7a8d11dedb66e3ab26d4d42e7820a8489d3fbfc26dfba2',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/expected.txt': '83c6eddc570991544805f74448212578da6a2a3e282814b9364b5d92f1a36d75',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/main.omg': '4aac6853f1ee677af2675d784c5d32d7eb151a9dee8ca39fe2cad7402378fdfa',
+           'tests/omega/fail/borrows/generic_call_output_source_write/README.md': 'e27bbd679001e6609e9a551867cbe02a99ae6ee4fcc1c454cf8a63b7454ef02a',
+           'tests/omega/fail/borrows/generic_call_output_source_write/build.omg': '90b96dc5f25c294037435b937c222277291c912e85ea1e7e44d1503002379863',
+           'tests/omega/fail/borrows/generic_call_output_source_write/expected.txt': '9a1fc1c716c99eb87d729bd9c688651454f11f615ca24ea9e77527ac8f4ce357',
+           'tests/omega/fail/borrows/generic_call_output_source_write/main.omg': '9fed160dbb31dd726b97d016b20ade892bc3ad5c80aa217cdeb9717664a5f23a',
+           'tests/omega/fail/borrows/private_arrival_default_domain_weak_bound/expected.txt': '1a88e1cf073a2d58d8fa2d3fbf4f821eb2805175340b4cf5043ea3b5d1641c98',
+           'tests/omega/fail/borrows/private_arrival_default_domain_weak_bound/main.omg': '449377261321809214c3e2d6fec026a7d5025f0e18b020c34dcc855810bea24b',
+           'tests/omega/fail/borrows/selected_reference_record_helper_local_escape/expected.txt': '90cf7bb10b137a1c0512a51b7bdd5d8c8d636707c1ea158c9817f472b00bbc87',
+           'tests/omega/fail/borrows/selected_reference_record_helper_local_escape/main.omg': 'eb80e9a5014b60208d7156f70b90a400aba68b438a8cb888928b6b32f6440171',
+           'tests/omega/fail/cases/nested_payload_read_after_case_replacement/expected.txt': 'ec39ff24c0ea7dd303137ea18d77ac2b51926f2a43c39da43d30f9b452cb17e7',
+           'tests/omega/fail/cases/nested_payload_read_after_case_replacement/main.omg': 'd688c4c7180b90b9aa86b4262f16b357e83f529e78659d1ee28b64459c0059b7',
+           'tests/omega/fail/contracts/executable_float_box_equality_not_identity/expected.txt': '83f1bf1bd073fca0efa91c961e34725eb93c0dbe0a499dcb43b44dd463b5ac7b',
+           'tests/omega/fail/contracts/executable_float_box_equality_not_identity/main.omg': 'dcc3c4c5bf278ef19dc14acc6c52a861fe0f72744af0da317855dc4518034f62',
+           'tests/omega/fail/contracts/mutable_owned_call_ensures_keeps_poststate/expected.txt': '5a5d2176709019586a7ff5be1ed7b34c4160473cf124d745fe6cbdbfe7da15f2',
+           'tests/omega/fail/contracts/mutable_owned_call_ensures_keeps_poststate/main.omg': 'eb1215c5964d9ff4aa60f93d949ed69ea2714a4bca18d13297fe3520573af975',
+           'tests/omega/fail/contracts/nested_case_guarantee_unselected_sibling/expected.txt': '827700bf0825333d8651e3afd2a814ac00a84dbf2eaa1ba90a50ecff54303f90',
+           'tests/omega/fail/contracts/nested_case_guarantee_unselected_sibling/main.omg': 'c4e70ca55e480caaf8db32644499cf0e5eebe04ffc3b51dff80ac8a0a6d97a88',
+           'tests/omega/fail/contracts/saved_call_case_guarantee_replaced_by_call/expected.txt': '6678244a6a508fcd152496bc915a1e48ce324e3811382ef17cac0b476c8e271d',
+           'tests/omega/fail/contracts/saved_call_case_guarantee_replaced_by_call/main.omg': 'ee0c1a79cb63c7cfa5f4fdb57daa3ad1d7e6f4a5d362eb195be71c5a2c5dcb32',
+           'tests/omega/fail/data/constructor_distinct_field_versions/expected.txt': 'cac1de6fd3822e8134cb4dc7056d5ae4a47c9b7e479e8452c04b5be68798dd77',
+           'tests/omega/fail/data/constructor_distinct_field_versions/main.omg': 'ae2622309697565c369a8b0a3f182594d0d9015f1b4d051975c27790b41e0c03',
+           'tests/omega/fail/data/constructor_prior_operand_write/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+           'tests/omega/fail/data/constructor_prior_operand_write/main.omg': 'bf7dc8a87db4ece9f004bb9bc87ec18b1e1eedfd26977fc18c3884dedb446c13',
+           'tests/omega/fail/float/constructed_ieee_unknown_nan/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+           'tests/omega/fail/float/constructed_ieee_unknown_nan/main.omg': 'b3513eb8c7595f5fde1b398ed6950a83c45ebfcca407c69ba4af413b43fce9d3',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/README.md': '018d7ac99eb0c899d26f97d63fe2fe2f6f669eb155298631f24250a62d646136',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/expected.txt': '5216d0f2c14c441f91ed576c7edc5f217374d4a490f5e1d410ff9f8ead63a883',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/main.omg': '3fde883362c607bc505716ddde84008de137109716a652e51d3649f75283c914',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/build.omg': '3d0ab5ac601d5913375b3cdf399eedfa6594856e2809b7223824a014a2360310',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/expected.txt': 'a1ffc97d0c51250e40b9b936c4b36c6e34d10523b2ce1000891213e4c5a0ea13',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/main.omg': '6008f09a23caec11c9b0a03f37dc1368fe50c68843b79432b46df4cb4f0852f2',
+           'tests/omega/fail/generics/generic_carrier_equation_mismatch/expected.txt': '939f57ebe8efbf566e9c828f9bd48396bed403e50fa700509a7b8d54851cc6f7',
+           'tests/omega/fail/generics/generic_carrier_equation_mismatch/main.omg': '8934cb90b2dd25bd3efabaa5bc92b0222672ac9772552dfd057086622e176788',
+           'tests/omega/fail/generics/phantom_owned_constructor_unproved/expected.txt': '4463c2231b9b1e2af0ab4ffc21a836a147b73c020ed02692e6c6b209ff5ad332',
+           'tests/omega/fail/generics/phantom_owned_constructor_unproved/main.omg': 'cd62c7240fbd32bc1e3a4b4278c48052ec55dcc1dc68ecb3dc1f5104d5a53429',
+           'tests/omega/fail/ownership/whole_borrowed_missing_repair/expected.txt': 'c93d31ec30460f79a69e7e1ee6178e5ed3e4f3ace56dd8a3ced59206970b57c3',
+           'tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg': '570739dc41be917bdd6b3954e72b8d59d9b8b3cbd219f0b0637814dc26161f04',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/build.omg': '614902b6be94b620ae795d1da742373e97f2c7cf82a1771e0d357bcc8ac14c75',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/expected.txt': '10d7a402c489caa59140b9791caae2994ee589ab2f2933bb2273a01cb671f694',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/main.omg': 'e67b7a72f6feb21733748d927176d4ce4ba75b4878bcb4f71a9fd86fd775b09e',
+           'tests/omega/fail/proofs/runtime_case_guarantee_wrong_return/expected.txt': '4df38530093633038a7324bcc5121a47e75b5c333311ffa9849a9be58fe49e99',
+           'tests/omega/fail/proofs/runtime_case_guarantee_wrong_return/main.omg': '82335889f4105092e69802ca2beff12d90634828d0f73e6dfa37993915c6bbcd',
+           'tests/omega/fail/proofs/selected_case_equality_does_not_establish_membership/expected.txt': '95c9798d405d1dc561c874803e24d02f672be3aacf1cbf37ad38d4676b775583',
+           'tests/omega/fail/proofs/selected_case_equality_does_not_establish_membership/main.omg': '8bc0f4e20d1f8c12018bc0f0f4301fcf55a980790151d9e705e2bdacf8b6fd1f',
+           'tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound/expected.txt': '379e28ae4ad861a91a304111fb4d625a082cf52c47d7047f7440f9dcad8e9167',
+           'tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound/main.omg': '5633be4535dcb3f4568ec9cdc59c293b7d266f1eb635e85c9b1bbc3f6b02ee24',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/build.omg': '4d1bdeccd3a39637b3564c168cd807e344a4e3bc2598bbb4b8f158827e859321',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/main.omg': '6b2cb59e80542f417131c3ef9b45994d32ef058fa382f3ebed2f6d4b0a1f7df9',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/README.md': '20a9e12b5bdf7eabe10355ef49bdb04ac17c2a50a4c36d1a0e7475d7ee7e4059',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/build.omg': 'd3c44e2d1da3a357423137391506abc7720f436c28f06a2bb04d3428d3da1ddd',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/main.omg': 'da8275565860421331cf9037d417b5a82c6c2a446e563261560be6cbef7accc2',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/build.omg': '2d633324e72da527f22b2fd18507d3e22f10c3b1618c7d61dfe5d3a39d53fdf8',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/main.omg': '365ebf157caf27d27a86591b3261a1ae4a8311c335dd8b9f10c9f8ef4dc61dbc',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/build.omg': 'b35ce54ab8b0289e17fb19745b2ad981fdf87807560c7bb14667508420714e7c',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/main.omg': '3f32f3280f3aa8116fa54b440a3066183a12397f16bec4997d510ddb76f9b543',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/build.omg': '285689cc07134f285903cb376d663efc6ba16b94baf22cedceb383f619db1b4f',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/main.omg': '303cdf48e2d1db7b61e0fb499f301401020df6c2a983069f2a9ae5cd02fe9f72',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/build.omg': 'de5b1e40d67c7a4ce3dc400fb3c60afce82f03004e8a106681b22df28577439f',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/main.omg': 'b0065c7b194e91d119daddc4228bd2ae1f73f6ea942347156a009083e00ae0d5',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/build.omg': '9283d44d9cccaedf3e6fb27c3029418db166eedf4354576ea43dff73acada0dc',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/main.omg': '9cfa86033d71f3707e62effa2c88e3b0f9891c10943edc6b74cde8dd238b0244',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/build.omg': '759a179f89c8982efecd3c4e16192a6309a568de5cf2f95ad088d3bc9e9a3ebf',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/main.omg': '98e8aa51fca8e8b8396046b9a932b49f6e4cb6cdff6df5cf0b246b5353f4a69a',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/build.omg': 'aa37cf0e6c0ab081c71c6c174fbfd01b43066386da636acb54fd72ad1a450a15',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/expected_native_exit.txt': '13c1dc569ae4a0d7f90d8f83d22fc9c8fa526e133f8fea0f9526c8533c4d8da3',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg': '836a91eb9644eda9320269203dc09d464f134db13f034e8913cf6506f24dde42',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/README.md': '661fab92aa01bab89746f912a9b2094c25d49d819740c886ef65a45b7a127b8c',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/build.omg': '7a7baea772c6c8f1863abb9731aa725a204d474414405645e09559ae0df6199b',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/expected_native_exit.txt': '10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/main.omg': '504a673682bb074ef9b7ea0f9b4c735c54256e523f34ce0d6248e1a03b589f4a',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/README.md': '0ffe6ce964a73ac24b0704a223a847eb148f4eaadd3fa30d04db5c7dfe91be01',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/build.omg': '320b86c84ec224526f90a4f77ef809326b86a92b2a38fc94d052696ec17caf92',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/main.omg': 'be5a5d4a0180651086ddadf39e1c79436ed099de49644627517d6f90512582f0',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/README.md': 'd0b6dc11aa88767d7593c76474af726c1275b6afcf153ae61e90618822fb4a39',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/build.omg': '6e6a07686a3086bd380e09e3522fef655eed73617c994352053f06b5bc8f8b8f',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/expected_native_exit.txt': '084c799cd551dd1d8d5c5f9a5d593b2e931f5e36122ee5c793c1d08a19839cc0',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/main.omg': '97e7a62029c280095af14c3ddf030c03479e2a0aa4c4ccf8049402b84381483c',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/README.md': '87c737174fd87bea9aac7376d5fb9339a0217609bd774510eee6f45c376566a5',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/build.omg': '614902b6be94b620ae795d1da742373e97f2c7cf82a1771e0d357bcc8ac14c75',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/main.omg': 'cbcc0f7e393cce9b79d213c11fb6163c4e196b6cd18cab89cf96beb74ac01acb'}
+          for path,digest in inputs.items():assert sha((root/path).read_bytes())==digest
+          os.environ['GITHUB_SHA']=source
+
+          output=root/'build/compiler-pilot/premise-cache-ownership-host'
+          prepared=json.loads((output/'preparation.json').read_text())
+          assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
+          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+          unit=json.loads((output/'term-comparison-tests.json').read_text());assert unit['source']==source and unit['driver']==driver and unit['expected_existing_tests']==40 and unit['passed'] is True and len(unit['scopes'])==5
+
+          positive=['pass/borrows/runtime_case_descriptor_retirement_exit']
+          negative=['fail/borrow/undeclared_lifetime_tag', 'fail/borrows/selected_reference_record_helper_local_escape']
+          label='compiler-pilot/premise-cache-ownership-functional'
+          status=compiler_pilot.run_suite(label,tuple(positive),tuple(negative),checking_only=(),producer=producer)
+          producer.verify()
+          for path,digest in inputs.items():assert sha((root/path).read_bytes())==digest
+          observed=root/'build'/label
+          checking=json.loads((observed/'checking.json').read_text()) if (observed/'checking.json').exists() else None
+          both=json.loads((observed/'both.json').read_text()) if (observed/'both.json').exists() else None
+          source_rows=[] if checking is None else checking['observations'];engine_rows=[] if both is None else both['observations']
+          source_selection=len(source_rows)==len(positive)+len(negative) and {r['fixture'] for r in source_rows}==set(positive+negative)
+          engine_selection=len(engine_rows)==len(positive) and {r['fixture'] for r in engine_rows}==set(positive)
+          checked=[r for r in source_rows if r['fixture'] in positive and r['status']=='checked' and not r['diagnostics']]
+          proper=[]
+          for row in source_rows:
+              if row['fixture'] not in negative:continue
+              fragments=[s.strip() for s in (root/'tests/omega'/row['fixture']/'expected.txt').read_text().splitlines() if s.strip()]
+              if row['status']=='rejected' and row['expected_satisfied'] is True and all(s in '\n'.join(row['diagnostics']) for s in fragments):proper.append(row)
+          expected_exits={'pass/borrows/runtime_case_descriptor_retirement_exit': '0'}
+          pairs=[r for r in engine_rows if r['status']=='built' and r['facts']=={'exit':expected_exits[r['fixture']],'interpreter-exit':expected_exits[r['fixture']],'interpreter':'agrees'}]
+          latency=source_selection and engine_selection and all(r['millis']<=120000 for r in source_rows+engine_rows)
+          passed=status==0 and source_selection and engine_selection and len(checked)==len(positive) and len(proper)==len(negative) and len(pairs)==len(positive) and latency
+          (observed/'scope.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'stage':'functional_first','positive':positive,'negative':negative,'suite_exit':status,'source_selection_confirmed':source_selection,'engine_selection_confirmed':engine_selection,'checked_positive_count':len(checked),'proper_refusal_count':len(proper),'actual_engine_agreement_count':len(pairs),'expected_exits':expected_exits,'latency_within_original_limit':latency,'passed':passed,'limits':'Original strict 120000 ms acceptance in each Source and native/Terminal channel, one worker, profiling off. Authored inputs, exit oracles and negative fragments are unchanged. This is actual candidate qualification; all prior failures and unit observations retain their original identities.'},indent=2)+'\n')
+          raise SystemExit(0 if passed else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            build/compiler-pilot/
-            !build/compiler-pilot/producer-*/**
-          if-no-files-found: warn
+          name: core-float-premise-cache-ownership-functional-${{ matrix.host }}-${{ github.run_id }}
+          path: build/compiler-pilot/premise-cache-ownership-functional/
+          include-hidden-files: true
           compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
+          retention-days: 30
+      - name: Observe remaining original customers and controls
+        if: ${{ !cancelled() && steps.functional.outcome == 'success' }}
+        shell: bash
+        run: |
+          python - <<'OBSERVE'
+          from pathlib import Path
+          import hashlib,json,os,sys
+          root=Path.cwd();sys.path[:0]=[str(root/'tools/ci'),str(root/'tools')]
+          import compiler_pilot
+          source='18e46dd7fb89b6ce4a89cbf8bbceb05b33a7dec0';driver=os.environ['GITHUB_SHA'];target=os.environ['NATIVE_HOST']
+          sha=lambda data:hashlib.sha256(data).hexdigest()
+          assert compiler_pilot.command(['git','rev-parse','HEAD'])==source and not compiler_pilot.command(['git','status','--porcelain'])
+          assert compiler_pilot.corpus_gate.host_target()==target=='macos_arm64'
+          assert os.environ['OMEGA_CORPUS_JOBS']=='1' and os.environ['OMEGA_CORPUS_FIXTURE_SECS']=='120' and not os.environ.get('OMEGA_PHASE_PROFILE')
+          inputs={'source/library/README.md': '1c4b8205176817fa8f434a9dc98533ac143c6e0ac5bd29e7733dc7a7dc4c5917',
+           'source/library/alloc/build.omg': '7e2ceee9a760a528a8258d67f578e8a0f641a67ad26bd1ba84bf9261f6555f14',
+           'source/library/alloc/bump.omg': 'ae94f131622d2817e589defcca00e669ef9883de3c7a562e3d955d215fb3ca8d',
+           'source/library/alloc/main.omg': '417edeed95556dad5f2b971625458b71d49e74aa0cd812108659ab263eccf940',
+           'source/library/alloc/vec.omg': 'b95dac0f69a03754009aaa6f4d95e0a9ee899566c6f1107979fe127cb2b35030',
+           'source/library/blocking-executor/build.omg': 'b09bbce1281a080d73db6c6a90b7b06a8b3196af03938e1e68a5d281244d987d',
+           'source/library/blocking-executor/executor.omg': '1c6c925807663a8be02b5261559923848384d43cf6f479dd9659dd8adf06e362',
+           'source/library/blocking-executor/main.omg': '0d86baaa3867d51c29b5e146f0f363676049aca709f181d597730e044a6c8fd4',
+           'source/library/blocking-executor/queue.omg': 'a8559109c4614970b2d638c4f45e8f3733f9fb45edfa19fd6ece0877f11db415',
+           'source/library/core/activation.omg': '8a801bf20b3ba1f12ad89cf7f31ebf30b58ce828793cce787602f12b378011e1',
+           'source/library/core/algebra.omg': '9b398ebe8147c69da12e4e76aaf845b2cd0adfc3ccef58657352427a2be4b368',
+           'source/library/core/arena.omg': '1ed545ffc20a139bef89db4787abcb9850760496459b8c1cb2e24b4b47bfbc0f',
+           'source/library/core/array.omg': '8475298774460d6823c47bbd03a7b1fd1bccade0be29c5160f56aaa832e3b862',
+           'source/library/core/assembly.omg': '59f31f1af00d3180693f39cde47e5a4ff08fdc20e36f6d97e38aea1377713f15',
+           'source/library/core/assembly_model.omg': 'fc18b838fb2866cb40c116936998c30fc204d0e4cb2be13de9790747fec9c924',
+           'source/library/core/atomic.omg': '9be58e4b42ee56546896e68067ac1356678514b89ed78fd95633ce9bb6278a3b',
+           'source/library/core/build.omg': '5fe6ec9cfe493b25fcf400eafc8df404d819cebfefc7a7074cd281fb14359f37',
+           'source/library/core/c_layout.omg': '0549fd3542786bba54471e60451efca3b486f25bc7696d20cf856da1fa5d4edf',
+           'source/library/core/cauchy.omg': 'c8244b9b6bdb9d63090998f56a2ef81644751d3e7658ec7c678a2eb1b1c107ed',
+           'source/library/core/code_layout.omg': 'd60c1e5d7af2211855f231813e3ab3185c8f07b89f22eda27d50b0f09485b1f6',
+           'source/library/core/code_segment.omg': 'a6325408aab55d269d2325fc8d68e300eb79299c585fc0901c791d280ba9b7f8',
+           'source/library/core/complex.omg': 'ff87af686b8cc3924baa835358107bab5fee3d6519f6402e83ee4f36c092eed8',
+           'source/library/core/content.omg': 'e492260d91704cd7acf80816083748e144c4010c5b0375689671b5fcd882deef',
+           'source/library/core/conversion.omg': '35ba3c9bfd11b8575c66acec246a47f17159b3d2781f8ab772325d70de850718',
+           'source/library/core/data_segment.omg': '50d796b144994a594c90f3559c6ef27dc19b9d6563530eb109dc935ce5a35f7b',
+           'source/library/core/device.omg': '2a83f8d59d75b590d03d8d64fd1c596bc55a8b5f091917cd0e2b96ef24513202',
+           'source/library/core/drop.omg': '6e9291c7dcf87547e612ed061561fe505e2c289bab853efe4ed2e42d2ca468ff',
+           'source/library/core/extent.omg': 'd8db0ece5b4d9f10ffa1c8cd79b538d4863e482a9c2757ef076668ebf9bdef03',
+           'source/library/core/external_binding.omg': '85e12a3043ee54047fce1499d15bc72efafb196687de0b6b9f71444e77229cde',
+           'source/library/core/filesystem_authority.omg': '99d99ab7a334c02d5807ab0b405bdcb3ee3e479abd6e9542b2d0ac9110940a82',
+           'source/library/core/fixed_vec.omg': '47e764a2cd3c5698dcd7133ef433f86e1bbd8182dc5cc2d365074bf87b701090',
+           'source/library/core/float.omg': 'a85f6128796f325b63a59993c7a1be79d93ecdd069f048f93ba6af1586231d41',
+           'source/library/core/float_accuracy.omg': '13a6588eaa0f4079c26dcaeff87ca6af4714de85503c1b57559a75719a73e314',
+           'source/library/core/float_format.omg': 'b226b82c067bb771f67afd0dac0f6d3292e96ae5b6d8f6514e45f396251067f1',
+           'source/library/core/float_meaning.omg': '7d4db28b4313fae9fc2b4b9bad94b689f09be53ab13ee24dcd03a4229db93b68',
+           'source/library/core/float_operations.omg': '6803ae543d400fa21c90806fbd3c70610657f54d2cb54169f6d17157590d0688',
+           'source/library/core/float_order.omg': '4615ab1edf7e9c159e725ac829d459e7a43ef3451753a24f09b6b197d9cb4211',
+           'source/library/core/float_provider.omg': '82fcdeee590b893cd9301085040d56212a5506a3e9e69c3b648693e43c909324',
+           'source/library/core/format_lineage.omg': 'd1b1693ea2f039dc4f74fdb0eb807cbc4a5e9f99bd9054862e77849e8abf7dcf',
+           'source/library/core/int.omg': 'c243116b743bc71696e793006aeff7a9aac32e307e8feefe2c48e33417ea1864',
+           'source/library/core/integer.omg': 'ea66601ed8be27b434c45ce337f904587da63201b13ef959a737a27939c5b815',
+           'source/library/core/interrupt.omg': '27e708d754b5aa0cf4544f43b14fa4004eaff54ecd9a593a0ff9bf9f2c7fb936',
+           'source/library/core/iteration.omg': 'c086484294a47fa9d21ff39f215b43822429e82c5c6bb81712b359c25082dbdf',
+           'source/library/core/layout.omg': 'ffc4b3c56d0d43ae2a871e8d3943df19237fb0c270f68480fc7515956fbcd67a',
+           'source/library/core/linear_algebra.omg': '10c8a96afe181a92d958c4f566b705485f9fc2fd48d9473764aef857c0b354b9',
+           'source/library/core/main.omg': '686287f7436b84f3f9138764aa7f310d6f0f024eaeaf4e29f504e2403d56b6d8',
+           'source/library/core/math.omg': '0cf56548ab39c00787c4732b363393fb90e32015b1e9d3b18e24bd7772879e44',
+           'source/library/core/matrix_layout.omg': '98596f3630d2964951aa1123ae0a783e34d10619607c7ca7026cd07a2481c5c1',
+           'source/library/core/nat.omg': '1ab74b959aa4ee7cd7c43c8831b4381d73afbfbf1d2b418741328946e137bc5b',
+           'source/library/core/nat_metric.omg': '8f3c0a5bfd6fbc3ba0007436a87f8733257fcf9e608574b10eb3ebe3b8a6024d',
+           'source/library/core/native_execution_authority.omg': '369890c7fbb5b86e50a2fdd7471193442a34d3cf3c50880f90f7a85bd966b720',
+           'source/library/core/numeric_conversion.omg': 'd6025109f03bd7a00b380356e4ed563f7c71bc50feefc4ba3269edd3785c11ca',
+           'source/library/core/option.omg': '336a593fe4c77c96253718ce8a65ba851db99f9bfe1fb7abbd40f9e8569edadb',
+           'source/library/core/presentation_authority.omg': '55f97d0f8a05f5a976a0a30b506d4fc42ea16a18dea51f987d5677199fcaf9d5',
+           'source/library/core/process_authority.omg': 'ee6a26d734deaccf1a803e3bbff0b6aa4df08846a36124e5e642c478e333df07',
+           'source/library/core/process_exit.omg': '6ff9daba6a70e09db8367f90ff18a39c599dfea9ceb512cbda204ff700a0789f',
+           'source/library/core/program_image.omg': 'fc4c0cf6e8015431f5ab963fd7f2fa2fe651e6a1458f6c93da159eda4a57ad9f',
+           'source/library/core/ptr.omg': '5356de96870c4dcf8e52b05e877d297e00a2c71d698b8715a31ad8c08bb3f60a',
+           'source/library/core/rat.omg': '1c4f1ed60bed9395bb843590d7c951c23c590c95a8216ebd6ef9a7c6771cb2f5',
+           'source/library/core/real.omg': '2b3ed03c8567f1d3052bfcc6468b196eab0be767eaf121e0243d23bf98e75b48',
+           'source/library/core/reflect.omg': '3588e4597e5396af0f253a8faf71aa3ea11a8a6911f224cbaa15504cbd3dbd23',
+           'source/library/core/relation.omg': 'e2ee07b137e2c3ae1922e9b6dfe7a9877a4fe1d45edc61da484bc21d836ac297',
+           'source/library/core/representation.omg': '17a6e03c1901bbb3da9488d38b343d33b84721f44453966bc461ac6051126086',
+           'source/library/core/run.omg': '9bdb0ff37321b2b121c4892423bc131931bb93724f9e054e7858b8bf7c0787b1',
+           'source/library/core/seq.omg': 'cedbc5945f7741216d398d472e12f947f17cb5484f98b0c9779d9da2d385698d',
+           'source/library/core/sha256.omg': 'a98361567eb4442c2c990aff467374a10f9c9ddb3dbfb69fbc8cc28d04884583',
+           'source/library/core/slice.omg': 'd315632a3d69a5dc799e88eb162317ed39d67937f5eeee5a42a98a050afa34b6',
+           'source/library/core/slice_views.omg': 'e1905daa75b6fe8db9b485213892b7a253a42430c7436103eba2224797857daa',
+           'source/library/core/task.omg': 'a84168714a1bdbbc7d4ca0f5d3c17f7a88c884fd9dccb3bccf9e26e1bdb5597d',
+           'source/library/core/task_register.omg': 'e24a90e7a420a238115511834f88d8fc61b3aad368f68b1496bfce5660a6cd9c',
+           'source/library/core/time_authority.omg': '2a1ecc75b1b4b97193a7e8e7fd05bab6c4956f519f2aaf54ab88586df25a93e1',
+           'source/library/core/units.omg': '729a2bb44d0306c32eb42268324cbb8e0d89cba08583619501c5bd376a5d2c86',
+           'source/library/core/vec.omg': '3967c855446e800f82ed7c034c6e95630141df041e9b5141988295898350b486',
+           'source/library/core/wait_wake.omg': '8afcc11b7d27e1ac5c6acf093810cfabcb1f970006ebab75816890edd35a78aa',
+           'source/library/core/wire.omg': '160efe9d92f92fdab022326e99ff57a278604767ae531833d0b217011b417a62',
+           'source/library/std/build.omg': 'cdbbb123e104f21dbb9b192119e076ec653be35e13ab72843cdae37befcd45f3',
+           'source/library/std/calling.omg': '9fbd8deaf6006a4f8ff0098c9f215c5ba66803aa302144739947ffd8fe2fbc94',
+           'source/library/std/clock.omg': '9c812bbe05c2ff7bf665bb71be0e966807a2da5322c4980dce214a99f74880aa',
+           'source/library/std/console.omg': '7a09f99ca49fa7807cc6e9d385ed5b5a4a6064183496043ebfba5dc400176a10',
+           'source/library/std/darwin_calling.omg': '8ded2adfff396de7a438b010e52ce4345f73627d7f9f1920d4c0477a7c033c70',
+           'source/library/std/entry_shapes.omg': '7bfafec9f87f500e4be3bd2c5f346fb0c4453398f4611fbfcd72699efaf17ab6',
+           'source/library/std/filesystem.omg': 'b7445d229242f73bbd7c3ae17fb76686f5297f0bb784bf13ecf7ec97424f6306',
+           'source/library/std/filesystem_host.omg': 'fc43a5045ca2b287b4cc62ef5b9ea079916cfd5c862f729a35b7a06da73b64d2',
+           'source/library/std/macos_gui.omg': 'd77d7c6c63ab1da3963801cf8e332979a47611bf17c7aedf156bb4d02944593a',
+           'source/library/std/macos_image.omg': '9cb6895722b14b7d0f27b0098cc481aa345cbcb76446f4550ca915a6b35ae0ab',
+           'source/library/std/main.omg': '963f8655814ce864e0f59995fb777a35fc08859a6753d0ee5205e840aeefa78b',
+           'source/library/std/posix_byte_view_calling.omg': '37ee12290da93a93ec2611f81aecd503221487531d9e0e0434e8bc68ef6d9e6e',
+           'source/library/std/posix_filesystem_adapter.omg': 'f9d314ea97c6454d7a467fc1c881e7bc1f786d30af8474c6bb6fce66d00c50ff',
+           'source/library/std/posix_filesystem_host.omg': '7d5cc4ff79ee747539d96443e1898b8f8e977e14adfcdde7188bb3e8a9b68e36',
+           'source/library/std/process_exit.omg': '176c2f4f973a1e51551dd6b30d83c70d1f0e0f3da0631229c40c1ce4cee94ca3',
+           'source/library/std/targets/linux_arm64.omg': '84b1531498851bf39d0118e3372aa83cbb6a7e97ab238b4a651f68e980caf8db',
+           'source/library/std/targets/linux_arm64/clock_impl.omg': '081386b86b79b42a2fe447f3d137910f4d8af24ba7bcaf58038bcf80732344de',
+           'source/library/std/targets/linux_arm64/console_impl.omg': '07ffd2ba49a05b3ee776a3a2edb99d6a5adc7c8172f66ab581c4bc59c5468cec',
+           'source/library/std/targets/linux_arm64/entry.omg': 'cd19ce187c3176e752b8c6c42af15a7b212921c34fb497bfe0c26ad3a2961f24',
+           'source/library/std/targets/linux_arm64/filesystem_impl.omg': '1c64e3d5b7d4f9d4567c4f220eacef710c53f38341e4b96f59c3da03f274b233',
+           'source/library/std/targets/linux_arm64/posix_filesystem_impl.omg': '37687cc29f4d582d1a527a2b8c0ca1cab5b5c20e29c322b77c87b213c4029a9b',
+           'source/library/std/targets/linux_arm64/process_exit_impl.omg': 'faee0497fb8972fed86730d3daa93d9412408d41b88324b53cba58a063b208a5',
+           'source/library/std/targets/linux_arm64/time_host_impl.omg': 'dceca5582618fe79331dd054443d2c6e736c334019be5fc3b4abb06fcb4fa541',
+           'source/library/std/targets/linux_x86_64.omg': 'e9614e94d70ba5406ae4ccb6fb365a0c6b2a95108de7762f1982c903f91c3965',
+           'source/library/std/targets/linux_x86_64/clock_impl.omg': '9070181d4cf4b63d92227ad06296b7869d8324ab0ee057279e6eb29145b493d7',
+           'source/library/std/targets/linux_x86_64/console_impl.omg': '8a7dbc73a801e40be06e93c5fab91b05387b10037538a88aa5bc20b8e5718bde',
+           'source/library/std/targets/linux_x86_64/entry.omg': '8cd4883d7658d3ecc68742243e0f4e6e0788fedce09e063607596ff86ca45e6b',
+           'source/library/std/targets/linux_x86_64/filesystem_impl.omg': '41f9b3f071a2a82b942029179ed19e9bada4563ab3f9ef7a9a691f7b9ee59635',
+           'source/library/std/targets/linux_x86_64/posix_filesystem_impl.omg': '99e3d7cd7d72c7f5a5a75f886c90d4c5b07fcd9186c3c62e8f7516e63121d98d',
+           'source/library/std/targets/linux_x86_64/process_exit_impl.omg': '30d8f1d85491adfb53db5f7473671f61d155f0a805da1e3207b7c2e1cec84c66',
+           'source/library/std/targets/linux_x86_64/time_host_impl.omg': '36b16cb563077ccac7ae85f9805ae27b4acaaeedd66610a49b453d67aaf98097',
+           'source/library/std/targets/macos_arm64.omg': 'e6840a086a0265363f6c0c9c95cbec9edf85512f9e834167895b339aa40825a1',
+           'source/library/std/targets/macos_arm64/clock_impl.omg': '701d129008a28fd1cb63a2dc3bc3885c39278947a76de34b2452c729f2029c33',
+           'source/library/std/targets/macos_arm64/console_impl.omg': '6033f6928bdc4a281d4a31d98c02797025f1562c6f6d57ca419e4cea5b29578a',
+           'source/library/std/targets/macos_arm64/entry.omg': '59e0eab05c8f892009454eb4318d643f3a10b567081b37f9a099f7f1d6f91546',
+           'source/library/std/targets/macos_arm64/filesystem_abi.omg': '14a12c108d2590f0ef812fcc638bc4e42aba6cc275bf8bd479c9ad37655565c2',
+           'source/library/std/targets/macos_arm64/filesystem_impl.omg': 'aa5473acbad9bfe9264b00770a5644692dd3e59b112f3b3b15a2034256f36440',
+           'source/library/std/targets/macos_arm64/posix_filesystem_impl.omg': 'ee1f67cb50da18733723dfccb3d4bc3d0c56fc97bea680ceb4ea1f5365507fcd',
+           'source/library/std/targets/macos_arm64/process_exit_impl.omg': '430abf139bad47dc53b232455155d4c2ed4de94d4a78e495a97c073da4c3573a',
+           'source/library/std/targets/macos_arm64/time_host_impl.omg': '46e7c58a857ab304f5c476059596663e2407547f9c5edd85d789f05b3a5991c7',
+           'source/library/std/targets/macos_x86_64.omg': '6390191487ebc95a7ec1131b4e8416cdec94f214d84eabca90d5ac56a4507df5',
+           'source/library/std/targets/macos_x86_64/console_impl.omg': '1850e5627da3dae680645a6fe8092a1ad0a9a90d1ff2e459a2d01f9cb540adb8',
+           'source/library/std/targets/macos_x86_64/entry.omg': '7be3781f183978a4d14a0fbb9df9d5d33905a78cad7a2cb50b01ad2ff75f7cb1',
+           'source/library/std/targets/macos_x86_64/process_exit_impl.omg': '7758dc035d9454db301aefac1ae4548b4383023cbcc23b4ed1695c59d9356a24',
+           'source/library/std/targets/uefi_x86_64.omg': '77b16f0553c13fdc6f3a42b1b6c4911adc7dbd0ed5332a33310c6b3d884ab5e2',
+           'source/library/std/targets/uefi_x86_64/entry.omg': 'fa6e4fa7391ada822535cbaa7d14016644b27a75c63c901e953e789aa4829003',
+           'source/library/std/targets/uefi_x86_64/handoff.omg': '32b4078f9eae37a9b9faf128ebeebad71f271ddfb22a3357118286f88fe00c35',
+           'source/library/std/targets/uefi_x86_64/integrity.omg': '436dbd0b23af3eb2a42d21b0891946c053da2bbd22d8639aba9823cae29bfde7',
+           'source/library/std/targets/uefi_x86_64/tables.omg': '11b1de141602a40e82db89ab205d9b2f585091a3489a4bfa75872b350eb1af73',
+           'source/library/std/targets/windows_x86_64.omg': '7888fd18d5abcc5a9f5c5789d37f8662fd1d54922aef8f4c9ee5d3a3a0406b91',
+           'source/library/std/targets/windows_x86_64/console_impl.omg': '5175c4201129aed2d279d8d3018f38340a0e34ee165b19b083d644513225f5cd',
+           'source/library/std/targets/windows_x86_64/entry.omg': 'eaef882e8b574021a38392c08676b9aa7a30fb24e13ac1c31307b79d50a12f34',
+           'source/library/std/targets/windows_x86_64/filesystem/copy.omg': 'bd068eeafe032fe25aa543bc5aba4c74fe80fdafe2d017a1f568b7ca4fb44e84',
+           'source/library/std/targets/windows_x86_64/filesystem/directory.omg': '8044e302c5cb2c831c8691ed537da892b5f314a5d32fb279a72ba32d5d4eb41c',
+           'source/library/std/targets/windows_x86_64/filesystem/errors.omg': '5b229d1c6c434f45599d2a080c32737263de57cee66e18b408a53ca7f80a83a4',
+           'source/library/std/targets/windows_x86_64/filesystem/handles.omg': '27c8c23c61f403e8cffdaba78ff9a1d231c2b863b6ca0c0743d0c7dc29b367fa',
+           'source/library/std/targets/windows_x86_64/filesystem/locking.omg': 'f18d15a5dda6879b594491d2cd1095e15f07d868b0c131e4effb4817e6c297b8',
+           'source/library/std/targets/windows_x86_64/filesystem/metadata.omg': '2f38719cc8872171016ca2ba9306850ed1e61cb53dcbc9f9c56c7eed2015d752',
+           'source/library/std/targets/windows_x86_64/filesystem/paths.omg': 'c5510a8d36a3a64dd0be67e53763d9f68fbfa8e99ff9eeec8e1705ec8424a617',
+           'source/library/std/targets/windows_x86_64/filesystem/provider.omg': '431212682f321bce89da1b0b9a89cd5f56dda935bc3a88ec9d37a238eff68ec0',
+           'source/library/std/targets/windows_x86_64/filesystem/sequences.omg': '653102df18d1c00aa4b79022ebbdae882e24ae09f0f5b279d62420a40ee0d345',
+           'source/library/std/targets/windows_x86_64/filesystem_impl.omg': '64369358c6b38666e819835e2154ed15124c4338097a428d459cb812501cd95f',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/acquisition.omg': 'dd8339eed78b3a67249fafd1067aa298c9ac48a4af54baab41634560f6f8e091',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/attributes.omg': 'e27e8d40f8c1b7a70138c81822b6dad66e7f237a3ca93f364a51962d69787034',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/completion.omg': '53bae575b252133a99b3b47c0983fdab30af2003382e5a0ac0cee4ee9a5b681a',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/native.omg': 'e6e8a68edc50e666e678a7efc6051e1ad8c7d782d99cea23db1104b2dd826fbf',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/removal.omg': 'fcd305c6f980c837950b305e8777f27ac615fa0a094026af4eef3c2baaf86aec',
+           'source/library/std/targets/windows_x86_64/filesystem_removal/traversal.omg': 'afbc12780b96c459b6f7b990ac8b365ac241a38b9f63340bb39257df5fecbb46',
+           'source/library/std/targets/windows_x86_64/process_exit_impl.omg': 'c6cc28c82d4d80f43f1a7ac476936da5d593a53a26ef0e0f055a9c079bfc5a87',
+           'source/library/std/targets/windows_x86_64/time_host_impl.omg': '9f8a2fac9028d13b2572c3bfb89cf562c7e6aa899bcce07f84a7258d7c2c725a',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_calling.omg': 'a40dbad40b2e02d546cac7fe6a54d05dbbcf6842581b291b85a436cbe29e60c7',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_control.omg': '4f4844e76d0b181bfef71bc01434750afc9d609144fb07dea96d106a4985f5c7',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory.omg': 'a30387944e29657417eae165440c0c5cb7f7a53ea71893f39f7de7166db10b32',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg': 'a1bdf637efeb9c03791edf8cbf598ee0f853175c81f8400e07932bd044132414',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_directory_native.omg': '861111183d91f92e4136c348b65847724e8c12fbe8cfed1944cacb0d0429ed02',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_file_control.omg': '7c3867b6700323946e4d14a7625833862e7a44837b6a20b78aa82aadb7bf7013',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_file_control_native.omg': '67b6c70cc82dab23c42ba3db7ee38434c3c8a4a63c48db546ace9bf8cb931a42',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_impl.omg': '22f236efddb3c2271d0b5aa7a25216c52ebc6046132cdad7421401378c6f094b',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_lock.omg': '1f98a21779bf73e819ca392bec7140c2d9e44ee1d02c23b32afceb247da40671',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_lock_native.omg': 'df03f298557be49f994ddf3d60ffd104fe3ec9da6dbe40abf7f4d165973781d1',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_metadata.omg': 'd6f915a77a7b2fd1cba1271c2efbdb55d0cca4d12afc094b2a3efd7f1cbcb0a8',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_metadata_native.omg': 'b3c9dd7a15fe53848d3e0f66ba048aa426ceddc47c132c34c34c57caabbd0d2d',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_native.omg': '219a6285c608a65fd4081f3620668c36804b67adecb8cef4ad2c64b66e60060f',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg': '479ec6a2fdfc86205075d450089dc49a2480d21b334ac211d99b093ea3a13c82',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_path_query_native.omg': '673e8b3331e5f3b89afd553d38675a3f51e472472140a14cf916d896e92c0db3',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_paths.omg': '08fdc03cab28420ba7d2b75314d469748f2dcc09fd26dadaa60ce9396205fe82',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position.omg': 'fd732662ebff82d66337b281170263fae90e51f6170ce720c2a3e49f822fca89',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position_native.omg': '43c50dce03c207ae5e7134dab1e2740e238e823eba363f82e2c1932dbbed1620',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_position_pins.omg': '3f5f2a787b97ee5b3fbfc5b9d743f5ac4a43bf86f604cbf2215c62c61d5aa4a8',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_private_handles.omg': 'fd117dfa8dca56b8d084047bd245e724829d482e2744dde095b578b60a5fef06',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse.omg': '1ba727888454ff7693fea63bb9adca9350917bf4640935ffcb8820a83efa24a0',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_data.omg': 'a7e00804e237df52f2b9ca9f4d4de88491ae52f7d0b9833fea20fde3df18055d',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_reparse_native.omg': 'a8f1065fe25021a2c9553cdd1a346bb3a1823cd5ab7d17a147b8adc3d17ee8c1',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg': '580322a1d64477cf093b500d6a11c383123fbde289375fa5a20e6743e625efbb',
+           'source/library/std/targets/windows_x86_64/windows_filesystem_transfer_native.omg': '0eef1a4d3cf23a17c3af8b65049465f84dcdab22475f8d23a71e30b6c6b491c3',
+           'source/library/std/targets/windows_x86_64/windows_gui_impl.omg': '60d847a11f394e59b0fe798857798ddfe1249b3ecdca7e0fd4bbe3b8100378c4',
+           'source/library/std/tests/callback_materialization_closure.omg': '49ea071f0827540af6882dcff24a04c416a6e26ab44d2d9c6ccb90e1da38da58',
+           'source/library/std/tests/direct_callback_parameter.omg': '426947bdbb10bad23f4bf1fa0996b27cb948ca0a21966c5989772f12b1a03d8f',
+           'source/library/std/time.omg': 'ea9c32ee63f68f8b26b6fbe958ec3676d6ee3c1663def3faee594d6b21b7948a',
+           'source/library/std/time_host.omg': '1274706e9a0fc615ed6a20e918f32630db89bcac1d90f42bdd58b1968112175d',
+           'source/library/std/windows_filesystem_host.omg': 'f7db0271334fc52acdff2d07918d9f1ab54b0a019cd4a50f7aac0fd1d9973bce',
+           'source/library/std/windows_gui_host.omg': '90c5cf0f578f13c6307e6dd9235c9cc58146c648a10d0aa662ba3bb9ce2a415f',
+           'tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/expected.txt': '413ff8cc0ca5d5b857a4f3b9e157f89af083cc0d8394578ac345e0ddc4717be8',
+           'tests/omega/fail/arithmetic/composite_bound_arrival_unbounded_predecessor/main.omg': 'edae08a7e7e04d629958d4e21327a0d4eee81bf10084e5c8b9224972f19678a9',
+           'tests/omega/fail/borrow/undeclared_lifetime_tag/expected.txt': 'a9776910a8b704535bb677b7a3b3029a0177f0887125b21744fa253806432307',
+           'tests/omega/fail/borrow/undeclared_lifetime_tag/main.omg': '1b9a6e2b886031b2d2c09537f2c43128049c6360ef440ae607c82137f9ff723f',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/build.omg': '385d32ce284165c23d7a8d11dedb66e3ab26d4d42e7820a8489d3fbfc26dfba2',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/expected.txt': '83c6eddc570991544805f74448212578da6a2a3e282814b9364b5d92f1a36d75',
+           'tests/omega/fail/borrows/empty_array_snapshot_requires_read_authority/main.omg': '4aac6853f1ee677af2675d784c5d32d7eb151a9dee8ca39fe2cad7402378fdfa',
+           'tests/omega/fail/borrows/generic_call_output_source_write/README.md': 'e27bbd679001e6609e9a551867cbe02a99ae6ee4fcc1c454cf8a63b7454ef02a',
+           'tests/omega/fail/borrows/generic_call_output_source_write/build.omg': '90b96dc5f25c294037435b937c222277291c912e85ea1e7e44d1503002379863',
+           'tests/omega/fail/borrows/generic_call_output_source_write/expected.txt': '9a1fc1c716c99eb87d729bd9c688651454f11f615ca24ea9e77527ac8f4ce357',
+           'tests/omega/fail/borrows/generic_call_output_source_write/main.omg': '9fed160dbb31dd726b97d016b20ade892bc3ad5c80aa217cdeb9717664a5f23a',
+           'tests/omega/fail/borrows/private_arrival_default_domain_weak_bound/expected.txt': '1a88e1cf073a2d58d8fa2d3fbf4f821eb2805175340b4cf5043ea3b5d1641c98',
+           'tests/omega/fail/borrows/private_arrival_default_domain_weak_bound/main.omg': '449377261321809214c3e2d6fec026a7d5025f0e18b020c34dcc855810bea24b',
+           'tests/omega/fail/borrows/selected_reference_record_helper_local_escape/expected.txt': '90cf7bb10b137a1c0512a51b7bdd5d8c8d636707c1ea158c9817f472b00bbc87',
+           'tests/omega/fail/borrows/selected_reference_record_helper_local_escape/main.omg': 'eb80e9a5014b60208d7156f70b90a400aba68b438a8cb888928b6b32f6440171',
+           'tests/omega/fail/cases/nested_payload_read_after_case_replacement/expected.txt': 'ec39ff24c0ea7dd303137ea18d77ac2b51926f2a43c39da43d30f9b452cb17e7',
+           'tests/omega/fail/cases/nested_payload_read_after_case_replacement/main.omg': 'd688c4c7180b90b9aa86b4262f16b357e83f529e78659d1ee28b64459c0059b7',
+           'tests/omega/fail/contracts/executable_float_box_equality_not_identity/expected.txt': '83f1bf1bd073fca0efa91c961e34725eb93c0dbe0a499dcb43b44dd463b5ac7b',
+           'tests/omega/fail/contracts/executable_float_box_equality_not_identity/main.omg': 'dcc3c4c5bf278ef19dc14acc6c52a861fe0f72744af0da317855dc4518034f62',
+           'tests/omega/fail/contracts/mutable_owned_call_ensures_keeps_poststate/expected.txt': '5a5d2176709019586a7ff5be1ed7b34c4160473cf124d745fe6cbdbfe7da15f2',
+           'tests/omega/fail/contracts/mutable_owned_call_ensures_keeps_poststate/main.omg': 'eb1215c5964d9ff4aa60f93d949ed69ea2714a4bca18d13297fe3520573af975',
+           'tests/omega/fail/contracts/nested_case_guarantee_unselected_sibling/expected.txt': '827700bf0825333d8651e3afd2a814ac00a84dbf2eaa1ba90a50ecff54303f90',
+           'tests/omega/fail/contracts/nested_case_guarantee_unselected_sibling/main.omg': 'c4e70ca55e480caaf8db32644499cf0e5eebe04ffc3b51dff80ac8a0a6d97a88',
+           'tests/omega/fail/contracts/saved_call_case_guarantee_replaced_by_call/expected.txt': '6678244a6a508fcd152496bc915a1e48ce324e3811382ef17cac0b476c8e271d',
+           'tests/omega/fail/contracts/saved_call_case_guarantee_replaced_by_call/main.omg': 'ee0c1a79cb63c7cfa5f4fdb57daa3ad1d7e6f4a5d362eb195be71c5a2c5dcb32',
+           'tests/omega/fail/data/constructor_distinct_field_versions/expected.txt': 'cac1de6fd3822e8134cb4dc7056d5ae4a47c9b7e479e8452c04b5be68798dd77',
+           'tests/omega/fail/data/constructor_distinct_field_versions/main.omg': 'ae2622309697565c369a8b0a3f182594d0d9015f1b4d051975c27790b41e0c03',
+           'tests/omega/fail/data/constructor_prior_operand_write/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+           'tests/omega/fail/data/constructor_prior_operand_write/main.omg': 'bf7dc8a87db4ece9f004bb9bc87ec18b1e1eedfd26977fc18c3884dedb446c13',
+           'tests/omega/fail/float/constructed_ieee_unknown_nan/expected.txt': '6606c33d719fe3fe1481aec48bdeff174afaab2c50ebb9a72f6a4636ef6d39a4',
+           'tests/omega/fail/float/constructed_ieee_unknown_nan/main.omg': 'b3513eb8c7595f5fde1b398ed6950a83c45ebfcca407c69ba4af413b43fce9d3',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/README.md': '018d7ac99eb0c899d26f97d63fe2fe2f6f669eb155298631f24250a62d646136',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/expected.txt': '5216d0f2c14c441f91ed576c7edc5f217374d4a490f5e1d410ff9f8ead63a883',
+           'tests/omega/fail/float/mathematical_generic_ieee_equality_requires_non_nan/main.omg': '3fde883362c607bc505716ddde84008de137109716a652e51d3649f75283c914',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/build.omg': '3d0ab5ac601d5913375b3cdf399eedfa6594856e2809b7223824a014a2360310',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/expected.txt': 'a1ffc97d0c51250e40b9b936c4b36c6e34d10523b2ce1000891213e4c5a0ea13',
+           'tests/omega/fail/float/public_class_contract_ieee_equality_retains_zero_sign/main.omg': '6008f09a23caec11c9b0a03f37dc1368fe50c68843b79432b46df4cb4f0852f2',
+           'tests/omega/fail/generics/generic_carrier_equation_mismatch/expected.txt': '939f57ebe8efbf566e9c828f9bd48396bed403e50fa700509a7b8d54851cc6f7',
+           'tests/omega/fail/generics/generic_carrier_equation_mismatch/main.omg': '8934cb90b2dd25bd3efabaa5bc92b0222672ac9772552dfd057086622e176788',
+           'tests/omega/fail/generics/phantom_owned_constructor_unproved/expected.txt': '4463c2231b9b1e2af0ab4ffc21a836a147b73c020ed02692e6c6b209ff5ad332',
+           'tests/omega/fail/generics/phantom_owned_constructor_unproved/main.omg': 'cd62c7240fbd32bc1e3a4b4278c48052ec55dcc1dc68ecb3dc1f5104d5a53429',
+           'tests/omega/fail/ownership/whole_borrowed_missing_repair/expected.txt': 'c93d31ec30460f79a69e7e1ee6178e5ed3e4f3ace56dd8a3ced59206970b57c3',
+           'tests/omega/fail/ownership/whole_borrowed_missing_repair/main.omg': '570739dc41be917bdd6b3954e72b8d59d9b8b3cbd219f0b0637814dc26161f04',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/build.omg': '614902b6be94b620ae795d1da742373e97f2c7cf82a1771e0d357bcc8ac14c75',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/expected.txt': '10d7a402c489caa59140b9791caae2994ee589ab2f2933bb2273a01cb671f694',
+           'tests/omega/fail/proofs/finite_boolean_policy_exit/main.omg': 'e67b7a72f6feb21733748d927176d4ce4ba75b4878bcb4f71a9fd86fd775b09e',
+           'tests/omega/fail/proofs/runtime_case_guarantee_wrong_return/expected.txt': '4df38530093633038a7324bcc5121a47e75b5c333311ffa9849a9be58fe49e99',
+           'tests/omega/fail/proofs/runtime_case_guarantee_wrong_return/main.omg': '82335889f4105092e69802ca2beff12d90634828d0f73e6dfa37993915c6bbcd',
+           'tests/omega/fail/proofs/selected_case_equality_does_not_establish_membership/expected.txt': '95c9798d405d1dc561c874803e24d02f672be3aacf1cbf37ad38d4676b775583',
+           'tests/omega/fail/proofs/selected_case_equality_does_not_establish_membership/main.omg': '8bc0f4e20d1f8c12018bc0f0f4301fcf55a980790151d9e705e2bdacf8b6fd1f',
+           'tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound/expected.txt': '379e28ae4ad861a91a304111fb4d625a082cf52c47d7047f7440f9dcad8e9167',
+           'tests/omega/fail/references/rebound_parameter_reference_drops_referent_bound/main.omg': '5633be4535dcb3f4568ec9cdc59c293b7d266f1eb635e85c9b1bbc3f6b02ee24',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/build.omg': '4d1bdeccd3a39637b3564c168cd807e344a4e3bc2598bbb4b8f158827e859321',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/arithmetic/runtime_composite_bound_arrivals_exit/main.omg': '6b2cb59e80542f417131c3ef9b45994d32ef058fa382f3ebed2f6d4b0a1f7df9',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/README.md': '20a9e12b5bdf7eabe10355ef49bdb04ac17c2a50a4c36d1a0e7475d7ee7e4059',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/build.omg': 'd3c44e2d1da3a357423137391506abc7720f436c28f06a2bb04d3428d3da1ddd',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/borrowed_field_helper_output_exit/main.omg': 'da8275565860421331cf9037d417b5a82c6c2a446e563261560be6cbef7accc2',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/build.omg': '2d633324e72da527f22b2fd18507d3e22f10c3b1618c7d61dfe5d3a39d53fdf8',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/borrows/runtime_case_descriptor_retirement_exit/main.omg': '365ebf157caf27d27a86591b3261a1ae4a8311c335dd8b9f10c9f8ef4dc61dbc',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/build.omg': 'b35ce54ab8b0289e17fb19745b2ad981fdf87807560c7bb14667508420714e7c',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/completed_unit_call_post_case/main.omg': '3f32f3280f3aa8116fa54b440a3066183a12397f16bec4997d510ddb76f9b543',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/build.omg': '285689cc07134f285903cb376d663efc6ba16b94baf22cedceb383f619db1b4f',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/nested_case_guarantee_disjunction_exit/main.omg': '303cdf48e2d1db7b61e0fb499f301401020df6c2a983069f2a9ae5cd02fe9f72',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/build.omg': 'de5b1e40d67c7a4ce3dc400fb3c60afce82f03004e8a106681b22df28577439f',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/contracts/saved_call_case_guarantee_requires_exit/main.omg': 'b0065c7b194e91d119daddc4228bd2ae1f73f6ea942347156a009083e00ae0d5',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/build.omg': '9283d44d9cccaedf3e6fb27c3029418db166eedf4354576ea43dff73acada0dc',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/core/aggregate_snapshot_copy_exit/main.omg': '9cfa86033d71f3707e62effa2c88e3b0f9891c10943edc6b74cde8dd238b0244',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/build.omg': '759a179f89c8982efecd3c4e16192a6309a568de5cf2f95ad088d3bc9e9a3ebf',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+           'tests/omega/pass/float/constructed_ieee_predicates_exit/main.omg': '98e8aa51fca8e8b8396046b9a932b49f6e4cb6cdff6df5cf0b246b5353f4a69a',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/build.omg': 'aa37cf0e6c0ab081c71c6c174fbfd01b43066386da636acb54fd72ad1a450a15',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/expected_native_exit.txt': '13c1dc569ae4a0d7f90d8f83d22fc9c8fa526e133f8fea0f9526c8533c4d8da3',
+           'tests/omega/pass/generics/omitted_data_binder_range_equation/main.omg': '836a91eb9644eda9320269203dc09d464f134db13f034e8913cf6506f24dde42',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/README.md': '661fab92aa01bab89746f912a9b2094c25d49d819740c886ef65a45b7a127b8c',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/build.omg': '7a7baea772c6c8f1863abb9731aa725a204d474414405645e09559ae0df6199b',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/expected_native_exit.txt': '10159baf262b43a92d95db59dae1f72c645127301661e0a3ce4e38b295a97c58',
+           'tests/omega/pass/generics/runtime_generic_carrier_equation_exit/main.omg': '504a673682bb074ef9b7ea0f9b4c735c54256e523f34ce0d6248e1a03b589f4a',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/README.md': '0ffe6ce964a73ac24b0704a223a847eb148f4eaadd3fa30d04db5c7dfe91be01',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/build.omg': '320b86c84ec224526f90a4f77ef809326b86a92b2a38fc94d052696ec17caf92',
+           'tests/omega/pass/generics/runtime_phantom_owned_constructor_exit/main.omg': 'be5a5d4a0180651086ddadf39e1c79436ed099de49644627517d6f90512582f0',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/README.md': 'd0b6dc11aa88767d7593c76474af726c1275b6afcf153ae61e90618822fb4a39',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/build.omg': '6e6a07686a3086bd380e09e3522fef655eed73617c994352053f06b5bc8f8b8f',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/expected_native_exit.txt': '084c799cd551dd1d8d5c5f9a5d593b2e931f5e36122ee5c793c1d08a19839cc0',
+           'tests/omega/pass/ownership/runtime_whole_borrowed_transform_exit/main.omg': '97e7a62029c280095af14c3ddf030c03479e2a0aa4c4ccf8049402b84381483c',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/README.md': '87c737174fd87bea9aac7376d5fb9339a0217609bd774510eee6f45c376566a5',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/build.omg': '614902b6be94b620ae795d1da742373e97f2c7cf82a1771e0d357bcc8ac14c75',
+           'tests/omega/pass/proofs/finite_boolean_policy_exit/main.omg': 'cbcc0f7e393cce9b79d213c11fb6163c4e196b6cd18cab89cf96beb74ac01acb'}
+          for path,digest in inputs.items():assert sha((root/path).read_bytes())==digest
+          os.environ['GITHUB_SHA']=source
+
+          output=root/'build/compiler-pilot/premise-cache-ownership-host'
+          prepared=json.loads((output/'preparation.json').read_text())
+          assert prepared['passed'] and prepared['candidate']==source and prepared['target']==target
+          assert json.loads((output/'driver.json').read_text())=={'source':source,'driver':driver,'target':target}
+          producer=compiler_pilot.load_producer(output/'producer.json');producer.verify()
+          unit=json.loads((output/'term-comparison-tests.json').read_text());assert unit['source']==source and unit['driver']==driver and unit['expected_existing_tests']==40 and unit['passed'] is True and len(unit['scopes'])==5
+
+          functional=json.loads((root/'build/compiler-pilot/premise-cache-ownership-functional/scope.json').read_text())
+          assert functional['source']==source and functional['driver']==driver and functional['target']==target and functional['producer']==producer.record()
+          assert functional['passed'] is True and functional['checked_positive_count']==1 and functional['proper_refusal_count']==2 and functional['actual_engine_agreement_count']==1
+
+          positive=['pass/generics/runtime_generic_carrier_equation_exit',
+           'pass/ownership/runtime_whole_borrowed_transform_exit',
+           'pass/arithmetic/runtime_composite_bound_arrivals_exit',
+           'pass/core/aggregate_snapshot_copy_exit',
+           'pass/float/constructed_ieee_predicates_exit',
+           'pass/contracts/saved_call_case_guarantee_requires_exit',
+           'pass/contracts/completed_unit_call_post_case',
+           'pass/generics/omitted_data_binder_range_equation',
+           'pass/contracts/nested_case_guarantee_disjunction_exit',
+           'pass/generics/runtime_phantom_owned_constructor_exit',
+           'pass/proofs/finite_boolean_policy_exit',
+           'pass/borrows/borrowed_field_helper_output_exit']
+          negative=['fail/arithmetic/composite_bound_arrival_unbounded_predecessor',
+           'fail/borrows/private_arrival_default_domain_weak_bound',
+           'fail/references/rebound_parameter_reference_drops_referent_bound',
+           'fail/contracts/mutable_owned_call_ensures_keeps_poststate',
+           'fail/ownership/whole_borrowed_missing_repair',
+           'fail/generics/generic_carrier_equation_mismatch',
+           'fail/data/constructor_distinct_field_versions',
+           'fail/data/constructor_prior_operand_write',
+           'fail/borrows/empty_array_snapshot_requires_read_authority',
+           'fail/float/constructed_ieee_unknown_nan',
+           'fail/float/mathematical_generic_ieee_equality_requires_non_nan',
+           'fail/float/public_class_contract_ieee_equality_retains_zero_sign',
+           'fail/contracts/executable_float_box_equality_not_identity',
+           'fail/contracts/saved_call_case_guarantee_replaced_by_call',
+           'fail/proofs/runtime_case_guarantee_wrong_return',
+           'fail/proofs/selected_case_equality_does_not_establish_membership',
+           'fail/cases/nested_payload_read_after_case_replacement',
+           'fail/contracts/nested_case_guarantee_unselected_sibling',
+           'fail/generics/phantom_owned_constructor_unproved',
+           'fail/proofs/finite_boolean_policy_exit',
+           'fail/borrows/generic_call_output_source_write']
+          label='compiler-pilot/premise-cache-ownership-remaining'
+          status=compiler_pilot.run_suite(label,tuple(positive),tuple(negative),checking_only=(),producer=producer)
+          producer.verify()
+          for path,digest in inputs.items():assert sha((root/path).read_bytes())==digest
+          observed=root/'build'/label
+          checking=json.loads((observed/'checking.json').read_text()) if (observed/'checking.json').exists() else None
+          both=json.loads((observed/'both.json').read_text()) if (observed/'both.json').exists() else None
+          source_rows=[] if checking is None else checking['observations'];engine_rows=[] if both is None else both['observations']
+          source_selection=len(source_rows)==len(positive)+len(negative) and {r['fixture'] for r in source_rows}==set(positive+negative)
+          engine_selection=len(engine_rows)==len(positive) and {r['fixture'] for r in engine_rows}==set(positive)
+          checked=[r for r in source_rows if r['fixture'] in positive and r['status']=='checked' and not r['diagnostics']]
+          proper=[]
+          for row in source_rows:
+              if row['fixture'] not in negative:continue
+              fragments=[s.strip() for s in (root/'tests/omega'/row['fixture']/'expected.txt').read_text().splitlines() if s.strip()]
+              if row['status']=='rejected' and row['expected_satisfied'] is True and all(s in '\n'.join(row['diagnostics']) for s in fragments):proper.append(row)
+          expected_exits={'pass/arithmetic/runtime_composite_bound_arrivals_exit': '0',
+           'pass/borrows/borrowed_field_helper_output_exit': '0',
+           'pass/contracts/completed_unit_call_post_case': '0',
+           'pass/contracts/nested_case_guarantee_disjunction_exit': '0',
+           'pass/contracts/saved_call_case_guarantee_requires_exit': '0',
+           'pass/core/aggregate_snapshot_copy_exit': '0',
+           'pass/float/constructed_ieee_predicates_exit': '0',
+           'pass/generics/omitted_data_binder_range_equation': '92',
+           'pass/generics/runtime_generic_carrier_equation_exit': '7',
+           'pass/generics/runtime_phantom_owned_constructor_exit': '0',
+           'pass/ownership/runtime_whole_borrowed_transform_exit': '42',
+           'pass/proofs/finite_boolean_policy_exit': '0'}
+          pairs=[r for r in engine_rows if r['status']=='built' and r['facts']=={'exit':expected_exits[r['fixture']],'interpreter-exit':expected_exits[r['fixture']],'interpreter':'agrees'}]
+          latency=source_selection and engine_selection and all(r['millis']<=120000 for r in source_rows+engine_rows)
+          passed=status==0 and source_selection and engine_selection and len(checked)==len(positive) and len(proper)==len(negative) and len(pairs)==len(positive) and latency
+          (observed/'scope.json').write_text(json.dumps({'source':source,'driver':driver,'target':target,'producer':producer.record(),'stage':'remaining_original','positive':positive,'negative':negative,'suite_exit':status,'source_selection_confirmed':source_selection,'engine_selection_confirmed':engine_selection,'checked_positive_count':len(checked),'proper_refusal_count':len(proper),'actual_engine_agreement_count':len(pairs),'expected_exits':expected_exits,'latency_within_original_limit':latency,'passed':passed,'limits':'Original strict 120000 ms acceptance in each Source and native/Terminal channel, one worker, profiling off. Authored inputs, exit oracles and negative fragments are unchanged. This is actual candidate qualification; all prior failures and unit observations retain their original identities.'},indent=2)+'\n')
+          raise SystemExit(0 if passed else 1)
+          OBSERVE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
+          name: core-float-premise-cache-ownership-remaining-${{ matrix.host }}-${{ github.run_id }}
+          path: build/compiler-pilot/premise-cache-ownership-remaining/
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 30
