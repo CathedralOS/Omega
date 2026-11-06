@@ -130,7 +130,7 @@ jobs:
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cc7dad262fd756c3ea8eae3244a7e357823d018a
+          restore-keys: compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-01a70b77699c6898b9a6cb433362e3e5535fb5ac
       - name: Require the retained Windows compiler cache for this comparison
         if: github.event_name == 'workflow_dispatch'
         env:
@@ -138,7 +138,7 @@ jobs:
         shell: python
         run: |
           import os
-          assert os.environ['OBSERVED_CACHE_KEY'] == 'compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cc7dad262fd756c3ea8eae3244a7e357823d018a', 'exact cc7 starting cache is required; no cold build was attempted'
+          assert os.environ['OBSERVED_CACHE_KEY'] == 'compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-01a70b77699c6898b9a6cb433362e3e5535fb5ac', 'exact 01a70 starting cache is required; no cold build was attempted'
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
@@ -193,8 +193,8 @@ jobs:
           import json, os
           root = Path('build/compiler-pilot')
           root.mkdir(parents=True, exist_ok=True)
-          positives = ['pass/atomics/shared_receiver_atomic_store', 'pass/generics/omitted_data_binder_range_equation', 'pass/generics/runtime_generic_carrier_equation_exit']
-          source_fixtures = positives + ['fail/atomics/shared_receiver_plain_field_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/calls/copied_argument_ensures_cannot_restore_mutated_source']
+          positives = ['pass/atomics/shared_receiver_atomic_store', 'pass/generics/omitted_data_binder_range_equation', 'pass/generics/runtime_generic_carrier_equation_exit', 'pass/borrows/runtime_case_descriptor_retirement_exit']
+          source_fixtures = positives + ['fail/atomics/shared_receiver_plain_field_write', 'fail/borrows/empty_array_snapshot_requires_read_authority', 'fail/calls/copied_argument_ensures_cannot_restore_mutated_source', 'fail/cases/nested_payload_read_after_case_replacement']
           saved = {'source': os.environ['GITHUB_SHA'], 'target': 'windows_x86_64', 'fixture_limit_ms': 120000, 'rows': {}, 'passed': False}
           try:
               for filename, leg, target in [('checking.json', 'checked', None), ('both.json', 'both', 'windows_x86_64')]:
