@@ -19,6 +19,9 @@ binding and is retired together with receiver `self`. Types needed by a trait
 are ordinary declared parameters; zero, one, or several are allowed, and none
 has special status. An implementation name identifies a map of machines, not a
 type that can be borrowed as state. All state remains explicit value arguments.
+The [captured dynamic form](../terminal-psi/dynamic_dispatch.md#borrowed-captures)
+can bind named borrowed arguments at construction; it neither attaches data to
+a conformance nor privileges a parameter as its receiver.
 
 The `no-data-code-attachment` decision (2026-10-22) also retires data-owned
 machine declarations even when every parameter is explicit. Put an ordinary

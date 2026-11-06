@@ -21,8 +21,10 @@ machines supply missing rows.
 
 Requirements and realizations are static machines with explicit parameters,
 under the [ordinary machine contract](../language/machines.md#static-declarations-and-explicit-state).
-`dyn Trait<Arguments...>` selects a named implementation at runtime. It does
-not package an instance of an implementing data type or hide a trait argument.
+Selector-only `dyn Trait<Arguments...>` selects a named implementation at runtime.
+It does not capture state or hide a trait argument. The explicit
+[borrowed capture form](#borrowed-captures) binds named arguments and erases one
+trait type argument without introducing a receiver.
 For example, `dyn CounterOperations<CounterData>` can select normal or
 saturating operations over the same explicitly passed `CounterData`.
 `dyn Convert<Image, Text>` can select different Image-to-Text implementations;
@@ -57,11 +59,12 @@ privileged. Terminal Psi must retain selection and value arguments separately.
 
 ## Source eligibility and operational envelopes
 
-Runtime `dyn` values carry implementation selection, not owned or borrowed user
-state. Borrowing a selector does not borrow an implied data instance. Copying
+Selector-only `dyn` values carry implementation selection, not owned or borrowed
+user state. Borrowing a selector does not borrow an implied data instance. Copying
 or storing it grants no authority over any separately passed data. A proof-only
 selection with no executable rows erases under the ordinary evidence rules.
-There is no data-instance allocation or cleanup obligation created by `dyn`.
+Selector-only construction creates no data-instance allocation or cleanup.
+Captured values instead retain their explicit borrows and their loan obligations.
 
 After binding trait arguments and any exact family tuple, the requirement's
 parameter/result representations must be concrete, returned borrow lifetimes
@@ -91,10 +94,9 @@ The finite value families below remain the explicit exception for eligible
 requirement-local value binders; this decision does not extend their roster to
 arbitrary type or evidence applications.
 
-Hiding data types is a separate packaging facility, not part of implementation
-selection. This contract introduces no existential type binder, heterogeneous
-data container, or implicit boxing. A future such facility must preserve the
-relationships between hidden types and the values accepted or returned.
+Only the explicit borrowed capture form below hides a trait type argument.
+It supports heterogeneous borrowed state without an existential keyword,
+implicit boxing, owned erased state, or an unrestricted runtime type facility.
 
 The normalized operational contract must fit its per-requirement dynamic
 envelope: service reach, direct synchronous invocation, mutation summary,
@@ -122,6 +124,117 @@ does not become an unconditional assumption. Only retained checked dependencies
 or specialization can narrow that application. Storing the value
 instead requires the storage type's bound. This changes static contract checking,
 not runtime representation, and does not require code monomorphization.
+
+## Borrowed captures
+
+A captured dynamic value pairs one exact named implementation with explicitly
+bound borrowed arguments. This lets one container hold operations over different
+state types while keeping each implementation paired with the state it accepts.
+The following source form is ratified; compiler delivery and acceptance are
+tracked in the [implementation plan](../../drafts/designs/captured_dyn.md).
+
+```omega
+trait Metric<S> { machine value(state: &S) -> u64; }
+
+// QueueDepth satisfies Metric<Queue>; CacheHits satisfies Metric<Cache>.
+let metrics: [dyn Metric<_>; 2] = [
+    QueueDepth as dyn Metric<_> { state: &queue },
+    CacheHits as dyn Metric<_> { state: &cache },
+];
+let value: u64 = Metric::value(metrics[0]);
+```
+
+Here `_` erases one trait type argument after the concrete conformance and its
+arguments have been checked. It is not inference of one common state type for
+the container. Other trait arguments remain explicit or ordinarily inferred.
+V1 captures borrowed state only, within one Fused artifact. Selector-only
+construction and calls remain unchanged.
+
+### Binding and erasure eligibility
+
+The binding map identifies requirement parameters by name, never by position
+or an implicit receiver. A short name must resolve to one exact parameter slot;
+qualification by the declaring requirement is needed where names collide.
+For example, `Metric::value::state` names `value`'s `state` parameter.
+Overloads retain their complete requirement identity; unresolved ambiguity
+rejects rather than binding several same-spelled parameters accidentally.
+Capture identity records that resolved slot, not just its source spelling.
+
+Every parameter whose type depends on the erased argument must be bound, across
+all inherited requirements and admitted finite family rows. Each such parameter
+must be a borrowed reference in V1. Missing, duplicate, extra, mismatched, or
+owned captures reject. `compare(left: &S, right: &S)` therefore needs both
+bindings; the caller cannot later supply a value of an unknown `S`. Every capture
+expression is checked and evaluated once at construction against the concrete
+substituted parameter type. Ordinary alias and loan rules apply across bindings.
+
+At a call, the dynamic value supplies the selected requirement's bound arguments;
+the caller supplies the remaining parameters in declaration order. The selected
+machine still receives its full explicit argument list. A call cannot replace a
+capture with a differently typed argument or exchange state between entries.
+Capture construction does not discharge future calls' preconditions forever:
+each invocation checks the complete contract against current captured places,
+storage versions and supplied arguments. Hidden concrete types grant no extra
+facts; available contracts must justify the call for every remaining selection.
+
+After removing the bound parameters, the callable interface must have a concrete
+common shape. No result may expose the erased type, including `&S`; an expressible
+lifetime alone does not make a hidden result type usable. Concrete results and
+their input-relative loans remain eligible under ordinary rules. No implicit
+result repackaging, unrestricted generic virtual methods, or new proof admission
+rule follows from erasure. Operational envelopes retain their existing rules.
+
+### Loans, storage and runtime insertion
+
+A captured value retains its selector and the exact borrowed places. Lifetime,
+multiplicity, access qualifications and custody survive fields, parameters,
+returns, joins, moves, containers and helper calls. Shared captures are copyable
+only when their complete contents permit copying. Mutable captures are not
+freely copied; invocation uses ordinary exclusive access and reborrowing without
+consuming a reusable capture merely to call it. Result loans can extend that
+access. Binding or erasing a type cannot widen authority or extend a lifetime.
+
+Runtime branches and helpers may append captured values to a mutable container.
+The number, order and selected variants of its entries are runtime data; the
+roster of possible variants is static. All producers and consumers of that
+captured type use the same artifact roster, not a roster inferred separately for
+each initializer or container. A helper cannot store a borrow of its own local
+past that local's lifetime. Removing an entry transfers its loans with the value;
+consuming it can end those loans under the existing rules, without requiring
+destruction of the container. Removal alone does not release a loan still held
+by the removed value, a copy, or an outstanding result reborrow.
+
+### Roster identity and lowering
+
+The compiler collects a finite roster from admitted capture constructions in
+the closed artifact, including concrete generic instantiations. It does not
+enumerate every implementation merely because it is visible. Each entry retains
+the exact conformance application, concrete erased type, normalized requirement
+rows and capture bindings. Repeated construction with different runtime state
+of the same entry does not add a variant. Failure to close a finite roster
+rejects; runtime insertion cannot introduce an unadmitted implementation/type.
+
+The captured interface identity includes the trait application with its erased
+position and resolved binding schema. Ordinary lifetime/access/envelope
+constraints still govern compatibility. Canonical roster order and commitment
+are independent of source traversal. Finalize the roster before representation
+and dispatch, without imposing a particular compiler stage number.
+
+V1 lowers the value as a compiler-derived closed sum of borrowed environments
+and a matching dispatch over its roster. The selected case retains both state
+and implementation through checking, Terminal Psi, interpretation and native
+execution. Each case expands into the concrete row's full argument shape.
+Verification binds the roster, tag, selected row, captures and result contract;
+an unknown tag or mismatched capture/row rejects. This is not the scalar-only
+selector representation described below. Target realization chooses physical
+tags and dispatch instructions; no two-word layout or jump table is promised.
+
+All values of the same captured interface in a Fused artifact share its finalized
+roster. A new admitted entry changes roster identity even if physical size stays
+the same; every dependent representation and dispatch site must be regenerated
+consistently. A new site using an existing entry does not enlarge the roster.
+This artifact-wide dependency does not automatically include Independent
+components elsewhere in the application.
 
 ## Complete application identity
 
@@ -202,8 +315,12 @@ Knowing the latest selection is not permission to devirtualize its call.
 
 ## Call and forwarding roles
 
-`Impl as dyn Trait<Args>` produces a selector with `SelectImplementation`,
-naming that implementation's table. Every dynamic call is one `CallDynamic`
+The following scalar-selector rules govern selector-only values; captured values
+expand their environments under the roster rules above before applying the
+concrete requirement's call contract.
+
+The selector-only `Impl as dyn Trait<Args>` produces `SelectImplementation`,
+naming that implementation's table. Each selector-only call is one `CallDynamic`
 naming its interface slot: the selector is the dispatch operand, and the
 slot's call shape governs the ordinary arguments and the result. Where the
 selector came from (a local selection, a rebinding, a join, a stored field or
@@ -251,12 +368,16 @@ formal places cannot stand in for that contract.
 
 ## Native tables and replay
 
-Native realization represents the selector by its implementation table
-reference or an equivalent target representation preserving that identity.
+For selector-only values, native realization represents the selector by its
+implementation table reference or an equivalent target representation preserving
+that identity.
 There is no canonical `{ instance, table }` pair: remove the retired instance
 field and its receiver adapters. Descriptor and scalar-result storage do not
 overlap. Explicit borrowed arguments obey [reference identity](structural_access.md)
 independently; copying a selector cannot copy or extend a borrowed referent.
+
+Explicit captures follow the borrowed-environment sum above, not the retired
+implicit instance field. No hidden receiver is added to a requirement.
 
 Immutable tables may deduplicate identical complete applications by strong
 identity. Emit one slot per canonical row. A row with an executable callable
@@ -295,6 +416,10 @@ still costs its frame and structural work when a particular satisfier never susp
 The selected implementation may meet a suspension promise while exceeding a
 separate stack or work ceiling.
 
+Captured values additionally account for their environment storage, case
+selection and bound-argument adaptation. Erasure does not remove those costs
+or the underlying loan, suspension and resource obligations.
+
 An occurrence-specific, whole-artifact devirtualization may replace a nonescaping
 selection/call with its exact realization and original explicit arguments.
 It must retain the realized direct-call cost, not erase it because the target is known. General
@@ -305,3 +430,12 @@ inventing separate boundary contracts.
 Local tables do not cross replaceable component boundaries. Those calls use
 the requirement's evaluated boundary plan and entry contract; a local proxy may
 adapt the component binding back into a dynamic value inside its consumer.
+
+Captured values follow this same boundary: V1 keeps both their roster and
+borrowed environments local to the Fused artifact. Their conformance/code,
+roster/representation, and captured-place custody dependencies must be published
+into the [replacement closure](../build/component_publication.md#replacement-granularity).
+Changing a referent's size need not change a borrowed environment's size, but
+does not erase the dependent code or custody edges. Quiescing calls alone does
+not dispose of captures; old values must be drained, retained with their era,
+or consumed and reconstructed after an explicit state migration.
