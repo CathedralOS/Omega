@@ -123,7 +123,7 @@ pub(crate) fn reject_refuted_value_call_requires(
         let clause =
             format!("`{authored}`: the instantiated fact is structurally false{instantiated}");
         diagnostics.push(Diagnostic::error(format!(
-            "cannot prove requires contract: machine `{}` state `{}` value call to `{callee_name}` violates required fact {clause}",
+            "cannot prove requires contract for call {callee_name}: machine `{}` state `{}` value call to `{callee_name}` violates required fact {clause}",
             caller_machine.name, caller_state.name,
         )));
     }
