@@ -98,7 +98,6 @@ fn evaluate_application_group(
     let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
     let selection_authority = context.selection_authority.clone();
     let mut endpoint_leaves = Vec::new();
-    if requested.is_none() {}
     let has_call_const_expression = type_references(&syntax)
         .const_expression_nodes()
         .into_iter()

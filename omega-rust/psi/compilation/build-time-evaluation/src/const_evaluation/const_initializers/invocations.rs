@@ -967,7 +967,7 @@ impl Invocation<'_> {
         state: &State,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
-        statement_index: usize,
+        _statement_index: usize,
     ) -> Result<(), String> {
         // Each arm owes its result obligations even when selective interpretation
         // will skip it. The destination cannot certify an invalid sibling.
@@ -983,7 +983,7 @@ impl Invocation<'_> {
                     state,
                     arm.value,
                     destination,
-                    statement_index,
+                    _statement_index,
                 )?;
             }
             return Ok(());
@@ -1026,7 +1026,7 @@ impl Invocation<'_> {
                         state,
                         *value,
                         *element_type,
-                        statement_index,
+                        _statement_index,
                     )?;
                 }
                 return Ok(());
@@ -1063,7 +1063,7 @@ impl Invocation<'_> {
                         state,
                         field.value,
                         field_type,
-                        statement_index,
+                        _statement_index,
                     )?;
                 }
                 return Ok(());
