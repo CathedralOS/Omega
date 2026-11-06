@@ -1365,8 +1365,21 @@ fn validate_specification_expression_in_scope(
             false
         };
         if !proven {
+            // `requires false` is a closed contradiction. An unproved operand
+            // fact still needs a prior premise; a literal false does not.
+            let structurally_false = requirement.as_expression().is_some_and(|expression| {
+                matches!(
+                    expression_table(program).expression(*expression),
+                    ExpressionNode::Boolean(false)
+                )
+            });
+            let detail = if structurally_false {
+                "the instantiated fact is structurally false"
+            } else {
+                "establish its selected precondition in an independently formed prior requires fact"
+            };
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove requires contract for specification call `{}` in {owner}: establish its selected precondition in an independently formed prior requires fact",
+                "cannot prove requires contract for specification call `{}` in {owner}: {detail}",
                 owner_name(program, &contract_owner),
             )));
         }
