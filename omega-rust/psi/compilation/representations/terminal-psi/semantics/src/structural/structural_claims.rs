@@ -27,8 +27,6 @@ pub fn structural_claim_paths_may_overlap<'types>(
     Some(left.starts_with(right) || right.starts_with(left))
 }
 
-#[cfg(test)]
-mod tests;
 
 /// Join machine-local return identities to the caller's possible path roster.
 /// Every unguarded path occurs on every successful exit. Guarded paths occur

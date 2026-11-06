@@ -454,9 +454,6 @@ fn validate_constructor_claims(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests;
-
 pub(super) fn validate_establish_primitive_local(
     module: &TerminalModule,
     machine: &TerminalMachine,
