@@ -761,16 +761,8 @@ impl<'base> ConstantSelection<'base> {
     /// The selected data declaration's name span. A declaration the cohort no
     /// longer parses may still be selected through the retained predecessor's
     /// forest: the same span and name identify the same declaration, and the
-    /// ordinary package-visibility rule still applies to it.
-    pub(crate) fn data_span(
-        &self,
-        syntax: &SyntaxTrees,
-        retained: Option<&SyntaxTrees>,
-        name: &Identifier,
-    ) -> Result<source::SourceSpan, String> {
-        self.data_span_among(syntax, None, retained, name)
-    }
-
+    /// ordinary package-visibility rule still applies to it. `roots`, when
+    /// supplied, indexes `syntax` once for many lookups.
     fn data_span_among(
         &self,
         syntax: &SyntaxTrees,
