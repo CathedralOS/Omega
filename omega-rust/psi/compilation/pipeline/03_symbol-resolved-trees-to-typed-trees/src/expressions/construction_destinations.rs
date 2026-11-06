@@ -34,6 +34,7 @@ pub(crate) fn prepare(
 ) -> Result<(), Diagnostic> {
     let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
     let mut calls = Vec::new();
+    let mut field_destinations = Vec::new();
 
     // Aggregate fields and value-call arguments carry their destination types
     // in the typed expression graph itself.
@@ -50,7 +51,7 @@ pub(crate) fn prepare(
                         literal,
                         field.field_symbol,
                     ) {
-                        destinations.push((field.value, field_type));
+                        field_destinations.push((field.value, field_type, literal.type_symbol));
                     }
                 }
             }
@@ -139,6 +140,15 @@ pub(crate) fn prepare(
         }
     }
 
+    // A receiving schema can supply lifetime names even without type arguments.
+    // Keep its declaration on the copied type; checking the constructor in its
+    // caller must not reinterpret those names as caller-authored binders.
+    for (value, reference, declaration) in field_destinations {
+        let reference = program
+            .apply_callable_type(reference, &[], &[], declaration)
+            .map_err(Diagnostic::error)?;
+        destinations.push((value, reference));
+    }
     for call in calls {
         let binders = program.declaration_type_parameters(call.target).to_vec();
         // An unapplied generic signature belongs to the callee, not this
@@ -165,13 +175,9 @@ pub(crate) fn prepare(
             if !needs_destination(program, argument) {
                 continue;
             }
-            let reference = if substitutions.is_empty() {
-                reference
-            } else {
-                program
-                    .apply_callable_type(reference, &substitutions, &[], call.target)
-                    .map_err(Diagnostic::error)?
-            };
+            let reference = program
+                .apply_callable_type(reference, &substitutions, &[], call.target)
+                .map_err(Diagnostic::error)?;
             destinations.push((argument, reference));
         }
     }
@@ -269,6 +275,9 @@ fn land_one(
             if let Some(field_type) =
                 selected_construction_field_type(program, value, &literal, field.field_symbol)
             {
+                let field_type = program
+                    .apply_callable_type(field_type, &[], &[], literal.type_symbol)
+                    .map_err(Diagnostic::error)?;
                 land_one(program, field.value, field_type)?;
             }
         }
