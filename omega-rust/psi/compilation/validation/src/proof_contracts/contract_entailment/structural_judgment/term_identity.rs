@@ -10,8 +10,8 @@
 
 use super::StructuralTerm;
 
-/// Borrow immediate term edges without allocating a roster at every recursive
-/// metadata comparison. Variable arity borrows its existing storage; other
+/// Borrow immediate term edges without allocating a list for each recursive
+/// query. Variable arity borrows its existing storage; other
 /// variants retain at most two references in their declared order.
 enum StructuralChildren<'term> {
     Terms(std::slice::Iter<'term, StructuralTerm>),
@@ -341,16 +341,22 @@ impl StructuralIdentity {
                 value == other_value
                     && (!retain_metadata || value.landing() == other_value.landing())
             }
-            StructuralTerm::Constructor { data, case, fields } => {
+            StructuralTerm::Constructor {
+                identity, fields, ..
+            } => {
                 let StructuralTerm::Constructor {
-                    data: other_data,
-                    case: other_case,
+                    identity: other_identity,
                     fields: other_fields,
+                    ..
                 } = other
                 else {
                     return false;
                 };
-                (data, case) == (other_data, other_case)
+                let same_identity = match self {
+                    Self::SemanticValue => identity == other_identity,
+                    Self::ResolutionInput => identity.same_resolution_payload(*other_identity),
+                };
+                same_identity
                     && fields.len() == other_fields.len()
                     && fields.iter().zip(other_fields).all(
                         |((name, value), (other_name, other_value))| {
@@ -583,10 +589,11 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("right", right)
                 .finish(),
             Self::Float(value) => formatter.debug_tuple("Float").field(value).finish(),
-            Self::Constructor { data, case, fields } => formatter
+            Self::Constructor {
+                identity, fields, ..
+            } => formatter
                 .debug_struct("Constructor")
-                .field("data", data)
-                .field("case", case)
+                .field("identity", identity)
                 .field("fields", fields)
                 .finish(),
             Self::Application {
@@ -708,7 +715,16 @@ mod resolution_payload_tests {
             value: Box::new(integer(7)),
             descriptor,
         };
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let carrier = identities.intern("Carrier");
         let nested = |value| StructuralTerm::Constructor {
+            identity: super::super::ConstructorIdentity::Nominal {
+                carrier,
+                reference: TypeReferenceHandle::from_arena_index(1),
+                declaration: symbols::SymbolHandle::from_arena_index(1),
+                case: None,
+                member: None,
+            },
             data: "Carrier".to_owned(),
             case: "Only".to_owned(),
             fields: vec![("value".to_owned(), value)],

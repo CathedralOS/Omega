@@ -115,12 +115,14 @@ impl NativeProviderProcess {
             "omega-native-provider-{}-{instant}-{era}",
             std::process::id()
         ));
-        let mut builder = std::fs::DirBuilder::new();
+        let builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
-        {
+        let builder = {
             use std::os::unix::fs::DirBuilderExt;
+            let mut builder = builder;
             builder.mode(0o700);
-        }
+            builder
+        };
         builder.create(&directory)?;
         let launched = (|| {
             let private = channel::prepare(timeout)?;

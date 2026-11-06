@@ -1261,6 +1261,26 @@ pub(super) fn copy_cloned_expression_type_payloads<'scope>(
         let carrier = copy_type_reference(source, program, carrier, symbols)?;
         expressions_of_mut(program).set_constructed_value_type_reference(expression, carrier);
     }
+    // Constructor applications can contain caller binders even when no field
+    // mentions them. Copy their type graph before substituting this instance;
+    // sharing the template's graph would rewrite other instantiations too.
+    let constructors = expressions_of(program)
+        .iter_expressions_from(expression_start)
+        .filter_map(|(handle, expression)| match expression {
+            ExpressionNode::StructLiteral(literal) if literal.application_type.is_valid() => {
+                Some((handle, literal.application_type))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (handle, application) in constructors {
+        let application = copy_type_reference(source, program, application, symbols)?;
+        if let ExpressionNode::StructLiteral(literal) =
+            expressions_of_mut(program).expression_mut(handle)
+        {
+            literal.application_type = application;
+        }
+    }
     // Index authority is copied before ordinary type-parameter substitution,
     // just like cast types. The clone cannot mutate its template's contract.
     let index_payloads = expressions_of(program)

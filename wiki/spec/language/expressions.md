@@ -322,6 +322,72 @@ slices may share the syntax without sharing their bounds evidence. Mutable
 forms additionally require the appropriate loans and write authority. Descriptor
 construction implements the selected contract but cannot establish its proofs.
 
+### Contract-gated core operations
+
+Ratified 2026-11-05: core indexing and ranges use directly selected, token-bearing
+[compiler-supplied primitive declarations](machines.md#generic-sealed-primitives).
+The selected declaration's complete instantiated contract governs admission.
+Bracket syntax must not fall back to declaration-free indexing, and a separate
+indexing checker must not substitute a recognized bounds pattern for that
+contract. This is the accepted architecture; implementation is tracked by
+**CORE-INDEXING-CONTRACTS** in [TASKS.md](../../../TASKS.md).
+
+A by-copy read has this declaration shape in the authorized core package:
+
+```omega
+machine [] read<Element [copy]>(items: &[Element], index: u64) -> Element
+requires index < items.len;
+```
+
+Its bodyless supply is the sealed compiler primitive, not an unproved boundary
+claim or a user-selected foreign provider. No mandatory checked forwarding
+wrapper sits between bracket syntax and the primitive. Named library helpers
+may call the operation through its ordinary contract; they do not authorize it.
+
+Selection captures the collection and selector once under the evaluation order
+below, substitutes the exact actuals for the operation's generic and runtime
+parameters, and submits every requirement to ordinary call-contract checking.
+Caller preconditions, branch facts, guarantees and checked theorems supply
+evidence under the same lifetime and mutation rules as for named calls.
+An additional well-formed requirement is proved at the call site or the call
+rejects; it is not rejected merely for falling outside a fixed bounds-clause
+grammar. Existing operator selection and ambiguity rules still apply.
+
+Specialized integer, length, range and const-extent strategies may accelerate
+the shared prover. Their conclusions must describe the exact operands and be
+usable by other contracts; a syntactic `index < collection.len` recognizer has
+no independent authority to admit an access. Collection metadata remains tied
+to the actual descriptor and backing. A same-spelled user field or unrelated
+length observation supplies no substitute evidence.
+
+The core operation families cover the following obligations without introducing
+result-type-directed overload selection or changing explicit borrow syntax:
+
+| Access | Required contract and custody |
+| --- | --- |
+| By-copy element read | Index bounds, readable backing and an unrestricted element; copying preserves the source loan. |
+| Shared element borrow | Index bounds, readable backing and the result's origin/lifetime within the source loan. |
+| Mutable element access and indexed writes | Index bounds, exclusive access and result-origin/restoration obligations; a valid index alone grants no write authority. |
+| Shared or mutable range | Ordered nonnegative endpoints within the live extent, resulting length and backing identity; mutable ranges require explicit exclusive borrowing. |
+
+The same contract model covers fixed arrays, borrowed slices and bounded byte
+carriers. Live length, fixed extent and capacity are not interchangeable.
+Inclusive-range normalization must prove its endpoint and successor arithmetic;
+open endpoints use the existing defaults. The core read's unsigned index
+supplies its nonnegative bound through its type, not through a special exemption.
+
+Successful discharge retains per-occurrence evidence relating the selected
+declaration and instantiation to the exact collection, selector, extent and
+storage versions. Lowering consumes that checked plan, emits the primitive
+directly and attaches the corresponding evidence to each Terminal bounds
+obligation. A global success bit, a different occurrence's proof or a valid
+bound on another view cannot replace that relation. Loan/access checking stays
+independent of numerical entailment; the primitive implementation must honor
+both. The [Terminal access contract](../terminal-psi/structural_access.md)
+continues to govern the emitted read, borrow or write.
+
+### Collection arguments and results
+
 For a static index machine such as
 `machine [] at(buffer: &Buffer, index: u64)`, `buffer[index]`
 supplies the collection at operand zero and forms the shared loan required by

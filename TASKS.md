@@ -1,10 +1,6 @@
 # Tasks
 
-Capability priorities and acceptance; see [the sample loop](AGENTS.md#the-sample-loop) and [advance](.agents/skills/advance/SKILL.md).
-
-## Working the board
-
-Each outcome frames a gap as an end-to-end sample witness carried through `Psi 00–08` and `Omega 00–09` (`omega run --both`).
+Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
 
 <a id="pcc-removal"></a>
 
@@ -13,13 +9,7 @@ Each outcome frames a gap as an end-to-end sample witness carried through `Psi 0
 - **ITERATION-PERFORMANCE.** Restore a usable edit/build/run workflow when a bottleneck measurably obstructs development.
 - **VALIDATION-ENVIRONMENT.** Restore bounded test selection or harness feedback while preserving runtime oracles.
 
-## Updating the boards
-
-Update by subtraction (`Delta lines <= 0`): keep discrete lines and delete finished bullets outright.
-
-## Ownership firewall
-
-Follow [the pipeline](omega-rust/pipeline.md): Psi owns source through Terminal Psi (`PSITERM\0`); Omega owns realization.
+Delete completed bullets; keep discrete work lines without growing the board. [Ownership](omega-rust/pipeline.md): Psi owns source through Terminal Psi; Omega owns realization.
 
 ## Priority (human-set only)
 
@@ -75,6 +65,9 @@ Follow [the pipeline](omega-rust/pipeline.md): Psi owns source through Terminal 
 
 ## Lowering, checker, data-flow, and PCC simplification
 
+- **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
+  Acceptance: generic sealed access proves whole contracts, retains exact Terminal evidence and passes both engines/negative controls; retire independent bounds admission.
+
 - **LOC-VALUE-CUSTODY.** (covers **IMAGE-SELF-REPLAY-DELETED**) Carry value custody on one path per layer and qualify the `linux_x86_64` native corpus leg.
   - Retire Psi 06 shape gates (`tools/stage06_shape_gates.txt`) and source-context reads (`tools/stage06_source_context.txt`) using Psi 05 plans.
   Acceptance: retired gates have checking reject twins in `tests/omega/fail/facts/`, and `linux_x86_64` native corpus passes.
@@ -90,8 +83,6 @@ Follow [the pipeline](omega-rust/pipeline.md): Psi owns source through Terminal 
 
 - **UNIVERSAL-INTERPRETER-CLOSURE.** Delete `omega-rust/psi/interpreter/checked-interpreter/` and finish `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`.
   Acceptance: audits find no tree visitor, and `omega run --both`, `--engine native|terminal`, and `interpreter_migration.json` pass on all hosts.
-
-## High-priority composition repairs
 
 ## Immediate product closure
 
@@ -120,7 +111,7 @@ Follow [the pipeline](omega-rust/pipeline.md): Psi owns source through Terminal 
   Acceptance: `termination/,control_flow/`, `progress_selector/`, `array_max`/`dot_product`/`horner_eval`, crash rows, and unreachable warnings pass `--both`.
 
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics under [concurrency](wiki/spec/language/concurrency.md) and [atomic_operations.md](omega-rust/psi/foundation/language-core/atomic_operations.md) in `atomic_events.rs`.
-  Acceptance: `shared_receiver_atomic_store` and `atomic_global_order_operations` pass `omega run --both` on all hosts, and concurrent witnesses run with **TR3-TR8**.
+  Acceptance: `atomic_global_order_operations` passes `omega run --both` on all hosts, and concurrent witnesses run with **TR3-TR8**.
 
 <a id="checked-assembly-control-flow"></a>
 

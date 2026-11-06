@@ -616,7 +616,7 @@ fn validate_literal_field_names(
     let Some(data_definition) =
         field_obligations::selected_construction_definition(program, expression, literal)
     else {
-        diagnostics.push(Diagnostic::error("constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking"));
+        diagnostics.push(Diagnostic::error(format!("constructor obligations have no exact prepared application for `{type_name}`; unresolved generic members cannot waive field or case checking")));
         return;
     };
     for field in program.expression_table.struct_fields(literal.fields) {

@@ -15,9 +15,10 @@ pub(super) fn classify_compiler_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> TerminalAuthorityDisposition {
     match mechanism {
-        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
-            // Dispatch forwards existing roots. The selected continuation's
-            // own transitive demands remain in the executable closure.
+        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
+        | CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
+            // These operations forward existing backing authority. Entry's
+            // selected continuation still publishes its own transitive demands.
             empty_disposition()
         }
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(_) => {

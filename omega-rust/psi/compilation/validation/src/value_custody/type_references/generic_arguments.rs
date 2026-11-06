@@ -547,7 +547,7 @@ impl<'application> AppliedValueCarrier<'application> {
             .is_some_and(|expected| expected == program.normalized_type_identity(actual))
     }
 
-    fn identity(self, program: &dyn CheckingInput) -> Option<NormalizedTypeIdentity> {
+    pub(crate) fn identity(self, program: &dyn CheckingInput) -> Option<NormalizedTypeIdentity> {
         if let Some(arguments) = self.static_arguments {
             let mut values = Vec::new();
             for (position, (parameter, argument)) in

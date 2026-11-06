@@ -278,8 +278,8 @@ fail/arithmetic/nonlinear_square_strict_operand_bound_rejected rejected 1952ms e
 	cannot prove ensures contract for exit from square at statement 0: result > value
 fail/arithmetic/numeric_operand_abs_unrepresentable rejected 12572ms expected @1e29a538216e
 	machine `main` state `entry` value call to `abs_i32` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
-fail/arithmetic/ordinary_clamp_inverted_bounds rejected 14347ms expected @1e29a538216e
-	machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
+fail/arithmetic/ordinary_clamp_inverted_bounds rejected 77309ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 785ms expected @ccdb99ca2214
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 2552ms expected @911f6617ba9e
@@ -2154,6 +2154,8 @@ fail/build/component_scalar_shared_provider_mutation rejected 2233ms expected @1
 fail/build/context_entry_returns_value rejected 3743ms expected @ccdb99ca2214
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `context`
+fail/build/copied_domain_foreign rejected 3805ms expected @76f8b43fee74
+	cannot prove requires contract for call consume_foreign from main: parcel.value in u64::Seventeen in state `entry`
 fail/build/crash_exclusion_closed_provider rejected 4018ms expected @ccdb99ca2214
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 7 at crash terminator in block 11
@@ -2249,6 +2251,8 @@ fail/build/opaque_nested_field_receipt_unadmitted rejected 107ms expected @ccdb9
 	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
 fail/build/opaque_representation_double_selection rejected 577ms expected @ccdb99ca2214
 	build selects opaque representation `Token` more than once
+fail/build/optional_wrong_home rejected 3525ms expected @7790304360ab
+	machine `default_is_none` ensures contract proof fact `zero_value<type>() == Optional::Some` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/build/package_local_calling_copy rejected 23684ms unexpected @d83ddecd7693+wt
 	\\\\?\\tests\\omega\\fail\\build\\package_local_calling_copy\\calling.omg:86:13: expected `:` after data field `where` (alternatives are spelled `case where;`)
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
@@ -2343,6 +2347,8 @@ fail/build/receiver_view_writeback_local_escape rejected 2511ms expected @ccdb99
 	machine `configure` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 fail/build/representation_selection_fabricated_activation rejected 28ms expected @ccdb99ca2214
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/requested_boundary_telescope_capacity rejected 49094ms expected @6685712c7bf8
+	boundary signature has 33 native parameters; calling policies currently support at most 32
 fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833eb
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
@@ -2365,7 +2371,7 @@ fail/build/retired_service_exclusion_receiver rejected 2ms expected @ccdb99ca221
 	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
 fail/build/retired_wire_compatibility_receiver rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
-fail/build/root_binding_descriptor_helper_invocation rejected 161ms expected @2fc408782574
+fail/build/root_binding_descriptor_helper_invocation rejected 1481ms expected @07aa19d13db7
 	machine `choose` omits `invokes Probe` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 	machine `choose` omits `invokes BuildProductOperations` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 fail/build/root_binding_fabricated_receiver rejected 68ms expected @ccdb99ca2214
@@ -2381,11 +2387,11 @@ fail/build/root_binding_shared_receiver rejected 343ms expected @ccdb99ca2214
 	exclusive operation receiver is not writable in this state
 fail/build/scoped_build_stops_before_unaccepted_effect rejected 289ms expected @ccdb99ca2214
 	restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: RestrictedBuildRequest { operation: ScopedFilesystemExecution, read_grants: [RestrictedBuildGrant { root: SourceInventory, narrowed: true, captured: Some(BuildCapturedSourceInventory { entry_count: 5, file_bytes: 885, source_metadata_identity: BuildCanonicalSourceMetadataIdentity { policy_version: 1, source_content_commitment: [7, 52, 33, 12, 211, 241, 30, 234, 236, 20, 48, 27, 190, 202, 79, 150, 21, 254, 221, 38, 218, 29, 35, 57, 16, 127, 167, 233, 75, 193, 100, 114] } }) }], write_grants: [RestrictedBuildGrant { root: StagedOutput, narrowed: false, captured: None }], bounds: RestrictedBuildBounds { filesystem_sponsor_limits: Some(FilesystemSponsorLimits { maximum_entries: 4096, maximum_total_logical_bytes: 268435456, maximum_object_extent: 268435456 }), evaluation_sponsor_limits: Some(BuildEvaluationSponsorLimits { maximum_fuel_units: 100000000, maximum_build_log_bytes: 16777216, maximum_filesystem_operation_attempts: 65536, maximum_live_filesystem_handles: 4096, maximum_live_storage_cells: 1048576, maximum_live_payload_bytes: 67108864, maximum_result_storage_cells: 1048576, maximum_result_payload_bytes: 67108864 }), required_outputs: [], artifact_only: false }, build_execution_profile: Some(MacosArm64), selected_target_profile: None }
-fail/build/segment_selector_invalidates_descriptor rejected 34277ms expected @2b8a1382008c
+fail/build/segment_selector_invalidates_descriptor rejected 126078ms expected @393c6c5fe83d
 	cannot prove requires contract for call consume_unchanged from exercise: buffers.table[3] == old_descriptor (needs fact `value == old` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/build/segment_selector_missing_machine_control rejected 29192ms expected @2b8a1382008c
+fail/build/segment_selector_missing_machine_control rejected 58190ms expected @393c6c5fe83d
 	machine `exercise` publishes service reach `CodeSegmentControl + DataSegmentControl` but its checked body reaches undeclared service `MachineControl`
-fail/build/segment_selector_shared_gdt rejected 20388ms expected @2b8a1382008c
+fail/build/segment_selector_shared_gdt rejected 38647ms expected @393c6c5fe83d
 	argument `gdt` for state `reload` is declared `&mut` (`&mut [u64; 7]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/build/service_audit_requires_boundary rejected 707ms expected @ccdb99ca2214
 	Build declaration operand does not resolve to one visible product declaration of the required kind: `Ordinary` (BoundarySubject)
@@ -2424,7 +2430,7 @@ fail/build/task_register_missing_machine_control rejected 40841ms expected @030a
 	machine `exercise` publishes service reach `TaskRegisterControl` but its checked body reaches undeclared service `MachineControl`
 fail/build/task_register_shared_gdt rejected 36368ms expected @030ac31225e6+wt
 	argument `gdt` for state `activate` is declared `&mut` (`&mut [u64; 5]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/build/task_register_wrong_tss_extent rejected 29283ms expected @030ac31225e6+wt
+fail/build/task_register_wrong_tss_extent rejected 38702ms expected @393c6c5fe83d
 	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
 	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
 	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
@@ -2485,7 +2491,7 @@ fail/build/wire_compatibility_fabricated_activation rejected 30ms expected @ccdb
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/wire_compatibility_unknown_fact rejected 239ms unexpected @ccdb99ca2214
 	Build wire demand names an unknown compatibility fact
-fail/calling/call_plan_count_invalid_handback rejected 37513ms expected @08a2dd067a58
+fail/calling/call_plan_count_invalid_handback rejected 19862ms expected @6685712c7bf8
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/calling/native_field_path_empty rejected 15341ms expected @ccdb99ca2214
 	data `NativePlace` case `Field` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -2495,8 +2501,8 @@ fail/calls/affine_constructor_result_reuse rejected 1671ms expected @ccdb99ca221
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/calls/ambiguous_returned_loan_drops_count rejected 1985ms expected @ccdb99ca2214
 	cannot prove requires contract for call push from stored: loan(main, false).count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/attached_parameter_overload_bound rejected 1438ms expected @72079e22578e+wt
-	machine `start` state `entry` value call to `Selector::choose` violates required fact `N == 37`: the instantiated fact is structurally false (`36 == 37`)
+fail/calls/attached_parameter_overload_bound rejected 6659ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `start` state `entry` value call to `Selector::choose` violates required fact `N == 37`: the instantiated fact is structurally false (`36 == 37`)
 fail/calls/attached_parameter_overload_wrong_argument rejected 1149ms expected @72079e22578e+wt
 	argument `value` for state `choose` expects `u64`, got `bool`
 fail/calls/authored_numeric_name_requires rejected 1607ms expected @ccdb99ca2214
@@ -2614,8 +2620,8 @@ fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected rejected 23
 	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(UnsupportedCarrier)))
 fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 17495ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
-fail/calls/free_machine_named_transition_rejected rejected 1203ms expected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
+fail/calls/free_machine_named_transition_rejected rejected 6409ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
 fail/calls/fused_child_computed_linear_borrow rejected 2944ms expected @ccdb99ca2214
 	linear value `previous` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
 	linear value `current` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
@@ -3101,8 +3107,8 @@ fail/constants/direct_named_initializer_public_console_reach rejected 560ms expe
 fail/constants/mathematical_constant_domain_false rejected 485ms expected @ccdb99ca2214
 	construction value is not proven in domain `Digit::Decimal` in @const-qualification-DIGIT-0 state `@const-qualification-DIGIT-0` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from @const-qualification-DIGIT-0, state @const-qualification-DIGIT-0, at statement 0: Digit requires Digit::Decimal
-fail/constants/owned_record_argument_requires rejected 1694ms expected @7e945672b7b4+wt
-	constant initializer: constant invocation of `read` failed checking: machine `@const-invocation` state `@const-invocation` value call to `read` violates required fact `packet.first == 7`: the instantiated fact is structurally false (`8 == 7`)
+fail/constants/owned_record_argument_requires rejected 4645ms expected @ab235e9fbe19
+	constant initializer: constant invocation of `read` failed checking: cannot prove requires contract: machine `@const-invocation` state `@const-invocation` value call to `read` violates required fact `packet.first == 7`: the instantiated fact is structurally false (`8 == 7`)
 fail/constants/predicate_constant_field_shadows_outer_constant rejected 907ms expected @46cdd6b85b82+wt
 	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_generic_static_index_fence rejected 428ms unexpected @911f6617ba9e
@@ -13349,16 +13355,16 @@ fail/facts/thirtytwo_arg_stack_calling_plan_through_target_body_rejected rejecte
 	exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/typed_run_nested_borrowed rejected 1229ms expected @9a26074461a7
+fail/facts/typed_run_nested_borrowed rejected 4263ms expected @82d911de2f69
 	callable `Carrier::unwrap` returns content-bearing custody `Token::Owned` sourced only from borrowed parameter `envelope` through a structural field; retained-after-return authority requires a consumed owned input
-fail/facts/typed_run_nested_duplicate rejected 6075ms expected @9a26074461a7
+fail/facts/typed_run_nested_duplicate rejected 8478ms expected @82d911de2f69
 	callable `Carrier::duplicate` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
-fail/facts/typed_run_nested_two_inputs rejected 5266ms expected @9a26074461a7
+fail/facts/typed_run_nested_two_inputs rejected 8715ms expected @82d911de2f69
 	cannot establish call-result qualification `Token::Owned` in `steal`, state `entry` (statement 0, call 0): the invocation does not transfer exactly one established input claim for this domain
-fail/facts/typed_run_singleton_count rejected 10409ms expected @9a26074461a7
+fail/facts/typed_run_singleton_count rejected 13435ms expected @82d911de2f69
 	cannot prove requires contract for call extract_cell from extract: current.count == 1 (needs fact `run.count == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call extract_cell from extract: current in toolchain:product::Live<type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(WordPlacement\\)\\))),type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(Word\\)\\)))> (invalidated by prior mutation of current.count; current is part of Live) in state `entry`
-fail/facts/typed_run_singleton_double_drop rejected 9014ms expected @9a26074461a7
+fail/facts/typed_run_singleton_double_drop rejected 11553ms expected @82d911de2f69
 	cannot use `value` in machine `finish` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 1727ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
@@ -14743,9 +14749,9 @@ fail/generics/extraction_inactive_case rejected 2151ms expected @ccdb99ca2214
 	machine `unpack$specialized$969b19dd495faa28$0` state `entry` statement 1: cannot prove selected case for payload access `result.value`: captured source `result::Moved.value` has no live case evidence
 fail/generics/extraction_linear_payload_reuse rejected 9851ms expected @ee4dbb4b2d56
 	cannot use `result` in machine `reuse` state `entry` (statement 2) after `result` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
-fail/generics/extraction_retagged_payload rejected 1042ms unexpected @ccdb99ca2214
-	constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking
-	constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking
+fail/generics/extraction_retagged_payload rejected 8907ms expected @31087983ba35
+	machine `replaced` state `entry` statement 1: cannot prove selected case for payload access `result.stamp`: captured source `result::Moved.stamp` has no live case evidence: the current source does not select its required case
+	machine `replaced$specialized$fc806fa04d7e3fae$0$4815` state `entry` statement 1: cannot prove selected case for payload access `result.stamp`: captured source `result::Moved.stamp` has no live case evidence: the current source does not select its required case
 fail/generics/extraction_wrong_application rejected 915ms expected @ccdb99ca2214
 	argument `result` for state `entry` expects `Extraction<Second>`, got `named value`
 fail/generics/field_store_generic_result_parameter_mismatch rejected 1098ms expected @ccdb99ca2214
@@ -15014,6 +15020,10 @@ fail/generics/owned_member_const_operand_is_not_type rejected 677ms expected @cc
 	machine `identity` static argument 1 requires its declared binder kind, not a const value
 fail/generics/parameter_value_concrete_local_mismatch rejected 712ms expected @ccdb99ca2214
 	machine `wrong` state `entry` local `count` expects `u8`, but the value is delivered as `Input`
+fail/generics/phantom_owned_constructor_unproved rejected 5523ms expected @31087983ba35
+	data `Owner` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Owner` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Owner` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/property_bound_violated_at_instantiation rejected 1049ms expected @ccdb99ca2214
 	type parameter `T [copy]` of `Box` was instantiated with `Heavy`, which does not satisfy `[copy]`
 	data `Box<Heavy>` declares `[copy]` but field `value` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
@@ -15298,7 +15308,7 @@ fail/host/process_exit_reach_keeps_return_obligations rejected 2609ms expected @
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/host/returning_exit_spelling_keeps_linear_obligations rejected 1963ms expected @ccdb99ca2214
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
-fail/inline_asm/asm_cli_requires_machine_authority rejected 197ms expected @ccdb99ca2214
+fail/inline_asm/asm_cli_requires_machine_authority rejected 1714ms expected @baac73bc4049
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_deriver_only_exit rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/inline_asm/asm_deriver_only_exit/main.omg:6:11: asm instruction `iretq` is deriver-only: user-authored assembly may not spell entry/exit protocol operations or manufacture an unmodeled control exit
@@ -15322,7 +15332,7 @@ fail/inline_asm/asm_msr_index_width rejected 796ms expected @0af7c594a1c0
 	asm instruction `rdmsr` operand `MSR index` requires an exact `u32` for target register `ecx`, found `u64`
 fail/inline_asm/asm_msr_machine_authority rejected 452ms expected @0af7c594a1c0
 	machine `Main::main` uses asm instruction `wrmsr`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_port_io_service_required rejected 3482ms expected @03522ca11fdf
+fail/inline_asm/asm_port_io_service_required rejected 3148ms expected @baac73bc4049
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/inline_asm/asm_port_out_wrong_value_type rejected 2669ms expected @ccdb99ca2214
 	asm instruction `out` operand `value` requires an exact `u8` for target register `al`, found `u16`
@@ -15331,6 +15341,9 @@ fail/inline_asm/asm_runtime_register_excluded_port_io rejected 6189ms expected @
 	authority subject `toolchain::PortIo` exercises excluded physical authority class PortIo through mechanism CompilerIntrinsic(BuiltinFunction(AsmPortOut))
 fail/inline_asm/asm_runtime_register_wrong_target rejected 6098ms expected @0af7c594a1c0
 	native artifact provider supply failed: reachable machine `nominal(package-owner(32:2edfa8c9eaa87af8be6fd1bb6bc34b0bdf127c0f47bd777a1d19d70478695716),path(Main::main))` carries checked assembly whose catalog requires x86_64, which the realized target `linux_arm64` does not provide; scope that assembly to a target the catalog admits for x86_64, or build a target that provides it
+fail/inline_asm/asm_service_requires_core_owner rejected 3235ms expected @baac73bc4049
+	machine `halt` uses asm instruction `hlt`, which reaches canonical service `MachineControl`, but that service identity is unavailable: the core service is unavailable in this body's dependency context; add `use omega::language::core::assembly;`
+	machine `write_port` uses asm instruction `out`, which reaches canonical service `PortIo`, but that service identity is unavailable: the core service is unavailable in this body's dependency context; add `use omega::language::core::assembly;`
 fail/inline_asm/asm_sti_requires_machine_authority rejected 288ms expected @03522ca11fdf
 	machine `main` uses asm instruction `sti`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_system_register_destination_predicate rejected 6794ms expected @46cdd6b85b82+wt
@@ -15541,11 +15554,11 @@ fail/layouts/placed_factory_result_cannot_upgrade_source rejected 1826ms expecte
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 372ms expected @b43a5fa574e6
 	`Access<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
-fail/layouts/placed_primitive_denied_write rejected 2797ms expected @b43a5fa574e6
+fail/layouts/placed_primitive_denied_write rejected 3500ms expected @f78a4fddea0b
 	accessor write application: the access plan does not permit this operation
 fail/layouts/placed_primitive_generic_wrapper rejected 3358ms expected @b43a5fa574e6
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
-fail/layouts/placed_primitive_lookalike rejected 2482ms expected @b43a5fa574e6
+fail/layouts/placed_primitive_lookalike rejected 3488ms expected @f78a4fddea0b
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
 fail/layouts/placed_primitive_private_unused rejected 1353ms unexpected @ccdb99ca2214
 	generic machine `ignore` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
@@ -15591,6 +15604,8 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 7440ms expected @ccd
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/portable_layout_constant_composition rejected 3854ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() + align_of() == 24
+fail/layouts/private_callback_capacity_wrong_contract rejected 53911ms expected @6685712c7bf8
+	callback materialization binder and native-place demand require different callback contracts
 fail/layouts/private_callback_fragments_container_outside rejected 45373ms expected @72079e22578e+wt
 	symbolic field `private callback` writes outside the 16-byte materialization
 fail/layouts/private_callback_fragments_destination_overlap rejected 45351ms expected @72079e22578e+wt
@@ -15638,6 +15653,13 @@ fail/layouts/retained_constant_contract_parameters rejected 4162ms expected @ccd
 	constant checking: scalar predicate is false: requires contract for call require_size from main state entry statement 0
 fail/layouts/retained_layout_predicate_decisions rejected 3698ms unexpected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() < 8 || size_of() == 32 && !size_of() != 16 && align_of() == 8 == true
+fail/layouts/run_qualified_element_unestablished rejected 21226ms expected @cc29edcd2fc2
+	cannot prove requires contract for call initialize_cell from allocated: Word in Word::Owned in state `entry`
+	cannot prove requires contract for call extract from allocated: (__transition_subject#197.view as Run<WordPlacement, Word in Owned> ).storage.base == backing_base (needs fact `run.storage.base == backing_base` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call extract from allocated: (__transition_subject#197.view as Run<WordPlacement, Word in Owned> ).storage.length == backing_length (needs fact `run.storage.length == backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	construction value is not proven in domain `Word::Owned` in allocated state `entry` at statement 6; a construction value must establish the domain's predicates and any required provenance
+fail/layouts/run_zero_sized_double_drop rejected 9055ms expected @2cd7911033f0
+	cannot use `value` in machine `released` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/layouts/runtime_restricted_shared_unbounded rejected 2783ms expected @911f6617ba9e
 	cannot prove index `position` is within length 4 in inspect::entry
 fail/layouts/runtime_value_is_not_layout_constant rejected 3002ms expected @ccdb99ca2214
@@ -15779,12 +15801,14 @@ fail/memory/resident_result_requires_execution_contract rejected 1333ms expected
 fail/memory/resident_transfer_cast_forgery rejected 2632ms expected @ccdb99ca2214
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: storage requires Resident
-fail/memory/typed_run_backing_geometry rejected 6920ms expected @c35d90e77142
+fail/memory/typed_run_backing_geometry rejected 11394ms expected @82d911de2f69
 	cannot prove requires contract for call extract from allocated: (__transition_subject#183.view as Run<WordPlacement, Word> ).storage.length != backing_length (needs fact `run.storage.length != backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/memory/typed_run_empty_forgery rejected 5035ms expected @2b6f0be25ff2
+fail/memory/typed_run_empty_forgery rejected 9437ms expected @82d911de2f69
 	cannot prove default-domain field requirement for return from counterfeit, state entry, at statement 1: result requires Live
-fail/memory/typed_run_empty_nonempty_backing rejected 5009ms expected @2b6f0be25ff2
+fail/memory/typed_run_empty_nonempty_backing rejected 8328ms expected @82d911de2f69
 	cannot prove requires contract for call empty from counterfeit: storage.length == 0 (needs fact `storage.length == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/memory/typed_run_release_obligations rejected 8617ms expected @82d911de2f69
+	cannot prove requires contract for call release_empty from missing_count: run.count == 0 (needs fact `run.count == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/vacant_transfer_checked_adapter_forgery rejected 2567ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Vacant
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Granted
@@ -17039,8 +17063,8 @@ fail/proofs/structural_mathematical_predicate_wrong_polarity rejected 21043ms ex
 	cannot prove default-domain field requirement for return from invalid_unequal, state entry, at statement 0: NotTen.value requires Word::NotTen
 fail/proofs/unknown_boolean_return_is_not_omitted rejected 3415ms expected @0d0c11daa127
 	cannot prove requires contract for call demand from main: choose(false) == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/value_call_refuted_inequality_rejected rejected 674ms expected @ccdb99ca2214
-	machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false (`Nat::Zero != Nat::Zero`)
+fail/proofs/value_call_refuted_inequality_rejected rejected 6346ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false (`Nat::Zero != Nat::Zero`)
 fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 12168ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0
 fail/proofs/zero_value_executable_rejected rejected 990ms expected @ccdb99ca2214
@@ -18192,6 +18216,8 @@ fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expect
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
 	machine call cycle: `walk_flat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/declared_selector_repeated_reads_no_descent rejected 4550ms expected @d0dc0a825502
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/default_order_ambiguous rejected 3383ms expected @898dd1bf8987
 	cannot infer a ranking for `terminates by remaining` in machine Main::countdown: signed values have no default well-founded order -- select one with `terminates by remaining -> View` (builtin views: Nat::Descending, Nat::BoundedDistance, Slice::Length)
 	machine call cycle: `Main::countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -18640,7 +18666,7 @@ fail/traits/data_subject_implementation_retired rejected 2ms expected @ccdb99ca2
 	tests/omega/fail/traits/data_subject_implementation_retired/main.omg:18:10: data does not satisfy traits; declare a named implementation `Name satisfies Trait<Data> { ... }` that names each data type as an ordinary trait argument and binds every requirement row
 fail/traits/declaration_identity_forwarded_as_callable rejected 2062ms expected @a03fad3bb4a0
 	machine parameter `Requirement` forwarded into `apply`: declaration identity and callable requirement are different parameter roles
-fail/traits/default_row_foreign_captured_operand rejected 650ms expected @ccdb99ca2214
+fail/traits/default_row_foreign_captured_operand rejected 2168ms expected @07aa19d13db7
 	machine `Mapped::Reader::read` state `read` parameter `value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/dyn_array_whole_missing_element rejected 1127ms expected @ccdb99ca2214
@@ -18750,8 +18776,8 @@ fail/traits/exact_requirement_stronger_precondition rejected 1597ms expected @cc
 	machine `only_nonzero` realizes `Accept::accept` but requires `value > 0`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/explicit_implementation_binder_trait_arguments rejected 145ms expected @ccdb99ca2214
 	`Order` is bound as `Ranked<T>`, not the `Ranked<Card>` this call of `Ranked::compare` names
-fail/traits/explicit_implementation_const_identity rejected 199ms expected @ccdb99ca2214
-	`ConsumerMap<i32, 7>` implements `Consumer<Value, SelectedReading<Value, Tag>>`, not the `Consumer<i32, SelectedReading<i32, 19>>` this call of `Consumer::tag` names
+fail/traits/explicit_implementation_const_identity rejected 1760ms expected @07aa19d13db7
+	`ConsumerMap<i32, 7>` implements `Consumer<Value, SelectedReading<Value, Tag>>`, not the `Consumer<i32, SelectedReading<i32, 19>>` this call of `Consumer::tag` names; expected [named(name(i32)), generic(name(nominal\\(package-owner\\(32:41cbab9e08999bb99724534e091ec77a650eee63495a468998d3b615d4eb327c\\)\\,path\\(SelectedReading\\)\\)),named(name(i32)),integer(7))], supplied [named(name(i32)), generic(name(nominal\\(package-owner\\(32:41cbab9e08999bb99724534e091ec77a650eee63495a468998d3b615d4eb327c\\)\\,path\\(SelectedReading\\)\\)),named(name(i32)),integer(19))]
 fail/traits/explicit_implementation_const_in_type_argument rejected 274ms expected @ccdb99ca2214
 	trait `Invalid` parent `Consumer` cannot bind implementation `Reader`: conformance `SelectedReading` parameter `Value` requires a type argument, but `7` has another static category
 fail/traits/explicit_implementation_inherited_trait_arguments rejected 180ms expected @ccdb99ca2214
@@ -18837,7 +18863,7 @@ fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c7
 	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
 fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
 	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
-fail/traits/inherited_nominal_requirement_wrong_application rejected 544ms expected @26231d1dbd74+wt
+fail/traits/inherited_nominal_requirement_wrong_application rejected 2298ms expected @07aa19d13db7
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
@@ -19825,6 +19851,7 @@ pass/build/component_declaration_scalar_conditions_exit checked 4486ms check-tar
 pass/build/component_scalar_borrowed_continuation checked 14890ms check-target:macos_arm64 terminal-runtime.entry:match terminal-inspections:match @1c738b2ffe7e
 pass/build/conditional_root_binding checked 7552ms check-target:windows_x86_64 terminal-runtime.build:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/const_index_dependency_order_exit checked 3890ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/copied_domain_source_exit checked 5756ms check-target:macos_arm64 @76f8b43fee74
 pass/build/crash_exclusion_closed_provider_exit checked 3584ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/crash_exclusion_unexecuted_helper_exit checked 5404ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/crash_exclusion_untrapping_provider_exit checked 4287ms check-target:macos_arm64 @ccdb99ca2214
@@ -19876,6 +19903,8 @@ pass/build/native_component_reuse checked 7177ms check-target:macos_arm64 @ccdb9
 pass/build/native_component_reuse_foreign checked 6215ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_generated_dependency_dual_purpose checked 4792ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_provider_readiness checked 11097ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/optional_build_product_exit checked 5825ms check-target:macos_arm64 @7790304360ab
+pass/build/optional_product_only_exit checked 5638ms check-target:macos_arm64 @7790304360ab
 pass/build/package_batch_distinct_builds checked 4446ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/package_owned_callable_identity checked 1635ms check-target:macos_arm64 @946b56944a1b
 pass/build/policy_array_entry_context_exit checked 6336ms check-target:macos_arm64 @911f6617ba9e
@@ -19890,7 +19919,7 @@ pass/build/provider_nested_type_application_exit checked 4739ms check-target:mac
 pass/build/provider_package_default_exit checked 3805ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match provider-choice-controls:match terminal-inspections:match @867738eb9535+wt
 pass/build/provider_package_default_override_exit checked 4951ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_package_generated_owner_exit checked 5691ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/build/provider_package_helper_exit checked 4672ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/build/provider_package_helper_exit checked 4626ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45a5c677e255
 pass/build/provider_selection_cross_file_author_exit checked 4881ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_structural_type_application_exit checked 5285ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_target_value_forwarding_exit checked 3407ms check-target:macos_arm64 @ccdb99ca2214
@@ -19926,7 +19955,7 @@ pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:maco
 pass/build/task_register_activation checked 74734ms check-target:linux_x86_64 @2b8a1382008c
 pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @4b50ded92ae9
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
-pass/build/terminal_private_callback_calling checked 79138ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @f8fd5ea66130
+pass/build/terminal_private_callback_calling checked 261753ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @6685712c7bf8
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/uefi_context_cleanup_entry checked 113706ms check-target:uefi_x86_64 @ee4dbb4b2d56
@@ -23288,7 +23317,7 @@ pass/facts/installed_entry_storage_through_match_join_exit checked 4513ms check-
 pass/facts/installed_entry_storage_through_other_machine_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_other_state_exit checked 4608ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_parameter_exit checked 4575ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/installed_entry_storage_through_target_body_exit checked 4410ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/installed_entry_storage_through_target_body_exit checked 22386ms check-target:macos_arm64 @ab235e9fbe19
 pass/facts/integer_multiple_remainder_through_call_result_exit checked 4953ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/integer_multiple_remainder_through_const_name_exit checked 5790ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/integer_multiple_remainder_through_field_exit checked 5733ms check-target:macos_arm64 @911f6617ba9e
@@ -25133,9 +25162,9 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit checked 4
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 3591ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/typed_run_nested_owned checked 6936ms @9a26074461a7
-pass/facts/typed_run_singleton checked 16584ms check-target:macos_arm64 @2b6f0be25ff2
-pass/facts/typed_run_singleton_rejection checked 15499ms check-target:macos_arm64 @2b6f0be25ff2
+pass/facts/typed_run_nested_owned checked 10389ms @82d911de2f69
+pass/facts/typed_run_singleton checked 19325ms check-target:macos_arm64 @82d911de2f69
+pass/facts/typed_run_singleton_rejection checked 18834ms check-target:macos_arm64 @82d911de2f69
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
@@ -25942,6 +25971,7 @@ pass/generics/runtime_mixed_generic_erased_sum_exit rejected 8349ms check-target
 	construction of erased generic data `Mixed` is unsupported in this context; use a closed generic record in an explicitly typed local initializer
 pass/generics/runtime_nested_array_extent_binder_exit checked 9732ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_nested_generic_instantiations_exit checked 11978ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_phantom_owned_constructor_exit checked 11484ms check-target:macos_arm64 @31087983ba35
 pass/generics/runtime_qualified_closed_equation_exit checked 7733ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_result_destination_inference_exit checked 3637ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_selected_map_capture_invocation_scopes rejected 2864ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -26053,7 +26083,7 @@ pass/inline_asm/asm_aarch64_system_registers_compile checked 4578ms check-target
 pass/inline_asm/asm_block_jmp_state checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/inline_asm/asm_exact_clobbers checked 4527ms @0af7c594a1c0
 pass/inline_asm/asm_interrupt_control_compositions_compile checked 5303ms check-target:linux_x86_64 @bcfb0351ebd9
-pass/inline_asm/asm_machine_control_wrapper_reach checked 3375ms @ccdb99ca2214
+pass/inline_asm/asm_machine_control_wrapper_reach checked 5429ms @baac73bc4049
 pass/inline_asm/asm_memory_transfer checked 4217ms @ccdb99ca2214
 pass/inline_asm/asm_memory_transfer_compile checked 3528ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/inline_asm/asm_msr_multi checked 4572ms @0af7c594a1c0
@@ -26130,7 +26160,7 @@ pass/layouts/placed_factory_preserves_independent_source_predicate rejected 905m
 	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 pass/layouts/placed_policy_owner_selection rejected 1082ms regressed-from:checked @b43a5fa574e6
 	access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `place_status` state `entry` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-pass/layouts/placed_primitive_aligned_backing checked 4748ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/placed_primitive_aligned_backing checked 9325ms check-target:macos_arm64 @f78a4fddea0b
 pass/layouts/placed_primitive_authored_name checked 3262ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/placed_primitive_callback rejected 4065ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("closed reach call lost its exact emitted invocation"))
@@ -26149,7 +26179,7 @@ pass/layouts/placed_view_call_custody checked 11861ms terminal-inspections:match
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/private_callback_descriptor_fragments_exit checked 59018ms check-target:macos_arm64 @72079e22578e+wt
+pass/layouts/private_callback_descriptor_fragments_exit checked 110831ms check-target:macos_arm64 @6685712c7bf8
 pass/layouts/private_callback_inherited_policy_exit checked 50702ms check-target:macos_arm64 @26231d1dbd74+wt
 pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt
@@ -26190,7 +26220,7 @@ pass/layouts/runtime_offset_encoded_reference_exit checked 3337ms check-target:m
 pass/layouts/runtime_placed_accessor_writeback_exit incomplete 12629ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	`main` calls `mutate`, which calls `mutate::access`; `mutate::access` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `mutate::access::entry`
 pass/layouts/runtime_placed_external_array_snapshot_exit checked 8103ms check-target:macos_arm64 @b43a5fa574e6
-pass/layouts/runtime_placed_external_nested_array_exit checked 4648ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_placed_external_nested_array_exit checked 8243ms check-target:macos_arm64 @f78a4fddea0b
 pass/layouts/runtime_placed_outcome_array_read_exit rejected 3578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#87.view`: no captured source place is available
 	machine `main` state `entry` statement 4: cannot prove selected case for payload access `__transition_subject#87.view.entries`: no captured source place is available
@@ -26220,6 +26250,8 @@ pass/layouts/runtime_recast_reference_captures_index_exit rejected 1297ms check-
 	duplicate machine `read`
 pass/layouts/runtime_recursive_encoded_reference_exit checked 3734ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_returned_encoded_reference_exit checked 3129ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_run_qualified_element_exit checked 29456ms check-target:macos_arm64 @cc29edcd2fc2
+pass/layouts/runtime_run_zero_sized_element_exit checked 14402ms check-target:macos_arm64 @2cd7911033f0
 pass/layouts/runtime_selected_reference_parent_restoration_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_selected_scalar_reference_codec_exit checked 3248ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_size_of_align_of_exit rejected 108773ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
@@ -27665,6 +27697,7 @@ pass/termination/computed_rank_endpoint checked 8241ms @d352d5e8e77e
 pass/termination/const_call_range_endpoint checked 3875ms @ccdb99ca2214
 pass/termination/custom_measure_rank checked 3482ms @ccdb99ca2214
 pass/termination/custom_ranking_order_compile checked 2938ms @ccdb99ca2214
+pass/termination/declared_selector_repeated_reads checked 6396ms check-target:macos_arm64 @d0dc0a825502
 pass/termination/default_order_nat_countdown_compile checked 2487ms @ccdb99ca2214
 pass/termination/default_order_slice_length_compile checked 7702ms @7b4244a67630
 pass/termination/distance_conjunction_guard_exit checked 13452ms check-target:macos_arm64 @ccdb99ca2214
@@ -27954,7 +27987,7 @@ pass/traits/default_row_mixed_captured_operand checked 2448ms @ccdb99ca2214
 pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/default_row_same_spelled_supplier_region_exit checked 12622ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
-pass/traits/default_row_shadowed_captured_operand_exit checked 3328ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/default_row_shadowed_captured_operand_exit checked 6147ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
 pass/traits/dyn_finite_family_dispatch checked 6343ms @05a6f6af37ec+wt
 pass/traits/equatable_implementation_selection_exit checked 13184ms check-target:macos_arm64 @ccdb99ca2214
@@ -27978,9 +28011,9 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/inherited_nominal_requirement_application_exit checked 3538ms check-target:macos_arm64 @26231d1dbd74+wt
+pass/traits/inherited_nominal_requirement_application_exit checked 5852ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
-pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_exit checked 2546ms check-target:macos_arm64 @45a5c677e255
 pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 17731ms check-target:macos_arm64 @6b1c338126fa
@@ -28044,7 +28077,7 @@ pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-
 pass/traits/runtime_dyn_suspending_unit_call_exit checked 53328ms check-target:macos_arm64 @cb2bb7751cae+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_explicit_implementation_arguments_exit checked 6396ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/runtime_explicit_implementation_requirement_call_exit checked 12754ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_finite_family_affine_result_exit checked 83120ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/traits/runtime_finite_family_correlated_case_result_exit checked 115725ms check-target:macos_arm64 @05a6f6af37ec+wt

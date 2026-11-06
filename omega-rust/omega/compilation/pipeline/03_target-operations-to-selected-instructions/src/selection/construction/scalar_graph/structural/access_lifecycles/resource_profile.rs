@@ -352,7 +352,9 @@ fn validate_layout(
         profile_bytes: layout.bytes,
         scratch,
     };
-    let valid = emission.nonzero(builder, available)?;
+    // Empty backing has an empty supply roster, not a malformed profile.
+    // Active regions still require positive length and containment below.
+    let valid = emission.constant(builder, 1)?;
     emission.write_scratch(builder, VALID, valid)?;
     let displacement = emission.constant(builder, u64::from(profile.byte_offset))?;
     let pointer = bin!(emission => builder => WrappingAddI64 => profile.pointer => displacement)?;

@@ -357,7 +357,7 @@ pub(crate) fn verify_macos_cache_ancestor_acl_custody(
     Ok(Some(opened))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 pub(crate) fn verify_macos_cache_ancestor_acl_custody(
     _kind: CacheCustodyKind,
     _path: &Path,

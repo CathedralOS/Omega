@@ -80,7 +80,7 @@ fn normalize_constraint_span(
         };
         let authored_name = domain_constraint.name.as_str();
         let reference = domain_constraint
-            .authored_selection
+            .source_selection
             .map(|selection| selection.source_span)
             .filter(|span| span.span.start != span.span.end);
         let matches = select_domain_candidates(
@@ -101,11 +101,13 @@ fn normalize_constraint_span(
             continue;
         };
 
-        if let Some(authored) = domain_constraint.authored_selection {
+        if let Some(authored) = domain_constraint.source_selection
+            && let Some(exposure) = authored.authored_exposure
+        {
             program
                 .record_resolved_authored_declaration_selection_once(
                     authored.source_span,
-                    authored.exposure,
+                    exposure,
                     language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::DomainMembership,
                     domain.symbol,
                 )
@@ -156,7 +158,7 @@ fn normalize_constraint_span(
                 predicate_presence: domain.predicate_presence,
                 semantic_roles,
                 establishment_routes: domain.establishment_routes.clone(),
-                authored_selection: None,
+                source_selection: None,
             }));
             continue;
         }
@@ -202,7 +204,7 @@ fn normalize_constraint_span(
                 establishment_routes: declaration
                     .map(|domain| domain.establishment_routes.clone())
                     .unwrap_or_default(),
-                authored_selection: None,
+                source_selection: None,
             }));
         }
     }

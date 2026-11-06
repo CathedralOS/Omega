@@ -1,5 +1,16 @@
 # Stage-by-Stage Compiler Optimization Ledger (`omega-rust`)
 
+## Call-contract citation replay: attribution - 2026-11-05
+
+No optimization tried. `rat_close_triangle_split` (`core/rat.omg`) costs about 830 ms per
+compile that loads the float stack and 6.7% of attributed checker work over a 510-test
+shard. Per-call-site profile rows show calls that prove preconditions growing from 34 ms
+(statement 26, 2 earlier lemma citations) to 387 ms (statement 37, 13 citations), while
+calls without preconditions stay near 0.01 ms. Each call requirement re-walks the state
+prefix, and `establish_citation` re-proves every earlier lemma's preconditions in it.
+Next: one prefix walk per state shared by all its call sites.
+[Evidence and limits](checker_citation_replay_2026_11_05/README.md).
+
 ## Repeated integer premise preparation: attribution - 2026-10-29
 
 No optimization retained. A fresh instrumented update took 127.65 s; inclusive

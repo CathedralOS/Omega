@@ -1435,16 +1435,17 @@ pub struct DomainConstraint {
     pub predicate_presence: language_semantics::DomainPredicatePresence,
     pub semantic_roles: language_semantics::DomainSemanticRoles,
     pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
-    /// Temporary source custody retained only until carrier-aware domain
-    /// normalization can bind the authored spelling to an exact symbol and
-    /// move the occurrence into the declaration-selection ledger.
-    pub authored_selection: Option<AuthoredDomainConstraintSelection>,
+    /// Copied fields still resolve domains in their supplying source, even
+    /// when they create no new authored selection. Normalization consumes this
+    /// source custody after binding the exact declaration.
+    pub source_selection: Option<DomainConstraintSource>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub struct AuthoredDomainConstraintSelection {
+pub struct DomainConstraintSource {
     pub source_span: source::SourceSpan,
-    pub exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    pub authored_exposure:
+        Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
 }
 
 impl DomainConstraint {
