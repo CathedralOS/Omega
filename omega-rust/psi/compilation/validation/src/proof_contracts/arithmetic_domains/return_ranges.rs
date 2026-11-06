@@ -248,13 +248,15 @@ pub(crate) fn validate_return_value_range(
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
 
-    if let Some(_) = validate_anonymous_integer_range(
+    if validate_anonymous_integer_range(
         program,
         state.return_type,
         return_expression,
         owner,
         diagnostics,
-    ) {
+    )
+    .is_some()
+    {
         return;
     }
     if range_constraint_interval(program, state.return_type).is_some() {

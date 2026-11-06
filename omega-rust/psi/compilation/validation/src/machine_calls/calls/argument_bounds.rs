@@ -51,13 +51,15 @@ pub(super) fn report_argument_bounds(
         diagnostics,
         formation_obligations,
     );
-    if let Some(_) = arithmetic_domains::validate_anonymous_integer_range(
+    if arithmetic_domains::validate_anonymous_integer_range(
         program,
         parameter.type_reference,
         argument,
         &owner,
         diagnostics,
-    ) {
+    )
+    .is_some()
+    {
         return;
     }
     let parameter_domain = program.arithmetic_domain_for_type_reference(parameter.type_reference);

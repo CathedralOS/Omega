@@ -365,14 +365,10 @@ fn literal_satisfies_declared_const(
     let Ok(value) = i128::try_from(length) else {
         return false;
     };
-    if !primitive.accepts_integer_literal()
-        || !crate::value_custody::type_references::const_integer_value_fits_primitive(
+    primitive.accepts_integer_literal()
+        && crate::value_custody::type_references::const_integer_value_fits_primitive(
             primitive, value,
         )
-    {
-        return false;
-    }
-    true
 }
 
 /// A `collection[a..b]` range result is a fresh view over the collection's own

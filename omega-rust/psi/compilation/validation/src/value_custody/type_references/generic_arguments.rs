@@ -1607,7 +1607,6 @@ fn validate_const_integer_carrier(
             parameter.name,
             primitive.name()
         )));
-        return;
     }
 }
 
