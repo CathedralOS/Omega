@@ -187,6 +187,10 @@ python3 tools/fmt.py --check
 
 Use `cargo` when `mbx` is unavailable. Never run an unfiltered corpus sweep
 locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
+Validate source and replay inputs in the remote checkout before building.
+A local commit may be unpublished or absent from a shallow checkout; supply
+its exact objects or a reviewed input-object roster. Keep the actual producer
+identity distinct from the CI wrapper revision.
 
 ## The Psi/Omega firewall
 

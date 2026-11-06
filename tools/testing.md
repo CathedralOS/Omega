@@ -409,6 +409,14 @@ or an unrelated refusal do not establish that the fact is enforced. Keep source
 rejection, unsupported publication and runtime failure distinct, and name
 unavailable hosts. Consult CLI help before combining unfamiliar modes or flags.
 
+Validate source and replay inputs in the actual remote checkout before an
+expensive build. A local source commit may be unpublished, and a shallow checkout
+may lack a published ancestor. Make the exact source objects available, or supply
+an input-object roster derived from the reviewed source, retaining its bytes and
+digest. Compare every consuming checkout object against that roster throughout
+the capture. Record the wrapper revision and actual producer identity separately;
+preserve setup failures and corrected attempts with their own results.
+
 Prepare ordinary package acceptance before a frozen execution capture. Publishing
 an ignored `omega.lock` can change its source directory's timestamps even when
 tracked sources are unchanged, correctly invalidating that capture's stability
