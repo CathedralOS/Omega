@@ -1612,7 +1612,7 @@ impl<'program> CallFrameResolver<'program> {
         current_machine: &'program Machine,
         site: &crate::CallSite<'program>,
     ) -> NormalizedWriteFrame {
-        let written = (|| -> Result<Vec<String>, &'static str> {
+        let written = (|| -> Result<Vec<String>, String> {
             let machine_symbols = self
                 .machine_symbols(current_machine)
                 .ok_or("caller symbols unavailable")?;
@@ -1648,9 +1648,18 @@ impl<'program> CallFrameResolver<'program> {
                     )
                 }
                 crate::CallSite::TransitionNamed { .. } => {
-                    return Err("named transition has no boundary invocation capture");
+                    return Err("named transition has no boundary invocation capture".to_owned());
                 }
             };
+            // This existing catalog authenticates the generated target, exact
+            // field policy and scalar signature. An authored opaque boundary
+            // cannot acquire scalar-access effects through its spelling.
+            let scalar_accessor =
+                typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(
+                    self.program,
+                    target_symbol,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
             let captured = self
                 .invocation_write_origins(current_machine, site)
                 .ok_or("invocation inputs unavailable")?;
@@ -1723,10 +1732,14 @@ impl<'program> CallFrameResolver<'program> {
                             Some(&argument_origins),
                         )
                     })?;
-                    prefix.close_observed_paths(self.program, written)
+                    if scalar_accessor.is_some() {
+                        Some(prefix.close_scalar_access_paths(written))
+                    } else {
+                        prefix.close_observed_paths(self.program, written)
+                    }
                 },
             )
-            .ok_or("signature input write closure unavailable")
+            .ok_or_else(|| "signature input write closure unavailable".to_owned())
         })();
         match written {
             Ok(paths) => NormalizedWriteFrame::complete(paths),
