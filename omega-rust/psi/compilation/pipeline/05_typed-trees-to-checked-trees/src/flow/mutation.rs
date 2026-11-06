@@ -320,39 +320,12 @@ fn call_write_places(
             )
         });
     if summarized_places.is_none() && matches!(namespace, WritePlaceNamespace::Storage) {
-        let boundary_target = program.traits().iter().any(|definition| {
-            definition.is_boundary
-                && program
-                    .trait_machine_signature_by_symbol(definition, borrow_call.target_symbol)
-                    .is_some()
-        });
-        if boundary_target {
-            // Boundary effects retain their exact receiver and argument footprint,
-            // including shared interior authority; a signature ceiling is not a
-            // replacement for that separately owned contract.
-            return phase_profile::scope("psi.05.build_check_facts.flow.mutation.boundary", || {
-                shared_call_storage_regions(
-                    program,
-                    caller_machine_symbol,
-                    caller_state_symbol,
-                    borrow,
-                    borrow_call,
-                    call_frames,
-                )
-                .map(unattributed_writes)
-            });
-        }
-        // Flow invalidation is the invocation after its operands completed.
-        // Borrow argument accesses also contain nested operand calls; replaying
-        // those here would retire facts those completed calls just restored.
-        // The callee's declared authority bounds an unknown invocation. An
-        // unrepresentable ceiling stays unknown and invalidates all contexts.
-        return phase_profile::scope("psi.05.build_check_facts.flow.mutation.ceiling", || {
-            ceiling::signature_ceiling_regions(
+        return phase_profile::scope("psi.05.build_check_facts.flow.mutation.contract", || {
+            call_contract_storage_regions(
                 program,
                 caller_machine_symbol,
                 caller_state_symbol,
-                Some(borrow),
+                borrow,
                 borrow_call,
                 call_frames,
             )
@@ -462,7 +435,10 @@ fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
         .collect()
 }
 
-fn shared_call_storage_regions(
+/// Direct calls and transitive summaries use the same declaration contract.
+/// A boundary-trait operation keeps its exact admitted frame; ordinary calls
+/// retain the signature's storage ceiling. An unavailable ceiling stays unknown.
+fn call_contract_storage_regions(
     program: &dyn ::validation::CheckingInput,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
@@ -493,6 +469,22 @@ fn shared_call_storage_regions(
                 )
             }
         };
+    }
+    if !program
+        .trait_machine_signature(borrow_call.target_symbol)
+        .is_some_and(|(definition, _)| definition.is_boundary)
+    {
+        // Operands already completed before this invocation. Include only its
+        // own authority here, just as the direct-call invalidation does; nested
+        // operand calls have their own chronological writes.
+        return ceiling::signature_ceiling_regions(
+            program,
+            caller_machine_symbol,
+            caller_state_symbol,
+            Some(borrow),
+            borrow_call,
+            call_frames,
+        );
     }
     let machine = program.machine_by_symbol(caller_machine_symbol)?;
     let state = program.state_by_symbol(caller_state_symbol)?;

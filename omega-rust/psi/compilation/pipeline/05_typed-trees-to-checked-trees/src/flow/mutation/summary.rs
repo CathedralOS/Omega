@@ -4,10 +4,10 @@
 //! complete-or-opaque call and cycle law. This module retains symbol-based
 //! field/range places for flow invalidation and propagates those places across
 //! the calls which the shared resolver admitted as complete.
-//! A boundary signature has no local state summary, but its complete frame is
-//! still a dependency: project its receiver and argument writes into caller
-//! storage before propagating them. Absence of a body is not opacity; absence
-//! of a complete frame or representable storage origin still is.
+//! A declaration-only call has no local body summary. Read its storage contract
+//! through the same owner used by direct calls, then propagate the resulting
+//! writes. Absence of a body is not opacity; an unavailable contract or storage
+//! origin still is.
 //! Storage effects and exclusive access are separate: sealed atomic operations
 //! invalidate values but use shared access. Retain that operation provenance
 //! across calls instead of turning every caller-visible write into a mutable
@@ -510,11 +510,12 @@ fn propagate_state_mutation_summaries(
                         if *seen_writes > 0 {
                             continue;
                         }
-                        // Signature-only calls are already admitted by the shared
-                        // frame law. Import that frame in caller coordinates; an
-                        // unresolved frame/origin must not become an empty summary.
-                        // The held run includes all of it, like any call's.
-                        let Some(writes) = super::shared_call_storage_regions(
+                        // Use the same contract as a direct invocation. Requiring
+                        // a separate boundary frame here can lose a proven empty
+                        // signature ceiling and make a read-only wrapper appear
+                        // to overwrite its arguments. Unknown remains unknown.
+                        // The held run includes every permitted write.
+                        let Some(writes) = super::call_contract_storage_regions(
                             program,
                             caller_machine,
                             caller_symbol,
