@@ -137,14 +137,20 @@ pub(crate) fn check_indexed_accesses(
                         })
                         .collect()
                 };
-                let state_argument_facts = if non_entry_has_indexed {
+                let state_argument_facts = if state_has_indexed
+                    .iter()
+                    .copied()
+                    .any(std::convert::identity)
+                {
                     collect_state_argument_facts(
                         program,
                         &field_lengths,
                         &bound_lookup,
                         machine,
                         call_frames,
-                        &calls,
+                        borrows,
+                        flow,
+                        semantic,
                         operators,
                         mutation_summaries,
                     )
