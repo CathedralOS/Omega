@@ -258,7 +258,7 @@ pub fn admit_specification_calls(
             Some(language_semantics::TerminationGuarantee::Terminates { premises })
                 if premises.is_empty()
         ) {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "DENOTATION termination request={request:?} machine={} summary={summary:?} expression={:?}",
                     program.symbols.name(request.target_machine),

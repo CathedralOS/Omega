@@ -289,7 +289,7 @@ pub(super) fn return_value_operation(
         state.return_type,
         &crate::execution::terminal_unit::types::machine_binders(program, machine),
     );
-    if result.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+    if result.is_none() && ::validation::trace_flags::trace_completion() {
         eprintln!(
             "CHECKSITE completion-return-type machine={} state={} type={:?} declaration={:?} stored_loan={:?} slice={:?}",
             machine.name,
@@ -317,7 +317,7 @@ pub(super) fn return_value_operation(
         false,
         &mut operand_calls,
     );
-    if operation.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+    if operation.is_none() && ::validation::trace_flags::trace_completion() {
         eprintln!(
             "CHECKSITE completion-return-producer machine={} state={} root={:?} value={:?}",
             machine.name,

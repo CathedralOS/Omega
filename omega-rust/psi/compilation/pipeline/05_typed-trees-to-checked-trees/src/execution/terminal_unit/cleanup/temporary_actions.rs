@@ -936,7 +936,7 @@ pub(crate) fn finalize_completion_actions(
                     refusal = format!(
                         "{site}: temporary operand has incomplete backing lifetime coverage"
                     );
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if ::validation::trace_flags::check_sites() {
                         refusal.push_str(&incomplete_lifetime_capture_diagnostic(
                             program,
                             &facts.flow.control,

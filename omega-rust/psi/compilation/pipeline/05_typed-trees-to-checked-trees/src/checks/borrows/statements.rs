@@ -314,7 +314,7 @@ pub(super) fn check_statement_borrows<'p>(
                 {
                     continue;
                 }
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if ::validation::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT local-loan-conflict new={loan_handle:?} row={loan:?} active={active_loan_handle:?} row={active_loan:?} new_path={:?} active_path={:?} lineage={retained_lineage:?}",
                         facts.borrow.loan_segments(loan),
@@ -686,7 +686,7 @@ pub(super) fn check_statement_borrows<'p>(
                 .map(|reason| format!("; {reason}"))
                 .unwrap_or_default();
             let loan = facts.borrow.loans.get(loan_handle);
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT mutation-loan-conflict statement={} loan={loan_handle:?} row={loan:?} path={:?} suppliers={:?} incoming={:?}",
                     statement.statement_index,

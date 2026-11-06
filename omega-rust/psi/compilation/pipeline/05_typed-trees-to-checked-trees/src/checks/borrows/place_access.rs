@@ -215,7 +215,7 @@ pub(super) fn argument_backings(
         .ok_or("the source place has no retained authority");
     }
     let selected = selected.ok_or_else(|| {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if ::validation::trace_flags::check_sites() {
             trace_argument_capture_refusal(facts, state, call, access);
         }
         "the access has no unique completed operand"

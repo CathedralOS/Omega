@@ -274,7 +274,7 @@ fn has_observation_free_closure(
         if !machine.supplies_checked_body() || !machine.body_is_present {
             let satisfiers = requirement_satisfiers(program, machine.symbol);
             if satisfiers.is_empty() {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "DENOTATION observation closure machine={:?} name={} is a requirement with no satisfier",
                         machine.symbol, machine.name,
@@ -292,7 +292,7 @@ fn has_observation_free_closure(
                 .services(machine.service_reach_row)
                 .is_empty()
         {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "DENOTATION observation closure machine={:?} name={} supply={:?} body={} owned={} reach={}",
                     machine.symbol,
@@ -314,7 +314,7 @@ fn has_observation_free_closure(
                 .iter()
                 .any(|parameter| parameter.is_mutable)
             {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "DENOTATION observation closure machine={:?} name={} state={:?} has mutable parameters",
                         machine.symbol, machine.name, state.symbol,
@@ -366,7 +366,7 @@ fn has_observation_free_closure(
                     },
                 );
                 if !allowed {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "DENOTATION observation closure machine={:?} name={} state={:?} statement={statement:?}",
                             machine.symbol, machine.name, state.symbol,
@@ -421,7 +421,7 @@ fn expression_is_fact_observation_free(
                 ),
                 _ => SubtreeVisit::Descend,
             };
-            if visit == SubtreeVisit::Found && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if visit == SubtreeVisit::Found && crate::trace_flags::struct_trace() {
                 eprintln!("DENOTATION observation expression={handle:?} node={node:?}",);
             }
             visit

@@ -723,7 +723,7 @@ impl<'program> CallFrameResolver<'program> {
         StatementReferenceTransferRefusal,
     > {
         let trace_refusal = |phase: &str, state: SymbolHandle, index: Option<usize>| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if crate::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE stored-reference-statement-transfer-refusal machine={:?} state={:?} statement={:?} phase={}",
                     machine.symbol, state, index, phase,
@@ -1744,7 +1744,7 @@ impl<'program> CallFrameResolver<'program> {
         match written {
             Ok(paths) => NormalizedWriteFrame::complete(paths),
             Err(reason) => {
-                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                if crate::trace_flags::call_write_trace() {
                     eprintln!(
                         "CALLWRITE signature-invocation-unavailable caller={} reason={reason}",
                         current_machine.name
@@ -1764,7 +1764,7 @@ impl<'program> CallFrameResolver<'program> {
         expression: ExpressionHandle,
     ) -> NormalizedWriteFrame {
         let trace_unavailable = |stage: &str| {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT unavailable-operation-write caller={} expression={expression:?} stage={stage}",
                     current_machine.name,

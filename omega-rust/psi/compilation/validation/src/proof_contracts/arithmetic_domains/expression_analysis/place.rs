@@ -99,7 +99,7 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
             interval,
         )
     });
-    if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some()
+    if crate::trace_flags::reference_slot_trace()
         && crate::reference_shell(program, handle).is_some()
     {
         eprintln!(

@@ -539,7 +539,7 @@ pub(super) fn collect(
     };
     active.pop();
     if !resolved {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if ::validation::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT descriptor-permission-unavailable source={source:?} expression={:?} completion={:?} permission={:?} path={projection:?} frozen={frozen_kind}",
                 capture.expression, capture.completion, capture.descriptor_permission
@@ -713,7 +713,7 @@ fn collect_completed_output(
             true
         }
         Err(reason) => {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!("STRUCT supplied-descriptor-permission-refused {reason}");
             }
             false
@@ -754,7 +754,7 @@ fn collect_descriptor_captures(
         validation::completed_storage::StoredOperand::Value { .. } => "value",
     };
     let Some(selected) = selected.captures() else {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if ::validation::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT descriptor-capture-frontier-unavailable source={source:?} path={projection:?} kind={selection_kind} capture={capture:?}"
             );
@@ -972,7 +972,7 @@ fn collect_completed_formations(
             output,
             parents,
         ) {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT descriptor-predecessor-permission-unavailable source={source:?} predecessor={selected:?} path={projection:?}"
                 );
@@ -1007,7 +1007,7 @@ fn collect_invocation_accesses(
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> InvocationAccessCoverage {
     let unavailable = |reason| {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if ::validation::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT captured-call-access-refused source={source:?} call={call:?} expression={:?} reason={reason}",
                 capture.expression

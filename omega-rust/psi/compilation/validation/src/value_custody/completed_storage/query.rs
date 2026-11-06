@@ -420,7 +420,7 @@ fn sources_from_resolution(
 }
 
 fn trace_query_enabled(source: &CanonicalPlace) -> bool {
-    if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none() {
+    if !crate::trace_flags::storage_query_trace() {
         return false;
     }
     std::env::var("OMEGA_STORAGE_QUERY_TRACE_ROOT")

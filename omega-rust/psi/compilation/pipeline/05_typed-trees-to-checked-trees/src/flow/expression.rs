@@ -647,7 +647,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .collect::<Option<Vec<_>>>()
             })
             .flatten();
-        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        if ::validation::trace_flags::call_write_trace() {
             eprintln!(
                 "CALLWRITE recorded state={:?} statement={} ordinal={} bindings={binding_writes:?} observations={observations:?}",
                 self.state.symbol, borrowed_call.statement_index, borrowed_call.call_ordinal

@@ -1485,7 +1485,7 @@ pub fn storage_place_loans(
             home_path.as_ref(),
         )
         .ok_or_else(|| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if crate::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE storage-loan-home loan={handle:?} formation={:?} storage_owner={:?} root={:?} reference={reference:?} published_path={:?} home_path={home_path:?}",
                     loan.formation_expression, loan.storage_owner, loan.root,

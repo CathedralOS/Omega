@@ -45,7 +45,7 @@ impl Retirement<'_> {
                     return true;
                 }
                 if self.carrier_retired(result, &mut Vec::new()) {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if ::validation::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE carrier-child-settled state={:?} parent={} child={result:?} value={value:?} at_exit={} pending_owner={:?}",
                             self.state.symbol, parent.binding_ordinal, self.at_exit, self.uncommitted_owner,
@@ -198,7 +198,7 @@ impl Retirement<'_> {
             )
             .is_some_and(|loans| loans.is_empty())
         {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE carrier-frame-completion state={:?} result={result:?} pending_owner={:?} reason=no-local-loans",
                     self.state.symbol, self.uncommitted_owner,

@@ -168,7 +168,7 @@ pub(super) fn value_frontier(
         !paths.iter().all(|path| matching.contains(path))
             || matching.iter().any(|path| !paths.contains(path))
     }) {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if ::validation::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT suspension-leaf-frontier value={:?} type={type_reference:?} required={paths:?} matching={:?}",
                 value.origin,
@@ -747,7 +747,7 @@ pub(super) fn retained_lifetime_demand(
             _ if crate::checks::borrows::transport_suppliers(borrow, state, loan_handle)
                 .is_some() => {}
             _ => {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE suspension-lifetime-resource-unavailable loan={loan_handle:?} row={loan:?} resource={parent_resource:?}"
                     );

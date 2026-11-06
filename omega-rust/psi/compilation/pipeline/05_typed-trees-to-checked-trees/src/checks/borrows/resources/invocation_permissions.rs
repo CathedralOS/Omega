@@ -117,7 +117,7 @@ fn resolve_opaque(
             })
     });
     let Some(permission) = permissions.next() else {
-        if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+        if ::validation::trace_flags::state_reference_diagnostics() {
             eprintln!(
                 "returned-reference-permission-refused call={call:?} expression={:?} path={path:?} expected_type={selected:?} expected_access={access:?} capture={capture:?}",
                 invocation.authored_expression,

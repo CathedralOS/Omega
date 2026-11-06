@@ -61,7 +61,7 @@ fn solve_state_effects<'program>(
     while index < states.len() {
         let (machine, state) = states[index];
         let refusal = |phase| {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if crate::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE slot-exit-equation-refusal machine={} state={} phase={}",
                     machine.name, state.name, phase
@@ -162,7 +162,7 @@ fn solve_state_effects<'program>(
                             symbols,
                         )
                         .or_else(|| {
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            if crate::trace_flags::check_sites() {
                                 eprintln!(
                                     "CHECKSITE slot-exit-solve-refusal state={} phase=instantiate",
                                     equation.state.name
@@ -177,7 +177,7 @@ fn solve_state_effects<'program>(
                             &instantiated.substitutions,
                             &mut substitutions,
                         ).or_else(|| {
-                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
+                            if crate::trace_flags::check_sites() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
                             None
                         })?;
                         let mut completed = prefix.clone();
@@ -243,7 +243,7 @@ fn solve_state_effects<'program>(
             for stored in &returned {
                 collect_exit(program, equation.state, &inventory, stored, &mut candidate).or_else(
                     || {
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if crate::trace_flags::check_sites() {
                             eprintln!(
                                 "CHECKSITE slot-exit-solve-refusal state={} phase=exit-inventory",
                                 equation.state.name
@@ -425,7 +425,7 @@ fn collect_exit(
                 continue;
             }
             None => {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if crate::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE slot-exit-source state={} slot={} phase=unknown-contents",
                         state.name, slot.local_path
@@ -467,7 +467,7 @@ fn collect_exit(
                     return None;
                 }
                 let parameter = program.state_parameter_by_symbol(state, source.source.root).or_else(|| {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if crate::trace_flags::check_sites() {
                         eprintln!("CHECKSITE slot-exit-source state={} slot={} phase=local-source source={supplied:?}", state.name, slot.local_path);
                     }
                     None

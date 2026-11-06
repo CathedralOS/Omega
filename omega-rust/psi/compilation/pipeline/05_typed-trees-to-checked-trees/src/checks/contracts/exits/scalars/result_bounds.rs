@@ -461,7 +461,7 @@ impl ExitScalars<'_, '_> {
                 "ensures return comparison".to_owned(),
             ))
         })();
-        if condition.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if condition.is_none() && ::validation::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT return-range refused machine={} expression={expression:?} stage={stage}",
                 self.machine.name,

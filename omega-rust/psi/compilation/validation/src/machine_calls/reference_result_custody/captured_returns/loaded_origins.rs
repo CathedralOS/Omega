@@ -21,7 +21,7 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         let result = self.loaded_descriptor_origins_inner(state, loan, leaf, segments);
         if let Err(reason) = &result
-            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            && crate::trace_flags::check_sites()
         {
             eprintln!(
                 "CHECKSITE returned-descriptor-load state={:?} identity={:?} formation={:?} result_path={:?} refusal={reason}",

@@ -51,7 +51,7 @@ impl Execution<'_, '_, '_> {
     ) -> Option<CapturedReferenceProjection> {
         let result = self.try_capture_reference_projection(actual, segments, projection);
         if let Err(reason) = &result
-            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            && ::validation::trace_flags::check_sites()
         {
             eprintln!(
                 "CHECKSITE reference-projection-refusal machine={:?} state={:?} statement={} expression={:?} type={:?} destination={} path_count={} path_prefix={:?} position={:?} reason={:?}",

@@ -368,7 +368,7 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             self.machine,
             caller_aliases::CallerWriteSite::Expression(expression),
         );
-        if owner.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if owner.is_none() && crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT captured-input-refused machine={} expression={expression:?} node={:?} phase=owner",
                 self.program.symbols.name(self.machine.symbol),
@@ -390,7 +390,7 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             self.symbols,
             &mut observed_inference,
         );
-        if returned.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if returned.is_none() && crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT captured-input-refused machine={} expression={expression:?} node={:?} phase=relation",
                 self.program.symbols.name(self.machine.symbol),
@@ -407,7 +407,7 @@ impl ArgumentOrigins for Inputs<'_, '_> {
             }
             let origin = leaf.origin?;
             let observed = self.capture_source(captured, origin.clone(), reference);
-            if observed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if observed.is_none() && crate::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT captured-input-refused machine={} expression={expression:?} origin={origin:?} phase=source",
                     self.program.symbols.name(self.machine.symbol)

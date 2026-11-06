@@ -576,7 +576,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             .iter()
             .find_map(|(root, completion)| (*root == value).then_some(*completion))
     });
-    if completion.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+    if completion.is_none() && ::validation::trace_flags::trace_completion() {
         eprintln!(
             "CHECKSITE completion-value-summary machine={} state={} root={:?} value={:?} calls={:?}",
             machine.name,

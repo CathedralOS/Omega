@@ -266,7 +266,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     completion_phase("normal completion: input lifetimes");
     for operand in facts.flow.control.operands.span(source_call.operands)? {
         let roots = crate::flow::captured_lifetime_roots(program, &facts.flow.control, operand);
-        if roots.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if roots.is_none() && ::validation::trace_flags::check_sites() {
             eprintln!(
                 "CHECKSITE normal-completion-input-lifetime machine={} state={} call={:?} operand={:?} profile={:?}",
                 machine.name,

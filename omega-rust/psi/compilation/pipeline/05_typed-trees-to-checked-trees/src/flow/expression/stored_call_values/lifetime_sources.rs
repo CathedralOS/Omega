@@ -50,7 +50,7 @@ impl Execution<'_, '_, '_> {
             if matches!(
                 selected,
                 validation::completed_storage::StoredOperand::Unavailable
-            ) && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            ) && ::validation::trace_flags::check_sites()
             {
                 let actual = self.context.control.operands.get(input);
                 eprintln!(

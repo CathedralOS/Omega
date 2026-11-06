@@ -37,7 +37,7 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
         expression,
     );
     let Some((captured, after)) = completed else {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT completed-value-read-refused machine={:?} expression={expression:?} reference={reference:?} phase=ordered-value",
                 machine.symbol
@@ -48,7 +48,7 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
     let returned =
         captured_inputs::completed_result(program, machine, &captured, reference, symbols);
     let Some(returned) = returned else {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT completed-value-read-refused machine={:?} expression={expression:?} reference={reference:?} phase=suppliers",
                 machine.symbol
@@ -74,7 +74,7 @@ impl CompletedValueReads {
         program: &dyn crate::CheckingInput,
     ) -> Option<Vec<frames::LocalWriteSource>> {
         let addressed = self.sources_at_boundary(program, &[]);
-        if addressed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if addressed.is_none() && crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT completed-address-refused reference={:?} leaves={:?}",
                 program.type_reference_table.type_reference(self.reference),
@@ -224,7 +224,7 @@ impl CompletedValueReads {
                     .is_none_or(|dependencies| !dependencies.is_empty())
                 || !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(access) if access.is_readable())
             {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT completed-value-read-refused path={path:?} phase=leaf may_select={} lifetime_debts={:?} source={:?}",
                         leaf.may_select,
@@ -243,7 +243,7 @@ impl CompletedValueReads {
                     lifetime_access: None,
                 },
                 ReferenceSource::Symbolic(origin) => {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT completed-value-read-refused path={path:?} phase=symbolic origin={origin:?}"
                         );

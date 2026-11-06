@@ -699,7 +699,7 @@ fn argument_contract(
     } else {
         result.multiplicity
     };
-    if !storage_identity_matches && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if !storage_identity_matches && ::validation::trace_flags::struct_trace() {
         eprintln!(
             "RESULT_ARGUMENT_IDENTITY machine={} state={} statement={} root={:?} access={:?} referent={} storage={:?} established={:?} formal={:?}",
             program.symbols.display_path(machine, "::"),

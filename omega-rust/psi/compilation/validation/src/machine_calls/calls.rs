@@ -668,7 +668,7 @@ pub(crate) fn validate_call_arguments(
         if !type_matches(*argument, parameter.type_reference) {
             let expected_type =
                 program.display_type_reference_with_constraints(parameter.type_reference);
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "ARGUMENT_MISMATCH caller={} scope={} target={} formal={} actual={}",
                     current_machine.name,
@@ -865,7 +865,7 @@ fn validate_value_call_arguments(
             return;
         }
     };
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+    if crate::trace_flags::struct_trace()
         && program
             .typed_program()
             .callable_body_has_open_parameters(callee_machine)

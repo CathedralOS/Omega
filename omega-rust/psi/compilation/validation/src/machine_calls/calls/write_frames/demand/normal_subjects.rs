@@ -101,7 +101,7 @@ impl<'program> CallFrameResolver<'program> {
             }
             _ => return None,
         };
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT invocation-entry-subjects caller={:?} entries={entries:?}",
                 machine.symbol
@@ -253,7 +253,7 @@ impl<'program> CallFrameResolver<'program> {
                 Ok(Some(subject)) => entries.push(subject),
                 Ok(None) => {}
                 Err(reason) => {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT reference-entry-refused caller={} parameter={} argument={argument:?} reason={reason}",
                             machine.name, parameter.name,

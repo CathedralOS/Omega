@@ -179,7 +179,7 @@ pub(super) fn build(
             let sources = validation::reference_result_custody::captured_return_sources(
                 program, facts, state,
             );
-            if sources.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+            if sources.is_none() && ::validation::trace_flags::trace_completion() {
                 eprintln!(
                     "CHECKSITE completion-return-sources-missing machine={} state={} type={:?}",
                     machine.name, state.name, state.return_type

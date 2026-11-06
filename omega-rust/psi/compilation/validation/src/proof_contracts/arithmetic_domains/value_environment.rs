@@ -604,7 +604,7 @@ impl ValueEnvironment {
         state: Option<&State>,
         written: &[String],
     ) {
-        if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() && !written.is_empty() {
+        if crate::trace_flags::reference_slot_trace() && !written.is_empty() {
             eprintln!(
                 "SLOT invalidation-before state={:?} written={written:?} intervals={:?} relations={:?}",
                 state.map(|state| state.symbol),
@@ -615,7 +615,7 @@ impl ValueEnvironment {
         self.invalidate_storage(written, |operand| {
             operand.survives_storage_writes(program, state, written)
         });
-        if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() && !written.is_empty() {
+        if crate::trace_flags::reference_slot_trace() && !written.is_empty() {
             eprintln!(
                 "SLOT invalidation-after state={:?} intervals={:?} relations={:?}",
                 state.map(|state| state.symbol),

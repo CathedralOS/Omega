@@ -321,7 +321,7 @@ fn captured_storage_lifetime(
     }
     let boundary =
         whole_local_release_boundary(program, facts, machine, authored, result.statement_index);
-    if boundary.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+    if boundary.is_none() && ::validation::trace_flags::check_sites() {
         let groups = local_record_loans(program, facts, machine, authored, result.statement_index);
         eprintln!(
             "CHECKSITE captured-holder-boundary-unavailable state={state:?} result={result:?} owner={owner:?} groups={groups:?}"
@@ -405,7 +405,7 @@ pub(in crate::execution::terminal_unit) fn captured_reference_result<'operation>
                 .then_some((result, custody.reference_loans))
         }),
     };
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+    if ::validation::trace_flags::check_sites() {
         let result = match operation {
             OperationPlan::EstablishReference { result, .. }
             | OperationPlan::EstablishLocal(CheckedUnitLocalBindingPlan::StructuralValue {
@@ -1060,7 +1060,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         ) {
             let result = captured.result;
             let loans = captured.loans;
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE exit-reference-inventory state={state:?} result={result:?} loans={loans:?} whole_boundary={} storage_loans={:?}",
                     captured.whole_storage_boundary, captured.storage_loans
@@ -1072,7 +1072,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .flat_map(OperationPlan::with_value_calls)
                 .any(|operation| whole_result_discarded(operation, result))
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE exit-reference-skipped state={state:?} result={} reason=discarded",
                         result.binding_ordinal
@@ -1081,7 +1081,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 continue;
             }
             if replacement_owns_release(&order, facts, machine, state, loans) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE exit-reference-skipped state={state:?} result={} reason=replacement",
                         result.binding_ordinal
@@ -1100,7 +1100,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 result.binding_ordinal,
                 operations,
             )? {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE exit-reference-skipped state={state:?} result={} reason=transferred",
                         result.binding_ordinal
@@ -1250,8 +1250,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
             if !retirement.carrier_children_retired(result) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                if ::validation::trace_flags::check_sites()
+                    || ::validation::trace_flags::phase_profile_requested()
                 {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
@@ -1269,8 +1269,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 retired
             }) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                if ::validation::trace_flags::check_sites()
+                    || ::validation::trace_flags::phase_profile_requested()
                 {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
@@ -1286,8 +1286,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .loan_group(*loans)?
                 .all(|(loan, _)| retirement.children_retired(loan))
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                if ::validation::trace_flags::check_sites()
+                    || ::validation::trace_flags::phase_profile_requested()
                 {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
@@ -1330,8 +1330,8 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                if ::validation::trace_flags::check_sites()
+                    || ::validation::trace_flags::phase_profile_requested()
                 {
                     for (_, operation, storage_loans) in &pending {
                         let OperationPlan::ReleaseReference {
@@ -1619,7 +1619,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             let expression = if let Some(producer) = operand.call() {
                 let Some(NominalMachineUseSite::Expression(expression)) = producer.source_site()
                 else {
-                    if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                    if ::validation::trace_flags::trace_completion() {
                         eprintln!(
                             "CHECKSITE completion-call-source-kind trace={trace:?} producer={producer:?}"
                         );
@@ -1643,7 +1643,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                         ..
                     } => *formation_expression,
                     _ => {
-                        if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                        if ::validation::trace_flags::trace_completion() {
                             eprintln!(
                                 "CHECKSITE completion-producer-kind trace={trace:?} producer={operand:?}"
                             );
@@ -1660,7 +1660,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                 .find(|(existing, _)| existing.binding_ordinal == result.binding_ordinal)
             {
                 if existing != result || *existing_root != root {
-                    if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                    if ::validation::trace_flags::trace_completion() {
                         eprintln!(
                             "CHECKSITE completion-binding-conflict trace={trace:?} existing={existing:?} existing_root={existing_root:?} result={result:?} root={root:?} producer={operand:?}"
                         );

@@ -400,7 +400,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                     },
                 )
             };
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE simultaneous-hold state={:?} statement={} ordinal={} target={:?} first_index={} second_index={} first={:?} second={:?}",
                     state_flow.state_symbol,
@@ -535,7 +535,7 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
-            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+            if ::validation::trace_flags::state_reference_diagnostics() {
                 eprintln!(
                     "call-live-loan-conflict target={target_name} state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
                     state_flow.state_symbol, borrow_call.statement_index, borrow_call.call_ordinal

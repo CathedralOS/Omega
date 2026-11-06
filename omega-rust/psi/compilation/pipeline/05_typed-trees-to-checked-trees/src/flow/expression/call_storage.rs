@@ -117,7 +117,7 @@ impl Execution<'_, '_, '_> {
     ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
         let actual_value = *self.context.control.operands.get(actual);
         let desired = reference_shell(self.program, destination)?;
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if ::validation::trace_flags::check_sites() {
             eprintln!(
                 "CHECKSITE call-backing-value-input state={:?} statement={} actual={actual:?} actual_type={:?} destination={destination:?} source_root={:?} source_path={:?} recasts={:?} representation={:?}",
                 self.state.symbol,
@@ -224,7 +224,7 @@ impl Execution<'_, '_, '_> {
                 retention,
                 ..Default::default()
             });
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE call-backing-value-created kind=reborrow state={:?} statement={} value={value:?} actual={actual:?} retention={retention:?} reborrow_sources={reborrow_sources:?}",
                     self.state.symbol, self.statement_index
@@ -252,7 +252,7 @@ impl Execution<'_, '_, '_> {
             retention,
             ..Default::default()
         });
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if ::validation::trace_flags::check_sites() {
             eprintln!(
                 "CHECKSITE call-backing-value-created kind=presentation state={:?} statement={} value={value:?} actual={actual:?} retention={retention:?}",
                 self.state.symbol, self.statement_index

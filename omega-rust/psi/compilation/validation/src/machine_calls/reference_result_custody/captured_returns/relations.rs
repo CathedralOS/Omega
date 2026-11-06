@@ -272,7 +272,7 @@ pub(super) fn complete<T>(
                         .iter()
                         .find(|source| !candidates.contains(source))
                     {
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if crate::trace_flags::check_sites() {
                             eprintln!(
                                 "CHECKSITE captured-return-equation state={:?} refusal=recursive-source-outside-capture source={source:?} candidates={candidates:?}",
                                 row.state,
@@ -372,7 +372,7 @@ struct EvaluatedEquation {
 }
 
 fn refusal<T>(reason: &'static str, state: Option<SymbolHandle>) -> Option<T> {
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+    if crate::trace_flags::check_sites() {
         eprintln!("CHECKSITE captured-return-equation state={state:?} refusal={reason}");
     }
     None

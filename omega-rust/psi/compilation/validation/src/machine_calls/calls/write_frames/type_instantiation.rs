@@ -158,7 +158,7 @@ pub(super) fn applied_call_write_signature<'program>(
     let parameters = program.state_signature_type_parameters(signature);
     let correspondence = call_binding_correspondence(program, current_machine.symbol, &call)
         .inspect_err(|reason| {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT write arguments caller={} callee={} reason={reason}",
                     current_machine.name, signature.name
