@@ -457,7 +457,7 @@ impl OrderProofPreparation<'_> {
         role: &str,
     ) -> Result<(TermHandle, TermHandle), GraphFailure> {
         let result = terms::abstract_parameters(self.arena, term, ty, parameters)
-            .map_err(|error| GraphFailure::Kernel(error.into()))?;
+            .map_err(GraphFailure::Kernel)?;
         if !terms::excludes_parameters(
             self.arena,
             self.declarations,
@@ -652,7 +652,7 @@ impl OrderProofPreparation<'_> {
         }
         let indices = common.iter().map(|(key, _)| *key).collect::<Vec<_>>();
         let description = terms::description(self.arena, common, &indices, cases, &[])
-            .map_err(|error| GraphFailure::Kernel(error.into()))?;
+            .map_err(GraphFailure::Kernel)?;
         let index = self.arena.insert(Term::Variable(0));
         let coordinates = (0..common.len())
             .map(|position| projection(self.arena, index, position, common.len()))
@@ -690,7 +690,7 @@ impl OrderProofPreparation<'_> {
         }
         let family =
             terms::intern_description(self.arena, self.declarations, model.description.clone())
-                .map_err(|error| GraphFailure::Kernel(error.into()))?;
+                .map_err(GraphFailure::Kernel)?;
         let invariant = self.arena.insert(Term::Lambda {
             domain: family.index,
             body: goal,
@@ -762,10 +762,10 @@ impl OrderProofPreparation<'_> {
                 values.iter().copied(),
                 predicate_value,
             )
-            .map_err(|error| GraphFailure::Kernel(error.into()))?;
+            .map_err(GraphFailure::Kernel)?;
             self.check(label, family.carrier, "source return label")?;
             let supplied = terms::constructor_children(self.arena, &family, label, &children)
-                .map_err(|error| GraphFailure::Kernel(error.into()))?;
+                .map_err(GraphFailure::Kernel)?;
             let constructor = family.sup(self.arena, label, supplied);
             let ty = family.indexed_w(self.arena, index);
             constructors.push(self.abstracted(
@@ -786,7 +786,7 @@ impl OrderProofPreparation<'_> {
             self.declarations,
             &[],
         )
-        .map_err(|error| GraphFailure::Kernel(error.into()))?;
+        .map_err(GraphFailure::Kernel)?;
         self.check(step, step_type, "induction step")?;
         self.check(theorem, ty, "induction theorem")?;
         let signature = Signature::from_declarations(self.declarations.clone());
@@ -917,8 +917,10 @@ impl OrderProofPreparation<'_> {
                     .collect::<Vec<_>>();
                 let (index, locals) = values.split_at(1);
                 let locals = locals
-                    .chunks_exact(2)
-                    .map(|pair| (pair[0], pair[1]))
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|&[rank, shift]| (rank, shift))
                     .collect::<Vec<_>>();
                 let mut actuals = vec![p.literal(body_position)?];
                 let (rank, shift) = p.allowance(allowances[body_position]);

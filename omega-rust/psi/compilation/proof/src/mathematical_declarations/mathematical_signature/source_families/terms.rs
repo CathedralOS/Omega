@@ -1092,9 +1092,10 @@ pub(super) fn induction<K: Copy + Eq + Into<Key>>(
     };
     let label_types = LabelTypes::prepare(arena, declarations, &mut builder)?;
     let mut label_packs = Vec::with_capacity(cases.len() - 1);
-    for start in 1..cases.len() {
+    for (offset, &tail_type) in label_types.tails[1..cases.len()].iter().enumerate() {
+        let start = offset + 1;
         let tail = builder.terms.fresh();
-        let domain = S::Closed(label_types.tails[start]);
+        let domain = S::Closed(tail_type);
         let mut body = S::Var(tail);
         for _ in 0..start {
             body = pair(S::One, body);

@@ -363,7 +363,7 @@ impl Elaborator<'_> {
             self.check_induction_term(proof, ty, "case predicate derivation")?;
             let (lemma, lemma_type) =
                 terms::abstract_parameters(&mut self.arena, proof, ty, &parameters)
-                    .map_err(|error| self.refuse(error.into()))?;
+                    .map_err(|error| self.refuse(error))?;
             if !terms::excludes_parameters(
                 &self.arena,
                 &self.declarations,
@@ -401,7 +401,7 @@ impl Elaborator<'_> {
             &mut self.declarations,
             &type_symbols,
         )
-        .map_err(|error| self.refuse(error.into()))?;
+        .map_err(|error| self.refuse(error))?;
         self.check_induction_term(step, step_type, "indexed-family induction step")?;
         self.check_induction_term(theorem, ty, "derived indexed-family theorem")?;
         // The final mathematical-signature trust boundary checks every
