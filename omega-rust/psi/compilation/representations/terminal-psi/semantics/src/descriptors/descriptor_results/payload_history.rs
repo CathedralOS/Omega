@@ -3659,10 +3659,11 @@ mod tests {
                 vec![Some(DescriptorContentsQuery::from_location(&destination))],
             );
 
-            let source_contracts = [(source_root, empty.clone()), (written_value, empty)];
+            // Current declaration input order is independent of sparse place IDs.
+            let source_contracts = [(written_value, empty.clone()), (source_root, empty)];
             let identity = descriptor.id;
             let graph = [descriptor];
-            let mut history = PayloadMembershipHistory::for_current_contracts(
+            let mut history = PayloadMembershipHistory::for_current_preservation_contracts(
                 &types,
                 &domains,
                 &graph,
@@ -3671,13 +3672,6 @@ mod tests {
                 &source_contracts,
             )
             .unwrap();
-            // Configure the fresh normalized-source fixture exactly as
-            // for_preservation configures its fresh Terminal-source history.
-            // No query/cache exists yet; predicate_observations stays Observed.
-            history.replay.memberships = PayloadMembershipKind::Preserved;
-            history.analysis = Some(DescriptorAnalysis::with_borrowed_storage_slots(
-                &types, &graph,
-            ));
             let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
 
             let old_before = history
