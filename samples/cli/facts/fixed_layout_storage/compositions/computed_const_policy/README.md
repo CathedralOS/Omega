@@ -15,6 +15,11 @@ passes the same argument through a transparent `PolicyStorage` alias. Its
 [control](../../../../../../tests/omega/fail/layouts/fixed_layout_computed_alias_policy_rejected/)
 removes the same bound. The original program, Build and oracles stay unchanged.
 
+The [runtime-input control](../../../../../../tests/omega/fail/layouts/fixed_layout_runtime_alias_policy_rejected/)
+keeps the arithmetic bound but supplies the value as an ordinary runtime
+parameter. A safe addition does not make that input a const argument; it must
+still reject even though the executable caller supplies 7.
+
 Owning task: **LIBRARY-REPRESENTATION-FAMILIES**. Governing contracts:
 [representation applications](../../../../../../wiki/spec/layouts/plans.md#representation-applications)
 and [generic arguments](../../../../../../wiki/spec/language/generics.md).
