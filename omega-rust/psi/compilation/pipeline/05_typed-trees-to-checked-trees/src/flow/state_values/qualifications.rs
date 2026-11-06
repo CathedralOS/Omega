@@ -131,11 +131,12 @@ impl QualifiedInput {
     fn same_subject(&self, other: &Self) -> bool {
         self.subject == other.subject
             && self.segments == other.segments
-            && self.evidence == other.evidence
+            && self.evidence.same_authority(other.evidence)
     }
 
     fn same_claim(&self, other: &Self) -> bool {
         self.same_subject(other)
+            && self.evidence == other.evidence
             && self.predicate.implies(other.predicate)
             && other.predicate.implies(self.predicate)
     }
@@ -196,7 +197,7 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
     let mut changed = false;
     let positions = subject_positions(incoming);
     previous.retain_mut(|claim| {
-        let mut common: Option<CarriedPredicate> = None;
+        let mut common: Option<(CarriedPredicate, QualificationEvidence)> = None;
         for next in matching_positions(&positions, claim.subject_key())
             .iter()
             .map(|(_, position)| &incoming[*position])
@@ -205,15 +206,31 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
             let Some(candidate) = claim.predicate.common_consequence(next.predicate) else {
                 continue;
             };
-            if common.is_none_or(|retained| candidate.implies(retained)) {
-                common = Some(candidate);
+            let Some(evidence) = claim.evidence.common_consequence(next.evidence) else {
+                continue;
+            };
+            match common {
+                Some((retained, retained_evidence))
+                    if candidate.implies(retained) && retained.implies(candidate) =>
+                {
+                    if let Some(evidence) = retained_evidence.available_alternative(evidence) {
+                        common = Some((retained, evidence));
+                    }
+                }
+                _ if common.is_none_or(|(retained, _)| candidate.implies(retained)) => {
+                    common = Some((candidate, evidence));
+                }
+                _ => {}
             }
         }
-        let Some(common) = common else {
+        let Some((common, evidence)) = common else {
             return false;
         };
-        changed |= !claim.predicate.implies(common) || !common.implies(claim.predicate);
+        changed |= !claim.predicate.implies(common)
+            || !common.implies(claim.predicate)
+            || claim.evidence != evidence;
         claim.predicate = common;
+        claim.evidence = evidence;
         true
     });
     changed || previous.len() != before
@@ -221,7 +238,8 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
 
 /// A membership can only disappear. A float predicate can additionally
 /// weaken among the five positive comparisons at authored endpoints, then
-/// non-NaN, then absence. Joins never manufacture new numeric endpoints.
+/// non-NaN, then absence. Provenance can additionally weaken from independent
+/// to one input, mixed inputs, then unknown. No join creates an endpoint or receipt.
 pub(super) fn height(
     program: &dyn ::validation::CheckingInput,
     inputs: &[QualifiedInput],
@@ -231,10 +249,13 @@ pub(super) fn height(
         .saturating_mul(5)
         .saturating_add(2);
     inputs.iter().fold(0usize, |height, input| {
-        height.saturating_add(match input.predicate {
-            CarriedPredicate::Domain { .. } => 1,
-            CarriedPredicate::Float(_) => float_height,
-        })
+        height.saturating_add(
+            match input.predicate {
+                CarriedPredicate::Domain { .. } => 1,
+                CarriedPredicate::Float(_) => float_height,
+            }
+            .saturating_mul(4),
+        )
     })
 }
 
@@ -345,6 +366,7 @@ pub(super) fn capture_completed_argument(
     flow_context: &FlowBuildContext,
     operand: &checked_trees::FlowOperandFact,
     completed: &super::CompletedArgumentFacts,
+    destination_state: SymbolHandle,
     destination: SymbolHandle,
 ) -> Vec<QualifiedInput> {
     let Some(frames) = flow_context.call_frames else {
@@ -391,7 +413,9 @@ pub(super) fn capture_completed_argument(
                     subject: facts::PlaceRoot::Symbol(destination),
                     segments: segments.to_vec(),
                     predicate,
-                    evidence: fact.evidence,
+                    evidence: fact
+                        .evidence
+                        .at_invocation_input(destination_state, destination),
                 });
             }
         }
@@ -690,6 +714,73 @@ mod tests {
             },
             evidence: QualificationEvidence::default(),
         }
+    }
+
+    fn receipt() -> QualificationEvidence {
+        QualificationEvidence::from_admitted_requirement(
+            SymbolHandle::from_parts(10, 1),
+            SymbolHandle::from_parts(11, 1),
+            arena::Handle::from_parts(12, 1),
+        )
+    }
+
+    #[test]
+    fn an_arrival_keeps_membership_without_local_receipt_credit() {
+        let mut local = claim(0);
+        local.evidence = receipt();
+        let mut input = local.clone();
+        input.evidence = input.evidence.at_invocation_input(
+            SymbolHandle::from_parts(20, 1),
+            SymbolHandle::from_parts(21, 1),
+        );
+        let mut joined = vec![local];
+        assert!(meet(&mut joined, &[input.clone()]));
+        assert_eq!(joined, vec![input]);
+        assert!(!joined[0].evidence.is_independent_receipt());
+        assert_eq!(joined[0].evidence.issuer, receipt().issuer);
+    }
+
+    #[test]
+    fn an_available_independent_proof_survives_input_proofs() {
+        let mut local = claim(0);
+        local.evidence = receipt();
+        let mut input = local.clone();
+        input.evidence = input.evidence.at_invocation_input(
+            SymbolHandle::from_parts(20, 1),
+            SymbolHandle::from_parts(21, 1),
+        );
+        for incoming in [
+            vec![input.clone(), local.clone()],
+            vec![local.clone(), input],
+        ] {
+            let mut joined = vec![local.clone()];
+            assert!(!meet(&mut joined, &incoming));
+            assert_eq!(joined, vec![local.clone()]);
+            assert!(joined[0].evidence.is_independent_receipt());
+        }
+    }
+
+    #[test]
+    fn distinct_input_generations_do_not_become_independent() {
+        let mut first = claim(0);
+        first.evidence = receipt().at_invocation_input(
+            SymbolHandle::from_parts(20, 1),
+            SymbolHandle::from_parts(21, 1),
+        );
+        let mut second = first.clone();
+        second.evidence = receipt().at_invocation_input(
+            SymbolHandle::from_parts(20, 2),
+            SymbolHandle::from_parts(21, 1),
+        );
+        let mut joined = vec![first];
+        assert!(meet(&mut joined, &[second]));
+        assert_eq!(joined.len(), 1);
+        assert_eq!(
+            joined[0].evidence.provenance,
+            facts::QualificationProvenance::MixedInputs
+        );
+        assert!(!joined[0].evidence.is_independent_receipt());
+        assert!(!QualificationEvidence::default().is_independent_receipt());
     }
 
     #[test]

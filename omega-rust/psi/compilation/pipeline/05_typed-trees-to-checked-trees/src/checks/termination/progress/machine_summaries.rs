@@ -514,8 +514,7 @@ fn admitted_receipt_covers(
             .context_view(semantic.contexts.get(context))
             .facts()
             .any(|fact| {
-                fact.evidence.origin
-                    == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+                fact.evidence.is_independent_receipt()
                     && fact_domain(program, fact.payload) == Some(domain_symbol)
                     && fact_subject(semantic, fact.place).as_ref() == Some(&premise.subject)
             })

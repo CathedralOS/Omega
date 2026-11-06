@@ -41,12 +41,31 @@ fn deduplicate(memberships: &mut Vec<LiveMembership>) {
 
 pub(super) fn retain_common(memberships: &mut Vec<LiveMembership>, incoming: &[LiveMembership]) {
     let buckets = membership_buckets(incoming);
-    memberships.retain(|membership| {
+    memberships.retain_mut(|membership| {
         let key =
             facts::places::place_bucket_hash(membership.place.root, &membership.place.segments);
-        buckets
-            .candidates(key)
-            .any(|position| incoming[position] == *membership)
+        let mut common: Option<QualificationEvidence> = None;
+        for position in buckets.candidates(key) {
+            let next = &incoming[position];
+            if membership.place != next.place
+                || membership.domain != next.domain
+                || membership.instance != next.instance
+            {
+                continue;
+            }
+            let Some(evidence) = membership.evidence.common_consequence(next.evidence) else {
+                continue;
+            };
+            common = match common {
+                Some(retained) => retained.available_alternative(evidence),
+                None => Some(evidence),
+            };
+        }
+        let Some(evidence) = common else {
+            return false;
+        };
+        membership.evidence = evidence;
+        true
     });
 }
 
@@ -157,6 +176,30 @@ mod tests {
             instance: language_semantics::SemanticDomainId::NULL,
             evidence: QualificationEvidence::default(),
         }
+    }
+
+    #[test]
+    fn branch_membership_preserves_input_dependency_and_available_local_proof() {
+        let mut local = membership(0);
+        local.evidence = QualificationEvidence::from_admitted_requirement(
+            symbols::SymbolHandle::from_parts(10, 1),
+            symbols::SymbolHandle::from_parts(11, 1),
+            arena::Handle::from_parts(12, 1),
+        );
+        let mut input = local.clone();
+        input.evidence = input.evidence.at_invocation_input(
+            symbols::SymbolHandle::from_parts(20, 1),
+            symbols::SymbolHandle::from_parts(21, 1),
+        );
+        let mut joined = vec![local.clone()];
+        retain_common(&mut joined, &[input.clone()]);
+        assert_eq!(joined, vec![input.clone()]);
+        assert!(!joined[0].evidence.is_independent_receipt());
+
+        let mut joined = vec![local.clone()];
+        retain_common(&mut joined, &[input, local.clone()]);
+        assert_eq!(joined, vec![local]);
+        assert!(joined[0].evidence.is_independent_receipt());
     }
 
     #[test]
