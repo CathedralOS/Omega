@@ -136,8 +136,9 @@ pub use proof_contracts::contract_entailment::completed_domains::{
 };
 pub use proof_contracts::contract_entailment::completed_observations::completed_value_is_bounded_by_static;
 pub use proof_contracts::contract_entailment::content_conservation::{
-    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
-    ContentConservationImplication, completed_value_content_conservation_dependencies,
+    CompletedConservationQueries, ConditionalContentGuarantee, ContentBackingAddressGoal,
+    ContentConservationDependencies, ContentConservationImplication,
+    completed_value_conservation_answers, completed_value_content_conservation_dependencies,
     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
