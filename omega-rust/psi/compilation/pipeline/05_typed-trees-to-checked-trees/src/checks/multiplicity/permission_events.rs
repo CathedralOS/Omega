@@ -659,12 +659,11 @@ pub(crate) fn prepare_permission_events(
         );
         // Publish the source storage occurrences, not expanded claim events.
         // Loan exclusion needs even a claim-free or inactive carrier's move.
-        facts
-            .flow
-            .control
-            .states
-            .get_mut(state_handle)
-            .storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
+        // The edit keys no grouping, so later states keep the warm roster.
+        let storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
+        facts.flow.control.states.update_row(state_handle, |row| {
+            row.storage_transfers = storage_transfers
+        });
     }
     drop(state_loop_guard);
     phase_profile::checkpoint(

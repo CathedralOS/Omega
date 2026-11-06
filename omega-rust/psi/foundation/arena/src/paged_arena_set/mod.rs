@@ -54,10 +54,18 @@ pub struct PagedArenaSet<T: Default> {
     first_generation: u32,
     first_page: ArenaPage<T>,
     additional_pages: Vec<(u32, ArenaPage<T>)>,
-    /// Entry `generation - first_generation - 1` holds the one-based position
-    /// of that generation's page in `additional_pages`; zero names no page.
-    /// It ends at the last page, so equal page rosters have equal directories.
+    /// Entry `generation - page_base` holds the one-based position of that
+    /// generation's page in `additional_pages`; zero names no page. It spans
+    /// exactly the additional pages, so equal page rosters have equal
+    /// directories.
+    ///
+    /// Generations are allocated program-wide, so a set that hands its pages
+    /// away and then opens one late page would otherwise zero a directory
+    /// entry for every generation since its first page: once per state in
+    /// flow construction, quadratic in the program's state count.
     page_positions: Vec<u32>,
+    /// The generation of the first additional page, or zero without one.
+    page_base: u32,
     current_generation: u32,
     active_count: usize,
     dummy: T,
@@ -72,6 +80,7 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
             first_page: self.first_page.clone(),
             additional_pages: self.additional_pages.clone(),
             page_positions: self.page_positions.clone(),
+            page_base: self.page_base,
             current_generation: self.current_generation,
             active_count: self.active_count,
             dummy: self.dummy.clone(),
@@ -83,6 +92,7 @@ impl<T: Default + Clone> Clone for PagedArenaSet<T> {
         self.first_page.clone_from(&source.first_page);
         self.additional_pages.clone_from(&source.additional_pages);
         self.page_positions.clone_from(&source.page_positions);
+        self.page_base = source.page_base;
         self.current_generation = source.current_generation;
         self.active_count = source.active_count;
         self.dummy.clone_from(&source.dummy);
@@ -142,6 +152,7 @@ impl<T: Default> PagedArenaSet<T> {
             first_page: Arena::with_generation(generation).into(),
             additional_pages: Vec::new(),
             page_positions: Vec::new(),
+            page_base: 0,
             current_generation: generation,
             active_count: 0,
             dummy: T::default(),
@@ -170,6 +181,7 @@ impl<T: Default> PagedArenaSet<T> {
         let mut taken = Self::with_generation(self.first_generation);
         taken.additional_pages = std::mem::take(&mut self.additional_pages);
         taken.page_positions = std::mem::take(&mut self.page_positions);
+        taken.page_base = std::mem::take(&mut self.page_base);
         taken.active_count = taken
             .additional_pages
             .iter()
@@ -423,6 +435,7 @@ impl<T: Default> PagedArenaSet<T> {
         self.first_page.reset_retain_capacity();
         self.additional_pages.clear();
         self.page_positions.clear();
+        self.page_base = 0;
         self.current_generation = self.first_generation;
         self.active_count = 0;
         self.dummy = T::default();
@@ -556,15 +569,13 @@ impl<T: Default> PagedArenaSet<T> {
     /// Position in `additional_pages` of a later generation's page.
     #[inline]
     fn page_position(&self, generation: u32) -> Option<usize> {
-        let offset = generation
-            .checked_sub(self.first_generation)?
-            .checked_sub(1)?;
+        let offset = generation.checked_sub(self.page_base)?;
         let position = *self.page_positions.get(usize::try_from(offset).ok()?)?;
         usize::try_from(position).ok()?.checked_sub(1)
     }
 
     fn record_page_position(&mut self, generation: u32, position: usize) {
-        let offset = usize::try_from(generation - self.first_generation - 1)
+        let offset = usize::try_from(generation - self.page_base)
             .expect("paged arena generation exceeds usize");
         if self.page_positions.len() <= offset {
             self.page_positions.resize(offset + 1, 0);
@@ -575,6 +586,7 @@ impl<T: Default> PagedArenaSet<T> {
 
     fn index_page_positions(&mut self) {
         self.page_positions.clear();
+        self.page_base = self.additional_pages.first().map_or(0, |(base, _)| *base);
         for position in 0..self.additional_pages.len() {
             self.record_page_position(self.additional_pages[position].0, position);
         }
@@ -592,6 +604,11 @@ impl<T: Default> PagedArenaSet<T> {
         {
             self.additional_pages.push((generation, page));
             let position = self.additional_pages.len() - 1;
+            if position == 0 {
+                // The first additional page is the directory's new base.
+                self.page_positions.clear();
+                self.page_base = generation;
+            }
             self.record_page_position(generation, position);
             return position;
         }
@@ -664,6 +681,7 @@ impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::
                 first_page: ArenaPage::read(input)?,
                 additional_pages: Vec::read(input)?,
                 page_positions: Vec::new(),
+                page_base: 0,
                 current_generation: u32::read(input)?,
                 active_count: usize::read(input)?,
                 dummy: T::read(input)?,
@@ -693,12 +711,16 @@ impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::
             {
                 return Err(input.error("paged arena live row count disagrees with its pages"));
             }
-            // The directory spans every generation up to the last page, so a
-            // retained roster pays for its gaps before they are allocated.
-            let span = result
-                .additional_pages
-                .last()
-                .map_or(0, |(generation, _)| generation - result.first_generation);
+            // The directory spans every generation from the first additional
+            // page to the last, so a retained roster pays for its gaps before
+            // they are allocated.
+            let span = match (
+                result.additional_pages.first(),
+                result.additional_pages.last(),
+            ) {
+                (Some((first, _)), Some((last, _))) => last - first + 1,
+                _ => 0,
+            };
             input.allocate(
                 usize::try_from(span)
                     .ok()
@@ -744,6 +766,37 @@ mod tests {
         assert_eq!(parent.get(second), "second page");
         drop(parent);
         assert_eq!(child.get(extension), "child only");
+    }
+
+    #[test]
+    fn late_page_directory_spans_only_additional_pages() {
+        let mut set = PagedArenaSet::<String>::new();
+        set.begin_page(90_000);
+        let late = set.append("late".to_owned());
+        assert_eq!(set.page_positions.len(), 1);
+        set.begin_page(90_002);
+        let later = set.append("later".to_owned());
+        assert_eq!(set.page_positions.len(), 3);
+        // A page before the current base rebases the directory.
+        set.begin_page(80_000);
+        let earlier = set.append("earlier".to_owned());
+        assert_eq!(set.page_positions.len(), 10_003);
+        assert_eq!(set.get(late), "late");
+        assert_eq!(set.get(later), "later");
+        assert_eq!(set.get(earlier), "earlier");
+        assert!(!set.is_valid(crate::Handle::<String>::from_parts(1, 90_001)));
+        // Handing pages away leaves an empty directory; the next late page
+        // starts a one-entry directory instead of spanning every generation.
+        let taken = set.take_additional_pages();
+        assert!(set.page_positions.is_empty());
+        set.begin_page(95_000);
+        let next = set.append("next".to_owned());
+        assert_eq!(set.page_positions.len(), 1);
+        assert_eq!(set.get(next), "next");
+        set.adopt_additional_pages(taken);
+        assert_eq!(set.get(late), "late");
+        assert_eq!(set.get(earlier), "earlier");
+        assert_eq!(set.get(next), "next");
     }
 
     #[test]
