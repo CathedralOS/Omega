@@ -15527,7 +15527,7 @@ fail/layouts/fixed_layout_policy_borrowed_content rejected 2240ms expected @dc98
 	specification call `policy` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/layouts/fixed_layout_policy_guarantee rejected 2698ms expected @dc9835be2e64
 	cannot prove ensures contract for exit from validate at statement 0: policy(result, storage, expected)
-fail/layouts/fixed_layout_sum_array_undersized rejected 4672ms expected @3e7710c8547c
+fail/layouts/fixed_layout_sum_array_undersized rejected 4014ms expected @f8b9bcaa559c
 	policy `EnvelopeLayout::plan` produced an invalid plan: field `choices` ends at bit 320, past the fixed size 256 bits
 fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 3199ms expected @d68d95fa82f8
 	recast has no complete exact layout alternative roster
@@ -26167,7 +26167,7 @@ pass/layouts/fixed_layout_forwarded_fragmented_mutation_exit checked 15572ms che
 pass/layouts/fixed_layout_overridden_valid_policy_exit checked 1871ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_policy_value_exit checked 3643ms check-target:macos_arm64 @dc9835be2e64
 pass/layouts/fixed_layout_semantic_only_policy_exit checked 8828ms check-target:macos_arm64 @d68d95fa82f8
-pass/layouts/fixed_layout_sum_array_exit checked 10919ms check-target:macos_arm64 @3e7710c8547c
+pass/layouts/fixed_layout_sum_array_exit checked 8274ms check-target:macos_arm64 @f8b9bcaa559c
 pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 9008ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_unmentioned_valid_policy_exit checked 1937ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/float_member_layout_queries_compile checked 6914ms @ccdb99ca2214
