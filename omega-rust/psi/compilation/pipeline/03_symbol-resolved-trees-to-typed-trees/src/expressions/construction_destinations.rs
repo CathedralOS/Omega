@@ -230,7 +230,7 @@ fn collect_call_destinations(
 
 fn call_source_owner(
     program: &TypedTrees,
-    application: typed_trees::expression::StaticMachineApplicationHandle,
+    application: typed_trees::static_applications::StaticMachineApplicationHandle,
     lexical_owner: SymbolHandle,
 ) -> SymbolHandle {
     if application.is_valid() {

@@ -579,7 +579,7 @@ impl TypedTrees {
         lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
-        // The declaration supplies unbound regions throughout its type, even
+        // Lifetime names belong to their declaration throughout the copied type, even
         // below arrays or generic arguments without their own lifetime slots.
         // Scope a fresh input root: substitution may return a caller-owned
         // actual, which must never acquire the receiving declaration's scope.
