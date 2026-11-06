@@ -7,6 +7,9 @@ use super::*;
 use calling_conventions::{EntryStack, Preemption};
 use runtime_abi::static_interrupts::{InstalledInterruptProtocol, root};
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn emit(
     request: NativeEntryBridgeRequest,
     plan: InstalledInterruptEntryPlan,
@@ -22,7 +25,7 @@ pub(super) fn emit(
     if !plan.has_canonical_geometry() {
         return Err(Error::InvalidInstalledInterruptGeometry);
     }
-    let protocol = entry_protocol::select(&request)?;
+    entry_protocol::validate_fatal(&request)?;
     let inbound = &request.inbound.call;
     let internal = &request.internal;
     if request.target.architecture != Architecture::X86_64
@@ -132,7 +135,7 @@ pub(super) fn emit(
     for register in super::installed_interrupt::SAVED_GPRS {
         super::installed_interrupt::push_or_pop(&mut bytes, register, false);
     }
-    bytes.extend_from_slice(protocol.before_body);
+    bytes.extend_from_slice(&isa_x86_64::CLEAR_DIRECTION_FLAG_BYTES);
     // The opaque frame may include an error word. Alignment consumes at most
     // fifteen additional bytes; no return path needs the original stack cursor.
     bytes.extend_from_slice(&[0x48, 0x83, 0xe4, 0xf0]); // AND RSP,-16

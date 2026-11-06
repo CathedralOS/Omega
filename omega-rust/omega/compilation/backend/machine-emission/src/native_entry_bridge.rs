@@ -91,6 +91,7 @@ pub enum NativeEntryBridgeError {
     UnsupportedEntryControl,
     UnsupportedInstalledInterruptSignature,
     UnsupportedFatalInterruptSignature,
+    UnsupportedFatalInterruptPreservation,
     InvalidInstalledInterruptGeometry,
     UnsupportedInterruptState,
     MissingInterruptBodyFootprint,
@@ -112,6 +113,9 @@ impl std::fmt::Display for NativeEntryBridgeError {
             Self::UnsupportedFatalInterruptSignature => {
                 "installed fatal arrival requires exactly one shared context reference and no result"
             }
+            Self::UnsupportedFatalInterruptPreservation => {
+                "nonreturning fatal entry cannot promise to preserve or restore an interrupted continuation"
+            }
             Self::InvalidInstalledInterruptGeometry => {
                 "installed interrupt entry changed its root, gate or hardware-frame geometry"
             }
@@ -123,7 +127,7 @@ impl std::fmt::Display for NativeEntryBridgeError {
                 "interrupt entry lacks the checked handler's machine-state effects"
             }
             Self::InterruptBodyStateExceedsPlan => {
-                "interrupt handler uses machine state its entry does not permit, save and restore"
+                "interrupt handler exceeds its entry's machine-state ceiling or preservation protocol"
             }
             _ => return write!(formatter, "native entry bridge failed: {self:?}"),
         };

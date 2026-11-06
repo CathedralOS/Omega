@@ -8,6 +8,7 @@
 
 use calling_conventions::{
     EntryControl, MachineRegister, MachineState, MachineStateSet, RegisterSet,
+    StateFootprintEvidence,
 };
 use target::Architecture;
 
@@ -64,15 +65,8 @@ fn interrupt(request: &NativeEntryBridgeRequest) -> Result<EntryProtocol, Error>
     {
         return Err(Error::UnsupportedInterruptState);
     }
-    let footprint = request
-        .body_footprint
-        .as_ref()
-        .ok_or(Error::MissingInterruptBodyFootprint)?;
-    if !state
-        .permitted_transitive_use
-        .contains_all(footprint.machine_state())
-        || !restored.contains_all(footprint.machine_state())
-    {
+    let footprint = interrupt_body_footprint(request)?;
+    if !restored.contains_all(footprint.machine_state()) {
         return Err(Error::InterruptBodyStateExceedsPlan);
     }
     Ok(EntryProtocol {
@@ -103,4 +97,43 @@ fn interrupt(request: &NativeEntryBridgeRequest) -> Result<EntryProtocol, Error>
         before_body: &isa_x86_64::CLEAR_DIRECTION_FLAG_BYTES,
         return_bytes: &isa_x86_64::INTERRUPT_RETURN_BYTES,
     })
+}
+
+/// A fatal installation admits an exact body with no normal completion. It
+/// consumes the arrival without resuming its interrupted activation, so its
+/// bridge must not borrow the returning adapter's restoration promise.
+pub(super) fn validate_fatal(request: &NativeEntryBridgeRequest) -> Result<(), Error> {
+    let state = &request.inbound.state;
+    if !state.interrupted_state.is_empty()
+        || !state.saved_state.is_empty()
+        || !state.restored_state.is_empty()
+    {
+        return Err(Error::UnsupportedFatalInterruptPreservation);
+    }
+    if state.initial_regime.architecture() != Architecture::X86_64
+        || request.inbound.call.stack_alignment != 16
+        || request.inbound.call.result.is_some()
+    {
+        return Err(Error::UnsupportedInterruptState);
+    }
+    interrupt_body_footprint(request)?;
+    Ok(())
+}
+
+fn interrupt_body_footprint(
+    request: &NativeEntryBridgeRequest,
+) -> Result<&StateFootprintEvidence, Error> {
+    let footprint = request
+        .body_footprint
+        .as_ref()
+        .ok_or(Error::MissingInterruptBodyFootprint)?;
+    if !request
+        .inbound
+        .state
+        .permitted_transitive_use
+        .contains_all(footprint.machine_state())
+    {
+        return Err(Error::InterruptBodyStateExceedsPlan);
+    }
+    Ok(footprint)
 }

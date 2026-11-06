@@ -1,1 +1,1 @@
-interrupt handler uses machine state its entry does not permit, save and restore
+interrupt handler exceeds its entry's machine-state ceiling or preservation protocol

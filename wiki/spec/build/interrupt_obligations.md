@@ -8,6 +8,16 @@ exception coverage, IST policy, interrupt masking, controller, timer handoff,
 or fatal-fault policy. Table construction/publication follows
 [hardware materialization](hardware_materialization.md).
 
+An installed fatal body checked to have no normal completion does not resume
+the interrupted activation. Its state plan may therefore make no interrupted
+continuation preservation commitment: interrupted, saved and restored sets are
+empty, while its permitted-use ceiling still covers the complete handler and
+generated arrival code. The admitted fatal protocol must stop if the body
+unexpectedly returns and must never resume an opaque hardware frame. This
+disposition belongs to the exact admitted body and installation; a calling
+policy or frame shape alone cannot establish it. Returning interrupt entries
+retain their full save, restore and acknowledgement obligations.
+
 ## Mask and acknowledgement custody
 
 `InterruptMaskGuard` and `InterruptAcknowledgement` are independent opaque
