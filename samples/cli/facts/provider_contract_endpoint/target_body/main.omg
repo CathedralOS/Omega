@@ -71,7 +71,7 @@ ArmTransfer satisfies SelectedTransfer {
 }
 
 
-public machine main() invokes SelectedTransfer, Endpoint crashes Trap {
+public machine main() invokes SelectedTransfer invokes Endpoint crashes Trap {
     let produced: u64 = bounded(7);
     let value: u64 = SelectedTransfer::transfer(produced);
     let difference: u64 = 7u64 - value;
