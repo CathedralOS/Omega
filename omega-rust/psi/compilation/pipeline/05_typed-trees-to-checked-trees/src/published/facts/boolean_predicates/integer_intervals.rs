@@ -3,7 +3,7 @@
 //! and contradictory clauses never supply an arbitrary interval. Opposite
 //! operands use ordinary completed values, never this proposition recursively.
 
-use super::{BoundPredicate, Operand};
+use super::BoundPredicate;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
 };
@@ -82,7 +82,7 @@ fn consequence(
                 let selected = [(left, right, false), (right, left, true)]
                     .into_iter()
                     .find_map(|(subject, value, reversed)| {
-                        let binding = predicate.binding(&Operand::Scalar((**subject).clone()))?;
+                        let binding = predicate.scalar_binding(subject)?;
                         if binding.place != *place {
                             return None;
                         }
