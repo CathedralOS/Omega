@@ -817,6 +817,72 @@ class CompilerPilotTests(unittest.TestCase):
             self.assertEqual(report["observations"][0]["error"], "native timeout")
             self.assertEqual(report["observations"][1]["error"], "provider unavailable")
 
+    def test_recording_uses_the_corpus_command_and_keeps_the_published_golden(self):
+        for intended_rejection in (True, False):
+            with self.subTest(intended_rejection=intended_rejection), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                baseline = output / "published.txt"
+                baseline.write_text("published results remain unchanged\n")
+                recorded = output / "recorded-corpus-outcomes.txt"
+                producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
+                                runner_profile={"sha256": "b" * 64})
+                fixture = "fail/example/intended_rejection"
+
+                def corpus(arguments, **kwargs):
+                    self.assertIn("--record", arguments)
+                    self.assertNotIn("--both", arguments)
+                    self.assertEqual(arguments[arguments.index("--filter") + 1], fixture)
+                    self.assertEqual(arguments[arguments.index("--golden") + 1], str(recorded))
+                    self.assertEqual(kwargs["env"]["OMEGA_CORPUS_TIMINGS"], str(baseline))
+                    report = self.report()
+                    report["observations"] = [dict(fixture=fixture, status="rejected",
+                                                   expected_satisfied=intended_rejection)]
+                    Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                    recorded.write_text("runner-produced record\n")
+                    return Mock(returncode=0)
+
+                with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                     patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}), \
+                     patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                     patch.object(pilot, "observation_golden", return_value=baseline), \
+                     patch.object(pilot.subprocess, "run", side_effect=corpus) as execute:
+                    summary = {}
+                    if intended_rejection:
+                        pilot.execute(output, summary, positives=(), negatives=(fixture,), producer=producer)
+                        self.assertEqual(summary["recorded_corpus"], str(recorded))
+                    else:
+                        with self.assertRaisesRegex(ValueError, "missing intended rejection"):
+                            pilot.execute(output, summary, positives=(), negatives=(fixture,), producer=producer)
+                        self.assertNotIn("recorded_corpus", summary)
+                    execute.assert_called_once()
+                    with self.assertRaisesRegex(ValueError, "already exists"):
+                        pilot.execute(output, {}, positives=(), negatives=(fixture,), producer=producer)
+                    execute.assert_called_once()
+                self.assertEqual(baseline.read_text(), "published results remain unchanged\n")
+
+    def test_recording_without_corpus_fixtures_refuses_before_building(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.dict(os.environ, {"OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}), \
+             patch.object(pilot, "prepare_producer") as build, \
+             patch.object(pilot.subprocess, "run") as consume:
+            with self.assertRaisesRegex(ValueError, "exact corpus fixture selection"):
+                pilot.execute(Path(temporary), {}, positives=(), negatives=(),
+                              cli_fixtures=("pass/example/exit",))
+            build.assert_not_called()
+            consume.assert_not_called()
+
+    def test_recording_without_an_explicit_selection_does_not_build_the_smoke(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(pilot, "ROOT", Path(temporary)), \
+             patch.dict(os.environ, {"OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}), \
+             patch.object(pilot, "prepare_producer") as build, \
+             patch.object(pilot, "execute") as consume:
+            self.assertEqual(pilot.run_suite("record", pilot.POSITIVES, pilot.NEGATIVES, phase="prepare"), 1)
+            build.assert_not_called()
+            consume.assert_not_called()
+            report = json.loads((Path(temporary) / "build/record/preparation.json").read_text())
+            self.assertIn("exact fixture IDs or a replay plan", report["error"])
+
     def test_rejection_only_run_never_launches_an_empty_runtime_filter(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)

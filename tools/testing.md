@@ -248,6 +248,12 @@ containing `main.omg`, including nested fact-place paths.
 For canonical checking rows after runtime is already qualified, add
 `--checking-only` (manual workflow input `checking_only: true`). It requires
 exact fixture IDs and refuses sample or ordinary CLI execution selectors.
+To produce reviewable source records on the hosted runner, add the manual input
+`record_results: true`. The pilot runs `corpus_gate.py --record` into
+`build/compiler-pilot/recorded-corpus-outcomes.txt`, retaining the published
+golden's timing limits. It leaves tracked goldens unchanged. Download and review
+those measured rows before applying them to `tests/omega/corpus_outcomes.txt`;
+the ordinary oracle, source identity and rejection checks still apply.
 The ordinary CLI selector `cli_fixtures` also accepts an exact normal-exit
 `samples/cli/...` project. It retains that project's original relative dependency
 paths and numeric source oracle; it does not select descendants or weaken the
