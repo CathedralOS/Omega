@@ -1098,24 +1098,9 @@ pub(super) fn retain_access_result(
     path: Vec<StructuralPathSegment>,
     backing: abstract_operations::AccessReferenceBacking,
 ) -> Result<(), LoweringError> {
-    normalized_source(function, live, types, source)?;
+    let root = normalized_source(function, live, types, source)?;
     let carrier_type = leaf_type(types, result.structural_type, &path)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    // The operation produces this descriptor; the retained interpretation
-    // still names the allocation that supplies its storage and authority.
-    let root = ReferenceRoot::Alternatives(vec![target_operations::TargetReferenceOrigin {
-        base: target_operations::TargetReferenceOriginBase::Invocation {
-            root: result.place,
-            carrier_type: result.structural_type,
-        },
-        path: path
-            .iter()
-            .cloned()
-            .chain(std::iter::once(StructuralPathSegment::Referent))
-            .map(terminal_psi::ReferenceOriginProjection::Exact)
-            .collect(),
-        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-    }]);
     if live
         .references
         .insert(

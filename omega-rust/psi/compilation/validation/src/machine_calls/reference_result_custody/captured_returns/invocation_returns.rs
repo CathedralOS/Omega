@@ -245,6 +245,52 @@ impl Captures<'_> {
             {
                 let mut covered = false;
                 for loan in site_loans.iter().filter(|loan| {
+                    self.returned_loan_owner_path(state, loan).as_deref()
+                        == Some(owner_path.as_slice())
+                        && self
+                            .facts
+                            .borrow
+                            .incoming_references
+                            .is_valid(loan.incoming_reference)
+                }) {
+                    let incoming = self
+                        .facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference);
+                    if incoming.state_symbol != state.symbol
+                        || loan.root != facts::PlaceRoot::Expression(call.authored_expression)
+                        || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
+                            if expression == call.authored_expression
+                                && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
+                        || leaf.source.access.borrow_access_kind()? != loan.kind
+                    {
+                        continue;
+                    }
+                    let (carrier, descriptor) = self.invocation_carrier(state, incoming)?;
+                    if self.program.normalized_type_identity(carrier)
+                        != self.program.normalized_type_identity(return_type)
+                        || descriptor
+                            != leaf
+                                .path
+                                .iter()
+                                .cloned()
+                                .map(CheckedReferenceOriginProjection::Exact)
+                                .collect::<Vec<_>>()
+                    {
+                        return None;
+                    }
+                    let source = self.captured_parameter_origin(state, &leaf, origin)?;
+                    let returned = CheckedReturnedReferencePlan {
+                        path: leaf.path.clone(),
+                        source,
+                    };
+                    if !output.contains(&returned) {
+                        output.push(returned);
+                    }
+                    covered = true;
+                }
+                for loan in site_loans.iter().filter(|loan| {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
                         && self.returned_loan_owner_path(state, loan).as_deref()
                             == Some(owner_path.as_slice())

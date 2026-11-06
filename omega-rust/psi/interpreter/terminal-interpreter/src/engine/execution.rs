@@ -118,9 +118,9 @@ pub struct TerminalExecution<'artifact> {
     pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: RuntimeRows<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: RuntimeRows<PlaceId, TerminalStructuralValue>,
-    /// Reserved linear storage before any completed owned value is installed.
-    /// A whole store can install an empty claim roster; indexed stores publish
-    /// their real owned parts, whose exact claims fence every later value use.
+    /// Storage reserved for a linear local before a whole store establishes
+    /// its value. Partial stores may install claims, but the local remains
+    /// unavailable as a value until its complete contents are installed.
     pub(crate) linear_homes: RuntimeRows<PlaceId, TerminalStructuralValue>,
     /// Host-lent entry storage outlives frame-local views. Keep only borrowed
     /// inputs: an owned argument transfers custody and cannot be read back.

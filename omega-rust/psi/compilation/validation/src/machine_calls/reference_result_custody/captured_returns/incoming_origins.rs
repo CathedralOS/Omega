@@ -54,6 +54,70 @@ impl Captures<'_> {
         Some((carrier, leaf.path))
     }
 
+    /// A completed call's input bound uses its captured actual operand.
+    /// The returned descriptor still has its own invocation identity; that
+    /// identity does not make the input's backing an independent allocation.
+    pub(super) fn captured_parameter_origin(
+        &self,
+        state: &typed_trees::state::State,
+        leaf: &checked_trees::CheckedReferenceResultSourcePlan,
+        origin: &CapturedReturnOrigin,
+    ) -> Option<checked_trees::CheckedReferenceOriginSourcePlan> {
+        let (index, parameter) = self
+            .program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                super::super::is_mutable_structural_parameter(self.program, parameter)
+            })
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == origin.source.root)?;
+        let ingress = match crate::reference_shell(self.program, parameter.type_reference) {
+            Some(shell) => {
+                if !super::super::reference_access_can_supply(
+                    shell.access.into(),
+                    leaf.source.access,
+                ) {
+                    return None;
+                }
+                shell.referee
+            }
+            None => parameter.type_reference,
+        };
+        let mut captured = self.frame_origin_path(ingress, &[], &origin.source)?;
+        let expected = origin
+            .presentation
+            .as_ref()
+            .map_or(leaf.source.type_identity, |presentation| {
+                presentation.source_type
+            });
+        if self.program.normalized_type_identity(captured.presentation) != expected
+            && let Some(shell) = crate::reference_shell(self.program, captured.presentation)
+        {
+            if !super::super::reference_access_can_supply(shell.access.into(), leaf.source.access)
+                || self.program.normalized_type_identity(captured.backing)
+                    != self.program.normalized_type_identity(captured.presentation)
+            {
+                return None;
+            }
+            captured
+                .path
+                .push(checked_trees::CheckedReferenceOriginProjection::Exact(
+                    checked_trees::CheckedUnitStructuralPathSegment::Referent,
+                ));
+            captured.backing = shell.referee;
+            captured.presentation = shell.referee;
+        }
+        self.publish_frame_origin(
+            state,
+            leaf,
+            origin,
+            captured,
+            u32::try_from(index).ok()?,
+            Vec::new(),
+        )
+    }
+
     pub(super) fn incoming_leaf(
         &self,
         state: &typed_trees::state::State,
