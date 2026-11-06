@@ -15646,6 +15646,11 @@ fail/layouts/retained_constant_contract_parameters rejected 4162ms expected @ccd
 	constant checking: scalar predicate is false: requires contract for call require_size from main state entry statement 0
 fail/layouts/retained_layout_predicate_decisions rejected 3698ms unexpected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() < 8 || size_of() == 32 && !size_of() != 16 && align_of() == 8 == true
+fail/layouts/run_qualified_element_unestablished rejected 21226ms expected @cc29edcd2fc2
+	cannot prove requires contract for call initialize_cell from allocated: Word in Word::Owned in state `entry`
+	cannot prove requires contract for call extract from allocated: (__transition_subject#197.view as Run<WordPlacement, Word in Owned> ).storage.base == backing_base (needs fact `run.storage.base == backing_base` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call extract from allocated: (__transition_subject#197.view as Run<WordPlacement, Word in Owned> ).storage.length == backing_length (needs fact `run.storage.length == backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	construction value is not proven in domain `Word::Owned` in allocated state `entry` at statement 6; a construction value must establish the domain's predicates and any required provenance
 fail/layouts/runtime_restricted_shared_unbounded rejected 2783ms expected @911f6617ba9e
 	cannot prove index `position` is within length 4 in inspect::entry
 fail/layouts/runtime_value_is_not_layout_constant rejected 3002ms expected @ccdb99ca2214
@@ -26233,6 +26238,7 @@ pass/layouts/runtime_recast_reference_captures_index_exit rejected 1297ms check-
 	duplicate machine `read`
 pass/layouts/runtime_recursive_encoded_reference_exit checked 3734ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_returned_encoded_reference_exit checked 3129ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_run_qualified_element_exit checked 29456ms check-target:macos_arm64 @cc29edcd2fc2
 pass/layouts/runtime_selected_reference_parent_restoration_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_selected_scalar_reference_codec_exit checked 3248ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_size_of_align_of_exit rejected 108773ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
