@@ -940,7 +940,9 @@ fn definition(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Optio
 fn check_contents(
     program: &dyn crate::CheckingInput,
     resolved: &ContentType,
-    active: &mut Vec<ContentType>,
+    // Each open ancestor's symbol and size: the recursion guard below reads
+    // nothing else, so the stack does not copy whole content trees.
+    active: &mut Vec<(SymbolHandle, usize)>,
     complete: &mut Vec<ContentType>,
     requirement: ContentsRequirement,
 ) -> bool {
@@ -1026,10 +1028,9 @@ fn check_contents(
                     | ContentsRequirement::StructuralConstruction
                     | ContentsRequirement::BorrowedStorage
             ))
-        || active.iter().any(|ancestor| {
-            matches!(ancestor, ContentType::Data { symbol: owner, .. }
-            if owner == symbol && resolved.size() >= ancestor.size())
-        })
+        || active
+            .iter()
+            .any(|&(owner, size)| owner == *symbol && resolved.size() >= size)
         || (!matches!(
             requirement,
             ContentsRequirement::LinearOwned
@@ -1042,7 +1043,7 @@ fn check_contents(
     {
         return false;
     }
-    active.push(resolved.clone());
+    active.push((*symbol, resolved.size()));
     let mut check_field = |field: &typed_trees::data::DataField| {
         if field.relevance.is_erased() {
             if requirement == ContentsRequirement::BorrowFree {
