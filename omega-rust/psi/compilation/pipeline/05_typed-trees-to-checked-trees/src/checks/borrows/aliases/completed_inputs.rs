@@ -127,18 +127,29 @@ mod tests {
         let target = SymbolHandle::from_parts(3, 1);
         let expression = ExpressionHandle::from_parts(1, 1);
         let argument = ExpressionHandle::from_parts(2, 1);
+        let other_argument = ExpressionHandle::from_parts(3, 1);
         let storage_snapshot = facts
             .flow
             .control
             .storage_snapshots
             .insert(Default::default());
-        let operands = facts.flow.control.operands.insert_many([FlowOperandFact {
-            expression: argument,
-            state_symbol,
-            storage_snapshot,
-            ..Default::default()
-        }]);
-        let arguments = facts.flow.control.call_arguments.insert_many([argument]);
+        let operands = facts
+            .flow
+            .control
+            .operands
+            .insert_many(
+                [argument, other_argument].map(|expression| FlowOperandFact {
+                    expression,
+                    state_symbol,
+                    storage_snapshot,
+                    ..Default::default()
+                }),
+            );
+        let arguments = facts
+            .flow
+            .control
+            .call_arguments
+            .insert_many([argument, other_argument]);
         let calls = facts.flow.control.calls.insert_many([FlowCallFact {
             target_symbol: target,
             authored_expression: expression,
