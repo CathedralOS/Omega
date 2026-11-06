@@ -1607,7 +1607,8 @@ impl<'program> Engine<'program> {
                         &call,
                     )?;
                     let target = super::specification_calls::owner_symbol(&owner);
-                    let parameters = super::specification_calls::owner_parameters(self.program, &owner);
+                    let parameters =
+                        super::specification_calls::owner_parameters(self.program, &owner);
                     let supplied_arguments =
                         expression_table(self.program).expression_handles(call.arguments);
                     let arguments = supplied_arguments

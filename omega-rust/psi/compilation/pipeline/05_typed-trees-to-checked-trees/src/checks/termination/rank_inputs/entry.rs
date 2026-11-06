@@ -114,14 +114,7 @@ pub(in crate::checks::termination) fn prove_with_formation(
             let declared_reads = record
                 .as_ref()
                 .map(|record| (&record.root, record.shape.reads.as_slice()));
-            let prepared = super::at_entry(
-                program,
-                machine,
-                root,
-                frames,
-                &paths,
-                declared_reads,
-            )?;
+            let prepared = super::at_entry(program, machine, root, frames, &paths, declared_reads)?;
             let subject = match &record {
                 Some(record) => ScopedArithmeticExpression {
                     owner: root.symbol,

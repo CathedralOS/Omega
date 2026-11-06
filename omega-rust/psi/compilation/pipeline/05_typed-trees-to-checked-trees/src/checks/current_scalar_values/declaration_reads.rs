@@ -3,7 +3,9 @@
 //! field keeps its own storage, entry-bound and scalar-value receipts. Resolving
 //! a selector cannot invent an observation or grant access to its record.
 
-use super::scalar_fields::{CapturedScalarField, ScalarField, capture_path, same_projection, source_path};
+use super::scalar_fields::{
+    CapturedScalarField, ScalarField, capture_path, same_projection, source_path,
+};
 use super::{CurrentScalarValues, ScalarProjection};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use validation::{DeclaredInputRead, RankSubjectCoordinate, ScopedArithmeticValue};
@@ -18,9 +20,7 @@ impl CurrentScalarValues<'_> {
         reads: &[DeclaredInputRead],
     ) {
         for read in reads {
-            let Some(projection) =
-                self.declared_projection(root, read, &read.coordinate, 0)
-            else {
+            let Some(projection) = self.declared_projection(root, read, &read.coordinate, 0) else {
                 continue;
             };
             if self.fields.iter().any(|field| {
@@ -39,8 +39,7 @@ impl CurrentScalarValues<'_> {
                     value: ScopedArithmeticValue::Atom {
                         identity: format!(
                             "declared-read:parameter:{:?}:calls:{:?}",
-                            root.parameter,
-                            read.calls
+                            root.parameter, read.calls
                         ),
                         unsigned: super::unsigned(read.primitive_type),
                     },
@@ -135,10 +134,14 @@ impl CurrentScalarValues<'_> {
             self.telescoped_selector_leaf_value_from_coordinate(read, root, depth, input)
         })
         .or_else(|| {
-            let field_symbol = read.coordinate.path.first().and_then(|segment| match segment {
-                facts::PlaceSegment::Field { symbol } => Some(*symbol),
-                _ => None,
-            })?;
+            let field_symbol = read
+                .coordinate
+                .path
+                .first()
+                .and_then(|segment| match segment {
+                    facts::PlaceSegment::Field { symbol } => Some(*symbol),
+                    _ => None,
+                })?;
             self.fields.iter().find_map(|field| {
                 if field.owner != root.parameter {
                     return None;
@@ -163,8 +166,8 @@ impl CurrentScalarValues<'_> {
                 else {
                     return None;
                 };
-                let demanded =
-                    self.telescoped_selector_leaf_value_from_expression(read, root, depth, supplying)?;
+                let demanded = self
+                    .telescoped_selector_leaf_value_from_expression(read, root, depth, supplying)?;
                 (validation::scoped_arithmetic_values_relation(
                     self.occurrence().program,
                     self.occurrence().machine,
@@ -173,7 +176,7 @@ impl CurrentScalarValues<'_> {
                     &demanded,
                     observed,
                 ) == validation::StrictArithmeticImplicationJudgment::Proven)
-                .then(|| observed.clone())
+                    .then(|| observed.clone())
             })
         })
     }
@@ -185,15 +188,16 @@ impl CurrentScalarValues<'_> {
         depth: usize,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticValue> {
-        let place = validation::canonical_place_from_expression(self.program, expression)
-            .or_else(|| {
+        let place = validation::canonical_place_from_expression(self.program, expression).or_else(
+            || {
                 validation::canonical_place_from_expression_in_state(
                     self.program,
                     self.state.symbol,
                     self.statement_index,
                     expression,
                 )
-            })?;
+            },
+        )?;
         let formal_root = place.root.as_symbol()?;
         let (_, input) = read
             .selector_inputs

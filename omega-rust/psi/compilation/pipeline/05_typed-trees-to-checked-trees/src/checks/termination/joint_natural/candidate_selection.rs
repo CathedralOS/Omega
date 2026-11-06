@@ -188,10 +188,9 @@ pub(super) fn prepare(
             let shape = application.shape(program)?;
             Some((view.coordinate.clone(), shape.reads.clone()))
         });
-        let declared_reads =
-            seed_reads
-                .as_ref()
-                .map(|(root, reads)| (root, reads.as_slice()));
+        let declared_reads = seed_reads
+            .as_ref()
+            .map(|(root, reads)| (root, reads.as_slice()));
         let prepared = super::super::rank_inputs::at_entry(
             program,
             machine,

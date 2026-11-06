@@ -112,12 +112,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                         .collect::<Vec<_>>();
                     paths.push(destination.path.clone());
                     Some(super::super::rank_inputs::at_entry(
-                        program,
-                        machine,
-                        state,
-                        frames,
-                        &paths,
-                        None,
+                        program, machine, state, frames, &paths, None,
                     )?)
                 } else {
                     None

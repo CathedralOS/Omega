@@ -3,8 +3,8 @@
 use crate::checks::current_scalar_values::parameter_projection_paths;
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 use validation::{
-    canonical_place_from_expression_in_state, expression_traversal::children, CheckingInput,
-    RankingRangeMeasure,
+    CheckingInput, RankingRangeMeasure, canonical_place_from_expression_in_state,
+    expression_traversal::children,
 };
 
 pub(in crate::checks::termination) fn entry_observation_paths(
@@ -15,8 +15,9 @@ pub(in crate::checks::termination) fn entry_observation_paths(
     extra_expressions: &[ExpressionHandle],
 ) -> Vec<Vec<facts::PlaceSegment>> {
     let (subject, paired) = match measure {
-        RankingRangeMeasure::Single(subject)
-        | RankingRangeMeasure::Computed { subject, .. } => (subject, None),
+        RankingRangeMeasure::Single(subject) | RankingRangeMeasure::Computed { subject, .. } => {
+            (subject, None)
+        }
         RankingRangeMeasure::Distance { lower, upper } => (lower, Some(upper)),
         RankingRangeMeasure::IncreasingTo { subject, limit } => (subject, Some(limit)),
         RankingRangeMeasure::Field { .. } | RankingRangeMeasure::SliceLength(_) => {
@@ -59,9 +60,10 @@ pub(in crate::checks::termination) fn entry_observation_paths(
     while let Some(expression) = pending.pop() {
         if let Some(place) =
             canonical_place_from_expression_in_state(program, state.symbol, 0, expression)
-            && place.root.as_symbol().is_some_and(|symbol| {
-                program.state_parameter_by_symbol(state, symbol).is_some()
-            })
+            && place
+                .root
+                .as_symbol()
+                .is_some_and(|symbol| program.state_parameter_by_symbol(state, symbol).is_some())
             && !place.segments.is_empty()
             && !paths.contains(&place.segments)
         {

@@ -24,7 +24,10 @@ pub(super) fn at_entry<'program>(
     state: &'program State,
     frames: Option<&validation::CallFrameResolver<'_>>,
     paths: &[Vec<facts::PlaceSegment>],
-    declared_reads: Option<(&validation::RankSubjectCoordinate, &[validation::DeclaredInputRead])>,
+    declared_reads: Option<(
+        &validation::RankSubjectCoordinate,
+        &[validation::DeclaredInputRead],
+    )>,
 ) -> Option<EntryInputs<'program>> {
     let execution = program
         .statement_table
