@@ -201,3 +201,6 @@ mod graph;
 pub use catalog::reconstruct_reference_output_catalog;
 pub(crate) use completion::ReferenceOutputBuilder;
 use graph::{external_root, is_entry_storage, output_graph};
+
+#[cfg(test)]
+mod unchanged_ingress_tests;
