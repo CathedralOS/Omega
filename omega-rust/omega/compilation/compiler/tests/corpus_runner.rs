@@ -1057,6 +1057,13 @@ fn build_native_fixture(
         // including each private body's artifact-local object composition.
         image_emission::validate_direct_executable_image(artifact.object(), artifact.image())
             .map_err(|diagnostic| vec![diagnostic])?;
+    } else if let Some(artifact) = report.retained_dynamic_elf_artifact() {
+        // Imported functions do not exempt dynamic images from the source and
+        // private-body reconstruction required of direct executables.
+        image_emission::verify_retained_target_operations(artifact.object())
+            .map_err(|diagnostic| vec![diagnostic])?;
+        image_emission::validate_requested_dynamic_elf_image(artifact.object(), artifact.image())
+            .map_err(|diagnostic| vec![diagnostic])?;
     }
     if let Some(capture) = capture {
         let artifact = retained_native_terminal(report).ok_or_else(|| {
