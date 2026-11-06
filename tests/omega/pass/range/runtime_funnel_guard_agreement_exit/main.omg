@@ -1,16 +1,11 @@
-// MULTI-predecessor edge agreement (the last keystone catalog item): TWO
-// states funnel into `push` under STRUCTURALLY IDENTICAL guards `sp >= 0 &&
-// sp < 16`, and each edge admits `push(main.sp)` against
-// `requires 0 <= v && v < 16`. Two fixes compose: the proof side's
-// guard-equivalence walker gained literal LEAF arms (identical guards from
-// different statements used to compare `false` at `(Integer(0),
-// Integer(0))`), and validation joins ALL incoming edge envs per-place
-// (interval union). The revoked `y: i32 [0..=15]` field suffix moved to
-// `push`'s requires, the checked admission boundary. sp=7 -> exit 7.
+// Both guarded entries to push must justify storing sp in the bounded y field.
+// The entry requirement carries the guard; the data predicate keeps the field's
+// original 0..=15 restriction after the store. Expected exit: 7.
 use omega_language_std::console;
 
-data Main {
+data Main requires y >= 0 && y <= 15 {
     sp: i32;
+    y: i32;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
@@ -28,8 +23,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     machine push(main: &mut Main) requires main.sp >= 0 && main.sp < 16 {
-        let mut y: i32 = main.sp;
-        transition y == 7 {
+        main.y = main.sp;
+        transition main.y == 7 {
             true -> matched(main)
             false -> unmatched(main)
         }

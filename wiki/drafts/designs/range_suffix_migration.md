@@ -1095,6 +1095,32 @@ projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
 
+## Audited guarded-store owner fields
+
+The existing `pass/range/runtime_funnel_guard_agreement_exit` and
+`fail/range/funnel_guard_one_edge_unguarded` customers each declared
+`Main.y: i32 [0..=15]` at the original inventory revision `7a9a7b8287e6`.
+Both now declare `Main.y: i32` with data `requires y >= 0 && y <= 15`, and
+retain the original store `main.y = main.sp` and subsequent field read.
+These are the only historical scalar suffix positions in the two programs.
+
+Migration `443406c0f4f` had moved the field obligation to `push`'s input
+contract while data predicates could not support the store; `b5f039d59e3`
+then replaced the unrestricted field with a local. Restoring the data owner
+retains the storage obligation as well as call admission. The existing
+`push` requirement `main.sp >= 0 && main.sp < 16` is exactly the original
+store's required integer interval, not an additional restriction. The
+positive keeps both guarded entries and exit 7. The negative keeps its
+runtime input and unguarded entry, and its existing diagnostic is unchanged.
+
+The same two migration commits changed
+`fail/range/guarded_copy_stale_after_write`. Its sole historical suffix,
+`Main.y: i32 [0..=9]` at `7a9a7b8287e6`, now uses plain i32 and data
+`requires y >= 0 && y <= 9`, with the destination field store and read
+restored. The source still writes 100 to `main.yv`, rereads that fresh value,
+and calls `store`; its equivalent 0..=9 input contract must still reject.
+The existing `cannot prove requires contract for call store` pin is unchanged.
+
 ## Audited write-only scalar owner fields
 
 The two `Limited` fields in
