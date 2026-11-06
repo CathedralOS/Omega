@@ -2365,7 +2365,7 @@ fail/build/retired_service_exclusion_receiver rejected 2ms expected @ccdb99ca221
 	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
 fail/build/retired_wire_compatibility_receiver rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
-fail/build/root_binding_descriptor_helper_invocation rejected 104ms expected @45a5c677e255
+fail/build/root_binding_descriptor_helper_invocation rejected 1481ms expected @07aa19d13db7
 	machine `choose` omits `invokes Probe` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 	machine `choose` omits `invokes BuildProductOperations` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 fail/build/root_binding_fabricated_receiver rejected 68ms expected @ccdb99ca2214
@@ -18642,7 +18642,7 @@ fail/traits/data_subject_implementation_retired rejected 2ms expected @ccdb99ca2
 	tests/omega/fail/traits/data_subject_implementation_retired/main.omg:18:10: data does not satisfy traits; declare a named implementation `Name satisfies Trait<Data> { ... }` that names each data type as an ordinary trait argument and binds every requirement row
 fail/traits/declaration_identity_forwarded_as_callable rejected 2062ms expected @a03fad3bb4a0
 	machine parameter `Requirement` forwarded into `apply`: declaration identity and callable requirement are different parameter roles
-fail/traits/default_row_foreign_captured_operand rejected 650ms expected @ccdb99ca2214
+fail/traits/default_row_foreign_captured_operand rejected 2168ms expected @07aa19d13db7
 	machine `Mapped::Reader::read` state `read` parameter `value` uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 	machine `Mapped::Reader::read` state `read` return type uses undeclared lifetime argument `'same' in `Marker`; declare it in the owner's generic parameter list
 fail/traits/dyn_array_whole_missing_element rejected 1127ms expected @ccdb99ca2214
@@ -18752,8 +18752,8 @@ fail/traits/exact_requirement_stronger_precondition rejected 1597ms expected @cc
 	machine `only_nonzero` realizes `Accept::accept` but requires `value > 0`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/traits/explicit_implementation_binder_trait_arguments rejected 145ms expected @ccdb99ca2214
 	`Order` is bound as `Ranked<T>`, not the `Ranked<Card>` this call of `Ranked::compare` names
-fail/traits/explicit_implementation_const_identity rejected 199ms expected @ccdb99ca2214
-	`ConsumerMap<i32, 7>` implements `Consumer<Value, SelectedReading<Value, Tag>>`, not the `Consumer<i32, SelectedReading<i32, 19>>` this call of `Consumer::tag` names
+fail/traits/explicit_implementation_const_identity rejected 1760ms expected @07aa19d13db7
+	`ConsumerMap<i32, 7>` implements `Consumer<Value, SelectedReading<Value, Tag>>`, not the `Consumer<i32, SelectedReading<i32, 19>>` this call of `Consumer::tag` names; expected [named(name(i32)), generic(name(nominal\\(package-owner\\(32:41cbab9e08999bb99724534e091ec77a650eee63495a468998d3b615d4eb327c\\)\\,path\\(SelectedReading\\)\\)),named(name(i32)),integer(7))], supplied [named(name(i32)), generic(name(nominal\\(package-owner\\(32:41cbab9e08999bb99724534e091ec77a650eee63495a468998d3b615d4eb327c\\)\\,path\\(SelectedReading\\)\\)),named(name(i32)),integer(19))]
 fail/traits/explicit_implementation_const_in_type_argument rejected 274ms expected @ccdb99ca2214
 	trait `Invalid` parent `Consumer` cannot bind implementation `Reader`: conformance `SelectedReading` parameter `Value` requires a type argument, but `7` has another static category
 fail/traits/explicit_implementation_inherited_trait_arguments rejected 180ms expected @ccdb99ca2214
@@ -18839,7 +18839,7 @@ fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c7
 	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
 fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
 	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
-fail/traits/inherited_nominal_requirement_wrong_application rejected 448ms expected @45a5c677e255
+fail/traits/inherited_nominal_requirement_wrong_application rejected 2298ms expected @07aa19d13db7
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
@@ -27956,7 +27956,7 @@ pass/traits/default_row_mixed_captured_operand checked 2448ms @ccdb99ca2214
 pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/default_row_same_spelled_supplier_region_exit checked 12622ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
-pass/traits/default_row_shadowed_captured_operand_exit checked 3328ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/default_row_shadowed_captured_operand_exit checked 6147ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
 pass/traits/dyn_finite_family_dispatch checked 6343ms @05a6f6af37ec+wt
 pass/traits/equatable_implementation_selection_exit checked 13184ms check-target:macos_arm64 @ccdb99ca2214
@@ -27980,7 +27980,7 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/inherited_nominal_requirement_application_exit checked 2542ms check-target:macos_arm64 @45a5c677e255
+pass/traits/inherited_nominal_requirement_application_exit checked 5852ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_nominal_requirement_exit checked 2546ms check-target:macos_arm64 @45a5c677e255
 pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
@@ -28046,7 +28046,7 @@ pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-
 pass/traits/runtime_dyn_suspending_unit_call_exit checked 53328ms check-target:macos_arm64 @cb2bb7751cae+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/runtime_explicit_implementation_arguments_exit checked 6396ms check-target:macos_arm64 @07aa19d13db7
 pass/traits/runtime_explicit_implementation_requirement_call_exit checked 12754ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_finite_family_affine_result_exit checked 83120ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/traits/runtime_finite_family_correlated_case_result_exit checked 115725ms check-target:macos_arm64 @05a6f6af37ec+wt
