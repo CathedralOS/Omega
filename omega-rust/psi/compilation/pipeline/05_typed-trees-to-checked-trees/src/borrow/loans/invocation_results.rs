@@ -122,6 +122,24 @@ pub(in crate::borrow) fn complete(
     {
         return Ok(Vec::new());
     }
+    // A generic result can hide references in its own Type binders. Declaration
+    // checking keeps their obligations; concrete permission rows wait for the
+    // selected arguments. Known reference leaves and unresolved foreign binders
+    // still require complete formation below.
+    let captured_types =
+        validation::borrow_contracts::captured_type_parameters(program, state.symbol);
+    if matches!(
+        validation::borrow_contracts::declaration_lifetime_frontier(
+            program,
+            result,
+            &captured_types
+        ),
+        validation::borrow_contracts::DeclarationLifetimeFrontier::TemplateDependent {
+            has_borrows: false
+        }
+    ) {
+        return Ok(Vec::new());
+    }
     let value = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
         symbol: state.symbol,
