@@ -1683,6 +1683,21 @@ impl<'program> StructuralJudge<'program> {
         let mut observations = IntegerObservations::empty(self.program);
         let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
+        // First try the goal's admitted operations and genuine carrier bounds.
+        // A closed comparison need not reopen unrelated caller contracts.
+        // The goal is never a premise, and failure leaves the full query intact.
+        let mut independent = observations.clone();
+        if independent.install_premises(&mut Vec::new())
+            && independent.admitted(goal_operations.clone())
+            && IntegerObservations::comparison_holds(
+                &independent.engine.lower_bound_queries(),
+                comparison.0,
+                &comparison.1,
+                &comparison.2,
+            )
+        {
+            return Some((independent, comparison, Vec::new()));
+        }
         let mut comparisons = self.observed_integer_premises(&mut observations);
         let retained = comparisons.clone();
         if !observations.install_premises(&mut comparisons)
