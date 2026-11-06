@@ -10,7 +10,7 @@ use checked_trees::{
 use super::same_carrier_generation;
 
 /// Construction authenticates the exact call input and its saved storage
-/// version. Private fields keep pair comparison on that same immutable cut.
+/// version. Private fields ensure comparisons use only the authenticated input.
 pub(in crate::checks::borrows) struct CompletedInputDebt<'facts> {
     loan: &'facts BorrowLoanFact,
     completed_loans: HandleSpan<BorrowLoanFact>,
