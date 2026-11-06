@@ -66,19 +66,21 @@ impl compiler_storage::Record for AppliedCallableTable {
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        compiler_storage::Record::write(&self.arena, output)
+        output.record(|output| compiler_storage::Record::write(&self.arena, output))
     }
     fn read<Context>(
         input: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
-        let arena = <Arena<AppliedCallableSignature> as compiler_storage::Record>::read(input)?;
-        let layout = AssociationLayout::measure(&arena)
-            .ok_or_else(|| input.error("applied callable association size overflow"))?;
-        let allocation = layout
-            .allocation_bytes()
-            .ok_or_else(|| input.error("applied callable association allocation overflow"))?;
-        input.allocate(allocation)?;
-        Ok(Self::recover(arena, layout))
+        input.record(|input| {
+            let arena = <Arena<AppliedCallableSignature> as compiler_storage::Record>::read(input)?;
+            let layout = AssociationLayout::measure(&arena)
+                .ok_or_else(|| input.error("applied callable association size overflow"))?;
+            let allocation = layout
+                .allocation_bytes()
+                .ok_or_else(|| input.error("applied callable association allocation overflow"))?;
+            input.allocate(allocation)?;
+            Ok(Self::recover(arena, layout))
+        })
     }
 }
 
