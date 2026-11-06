@@ -129,6 +129,8 @@ pub struct CheckedSource {
 /// Shared source product with the exact optional root-selection evidence.
 #[derive(Clone)]
 pub struct SelectedCheckedSource {
+    /// Complete checked declarations remain available for semantic review.
+    pub declarations: Arc<checked_trees::CheckedTrees>,
     pub program: Arc<checked_trees::CheckedTrees>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
@@ -314,8 +316,9 @@ impl CheckedSource {
         // Defaults describe every authored target, including declarations root
         // pruning may remove. Decode them from the checked source before pruning;
         // realization later chooses a row without reading declaration bodies.
+        let declarations = self.program;
         let program = typed_trees_to_checked_trees::project_checked_product_context(
-            self.program,
+            Arc::clone(&declarations),
             &self.execution_roots,
         );
         let provider_defaults =
@@ -328,6 +331,7 @@ impl CheckedSource {
         let (program, selection) =
             typed_trees_to_checked_trees::select_checked_tree_product(program, roots)?;
         Ok(SelectedCheckedSource {
+            declarations,
             program,
             provider_defaults: provider_defaults.into(),
             retained: self.retained,

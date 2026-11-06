@@ -10,6 +10,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use std::sync::{Arc, OnceLock};
 
 pub struct SelectedProviderSource {
+    checked_declarations: Arc<checked_trees::CheckedTrees>,
     inventory: Arc<checked_trees::PreparedProviderInventory>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
     declarations: OnceLock<PreparedProviderInstances>,
@@ -32,23 +33,33 @@ impl PartialEq for SelectedProviderSource {
     fn eq(&self, other: &Self) -> bool {
         // As with the external-declaration product, equal-looking source from
         // another checked owner is not interchangeable. Derived cache state is.
-        Arc::ptr_eq(self.program(), other.program()) && self.plans == other.plans
+        Arc::ptr_eq(self.program(), other.program())
+            && Arc::ptr_eq(self.checked_declarations(), other.checked_declarations())
+            && self.plans == other.plans
     }
 }
 impl Eq for SelectedProviderSource {}
 
 impl SelectedProviderSource {
     pub fn new(
+        checked_declarations: Arc<checked_trees::CheckedTrees>,
         inventory: Arc<checked_trees::PreparedProviderInventory>,
         plans: Arc<effects::SelectedProviderPlanFacts>,
     ) -> Self {
         Self {
+            checked_declarations,
             inventory,
             plans,
             declarations: OnceLock::new(),
         }
     }
 
+    /// Complete admitted declarations for source review, including Build.
+    pub fn checked_declarations(&self) -> &Arc<checked_trees::CheckedTrees> {
+        &self.checked_declarations
+    }
+
+    /// Product execution roots and their exact checked dependencies.
     pub fn program(&self) -> &Arc<checked_trees::CheckedTrees> {
         self.inventory.program()
     }

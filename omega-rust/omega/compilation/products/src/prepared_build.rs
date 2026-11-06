@@ -102,6 +102,8 @@ pub struct PreparedProductSource {
 /// The source checker produces this before any target provider is selected.
 #[derive(Clone)]
 pub struct CheckedProductSource {
+    /// Source review includes checked Build declarations without executing them.
+    pub declarations: Arc<checked_trees::CheckedTrees>,
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<checked_trees::CheckedTrees>,
     /// Complete source demand is shared across targets without forcing fallible

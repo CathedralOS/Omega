@@ -467,6 +467,7 @@ fn select_product_providers(
     })?;
     let (execution, settlement) = selection;
     let source_inspection = Arc::new(provider_planning::SelectedProviderSource::new(
+        Arc::clone(&source.declarations),
         Arc::clone(&source.provider_inventory),
         Arc::clone(&execution.selected_provider_plan_facts),
     ));

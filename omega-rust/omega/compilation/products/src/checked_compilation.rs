@@ -302,6 +302,6 @@ impl std::ops::Deref for CheckedCompilation {
     type Target = CheckedTrees;
 
     fn deref(&self) -> &Self::Target {
-        self.source_inspection().program()
+        self.source_inspection().checked_declarations()
     }
 }

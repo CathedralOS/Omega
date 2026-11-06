@@ -110,6 +110,7 @@ pub(crate) fn check_product_source(
     // selected entry later, without changing this portable judgment.
     let roots = build.checked_tree_product_roots(rollback);
     let psi_compiler::SelectedCheckedSource {
+        declarations,
         program,
         provider_defaults,
         retained,
@@ -151,6 +152,7 @@ pub(crate) fn check_product_source(
         ),
     );
     Ok(CheckedProductSource {
+        declarations,
         source_completion_accounting,
         program,
         provider_inventory,
