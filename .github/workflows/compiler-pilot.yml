@@ -48,6 +48,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # A new PR revision supersedes its old check; never cancel a merge-group check
 # merely because another PR entered the queue. Manual revisions use isolated
@@ -106,6 +107,20 @@ jobs:
         env:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
         run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
+      - name: Relocate the authenticated a285 artifact after cache eviction
+        if: github.event_name == 'workflow_dispatch' && inputs.fixtures == '@tools/ci/scalar_handback_successor_baseline.json'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/ci/a285_producer_artifact_transport.py
+      - name: Save the relocated exact producer for the existing replay owner
+        if: github.event_name == 'workflow_dispatch' && inputs.fixtures == '@tools/ci/scalar_handback_successor_baseline.json'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ steps.replay-cache.outputs.key }}
       - name: Restore the exact retained compiler cache
         id: replay-build-cache
         if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
