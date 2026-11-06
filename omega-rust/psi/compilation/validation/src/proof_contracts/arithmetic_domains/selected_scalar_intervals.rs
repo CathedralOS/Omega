@@ -27,9 +27,7 @@ use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::expression::BinaryOperator;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::PrimitiveType;
 
 /// The live facts a selected scalar plan reads. Every answer is the interval
 /// of the value at that operand position now; `None` is "no bound", never a

@@ -156,9 +156,8 @@ fn materialize_type_operand(
     expression: ExpressionHandle,
 ) -> (TypeReference, Vec<AuthoredDeclarationSelectionOccurrenceId>) {
     use symbol_resolved_trees::types::{
-        ConstrainedTypeReference, ConstrainedTypeReferenceStorage, ReferenceTypeReference,
-        ReferenceTypeReferenceStorage, SliceTypeReference, SliceTypeReferenceStorage,
-        TypeConstraint,
+        ReferenceTypeReference, ReferenceTypeReferenceStorage, SliceTypeReference,
+        SliceTypeReferenceStorage,
     };
     let mut occurrences = body_expressions(program)
         .authored_selection_occurrences(expression)

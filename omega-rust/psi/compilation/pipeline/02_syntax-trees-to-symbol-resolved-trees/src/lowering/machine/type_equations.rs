@@ -2,15 +2,13 @@
 //! checking. Application preparation still discharges every requires equation;
 //! current callers never create assumptions for a declaration's body.
 
-use crate::lowering::{expression::lower_expression_into_table, type_reference};
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::machine::DeclaredTypeEquation;
 use symbol_resolved_trees::types::{
-    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, ReferenceTypeReference,
-    ReferenceTypeReferenceStorage, SliceTypeReference, SliceTypeReferenceStorage, TypeConstraint,
-    TypeReference,
+    ReferenceTypeReference, ReferenceTypeReferenceStorage, SliceTypeReference,
+    SliceTypeReferenceStorage, TypeReference,
 };
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::JoinedSyntaxPath;

@@ -14,9 +14,7 @@ use crate::value_custody::places::declared_place_type_raw;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// A closed IEEE operand, preserving its landed format through exact casts
 /// and sealed numeric conversions. Ordinary callees and live storage have no
@@ -459,7 +457,7 @@ pub(super) fn record_float_comparison_bounds(
         && let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
             program.primitive_type_reference(handle)
         && let Some(name) = place_path(program, place_expression)
-        && let Some(mut interval) =
+        && let Some(interval) =
             float_bound_from(comparison.operator, literal, name_on_left, primitive)
     {
         environment.narrow_float(name.clone(), interval);
@@ -472,7 +470,7 @@ pub(super) fn record_float_comparison_bounds(
         && let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
             program.primitive_type_reference(handle)
         && let Some(element) = super::place_paths::element_place(program, element_expression)
-        && let Some(mut interval) =
+        && let Some(interval) =
             float_bound_from(comparison.operator, literal, element_on_left, primitive)
     {
         environment.narrow_float_element(element.clone(), interval);

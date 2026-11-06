@@ -47,7 +47,7 @@ pub(crate) use bitwise::binary as bitwise_binary;
 mod call_result_bounds;
 mod deferred_bounds;
 mod deferred_observations;
-pub(crate) use call_result_bounds::normal_return_referent_interval;
+
 pub(crate) use deferred_observations::deferred_integer_observation;
 mod call_result_measures;
 pub use call_result_measures::normal_return_length_collection;

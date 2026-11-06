@@ -1,6 +1,5 @@
 //! Numeric parameter delivery consumes the caller's evaluated argument bounds.
 
-use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use arithmetic_domains::Interval;
 use diagnostics::Diagnostic;
@@ -9,7 +8,6 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 /// Check both carrier width and the declared range at the resolved parameter.
 /// A wholly anonymous argument first lands here; its integrality diagnostics

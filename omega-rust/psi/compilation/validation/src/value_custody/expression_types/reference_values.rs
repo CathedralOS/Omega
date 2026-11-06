@@ -13,7 +13,7 @@ use crate::frozen_program::expression_table;
 use crate::value_custody::places::declared_reference_access;
 use crate::value_custody::type_references::substituted_identity;
 use language_semantics::ReferenceAccess;
-use numerics::bignum::BigInt;
+
 use typed_trees::data::TypeParameterKind;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{FixedArrayLength, TypeConstraintNode};

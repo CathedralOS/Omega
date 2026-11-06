@@ -14,7 +14,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub enum MeasureBodyShape {
     ParameterForward {

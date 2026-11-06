@@ -858,15 +858,7 @@ pub(crate) fn validate_const_data_argument(
             )));
             return;
         };
-        validate_const_integer_range(
-            program,
-            base_name,
-            parameter,
-            parameter_type,
-            primitive,
-            value,
-            diagnostics,
-        );
+        validate_const_integer_carrier(base_name, parameter, primitive, value, diagnostics);
         return;
     }
 
@@ -1602,11 +1594,9 @@ fn validate_typed_const_index_type(
     }
 }
 
-fn validate_const_integer_range(
-    program: &dyn CheckingInput,
+fn validate_const_integer_carrier(
     base_name: &str,
     parameter: &TypeParameter,
-    mut parameter_type: TypeReferenceHandle,
     primitive: PrimitiveType,
     value: i128,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1621,7 +1611,7 @@ fn validate_const_integer_range(
     }
 }
 
-/// The declaration twin of `validate_const_integer_range`. An integer const
+/// The declaration twin of `validate_const_integer_carrier`. An integer const
 /// or value binder's carrier range is established by each argument from
 /// closed integer bounds, so a range that does not close (`const N: u64
 /// [0..K]`, naming a sibling binder) admits no argument. Psi 02 also leaves

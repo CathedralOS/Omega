@@ -8,7 +8,7 @@ use super::{
 };
 use crate::CheckingInput;
 use crate::frozen_program::expression_table;
-use crate::queries::expression_traversal::children;
+
 use diagnostics::Diagnostic;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceHandle;

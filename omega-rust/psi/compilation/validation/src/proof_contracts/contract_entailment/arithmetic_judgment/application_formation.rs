@@ -130,8 +130,7 @@ impl Engine<'_> {
         };
         let mut decisions = ApplicationDecisions::default();
         let value = formed_value(&mut admitted, program, body, 0, &mut decisions)?;
-        if result_type
-            .is_some_and(|reference| !formed_type(&mut admitted, program, reference, &value))
+        if result_type.is_some_and(|reference| !formed_type_carrier(program, reference))
             || admitted.requires_unsatisfiable
         {
             return None;
@@ -223,14 +222,14 @@ impl Engine<'_> {
             }
             match &input {
                 IntegerApplicationInput::Scalar(value) => {
-                    if !formed_type(engine, program, formal.type_reference, value) {
+                    if !formed_type_carrier(program, formal.type_reference) {
                         return None;
                     }
                 }
                 IntegerApplicationInput::Record { .. } => {
                     for read in &shape.reads {
                         let value = engine.declared_read_value(read)?;
-                        if !formed_type(engine, program, read.type_reference, &value) {
+                        if !formed_type_carrier(program, read.type_reference) {
                             return None;
                         }
                     }
@@ -250,7 +249,7 @@ impl Engine<'_> {
                 }
             }
             let value = formed_value(engine, program, *body, 0, &mut decisions)?;
-            formed_type(engine, program, declaration.return_type, &value).then_some(value)
+            formed_type_carrier(program, declaration.return_type).then_some(value)
         })?;
         // These are consequences of the completed application, never premises
         // for a child operation or the application's own result formation.
@@ -325,7 +324,7 @@ fn formed_value(
             // future operations. Policy selection/erasure preserves this
             // payload; it never repairs an out-of-range source or result.
             let value = formed_value(engine, program, cast.value, depth + 1, decisions)?;
-            if !formed_type(engine, program, cast.target_type, &value) {
+            if !formed_type_carrier(program, cast.target_type) {
                 return None;
             }
             let target = program.primitive_type_reference(cast.target_type)?;
@@ -414,13 +413,10 @@ fn formed_value(
 
 // A declaration's input and output bounds constrain different values. Prove
 // both under the actual roster; neither constraint is installed as a premise.
-fn formed_type(
-    engine: &mut Engine<'_>,
+fn formed_type_carrier(
     program: &dyn crate::CheckingInput,
     mut reference: typed_trees::types::TypeReferenceHandle,
-    value: &Polynomial,
 ) -> bool {
-    use numerics::bignum::BigInt;
     use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
     while let TypeReferenceNode::Constrained {
         base_type,

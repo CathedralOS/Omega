@@ -117,7 +117,7 @@ pub use proof_contracts::arithmetic_domains::{
 };
 pub use proof_contracts::arithmetic_domains::{
     SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
-    frozen_integer_range_contains, selected_boolean_decision, selected_scalar_interval,
+    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
 };
 pub use proof_contracts::collection_predicates::{
     PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,

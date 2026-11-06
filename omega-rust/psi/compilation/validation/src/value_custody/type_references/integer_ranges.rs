@@ -6,7 +6,6 @@
 //! intermediates and cannot supply that semantic fact. Consumers with bounded
 //! storage convert only the final value, without changing its denotation.
 
-use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};

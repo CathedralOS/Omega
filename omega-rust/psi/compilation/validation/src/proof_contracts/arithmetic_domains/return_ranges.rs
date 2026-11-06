@@ -248,7 +248,7 @@ pub(crate) fn validate_return_value_range(
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
 
-    if let Some((interval, _, _)) = validate_anonymous_integer_range(
+    if let Some(_) = validate_anonymous_integer_range(
         program,
         state.return_type,
         return_expression,
@@ -263,7 +263,7 @@ pub(crate) fn validate_return_value_range(
         // narrowing store obligation too. A value proven within `[a..=b]` already
         // fits the type, so the narrowing check adds no rejection here; it is
         // present only for uniformity with the unconstrained branch.
-        let interval = analyzed_return_interval_and_narrowing(
+        analyzed_return_interval_and_narrowing(
             program,
             machine,
             state,

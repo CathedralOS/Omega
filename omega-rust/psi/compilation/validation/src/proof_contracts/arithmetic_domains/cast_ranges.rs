@@ -4,17 +4,12 @@
 //! authored range shell; unsupported bounds must not disappear through an
 //! optional interval query that also represents absence of a range.
 
-use super::{Interval, ValueEnvironment};
-use crate::proof_contracts::arithmetic_domains::integer_ranges::{
-    known_u64_value, primitive_range,
-};
+use super::ValueEnvironment;
+use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use diagnostics::Diagnostic;
-use typed_trees::expression::{ExpressionHandle, TableCastExpression};
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 
 /// The expression scanner owns selected reachability and calls this only for
 /// an executing cast. Arithmetic analysis owns the proof from the current live

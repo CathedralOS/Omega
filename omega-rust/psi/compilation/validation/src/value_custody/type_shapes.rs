@@ -1,7 +1,7 @@
 //! Whole-type shape walks shared by source custody and contract judgments.
 
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::ExpressionHandle;
+
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };

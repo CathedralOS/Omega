@@ -614,7 +614,6 @@ pub fn ranking_range_state_premise_coordinates(
     state: &State,
 ) -> Option<Vec<RankPremiseCoordinate>> {
     let mut expressions = Vec::new();
-    let mut parameters = Vec::new();
 
     let root = program.machine_states(machine).first()?;
     let contracts = if state.symbol == root.symbol {
@@ -633,16 +632,7 @@ pub fn ranking_range_state_premise_coordinates(
             );
         }
     }
-    let mut coordinates = parameters
-        .into_iter()
-        .map(|parameter| RankPremiseCoordinate {
-            coordinate: RankSubjectCoordinate {
-                parameter,
-                path: Vec::new(),
-            },
-            observation: RankPremiseObservation::Value,
-        })
-        .collect::<Vec<_>>();
+    let mut coordinates = Vec::new();
     let mut pending = expressions
         .into_iter()
         .map(|expression| (expression, 0))
@@ -1181,7 +1171,7 @@ fn prove_edge(
         return None;
     }
     let length_bindings = lengths::bindings(program, machine, state, entry_parameters);
-    let mut expressions = projections::expressions(
+    let expressions = projections::expressions(
         program,
         machine,
         root,
@@ -1796,7 +1786,6 @@ fn parameter_comparisons(
     engine: &mut Engine<'_>,
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
-    let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for (symbol, reference) in program
         .state_parameters(root)
@@ -1832,34 +1821,6 @@ fn parameter_comparisons(
                 BinaryOperator::LessOrEqual,
                 Polynomial::atom(identity.clone()),
                 Polynomial::constant(maximum),
-            ));
-        }
-        for (minimum, maximum, end_inclusive) in
-            crate::value_custody::type_shapes::range_constraints(program, reference)
-        {
-            // Missing or ambiguous aliases cannot contribute an auxiliary
-            // invariant, even when another premise makes the edge dead.
-            let binding = bindings.iter().find(|binding| binding.symbol == symbol)?;
-            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-                return None;
-            };
-            admit(minimum)?;
-            admit(maximum)?;
-            let maximum = engine.normalize(maximum)?;
-            let maximum = if end_inclusive {
-                maximum
-            } else {
-                maximum.sub(&Polynomial::constant(BigInt::from_i64(1)))
-            };
-            comparisons.push((
-                BinaryOperator::GreaterOrEqual,
-                Polynomial::atom(identity.clone()),
-                engine.normalize(minimum)?,
-            ));
-            comparisons.push((
-                BinaryOperator::LessOrEqual,
-                Polynomial::atom(identity.clone()),
-                maximum,
             ));
         }
     }

@@ -33,7 +33,7 @@ use crate::preparation::declaration_selection;
 use crate::preparation::generic_data::ClosedArgumentIdentity;
 use crate::preparation::generic_data::closed_argument_identity;
 use crate::preparation::generic_data::closed_name_identity;
-use crate::preparation::generic_data::evaluate_const_fact_expression;
+
 use crate::preparation::generic_data::selected_data_item;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
@@ -48,7 +48,7 @@ use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode,
 use syntax_trees::identifier::Identifier;
 use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::item::{ProofFact, TypeParameter, TypeParameterKind};
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use type_structure::collect_binder_mentions;
 
 mod type_structure;
@@ -1261,7 +1261,7 @@ impl<'a, 's> Solver<'a, 's> {
         binder: usize,
         structure: &Structure,
         span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
+        _warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         let (name, other) = match structure {
             Structure::TypeOperand(expression) => {
@@ -1304,7 +1304,7 @@ impl<'a, 's> Solver<'a, 's> {
         handle: TypeReferenceHandle,
         structure: &Structure,
         span: SourceSpan,
-        warnings: &mut Vec<Diagnostic>,
+        _warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match structure {
             Structure::TypeOperand(expression) => {

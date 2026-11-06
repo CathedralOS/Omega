@@ -1,12 +1,9 @@
 use super::open_index_expressions::validate_indexed_domain_arguments;
-use super::{StateSignatureOwner, TypeParameterScope, TypeReferenceOwner, type_reference_label};
-use crate::value_custody::places::collection_operations::type_reference_is_collection;
+use super::{TypeParameterScope, TypeReferenceOwner, type_reference_label};
+
 use diagnostics::Diagnostic;
 use language_semantics::value_domain::ValueDomain;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// A domain constraint `T in Name` is satisfied by a declared `domain <T>::Name`:
 /// the name component (after the final `::`) must match AND the domain's TARGET

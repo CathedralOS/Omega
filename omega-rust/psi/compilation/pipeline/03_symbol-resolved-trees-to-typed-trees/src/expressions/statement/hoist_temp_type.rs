@@ -29,12 +29,11 @@
 
 use crate::expressions::call_results::declared_call_return;
 use crate::lowerer::Lowerer;
-use crate::tables::{resolved_expressions, type_constraints};
+use crate::tables::resolved_expressions;
 use crate::type_reference::lower_type_reference_into_table;
 use diagnostics::Diagnostic;
-use resolved::types::ConstrainedTypeReference;
 use symbol_resolved_trees as resolved;
-use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
+use symbol_resolved_trees::types::TypeReference;
 use typed_trees as typed;
 
 use resolved::expression::{ExpressionHandle, ExpressionNode};
@@ -217,9 +216,9 @@ pub(super) fn infer_hoist_temp_type(
         return declared_projection_type(lowerer, attached_data, state, initial_value);
     }
 
-    // A computed index keeps its scalar carrier and arithmetic policy. The
-    // initializer's ordinary arithmetic and index checks prove its bounds;
-    // copying the operand's qualification would constrain the wrong value.
+    // Comparison results have a fixed Boolean carrier. Other computed
+    // temporaries keep the inference sentinel so the selected expression's
+    // result owner determines their exact carrier and arithmetic policy.
     if let Some(binary) = expressions.binary_node(initial_value) {
         // A Boolean-valued operator's result carrier is the primitive Boolean
         // whatever its operands' carriers are: the operator decides the result
@@ -234,40 +233,6 @@ pub(super) fn infer_hoist_temp_type(
         // local always planned, which is the behavior restored here.
         if binary.operator.result_is_boolean() {
             return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::Bool, "bool");
-        }
-        for operand in [binary.left, binary.right] {
-            // `member_chain_type`, not `collection_type_reference`: the latter
-            // resolves a member only when its receiver is spelled `self`, so
-            // an explicit subject (`main.k + 1`) found no place operand and the
-            // temp kept no carrier at all -- losing its unsignedness, which is
-            // what discharges an index's lower bound by type alone. The chain
-            // resolver reaches the same field through the subject parameter's
-            // declared type.
-            if let Some(place_type) = member_chain_type(lowerer, attached_data, state, operand) {
-                let base = base_scalar_type(lowerer.source_trees, &place_type).clone();
-                let scalar_handle = lower_type_reference_into_table(lowerer, &base)?;
-                // The operand's arithmetic policy is part of the computed
-                // value's type (`qh + qn` over `u64 in Wrapping` fields is a
-                // `u64 in Wrapping`), unlike its range or declared domain.
-                let base_handle = match arithmetic_domain(lowerer.source_trees, &place_type) {
-                    Some(domain) => {
-                        let constraints = lowerer
-                            .typed_trees
-                            .type_reference_table
-                            .insert_constraints([
-                                typed::types::TypeConstraintNode::ArithmeticDomain(domain),
-                            ]);
-                        lowerer.typed_trees.type_reference_table.insert(
-                            typed::types::TypeReferenceNode::Constrained {
-                                base_type: scalar_handle,
-                                constraints,
-                            },
-                        )
-                    }
-                    None => scalar_handle,
-                };
-                return Ok(Some(base_handle));
-            }
         }
         return Ok(None);
     }
@@ -725,46 +690,6 @@ fn named_data_of(
         ),
         _ => None,
     }
-}
-
-/// The BASE SCALAR of a place type, peeling `Constrained` wrappers: a declared
-/// range or domain describes that PLACE's stored values, not a value computed
-/// FROM it.
-fn base_scalar_type<'trees>(
-    source_trees: &'trees resolved::SymbolResolvedTrees,
-    type_reference: &'trees TypeReference,
-) -> &'trees TypeReference {
-    match type_reference {
-        TypeReference::Constrained(constrained) => base_scalar_type(
-            source_trees,
-            source_trees.child_type_reference(constrained.base_type),
-        ),
-        other => other,
-    }
-}
-
-/// The arithmetic policy a place type declares, found through its
-/// `Constrained` wrappers.
-fn arithmetic_domain(
-    source_trees: &resolved::SymbolResolvedTrees,
-    type_reference: &TypeReference,
-) -> Option<numerics::arithmetic::ArithmeticDomain> {
-    let TypeReference::Constrained(constrained) = type_reference else {
-        return None;
-    };
-    type_constraints(source_trees)
-        .span_or_empty(constrained.constraints)
-        .iter()
-        .find_map(|constraint| match constraint {
-            TypeConstraint::ArithmeticDomain(domain) => Some(*domain),
-            _ => None,
-        })
-        .or_else(|| {
-            arithmetic_domain(
-                source_trees,
-                source_trees.child_type_reference(constrained.base_type),
-            )
-        })
 }
 
 /// A compiler primitive's fixed result type, selected by its builtin identity

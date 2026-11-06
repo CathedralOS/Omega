@@ -548,10 +548,9 @@ pub(crate) fn closed_argument_identity(
         } => {
             let base = closed_argument_identity(syntax, selection, *base_type, false)?;
             let mut identities = Vec::new();
-            for (ordinal, constraint) in syntax_type_references(syntax)
+            for constraint in syntax_type_references(syntax)
                 .constraints(*constraints)
                 .iter()
-                .enumerate()
             {
                 identities.push(match constraint {
                     TypeConstraintNode::ArithmeticDomain(domain) => {

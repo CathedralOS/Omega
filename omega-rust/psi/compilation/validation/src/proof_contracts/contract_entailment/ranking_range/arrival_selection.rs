@@ -317,16 +317,6 @@ pub fn ranking_range_required_coordinates(
     }
     if matches!(premises, RankingRangePremises::EntryInvariant) {
         expressions.extend(super::required_contract_expressions(program, machine));
-        let mut constrained = Vec::new();
-
-        coordinates.extend(
-            constrained
-                .into_iter()
-                .map(|parameter| RankSubjectCoordinate {
-                    parameter,
-                    path: Vec::new(),
-                }),
-        );
     }
     if let RankingRangeMeasure::Field { subject, measure } = measure {
         let field = super::fields::FieldCoordinate::resolve_field(program, root, subject, measure)?;

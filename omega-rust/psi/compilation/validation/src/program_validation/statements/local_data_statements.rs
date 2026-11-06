@@ -165,14 +165,6 @@ pub(super) fn validate(
             &owner,
             diagnostics,
         );
-        let interval = arithmetic_domains::atomic_resident_interval(
-            program,
-            machine,
-            Some(state),
-            event.place,
-        )
-        .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
-
         // The reserved name has no initializer value, literal equality or alias.
         arithmetic_domains::record_assignment(
             value_environment,

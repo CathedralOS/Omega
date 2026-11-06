@@ -1114,7 +1114,7 @@ fn binary_result(
             {
                 return Some(bound);
             }
-            qualified_builtin_carrier(program, result, false)?;
+            qualified_builtin_carrier(program, result)?;
             return selected_operator_result_type_reference(
                 program,
                 selected.operator.symbol,
@@ -1662,13 +1662,12 @@ pub(super) fn arithmetic_carrier(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
-    qualified_builtin_carrier(program, reference, true)
+    qualified_builtin_carrier(program, reference)
 }
 
 fn qualified_builtin_carrier(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,
-    allow_range_predicates: bool,
 ) -> Option<(symbols::SymbolHandle, ArithmeticDomain)> {
     let mut policy = None;
     let mut visited = Vec::new();
@@ -1695,7 +1694,7 @@ fn qualified_builtin_carrier(
                             }
                             policy = Some(*domain);
                         }
-                        TypeConstraintNode::Domain(_) => {
+                        TypeConstraintNode::Named(_) | TypeConstraintNode::Domain(_) => {
                             return None;
                         }
                     }

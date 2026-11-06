@@ -6,7 +6,7 @@ use typed_trees::expression::{ExpressionNode, TableRangeExpression};
 pub(super) fn expressions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    root: &State,
+    _root: &State,
     range: Option<&TableRangeExpression>,
     measure: RankingRangeMeasure,
     premises: RankingRangePremises,
@@ -66,9 +66,9 @@ pub(super) fn for_each_projection_expression(
 pub(super) fn entry_expressions(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
-    root: &State,
+    _root: &State,
 ) -> Vec<ExpressionHandle> {
-    let mut expressions = super::required_contract_expressions(program, machine);
+    let expressions = super::required_contract_expressions(program, machine);
 
     expressions
 }

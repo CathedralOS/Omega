@@ -777,22 +777,6 @@ fn substitute_domain_index_argument(
     }
 }
 
-/// Copy one range endpoint into the instance when it mentions a substituted
-/// binder (the caller's const-binder rewrite then reduces the fresh `Name`
-/// leaf to the closed literal). A parameter-free endpoint keeps the template's
-/// authored expression handle.
-fn substitute_bound_expression(
-    syntax: &mut SyntaxTrees,
-    snapshot: &SyntaxTrees,
-    endpoint: ExpressionHandle,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-) -> ExpressionHandle {
-    if !expression_mentions_parameter(syntax, endpoint, substitution) {
-        return endpoint;
-    }
-    syntax.copy_expression_from(snapshot, endpoint)
-}
-
 /// Whether an expression mentions a bare name the substitution rewrites. Only
 /// the expression shapes generic substitution rebuilds leaf-by-leaf unfold;
 /// anything richer conservatively counts as a mention so the endpoint or index

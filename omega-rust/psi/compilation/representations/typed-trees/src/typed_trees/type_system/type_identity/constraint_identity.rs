@@ -72,43 +72,6 @@ pub(crate) fn normalized_constraints(
         .collect()
 }
 
-pub(crate) fn normalized_range_endpoint(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    end_inclusive: bool,
-    context: &TypeIdentityContext<'_>,
-) -> String {
-    if let Some(path) = program.expression_table.name_path_node(expression)
-        && let Some(identity) =
-            substitution::range_endpoint(program, path.symbol, end_inclusive, context)
-    {
-        return identity;
-    }
-    if let Some(value) = program.closed_integer_range_endpoint(expression, end_inclusive) {
-        return normalized_range_integer(&value, context);
-    }
-    // Open endpoints retain the same binder slots, exact substitutions and
-    // declaration ownership as other const indices. Diagnostic spelling cannot
-    // distinguish two owners' same-named binders, even in ordinary identity.
-    let identity = normalize_index_expression(program, expression, context);
-    if end_inclusive {
-        identity
-    } else {
-        compound(IndexForm::ExclusiveEnd, [identity])
-    }
-}
-
-pub(crate) fn normalized_range_integer(
-    value: &numerics::bignum::BigInt,
-    context: &TypeIdentityContext<'_>,
-) -> String {
-    if context.qualification == TypeIdentityQualification::PackageQualified {
-        atom(IndexForm::Integer, &value.to_string())
-    } else {
-        value.to_string()
-    }
-}
-
 fn normalized_declared_domain_identity(
     program: &TypedTrees,
     domain: &DomainConstraint,
