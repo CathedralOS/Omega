@@ -650,7 +650,7 @@ fn adapt(
             };
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
-                if matches!(&operation.kind, O::BoundaryCall { .. }) {
+                if matches!(operation, O::BoundaryCall { .. }) {
                     graph.opaque_payload_results.insert(position);
                 }
                 let destination = DescriptorLocation::whole(result.place);

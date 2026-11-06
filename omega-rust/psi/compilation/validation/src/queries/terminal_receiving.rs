@@ -125,7 +125,17 @@ fn forms_exclusive_reference_carrier(checked: &CheckedTrees, operand: &FlowOpera
         return true;
     };
     paths.into_iter().any(|(path, _)| {
-        let path = crate::reference_result_custody::loan_place_segments(&path);
+        let Some(path) = crate::borrow_contracts::structural_owner_path(&checked.typed, &path)
+            .and_then(|path| {
+                crate::reference_result_custody::loan_place_segments(
+                    &checked.typed,
+                    reference.referee,
+                    &path,
+                )
+            })
+        else {
+            return true;
+        };
         let Some(leaf) =
             crate::owned_projection_type_reference(&checked.typed, reference.referee, &path)
         else {
