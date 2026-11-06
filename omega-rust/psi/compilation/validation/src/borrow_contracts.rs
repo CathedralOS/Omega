@@ -341,6 +341,24 @@ fn structural_frontier_return_source(
             if output.lifetime_only {
                 continue;
             }
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT returned-lifetime-unmatched result_type={} result_path={:?} result_region={:?} inputs={:?}",
+                    program.type_reference_table.display_name(output.reference),
+                    output.owner_path,
+                    output.lifetime,
+                    inputs
+                        .iter()
+                        .map(|(position, parameter, input)| (
+                            position,
+                            parameter.name.as_str(),
+                            &input.owner_path,
+                            &input.lifetime,
+                            input.reference,
+                        ))
+                        .collect::<Vec<_>>(),
+                );
+            }
             return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput {
                 lifetime: match output.lifetime {
                     Some(carried_lifetimes::RegionIdentity::Declared(name)) => name,

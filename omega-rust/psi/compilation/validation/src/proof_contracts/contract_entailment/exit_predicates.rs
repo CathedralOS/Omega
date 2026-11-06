@@ -59,10 +59,16 @@ pub fn normal_exit_proves(
         seen: false,
         proven: true,
     };
-    super::structural_prefix::observe_runtime_state_prefix(program, machine, state, &mut query)
-        .is_some()
-        && query.seen
-        && query.proven
+    let observed =
+        super::structural_prefix::observe_runtime_state_prefix(program, machine, state, &mut query)
+            .is_some();
+    if super::struct_trace() && (!observed || !query.seen) {
+        eprintln!(
+            "STRUCT exit-observation-refused machine={} state={} statement={statement_index} prefix_complete={observed} reached_exit={}",
+            machine.name, state.name, query.seen
+        );
+    }
+    observed && query.seen && query.proven
 }
 
 struct ExitPredicate<'a> {
@@ -89,15 +95,32 @@ impl StructuralPrefixVisitor for ExitPredicate<'_> {
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-        self.proven &= self.proves_observation(observation).unwrap_or(false);
+        let machine = observation.1;
+        let state = observation.2;
+        let result = self.proves_observation(observation);
+        if let Err(reason) = result
+            && super::struct_trace()
+        {
+            eprintln!(
+                "STRUCT exit-observation-refused machine={} state={} statement={} reason={reason}",
+                machine.name, state.name, self.site.statement_index
+            );
+        }
+        self.proven &= result.unwrap_or(false);
     }
 }
 
 impl ExitPredicate<'_> {
-    fn proves_observation(&self, observation: PrefixObservation<'_, '_>) -> Option<bool> {
+    fn proves_observation(
+        &self,
+        observation: PrefixObservation<'_, '_>,
+    ) -> Result<bool, &'static str> {
         let (program, machine, state, mut judge, environment) = observation;
         judge.retain_runtime_induction(self.ranks);
-        let entry = program.machine_states(machine).first()?;
+        let entry = program
+            .machine_states(machine)
+            .first()
+            .ok_or("the machine has no entry state")?;
         let mut parameters = Vec::new();
         for (formal, parameter) in self
             .contract
@@ -121,7 +144,7 @@ impl ExitPredicate<'_> {
                         != program
                             .type_identity(TypeIdentityRequest::ordinary(parameter.type_reference)))
             {
-                return None;
+                return Err("the contract input does not match the checked entry parameter");
             }
             if !crate::value_custody::source_liveness::expression_uses_symbol(
                 program,
@@ -133,8 +156,11 @@ impl ExitPredicate<'_> {
             let (_, current) = self
                 .origins
                 .iter()
-                .find(|(original, _)| *original == parameter.symbol)?;
-            let current = program.state_parameter_by_symbol(state, *current)?;
+                .find(|(original, _)| *original == parameter.symbol)
+                .ok_or("the input has no exact origin on every arrival")?;
+            let current = program
+                .state_parameter_by_symbol(state, *current)
+                .ok_or("the input origin has no parameter in this state")?;
             if parameter.is_mutable
                 || current.is_mutable
                 || parameter.is_const
@@ -142,39 +168,44 @@ impl ExitPredicate<'_> {
                 || crate::reference_shell(program, parameter.type_reference).is_some()
                 || current.type_reference != parameter.type_reference
             {
-                return None;
+                return Err(
+                    "the input needs a storage-version proof or has a different receiving type",
+                );
             }
             // Capture before evaluating the return operand. Moving the value
             // into the result does not destroy the observation used by a proof.
-            let value = judge.captured_parameter_projection(
-                current.symbol,
-                &[],
-                ContentPlaceVersion::Current,
-            )?;
+            let value = judge
+                .captured_parameter_projection(current.symbol, &[], ContentPlaceVersion::Current)
+                .ok_or("the input has no completed value observation")?;
             parameters.push((formal.symbol, value));
         }
-        let paths = judge.normal_return_paths(
-            self.returned,
-            environment,
-            (machine, state, state.return_type),
-        )?;
+        let paths = judge
+            .normal_return_paths(
+                self.returned,
+                environment,
+                (machine, state, state.return_type),
+            )
+            .ok_or("the returned expression has no complete normal observations")?;
         if paths.is_empty() {
-            return None;
+            return Err("the returned expression has no observed normal path");
         }
         for path in paths {
             // Substitute exact formal identities and the completed result. A
             // source-style reread could replace its captured field equations
             // with a weaker denotational application before judging the exit.
-            let predicate = path.judge.bound_contract_term(
-                self.contract.expression,
-                self.contract.callable,
-                self.contract.parameters,
-                self.contract.callable,
-                &parameters,
-                self.contract.type_bindings,
-                Some(&path.value),
-                0,
-            )?;
+            let predicate = path
+                .judge
+                .bound_contract_term(
+                    self.contract.expression,
+                    self.contract.callable,
+                    self.contract.parameters,
+                    self.contract.callable,
+                    &parameters,
+                    self.contract.type_bindings,
+                    Some(&path.value),
+                    0,
+                )
+                .ok_or("the completed result cannot substitute the contract's subjects")?;
             let trace_predicate = super::struct_trace().then(|| predicate.clone());
             let result = path.judge.judge_observed_predicate(predicate, 0);
             if !matches!(result, StructuralJudgment::Proven) {
@@ -184,9 +215,9 @@ impl ExitPredicate<'_> {
                         machine.name, state.name, self.site.statement_index, path.value,
                     );
                 }
-                return Some(false);
+                return Ok(false);
             }
         }
-        Some(true)
+        Ok(true)
     }
 }
