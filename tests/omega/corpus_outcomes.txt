@@ -2154,6 +2154,8 @@ fail/build/component_scalar_shared_provider_mutation rejected 2233ms expected @1
 fail/build/context_entry_returns_value rejected 3743ms expected @ccdb99ca2214
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `context`
+fail/build/copied_domain_foreign rejected 3963ms expected @692dd37c5bac+wt
+	cannot prove requires contract for call consume_foreign from main: parcel.value in u64::Seventeen in state `entry`
 fail/build/crash_exclusion_closed_provider rejected 4018ms expected @ccdb99ca2214
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 7 at crash terminator in block 11
@@ -19827,6 +19829,7 @@ pass/build/component_declaration_scalar_conditions_exit checked 4486ms check-tar
 pass/build/component_scalar_borrowed_continuation checked 14890ms check-target:macos_arm64 terminal-runtime.entry:match terminal-inspections:match @1c738b2ffe7e
 pass/build/conditional_root_binding checked 7552ms check-target:windows_x86_64 terminal-runtime.build:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/const_index_dependency_order_exit checked 3890ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/copied_domain_source_exit checked 5998ms check-target:macos_arm64 @692dd37c5bac+wt
 pass/build/crash_exclusion_closed_provider_exit checked 3584ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/crash_exclusion_unexecuted_helper_exit checked 5404ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/crash_exclusion_untrapping_provider_exit checked 4287ms check-target:macos_arm64 @ccdb99ca2214
