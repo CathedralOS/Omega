@@ -775,12 +775,18 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
             raise InfrastructureFailure(
                 f"corpus_gate: runner fixture root {reported_root} differs from measured {root}")
     try:
-        return corpus_records.parse(records)
+        parsed = corpus_records.parse(records)
     except ValueError as error:
         sys.stderr.write(records[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
         raise InfrastructureFailure(
             f"corpus_gate: runner emitted unreadable records: {error}")
+    # A caught compiler panic is a valid crash record even though its runner
+    # exits zero. Keep its bounded diagnostic tail so the panic location does
+    # not disappear behind the short payload stored in that record.
+    if any(record["status"] == "crashed" for record in parsed):
+        sys.stderr.writelines(list(buffered_stderr)[-200:])
+    return parsed
 
 
 # --- Jev advisory (--jev): per-diff classification + record verdict ---

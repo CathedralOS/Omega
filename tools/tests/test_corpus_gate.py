@@ -332,6 +332,21 @@ class RunnerInputSelection(unittest.TestCase):
             self.assertEqual(measured[0]["millis"], 120000)
             self.assertEqual(output.getvalue(), profile if setting in ("", "1") else "")
 
+    def test_caught_compiler_panic_keeps_bounded_stderr_without_changing_its_record(self):
+        chatter = "".join(f"compiler detail {index}\n" for index in range(350))
+        panic = "thread corpus-fixture panicked at retained_replay.rs:51: no entry found for key\n"
+        for status in ("crashed", "built"):
+            rows = [record("pass/borrows/original", status, diagnostics=["no entry found for key"])]
+            output = io.StringIO()
+            with self.subTest(status=status), patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                    fake_runner(corpus_records.render(rows), stderr=chatter + panic)), \
+                    contextlib.redirect_stderr(output):
+                measured = corpus_gate.run_runner(Path("corpus_runner"))
+            self.assertEqual(measured[0]["status"], status)
+            self.assertEqual(measured[0]["diagnostics"], ["no entry found for key"])
+            expected = "".join((chatter + panic).splitlines(keepends=True)[-200:]) if status == "crashed" else ""
+            self.assertEqual(output.getvalue(), expected)
+
     def test_fixture_root_follows_the_measured_checkout_over_a_stale_environment(self):
         measured = Path(tempfile.gettempdir()) / "measured-omega-checkout"
         environment = self.runner_environment(
