@@ -4,7 +4,7 @@
 
 use crate::flow::expressions;
 use crate::published::places::place_at;
-use facts::{FactContextHandle, FactHandle, FactPayload, FactPlan};
+use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use validation::CanonicalPlace;
@@ -31,26 +31,33 @@ pub(super) fn collect(
         statement_index,
         rows: Vec::new(),
     };
-    // Only payloads this observer reads need duplicate tracking. Keep their
-    // first appearance without sorting every unrelated fact in the scope.
-    let mut observed = Vec::new();
-    for handle in semantic.context_fact_handles(contexts.iter().copied()) {
+    // Keep scratch proportional to relevant observations, not the largest
+    // global fact slot. Complete handles retain generation identity; original
+    // positions restore the same first-appearance order after deduplication.
+    let observed = arena::unique_handles_in_order(
+        semantic
+            .context_fact_handles(contexts.iter().copied())
+            .filter(|handle| {
+                matches!(
+                    semantic.facts.get(*handle).payload,
+                    FactPayload::BooleanValue { .. }
+                        | FactPayload::BooleanExpression(_)
+                        | FactPayload::ContractBooleanExpression { .. }
+                        | FactPayload::CaseValue { .. }
+                )
+            }),
+    );
+    for handle in observed {
         let fact = semantic.facts.get(handle);
         match fact.payload {
-            FactPayload::BooleanValue { expression, value }
-                if first_observation(&mut observed, handle) =>
-            {
+            FactPayload::BooleanValue { expression, value } => {
                 observer.predicate(expression, value, 0)
             }
             FactPayload::BooleanExpression(expression)
-            | FactPayload::ContractBooleanExpression { expression, .. }
-                if first_observation(&mut observed, handle) =>
-            {
+            | FactPayload::ContractBooleanExpression { expression, .. } => {
                 observer.predicate(expression, true, 0)
             }
-            FactPayload::CaseValue { variant, value }
-                if first_observation(&mut observed, handle) =>
-            {
+            FactPayload::CaseValue { variant, value } => {
                 if !variant.is_valid()
                     || program.symbols.get(variant).kind != symbols::SymbolKind::Variant
                 {
@@ -95,21 +102,6 @@ pub(super) fn collect(
         .rows
         .sort_by(|left, right| left.place.compare_identity(&right.place));
     observer.rows
-}
-
-// Dense slots narrow membership lookup; complete handles keep different
-// generations distinct. The buckets are local to this immutable scope.
-fn first_observation(observed: &mut Vec<Vec<FactHandle>>, handle: FactHandle) -> bool {
-    let position = handle.arena_index() as usize;
-    if observed.len() <= position {
-        observed.resize_with(position + 1, Vec::new);
-    }
-    let bucket = &mut observed[position];
-    if bucket.contains(&handle) {
-        return false;
-    }
-    bucket.push(handle);
-    true
 }
 
 /// Give observations and queries the same coordinate representation. The
