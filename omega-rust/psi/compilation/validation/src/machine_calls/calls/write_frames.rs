@@ -339,6 +339,12 @@ fn known_call_written_paths_for_parts(
         );
     }
     let exact_callee = machine_state_by_symbol(program, target_symbol);
+    // Resolution has already selected this declaration. A requirement or
+    // other non-machine target cannot borrow a same-named machine's effects.
+    // Its own signature resolver must answer instead.
+    if target_symbol.is_valid() && exact_callee.is_none() {
+        return None;
+    }
     if receiver_origins
         .iter()
         .any(|origin| origin.precision == FramePathPrecision::CollectionCoarse)

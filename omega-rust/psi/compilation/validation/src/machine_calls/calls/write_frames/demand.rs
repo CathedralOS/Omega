@@ -1681,34 +1681,21 @@ impl<'program> CallFrameResolver<'program> {
                 &self.caches.state_write_shared_collections,
                 |inference, prefix| {
                     let prefix = prefix?;
-                    let direct = super::machine_state_by_symbol(self.program, target_symbol)
-                        .is_some()
-                        || self
-                            .program
-                            .machine_parameter_signature_in(current_machine, target_symbol)
-                            .is_some()
-                        || self
-                            .program
-                            .operator_definition_by_symbol(target_symbol)
-                            .is_some();
-                    // A resolved requirement must not select a same-named machine.
-                    // Once a direct target is selected, an incomplete frame stays opaque.
-                    let written = if direct {
-                        known_call_written_paths_for_parts(
-                            self.program,
-                            target_symbol,
-                            target,
-                            &receiver,
-                            &receiver_origins,
-                            None,
-                            arguments,
-                            current_machine,
-                            &machine_symbols,
-                            &self.tables.symbols,
-                            inference,
-                            Some(&argument_origins),
-                        )
-                    } else {
+                    let written = known_call_written_paths_for_parts(
+                        self.program,
+                        target_symbol,
+                        target,
+                        &receiver,
+                        &receiver_origins,
+                        None,
+                        arguments,
+                        current_machine,
+                        &machine_symbols,
+                        &self.tables.symbols,
+                        inference,
+                        Some(&argument_origins),
+                    )
+                    .or_else(|| {
                         known_boundary_call_written_paths_for_parts(
                             self.program,
                             current_machine,
@@ -1721,21 +1708,21 @@ impl<'program> CallFrameResolver<'program> {
                             inference,
                             Some(&argument_origins),
                         )
-                        .or_else(|| {
-                            super::boundary_calls::known_requirement_call_written_paths_for_parts(
-                                self.program,
-                                current_machine,
-                                &machine_symbols,
-                                &self.tables.symbols,
-                                &receiver,
-                                target,
-                                site,
-                                arguments,
-                                inference,
-                                Some(&argument_origins),
-                            )
-                        })
-                    }?;
+                    })
+                    .or_else(|| {
+                        super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                            self.program,
+                            current_machine,
+                            &machine_symbols,
+                            &self.tables.symbols,
+                            &receiver,
+                            target,
+                            site,
+                            arguments,
+                            inference,
+                            Some(&argument_origins),
+                        )
+                    })?;
                     prefix.close_observed_paths(self.program, written)
                 },
             )
