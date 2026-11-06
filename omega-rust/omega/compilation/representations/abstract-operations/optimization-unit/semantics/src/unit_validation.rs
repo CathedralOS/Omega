@@ -93,6 +93,15 @@ pub fn validate_psi_optimization_unit_with_admitted_cycle_machines(
     validate_psi_optimization_unit_with_control_cycles(unit, &policy)
 }
 
+/// Check only the retained structural type/domain catalog through the same
+/// formation owner used by whole-unit validation. This checks no function,
+/// ownership, proof, installation or execution authority.
+pub fn validate_psi_structural_catalog(
+    unit: &PsiOptimizationUnit,
+) -> Result<(), OptimizationUnitValidationError> {
+    structural_catalog::index_structural_catalogs(unit).map(|_| ())
+}
+
 /// Reconstruct the current ownership frontier from the executable optimization
 /// unit itself. The returned facts carry no verifier snapshot or side channel.
 pub fn reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(
