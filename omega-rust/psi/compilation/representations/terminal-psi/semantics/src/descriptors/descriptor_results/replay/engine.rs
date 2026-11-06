@@ -922,10 +922,26 @@ impl<'a> Replay<'a> {
                             StorageResolution::Unique(storage) => {
                                 Some(BTreeSet::from([Origin::Storage(storage)]))
                             }
-                            // Each alternative is already a complete backing.
-                            // Collapsing the branch to one address, or failing
-                            // the snapshot, drops origins the return recorded.
-                            StorageResolution::Alternatives => self.read(machine, before, source),
+                            // Borrow every possible storage home. Reading the
+                            // selected value instead would load a reference
+                            // variable's pointer, losing the variable's address.
+                            StorageResolution::Alternatives => self
+                                .contents_targets(
+                                    machine,
+                                    before,
+                                    &DescriptorContentsQuery::from_location(source),
+                                )
+                                .and_then(|targets| {
+                                    targets
+                                        .into_iter()
+                                        .map(|target| match target {
+                                            DescriptorPayloadTarget::Storage(location) => {
+                                                Some(Origin::Storage(location))
+                                            }
+                                            DescriptorPayloadTarget::Incoming(_) => None,
+                                        })
+                                        .collect()
+                                }),
                         }
                     };
                 assign(
@@ -2944,13 +2960,13 @@ mod snapshot_tests {
             ]);
             let entry = replay.initial(&machine).unwrap();
             let case_storage = super::case_flow::Storage::new(&replay, &machine);
-            let arrival = |source: &DescriptorLocation| {
+            let arrival = |source: DescriptorFlowSource| {
                 let edge = crate::descriptors::descriptor_lifetimes::DescriptorFlowEdge {
                     target: position,
                     parameters: vec![selected.clone()],
                     bindings: vec![
                         crate::descriptors::descriptor_lifetimes::DescriptorFlowBinding::new(
-                            DescriptorFlowSource::Location(source.clone()),
+                            source,
                             selected.clone(),
                             StructuralAccess::MutableBorrow,
                             StructuralAccess::MutableBorrow,
@@ -2962,8 +2978,11 @@ mod snapshot_tests {
                     .transfer_edge(&machine, &entry, &edge, &case_storage)
                     .unwrap()
             };
-            let mut before = arrival(&left);
-            assert!(merge_state(&mut before, &arrival(&right)));
+            let mut before = arrival(DescriptorFlowSource::Location(left.clone()));
+            assert!(merge_state(
+                &mut before,
+                &arrival(DescriptorFlowSource::Location(right.clone()))
+            ));
             let after = replay
                 .transfer(
                     &machine,
@@ -2987,6 +3006,29 @@ mod snapshot_tests {
                 replay.read(&machine, &after, &captured),
                 Some(origins),
                 "carrier {carrier:?}"
+            );
+            let mut unknown = before.clone();
+            assert!(merge_state(
+                &mut unknown,
+                &arrival(DescriptorFlowSource::Unavailable(left.root))
+            ));
+            assert!(
+                replay
+                    .resolve_storage(&machine, &unknown, &selected)
+                    .is_none()
+            );
+            assert!(
+                replay
+                    .transfer(
+                        &machine,
+                        &unknown,
+                        std::slice::from_ref(&captured),
+                        [(&selected, &captured)].into_iter(),
+                        super::case_flow::Transfer::Operation(position),
+                        &case_storage,
+                    )
+                    .is_none(),
+                "an unavailable incoming address cannot become a local storage home"
             );
         }
     }
