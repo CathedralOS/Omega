@@ -5529,7 +5529,7 @@ pass/layouts/runtime_nested_restricted_field_read built 2175ms exit:0 @a92f16431
 pass/layouts/runtime_offset_encoded_reference_exit rejected 1890ms regressed-from:built+exit:0 @a92f16431042
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_placed_accessor_writeback_exit built 8917ms exit:0 @a92f16431042
+pass/layouts/runtime_placed_accessor_writeback_exit built 13186ms exit:0 @941b89b6733b
 pass/layouts/runtime_placed_external_array_snapshot_exit built 6232ms exit:0 @a92f16431042
 pass/layouts/runtime_placed_external_nested_array_exit built 4898ms exit:0 @a92f16431042
 pass/layouts/runtime_placed_outcome_array_read_exit built 3798ms exit:0 @a92f16431042
@@ -7412,8 +7412,7 @@ run/layouts/placed_ram_capture_retirement rejected 3224ms regressed-from:built+e
 	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 run/layouts/placed_ram_capture_return rejected 3246ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-run/layouts/placed_ram_original_backing rejected 3351ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+run/layouts/placed_ram_original_backing built 116543ms exit:0 stdout:match stderr:match @95596d66052e
 run/layouts/placed_ram_scalar_types rejected 3773ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	placed view `Placed<ScalarPlacement,ScalarRegisters>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `ScalarPlacement::plan` state `field0` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first; cannot use `schema.fields[1].key` in machine `ScalarPlacement::plan` state `field1` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first; cannot use `schema.fields[2].key` in machine `ScalarPlacement::plan` state `field2` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 run/layouts/placed_ram_stored_field_return built 29941ms exit:0 stdout:match stderr:match @a92f16431042

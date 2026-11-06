@@ -14,11 +14,13 @@ from check_rules import (
     SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations,
-    diff_hygiene_violations, fact_row_violations,
-    golden_row_quality_violations, golden_rows, golden_violations, lanes,
-    measurement_violations, nearest_rows,
+    added_compiler_lines, already_pinned_fact_violations, capability_notices,
+    CorpusEvidence, corpus_evidence, diagnostic_fragments, diff_hygiene_violations,
+    expected_pin_violations, fact_row_violations,
+    fixture_owner, golden_row_quality_violations, golden_rows, golden_violations, lanes,
+    measurement_violations, nearest_rows, pinned_fixture_for_fact,
     program_shingles, ratchet_counts, ratchet_violations, read_baseline,
-    read_dangling_baseline, subject_violations, tasks_board_violations,
+    read_dangling_baseline, subject_violations, provenance_violations, tasks_board_violations,
     write_dangling_baseline, write_ratchet,
 )
 
@@ -347,6 +349,84 @@ class GoldenTests(unittest.TestCase):
         self.assertTrue(any("PR adds 8 .omg files (limit is 6)" in v for v in violations))
 
 
+class CapabilityEvidenceTests(unittest.TestCase):
+    BASE = ("pass/calls/lost checked 10ms @abc\n"
+            "pass/calls/refused rejected 10ms @abc\n"
+            "\tcannot prove requires contract\n"
+            "pass/calls/regressed rejected 10ms regressed-from:checked @abc\n"
+            "pass/calls/green checked 10ms @abc\n"
+            "fail/calls/control rejected 10ms expected @abc\n"
+            "\tcannot prove index `i`\n"
+            "fail/calls/accepted checked 10ms @abc\n"
+            "fail/calls/wrong_reason rejected 10ms unexpected @abc\n"
+            "\tunsupported construct\n")
+    NOTHING = CorpusEvidence([], [], [], [])
+
+    def test_only_existing_positive_rows_that_gain_a_success_count(self):
+        head = (self.BASE
+                .replace("pass/calls/lost checked 10ms", "pass/calls/lost rejected 10ms regressed-from:checked")
+                .replace("pass/calls/refused rejected 10ms", "pass/calls/refused checked 11ms")
+                .replace("pass/calls/regressed rejected 10ms regressed-from:checked",
+                         "pass/calls/regressed checked 11ms")
+                + "pass/calls/new_case checked 10ms @def\n")
+        evidence = corpus_evidence(self.BASE, head)
+        self.assertEqual(evidence.greened, ["pass/calls/refused", "pass/calls/regressed"])
+        self.assertEqual(evidence.added_rows, ["pass/calls/new_case"])
+
+    def test_a_row_still_carrying_its_regression_is_not_green(self):
+        head = self.BASE.replace("pass/calls/refused rejected 10ms",
+                                 "pass/calls/refused checked 10ms regressed-from:checked")
+        self.assertEqual(corpus_evidence(self.BASE, head).greened, [])
+
+    def test_controls_that_now_reject_for_their_pin_close(self):
+        head = (self.BASE
+                .replace("fail/calls/accepted checked 10ms", "fail/calls/accepted rejected 12ms expected")
+                .replace("fail/calls/wrong_reason rejected 10ms unexpected",
+                         "fail/calls/wrong_reason rejected 10ms expected"))
+        self.assertEqual(corpus_evidence(self.BASE, head).closed_controls,
+                         ["fail/calls/accepted", "fail/calls/wrong_reason"])
+
+    def test_a_control_that_only_gains_its_pin_does_not_close(self):
+        base = self.BASE + "fail/calls/unpinned rejected 10ms @abc\n"
+        head = base.replace("fail/calls/unpinned rejected 10ms", "fail/calls/unpinned rejected 10ms expected")
+        self.assertEqual(corpus_evidence(base, head), self.NOTHING)
+
+    def test_a_changed_diagnostic_counts_and_a_re_record_does_not(self):
+        reworded = self.BASE.replace("\tcannot prove index `i`", "\tcannot prove index `i` < 4")
+        self.assertEqual(corpus_evidence(self.BASE, reworded).diagnostic_changes, ["fail/calls/control"])
+        restamped = self.BASE.replace("10ms", "99ms").replace("@abc", "@def")
+        self.assertEqual(corpus_evidence(self.BASE, restamped), self.NOTHING)
+
+    def test_only_product_compiler_rust_counts(self):
+        numstat = ("40\t10\tomega-rust/psi/compilation/pipeline/05/src/calls.rs\n"
+                   "25\t0\tomega-rust/omega/compilation/backend/src/abi.rs\n"
+                   "90\t0\tomega-rust/psi/compilation/pipeline/05/tests/calls.rs\n"
+                   "30\t0\tomega-rust/psi/compilation/pipeline/05/src/calls_tests.rs\n"
+                   "70\t0\tomega-rust/omega/build-system/src/plan.rs\n"
+                   "-\t-\tomega-rust/psi/compilation/pipeline/05/src/table.bin\n")
+        self.assertEqual(added_compiler_lines(numstat), 55)
+
+    def test_code_that_changes_no_outcome_gets_the_stronger_notice(self):
+        notices = capability_notices(55, self.NOTHING, 0)
+        self.assertEqual(len(notices), 1)
+        self.assertIn("adds 55 lines of compiler Rust and changes no corpus outcome", notices[0])
+
+    def test_code_pinned_only_on_its_own_rows_is_named(self):
+        evidence = CorpusEvidence([], [], [], ["fail/calls/new_twin", "pass/calls/new_case"])
+        notices = capability_notices(55, evidence, 0)
+        self.assertIn("pinned only on 2 row(s) it adds", notices[0])
+        self.assertIn("pass/calls/new_case", notices[0])
+
+    def test_closure_or_removed_code_needs_no_notice(self):
+        for evidence in (CorpusEvidence(["pass/calls/refused"], [], [], []),
+                         CorpusEvidence([], ["fail/calls/accepted"], [], []),
+                         CorpusEvidence([], [], ["fail/calls/control"], ["pass/calls/new_case"])):
+            self.assertEqual(capability_notices(55, evidence, 0), [])
+        self.assertEqual(capability_notices(55, self.NOTHING, 3), [])
+        self.assertEqual(capability_notices(0, self.NOTHING, 0), [])
+        self.assertEqual(capability_notices(-200, self.NOTHING, 0), [])
+
+
 class MeasurementTests(unittest.TestCase):
     ROOT = check_rules.MEASUREMENTS_ROOT
 
@@ -453,6 +533,136 @@ class FactRowTests(unittest.TestCase):
         self.assertEqual(fact_row_violations(nearest, {}), [])
 
 
+class ChecklistRefusalTests(unittest.TestCase):
+    """Sessions were scoring the checklist: rewriting a pinned diagnostic, or
+    adding a samples/cli/facts program for a fact the corpus already pins."""
+
+    OLD = "tests/omega/fail/facts/length_through_local_rejected/expected.txt"
+    LENGTH = {"fail/facts/length_through_local_rejected",
+              "pass/facts/length_through_local_exit"}
+    FACTS = {"length", "may_write_codec", "may_write_codec_argument"}
+
+    def test_rewriting_an_existing_pin_names_the_file_and_rule(self):
+        changes = [("M", self.OLD)]
+        violations = expected_pin_violations(
+            changes,
+            lambda path: "may overflow `u8`\n",
+            lambda path: "may overflow `u64`\n")
+        self.assertEqual(len(violations), 1)
+        self.assertIn(self.OLD, violations[0])
+        self.assertIn("existing-diagnostic-pin", violations[0])
+        self.assertIn("dropped 'may overflow `u8`'", violations[0])
+        self.assertIn("added 'may overflow `u64`'", violations[0])
+
+    def test_whitespace_and_order_do_not_change_the_pin(self):
+        changes = [("M", self.OLD)]
+        self.assertEqual(expected_pin_violations(
+            changes,
+            lambda path: "alpha\n\nbeta\n",
+            lambda path: "  beta  \nalpha\n"), [])
+        self.assertEqual(diagnostic_fragments("alpha\n\nbeta\n"),
+                         diagnostic_fragments("  beta  \nalpha\n"))
+
+    def test_a_new_expected_file_and_other_oracles_are_allowed(self):
+        changes = [
+            ("A", "tests/omega/fail/text/fresh_refusal/expected.txt"),
+            ("M", "tests/omega/fail/text/fresh_refusal/expected_error.txt"),
+            ("M", "samples/cli/facts/length/local/expected.txt"),
+            ("M", "tests/omega/pending/note.txt"),
+        ]
+        self.assertEqual(expected_pin_violations(
+            changes, lambda path: "old\n", lambda path: "new\n"), [])
+
+    def test_deleting_an_existing_pin_is_refused(self):
+        violations = expected_pin_violations(
+            [("D", self.OLD)], lambda path: "holds no value\n", lambda path: "")
+        self.assertEqual(len(violations), 1)
+        self.assertIn("existing-diagnostic-pin", violations[0])
+        self.assertIn("removed the file", violations[0])
+
+    def test_a_longer_fact_keeps_its_own_fixtures(self):
+        fixtures = {"pass/facts/may_write_codec_argument_through_field_exit",
+                    "pass/facts/may_write_codec_through_local_exit"}
+        self.assertEqual(
+            fixture_owner("may_write_codec_argument_through_field_exit", self.FACTS),
+            "may_write_codec_argument")
+        self.assertEqual(
+            pinned_fixture_for_fact("may_write_codec", fixtures, self.FACTS),
+            "pass/facts/may_write_codec_through_local_exit")
+        self.assertEqual(
+            pinned_fixture_for_fact("may_write_codec_argument", fixtures, self.FACTS),
+            "pass/facts/may_write_codec_argument_through_field_exit")
+
+    def test_a_new_program_for_a_pinned_fact_names_the_file_and_rule(self):
+        path = "samples/cli/facts/length/field/main.omg"
+        violations = already_pinned_fact_violations(
+            [("A", path),
+             ("M", "samples/cli/facts/length/local/main.omg"),
+             ("A", "samples/cli/facts/brand_new/local/main.omg")],
+            self.LENGTH, self.FACTS)
+        self.assertEqual(len(violations), 1, violations)
+        self.assertIn(path, violations[0])
+        self.assertIn("already-pinned-fact", violations[0])
+        self.assertIn("fail/facts/length_through_local_rejected", violations[0])
+
+    def test_a_nested_fixture_directory_pins_its_fact_name(self):
+        witness = pinned_fixture_for_fact(
+            "length", {"pass/facts/length"}, {"length"})
+        self.assertEqual(witness, "pass/facts/length")
+
+    def test_diff_checks_wires_both_refusals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+
+            def git(*arguments):
+                return subprocess.run(["git", "-C", directory, *arguments], check=True,
+                                      capture_output=True, text=True, env=environment).stdout.strip()
+
+            def write(path, text):
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text(text)
+
+            git("init", "-q")
+            write("tests/omega/fail/facts/length_through_local_rejected/expected.txt",
+                  "may overflow `u8`\n")
+            write("tests/omega/fail/facts/length_through_local_rejected/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("samples/cli/facts/length/local/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("tests/omega/pass/facts/may_write_codec_argument_through_field_exit/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("samples/cli/facts/may_write_codec/local/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            write("samples/cli/facts/may_write_codec_argument/local/main.omg",
+                  "machine main() -> u64 { return 0u64; }\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            write("tests/omega/fail/facts/length_through_local_rejected/expected.txt",
+                  "may overflow `u64`\n")
+            write("tests/omega/fail/text/fresh_refusal/expected.txt", "a new pin\n")
+            write("samples/cli/facts/length/field/main.omg",
+                  "machine main() -> u64 { return 1u64; }\n")
+            write("samples/cli/facts/may_write_codec/field/main.omg",
+                  "machine main() -> u64 { return 1u64; }\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "change")
+            violations = check_rules.diff_checks(base, root)
+            text = "\n".join(violations)
+            pins = [line for line in violations if "existing-diagnostic-pin" in line]
+            duplicates = [line for line in violations if "already-pinned-fact" in line]
+            self.assertEqual(len(pins), 1, violations)
+            self.assertIn("length_through_local_rejected/expected.txt", pins[0])
+            self.assertEqual(duplicates, [
+                line for line in duplicates
+                if "samples/cli/facts/length/field/main.omg" in line], violations)
+            self.assertEqual(len(duplicates), 1, violations)
+            self.assertNotIn("fresh_refusal/expected.txt", text)
+            self.assertNotIn("may_write_codec/field/main.omg", "\n".join(duplicates))
+
+
 class LaneTests(unittest.TestCase):
     def setUp(self):
         self.lanes = lanes((check_rules.ROOT / "AGENTS.md").read_text())
@@ -472,6 +682,22 @@ class LaneTests(unittest.TestCase):
 
     def test_long_subject_fails(self):
         self.assertEqual(len(subject_violations("psi: " + "x" * 90, self.lanes)), 1)
+
+
+class ProvenanceTests(unittest.TestCase):
+    def test_agent_line_with_session_passes(self):
+        body = "Fixes the bound.\n\nAgent: Claude Code, https://claude.ai/code/session_01abc\n"
+        self.assertEqual(provenance_violations(body), [])
+
+    def test_agent_line_without_detail_passes(self):
+        for name in ("Codex", "Cursor", "Human"):
+            self.assertEqual(provenance_violations(f"Body.\nAgent: {name}\n"), [], name)
+
+    def test_missing_or_unknown_agent_fails(self):
+        for body in ("No provenance here.", "Implemented by Codex.",
+                     "Agent: a helpful robot", "  Agent: Codex indented",
+                     "Agents: Codex"):
+            self.assertEqual(len(provenance_violations(body)), 1, body)
 
 
 class DanglingTaskTests(unittest.TestCase):

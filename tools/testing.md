@@ -487,7 +487,8 @@ reruns, artifact integrity or review required for the submitted change.
 
 Record evidence against the source actually tested. A new integration SHA alone
 does not require author rebase, tests or review. GitHub's [merge queue](landing.md)
-checks the integrated candidate with `cargo check --locked -p omega`; local
+checks the integrated candidate with `python tools/fmt.py --check` and
+`cargo clippy --locked -p omega -- -D warnings`; local
 exact-SHA build receipts are retired. Review and rerun affected checks when the
 author edits source, resolves a conflict or discovers a changed semantic premise.
 Independent-workspace checks remain part of focused author validation, not a
@@ -1457,10 +1458,15 @@ links, and runs a probe binary (which is what an Xcode linker older than the
 active SDK breaks), verifies the pinned toolchain resolves, reports mbx and
 cargo-nextest versions, confirms the claims coordination ref answers, and
 checks `pull.rebase`. Exit 1 means a check failed; warnings are degradations
-with the remedy printed beside them.
+with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
+installs everything doctor checks for; it is also the setup script for Claude
+Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
 
 The selector requires Python 3.9+, Git, the pinned Rust toolchain, and
 `cargo-nextest` 0.9.140 or newer. It uses `mbx` when available, otherwise Cargo.
+`mbx` is [Mr Boxington](https://mr-boxington.jdx.dev/), a shared build cache
+that wraps Cargo ([source](https://github.com/jdx/mr-boxington)); installation
+instructions are at <https://mr-boxington.jdx.dev/installation>.
 Check `mbx nextest --version` (or `cargo nextest --version`); nextest installation
 instructions are at <https://nexte.st/docs/installation/pre-built-binaries/>.
 Run these commands from the repository checkout.

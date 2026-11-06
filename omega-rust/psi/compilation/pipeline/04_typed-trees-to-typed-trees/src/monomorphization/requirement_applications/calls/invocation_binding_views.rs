@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::{
     TypedTrees,
-    expression::{StaticMachineArgument, TableCallExpression},
+    expression::StaticMachineArgument,
     references::StaticArgumentCall,
     static_applications::{StaticMachineBinding, StaticMachineBindingValue},
 };
@@ -71,10 +71,14 @@ pub(super) fn nominal_source<'program>(
 pub(super) fn public_bindings(
     program: &mut TypedTrees,
     owner: SymbolHandle,
-    call: &TableCallExpression,
+    call: StaticArgumentCall<'_>,
 ) -> Result<Option<Vec<StaticMachineBinding>>, Vec<Diagnostic>> {
-    let invocation = call.authored_machine_application;
-    let Some(dispatch) = &call.static_requirement_dispatch else {
+    let invocation = call.application();
+    let dispatch = match call {
+        StaticArgumentCall::Expression(_, call) => call.static_requirement_dispatch.as_ref(),
+        StaticArgumentCall::Statement(call) => call.static_requirement_dispatch.as_ref(),
+    };
+    let Some(dispatch) = dispatch else {
         return Ok(Some(
             expressions_of(program)
                 .static_machine_application_bindings(invocation)
@@ -91,11 +95,7 @@ pub(super) fn public_bindings(
         return Ok(None);
     };
     let parameters = program.state_signature_type_parameters(signature).to_vec();
-    let Some(mut arguments) = complete_arguments(
-        program,
-        owner,
-        StaticArgumentCall::Expression(Default::default(), call),
-    ) else {
+    let Some(mut arguments) = complete_arguments(program, owner, call) else {
         return Ok(None);
     };
     // This public binding view is derivation data. Normalization must not

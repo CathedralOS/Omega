@@ -163,6 +163,7 @@ pub(crate) fn build_check_facts<'program>(
         CheckFacts,
         validation::PreparedEffectPlans,
         validation::CheckingContext<'program>,
+        Vec<diagnostics::Diagnostic>,
     ),
     CheckFactFailure<'program>,
 > {
@@ -405,7 +406,7 @@ pub(crate) fn build_check_facts<'program>(
         service_reach_inference,
         validation_facts,
     ) {
-        Ok((facts, effects)) => Ok((facts, effects, completed)),
+        Ok((facts, effects, overflow)) => Ok((facts, effects, completed, overflow)),
         Err(diagnostics) => Err(CheckFactFailure {
             program: Some(Box::new(completed)),
             diagnostics,
@@ -420,12 +421,25 @@ fn finish_check_facts(
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
-) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
+) -> Result<
+    (
+        CheckFacts,
+        validation::PreparedEffectPlans,
+        Vec<diagnostics::Diagnostic>,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let program: &dyn validation::CheckingInput = program_context;
     // Pending arithmetic and record predicates use completed operands before
     // their result exists. Discharge every obligation before publishing plans.
-    validation_facts.discharge_storage_formations(program)?;
+    // Exact overflow stays with the result so a later call-requires failure
+    // is not hidden behind the unproved bound it withdrew.
+    let overflow = validation_facts.discharge_storage_formations(program)?;
     prepared.operators.decided_formations = validation_facts.decided_formations.clone();
+    let published = (|| -> Result<
+        (CheckFacts, validation::PreparedEffectPlans),
+        Vec<diagnostics::Diagnostic>,
+    > {
     phase_profile::checkpoint(
         "flow fixed-point iterations",
         "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
@@ -710,7 +724,7 @@ fn finish_check_facts(
         });
     }
     if !fact_call_projection_diagnostics.is_empty() {
-        return Err(fact_call_projection_diagnostics);
+        Err(fact_call_projection_diagnostics)?;
     }
 
     let mut stored_integer_writes = arena::Arena::new();
@@ -748,6 +762,15 @@ fn finish_check_facts(
         },
         prepared_effects,
     ))
+    })();
+    match published {
+        Ok((facts, effects)) => Ok((facts, effects, overflow)),
+        Err(errors) => {
+            let mut diagnostics = overflow;
+            diagnostics.extend(errors);
+            Err(diagnostics)
+        }
+    }
 }
 
 /// Crash refinement gains path-conditioned and permission-frontier evidence

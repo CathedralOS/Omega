@@ -123,6 +123,336 @@ fn add(name: &'static str, count: u64, nanos: u64) {
     }
 }
 
+/// One pass's inclusive time on one subject, such as a single machine.
+/// `subject` is `file\tdeclaration`; the caller names it only while enabled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubjectRow {
+    pub pass: &'static str,
+    pub subject: String,
+    pub count: u64,
+    pub nanos: u64,
+}
+
+static SUBJECT_ROWS: Mutex<Vec<SubjectRow>> = Mutex::new(Vec::new());
+// Subjects that began while a subject of the same pass was open on the same
+// thread: their time is counted twice. Parallel workers never nest here.
+static NESTED: Mutex<Vec<(&'static str, u64)>> = Mutex::new(Vec::new());
+
+thread_local! {
+    static OPEN_PASSES: std::cell::RefCell<Vec<&'static str>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Attribute the guarded work of `pass` to one subject. Subjects of one pass
+/// should not nest, or their sum exceeds the pass; [`render_subjects`]
+/// reports that sum beside the pass's own row so overlap and gaps show.
+#[must_use = "a subject guard records when it is dropped"]
+pub struct SubjectGuard {
+    pass: &'static str,
+    subject: Option<(String, Instant)>,
+}
+
+#[inline]
+pub fn subject(pass: &'static str, name: impl FnOnce() -> String) -> SubjectGuard {
+    if !enabled() {
+        return SubjectGuard {
+            pass,
+            subject: None,
+        };
+    }
+    let nested = OPEN_PASSES.with(|open| {
+        let mut open = open.borrow_mut();
+        let nested = open.contains(&pass);
+        open.push(pass);
+        nested
+    });
+    if nested {
+        let mut rows = NESTED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match rows.iter_mut().find(|(name, _)| *name == pass) {
+            Some(row) => row.1 += 1,
+            None => rows.push((pass, 1)),
+        }
+    }
+    SubjectGuard {
+        pass,
+        subject: Some((name(), Instant::now())),
+    }
+}
+
+impl Drop for SubjectGuard {
+    fn drop(&mut self) {
+        let Some((subject, started)) = self.subject.take() else {
+            return;
+        };
+        let nanos = elapsed_nanos(started);
+        OPEN_PASSES.with(|open| {
+            let mut open = open.borrow_mut();
+            if let Some(position) = open.iter().rposition(|pass| *pass == self.pass) {
+                open.remove(position);
+            }
+        });
+        let mut rows = SUBJECT_ROWS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match rows.binary_search_by(|row| {
+            (row.pass, row.subject.as_str()).cmp(&(self.pass, subject.as_str()))
+        }) {
+            Ok(position) => {
+                let row = &mut rows[position];
+                row.count = row.count.saturating_add(1);
+                row.nanos = row.nanos.saturating_add(nanos);
+            }
+            Err(position) => rows.insert(
+                position,
+                SubjectRow {
+                    pass: self.pass,
+                    subject,
+                    count: 1,
+                    nanos,
+                },
+            ),
+        }
+    }
+}
+
+pub fn subject_snapshot() -> Vec<SubjectRow> {
+    SUBJECT_ROWS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+/// Per pass: how much of the pass's own row its subjects explain, the top
+/// `limit` subjects, and the same time grouped by source file. A coverage
+/// far below 100% means unattributed work; above 100% means subjects nest or
+/// ran in parallel, so their wall times overlap.
+pub fn render_subjects(limit: usize) -> String {
+    let rows = subject_snapshot();
+    let passes = snapshot();
+    let mut text = String::new();
+    let mut start = 0;
+    while start < rows.len() {
+        let pass = rows[start].pass;
+        let end = start
+            + rows[start..]
+                .iter()
+                .take_while(|row| row.pass == pass)
+                .count();
+        let group = &rows[start..end];
+        let attributed: u64 = group.iter().map(|row| row.nanos).sum();
+        let own = passes
+            .iter()
+            .find(|row| row.name == pass)
+            .map(|row| row.nanos);
+        let ms = |nanos: u64| nanos as f64 / 1_000_000.0;
+        text.push_str(&format!(
+            "SUBJECTS {pass}: {} subject(s), {:.3} ms attributed",
+            group.len(),
+            ms(attributed)
+        ));
+        match own {
+            Some(own) if own > 0 => text.push_str(&format!(
+                " of {:.3} ms pass ({:.0}% coverage",
+                ms(own),
+                attributed as f64 * 100.0 / own as f64
+            )),
+            _ => text.push_str(" (pass has no own row"),
+        }
+        let nested = NESTED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .find(|(name, _)| *name == pass)
+            .map_or(0, |(_, count)| *count);
+        // Over 100% with no nesting is parallel workers; nesting is double count.
+        text.push_str(&format!(", {nested} nested)\n"));
+        let mut by_subject: Vec<&SubjectRow> = group.iter().collect();
+        by_subject.sort_by_key(|row| std::cmp::Reverse(row.nanos));
+        for row in by_subject.iter().take(limit) {
+            text.push_str(&format!(
+                "  {:>10.3} ms {:>6} x  {}\n",
+                ms(row.nanos),
+                row.count,
+                row.subject.replace('\t', "  ")
+            ));
+        }
+        let mut by_file: Vec<(&str, u64, u64)> = Vec::new();
+        for row in group {
+            let file = row.subject.split('\t').next().unwrap_or_default();
+            match by_file.iter_mut().find(|(name, ..)| *name == file) {
+                Some(entry) => {
+                    entry.1 += row.nanos;
+                    entry.2 += 1;
+                }
+                None => by_file.push((file, row.nanos, 1)),
+            }
+        }
+        by_file.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+        text.push_str("  by file:\n");
+        for (file, nanos, subjects) in by_file.iter().take(limit) {
+            text.push_str(&format!(
+                "  {:>10.3} ms {:>6} subj  {file}\n",
+                ms(*nanos),
+                subjects
+            ));
+        }
+        start = end;
+    }
+    text
+}
+
+/// One subject's work summed over every pass that recorded it. A parallel
+/// pass's per-subject times are that subject's own work on its worker, so
+/// summing them per subject is sound even where pass coverage exceeds 100%.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubjectTotal {
+    pub subject: String,
+    pub nanos: u64,
+    /// Nanoseconds per pass, in [`subject_passes`] order.
+    pub per_pass: Vec<u64>,
+}
+
+/// Every pass that recorded a subject, sorted by name.
+pub fn subject_passes(rows: &[SubjectRow]) -> Vec<&'static str> {
+    let mut passes: Vec<&'static str> = rows.iter().map(|row| row.pass).collect();
+    passes.sort_unstable();
+    passes.dedup();
+    passes
+}
+
+/// One row per subject, heaviest first.
+pub fn subject_totals(rows: &[SubjectRow]) -> Vec<SubjectTotal> {
+    let passes = subject_passes(rows);
+    let mut by_subject: Vec<&SubjectRow> = rows.iter().collect();
+    by_subject.sort_by(|left, right| left.subject.cmp(&right.subject));
+    let mut totals: Vec<SubjectTotal> = Vec::new();
+    for row in by_subject {
+        if totals
+            .last()
+            .is_none_or(|total| total.subject != row.subject)
+        {
+            totals.push(SubjectTotal {
+                subject: row.subject.clone(),
+                nanos: 0,
+                per_pass: vec![0; passes.len()],
+            });
+        }
+        let total = totals.last_mut().expect("pushed above");
+        let column = passes.binary_search(&row.pass).expect("pass listed");
+        total.per_pass[column] += row.nanos;
+        total.nanos += row.nanos;
+    }
+    totals.sort_by_key(|total| std::cmp::Reverse(total.nanos));
+    totals
+}
+
+/// The pass name without the shared `psi.05.` stage prefix, for columns.
+fn short_pass(pass: &str) -> &str {
+    let tail = pass.strip_prefix("psi.05.").unwrap_or(pass);
+    tail.rsplit('.').next().unwrap_or(tail)
+}
+
+/// The `limit` heaviest subjects across all passes, one column per pass.
+pub fn render_subject_totals(limit: usize) -> String {
+    let rows = subject_snapshot();
+    let passes = subject_passes(&rows);
+    let totals = subject_totals(&rows);
+    let all: u64 = totals.iter().map(|total| total.nanos).sum();
+    let ms = |nanos: u64| nanos as f64 / 1_000_000.0;
+    let mut text = format!(
+        "SUBJECT TOTALS: {} subject(s), {:.3} ms across {} pass(es); top {}\n",
+        totals.len(),
+        ms(all),
+        passes.len(),
+        limit.min(totals.len())
+    );
+    text.push_str(&format!("  {:>10}", "total ms"));
+    for pass in &passes {
+        text.push_str(&format!(" {:>12.12}", short_pass(pass)));
+    }
+    text.push_str("  subject\n");
+    for total in totals.iter().take(limit) {
+        text.push_str(&format!("  {:>10.3}", ms(total.nanos)));
+        for nanos in &total.per_pass {
+            text.push_str(&format!(" {:>12.3}", ms(*nanos)));
+        }
+        text.push_str(&format!("  {}\n", total.subject.replace('\t', "  ")));
+    }
+    text
+}
+
+fn csv_field(text: &str) -> String {
+    if text.contains([',', '"', '\n']) {
+        format!("\"{}\"", text.replace('"', "\"\""))
+    } else {
+        text.to_owned()
+    }
+}
+
+/// Write every subject row to `path` and the per-subject totals beside it as
+/// `<path>.totals.csv`. Times are milliseconds with microsecond precision.
+pub fn write_subject_csvs(path: &std::path::Path) -> std::io::Result<()> {
+    let rows = subject_snapshot();
+    let ms = |nanos: u64| format!("{:.3}", nanos as f64 / 1_000_000.0);
+    let split = |subject: &str| {
+        let (file, declaration) = subject.split_once('\t').unwrap_or(("", subject));
+        format!("{},{}", csv_field(file), csv_field(declaration))
+    };
+    let mut detail = String::from("pass,file,function,ms,count\n");
+    for row in &rows {
+        detail.push_str(&format!(
+            "{},{},{},{}\n",
+            csv_field(row.pass),
+            split(&row.subject),
+            ms(row.nanos),
+            row.count
+        ));
+    }
+    std::fs::write(path, detail)?;
+    let passes = subject_passes(&rows);
+    let mut totals = String::from("file,function,total_ms");
+    for pass in &passes {
+        totals.push(',');
+        totals.push_str(&csv_field(pass));
+    }
+    totals.push('\n');
+    for total in subject_totals(&rows) {
+        totals.push_str(&format!("{},{}", split(&total.subject), ms(total.nanos)));
+        for nanos in &total.per_pass {
+            totals.push(',');
+            totals.push_str(&ms(*nanos));
+        }
+        totals.push('\n');
+    }
+    let mut totals_path = path.as_os_str().to_owned();
+    totals_path.push(".totals.csv");
+    std::fs::write(std::path::PathBuf::from(totals_path), totals)
+}
+
+/// The report every profile consumer prints after its pass rows: per-pass
+/// subjects, the cross-pass totals, and the CSVs when
+/// `OMEGA_PHASE_PROFILE_SUBJECTS` names a file.
+pub fn render_subject_report() -> String {
+    let mut text = render_subjects(15);
+    text.push_str(&render_subject_totals(30));
+    if let Some(path) = std::env::var_os("OMEGA_PHASE_PROFILE_SUBJECTS") {
+        let path = std::path::PathBuf::from(path);
+        match write_subject_csvs(&path) {
+            Ok(()) => text.push_str(&format!(
+                "SUBJECT CSV: {} and {}.totals.csv\n",
+                path.display(),
+                path.display()
+            )),
+            Err(error) => text.push_str(&format!(
+                "SUBJECT CSV: could not write {}: {error}\n",
+                path.display()
+            )),
+        }
+    }
+    text
+}
+
 /// Snapshot of every row, sorted by name so nested names group together.
 pub fn snapshot() -> Vec<Row> {
     ROWS.lock()
@@ -237,5 +567,75 @@ mod tests {
             .unwrap();
         assert_eq!(saturated.count, u64::MAX);
         assert_eq!(saturated.nanos, u64::MAX);
+    }
+
+    #[test]
+    fn subjects_accumulate_and_report_coverage_against_their_pass() {
+        super::STATE.store(super::ENABLED, std::sync::atomic::Ordering::Relaxed);
+        super::scope("test.pass", || {
+            for _ in 0..2 {
+                let _a = super::subject("test.pass", || "a.omg	A::run".to_owned());
+            }
+            let _b = super::subject("test.pass", || "b.omg	B::run".to_owned());
+        });
+        let rows: Vec<_> = super::subject_snapshot()
+            .into_iter()
+            .filter(|row| row.pass == "test.pass")
+            .collect();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].subject, "a.omg	A::run");
+        assert_eq!(rows[0].count, 2);
+        let report = super::render_subjects(5);
+        assert!(
+            report.contains("SUBJECTS test.pass: 2 subject(s)"),
+            "{report}"
+        );
+        assert!(report.contains("% coverage"), "{report}");
+        assert!(report.contains("a.omg"), "{report}");
+    }
+
+    #[test]
+    fn totals_sum_each_subject_across_passes_and_csv_quotes_commas() {
+        super::STATE.store(super::ENABLED, std::sync::atomic::Ordering::Relaxed);
+        let rows = vec![
+            super::SubjectRow {
+                pass: "p.one",
+                subject: "f.omg	Map<K, V>::get".into(),
+                count: 1,
+                nanos: 2_000_000,
+            },
+            super::SubjectRow {
+                pass: "p.two",
+                subject: "f.omg	Map<K, V>::get".into(),
+                count: 3,
+                nanos: 5_000_000,
+            },
+            super::SubjectRow {
+                pass: "p.two",
+                subject: "g.omg	Small".into(),
+                count: 1,
+                nanos: 1_000_000,
+            },
+        ];
+        assert_eq!(super::subject_passes(&rows), vec!["p.one", "p.two"]);
+        let totals = super::subject_totals(&rows);
+        assert_eq!(totals[0].subject, "f.omg	Map<K, V>::get");
+        assert_eq!(totals[0].nanos, 7_000_000);
+        assert_eq!(totals[0].per_pass, vec![2_000_000, 5_000_000]);
+        assert_eq!(totals[1].per_pass, vec![0, 1_000_000]);
+        assert_eq!(super::csv_field("Map<K, V>"), "\"Map<K, V>\"");
+        assert_eq!(super::csv_field("plain"), "plain");
+    }
+
+    #[test]
+    fn a_subject_opened_inside_the_same_pass_counts_as_nested() {
+        super::STATE.store(super::ENABLED, std::sync::atomic::Ordering::Relaxed);
+        super::scope("test.nested", || {
+            let _outer = super::subject("test.nested", || "x.omg	Outer".to_owned());
+            let _inner = super::subject("test.nested", || "x.omg	Inner".to_owned());
+        });
+        let _sibling = super::subject("test.nested", || "x.omg	After".to_owned());
+        let report = super::render_subjects(5);
+        assert!(report.contains(", 1 nested)"), "{report}");
     }
 }

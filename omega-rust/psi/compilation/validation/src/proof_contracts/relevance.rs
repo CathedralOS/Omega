@@ -123,13 +123,7 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
                     }
                     StatementNode::LocalData(local) => relevance_child!(
                         local.initial_value,
-                        if machine_context == Context::Runtime
-                            && (local.relevance.is_erased()
-                                || dispatch_subject_of_erased_binding(program, state, local))
-                        {
-                            // A transition subject captured from erased indexed
-                            // evidence is proof custody. Its initializer is not
-                            // a runtime read of that binding.
+                        if machine_context == Context::Runtime && local.relevance.is_erased() {
                             Context::ErasedInitializer
                         } else {
                             machine_context
@@ -137,14 +131,10 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
                     ),
                     StatementNode::Transition(transition) => {
                         if let TransitionGuardNode::When(guard) = transition.guard {
-                            let guard_context = if machine_context == Context::Runtime
-                                && expression_is_erased_binding(program, state, guard)
-                            {
-                                Context::ErasedInitializer
-                            } else {
-                                machine_context
-                            };
-                            relevance_child!(guard, guard_context);
+                            // Certified logical machines already use Proof
+                            // context. A runtime transition cannot acquire that
+                            // authority merely by selecting on erased evidence.
+                            relevance_child!(guard, machine_context);
                         }
                         for target in transition.targets() {
                             match program.statement_table.transition_target(target) {
@@ -168,15 +158,6 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
                                             target_parameters,
                                             position,
                                         );
-                                        let position_context = if position_context
-                                            == Context::Runtime
-                                            && expression_is_erased_binding(
-                                                program, state, *argument,
-                                            ) {
-                                            Context::ErasedInitializer
-                                        } else {
-                                            position_context
-                                        };
                                         relevance_child!(*argument, position_context);
                                     }
                                 }
@@ -191,31 +172,6 @@ pub(crate) fn validate_relevance(program: &dyn CheckingInput, diagnostics: &mut 
             }
         }
     }
-}
-
-fn expression_is_erased_binding(
-    program: &dyn CheckingInput,
-    state: &typed_trees::state::State,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    let typed_trees::expression::ExpressionNode::Name(path) =
-        program.expression_table.expression(expression)
-    else {
-        return false;
-    };
-    program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.symbol == path.symbol && parameter.relevance.is_erased())
-        || program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                statement
-                    .as_local_data()
-                    .is_some_and(|local| local.symbol == path.symbol && local.relevance.is_erased())
-            })
 }
 
 /// Transition dispatch captured from an erased parameter or local.

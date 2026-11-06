@@ -1,7 +1,7 @@
 //! A default has no authored named declaration. Its role and owner come only
 //! from the admitted context; Product code and its same-spelled names stay inert.
 #[path = "../../tests/support/build_sequence.rs"]
-mod build_sequence;
+pub(crate) mod build_sequence;
 
 use artifacts::compile_timings::counters;
 use build_declarations::{BuildDeclarationKind, DependencyPurpose};

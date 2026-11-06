@@ -333,12 +333,7 @@ fn is_sealed_accessor_call(
     .is_some()
         && validation::declared_place_type_raw(program, machine, Some(state), call.receiver)
             .or_else(|| {
-                validation::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    call.receiver,
-                )
+                validation::expression_result_type_reference(program, machine, state, call.receiver)
             })
             .and_then(|reference| program.access_view_field_plan_for_type_reference(reference))
             .is_some_and(|(_, field)| {
@@ -348,4 +343,3 @@ fn is_sealed_accessor_call(
                 })
             })
 }
-

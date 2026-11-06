@@ -355,7 +355,13 @@ pub(super) fn expression_sources_before_statement(
     // framed is different: its missing writes could leave a stale exact
     // origin, so an incomplete prefix still cannot mint source evidence.
     let prefix = collected_prefix_with_readiness_at(
-        collections, program, machine, state, symbols, index, true,
+        collections,
+        program,
+        machine,
+        state,
+        symbols,
+        index,
+        true,
     )
     .filter(|prefix| prefix.incomplete_calls.is_empty())?;
     let origins = value_origins(

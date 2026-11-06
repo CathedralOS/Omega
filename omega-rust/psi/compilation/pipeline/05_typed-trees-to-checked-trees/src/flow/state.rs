@@ -31,6 +31,10 @@ pub(super) fn build_state_flow_fact<'plans>(
     state: &typed_trees::state::State,
     declaration_groups: [facts::FactContextGroup; 2],
 ) {
+    let _subject = phase_profile::subject(
+        "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
+        || program.symbols.profile_label(machine.symbol),
+    );
     let Some((borrow_state_handle, borrow_state)) =
         borrow.first_state_borrow(machine.symbol, state.symbol)
     else {
