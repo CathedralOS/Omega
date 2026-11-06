@@ -22,8 +22,13 @@ require its zero count, zero byte length and original base; runtime checks
 observe the same descriptor. The [forged-empty control](../../../../tests/omega/fail/memory/typed_run_empty_forgery/main.omg)
 cannot establish `Live` from a raw descriptor, and the
 [nonempty-backing control](../../../../tests/omega/fail/memory/typed_run_empty_nonempty_backing/main.omg)
-cannot pass nonempty backing to `Run::empty`. Process exit abandons the fixture's
-remaining backing claims; it does not demonstrate empty-run release.
+cannot pass nonempty backing to `Run::empty`. The positive then consumes the
+empty run with `Run::release_empty`, checks that its returned vacant extent has
+the original base and zero length, and retains the singleton's cleanup oracle.
+The [release control](../../../../tests/omega/fail/memory/typed_run_release_obligations/main.omg)
+supplies zero byte length without zero element count and must reject: a
+zero-footprint element can still owe cleanup. Process exit abandons the returned
+backing claims; this tests empty-run release, not return to an allocator.
 
 Command: `omega run --both tests/omega/pass/facts/typed_run_singleton/main.omg`.
 The [rejected-initialization rung](../../../../tests/omega/pass/facts/typed_run_singleton_rejection/main.omg) supplies an

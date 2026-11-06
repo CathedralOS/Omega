@@ -1871,7 +1871,7 @@ pass/layouts/runtime_indexed_restricted_field_read built 4209ms exit:0 interpret
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 2009ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b519ca647cd+wt
 pass/layouts/runtime_nested_restricted_field_read built 3782ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
 pass/layouts/runtime_placed_external_array_snapshot_exit built 7572ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
-pass/layouts/runtime_placed_external_nested_array_exit built 5834ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
+pass/layouts/runtime_placed_external_nested_array_exit built 8296ms exit:0 interpreter-exit:0 interpreter:agrees @f78a4fddea0b
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 23147ms interpreter:unchecked @0d0998b4be90
 	cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `Main::main` state `main` statement 1, source `main`, path [Field { symbol: Handle { arena_index: 17939, generation: 1 } }, FixedIndex { index: 0 }, Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 0 }], view Some(("MatrixView", [Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 0 }])))
 	cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `Main::main` state `main` statement 2, source `main`, path [Field { symbol: Handle { arena_index: 17939, generation: 1 } }, FixedIndex { index: 0 }, Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 1 }], view Some(("MatrixView", [Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 1 }])))
@@ -2023,6 +2023,8 @@ pass/time/runtime_fs_mtime_system_time_interop_exit timeout 120002ms @0d0998b4be
 pass/time/runtime_time_elapsed_since_exit timeout 120003ms @0d0998b4be90
 pass/time/static_duration_accessors timeout 120005ms @0d0998b4be90
 pass/traits/finite_family_case_view_result_exit built 5987ms exit:0 interpreter-exit:0 interpreter:agrees @555bdbb56368
+pass/traits/inherited_nominal_requirement_application_exit built 5885ms exit:0 interpreter-exit:0 interpreter:agrees @07aa19d13db7
+pass/traits/inherited_nominal_requirement_exit built 2755ms exit:0 interpreter-exit:0 interpreter:agrees @45a5c677e255
 pass/traits/private_generic_requirement_owned_exit built 2366ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/traits/public_method_callback_prefix_inference_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/traits/public_method_const_prefix_inference_exit built 2458ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
@@ -2355,7 +2357,7 @@ pass/build/product_selection_helper_exit built 1003ms exit:0 interpreter-exit:0 
 pass/build/provider_package_default_exit built 2559ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
 pass/build/provider_package_default_override_exit built 2488ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
 pass/build/provider_package_generated_owner_exit built 2550ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
-pass/build/provider_package_helper_exit built 2303ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
+pass/build/provider_package_helper_exit built 4593ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @45a5c677e255
 pass/build/provider_selection_cross_file_author_exit built 2064ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
 pass/build/provider_target_value_forwarding_exit built 2937ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
 pass/build/receiver_view_writeback_exit built 4759ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
@@ -5008,7 +5010,7 @@ pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpr
 pass/inline_asm/target_family_instruction_exit built 837ms exit:0 interpreter-exit:0 interpreter:agrees @a8fbfdfa4d11
 pass/layouts/completed_integer_at_result_snapshot_exit built 2680ms exit:0 interpreter-exit:0 interpreter:agrees @6bbc0c024e25+wt
 pass/layouts/direct_encoded_assignment_preserves_descriptor_exit built 880ms exit:0 interpreter-exit:0 interpreter:agrees @477082ca1580
-pass/layouts/placed_primitive_aligned_backing built 60162ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
+pass/layouts/placed_primitive_aligned_backing built 9162ms exit:0 interpreter-exit:0 interpreter:agrees @f78a4fddea0b
 pass/layouts/placed_primitive_authored_name built 19716ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback built 50141ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_generic_concrete built 46236ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
@@ -5633,7 +5635,7 @@ pass/providers/inherited_applied_binding_dispatch_exit built 2699ms exit:0 inter
 pass/providers/inherited_applied_binding_finite_family_exit built 2780ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
 pass/providers/inherited_applied_binding_forwarded_value_exit built 2656ms exit:0 interpreter-exit:0 interpreter:agrees @344ec0329ba8+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 3600ms exit:70 interpreter-exit:70 interpreter:agrees @344ec0329ba8+wt
-pass/traits/runtime_explicit_implementation_arguments_exit built 2830ms exit:0 interpreter-exit:0 interpreter:agrees @5449698b9b02
+pass/traits/runtime_explicit_implementation_arguments_exit built 6437ms exit:0 interpreter-exit:0 interpreter:agrees @07aa19d13db7
 pass/providers/inherited_applied_binding_borrowed_result_exit built 2919ms exit:0 interpreter-exit:0 interpreter:agrees @e259521ddc2d+wt
 pass/borrows/runtime_stored_boolean_reference_exit built 2791ms exit:0 interpreter-exit:0 interpreter:agrees @e6e0563889f4+wt
 pass/text/runtime_mixed_byte_field_equality_exit built 3896ms exit:70 interpreter-exit:70 interpreter:agrees @d00cc8b447da+wt
@@ -5656,7 +5658,7 @@ pass/traits/default_row_captured_invocation_regions_exit built 3078ms exit:0 int
 pass/dependent/runtime_state_dependent_index_forward_exit built 4297ms exit:0 interpreter-exit:0 interpreter:agrees @fd8672848bf+wt
 pass/borrows/runtime_reassigned_view_capture_exit built 4214ms exit:0 interpreter-exit:0 interpreter:agrees @eee96af606fc+wt
 pass/borrows/runtime_reassigned_view_return_exit built 4297ms exit:0 interpreter-exit:0 interpreter:agrees @eee96af606fc+wt
-pass/traits/default_row_shadowed_captured_operand_exit built 2904ms exit:0 interpreter-exit:0 interpreter:agrees @eee96af606fc+wt
+pass/traits/default_row_shadowed_captured_operand_exit built 6217ms exit:0 interpreter-exit:0 interpreter:agrees @07aa19d13db7
 pass/constants/runtime_predicate_constant_materialization_exit built 4205ms exit:0 interpreter-exit:0 interpreter:agrees @ea68f95d0acea7b04f53f3efe179629294cb3491
 pass/time/runtime_duration_core_exit built 5519ms exit:70 interpreter-exit:70 interpreter:agrees @ea68f95d0acea7b04f53f3efe179629294cb3491
 pass/borrow/runtime_write_only_array_indexed_calls_exit built 3108ms exit:0 interpreter-exit:0 interpreter:agrees @e67b2abb52b9+wt

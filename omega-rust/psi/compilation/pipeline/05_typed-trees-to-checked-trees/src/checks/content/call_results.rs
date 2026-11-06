@@ -537,6 +537,28 @@ fn private_access_result_contract(
     path: &[PlaceSegment],
 ) -> Result<bool, Diagnostic> {
     let callable = invocation.target_symbol(program);
+    if let Some(declaration) =
+        typed_trees::typed_trees::EmptyRunReleaseDeclaration::authenticate(program, callable)?
+    {
+        // Zero cells imply vacancy only at this core operation, whose count
+        // precondition is proved by ordinary invocation checking. It consumes
+        // the run and transfers its actual backing; this does not authorize an
+        // arbitrary issuer or infer empty custody from a zero-byte footprint.
+        let state = program
+            .state_by_symbol(declaration.state)
+            .ok_or_else(|| Diagnostic::error("empty-run release lost its authenticated entry"))?;
+        let result = invocation
+            .result_type(program)
+            .ok_or_else(|| Diagnostic::error("empty-run release lost its exact result type"))?;
+        return Ok(path.is_empty()
+            && program.normalized_type_identity(result)
+                == program.normalized_type_identity(state.return_type)
+            && domain.establishment_routes.iter().any(|route| matches!(route,
+                DomainEstablishmentRoute::ExactMachine { machine } if *machine == declaration.template))
+            && validation::field_domains::declared_domain_constraint_records(program, result)
+                .iter().any(|constraint| constraint.symbol == domain.symbol
+                    && constraint.semantic_id == semantic_domain));
+    }
     let Some(declaration) =
         typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(program, callable)?
     else {

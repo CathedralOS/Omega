@@ -28,7 +28,9 @@ pub(crate) fn require_canonical_mode(
 
 /// The two authored Source file modes: plain files are read-only, executables
 /// are read-execute. A widened physical mode impersonates neither.
+#[cfg(unix)]
 pub(crate) const CANONICAL_FILE_MODE: u32 = 0o444;
+#[cfg(unix)]
 pub(crate) const CANONICAL_EXECUTABLE_FILE_MODE: u32 = 0o555;
 
 /// The executable bit of a canonical Source file: only the two authored modes

@@ -191,7 +191,8 @@ impl super::Engine<'_> {
     pub(super) fn captured_record_call_input(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
-        call: typed_trees::expression::ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[typed_trees::expression::ExpressionHandle],
     ) -> Option<IntegerApplicationInput> {
         // An explicit shared operand observes this already-captured value.
         // Do not ask for the borrow expression's constructed reference type:
@@ -233,16 +234,22 @@ impl super::Engine<'_> {
                     .coordinate
                     .path
                     .strip_prefix(place.segments.as_slice())?;
-                // Exact call cuts distinguish equal projection syntax under
-                // different supplied actuals. Preserve the full typed telescope
-                // and the remaining nested call path for the next consumer.
-                let [supplying_call, context @ ..] = read.calls.as_slice() else {
-                    return None;
-                };
-                (*supplying_call == call).then_some(())?;
+                // Fixed fields name the same captured value independently of
+                // unrelated arguments. Only a dynamic selector requires its
+                // supplying telescope to distinguish observations of the same syntax.
+                (!read
+                    .coordinate
+                    .path
+                    .iter()
+                    .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
+                    || parameters.iter().zip(arguments).all(|(formal, actual)| {
+                        read.selector_arguments
+                            .iter()
+                            .any(|(bound, supplied)| *bound == formal.symbol && supplied == actual)
+                    }))
+                .then_some(())?;
                 let mut read = read.clone();
                 read.coordinate.path = path.to_vec();
-                read.calls = context.to_vec();
                 Some((read, value.clone()))
             })
             .collect();

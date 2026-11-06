@@ -8,6 +8,9 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
+        PackageReviewCompilerIntrinsicExecution::EmptyRunRelease => {
+            encoder.tag("empty_run_release", 16);
+        }
         PackageReviewCompilerIntrinsicExecution::SegmentReload(kind) => {
             encoder.tag("segment_reload", 14);
             encoder.field("kind", |encoder| {
