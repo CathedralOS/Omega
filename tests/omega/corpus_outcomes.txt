@@ -264,6 +264,8 @@ fail/arithmetic/match_subject_write_changes_operand_version rejected 3086ms expe
 	exact arithmetic in machine `invalid` state `entry` return value may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/mixed_signed_exclusion_has_no_sign rejected 2306ms expected @ccdb99ca2214
 	cannot prove requires contract for call nonnegative from check: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/arithmetic/modular_power_state_seed_outside_bounds rejected 55819ms expected @4c7974f1d5d0
+	cannot prove requires contract: machine `modular_power` state `entry` value call to `step` violates required fact `accumulator >= 0 && accumulator <= 99`: the instantiated fact is structurally false (`100 >= 0 && 100 <= 99`)
 fail/arithmetic/modulo_by_zero_rejected rejected 13459ms expected @ccdb99ca2214
 	remainder by zero in machine `Main::main` state `main` local `x`: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/arithmetic/narrowing_anonymous_expression_unproven rejected 25977ms expected @ccdb99ca2214
@@ -19156,6 +19158,7 @@ pass/arithmetic/int_literal_suffixes checked 3854ms @ccdb99ca2214
 pass/arithmetic/integer_multiple_remainder_exit checked 6556ms check-target:macos_arm64 @911f6617ba9e
 pass/arithmetic/match_operand_versions checked 2588ms @ccdb99ca2214
 pass/arithmetic/mixed_len_compare checked 3700ms @ccdb99ca2214
+pass/arithmetic/modular_power_state_bounds_exit checked 92805ms check-target:macos_arm64 @6ce1310df607
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 17160ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/negative_div_remainder checked 3584ms @ccdb99ca2214
 pass/arithmetic/nonlinear_square_positive_operand_exit checked 3449ms check-target:macos_arm64 @ccdb99ca2214
