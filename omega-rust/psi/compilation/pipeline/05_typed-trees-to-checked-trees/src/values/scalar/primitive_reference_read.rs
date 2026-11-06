@@ -119,7 +119,7 @@ pub(crate) fn local(
     })
 }
 
-fn readable_type(
+pub(crate) fn readable_type(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, numerics::arithmetic::ArithmeticDomain)> {

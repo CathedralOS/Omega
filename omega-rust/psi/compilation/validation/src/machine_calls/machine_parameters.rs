@@ -207,7 +207,7 @@ impl StaticMachineContractObligation {
         demand: SymbolHandle,
         selected: SymbolHandle,
     ) -> bool {
-        self.application == application
+        program.applied_machine_callable_origin(application) == Some(self.application)
             && self.ordinal == ordinal
             && self.original_selected == selected
             && program.data_type_parameters.get(self.parameter).symbol == demand

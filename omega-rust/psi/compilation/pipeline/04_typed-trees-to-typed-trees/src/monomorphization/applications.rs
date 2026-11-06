@@ -458,5 +458,15 @@ pub(super) fn retain_instance(
         lifetime_declaration,
         &lifetimes,
     );
+    // Keep the declared callable inputs from the supplying application.
+    // The retained instance has no new source call to prepare those views.
+    // Their owner checks the full tuple again before following this link.
+    let contract_source = source
+        .unwrap_or(program)
+        .applied_machine_callable_origin(candidate.binding_application)
+        .unwrap_or_default();
+    expressions_of_mut(program)
+        .static_machine_application_mut(application)
+        .callable_contract_source = contract_source;
     Ok(application)
 }

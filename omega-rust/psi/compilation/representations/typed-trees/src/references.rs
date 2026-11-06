@@ -1315,6 +1315,12 @@ fn visit_static_machine_bindings_inner(
     }
     retained.static_application(application);
     let source = program.static_machine_application(application);
+    visit_static_machine_bindings_inner(
+        program,
+        retained,
+        source.callable_contract_source,
+        visited,
+    );
     if !program
         .static_machine_application_lifetimes(application)
         .is_empty()
