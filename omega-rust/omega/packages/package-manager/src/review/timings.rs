@@ -5,9 +5,11 @@
 //! undivided (~250 s there). Setting `OMEGA_REVIEW_TIMINGS` prints one
 //! `stage=<name> micros=<elapsed>` line per instrumented stage to stderr —
 //! the same opt-in observation convention as `OMEGA_PROOF_MEASUREMENTS` —
-//! when the outermost instrumented stage finishes, so an ordinary
+//! as each stage finishes, so an ordinary
 //! `omega install|update|audit packages` supplies the figures a hotspot
-//! study needs. Normal invocations collect nothing beyond one env-var
+//! study needs even if a later stage exceeds its time limit. Start notes
+//! identify the stages still running when an invocation is interrupted.
+//! Normal invocations collect nothing beyond one env-var
 //! check per stage; measurements describe cost, never a verdict.
 //!
 //! A compile or check that asked for `--timings` requests the same stages
@@ -17,21 +19,17 @@
 //! them only through the variable.
 
 use std::borrow::Cow;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::time::Instant;
 
 const TIMINGS_VARIABLE: &str = "OMEGA_REVIEW_TIMINGS";
 
 thread_local! {
-    /// Completed `(stage, elapsed µs)` pairs for the current run, in
-    /// finishing order; the outermost stage completes last, so its elapsed
-    /// is the run total.
-    static COMPLETED: RefCell<Vec<(Cow<'static, str>, u64)>> = const { RefCell::new(Vec::new()) };
     /// A caller on this thread asked for review timings for a bounded scope.
     static REQUESTED: Cell<bool> = const { Cell::new(false) };
     /// Live stage guards on this thread. A stage nested inside another
-    /// (for example triage inside source-review assembly) reports inside
-    /// the outermost stage's run instead of flushing alone.
+    /// (for example triage inside source-review assembly) reports its own
+    /// duration; the outermost stage also reports the run total.
     static ACTIVE: Cell<usize> = const { Cell::new(0) };
 }
 
@@ -90,14 +88,14 @@ fn enabled() -> bool {
 }
 
 impl StageTiming {
-    /// `stage`'s unconditional half, split so tests exercise the ledger
-    /// without mutating process environment.
+    /// `stage`'s unconditional half.
     fn start(name: &'static str) -> Self {
         Self::start_owned(Cow::Borrowed(name))
     }
 
     fn start_owned(name: Cow<'static, str>) -> Self {
         ACTIVE.with(|active| active.set(active.get() + 1));
+        eprintln!("omega_review_timings note=stage_started stage={name}");
         Self {
             name,
             started: Instant::now(),
@@ -108,22 +106,18 @@ impl StageTiming {
 impl Drop for StageTiming {
     fn drop(&mut self) {
         let microseconds = u64::try_from(self.started.elapsed().as_micros()).unwrap_or(u64::MAX);
-        COMPLETED.with(|completed| {
-            completed
-                .borrow_mut()
-                .push((std::mem::take(&mut self.name), microseconds));
-        });
+        // Emit completed work immediately: a killed child never drops its
+        // outermost guard, so buffering until then loses the useful evidence.
+        eprintln!(
+            "omega_review_timings stage={} micros={microseconds}",
+            self.name
+        );
         let remaining = ACTIVE.with(|active| {
             let remaining = active.get().saturating_sub(1);
             active.set(remaining);
             remaining
         });
         if remaining == 0 {
-            COMPLETED.with(|completed| {
-                for (stage, elapsed) in completed.borrow_mut().drain(..) {
-                    eprintln!("omega_review_timings stage={stage} micros={elapsed}");
-                }
-            });
             eprintln!("omega_review_timings run_micros={microseconds}");
         }
     }
