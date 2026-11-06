@@ -22,7 +22,8 @@ use terminal_semantics::reference_source_storage_path;
 
 mod access_paths;
 pub(crate) use access_paths::{
-    access_path_type, access_referent_tail, call_source_type, project_referent_tail,
+    access_path_type, access_path_type_by, access_referent_tail, call_source_type,
+    project_referent_tail,
 };
 
 /// Exact reference-word storage. Replacing this coordinate does not reuse the
@@ -298,6 +299,30 @@ pub(crate) fn leaf_referent(
 /// catalog's matching primitive storage declaration.
 pub(crate) fn leaf_type(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    current: StructuralTypeId,
+    fields: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    leaf_type_by(
+        |id| types.get(&id).copied(),
+        |scalar| {
+            types
+                .iter()
+                .find(|(_, declaration)| {
+                    matches!(declaration.shape,
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(shape) if shape == scalar)
+                })
+                .map(|(id, _)| *id)
+        },
+        current,
+        fields,
+    )
+}
+
+/// The same projection grammar over a checked declaration lookup. The scalar
+/// lookup keeps the owner's canonical first matching primitive declaration.
+pub(crate) fn leaf_type_by<'types>(
+    declaration: impl Copy + Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    scalar_type: impl Copy + Fn(semantic_vocabulary::ScalarType) -> Option<StructuralTypeId>,
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -307,7 +332,7 @@ pub(crate) fn leaf_type(
             if payload_fields.is_some() {
                 return None;
             }
-            let cases = types.get(&current)?.shape.sum_cases()?;
+            let cases = declaration(current)?.shape.sum_cases()?;
             let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
             payload_fields = Some(matching.next()?.fields.as_slice());
             if matching.next().is_some() {
@@ -324,13 +349,13 @@ pub(crate) fn leaf_type(
         } = segment
         {
             if matches!(
-                types.get(&current)?.shape,
+                declaration(current)?.shape,
                 terminal_psi::StructuralTypeShape::Reference { .. }
             ) {
                 return None;
             }
             current = terminal_semantics::representation_view_declaration(
-                types.values().copied(),
+                std::iter::once(declaration(*structural_type)?),
                 *structural_type,
                 *stored_scalar,
             )?
@@ -338,11 +363,11 @@ pub(crate) fn leaf_type(
             continue;
         }
         if let StructuralPathSegment::FixedIndex(index) = segment {
-            let declaration = types.get(&current)?;
+            let selected = declaration(current)?;
             let terminal_psi::StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
-            } = &declaration.shape
+            } = &selected.shape
             else {
                 return None;
             };
@@ -355,29 +380,20 @@ pub(crate) fn leaf_type(
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
-        let declaration = types.get(&current)?;
+        let selected = declaration(current)?;
         // Case selection establishes the payload namespace. An unguarded
         // field belongs only to the record's unconditional fields; scanning
         // all cases would merge distinct leaves that reuse a field identity.
         let selected_fields = payload_fields
             .take()
-            .or_else(|| declaration.shape.direct_fields())?;
+            .or_else(|| selected.shape.direct_fields())?;
         let field = terminal_psi::live_field(selected_fields, *identity)?;
         current = match &field.field_type {
             terminal_psi::StructuralFieldType::Structural(child) => *child,
             // A scalar member names the catalog's matching primitive
             // storage declaration; borrowing it carries that leaf type,
             // not a reference formed at the member.
-            terminal_psi::StructuralFieldType::Scalar(scalar) => types
-                .iter()
-                .find(|(_, declaration)| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::PrimitiveScalar(shape)
-                            if shape == *scalar
-                    )
-                })
-                .map(|(id, _)| *id)?,
+            terminal_psi::StructuralFieldType::Scalar(scalar) => scalar_type(*scalar)?,
             _ => return None,
         };
     }

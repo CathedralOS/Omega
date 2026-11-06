@@ -14,13 +14,28 @@ pub(crate) struct FunctionControlFlow<'a> {
     pub(super) successors: BTreeMap<BlockId, Vec<BlockId>>,
 }
 
-impl<'a> FunctionControlFlow<'a> {
-    pub(crate) fn blocks(&self) -> &BTreeMap<BlockId, &'a optimization_unit::OptimizationBlock> {
-        &self.blocks
-    }
-
-    pub(crate) fn predecessors(&self) -> &BTreeMap<BlockId, BTreeSet<BlockId>> {
-        &self.predecessors
+impl FunctionControlFlow<'_> {
+    pub(crate) fn replay_ownership(
+        &self,
+        catalogs: &super::FunctionCatalogs<'_, '_>,
+        function: &PsiOptimizationFunction,
+        accesses: &mut crate::current_ownership::CallAccesses<'_>,
+        frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
+    ) -> Result<crate::current_ownership::OwnershipCompletion, OptimizationUnitValidationError>
+    {
+        crate::current_ownership::validate_current_ownership_frontier_collecting(
+            catalogs.unit.psi,
+            &catalogs.unit.identities,
+            &catalogs.unit.dynamic_dispatch,
+            function,
+            &self.blocks,
+            &self.predecessors,
+            catalogs.functions,
+            catalogs.boundary_machines,
+            catalogs.structural_types,
+            accesses,
+            frontiers,
+        )
     }
 }
 

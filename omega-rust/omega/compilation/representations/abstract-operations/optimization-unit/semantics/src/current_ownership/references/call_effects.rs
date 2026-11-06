@@ -50,7 +50,7 @@ impl ReferenceCallEffects {
             .as_ref()
             .map(|graph| DescriptorAnalysis::with_reference_slots(&declarations, graph));
         let result_interpretations = super::result_interpretations::prepare(
-            functions,
+            functions.values().copied(),
             boundaries,
             catalog,
             analysis.as_mut(),
@@ -271,16 +271,18 @@ impl ReferenceCallEffects {
                 _ => None,
             };
             return super::call_outputs::bind(
-                function,
+                &CallReferenceInputs {
+                    function,
+                    types,
+                    block,
+                    node,
+                    live,
+                },
                 callee,
                 &body,
-                types,
                 borrowed_sources,
-                block,
-                node,
                 structural_arguments,
                 result,
-                live,
                 moved,
             );
         }

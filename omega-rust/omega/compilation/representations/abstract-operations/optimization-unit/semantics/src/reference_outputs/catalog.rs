@@ -69,6 +69,14 @@ pub fn reconstruct_reference_output_catalog(
     let services = crate::unit_validation::services::index_service_catalog(&view)?;
     let (types, domains) =
         crate::unit_validation::structural_catalog::index_structural_catalogs(&view)?;
+    let function_catalogs = crate::unit_validation::function_structure::FunctionCatalogs {
+        unit: &view,
+        functions: &functions,
+        boundary_machines: &boundaries,
+        services: &services,
+        structural_types: &types,
+        structural_domains: &domains,
+    };
     let mut accesses = crate::current_ownership::CallAccesses::new(
         &functions,
         boundaries.values().copied(),
@@ -98,13 +106,8 @@ pub fn reconstruct_reference_output_catalog(
         .iter()
         .map(|function| {
             crate::unit_validation::function_structure::prepare_function(
-                &view,
+                &function_catalogs,
                 function,
-                &functions,
-                &boundaries,
-                &services,
-                &types,
-                &domains,
                 &cycles,
                 &mut accesses,
                 memberships.as_mut(),
@@ -133,7 +136,6 @@ pub fn reconstruct_reference_output_catalog(
     #[allow(clippy::too_many_arguments)]
     fn visit(
         position: usize,
-        unit: &optimization_unit::PsiOptimizationUnit,
         order: &[MachineId],
         dependencies: &[Vec<usize>],
         unavailable: &[MachineId],
@@ -141,12 +143,7 @@ pub fn reconstruct_reference_output_catalog(
             crate::unit_validation::function_structure::FunctionControlFlow<'_>,
             crate::OptimizationUnitValidationError,
         >],
-        functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-        boundaries: &BTreeMap<
-            semantic_vocabulary::BoundaryMachineId,
-            &terminal_psi::BoundaryMachineDeclaration,
-        >,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        catalogs: &crate::unit_validation::function_structure::FunctionCatalogs<'_, '_>,
         accesses: &mut crate::current_ownership::CallAccesses<'_>,
         outputs: &ReferenceOutputPreparation,
     ) {
@@ -157,39 +154,29 @@ pub fn reconstruct_reference_output_catalog(
         for &dependency in &dependencies[position] {
             visit(
                 dependency,
-                unit,
                 order,
                 dependencies,
                 unavailable,
                 prepared,
-                functions,
-                boundaries,
-                types,
+                catalogs,
                 accesses,
                 outputs,
             );
         }
         let result = if unavailable.binary_search(&machine).is_ok() {
             Err("the exact current call operation view is unavailable".to_owned())
-        } else if has_unresolved_reference_writer(functions[&machine], types) {
+        } else if has_unresolved_reference_writer(catalogs, catalogs.functions[&machine]) {
             Err("a boundary call has no independently completed reference-output body".to_owned())
         } else {
-            let function = functions[&machine];
+            let function = catalogs.functions[&machine];
             match &prepared[position] {
                 Err(error) => Err(format!("reference output prerequisites: {error}")),
-                Ok(control) => crate::current_ownership::reconstruct_reference_outputs(
-                    unit.psi,
-                    &unit.identities,
-                    &unit.dynamic_dispatch,
-                    function,
-                    control.blocks(),
-                    control.predecessors(),
-                    functions,
-                    boundaries,
-                    types,
-                    accesses,
-                )
-                .map_err(|error| format!("reference output completion: {error}")),
+                Ok(control) => control
+                    .replay_ownership(catalogs, function, accesses, &mut Vec::new())
+                    .map(|completion| {
+                        completion.into_reference_outputs(function, &catalogs.unit.structural_types)
+                    })
+                    .map_err(|error| format!("reference output completion: {error}")),
             }
         };
         outputs.borrow_mut().finish(machine, result);
@@ -197,14 +184,11 @@ pub fn reconstruct_reference_output_catalog(
     for position in 0..machine_order.len() {
         visit(
             position,
-            &view,
             &machine_order,
             &dependencies,
             &unavailable,
             &prepared,
-            &functions,
-            &boundaries,
-            &types,
+            &function_catalogs,
             &mut accesses,
             &outputs,
         );
@@ -214,10 +198,11 @@ pub fn reconstruct_reference_output_catalog(
 }
 
 fn has_unresolved_reference_writer(
+    catalogs: &crate::unit_validation::function_structure::FunctionCatalogs<'_, '_>,
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
-    let declarations = types.values().copied().cloned().collect::<Vec<_>>();
+    let types = catalogs.structural_types;
+    let declarations = &catalogs.unit.structural_types;
     function.block_nodes().any(|node| {
         let abstract_operations::AbstractOperation::BoundaryCall {
             structural_arguments,
@@ -240,7 +225,7 @@ fn has_unresolved_reference_writer(
             })
             .and_then(|selected| {
                 terminal_semantics::descriptor_results::DescriptorSlotKind::References
-                    .writable_slots(&declarations, argument.place, selected, argument.access)
+                    .writable_slots(declarations, argument.place, selected, argument.access)
             })
             .is_none_or(|slots| !slots.is_empty())
         })

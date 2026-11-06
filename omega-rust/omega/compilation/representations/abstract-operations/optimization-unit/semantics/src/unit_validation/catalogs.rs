@@ -129,6 +129,14 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         }
     }
     validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
+    let function_catalogs = function_structure::FunctionCatalogs {
+        unit,
+        functions: &machines,
+        boundary_machines: &boundary_machines,
+        services: &services,
+        structural_types: &structural_types,
+        structural_domains: &structural_domains,
+    };
     let mut call_accesses = crate::current_ownership::CallAccesses::new(
         &machines,
         boundary_machines.values().copied(),
@@ -169,13 +177,8 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     let mut ownership_frontiers = Vec::new();
     for function in &unit.functions {
         validate_function(
-            unit,
+            &function_catalogs,
             function,
-            &machines,
-            &boundary_machines,
-            &services,
-            &structural_types,
-            &structural_domains,
             cycle_policy,
             &mut call_accesses,
             descriptor_requirements.entry(function.machine).or_default(),

@@ -9,18 +9,21 @@ use crate::reference_outputs::{
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn bind(
-    function: &PsiOptimizationFunction,
+    inputs: &CallReferenceInputs<'_, '_>,
     callee: &PsiOptimizationFunction,
     body: &ReferenceBodyOutputs,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     borrowed_sources: &BorrowedReferenceSources,
-    block: BlockId,
-    node: u32,
     arguments: &[StructuralArgument],
     result: Option<&StructuralOperationResult>,
-    live: &[LiveReference],
     moved: &BTreeSet<ReferenceOccurrenceIdentity>,
 ) -> Result<call_effects::StoredReferences, OptimizationUnitValidationError> {
+    let CallReferenceInputs {
+        function,
+        types,
+        block,
+        node,
+        live,
+    } = *inputs;
     let fail = |reason| invalid(function, block, Some(node), reason);
     let actual = |parameter: usize, path: &[StructuralPathSegment]| {
         let formal = callee
@@ -190,14 +193,10 @@ pub(super) fn bind(
                 }
                 ReferenceOutputSupply::Constructed { origins, parent } => {
                     let root = bind_origins(
-                        function,
-                        types,
+                        inputs,
                         borrowed_sources,
-                        block,
-                        node,
                         arguments,
                         callee,
-                        live,
                         &captured,
                         origins,
                     )?;
@@ -210,8 +209,7 @@ pub(super) fn bind(
                             // Resolving raw borrowed storage must retain the
                             // actual caller's parent, not create a root loan
                             // underneath an existing caller descriptor.
-                            bind_parent(function, types, borrowed_sources, block, node,
-                                arguments, callee, live, &captured, origins)?
+                            bind_parent(inputs, borrowed_sources, arguments, callee, &captured, origins)?
                         }
                     };
                     let identity = formed_identity(
@@ -335,17 +333,20 @@ pub(super) fn bind(
 
 #[allow(clippy::too_many_arguments)]
 fn bind_origin(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    inputs: &CallReferenceInputs<'_, '_>,
     borrowed: &BorrowedReferenceSources,
-    block: BlockId,
-    node: u32,
     arguments: &[StructuralArgument],
     callee: &PsiOptimizationFunction,
-    live: &[LiveReference],
     captured: &[Option<LiveReference>],
     origin: &ReferenceOutputOrigin,
 ) -> Result<(ReferenceOrigin, ReferenceParent), OptimizationUnitValidationError> {
+    let CallReferenceInputs {
+        function,
+        types,
+        block,
+        node,
+        live,
+    } = *inputs;
     let fail = |reason| invalid(function, block, Some(node), reason);
     match origin {
         ReferenceOutputOrigin::Entry {
@@ -403,48 +404,44 @@ fn bind_origin(
 
 #[allow(clippy::too_many_arguments)]
 fn bind_origins(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    inputs: &CallReferenceInputs<'_, '_>,
     borrowed: &BorrowedReferenceSources,
-    block: BlockId,
-    node: u32,
     arguments: &[StructuralArgument],
     callee: &PsiOptimizationFunction,
-    live: &[LiveReference],
     captured: &[Option<LiveReference>],
     origins: &[ReferenceOutputOrigin],
 ) -> Result<ReferenceOrigin, OptimizationUnitValidationError> {
+    let CallReferenceInputs {
+        function,
+        block,
+        node,
+        ..
+    } = *inputs;
     let alternatives = origins
         .iter()
-        .map(|origin| {
-            bind_origin(
-                function, types, borrowed, block, node, arguments, callee, live, captured, origin,
-            )
-        })
+        .map(|origin| bind_origin(inputs, borrowed, arguments, callee, captured, origin))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(combine_alternative_origins(function, block, node, alternatives)?.0)
 }
 
 #[allow(clippy::too_many_arguments)]
 fn bind_parent(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    inputs: &CallReferenceInputs<'_, '_>,
     borrowed: &BorrowedReferenceSources,
-    block: BlockId,
-    node: u32,
     arguments: &[StructuralArgument],
     callee: &PsiOptimizationFunction,
-    live: &[LiveReference],
     captured: &[Option<LiveReference>],
     origins: &[ReferenceOutputOrigin],
 ) -> Result<ReferenceParent, OptimizationUnitValidationError> {
+    let CallReferenceInputs {
+        function,
+        block,
+        node,
+        ..
+    } = *inputs;
     let alternatives = origins
         .iter()
-        .map(|origin| {
-            bind_origin(
-                function, types, borrowed, block, node, arguments, callee, live, captured, origin,
-            )
-        })
+        .map(|origin| bind_origin(inputs, borrowed, arguments, callee, captured, origin))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(combine_alternative_origins(function, block, node, alternatives)?.1)
 }

@@ -126,19 +126,47 @@ pub(crate) fn project_referent_tail(
 /// checks; this query supplies no live custody or selector-bound evidence.
 pub(crate) fn access_path_type(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    current: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    access_path_type_by(
+        |id| types.get(&id).copied(),
+        |scalar| {
+            types
+                .iter()
+                .find(|(_, declaration)| {
+                    matches!(declaration.shape,
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(shape) if shape == scalar)
+                })
+                .map(|(id, _)| *id)
+        },
+        current,
+        path,
+    )
+}
+
+pub(crate) fn access_path_type_by<'types>(
+    declaration: impl Copy
+    + Fn(StructuralTypeId) -> Option<&'types terminal_psi::StructuralTypeDeclaration>,
+    scalar_type: impl Copy + Fn(semantic_vocabulary::ScalarType) -> Option<StructuralTypeId>,
     mut current: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in path {
         current = match segment {
             terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
-                match types.get(&current)?.shape {
+                match declaration(current)?.shape {
                     terminal_psi::StructuralTypeShape::FixedArray { element, .. }
                     | terminal_psi::StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return None,
                 }
             }
-            _ => leaf_type(types, current, std::slice::from_ref(segment))?,
+            _ => super::leaf_type_by(
+                declaration,
+                scalar_type,
+                current,
+                std::slice::from_ref(segment),
+            )?,
         };
     }
     Some(current)
