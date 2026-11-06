@@ -17,6 +17,7 @@ pass/borrows/runtime_case_reference_reordered_state_returns_exit built 1496ms ex
 pass/borrows/runtime_owned_input_reference_replacement_copies_exit built 1395ms exit:0 @66bc5becc69e
 pass/borrows/runtime_owned_input_reference_replacement_exit built 1117ms exit:0 @66bc5becc69e
 pass/borrows/runtime_stored_reference_scalar_assignment_exit built 1428ms exit:0 @4ce70cb5f8a0
+pass/build/default_component_abi_extents built 12392ms exit:0 @4928e8c34db2
 pass/build/terminal_calling_policy_execution built 86920ms exit:0 terminal-runtime.retained_plan:match terminal-inspections:match @5599dba65fa9
 pass/build/terminal_native_layout_catalog built 12257ms exit:0 native-layout-controls:match terminal-inspections:match @e2e21da6e1d9
 pass/build/terminal_private_callback_calling built 45543ms exit:0 @5599dba65fa9
