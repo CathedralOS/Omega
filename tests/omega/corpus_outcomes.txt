@@ -278,8 +278,8 @@ fail/arithmetic/nonlinear_square_strict_operand_bound_rejected rejected 1952ms e
 	cannot prove ensures contract for exit from square at statement 0: result > value
 fail/arithmetic/numeric_operand_abs_unrepresentable rejected 12572ms expected @1e29a538216e
 	machine `main` state `entry` value call to `abs_i32` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
-fail/arithmetic/ordinary_clamp_inverted_bounds rejected 14347ms expected @1e29a538216e
-	machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
+fail/arithmetic/ordinary_clamp_inverted_bounds rejected 77309ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 785ms expected @ccdb99ca2214
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/qualified_float_cast_specification_fraction_rejected rejected 2552ms expected @911f6617ba9e
@@ -2501,8 +2501,8 @@ fail/calls/affine_constructor_result_reuse rejected 1671ms expected @ccdb99ca221
 	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/calls/ambiguous_returned_loan_drops_count rejected 1985ms expected @ccdb99ca2214
 	cannot prove requires contract for call push from stored: loan(main, false).count < 4 (needs fact `stack.count < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/attached_parameter_overload_bound rejected 1438ms expected @72079e22578e+wt
-	machine `start` state `entry` value call to `Selector::choose` violates required fact `N == 37`: the instantiated fact is structurally false (`36 == 37`)
+fail/calls/attached_parameter_overload_bound rejected 6659ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `start` state `entry` value call to `Selector::choose` violates required fact `N == 37`: the instantiated fact is structurally false (`36 == 37`)
 fail/calls/attached_parameter_overload_wrong_argument rejected 1149ms expected @72079e22578e+wt
 	argument `value` for state `choose` expects `u64`, got `bool`
 fail/calls/authored_numeric_name_requires rejected 1607ms expected @ccdb99ca2214
@@ -2620,8 +2620,8 @@ fail/calls/foreign_scalar_indirect_result_parameter_overlap_rejected rejected 23
 	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(FixedOccurrences(UnsupportedCarrier)))
 fail/calls/foreign_scalar_indirect_result_wrong_width_rejected rejected 17495ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 2 has an invalid indirect shape
-fail/calls/free_machine_named_transition_rejected rejected 1203ms expected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
+fail/calls/free_machine_named_transition_rejected rejected 6409ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `Main::main` state `main` value call to `scan` violates required fact `value == 41`: the instantiated fact is structurally false (`40 == 41`)
 fail/calls/fused_child_computed_linear_borrow rejected 2944ms expected @ccdb99ca2214
 	linear value `previous` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
 	linear value `current` reaches scope exit without being consumed or transferred in machine `compare` state `entry`
@@ -3107,8 +3107,8 @@ fail/constants/direct_named_initializer_public_console_reach rejected 560ms expe
 fail/constants/mathematical_constant_domain_false rejected 485ms expected @ccdb99ca2214
 	construction value is not proven in domain `Digit::Decimal` in @const-qualification-DIGIT-0 state `@const-qualification-DIGIT-0` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from @const-qualification-DIGIT-0, state @const-qualification-DIGIT-0, at statement 0: Digit requires Digit::Decimal
-fail/constants/owned_record_argument_requires rejected 1694ms expected @7e945672b7b4+wt
-	constant initializer: constant invocation of `read` failed checking: machine `@const-invocation` state `@const-invocation` value call to `read` violates required fact `packet.first == 7`: the instantiated fact is structurally false (`8 == 7`)
+fail/constants/owned_record_argument_requires rejected 4645ms expected @ab235e9fbe19
+	constant initializer: constant invocation of `read` failed checking: cannot prove requires contract: machine `@const-invocation` state `@const-invocation` value call to `read` violates required fact `packet.first == 7`: the instantiated fact is structurally false (`8 == 7`)
 fail/constants/predicate_constant_field_shadows_outer_constant rejected 907ms expected @46cdd6b85b82+wt
 	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_generic_static_index_fence rejected 428ms unexpected @911f6617ba9e
@@ -17061,8 +17061,8 @@ fail/proofs/structural_mathematical_predicate_wrong_polarity rejected 21043ms ex
 	cannot prove default-domain field requirement for return from invalid_unequal, state entry, at statement 0: NotTen.value requires Word::NotTen
 fail/proofs/unknown_boolean_return_is_not_omitted rejected 3415ms expected @0d0c11daa127
 	cannot prove requires contract for call demand from main: choose(false) == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/value_call_refuted_inequality_rejected rejected 674ms expected @ccdb99ca2214
-	machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false (`Nat::Zero != Nat::Zero`)
+fail/proofs/value_call_refuted_inequality_rejected rejected 6346ms expected @ab235e9fbe19
+	cannot prove requires contract: machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false (`Nat::Zero != Nat::Zero`)
 fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 12168ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0
 fail/proofs/zero_value_executable_rejected rejected 990ms expected @ccdb99ca2214
@@ -23314,7 +23314,7 @@ pass/facts/installed_entry_storage_through_match_join_exit checked 4513ms check-
 pass/facts/installed_entry_storage_through_other_machine_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_other_state_exit checked 4608ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_parameter_exit checked 4575ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/installed_entry_storage_through_target_body_exit checked 4410ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/installed_entry_storage_through_target_body_exit checked 22386ms check-target:macos_arm64 @ab235e9fbe19
 pass/facts/integer_multiple_remainder_through_call_result_exit checked 4953ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/integer_multiple_remainder_through_const_name_exit checked 5790ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/integer_multiple_remainder_through_field_exit checked 5733ms check-target:macos_arm64 @911f6617ba9e
