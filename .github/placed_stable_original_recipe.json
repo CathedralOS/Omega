@@ -1,0 +1,176 @@
+{
+  "program_base": "3e89aa494e6695f99f6a9f237a912fc0c4a8b2e7",
+  "producer": {
+    "revision": "dfb79c300aae3917c2681b51c319f58741f2664c",
+    "tree": "a5839ea9b3bc25db15a122efbb48be098d57e49b",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "cli": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-dtzyq111/omega",
+    "runner": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-dtzyq111/corpus_runner",
+    "cli_profile": {
+      "binary": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-dtzyq111/omega",
+      "sha256": "c6a8ace9ba04baa8d11da2ecddec68447ff049ff02d71c8f45894a3a56b78565",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "runner_profile": {
+      "binary": "/home/runner/work/Omega/Omega/build/compiler-pilot/producer-dtzyq111/corpus_runner",
+      "sha256": "f103fc923ced458e6777c55abaa6373b319985f37f984c3803b20eb0293e70ba",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "origin_run": 42218867485,
+  "artifact": {
+    "id": 13502904129,
+    "name": "progress-selector-integrated-preparation-42218867485",
+    "size_in_bytes": 484202419,
+    "digest": "sha256:8c0a719f3412530a1e4942e759373696cefa173c467a90660434747c47db2ff0"
+  },
+  "compiler_inputs": {
+    "omega-rust": "92d844dc70917c4f5764f1ff7a39408e6277f0b6",
+    "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
+    "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+    "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+    "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+    "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+    "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+    "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+    ".cargo": null
+  },
+  "archive_index": [
+    {
+      "name": "preparation.json",
+      "bytes": 4959,
+      "compressed_bytes": 4959
+    },
+    {
+      "name": "producer-dtzyq111/cli-build.jsonl",
+      "bytes": 186966,
+      "compressed_bytes": 186966
+    },
+    {
+      "name": "producer-dtzyq111/cli-build.stderr",
+      "bytes": 10893,
+      "compressed_bytes": 10893
+    },
+    {
+      "name": "producer-dtzyq111/corpus_runner",
+      "bytes": 244100440,
+      "compressed_bytes": 244100440
+    },
+    {
+      "name": "producer-dtzyq111/corpus_runner.compiler-profile.json",
+      "bytes": 9538,
+      "compressed_bytes": 9538
+    },
+    {
+      "name": "producer-dtzyq111/corpus_runner.verified-profile.json",
+      "bytes": 670,
+      "compressed_bytes": 670
+    },
+    {
+      "name": "producer-dtzyq111/omega",
+      "bytes": 239848224,
+      "compressed_bytes": 239848224
+    },
+    {
+      "name": "producer-dtzyq111/omega.verified-profile.json",
+      "bytes": 662,
+      "compressed_bytes": 662
+    },
+    {
+      "name": "producer-dtzyq111/producer.json",
+      "bytes": 1167,
+      "compressed_bytes": 1167
+    },
+    {
+      "name": "producer.json",
+      "bytes": 1273,
+      "compressed_bytes": 1273
+    },
+    {
+      "name": "repair-compiler-check.json",
+      "bytes": 230,
+      "compressed_bytes": 230
+    },
+    {
+      "name": "repair-compiler-check.stderr",
+      "bytes": 11362,
+      "compressed_bytes": 11362
+    },
+    {
+      "name": "repair-compiler-check.stdout",
+      "bytes": 0,
+      "compressed_bytes": 0
+    },
+    {
+      "name": "repair-evidence-tests-inventory.json",
+      "bytes": 358,
+      "compressed_bytes": 358
+    },
+    {
+      "name": "repair-evidence-tests.json",
+      "bytes": 298,
+      "compressed_bytes": 298
+    },
+    {
+      "name": "repair-evidence-tests.stderr",
+      "bytes": 165,
+      "compressed_bytes": 165
+    },
+    {
+      "name": "repair-evidence-tests.stdout",
+      "bytes": 583,
+      "compressed_bytes": 583
+    },
+    {
+      "name": "source/dfb79c300aae3917c2681b51c319f58741f2664c.bundle",
+      "bytes": 21031,
+      "compressed_bytes": 21031
+    },
+    {
+      "name": "source/manifest.json",
+      "bytes": 618,
+      "compressed_bytes": 618
+    }
+  ],
+  "extract_members": [
+    "preparation.json",
+    "producer.json",
+    "source/manifest.json",
+    "producer-dtzyq111/producer.json",
+    "producer-dtzyq111/omega",
+    "producer-dtzyq111/corpus_runner",
+    "producer-dtzyq111/omega.verified-profile.json",
+    "producer-dtzyq111/corpus_runner.verified-profile.json",
+    "producer-dtzyq111/corpus_runner.compiler-profile.json"
+  ],
+  "producer_record": "producer-dtzyq111/producer.json",
+  "source_manifest": [
+    {
+      "revision": "dfb79c300aae3917c2681b51c319f58741f2664c",
+      "tree": "a5839ea9b3bc25db15a122efbb48be098d57e49b",
+      "published_main": "07301d6612988eacde667d9e8be12a60800600a9",
+      "prerequisite": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+      "bundle_prerequisites": [
+        "2a74eb21cdb4ff7bdfded0a75cf0dabd89b62ff0",
+        "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30"
+      ],
+      "bundle": "/home/runner/work/Omega/Omega/build/compiler-pilot/source/dfb79c300aae3917c2681b51c319f58741f2664c.bundle",
+      "sha256": "82ef07dbc0c0e3796086d3ddebcff16d1e293ca1cb5dfe5276c19989313be626",
+      "bytes": 21031
+    }
+  ],
+  "fixtures": [
+    "pass/facts/placed_stable_write_through_target_body_exit",
+    "fail/facts/placed_stable_write_through_target_body_rejected"
+  ],
+  "input_count": 184,
+  "limits": "Original unchanged source, two Source and one BOTH only, no samples, ordinary or new compiler. dfb producer remains distinct from actual observer/program source."
+}
