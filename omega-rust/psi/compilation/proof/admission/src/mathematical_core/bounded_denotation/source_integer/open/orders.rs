@@ -12,7 +12,10 @@ struct OrderQuestion {
     proof: Option<TermHandle>,
     depth: usize,
     consumers: Vec<usize>,
+    inputs: Vec<usize>,
+    refusal: Option<BoundedDenotationError>,
     queued: bool,
+    refusal_seen: bool,
 }
 
 // One predicate owns this graph and borrows its unchanged premises and laws.
@@ -113,26 +116,57 @@ impl<'premises> OrderSearch<'premises> {
                 proof: None,
                 depth,
                 consumers: Vec::new(),
+                inputs: Vec::new(),
+                refusal: None,
                 queued: false,
+                refusal_seen: false,
             });
             self.by_structure.entry(key).or_default().push(position);
             self.enqueue(position);
             position
         };
-        if let Some(parent) = self.current {
-            let row = &mut self.questions[question];
-            if row.proof.is_none() && self.dependencies.insert((question, parent)) {
-                row.consumers.push(parent);
-            }
+        if let Some(parent) = self.current
+            && self.questions[question].proof.is_none()
+            && self.dependencies.insert((question, parent))
+        {
+            self.questions[question].consumers.push(parent);
+            self.questions[parent].inputs.push(question);
         }
         Ok(question)
     }
 
     fn complete(&mut self, question: usize, proof: TermHandle) {
         self.questions[question].proof = Some(proof);
+        self.questions[question].refusal = None;
         for consumer in std::mem::take(&mut self.questions[question].consumers) {
             self.enqueue(consumer);
         }
+    }
+
+    fn refusal(&mut self, root: usize) -> Option<BoundedDenotationError> {
+        let mut reached = Vec::new();
+        let mut pending = vec![root];
+        let mut refusal = None;
+        while let Some(question) = pending.pop() {
+            let row = &mut self.questions[question];
+            if std::mem::replace(&mut row.refusal_seen, true) {
+                continue;
+            }
+            reached.push(question);
+            if row.proof.is_some() {
+                continue;
+            }
+            if let Some(error) = &row.refusal {
+                refusal = Some(error.clone());
+                break;
+            }
+            pending.extend(row.inputs.iter().rev().copied());
+        }
+        // Reset only reached rows, not every earlier question in the cohort.
+        for question in reached {
+            self.questions[question].refusal_seen = false;
+        }
+        refusal
     }
 }
 
@@ -300,11 +334,22 @@ impl Denotation {
             }
             let result = self.expand_source_order(left, right, search);
             search.current = None;
-            if let Some(proof) = result? {
-                search.complete(question, proof);
+            match result {
+                Ok(Some(proof)) => search.complete(question, proof),
+                Ok(None) => search.questions[question].refusal = None,
+                // A later alternative can refuse while an earlier valid path
+                // is still waiting. Keep the reason on that goal and let an
+                // actual proof win; no branch refusal supplies evidence.
+                Err(error) => search.questions[question].refusal = Some(error),
             }
         }
-        Ok(search.questions[root].proof)
+        match search.questions[root].proof {
+            Some(proof) => Ok(Some(proof)),
+            None => match search.refusal(root) {
+                Some(error) => Err(error),
+                None => Ok(None),
+            },
+        }
     }
 
     fn request_source_order(

@@ -39,10 +39,14 @@ impl OrderPremises {
     }
 
     fn edge(&mut self, left: usize, right: usize) {
+        self.edge_terms(self.values[left], self.values[right]);
+    }
+
+    fn edge_terms(&mut self, left: TermHandle, right: TermHandle) {
         let proposition = self
             .theory
             .with(&mut self.arena, &mut self.declarations, |state| {
-                state.order_term_application(false, self.values[left], self.values[right])
+                state.order_term_application(false, left, right)
             })
             .unwrap();
         let declaration = self.declarations.len() as u32;
@@ -236,4 +240,52 @@ fn colliding_order_lookup_candidates_cannot_lend_another_goals_proof() {
         })
         .unwrap();
     fixture.check(proof, 0, 2);
+}
+
+#[test]
+fn a_pending_valid_path_survives_an_alternative_producer_refusal() {
+    let mut fixture = OrderPremises::new(5);
+    fixture.edge(0, 1);
+    fixture.edge(1, 2);
+    fixture.edge(2, 3);
+    let deep = fixture
+        .theory
+        .with(&mut fixture.arena, &mut fixture.declarations, |state| {
+            let mut sum = fixture.values[4];
+            for _ in 0..140 {
+                sum = state.add_terms(fixture.values[4], sum)?;
+            }
+            Ok(sum)
+        })
+        .unwrap();
+    fixture.edge_terms(fixture.values[0], deep);
+    let values = &fixture.values;
+    let proof = fixture
+        .theory
+        .with(&mut fixture.arena, &mut fixture.declarations, |state| {
+            let mut search = OrderSearch::new(&fixture.premises, &[]);
+            let proof = state
+                .source_order_search(values[0], values[3], &mut search)?
+                .expect("the earlier transitive path supplies real proof evidence");
+            assert!(search.questions.iter().any(|question| matches!(
+                question.refusal,
+                Some(BoundedDenotationError::DepthLimitExceeded)
+            )));
+            Ok(proof)
+        })
+        .unwrap();
+    fixture.check(proof, 0, 3);
+
+    fixture.premises.remove(2);
+    fixture
+        .theory
+        .with(&mut fixture.arena, &mut fixture.declarations, |state| {
+            let mut search = OrderSearch::new(&fixture.premises, &[]);
+            assert!(matches!(
+                state.source_order_search(fixture.values[0], fixture.values[3], &mut search),
+                Err(BoundedDenotationError::DepthLimitExceeded)
+            ));
+            Ok(())
+        })
+        .unwrap();
 }
