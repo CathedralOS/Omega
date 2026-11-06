@@ -29,20 +29,30 @@ try:
             for line in stanza.splitlines():
                 if not line.strip() or line.lstrip().startswith('#'):
                     continue
+                # Deb822 field names are case-insensitive. A narrow grammar
+                # and allowlist reject trust overrides and ambiguous continuations.
+                assert not line[0].isspace()
                 key, separator, value = line.partition(':')
-                assert separator and key not in fields
+                assert separator and key.isascii() and all(c.isalnum() or c == '-' for c in key)
+                key = key.lower()
+                allowed = {'types', 'uris', 'suites', 'components', 'signed-by', 'architectures', 'enabled'}
+                assert key in allowed and key not in fields
                 fields[key] = value.strip()
             if not fields:
                 continue
-            assert fields.get('Types') == 'deb'
-            assert fields.get('Signed-By') == str(keyring)
+            assert fields.get('types') == 'deb'
+            assert fields.get('enabled', 'yes').lower() == 'yes'
+            assert fields.get('signed-by') == str(keyring)
+            uris, suites = fields.get('uris', '').split(), fields.get('suites', '').split()
+            assert uris and suites
+            assert fields.get('components', '').split()
             assert all(suite in ('noble', 'noble-updates', 'noble-backports', 'noble-security')
-                       for suite in fields['Suites'].split())
-            for uri in fields['URIs'].split():
+                       for suite in suites)
+            for uri in uris:
                 parsed = urlsplit(uri)
                 assert parsed.scheme in ('http', 'https') and parsed.username is None and parsed.password is None
-                assert parsed.hostname in ('archive.ubuntu.com', 'security.ubuntu.com', 'ports.ubuntu.com') or parsed.hostname.endswith('.archive.ubuntu.com')
-            source_rows.append({k: fields[k] for k in ('URIs', 'Suites', 'Signed-By')})
+                assert parsed.hostname and (parsed.hostname in ('archive.ubuntu.com', 'security.ubuntu.com', 'ports.ubuntu.com') or parsed.hostname.endswith('.archive.ubuntu.com'))
+            source_rows.append({k: fields[k] for k in ('uris', 'suites', 'signed-by')})
         assert source_rows and keyring.is_file()
         report['official_sources'] = dict(path=str(source), sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
             entries=source_rows, keyring=str(keyring), keyring_sha256=hashlib.sha256(keyring.read_bytes()).hexdigest())
