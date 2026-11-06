@@ -9,6 +9,10 @@ import hashlib
 import json
 import os
 import platform
+import re
+import shutil
+import signal
+import time
 import subprocess
 import sys
 
@@ -71,6 +75,55 @@ elif args.phase == 'prepare':
             with Path(os.environ['GITHUB_OUTPUT']).open('a') as channel:
                 channel.write('compiler_prepared=true\n')
             (output / 'retained-structural-tests.json').write_text(json.dumps(recipe['retained_test_execution'], indent=2) + '\n')
+            tests = []
+            for index, test in enumerate(recipe['rust_tests']):
+                command = (['mbx', 'nextest', 'run', '--status-level', 'pass'] if shutil.which('mbx') else ['cargo', 'test'])
+                command += ['--locked', '-p', test['package'], '--lib', test['filter']]
+                stdout = output / ('rust-test-' + str(index) + '.stdout')
+                stderr = output / ('rust-test-' + str(index) + '.stderr')
+                started = time.monotonic()
+                timed_out = False
+                code = None
+                process = None
+                error = None
+                try:
+                    with stdout.open('wb') as out, stderr.open('wb') as err:
+                        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                                   start_new_session=True,
+                                                   env=dict(os.environ, CARGO_TERM_COLOR='never'))
+                        code = process.wait(timeout=1200)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                except Exception as failure:
+                    error = repr(failure)
+                finally:
+                    if process is not None and process.poll() is None:
+                        os.killpg(process.pid, signal.SIGTERM)
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            os.killpg(process.pid, signal.SIGKILL)
+                            process.wait(timeout=5)
+                text = ''.join(path.read_text(errors='replace') for path in (stdout, stderr) if path.is_file())
+                text = re.sub(r'\x1b\[[0-9;]*m', '', text)
+                cargo_names = re.findall(r'(?m)^test ([A-Za-z0-9_:]+) \.\.\. ok\s*$', text)
+                nextest_names = re.findall(r'(?m)^\s*PASS\s+\[[^\]\n]*\]\s+\S+\s+([A-Za-z0-9_:]+)\s*$', text)
+                actual_names = cargo_names + nextest_names
+                exact_names = sorted(actual_names) == sorted(test['names'])
+                count = test['count']
+                exact_count = re.search(r'test result: ok[.] '+str(count)+r' passed; 0 failed|'+str(count)+r' tests? run: '+str(count)+r' passed', text) is not None
+                passed = code == 0 and error is None and not timed_out and exact_count and exact_names
+                channels = {path.name:dict(bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+                            for path in (stdout, stderr) if path.is_file()}
+                tests.append(dict(test=test, command=command, exit=code, timed_out=timed_out, error=error,
+                                  elapsed_seconds=time.monotonic()-started, passed=passed,
+                                  actual_names=actual_names, exact_names=exact_names, exact_count=exact_count,
+                                  channels=channels))
+                (output / 'structural-tests.json').write_text(json.dumps(dict(source=revision, tests=tests,
+                    passed=len(tests)==len(recipe['rust_tests']) and all(row['passed'] for row in tests)), indent=2) + '\n')
+                if not passed:
+                    result = 1
+                    break
     raise SystemExit(result)
 elif args.phase == 'corpus':
     raise SystemExit(run_suite(name, positive, negative, checking_only=checking_only, phase='consume'))

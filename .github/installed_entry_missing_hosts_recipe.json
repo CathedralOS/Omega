@@ -1,5 +1,5 @@
 {
-  "schema": "omega-installed-entry-shared-guard-linux-validation-v1",
+  "schema": "omega-installed-entry-captured-byte-guard-linux-validation-v1",
   "fixed_published_source": "43c8f36b15697ba9db3bec4cb6f7c8ee9dd9d5df",
   "hosts": {
     "linux_x86_64": {
@@ -125,11 +125,11 @@
   },
   "producer_policy": "One optimized Linux x86-64 producer. Normal current-evidence/default-main cache lookup only; actual miss permits the explicitly declared fresh hosted build. No active-ref borrowing, old executable reuse, or cross-ref cache lookup.",
   "stopping_point": "One Linux qualification of 46 Source checks, 20 real native/Terminal pairs and 37 existing sample projects; all original 120/300-second limits remain. Preserve every result, including failure; no automatic retry or parent closure.",
-  "build_estimate": "One hosted optimized CLI+runner preparation under one build-slot hold, estimated 15\u201325 minutes plus 25\u201340 minutes consumers inside the original 90-minute outer Linux bound. Use existing permitted caches; no local build.",
-  "build_budget_note": "The changed shared proof comparison and immutable Boolean query require a new producer. Existing installed-entry and saved-byte fact projects qualify this same outcome, with focused scalar-copy invalid controls. No Rust unit repetition or other-host build is covered.",
-  "semantic_source": "2293cc77cc659f0f3a405172d84afdff07736cfa",
-  "observer_parent": "2293cc77cc659f0f3a405172d84afdff07736cfa",
-  "warm_cache_parent": "f8a4f68a8709f3d0b00d0754a8ad78328a50d971",
+  "build_estimate": "One optimized hosted preparation plus 2 existing test groups (2+1 named tests), then the same consumers; original90-minute Linux job bound. A normal permitted cache miss explicitly permits the necessary fresh build.",
+  "build_budget_note": "One necessary optimized Linux producer for the new observation/typed projection/shared proof preparation. Hold preparation and the three focused existing tests together; no other-host build or unit repetition. Original46 Source/20 engine/37 sample scope and120/300 bounds remain.",
+  "semantic_source": "9e1fb12f075598742890b9628476f4ae360b650b",
+  "observer_parent": "9e1fb12f075598742890b9628476f4ae360b650b",
+  "warm_cache_parent": "b9d2cc54bf427af18eaa6fe8d44c9e9b8552750e",
   "operation_controls": {
     "positive": [
       "pass/layouts/portable_layout_constant_composition_exit",
@@ -178,9 +178,27 @@
     "source": "ee357443d61244a8a5f27b29383f912e97fc6cbd",
     "audit_sha256": "a283eadac1b3a586b82a9f851941010e16b5152726abfbc5fc69afa8b6798d64",
     "root_review_sha256": "81b3372a79a655cae35b64bcca91092854987b19d4238ecdc50f56dc99aafdef",
-    "claim": "Six instruction-selection and spill checks passed only at actual ee357. Their source-free harnesses and called instruction/register/operand consumers remain unchanged and never call the changed Psi proof comparison or bound Boolean judgment. No fresh unit execution is claimed. Four-host f8 engine observations remain separately retained at actual f8; only this Linux program replay is fresh."
+    "claim": "Six instruction-selection and spill checks passed only at actual ee357. Their source-free harnesses and10production/12consumer owner hashes remain unchanged at 9e1; no fresh backend unit execution or source/host relabel is claimed. The3different existing retention/index tests in rust_tests require fresh actual results."
   },
-  "rust_tests": [],
+  "rust_tests": [
+    {
+      "package": "typed-trees-to-checked-trees",
+      "filter": "backing_profiles_tests::",
+      "count": 2,
+      "names": [
+        "flow::expression::view_footprints::backing_profiles_tests::backing_profiles_keep_enclosures_after_joins",
+        "flow::expression::view_footprints::backing_profiles_tests::backing_profiles_reject_cycles_and_missing_rows"
+      ]
+    },
+    {
+      "package": "checked-trees",
+      "filter": "expression_lookup_observes_same_length_state_mutation",
+      "count": 1,
+      "names": [
+        "checked_trees::values::index_tests::expression_lookup_observes_same_length_state_mutation"
+      ]
+    }
+  ],
   "original_defect_source": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
   "checking_only": [
     "pass/proofs/scalar_copy_guard_const_forwarding",
@@ -189,5 +207,6 @@
     "pass/slices/saved_byte_predicate_alias_disjoint_exit",
     "pass/slices/saved_byte_predicate_boolean_snapshot_exit",
     "pass/slices/saved_byte_predicate_fields_disjoint_exit"
-  ]
+  ],
+  "corpus_boundary_report": "Upload the small canonical checking/both/summary/budget/source/profile binding reports before the37 sample projects. This is early feedback only; physical products and final full outcomes remain in the final archive."
 }

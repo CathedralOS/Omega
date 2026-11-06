@@ -1,5 +1,5 @@
 {
-  "source": "2293cc77cc659f0f3a405172d84afdff07736cfa",
+  "source": "9e1fb12f075598742890b9628476f4ae360b650b",
   "inputs": {
     "samples/cli/facts/installed_entry_storage/README.md": "6c67b61a465a4155b80e42de4e48226f95061a8206886da96cca5570446890e3",
     "samples/cli/facts/installed_entry_storage/build.omg": "ca95d15e3ae2c26e3cdad749a37578253cdca675a2e6514f37c9c1a51c3a4925",
@@ -483,7 +483,7 @@
   },
   "acceptance": "One Linux qualification, 46 Source checks/20 engine pairs/37 existing sample projects. Every one of the original395 inputs remains unchanged, with84 existing scalar-copy/saved-byte-row files included. Original authored oracles/pins, exact backing,120/300-second caps; no host/parent or missing-mirror closure.",
   "compiled_input_roots": {
-    "omega-rust": "a855e80e1a012eb5dca78c3fe11a7864c4aa738e",
+    "omega-rust": "b02801acb0f0d17392bd0bef9e2b782385aec73b",
     "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
     "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
     "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",

@@ -1,4 +1,4 @@
-name: Qualify shared observed-value comparisons for installed-entry on Linux
+name: Qualify captured byte observations and installed-entry on Linux
 on:
   workflow_dispatch:
 permissions:
@@ -60,7 +60,7 @@ jobs:
               'matched_key':'${{ steps.build-cache.outputs.cache-matched-key }}',
               'exact_hit':'${{ steps.build-cache.outputs.cache-hit }}',
               'policy':'Normal current-ref/default-main lookup only. A miss permits the explicitly declared fresh hosted build; no retained binary is relabeled.'},indent=2)+chr(10))
-      - name: Build one optimized compiler and retain prior instruction-selection and spill observations
+      - name: Build one optimized compiler and run three existing retention and index tests
         id: producer-preparation
         run: python .github/run_installed_entry_missing_hosts.py prepare
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -86,6 +86,25 @@ jobs:
       - name: Grade the original limit for every source and execution observation
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: python .github/run_installed_entry_missing_hosts.py budgets
+      - name: Retain corpus results before sample execution
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        with:
+          name: installed-entry-corpus-report-${{ matrix.host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/installed-entry-${{ matrix.host }}/checking.json
+            build/installed-entry-${{ matrix.host }}/both.json
+            build/installed-entry-${{ matrix.host }}/summary.json
+            build/installed-entry-${{ matrix.host }}/budgets.json
+            build/installed-entry-${{ matrix.host }}/producer.json
+            build/installed-entry-${{ matrix.host }}/input-binding.json
+            build/installed-entry-${{ matrix.host }}/cache.json
+            build/installed-entry-${{ matrix.host }}/structural-tests.json
+            build/installed-entry-${{ matrix.host }}/retained-structural-tests.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
       - name: Observe installed-entry and saved-byte sample programs and reject controls
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: python .github/run_installed_entry_missing_hosts.py samples
