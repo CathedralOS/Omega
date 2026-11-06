@@ -366,12 +366,12 @@ trait Additive<T> {
     ) -> T terminates;
 
     machine right_identity(value: T)
-    ensures add(value, zero()) == value;
+    ensures core::Identity<T>(add(value, zero()), value);
 }
 
 trait WrappingByteIndices : Additive<u8 in Wrapping> {
     machine zero_is_literal()
-    ensures zero() == 0;
+    ensures core::Identity<u8 in Wrapping>(zero(), 0);
 }
 
 domain<T, const Count: u8 in Wrapping> T::Indexed<Count>;

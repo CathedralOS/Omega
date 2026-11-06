@@ -599,9 +599,17 @@ A proposition is a `u8` form tag followed by its fields.
 
 Each `StructuralIdentity` subject denotes the complete value at its path in
 the enclosing predicate's invocation frame. The two endpoint types must match
-exactly; operands use canonical subject order. This encoding retains contextual
-data identity without enumerating fields or array elements and does not encode
-an executable equality operation.
+exactly; operands use canonical subject order. This encoding retains explicit
+typed data identity without enumerating fields or array elements and does not
+encode an executable equality operation. A source `==` fact cannot populate it
+without checked evidence connecting the selected comparison to identity.
+
+The ratified [float identity rule](mathematical_values.md#float-equality-and-source-identity)
+requires exact raw IEEE representation identity to remain distinct from IEEE
+comparison and payload-erased meaning equality. This table does not itself add
+a scalar identity encoding or validate an old artifact under new semantics.
+Any vocabulary/codec extension must retain format, exact value subjects and
+authenticated derivations, and update producer and receiving verifier together.
 
 ## Operation rows
 

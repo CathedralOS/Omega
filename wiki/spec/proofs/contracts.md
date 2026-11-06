@@ -18,32 +18,81 @@ not prove its negation.
 The same [call-precondition rule](../language/machines.md#call-preconditions)
 also governs forming a mathematical result term, even if none of the callee's
 conclusions is used. Proof-to-proof calls have no exemption. Named calls and
-operator syntax retain the same selected contract except for contextual data
-identity below; erasure, normalization, or knowledge that the underlying body
+operator syntax retain the same selected contract in every context;
+erasure, normalization, or knowledge that the underlying body
 is total cannot remove a selected call's `requires`.
 
 ### Data identity in facts
 
-Named decision: `proof-fact-data-equality`, settled 2026-10-13.
+Ratified 2026-11-06: explicit core identity replaces the contextual
+`proof-fact-data-equality` rule. Value `left == right` selects the same equality
+operation in executable expressions, `requires`, `ensures` and propositions.
+Proof use must satisfy the selected invocation's ordinary totality, termination,
+observation/effect and precondition rules. Type equality and specified primitive
+relations, including cross-carrier integer comparisons, retain their rules.
 
-Within `requires` and `ensures` clauses, and expressions expected to form a
-proposition, `left == right` elaborates to the foundation's proof-relevant
-`Id T left right` when both operands have the same non-primitive data type `T`.
-This is contextual mathematical elaboration, not an equality-machine call. It
-selects no `Equatable<T>` implementation, requires no executable equality
-algorithm, and emits no runtime comparison. Records, payload-bearing sums,
-recursive data such as `Nat`, and generic data such as `Seq<T>` can therefore
-state identity laws without equality evidence for themselves or their fields.
+`core::Identity<T>(left, right)` explicitly forms the foundation's proof-relevant
+`Id T left right`. This is a sealed core mathematical declaration, not a new
+keyword, operator, executable Boolean comparison or theorem asserting its own
+conclusion. Its ordinary core declaration identity, typed subjects and universe
+formation are retained; copying its spelling grants no privilege. It is usable
+for proof-only and runtime-representable values without an `Equatable<T>`
+algorithm. Forming the statement supplies no proof of it. A type with no selected
+executable equality rejects `==` and the diagnostic points to explicit identity
+when that is the intended claim. Identity itself does not require runtime code.
 
-Outside those fact/proposition contexts, value `==` retains ordinary operator
-selection and executable `Equatable` meaning. Primitive numeric and address
-equality inside facts retains its existing total relation semantics, including
-the specified cross-carrier integer relation; type equality retains its static
-rule. To reason about an executable equality algorithm inside a fact, call its
-named equality machine explicitly with the required selected implementation.
-The checker retains identity elaboration versus executable equality as distinct
-operation identities; moving source between contexts cannot reuse the other's
-evidence or meaning.
+For example, a generic algebra's commutativity requirement is:
+
+```omega
+machine add_comm(a: T, b: T)
+ensures core::Identity<T>(add(a, b), add(b, a));
+```
+
+This law states identity of results, independently of any selected comparison.
+The body of each supplied theorem must prove it. The accepted source form and
+compiler/core migration are tracked by **PROOF-KERNEL-CORE** in
+[TASKS.md](../../../TASKS.md) and the [explicit-identity plan](../../drafts/designs/explicit_identity.md).
+
+### Equality bridges and comparison facts
+
+An executable equality fact does not itself license identity substitution.
+Independent checked law evidence may establish either direction:
+
+| Law premise | Conclusion | Use |
+| --- | --- | --- |
+| Selected `equal(a, b) == true` | `core::Identity<T>(a, b)` | Substitute identical subjects under the ordinary identity rules. |
+| `core::Identity<T>(a, b)` | Selected `equal(a, b) == true` | Establish that comparison from identity. |
+
+These are additional trait/conformance evidence, not optional members of
+`Equatable`. Each selected conformance still supplies its complete row set.
+A combined evidence trait may require both directions. Recognize the checked
+law's form and exact applied equality row, not its name or another visible
+implementation for the same `T`. Retain its premises, generic substitution,
+subjects, value versions and assumption closure. A cited standalone theorem
+may supply the same evidence; it is not automatically discovered by spelling.
+
+Authorized core synthesis proves each direction only when the corresponding
+component laws justify it. It must not grant substitution to IEEE float equality
+or to a structural comparison containing such a component without further
+evidence. For example, case-insensitive equality can reflect identity without
+implying it. Same-carrier integer equality can support both directions;
+cross-carrier numerical equality is not an ill-typed same-carrier `Id`.
+
+Compiler-synthesized structural equality is proof-transparent through its
+ordinary checked body: a true record comparison yields each selected field
+comparison; sum comparisons retain tag agreement and the active payload case.
+This does not turn IEEE field comparisons into identity or unfold invalid
+payload projections. Synthesis must prove the constituent calls' admission and
+requirements. User comparisons expose consequences through checked contracts,
+cited evidence or otherwise admitted computation, not an assumed structural
+interpretation based on their name or result type.
+
+Repeated admitted pure comparisons with the same selected operation and exact
+unchanged arguments have the same Boolean denotation. Thus `requires a == b`
+can establish a body's unchanged `a == b` result as true without either identity
+bridge. Changed argument values, observation-dependent inputs, different operation selections
+or failed invocation admission invalidate that reasoning. This is call
+congruence, not a general assertion that every comparison is reflexive.
 
 A theorem-only machine has no Type result. Resultless law slots do not need dummy
 returned witnesses. A Type-valued mathematical operation may instead denote a
@@ -311,9 +360,11 @@ This changes canonical application identity in signatures, conformance
 arguments, specialization keys, and value transfers alike; it is not merely a
 compatibility conversion at a value boundary.
 
-An abstract identity law such as `add(value, zero()) == value` combines with a
-checked connection law `zero() == 0`. Multiplication similarly combines
-`mul(value, one()) == value` with `one() == 1`. An ordinary index-specific trait
+An abstract identity law such as `core::Identity<T>(add(value, zero()), value)`
+combines with a checked connection law `core::Identity<T>(zero(), 0)` with the
+literal formed in the exact carrier `T`. Multiplication similarly combines
+`core::Identity<T>(mul(value, one()), value)` with
+`core::Identity<T>(one(), 1)`. An ordinary index-specific trait
 may add those connections while inheriting general algebra operations and
 laws. A consumer requests that contract through its explicit conformance
 binder, and callers supply the implementation. No new syntax, implicit algebra,
