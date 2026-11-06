@@ -7,15 +7,13 @@ This row tests bounds computed by a selected provider and written in an ordinary
 `requires` clause. It belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. No named
 domain is needed solely to express that bound.
 
-The [generic-function production](closed_owner/README.md) carries the same fact
-when the selected provider call supplies constants inside a function that still
-has its own generic parameter. It also checks both match outcomes and field
-neighbors at runtime.
+The [generic helper](closed_owner/README.md) checks the same bound when the
+provider supplies constants inside a function with its own generic parameter.
+Its runtime checks exercise both match outcomes and neighboring fields.
 
-The [pending-call production](pending_call/README.md) keeps that same bound when
-the helper first makes a call with its own requirement. Its twins require that
-same pending helper result to admit the call. Its README retains that
-production's separate qualification records.
+The [helper with a prerequisite](pending_call/README.md) keeps the same bound
+when it first calls another helper with an input requirement. Its controls
+remove that prerequisite. Its README records the checks for those programs.
 
 The nine programs linked in the table below now make `limit()` admit input 1 against a calculated
 prerequisite. The matching branch supplies anonymous `254 + 1 = 255`; that value
@@ -43,10 +41,10 @@ nine-place row:
   changes 254 to 255. Anonymous addition then produces 256, which must reject
   before entering the Wrapping `u8` helper.
 
-The [guarded-crash production](guarded_crash/README.md) keeps the same bound
-when its helper has a guarded crash contract. It requires the compiler to prove
-the invocation safe before running the helper; changing only the divisor to zero
-must reject during admission.
+The [helper with a possible crash](guarded_crash/README.md) keeps the same bound
+when its contract permits a crash under a stated condition. The compiler must
+prove the call safe before running it; changing only the divisor to zero must
+reject during checking.
 
 Run the [local program](local/main.omg) through the public CLI with:
 
