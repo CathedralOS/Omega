@@ -754,7 +754,7 @@ pub(crate) fn validate_structural_root_operations(
                         }
                     });
                     let mut refused = "";
-                    let mut check = |label, value| {
+                    let mut check = |label: &'static str, value: bool| {
                         if !value {
                             refused = label;
                         }
