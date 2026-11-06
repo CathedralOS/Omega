@@ -15286,8 +15286,8 @@ fail/generics/type_index_distinct_binders rejected 1882ms expected @ccdb99ca2214
 fail/generics/type_index_wrong_telescope rejected 1700ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:exit-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/generics/typed_const_probe_false_extent_requires rejected 291ms unexpected @911f6617ba9e
-	cannot prove requires contract for specification call `extent` in closed const argument: establish its selected precondition in an independently formed prior requires fact
+fail/generics/typed_const_probe_false_extent_requires rejected 2605ms expected @69dce27d6ba1
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot prove requires contract for specification call `extent` in closed const argument: the instantiated fact is structurally false", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/generics/typed_const_probe_trapping_extent rejected 398ms expected @c5cc3d874922+wt
 	const-generic application evaluation failed: constant invocation retains unhandled [Trap] routes at its concrete arguments
 fail/generics/typed_const_probe_unused_bad_scalar rejected 310ms expected @911f6617ba9e
