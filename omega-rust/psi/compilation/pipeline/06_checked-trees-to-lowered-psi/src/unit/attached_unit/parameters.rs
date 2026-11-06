@@ -223,6 +223,13 @@ pub(crate) fn lower_unit_parameters(
                     lookup_type_id(type_ids, &parameter.type_identity)?,
                     structural_types,
                 )?,
+                additional_input_qualifications: lower_qualification_rows(
+                    identities,
+                    &parameter.additional_input_qualifications,
+                    domain_ids,
+                    lookup_type_id(type_ids, &parameter.type_identity)?,
+                    structural_types,
+                )?,
             })
         })
         .collect()
@@ -887,12 +894,24 @@ pub(crate) fn lower_projected_qualifications(
     root: StructuralTypeId,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
+    if rows.iter().any(|row| row.path.is_empty()) {
+        return unsupported("projected qualification has an empty path");
+    }
+    lower_qualification_rows(identities, rows, domain_ids, root, structural_types)
+}
+
+/// Lower exact qualification subjects, including whole-root observations.
+/// Paths and domain carriers use the same operation as projected requirements.
+fn lower_qualification_rows(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    rows: &[checked_trees::CheckedStructuralPathQualification],
+    domain_ids: &[StructuralDomainBinding],
+    root: StructuralTypeId,
+    structural_types: &[StructuralTypeDeclaration],
+) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
     let mut qualifications = rows
         .iter()
         .map(|row| {
-            if row.path.is_empty() {
-                return unsupported("projected qualification has an empty path");
-            }
             // Case identities are local to the exact sum declaration. Resolve the
             // static qualification path against its carrier through the shared
             // typed projection route; no runtime selectors are available here.

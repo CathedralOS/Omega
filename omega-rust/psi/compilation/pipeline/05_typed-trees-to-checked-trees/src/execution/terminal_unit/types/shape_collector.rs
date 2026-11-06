@@ -616,6 +616,30 @@ impl<'program> ShapeCollector<'program> {
         (identity == source_identity).then_some(())
     }
 
+    /// Keep every source-contract carrier and theory through catalog pruning.
+    /// The requirement record survives even when a carrier cannot be shaped;
+    /// an actual Terminal consumer still refuses that missing declaration.
+    pub(in super::super) fn retain_reference_contract_types(
+        &mut self,
+        contract: &checked_trees::CheckedReferenceSourceContract,
+        roots: &mut impl Extend<TypeIdentityId>,
+    ) {
+        let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract
+        else {
+            return;
+        };
+        for (domain, reference) in &contract.domains {
+            if let Some(identity) = self.add_domain(*domain, *reference, &[]) {
+                roots.extend(std::iter::once(identity));
+            }
+        }
+        for reference in &contract.projection_types {
+            if let Some(identity) = self.add_stored_type(*reference, &[], &[]) {
+                roots.extend(std::iter::once(identity));
+            }
+        }
+    }
+
     /// The primitive a registered identity names when its catalog row is a
     /// primitive scalar. A borrowed formal registers its peeled referent, so
     /// this is the primitive a `&u8` or `&mut i64` formal lends.

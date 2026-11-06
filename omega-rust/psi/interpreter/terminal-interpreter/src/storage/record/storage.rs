@@ -115,6 +115,9 @@ impl<'execution> ConstructorValue<'execution> {
             // home. It needs the same constructor transaction as other payloads.
             return Ok(None);
         }
+        // New homes are installed by the store's constructor transaction.
+        // Replacement instead writes through each original endpoint, including
+        // a byte array pinned in a suspended caller's activation.
         let mut writes = crate::storage::primitive_storage::PrimitiveStorageWrites::default();
         let supported =
             self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {

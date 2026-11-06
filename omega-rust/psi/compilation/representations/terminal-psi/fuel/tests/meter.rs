@@ -261,6 +261,7 @@ fn primitive_local_actions_charge_one_unit_atomically_at_their_own_sites() {
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
                 claims: Vec::new(),
             },
         ),

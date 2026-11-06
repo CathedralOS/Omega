@@ -52,7 +52,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // selects inside an aggregate; it does not select a different parameter
     // lookup or permit an undeclared destination.
     let projected = !path.is_empty();
-    let (destination_type, qualifications, projected_qualifications) =
+    let (destination_type, qualifications, projected_qualifications, additional_input) =
         if let Some(parameter) = machine.structural_parameter(*destination) {
             let declaration_matches = machine.structural_places.iter().any(|place| {
                 if place.id != *destination {
@@ -96,6 +96,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 parameter.structural_type,
                 parameter.qualifications.as_slice(),
                 parameter.projected_qualifications.as_slice(),
+                parameter.additional_input_qualifications.as_slice(),
             )
         } else {
             let Some(result) = machine
@@ -133,6 +134,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 result.structural_type,
                 result.qualifications.as_slice(),
                 result.projected_qualifications.as_slice(),
+                result.additional_input_qualifications.as_slice(),
             )
         };
     let Some(expected) =
@@ -146,6 +148,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         destination_type,
         qualifications,
         projected_qualifications,
+        additional_input,
         path,
     ) else {
         return malformed("primitive store does not preserve enclosing qualification");
@@ -173,6 +176,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         destination_type,
         qualifications,
         projected_qualifications,
+        additional_input,
         path,
         source,
     ) {

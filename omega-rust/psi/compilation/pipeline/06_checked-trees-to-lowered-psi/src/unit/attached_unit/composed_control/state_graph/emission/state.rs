@@ -161,6 +161,17 @@ impl StateGraphEmission<'_, '_> {
             .collect::<Vec<_>>();
         let mut operations = OperationBuffer::new(
             self.catalogs.next_operation - 1,
+            self.catalogs.next_place,
+            std::sync::Arc::new(
+                crate::emission::reference_formations::ReferenceFormations::prepare(
+                    checked,
+                    state.state,
+                    state
+                        .operation_dependencies()
+                        .flat_map(|operation| operation.with_value_calls()),
+                    state.successors().into_iter(),
+                )?,
+            ),
             std::sync::Arc::clone(&self.dynamic_dispatch),
         );
         let mut evaluation = crate::unit::attached_unit::argument_evaluation::Evaluation {

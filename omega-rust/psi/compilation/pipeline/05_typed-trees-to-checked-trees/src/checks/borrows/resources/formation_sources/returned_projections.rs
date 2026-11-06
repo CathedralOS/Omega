@@ -155,7 +155,10 @@ pub(super) fn validate(
                     .map(|profile| (profile, false)),
             );
         } else {
-            return refusal("returned projection has no checked descriptor formation");
+            return refusal(&format!(
+                "returned projection has no checked descriptor formation: state {:?}, statement {}, source {:?}, captured completion {:?}, selected path {path:?}, retained source {profile:?}",
+                state.state_symbol, row.statement_index, row.formation_expression, value.completion,
+            ));
         }
     }
     if !selected {

@@ -70,6 +70,16 @@ impl StructuralScalarStoreDestination {
         }
     }
 
+    pub fn additional_input_qualifications(&self) -> &[terminal_psi::StructuralPathQualification] {
+        match self {
+            Self::Parameter(value)
+            | Self::OwnedBlockParameter {
+                parameter: value, ..
+            } => &value.additional_input_qualifications,
+            Self::OwnedResult { result, .. } => &result.additional_input_qualifications,
+        }
+    }
+
     /// The borrowed parameter whose loan authorizes the write. Owned homes,
     /// including an owned block parameter, carry their own authority.
     pub fn parameter(&self) -> Option<&StructuralParameterDeclaration> {

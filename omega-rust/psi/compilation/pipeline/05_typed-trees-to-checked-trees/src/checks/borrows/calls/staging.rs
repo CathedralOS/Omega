@@ -15,6 +15,30 @@ use checked_trees::{
 };
 use typed_trees::expression::ExpressionNode;
 
+/// A returned loan cannot compete with inputs evaluated before it existed.
+/// The checked access range ends at this exact result, so later operands still
+/// compete with all of its input lifetime debts, including unselected inputs.
+pub(super) fn returned_loan_input_range(
+    borrow: &checked_trees::BorrowFacts,
+    loan: &checked_trees::BorrowLoanFact,
+    outer: &BorrowCallFact,
+    accesses: &[&BorrowArgumentAccessFact],
+) -> Option<std::ops::Range<usize>> {
+    if !borrow.is_call_result_loan(loan) || loan.statement_index != outer.statement_index {
+        return None;
+    }
+    let producer = borrow.calls.get(loan.established_by_call);
+    if producer.call_ordinal == outer.call_ordinal {
+        return None;
+    }
+    let mut results = accesses.iter().enumerate().filter_map(|(end, access)| {
+        let start = access.evaluation_start?;
+        (access.expression == producer.authored_expression && start < end).then_some(start..end)
+    });
+    let range = results.next()?;
+    results.next().is_none().then_some(range)
+}
+
 /// One exact invocation boundary in the shared evaluated occurrence schedule.
 /// This is borrowed-check construction scratch, not a new loan or cleanup plan.
 pub(in crate::checks::borrows) struct InvocationBoundary {

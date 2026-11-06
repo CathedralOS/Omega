@@ -19,6 +19,13 @@ pub(crate) fn collect_operation_requirements(
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<bool, LoweringError> {
+    if let checked_trees::CheckedUnitEffectOperationPlan::EstablishReference {
+        source_contract,
+        ..
+    } = operation
+    {
+        collect_reference_contract(source_contract, domains);
+    }
     let Some((value, _)) = operation.structural_value_evaluation() else {
         return Ok(false);
     };
@@ -116,6 +123,25 @@ fn collect_domains(
             }
         }
         match &node.kind {
+            CheckedStructuralValueKind::Reference {
+                backing_type,
+                source_contract,
+                source_value,
+                ..
+            } => {
+                collect_reference_contract(source_contract, domains);
+                if source_value.is_valid() {
+                    if !plans.nodes.is_valid(*source_value) {
+                        return Err(LoweringError::InvalidReferenceContract {
+                            supplying_type: *backing_type,
+                            reason: "reference domain catalog has stale source value".to_owned(),
+                        });
+                    }
+                    let child = plans.nodes.get(*source_value);
+                    pending.push((*source_value, child.type_reference));
+                }
+            }
+
             CheckedStructuralValueKind::ZeroedStructural {
                 projected_qualifications,
             } => {
@@ -210,4 +236,20 @@ fn collect_domains(
         }
     }
     Ok(requires_literal_view)
+}
+
+/// Register theories from a recorded source contract. An unavailable
+/// inventory supplies none; the pointer emitter retains that refusal if this
+/// operation or projected state loan actually materializes a pointer.
+pub(crate) fn collect_reference_contract(
+    contract: &checked_trees::CheckedReferenceSourceContract,
+    domains: &mut Vec<SemanticDomainId>,
+) {
+    if let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract {
+        for (domain, _) in &contract.domains {
+            if !domains.contains(domain) {
+                domains.push(*domain);
+            }
+        }
+    }
 }

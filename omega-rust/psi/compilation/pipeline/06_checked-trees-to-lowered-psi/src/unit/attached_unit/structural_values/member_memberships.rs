@@ -15,12 +15,22 @@ pub(in crate::unit::attached_unit) fn append<'parameter>(
     parameters: impl Iterator<Item = &'parameter StructuralParameterDeclaration>,
     operations: &OperationBuffer,
     destination: &mut Vec<StructuralPathQualification>,
+    additional_destination: &mut Vec<StructuralPathQualification>,
 ) {
-    if let Some((_, whole, projected)) = source_memberships(argument.place, parameters, operations)
+    if let Some((_, whole, projected, additional)) =
+        source_memberships(argument.place, parameters, operations)
     {
         let (whole, projected) =
             StructuralPathQualification::select(whole, projected, &argument.path);
         StructuralPathQualification::append_under(&whole, &projected, prefix, destination);
+        let (whole, projected) =
+            StructuralPathQualification::select(&[], additional, &argument.path);
+        StructuralPathQualification::append_under(
+            &whole,
+            &projected,
+            prefix,
+            additional_destination,
+        );
     }
 }
 
@@ -31,6 +41,7 @@ pub(in crate::unit::attached_unit) fn source_memberships<'parameter: 'source, 's
 ) -> Option<(
     semantic_vocabulary::StructuralTypeId,
     &'source [semantic_vocabulary::StructuralDomainId],
+    &'source [StructuralPathQualification],
     &'source [StructuralPathQualification],
 )> {
     source_memberships_in(place, parameters, operations.iter())
@@ -47,6 +58,7 @@ pub(in crate::unit::attached_unit) fn source_memberships_in<'parameter: 'source,
     semantic_vocabulary::StructuralTypeId,
     &'source [semantic_vocabulary::StructuralDomainId],
     &'source [StructuralPathQualification],
+    &'source [StructuralPathQualification],
 )> {
     operations
         .filter_map(|operation| operation.result.structural())
@@ -56,6 +68,7 @@ pub(in crate::unit::attached_unit) fn source_memberships_in<'parameter: 'source,
                 result.structural_type,
                 result.qualifications.as_slice(),
                 result.projected_qualifications.as_slice(),
+                result.additional_input_qualifications.as_slice(),
             )
         })
         .or_else(|| {
@@ -67,6 +80,7 @@ pub(in crate::unit::attached_unit) fn source_memberships_in<'parameter: 'source,
                         parameter.structural_type,
                         parameter.qualifications.as_slice(),
                         parameter.projected_qualifications.as_slice(),
+                        parameter.additional_input_qualifications.as_slice(),
                     )
                 })
         })

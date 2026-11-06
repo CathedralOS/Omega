@@ -172,6 +172,7 @@ impl Builder<'_, '_> {
                 storage: CheckedReferenceStorage::Declared,
                 backing_type: declared,
                 source_value: CheckedStructuralValueHandle::invalid(),
+                source_contract: checked_trees::CheckedReferenceSourceContract::SeparateStorage,
             });
         }
         if !canonical_place_is_borrowable(&place) {

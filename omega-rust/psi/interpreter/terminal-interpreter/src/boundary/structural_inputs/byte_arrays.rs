@@ -733,6 +733,7 @@ impl TerminalExecution<'_> {
                     access: StructuralAccess::Owned,
                     qualifications: result.qualifications.clone(),
                     projected_qualifications: result.projected_qualifications.clone(),
+                    additional_input_qualifications: result.additional_input_qualifications.clone(),
                 })
             })
             .ok_or_else(malformed)?;

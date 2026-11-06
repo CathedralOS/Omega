@@ -149,7 +149,7 @@ fn source_checked_obligation_facts(
                                     | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => (&parameter.qualifications, &parameter.projected_qualifications),
                                     abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => (&result.qualifications, &result.projected_qualifications),
                                 };
-                                terminal_semantics::primitive_store_restriction(unit.structural_types.iter(), unit.structural_domains.iter(), destination.structural_type(), whole, projected, path)??
+                                terminal_semantics::primitive_store_restriction(unit.structural_types.iter(), unit.structural_domains.iter(), destination.structural_type(), whole, projected, destination.additional_input_qualifications(), path)??
                             },
                         ),
                         abstract_operations::AbstractOperation::EstablishPrimitiveLocal {
