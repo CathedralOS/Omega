@@ -12,9 +12,8 @@ use terminal_psi::TerminalModule;
 use crate::{
     ArtifactManifestError, CodecError, DebugMapError, PsiOptimizationExecutionRecord,
     PsiOptimizationExecutionRecordDecodeError, TerminalArtifactManifest, TerminalDebugMap,
-    build_artifact_manifest, decode_debug_map, decode_module,
-    decode_psi_optimization_execution_record, encode_debug_map, encode_module,
-    encode_psi_optimization_execution_record,
+    decode_debug_map, decode_module, decode_psi_optimization_execution_record, encode_debug_map,
+    encode_module, encode_psi_optimization_execution_record,
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
@@ -106,8 +105,16 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let manifest = build_artifact_manifest(
-            &semantic_module,
+        // The manifest names the module by the fingerprint of these same bytes.
+        let semantic = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: semantic_module.vocabulary_marker,
+            program_fingerprint: crate::sections::semantic_module::encoded_fingerprint(
+                &semantic_module,
+                &semantic_bytes,
+            ),
+        };
+        let manifest = crate::sections::artifact_manifest::manifest_for_semantic(
+            semantic,
             &optimization,
             None,
             debug_bytes.as_deref(),

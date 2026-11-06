@@ -431,6 +431,8 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
         commutativity_licensed: true,
         associativity_licensed: true,
         distributes_over: Vec::new(),
+        left_identity_literal: String::new(),
+        right_identity_literal: String::new(),
     };
     fixture
         .program

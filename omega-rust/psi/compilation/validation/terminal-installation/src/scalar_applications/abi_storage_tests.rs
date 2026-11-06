@@ -151,6 +151,8 @@ fn facts(target: &str) -> crate::LayoutTargetFacts {
         profile: target.into(),
         pointer_size: 8,
         pointer_alignment: 8,
+        case_tag_size: 4,
+        case_tag_alignment: 4,
         little_endian: true,
     }
 }

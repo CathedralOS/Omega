@@ -47,6 +47,19 @@ capture-free positional substitution, pre/post versions, moves and reborrows,
 outcome guards, crash routes, and evidence lifetime. Missing a clause and
 substituting the wrong caller term are distinct failures.
 
+## Equality relations
+
+[Equality bridge evidence](../proofs/contracts.md#equality-bridges-and-comparison-facts)
+licenses only its checked direction for the exact selected operation, subjects
+and instantiation. A true executable comparison is not generic identity.
+Synthesized structural comparison evidence retains field selections and active
+case guards; float leaves retain IEEE truth conditions. Raw float identity
+preserves representation bits and cannot be inferred from payload-erased
+meaning equality. Pure call congruence requires the same admitted operation and
+unchanged argument values, including any observed referent versions. Results
+from other call frames require checked exact substitution; a different value
+version or selected implementation supplies no interchangeable fact.
+
 ## Restored scalar values
 
 Under `restored-scalar-value-facts`, a valid initialized ordinary storage place

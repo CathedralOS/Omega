@@ -128,6 +128,8 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                         .ok_or_else(|| fail("native target member lost its semantic storage"))?;
                     if selected.pointer_size != target.pointer_size
                         || selected.pointer_alignment != target.pointer_alignment
+                        || selected.case_tag_size != target.case_tag_size
+                        || selected.case_tag_alignment != target.case_tag_alignment
                         || selected.little_endian != target.little_endian
                     {
                         return Err(fail("native layout changed its exact target facts"));

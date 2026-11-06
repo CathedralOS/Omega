@@ -535,6 +535,24 @@ pub fn normalized_index_identity(
     (!invalid.get()).then_some(identity)
 }
 
+/// The licensed index-expression identity, without the const-expression type
+/// wrapper. Domain instance names use this to see that `N + 0` became `N`.
+pub(crate) fn normalized_const_index_expression_identity(
+    program: &TypedTrees,
+    expression: crate::expression::ExpressionHandle,
+) -> Option<String> {
+    let invalid = Cell::new(false);
+    let identity = identity_context::normalize_index_expression(
+        program,
+        expression,
+        &identity_context::TypeIdentityContext {
+            invalid_index_argument: Some(&invalid),
+            ..identity_context::TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(identity)
+}
+
 /// Normalize a symbolic expression with declaration-local binder identities.
 /// This shares the index-expression normalizer: renaming a bound subject does
 /// not change a predicate, while references outside the binder list retain

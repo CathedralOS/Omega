@@ -11,7 +11,25 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+
+/// RLIMIT_AS (Linux only) counts reserved virtual memory, not use: at 16 GiB a
+/// release compiler checking a std project cannot reserve its worker-thread
+/// stacks and panics, while 64 GiB passes `prime_counter`. The 8 GiB memory
+/// limits below are enforced only by Windows job objects, so on Linux this cap
+/// is the only memory bound. `--address-space-gib` sets it for one invocation.
+// ponytail: one process-wide setting, read by every capture; thread it through
+// callers if two caps are ever needed in one run.
+static ADDRESS_SPACE_BYTES: AtomicU64 = AtomicU64::new(64 << 30);
+
+pub fn set_address_space_limit(bytes: u64) {
+    ADDRESS_SPACE_BYTES.store(bytes, Ordering::Relaxed);
+}
+
+pub fn address_space_limit() -> u64 {
+    ADDRESS_SPACE_BYTES.load(Ordering::Relaxed)
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Observation {
@@ -62,7 +80,7 @@ pub fn capture(
         command,
         BoundedProcessLimits::new(
             timeout_ms.div_ceil(1000) + 10,
-            16 * gibibyte,
+            address_space_limit(),
             gibibyte,
             1024,
             64,

@@ -107,6 +107,8 @@ pub(super) fn lower(
                                 target: alternative.target.as_str().to_owned(),
                                 pointer_size: alternative.target_facts.pointer_size,
                                 pointer_alignment: alternative.target_facts.pointer_alignment,
+                                case_tag_size: alternative.target_facts.case_tag_size,
+                                case_tag_alignment: alternative.target_facts.case_tag_alignment,
                                 little_endian: alternative.target_facts.little_endian,
                             }),
                             report: alternative.geometry.native_layout_report(),

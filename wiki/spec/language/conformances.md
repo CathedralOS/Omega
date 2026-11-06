@@ -303,11 +303,14 @@ the [operator guide](../../language_guide/chapter_14_traits.md#operator-requirem
 There is no ambient search. Other mathematical relations use separately named
 contracts and implementations without competing for operator syntax.
 
-These acquisition rules govern executable `==` and explicit equality-machine
-calls. In a fact or proposition context, `==` over values of one identical
-non-primitive data type elaborates to
-[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
-does not acquire `Equatable<T>`.
+These acquisition rules govern value `==` and explicit equality-machine calls
+in executable and proposition contexts alike. Mathematical identity is written
+as [core identity](../proofs/contracts.md#data-identity-in-facts). Two independent
+checked bridge laws can relate the selected comparison to that identity;
+they are additional evidence traits, not optional `Equatable` members. The
+evidence must bind the exact comparison row selected at the use, including its
+generic application. Merely naming another conformance for the same carrier
+does not connect their equality implementations.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums require an explicit named conformance. Adding a payload
@@ -319,6 +322,13 @@ case's payload. Every field must be a scalar primitive, payload-less sum, text
 compared by byte content, or covered by an explicitly selected equality
 implementation. Recursive structural synthesis rejects. Operators and the
 callable equality wrapper share the selected member meaning.
+Synthesized bodies are transparent to proof checking under ordinary invocation
+admission: true comparisons expose the selected component comparisons and sum
+case guards. Synthesis separately derives each identity bridge only from the
+corresponding component evidence. It grants neither blanket substitution for
+float-containing aggregates nor automatic totality for arbitrary user field
+comparisons. Additional core law synthesis requires explicit catalog support;
+an empty implementation of a new trait cannot acquire it by name.
 [General reflection](reflection.md) lets authorized
 authors generate ordinary checked member calls; it does not expand this sealed
 synthesis catalog, supply missing law evidence, or permit raw quotient observation.

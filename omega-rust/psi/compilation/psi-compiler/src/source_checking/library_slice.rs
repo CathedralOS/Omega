@@ -127,6 +127,8 @@ impl LibrarySliceRequest {
                     digest.bytes(facts.profile.as_bytes());
                     digest.u64(facts.pointer_size);
                     digest.u64(facts.pointer_alignment);
+                    digest.u64(facts.case_tag_size);
+                    digest.u64(facts.case_tag_alignment);
                     digest.byte(u8::from(facts.little_endian));
                 }
                 None => digest.byte(0),

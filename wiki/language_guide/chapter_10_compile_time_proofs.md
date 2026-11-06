@@ -40,10 +40,12 @@ the standard library. It names a proof family without proving any instance:
 
 ```omega
 proposition int_pair_equivalent(left: IntPair, right: IntPair) =
-    (add(left.pos, right.neg)) == (add(right.pos, left.neg));
+    core::Identity<Nat>(add(left.pos, right.neg), add(right.pos, left.neg));
 ```
 
-(`source/library/core/int.omg`.) Three bodies are accepted: `;` for a
+This is the explicit-identity migration of the relation in
+`source/library/core/int.omg`; the bundled source changes with compiler support.
+Three bodies are accepted: `;` for a
 primitive proposition, `evidence Interface;`, and `= fact;` as above. Its
 binders are proof-static and cannot declare lifetime parameters. Quotient
 formation requires one.
@@ -78,13 +80,44 @@ That does not make different witness values equal, erase resource identity, or
 make every mathematical identity proof interchangeable. `[erased]` is a separate
 decision about runtime storage and use, not a synonym for logical irrelevance.
 
-In a `requires` or `ensures` clause, or proposition, `left == right` over
-one identical non-primitive data type states proof-relevant identity. It does
-not run or require `Equatable`, so a law over `Seq<T>` can hold without an
-equality algorithm for `T`. Executable `==` still selects equality machinery;
-name that equality machine explicitly when a proof must discuss its algorithmic
-answer. Primitive numeric/address comparisons keep their specified total
-relations in both settings.
+Value `==` selects the same comparison in contracts and executable code. An
+admitted pure comparison on unchanged arguments has the same Boolean answer:
+
+```omega
+machine same(a: Thing, b: Thing) -> bool
+requires a == b {
+    a == b
+}
+```
+
+Here `Thing` stands for a type with a selected comparison admitted in proof
+terms. The precondition proves the result true without granting identity.
+
+When a law needs mathematical identity, write it explicitly. For example, this
+requirement inside an algebra trait does not require an equality algorithm:
+
+```omega
+machine add_comm(a: T, b: T)
+ensures core::Identity<T>(add(a, b), add(b, a));
+```
+
+`core::Identity` is a proof relation over the existing `Id`, not a runtime
+Boolean function or proof of its own statement. Its evidence permits the
+foundation's identity substitution. A comparison gets that power only through
+a checked law saying its true result implies identity. The reverse law,
+identity implies a true comparison, is separate. Additional evidence traits
+can supply either or both for the exact selected comparison; `Equatable` does
+not require both. Synthesis proves only the directions justified by the fields.
+
+For raw floats, `==` is IEEE comparison, while `core::Identity<f64>` preserves
+all 64 bits. `+0.0 == -0.0` is true despite different identities. A NaN is
+identical to itself despite IEEE comparison returning false. Identity of
+`F64::meaning` projections is a third relation: it forgets NaN payloads and
+still distinguishes signed zeros. See the [float table](../spec/terminal-psi/mathematical_values.md#float-equality-and-source-identity).
+
+This replaces contextual data `==` in the ratified specification. Compiler,
+core algebra and source migration remain tracked under **PROOF-KERNEL-CORE**
+and the [explicit-identity plan](../drafts/designs/explicit_identity.md).
 
 These distinctions live beneath ordinary machines, contracts and named bundles.
 The goal is that an LLM can supply an ambitious proof and an independent checker

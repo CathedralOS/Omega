@@ -85,6 +85,7 @@ pub fn state_declaration_predicates(
     state: &typed_trees::state::State,
 ) -> Vec<DeclarationPredicateRow> {
     let mut rows = Vec::new();
+    let mut emitting = Vec::new();
     for (position, parameter) in program.state_parameters(state).iter().enumerate() {
         let Ok(parameter_position) = u32::try_from(position) else {
             break;
@@ -115,6 +116,7 @@ pub fn state_declaration_predicates(
             restored_on_return,
             case_guards: Vec::new(),
             rows: &mut rows,
+            emitting: &mut emitting,
         };
         match parameter_data_definition(program, referee) {
             // A lifetime-only application names the declaration itself and
@@ -332,6 +334,12 @@ struct RowEmitter<'a, 'program> {
     restored_on_return: bool,
     case_guards: Vec<CheckedBooleanExpression>,
     rows: &'a mut Vec<DeclarationPredicateRow>,
+    /// Whether each definition this roster reached emits rows of its own.
+    /// The answer depends only on the definition, but every array element and
+    /// every parameter reaching it would otherwise spell all its facts again.
+    /// Keyed by declaration row identity, as `checked_own_facts` is, and
+    /// dropped with the query.
+    emitting: &'a mut Vec<(*const DataDefinition, bool)>,
 }
 
 impl RowEmitter<'_, '_> {
@@ -424,7 +432,16 @@ impl RowEmitter<'_, '_> {
         prefix: &[CheckedStructuralPredicatePathSegment],
         definition: &DataDefinition,
     ) {
-        if !definition_emits_rows(self.program, self.operators, definition) {
+        let row = std::ptr::from_ref(definition);
+        let emits = match self.emitting.iter().find(|(known, _)| *known == row) {
+            Some((_, emits)) => *emits,
+            None => {
+                let emits = definition_emits_rows(self.program, self.operators, definition);
+                self.emitting.push((row, emits));
+                emits
+            }
+        };
+        if !emits {
             return;
         }
         for (case, facts) in definition_fact_spans(self.program, definition) {

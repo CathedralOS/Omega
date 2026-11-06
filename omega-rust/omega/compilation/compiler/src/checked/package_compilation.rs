@@ -312,6 +312,7 @@ impl CompilationSession {
         inputs: package_compilation::PackageCompilationInputs,
         options: PackageProductOptions,
     ) -> Result<PackageBuild, CompileFailure> {
+        let _scope = phase_profile::guard("omega.product.prepare");
         super::run_on_compile_thread(|| {
             if let Some(prepared) = completed.products.iter().find(|prepared| {
                 prepared.has_source_admission(&inputs, &options.optimization_rollback)
@@ -336,6 +337,7 @@ impl CompilationSession {
         &mut self,
         request: CheckedCompileRequest,
     ) -> Result<PackageBuildInvocation, CompileFailure> {
+        let _scope = phase_profile::guard("omega.build.begin");
         super::run_on_compile_thread(|| {
             self.begin_build(request)
                 .map(|source| PackageBuildInvocation { source })

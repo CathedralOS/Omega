@@ -15,6 +15,7 @@ terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
+phase-profile = { path = "../../../psi/foundation/phase-profile" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 artifacts = { path = "../../foundation/artifacts" }
 compilation-products = { path = "../../compilation/products" }

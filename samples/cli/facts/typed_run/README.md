@@ -69,6 +69,11 @@ checked cell transformation into both engines without per-element runtime tags,
 custody tables or hidden occupancy updates. No part of that acceptance is closed
 by the presence of this first witness.
 
+The authored split/merge proof surface remains a decision under
+[`typed-run-cell-transfer-surface`](../../../../OWNER_QUESTIONS.md#q1---how-does-an-ordinary-run-split-or-merge-express-its-cell-transfer).
+The internal ordered-custody summary is already ratified. Geometry and count
+equations alone must not be used to admit the missing cell transfer.
+
 The [zero-sized element witness](../../../../tests/omega/pass/layouts/runtime_run_zero_sized_element_exit/README.md)
 retains an empty record's cleanup through singleton storage and extraction,
 alongside an empty run with the same byte geometry. Its double-drop control

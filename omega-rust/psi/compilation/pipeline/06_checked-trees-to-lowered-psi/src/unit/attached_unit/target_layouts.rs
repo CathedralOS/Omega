@@ -237,6 +237,8 @@ pub(super) fn lower(
                 target: alternative.target.as_str().to_owned(),
                 pointer_size: alternative.target_facts.pointer_size,
                 pointer_alignment: alternative.target_facts.pointer_alignment,
+                case_tag_size: alternative.target_facts.case_tag_size,
+                case_tag_alignment: alternative.target_facts.case_tag_alignment,
                 little_endian: alternative.target_facts.little_endian,
                 storage: AuthoredRecordStorage {
                     byte_size,
@@ -253,6 +255,8 @@ pub(super) fn lower(
                 target: target.profile.clone(),
                 pointer_size: target.pointer_size,
                 pointer_alignment: target.pointer_alignment,
+                case_tag_size: target.case_tag_size,
+                case_tag_alignment: target.case_tag_alignment,
                 little_endian: target.little_endian,
             })
             .collect::<Vec<_>>();

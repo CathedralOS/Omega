@@ -80,7 +80,23 @@ impl Captures<'_> {
                 ) {
                     return None;
                 }
-                shell.referee
+                // A byte-sequence parameter is already the returned view.
+                // Its referent is the stored bytes, not a second reference
+                // to enter. Stripping the view makes the call's presentation
+                // look like a different type, so a window of that parameter
+                // has no return origin.
+                let referee = crate::peel_declared_constraints(self.program, shell.referee);
+                let view =
+                    matches!(
+                        self.program.type_reference_table.type_reference(referee),
+                        typed_trees::types::TypeReferenceNode::Slice { .. }
+                    ) || crate::byte_sequence_carrier(self.program, parameter.type_reference, &[])
+                        .is_some_and(|carrier| carrier.is_borrowed());
+                if view {
+                    parameter.type_reference
+                } else {
+                    shell.referee
+                }
             }
             None => parameter.type_reference,
         };

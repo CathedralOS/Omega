@@ -173,12 +173,25 @@ pub(crate) fn prepare(
             if !needs_destination(program, argument) {
                 continue;
             }
-            let reference = if substitutions.is_empty() {
-                reference
-            } else {
+            let reference = if !substitutions.is_empty() {
                 program
                     .apply_callable_type(reference, &substitutions, &[], call.target)
                     .map_err(Diagnostic::error)?
+            } else if callee_owns_nominal_lifetimes(program, reference, call.target) {
+                // The parameter type names the callee's regions and this call
+                // supplies no type arguments. A constructor in the caller must
+                // keep that supplying declaration; the shared signature node
+                // would ask the caller to declare the callee's lifetime names.
+                // The fresh root records only that owner. Nested type identity
+                // and expression payloads stay on the declaration.
+                let occurrence = program.type_reference_table.fresh_occurrence(reference);
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(occurrence, call.target)
+                    .map_err(Diagnostic::error)?;
+                occurrence
+            } else {
+                reference
             };
             destinations.push((argument, reference, call.target));
         }
@@ -330,4 +343,36 @@ fn land_one(
         return Ok(());
     }
     validation::land_owned_fixed_byte_literal(program, value, destination)
+}
+
+/// A nominal destination whose lifetime arguments are the callee's own
+/// parameters, with no retained supplier yet. Reference shells and already
+/// owned occurrences stay on the shared signature node.
+fn callee_owns_nominal_lifetimes(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    callee: SymbolHandle,
+) -> bool {
+    if program
+        .type_reference_table
+        .operand_lifetime_owner(reference)
+        .is_valid()
+    {
+        return false;
+    }
+    let TypeReferenceNode::Generic {
+        lifetime_arguments, ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return false;
+    };
+    !lifetime_arguments.is_empty()
+        && lifetime_arguments.iter().all(|lifetime| {
+            typed_trees::type_identity::lifetime_parameter_identity(
+                program,
+                callee,
+                lifetime.as_str(),
+            )
+            .is_some()
+        })
 }

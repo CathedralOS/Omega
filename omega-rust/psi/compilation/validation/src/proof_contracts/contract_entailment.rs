@@ -184,7 +184,7 @@ pub(crate) use specification_calls::{
     SelectedCallContract, selected_call_contract, validate_specification_call_requirements,
 };
 
-pub(crate) use structural_judgment::declared_index_algebra_laws;
+pub(crate) use structural_judgment::{declared_index_algebra_laws, literal_index_identities};
 
 use crate::frozen_program::expression_table;
 use std::collections::BTreeMap;
