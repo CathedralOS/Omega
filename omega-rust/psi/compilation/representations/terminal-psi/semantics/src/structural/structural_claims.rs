@@ -24,22 +24,51 @@ pub fn structural_claim_paths_may_overlap<'types>(
 ) -> Option<bool> {
     crate::canonical_static_projection(declarations.clone(), root, left)?;
     crate::canonical_static_projection(declarations, root, right)?;
-    Some(left.starts_with(right) || right.starts_with(left))
+    Some(owned_paths_overlap(left, right))
 }
 
-/// Join machine-local return identities to the caller's possible path roster.
-/// Every returned path must have a receiving slot, and every unguarded slot
-/// occurs on every successful exit. A guarded slot can remain unused when the
-/// callee returns only other declared cases. It establishes no case membership
-/// or live claim; the returning occurrence supplies both independently.
-pub fn result_claim_catalog_matches_returns<'returns>(
+/// Local result-row validation. Success establishes only typed possible slots
+/// and return-path correspondence, never active case membership or live custody.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResultClaimCatalogError {
+    NonStaticOwnedPath,
+    OverlappingPaths,
+    ReturnPathMismatch,
+}
+
+/// Validate one exact result type's possible claim slots and every returning
+/// occurrence. A guarded slot can remain unused when the callee returns other
+/// declared cases. Each path must first be a static owned projection of this
+/// root; a case spelling or storage interpretation cannot justify itself.
+pub fn validate_result_claim_catalog<'types, 'returns>(
+    declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
     catalogue: &[StructuralResultClaimBinding],
     returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
-) -> bool {
+) -> Result<(), ResultClaimCatalogError> {
+    crate::canonical_static_projection(declarations.clone(), root, &[])
+        .ok_or(ResultClaimCatalogError::NonStaticOwnedPath)?;
+    for binding in catalogue {
+        crate::canonical_static_projection(declarations.clone(), root, &binding.path)
+            .ok_or(ResultClaimCatalogError::NonStaticOwnedPath)?;
+    }
+    if catalogue.iter().enumerate().any(|(index, binding)| {
+        catalogue[index + 1..]
+            .iter()
+            .any(|other| owned_paths_overlap(&binding.path, &other.path))
+    }) {
+        return Err(ResultClaimCatalogError::OverlappingPaths);
+    }
     matches_paths(
         catalogue.iter().map(|binding| binding.path.as_slice()),
         returns,
     )
+    .then_some(())
+    .ok_or(ResultClaimCatalogError::ReturnPathMismatch)
+}
+
+fn owned_paths_overlap(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> bool {
+    left.starts_with(right) || right.starts_with(left)
 }
 
 /// A public result signature permits each realization to return any admitted

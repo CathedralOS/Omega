@@ -15,9 +15,9 @@ use terminal_psi::{
     ClaimTransfer, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
     RegisterCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, TerminalDynamicClaimPath, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, call_structural_pair_pattern, find_boundary_machine,
-    structural_type_has_borrowed_storage_by,
+    StructuralPlaceDeclaration, StructuralResultClaimBinding, TerminalDynamicClaimPath,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    call_structural_pair_pattern, find_boundary_machine, structural_type_has_borrowed_storage_by,
 };
 
 /// The shared ordinary-call tail: structural operands present against the
@@ -240,7 +240,7 @@ pub(super) fn validate_call_dynamic(
     }
     if let Some(result) = operation.result.structural() {
         validate_structural_call_result_declaration(module, machine, operation, result)?;
-        validate_result_claim_shape(module, result)?;
+        validate_result_claim_shape(module, result, std::iter::empty())?;
     }
     if !strictly_increasing(shape.entry_claim_paths.iter()) {
         return malformed("dynamic slot claim paths are not canonical");
@@ -532,6 +532,22 @@ pub(super) fn validate_call_structural(
         }
     }
     validate_structural_call_result_declaration(module, machine, operation, actual_result)?;
+    if !exact_payloadless && requirement_obligations.len() != callee.contract.requires.len() {
+        return malformed("structural call obligations disagree with its callee contract");
+    }
+    validate_result_claim_shape(
+        module,
+        actual_result,
+        callee
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Terminator::ReturnStructural {
+                    returned_claims, ..
+                } => Some(returned_claims.as_slice()),
+                _ => None,
+            }),
+    )?;
     if exact_payloadless {
         // The selected proof row cannot bypass ordinary actual/formal shape,
         // projection and custody checks, including a nonempty actual prefix.
@@ -542,24 +558,6 @@ pub(super) fn validate_call_structural(
     // correspondence is by path, so a callee may return different inputs or
     // fresh establishments at one path on different exits, and the caller
     // never names a callee-local claim identity.
-    if requirement_obligations.len() != callee.contract.requires.len() {
-        return malformed("structural call obligations disagree with its callee contract");
-    }
-    validate_result_claim_shape(module, actual_result)?;
-    if !terminal_semantics::result_claim_catalog_matches_returns(
-        &actual_result.claims,
-        callee
-            .blocks
-            .iter()
-            .filter_map(|block| match &block.terminator {
-                Terminator::ReturnStructural {
-                    returned_claims, ..
-                } => Some(returned_claims.as_slice()),
-                _ => None,
-            }),
-    ) {
-        return malformed("structural callee return disagrees with the caller's result claims");
-    }
     Ok(())
 }
 
@@ -599,38 +597,35 @@ fn validate_structural_call_result_declaration(
 /// Ordinary and boundary results carry the same occurrence-relative claim
 /// shape. The selected producer's returned custody supplies lineage; this
 /// portable check admits neither duplicate names nor overlapping paths.
-fn validate_result_claim_shape(
+fn validate_result_claim_shape<'returns>(
     module: &TerminalModule,
     actual_result: &StructuralOperationResult,
+    returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
 ) -> Result<(), CodecError> {
-    let mut result_paths: Vec<&[StructuralPathSegment]> =
-        Vec::with_capacity(actual_result.claims.len());
     for binding in &actual_result.claims {
+        // Keep the declaration-specific unknown field/case diagnostic before
+        // the shared static-owned and return-correspondence operation.
         validate_structural_path(module, actual_result.structural_type, &binding.path)?;
-        terminal_semantics::canonical_static_projection(
-            module.structural_types.iter(),
-            actual_result.structural_type,
-            &binding.path,
-        )
-        .ok_or(CodecError::MalformedStructuralFoundation(
-            "structural call result claim is not static owned storage",
-        ))?;
-        for previous in &result_paths {
-            let overlap = terminal_semantics::structural_claim_paths_may_overlap(
-                module.structural_types.iter(),
-                actual_result.structural_type,
-                previous,
-                &binding.path,
-            )
-            .ok_or(CodecError::MalformedStructuralFoundation(
-                "structural call result claim is not static owned storage",
-            ))?;
-            if overlap {
-                return malformed("structural call result has overlapping claim paths");
-            }
-        }
-        result_paths.push(binding.path.as_slice());
     }
+    terminal_semantics::validate_result_claim_catalog(
+        module.structural_types.iter(),
+        actual_result.structural_type,
+        &actual_result.claims,
+        returns,
+    )
+    .map_err(|error| {
+        CodecError::MalformedStructuralFoundation(match error {
+            terminal_semantics::ResultClaimCatalogError::NonStaticOwnedPath => {
+                "structural call result claim is not static owned storage"
+            }
+            terminal_semantics::ResultClaimCatalogError::OverlappingPaths => {
+                "structural call result has overlapping claim paths"
+            }
+            terminal_semantics::ResultClaimCatalogError::ReturnPathMismatch => {
+                "structural callee return disagrees with the caller's result claims"
+            }
+        })
+    })?;
     let caller_result_claims = actual_result
         .claims
         .iter()
@@ -754,7 +749,7 @@ pub(super) fn validate_boundary_call(
         OperationResult::Unit => Some(BoundaryMachineResult::Unit),
         OperationResult::Scalar(result) => Some(BoundaryMachineResult::Scalar(result.value_type())),
         OperationResult::Structural(result) => {
-            validate_result_claim_shape(module, result)?;
+            validate_result_claim_shape(module, result, std::iter::empty())?;
             Some(BoundaryMachineResult::Structural(
                 BoundaryStructuralResultDeclaration {
                     structural_type: result.structural_type,

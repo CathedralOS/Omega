@@ -229,7 +229,7 @@ pub fn structural_place_supports_window_restoration(
 pub(crate) use unit_validation::validate_psi_optimization_unit;
 pub use unit_validation::{
     reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
-    validate_psi_optimization_unit_with_admitted_cycle_machines,
+    validate_psi_optimization_unit_with_admitted_cycle_machines, validate_psi_structural_catalog,
 };
 
 // Rewrite-candidate acceptance: the typed dispatch and the result it returns.

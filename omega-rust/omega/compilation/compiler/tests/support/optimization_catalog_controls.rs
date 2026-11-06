@@ -1,9 +1,7 @@
 //! Replay source-produced type catalogs through the public optimizer entrance.
 use optimization_unit::PsiOptimizationUnit;
 use optimization_unit_semantics::{
-    OptimizationUnitValidationError,
-    reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
-    validate_psi_optimization_unit_with_admitted_cycle_machines,
+    OptimizationUnitValidationError, validate_psi_structural_catalog,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::StructuralTypeShape;
@@ -11,7 +9,7 @@ use terminal_psi_to_abstract_operations::{
     ArtifactSections, build_verified_psi_optimization_unit, lower_artifact,
 };
 
-pub(super) fn intact_unit(
+pub(super) fn prepared_unit(
     artifact: &CanonicalTerminalArtifact,
 ) -> Result<PsiOptimizationUnit, String> {
     let bytes = terminal_codec::encode_module(artifact.semantic_module())
@@ -28,14 +26,10 @@ pub(super) fn intact_unit(
     )
     .map_err(|error| format!("optimization control unit: {error:?}"))?
     .into_parts();
-    // These acyclic fixtures need no external cycle authority. The intact
-    // unit must pass before a malformed catalog is allowed to count.
-    let frontiers = reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
-        .map_err(|error| format!("optimization control intact ownership: {error:?}"))?;
-    let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
-        .map_err(|error| format!("optimization control ownership attachment: {error:?}"))?;
-    validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[])
-        .map_err(|error| format!("optimization control intact replay: {error:?}"))?;
+    // This is only the same structural catalog formation operation used by
+    // whole-unit validation. No body, ownership or execution verdict is made.
+    validate_psi_structural_catalog(&unit)
+        .map_err(|error| format!("optimization control intact catalog: {error:?}"))?;
     reject_unknown_referent(&unit)?;
     Ok(unit)
 }
@@ -69,7 +63,7 @@ fn reject_unknown_referent(unit: &PsiOptimizationUnit) -> Result<(), String> {
     };
     *referent = unknown_type(unit)?;
     invalid.identity = optimization_unit::recompute_psi_optimization_unit_identity(&invalid);
-    match validate_psi_optimization_unit_with_admitted_cycle_machines(&invalid, &[]) {
+    match validate_psi_structural_catalog(&invalid) {
         Err(OptimizationUnitValidationError::InvalidStructuralTypeIdentity(actual))
             if actual == declaration.id =>
         {
@@ -82,7 +76,7 @@ fn reject_unknown_referent(unit: &PsiOptimizationUnit) -> Result<(), String> {
 }
 
 pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String> {
-    let unit = intact_unit(artifact)?;
+    let unit = prepared_unit(artifact)?;
     let (index, _) = unit
         .structural_types
         .iter()
@@ -98,7 +92,7 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
     let unknown = unknown_type(&unit)?;
     *element = unknown;
     invalid.identity = optimization_unit::recompute_psi_optimization_unit_identity(&invalid);
-    match validate_psi_optimization_unit_with_admitted_cycle_machines(&invalid, &[]) {
+    match validate_psi_structural_catalog(&invalid) {
         Err(OptimizationUnitValidationError::UnknownStructuralType(actual))
             if actual == unknown =>
         {

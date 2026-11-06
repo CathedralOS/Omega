@@ -177,80 +177,86 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         "missing unguarded return obligation",
         "structural callee return disagrees with the caller's result claims",
     )?;
-    inspect_optimization_replay(artifact, site, unused)?;
+    inspect_typed_result_rows(artifact, site, unused)?;
     Ok(())
 }
 
-fn inspect_optimization_replay(
+fn inspect_typed_result_rows(
     artifact: &CanonicalTerminalArtifact,
     site: CallSite,
     unused: usize,
 ) -> Result<(), String> {
-    use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
-    use optimization_unit_semantics::{
-        OperationSite, OptimizationUnitValidationError,
-        validate_psi_optimization_unit_with_admitted_cycle_machines,
-    };
-
     let module = artifact.semantic_module();
-    let source = &module.machines[site.machine];
-    let operation = &source.blocks[site.block].operations[site.operation];
-    let mut unit = super::optimization_catalog_controls::intact_unit(artifact)?;
-    let function = unit
-        .functions
-        .iter_mut()
-        .find(|function| function.machine == source.id)
-        .ok_or("result control unit lost its caller")?;
-    let mut expected = None;
-    for block in &mut function.blocks {
-        for (index, node) in block.nodes.iter_mut().enumerate() {
-            let AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } = &mut node.operation
-            else {
-                continue;
-            };
-            if *psi_operation != operation.id {
-                continue;
-            }
-            let (_, endpoint) = terminal_semantics::canonical_static_projection(
-                unit.structural_types.iter(),
-                result.structural_type,
-                &result.claims[unused].path,
-            )
-            .ok_or("unused optimization result has no owned endpoint")?;
-            terminal_semantics::representation_view_declaration(
-                unit.structural_types.iter(),
-                endpoint.id,
-                None,
-            )
-            .ok_or("result control needs a record endpoint for its interpretation")?;
-            // This retains a declared endpoint and case guard, but changes
-            // owned custody into a storage interpretation. Geometry must not
-            // admit it as an unused possible claim.
-            result.claims[unused].path.push(Path::RepresentationView {
-                structural_type: endpoint.id,
-                stored_scalar: None,
-            });
-            expected = Some(OperationSite::new(
-                source.id,
-                block.id,
-                u32::try_from(index).map_err(|_| "result control node index overflow")?,
-            ));
-        }
+    let operation = &module.machines[site.machine].blocks[site.block].operations[site.operation];
+    let result = operation
+        .result
+        .as_structural()
+        .ok_or("typed row control lost its result")?;
+    let callee = operation
+        .kind
+        .direct_callee()
+        .and_then(|id| module.machine(id))
+        .ok_or("typed row control lost its exact callee")?;
+    let returns = || {
+        callee
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Terminator::ReturnStructural {
+                    returned_claims, ..
+                } => Some(returned_claims.as_slice()),
+                _ => None,
+            })
+    };
+    terminal_semantics::validate_result_claim_catalog(
+        module.structural_types.iter(),
+        result.structural_type,
+        &result.claims,
+        returns(),
+    )
+    .map_err(|error| format!("intact typed result rows: {error:?}"))?;
+    let (_, endpoint) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        result.structural_type,
+        &result.claims[unused].path,
+    )
+    .ok_or("unused result row has no exact owned endpoint")?;
+    terminal_semantics::representation_view_declaration(
+        module.structural_types.iter(),
+        endpoint.id,
+        None,
+    )
+    .ok_or("typed row control needs a record endpoint")?;
+    let mut invalid = result.claims.clone();
+    invalid[unused].path.push(Path::RepresentationView {
+        structural_type: endpoint.id,
+        stored_scalar: None,
+    });
+    if terminal_semantics::runtime_structural_path_tip(
+        module.structural_types.iter(),
+        result.structural_type,
+        &invalid[unused].path,
+    )
+    .is_none()
+    {
+        return Err("typed row control did not retain valid interpretation geometry".into());
     }
-    let expected = expected.ok_or("result control unit lost its call operation")?;
-    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
-    match validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[]) {
-        Err(OptimizationUnitValidationError::StructuralCallContractMismatch(actual))
-            if actual == expected =>
-        {
-            Ok(())
-        }
+    let paths = invalid
+        .iter()
+        .map(|binding| binding.path.clone())
+        .collect::<Vec<_>>();
+    if !terminal_semantics::result_claim_paths_match_returns(&paths, returns()) {
+        return Err("typed row control no longer isolates unused-slot formation".into());
+    }
+    match terminal_semantics::validate_result_claim_catalog(
+        module.structural_types.iter(),
+        result.structural_type,
+        &invalid,
+        returns(),
+    ) {
+        Err(terminal_semantics::ResultClaimCatalogError::NonStaticOwnedPath) => Ok(()),
         result => Err(format!(
-            "optimization result interpretation expected a call-contract refusal at {expected:?}, got {result:?}"
+            "interpreted unused result row expected NonStaticOwnedPath, got {result:?}"
         )),
     }
 }
