@@ -173,6 +173,8 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
         try:
             with (output / f"{stage}.stdout").open("wb") as out, (output / f"{stage}.stderr").open("wb") as err:
                 command_env = dict(env, OMEGA_REVIEW_TIMINGS="1") if stage in ("update", "resume") else env
+                if stage == "both" and "OMEGA_COMPILER_CHECK_SITES" in env:
+                    command_env = dict(command_env, OMEGA_TERMINAL_TRACE="1")
                 result = subprocess.run(arguments, cwd=cwd, env=command_env, stdin=stdin,
                                         stdout=out, stderr=err, timeout=timeout)
             event["exit_code"] = result.returncode

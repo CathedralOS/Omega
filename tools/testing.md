@@ -272,6 +272,11 @@ cache before program consumers begin. Later consumer failures stay red without
 hiding the already prepared producer. The final observations and compact records
 use separate artifact names; the original producer upload is not overwritten.
 
+For an ordinary CLI runtime failure, `compiler_diagnostics: true` also records
+the interpreter's operation, block and scalar values in that fixture's
+`both.stderr`. `OMEGA_TERMINAL_TRACE=1` enables the same trace directly. It is
+off by default and prints at most 128 scalar values per operation or terminator.
+
 The same split is available locally with `compiler_pilot.py --phase prepare` and
 `--phase consume`, using the same validated selections and output directory.
 Preparation writes new `producer.json` and `preparation.json` records and refuses
