@@ -568,6 +568,7 @@ fn retained_parents(
         let dependencies = Dependencies {
             program,
             facts,
+            records,
             state,
             statement: capture.statement_index,
             borrow_state,
@@ -591,6 +592,7 @@ fn retained_parents(
         let dependencies = Dependencies {
             program,
             facts,
+            records,
             state,
             statement: leaf.statement_index,
             borrow_state,
@@ -654,6 +656,7 @@ fn retained_parents(
     let dependencies = Dependencies {
         program,
         facts,
+        records,
         state,
         statement: capture.statement_index,
         borrow_state,
@@ -1076,6 +1079,7 @@ pub(super) fn retired_carrier_backing(
     let dependencies = Dependencies {
         program,
         facts,
+        records,
         state,
         statement,
         borrow_state,
@@ -1205,6 +1209,7 @@ enum StorageQuestion {
 struct Dependencies<'a> {
     program: &'a dyn validation::CheckingInput,
     facts: &'a CheckFacts,
+    records: &'a RetainedBorrowRecords<'a>,
     state: SymbolHandle,
     statement: usize,
     borrow_state: &'a checked_trees::StateBorrowFact,
@@ -1257,6 +1262,7 @@ impl Dependencies<'_> {
                 incoming.origin,
                 checked_trees::IncomingReferenceOrigin::Output { .. }
                     | checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                    | checked_trees::IncomingReferenceOrigin::Invocation { .. }
             ) {
                 if self.question != StorageQuestion::RetainForArrival
                     || incoming.machine_symbol != self.borrow_state.machine_symbol
@@ -1501,6 +1507,66 @@ impl Dependencies<'_> {
         independent
     }
 
+    /// A performed return supplies a pointer independently of its input
+    /// addresses. Retain every input debt for this exact returned field, using
+    /// the recorded supplier graph so later writes cannot retarget its capture.
+    fn invocation_lifetimes(
+        &self,
+        handle: Handle<BorrowLoanFact>,
+        constraints: HandleSpan<FlowConstraintRef>,
+        active_roots: &mut Vec<PlaceRoot>,
+        active_loans: &mut Vec<Handle<BorrowLoanFact>>,
+        captured: &mut Vec<(PlaceRoot, PlaceRoot)>,
+    ) -> bool {
+        let borrow = &self.facts.borrow;
+        let loan = borrow.loans.get(handle);
+        if !borrow.is_call_result_loan(loan)
+            || loan.formation != checked_trees::BorrowLoanFormation::ReturnedDescriptor
+        {
+            return false;
+        }
+        let call = borrow.calls.get(loan.established_by_call);
+        let incoming = borrow.incoming_references.get(loan.incoming_reference);
+        let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } =
+            incoming.origin
+        else {
+            return false;
+        };
+        let Some(path) = borrow.owner_segments.span(loan.owner_path) else {
+            return false;
+        };
+        if borrow.call_at(
+            incoming.machine_symbol,
+            incoming.state_symbol,
+            call.statement_index,
+            call.call_ordinal,
+        ) != Some(loan.established_by_call)
+            || expression != call.authored_expression
+            || validation::call_target_entry_symbol(self.program, target)
+                != validation::call_target_entry_symbol(self.program, call.target_symbol)
+            || loan
+                .formation_owner_path
+                .and_then(|path| borrow.owner_segments.span(path))
+                != Some(path)
+            || borrow.owner_segments.span(incoming.owner_path) != Some(path)
+            || !borrow.loans_contain(call.completed_reference_loans, handle)
+        {
+            return false;
+        }
+        self.records
+            .result_field_loans(loan.established_by_call, path)
+            .into_iter()
+            .filter(|(source, row)| {
+                borrow.loans_contain(call.completed_reference_loans, *source)
+                    && row.storage_owner == loan.storage_owner
+            })
+            .all(|(source, row)| {
+                source == handle
+                    || (row.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+                        && self.loan(source, constraints, active_roots, active_loans, captured))
+            })
+    }
+
     fn loan(
         &self,
         handle: Handle<BorrowLoanFact>,
@@ -1652,8 +1718,50 @@ impl Dependencies<'_> {
                         checked_trees::IncomingReferenceOrigin::Output { identity }
                             if loan.root == PlaceRoot::InvocationOutput(identity))
             };
-        if loan.incoming_reference.is_valid() && !incoming && !output {
+        let invocation = self.question == StorageQuestion::RetainForArrival
+            && self
+                .facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+            && {
+                let identity = self
+                    .facts
+                    .borrow
+                    .incoming_references
+                    .get(loan.incoming_reference);
+                identity.machine_symbol == self.borrow_state.machine_symbol
+                    && identity.state_symbol == self.state
+                    && matches!(identity.origin,
+                        checked_trees::IncomingReferenceOrigin::Invocation { expression, .. }
+                            if loan.root == PlaceRoot::Expression(expression))
+            };
+        if loan.incoming_reference.is_valid() && !incoming && !output && !invocation {
             return false;
+        }
+        if invocation && loan.lineage != checked_trees::BorrowLoanLineage::DirectRoot {
+            let same_origin = |parent| {
+                self.facts.borrow.loans.is_valid(parent) && {
+                    let source = self.facts.borrow.loans.get(parent);
+                    source.incoming_reference == loan.incoming_reference && source.root == loan.root
+                }
+            };
+            let parent = match loan.lineage {
+                checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
+                    same_origin(parent_loan)
+                }
+                _ => false,
+            };
+            if !parent
+                && !self
+                    .facts
+                    .borrow
+                    .loan_suppliers
+                    .span(loan.supplying_loans)
+                    .is_some_and(|suppliers| suppliers.iter().copied().any(same_origin))
+            {
+                return false;
+            }
         }
         if output {
             let Some(suppliers) = self.facts.borrow.loan_suppliers.span(loan.supplying_loans)
@@ -1681,7 +1789,11 @@ impl Dependencies<'_> {
                 return false;
             }
         }
-        if !incoming && !output && !self.root(loan.root, constraints, active_roots, captured) {
+        if !incoming
+            && !output
+            && !invocation
+            && !self.root(loan.root, constraints, active_roots, captured)
+        {
             return false;
         }
         active_loans.push(handle);
@@ -1693,6 +1805,9 @@ impl Dependencies<'_> {
                 active_loans,
                 captured,
             ),
+            checked_trees::BorrowLoanLineage::DirectRoot if invocation => {
+                self.invocation_lifetimes(handle, constraints, active_roots, active_loans, captured)
+            }
             checked_trees::BorrowLoanLineage::DirectRoot => true,
             // A keepalive obligation can cross an arrival, but never proves
             // freedom to relocate its opaque or retained backing storage.

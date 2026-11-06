@@ -4,17 +4,20 @@
 
 use arena::Handle;
 use checked_trees::{
-    CheckFacts, CheckedCallBorrowLoanResource as LoanResource, FlowCallFact,
+    BorrowCallFact, BorrowLoanFact, BorrowLoanOwnerSegment, CheckFacts,
+    CheckedCallBorrowLoanResource as LoanResource, FlowCallFact,
     IncomingReferenceIdentity as ReferenceIdentity, KeyedRows,
 };
 use symbols::SymbolHandle;
 
 type CallKey = (Handle<FlowCallFact>, SymbolHandle, SymbolHandle);
+type ResultFieldKey = (Handle<BorrowCallFact>, Vec<BorrowLoanOwnerSegment>);
 
 pub(in crate::execution::terminal_unit) struct RetainedBorrowRecords<'facts> {
     facts: &'facts CheckFacts,
     calls: KeyedRows<CallKey, LoanResource>,
     incoming: KeyedRows<(SymbolHandle, SymbolHandle), ReferenceIdentity>,
+    result_fields: KeyedRows<ResultFieldKey, BorrowLoanFact>,
 }
 
 impl<'facts> RetainedBorrowRecords<'facts> {
@@ -23,6 +26,7 @@ impl<'facts> RetainedBorrowRecords<'facts> {
             facts,
             calls: KeyedRows::default(),
             incoming: KeyedRows::default(),
+            result_fields: KeyedRows::default(),
         }
     }
 
@@ -41,6 +45,31 @@ impl<'facts> RetainedBorrowRecords<'facts> {
             arena,
             |row| (row.call, row.machine_symbol, row.state_symbol),
             &(call, machine, state),
+            |rows| {
+                rows.iter()
+                    .map(|&handle| (handle, arena.get(handle)))
+                    .collect()
+            },
+        )
+    }
+
+    // Each returned field keeps all of its declared input debts. Select the
+    // cohort once by call and field, rather than scanning every loan per leaf.
+    pub(super) fn result_field_loans(
+        &self,
+        call: Handle<BorrowCallFact>,
+        path: &[BorrowLoanOwnerSegment],
+    ) -> Vec<(Handle<BorrowLoanFact>, &'facts BorrowLoanFact)> {
+        let arena = &self.facts.borrow.loans;
+        self.result_fields.with_rows(
+            arena,
+            |row| {
+                (
+                    row.established_by_call,
+                    self.facts.borrow.loan_owner_path(row).to_vec(),
+                )
+            },
+            &(call, path.to_vec()),
             |rows| {
                 rows.iter()
                     .map(|&handle| (handle, arena.get(handle)))
