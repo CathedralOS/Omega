@@ -178,6 +178,8 @@ fn source_admission_checks_guarded_policy_with_real_target_argument() {
             profile: "macos_arm64".into(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         };
         let admission = BuildTimeAdmissionPlan::infer(&program, None);

@@ -233,6 +233,8 @@ mod tests {
             target: "linux_x86_64".into(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         };
         let application = |raw, fields: &[StructuralFieldDeclaration]| TargetLayoutApplication {
@@ -246,6 +248,8 @@ mod tests {
                 target: input.target.clone(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
                 storage: AuthoredRecordStorage {
                     byte_size: 16,
@@ -307,6 +311,18 @@ mod tests {
         assert!(
             !matches(&module),
             "unknown local coordinates cannot be rebased"
+        );
+        let mut module = original.clone();
+        module.target_layout_applications[1].realizations[0].case_tag_size = 8;
+        assert!(
+            !matches(&module),
+            "sum-tag geometry belongs to the exact representation"
+        );
+        let mut module = original.clone();
+        module.target_layout_applications[1].target_inputs[0].case_tag_alignment = 8;
+        assert!(
+            !matches(&module),
+            "issuer tag alignment cannot change behind equal storage"
         );
         let mut module = original;
         module.target_layout_applications[1].target_inputs[0].little_endian = false;

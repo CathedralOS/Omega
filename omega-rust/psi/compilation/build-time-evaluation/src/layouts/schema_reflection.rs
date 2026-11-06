@@ -353,6 +353,58 @@ fn reflected_member_layout(
             }
             visiting.push(identity);
             let result = (|| {
+                let members = typed.data_members(data);
+                if members.iter().any(|member| member.as_variant().is_some()) {
+                    // A tag is a target representation, not a primitive-field
+                    // assumption. Reuse native packing with explicitly supplied
+                    // carrier geometry; never guess it from the executing host.
+                    let target = target?;
+                    target.validate().ok()?;
+                    let field_geometry =
+                        |field: &typed_trees::data::DataField, visiting: &mut Vec<_>| {
+                            let (byte_size, byte_alignment) = reflected_member_layout(
+                                typed,
+                                field.type_reference,
+                                Some(target),
+                                visiting,
+                            )?;
+                            Some(layout_plans::StorageGeometry {
+                                byte_size,
+                                byte_alignment,
+                            })
+                        };
+                    let mut common = Vec::new();
+                    let mut cases = Vec::new();
+                    for member in members {
+                        match member {
+                            typed_trees::data::DataMember::Field(field) => {
+                                if !field.relevance.is_erased() {
+                                    common.push(field_geometry(field, visiting)?);
+                                }
+                            }
+                            typed_trees::data::DataMember::Variant(case) => {
+                                let mut payload = Vec::new();
+                                for field in typed.data_payload_fields(case) {
+                                    if !field.relevance.is_erased() {
+                                        payload.push(field_geometry(field, visiting)?);
+                                    }
+                                }
+                                cases.push(payload);
+                            }
+                        }
+                    }
+                    let geometry = layout_plans::conventional_sum_geometry(
+                        layout_plans::StorageGeometry {
+                            byte_size: target.case_tag_size,
+                            byte_alignment: target.case_tag_alignment,
+                        },
+                        common,
+                        cases,
+                    )
+                    .ok()?
+                    .storage;
+                    return Some((geometry.byte_size, geometry.byte_alignment));
+                }
                 let mut offset = 0u64;
                 let mut aggregate_align = 1u64;
                 for member in typed.data_members(data) {
@@ -385,9 +437,12 @@ pub(super) fn checked_align_up(value: u64, align: u64) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::schema_fields_for;
+    use super::{reflected_member_layout, schema_fields_for};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::TypedTrees;
-    use typed_trees::data::DataDefinition;
+    use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+    use typed_trees::name::Identifier;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
     #[test]
     fn empty_record_has_an_empty_physical_schema() {
@@ -399,6 +454,99 @@ mod tests {
         assert_eq!(
             fingerprint,
             typed_trees::identity::normalized_schema_report_fingerprint(&typed, &record)
+        );
+    }
+
+    #[test]
+    fn nested_sum_geometry_uses_selected_tag_and_preserves_array_stride() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("geometry"));
+        let sum = symbols
+            .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Choice"))])
+            .start();
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let byte = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: symbols::SymbolHandle::invalid(),
+            name: Identifier::from("u8"),
+        });
+        let word = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: symbols::SymbolHandle::invalid(),
+            name: Identifier::from("u64"),
+        });
+        let payload = typed.data_payload_fields.insert_many([DataField {
+            name: Identifier::from("value"),
+            type_reference: word,
+            ..Default::default()
+        }]);
+        let members = typed.data_members.insert_many([
+            DataMember::Field(DataField {
+                name: Identifier::from("common"),
+                type_reference: byte,
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                name: Identifier::from("Empty"),
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                name: Identifier::from("Held"),
+                payload,
+                ..Default::default()
+            }),
+        ]);
+        typed.push_data_definition(DataDefinition {
+            symbol: sum,
+            name: Identifier::from("Choice"),
+            members,
+            ..Default::default()
+        });
+        let choice = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: sum,
+            name: Identifier::from("Choice"),
+        });
+        let array = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: choice,
+                length: FixedArrayLength::Literal(2),
+            });
+        let mut target = layout_plans::LayoutTargetFacts {
+            profile: "test".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        assert_eq!(
+            reflected_member_layout(&typed, choice, None, &mut Vec::new()),
+            None
+        );
+        assert_eq!(
+            reflected_member_layout(&typed, choice, Some(&target), &mut Vec::new()),
+            Some((16, 8))
+        );
+        assert_eq!(
+            reflected_member_layout(&typed, array, Some(&target), &mut Vec::new()),
+            Some((32, 8))
+        );
+        target.case_tag_size = 16;
+        target.case_tag_alignment = 16;
+        assert_eq!(
+            reflected_member_layout(&typed, choice, Some(&target), &mut Vec::new()),
+            Some((32, 16))
+        );
+        assert_eq!(
+            reflected_member_layout(&typed, array, Some(&target), &mut Vec::new()),
+            Some((64, 16))
+        );
+        target.case_tag_alignment = 3;
+        assert_eq!(
+            reflected_member_layout(&typed, choice, Some(&target), &mut Vec::new()),
+            None
         );
     }
 }

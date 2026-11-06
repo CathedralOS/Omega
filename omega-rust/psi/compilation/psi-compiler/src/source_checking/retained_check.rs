@@ -131,6 +131,8 @@ mod tests {
                 profile: target.to_owned(),
                 pointer_size,
                 pointer_alignment: pointer_size,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             }),
             entry_declarations: None,

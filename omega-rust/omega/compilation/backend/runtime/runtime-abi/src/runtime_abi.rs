@@ -29,9 +29,7 @@
 
 use target::NativeTarget;
 
-/// The conventional closed-sum discriminant used by the supported native ABIs.
-pub const CASE_TAG_BYTE_SIZE: u64 = 4;
-pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
+pub use target::{CASE_TAG_BYTE_ALIGNMENT, CASE_TAG_BYTE_SIZE};
 
 /// Byte size and alignment of the two-word descriptor shape
 /// `{ first word @ 0, second word @ pointer_size }`.
