@@ -731,7 +731,12 @@ impl<'program> Engine<'program> {
         program: &'program dyn CheckingInput,
         machine: &Machine,
         root: &typed_trees::state::State,
-    ) -> Self {
+    ) -> Option<Self> {
+        // Returned borrows need exact storage observations at each exit.
+        // Their guarantees belong to the ordinary flow exit checker.
+        if crate::reference_result_custody::has_borrowed_parts(program, root.return_type) {
+            return None;
+        }
         let mut engine = Self::new(program, machine);
         let shadowed = program
             .state_parameters(root)
@@ -742,7 +747,7 @@ impl<'program> Engine<'program> {
                 && unsigned_parameter_carrier(program, root.return_type);
             engine.declare_atom(RESULT_BINDER, unsigned);
         }
-        engine
+        Some(engine)
     }
 
     /// Load the requires facts. Returns whether EVERY fact was inside the
