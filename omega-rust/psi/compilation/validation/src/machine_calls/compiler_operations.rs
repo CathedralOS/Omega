@@ -72,7 +72,7 @@ pub fn static_argument_role(
     }
 }
 
-fn static_call_intrinsic(
+pub(crate) fn static_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
@@ -305,16 +305,23 @@ pub fn storage_address_operand(
     .map(|arguments| arguments[0])
 }
 
-/// Provider selection records a build choice without replacing references in
-/// its value arguments. Its operands still execute first, and their effects
-/// remain visible. This is only the descriptor effect of the exact retained
-/// intrinsic; declaration compatibility and Build activation remain separate.
+/// These operations do not replace references stored in caller data. Provider
+/// selection requires its retained declaration operation; spelling alone cannot
+/// supply that record. Byte and address observations keep their selected meaning.
+/// Arguments still execute first, and their effects remain.
 pub(crate) fn call_preserves_reference_slots(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> bool {
     authored_call_intrinsic(program, call)
         == Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection)
+        || matches!(
+            static_call_intrinsic(program, call),
+            Some(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                    | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+            )
+        )
 }
 
 /// These resolved observations neither write caller storage nor install

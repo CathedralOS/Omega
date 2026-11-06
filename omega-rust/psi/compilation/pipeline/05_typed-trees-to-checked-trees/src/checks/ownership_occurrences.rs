@@ -432,10 +432,13 @@ pub(super) fn owned_temporary_occurrences(
         // authenticates an actual completed value. Proof-only expressions do
         // not become runtime temporary owners merely by having a carrier.
         if !observed.iter().any(|(owner, _)| *owner == expression)
-            && !control.operands.iter().any(|(_, operand)| {
-                operand.expression == expression
-                    && operand.state_symbol == state.symbol
-                    && operand.statement_index == statement_index
+            && !control.with_expression_operands(expression, |operands| {
+                operands.iter().any(|operand| {
+                    let operand = control.operands.get(*operand);
+                    operand.expression == expression
+                        && operand.state_symbol == state.symbol
+                        && operand.statement_index == statement_index
+                })
             })
         {
             continue;

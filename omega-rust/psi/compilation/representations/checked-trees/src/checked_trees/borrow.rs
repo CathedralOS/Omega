@@ -923,10 +923,10 @@ pub struct BorrowFacts {
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
     pub incoming_compatibility: Arena<BorrowIncomingCompatibilityRequirement>,
-    /// `(machine, state) -> state rows` grouping owned by this ledger. The
-    /// grouping carries the `states` arena's exact revision, so a mutation
-    /// rebuilds it on the next query; the ledger's lifetime bounds it.
-    pub state_index: KeyedRows<(SymbolHandle, SymbolHandle), StateBorrowFact>,
+    /// State-symbol grouping owned by this ledger. Machine-specific readers
+    /// select their exact machine within that state's rows. The grouping
+    /// carries the arena's exact revision and retains every duplicate.
+    pub state_index: KeyedRows<SymbolHandle, StateBorrowFact>,
     /// Non-authorizing direct-root resource closures reconstructed from the
     /// exact loan activation/weakening ledger. Reborrow parent identity is
     /// retained separately.
@@ -1305,9 +1305,37 @@ impl BorrowFacts {
     ) -> Result {
         self.state_index.with_rows(
             &self.states,
-            |state| (state.machine_symbol, state.state_symbol),
-            &(machine_symbol, state_symbol),
-            read,
+            |state| state.state_symbol,
+            &state_symbol,
+            |rows| {
+                if rows
+                    .iter()
+                    .all(|handle| self.states.get(*handle).machine_symbol == machine_symbol)
+                {
+                    read(rows)
+                } else {
+                    let selected = rows
+                        .iter()
+                        .copied()
+                        .filter(|handle| self.states.get(*handle).machine_symbol == machine_symbol)
+                        .collect::<Vec<_>>();
+                    read(&selected)
+                }
+            },
+        )
+    }
+
+    /// The unique row for an exact state symbol, across all recorded machines.
+    /// Missing and duplicate symbols both withhold the return capture.
+    pub fn unique_state_borrow_by_symbol(&self, state: SymbolHandle) -> Option<&StateBorrowFact> {
+        self.state_index.with_rows(
+            &self.states,
+            |row| row.state_symbol,
+            &state,
+            |rows| match rows {
+                [handle] => Some(self.states.get(*handle)),
+                _ => None,
+            },
         )
     }
 
@@ -1339,55 +1367,54 @@ impl BorrowFacts {
 
 #[cfg(test)]
 mod index_tests {
-    use super::{
-        BorrowCallFact, BorrowFacts, BorrowLoanFact, Expression, ExpressionHandle, StateBorrowFact,
-        Symbol, SymbolHandle,
-    };
+    use super::{BorrowFacts, StateBorrowFact, SymbolHandle};
 
     #[test]
-    fn returned_value_lifetime_is_distinct_from_call_slot_associations() {
+    fn unique_state_borrow_symbol_keeps_foreign_machine_duplicates_visible() {
         let mut facts = BorrowFacts::default();
-        let expression = ExpressionHandle::from_parts(7, 1);
-        let invocation = facts.calls.insert(BorrowCallFact {
-            statement_index: 3,
-            authored_expression: expression,
-            ..BorrowCallFact::default()
-        });
-        let returned = BorrowLoanFact {
-            statement_index: 3,
-            formation_expression: expression,
-            storage_owner: Expression(expression),
-            established_by_call: invocation,
-            ..BorrowLoanFact::default()
-        };
-        let mut stored = returned.clone();
-        stored.storage_owner = Symbol(SymbolHandle::from_parts(9, 1));
-        let mut wrong_occurrence = returned.clone();
-        wrong_occurrence.formation_expression = ExpressionHandle::from_parts(8, 1);
-        let mut wrong_statement = returned.clone();
-        wrong_statement.statement_index = 4;
-        let mut missing_call = returned.clone();
-        missing_call.established_by_call = arena::Handle::from_parts(19, 1);
-        let loans = facts.loans.insert_many([
-            BorrowLoanFact::default(),
-            returned,
-            stored,
-            wrong_occurrence,
-            wrong_statement,
-            missing_call,
-        ]);
-        let state = StateBorrowFact {
-            loans,
+        let machine = SymbolHandle::from_parts(1, 1);
+        let other = SymbolHandle::from_parts(2, 1);
+        let state = SymbolHandle::from_parts(3, 1);
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: machine,
+            state_symbol: state,
             ..StateBorrowFact::default()
-        };
-        let resources = facts
-            .statement_resource_loans(&state)
-            .unwrap()
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        assert_eq!(resources, vec![loans.handle_at(0), loans.handle_at(1)]);
+        });
+        assert!(facts.unique_state_borrow_by_symbol(state).is_some());
         assert!(
-            !facts.state_owns_statement_resource(&StateBorrowFact::default(), loans.handle_at(1))
+            facts
+                .unique_state_borrow_by_symbol(SymbolHandle::from_parts(3, 2))
+                .is_none()
+        );
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: other,
+            state_symbol: state,
+            ..StateBorrowFact::default()
+        });
+        let other_generation = SymbolHandle::from_parts(3, 2);
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: machine,
+            state_symbol: other_generation,
+            ..StateBorrowFact::default()
+        });
+        assert_eq!(
+            facts
+                .unique_state_borrow_by_symbol(other_generation)
+                .map(|row| row.state_symbol),
+            Some(other_generation)
+        );
+        assert!(facts.unique_state_borrow_by_symbol(state).is_none());
+        assert_eq!(
+            facts
+                .unique_state_borrow(machine, state)
+                .map(|row| row.machine_symbol),
+            Some(machine)
+        );
+        assert_eq!(
+            facts
+                .unique_state_borrow(other, state)
+                .map(|row| row.machine_symbol),
+            Some(other)
         );
     }
 

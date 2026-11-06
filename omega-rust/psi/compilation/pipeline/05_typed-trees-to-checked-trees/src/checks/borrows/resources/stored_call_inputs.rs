@@ -3,6 +3,7 @@
 //! Their full access and parent lifetime stay intact even when the saved
 //! pointer selects a smaller part of the input's data.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{BorrowLoanLineage, CheckFacts, CheckedCallBorrowLoanSource};
 
@@ -12,6 +13,8 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
         .borrow
         .stored_call_input_resources
         .reset_retain_capacity();
+    let prepared_loans = LoanOccurrences::new(program, facts);
+    let loan_occurrences = &prepared_loans;
     let mut retained = Vec::new();
     for (_, state) in facts.flow.control.states.iter() {
         let Some(owner) = facts
@@ -26,7 +29,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
             {
                 continue;
             }
-            match retained_inputs(program, facts, state, loan, row) {
+            match retained_inputs(program, facts, loan_occurrences, state, loan, row) {
                 Ok(inputs) => retained.push((loan, inputs)),
                 Err(reason) if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() => {
                     eprintln!(
@@ -37,6 +40,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
             }
         }
     }
+    drop(prepared_loans);
     for (loan, inputs) in retained {
         let resources = facts.borrow.stored_call_input_resources.insert_many(inputs);
         facts
@@ -49,6 +53,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
 fn retained_inputs(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &checked_trees::FlowStateFact,
     loan: Handle<checked_trees::BorrowLoanFact>,
     row: &checked_trees::BorrowLoanFact,
@@ -71,6 +76,7 @@ fn retained_inputs(
         let (suppliers, source_parents) = super::permission_sources::lending_sources(
             program,
             facts,
+            loan_occurrences,
             state,
             descriptor.call,
             source.capture,

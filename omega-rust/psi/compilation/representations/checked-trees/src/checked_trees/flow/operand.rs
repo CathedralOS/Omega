@@ -435,6 +435,12 @@ impl FlowOperandFact {
 /// not distinguish repeated evaluations of that choice.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandAlternative {
+    /// The earlier subject/pattern prefix of this first-match selection.
+    /// Only its evaluation inputs are prerequisites; its arm value did not run.
+    pub prior_evaluation: Handle<FlowOperandAlternative>,
+    /// Inputs evaluated since that prefix. The first arm includes the actual
+    /// subject; later arms add only their own pattern or condition evaluation.
+    pub evaluation_inputs: HandleSpan<FlowOperandFact>,
     pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
     pub value: Handle<FlowOperandFact>,
 }

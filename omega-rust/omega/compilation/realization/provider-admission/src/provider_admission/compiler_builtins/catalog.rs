@@ -196,6 +196,9 @@ fn compiler_builtin_execution(
                 operation,
             });
         }
+        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
+            return Some(CompilerBuiltinExecution::EmptyRunRelease);
+        }
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
             return Some(CompilerBuiltinExecution::ProgramImageRetainedSuffixStart);
         }

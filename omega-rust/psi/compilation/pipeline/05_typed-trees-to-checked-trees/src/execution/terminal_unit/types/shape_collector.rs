@@ -25,6 +25,10 @@
 //! `&Nest<[T; 2]>` would require an infinite catalog for one finite pointer.
 
 use super::*;
+mod forks;
+pub(crate) use forks::{ChangeLog, ConsultedSet};
+/// The structural type rows the collector has registered, by identity.
+pub(crate) type TypeCatalog = forks::ConsultedMap<TypeIdentityId, CheckedUnitStructuralTypePlan>;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedByteSequenceCarrier;
 use checked_trees::CheckedMemberIdentity;
@@ -67,16 +71,17 @@ use validation::unrestricted_builtin_primitive;
 /// Identity alone can join different source presentations. Memoize only an
 /// already admitted exact request, retaining its declaration telescope and
 /// substitutions; another presentation still checks its complete shape.
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct TypeShapeRequest {
     reference: TypeReferenceHandle,
     binders: Vec<(SymbolHandle, String)>,
     substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
 }
 
+#[derive(Clone)]
 pub(crate) struct ShapeCollector<'program> {
     pub(in super::super) program: &'program dyn ::validation::CheckingInput,
-    pub(in super::super) types: BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    pub(in super::super) types: TypeCatalog,
     pub(in super::super) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in super::super) opaque_representations: Vec<checked_trees::CheckedOpaqueRepresentation>,
     pub(in super::super) cleanup_control: checked_trees::CheckedCleanupControlPlans,
@@ -84,8 +89,10 @@ pub(crate) struct ShapeCollector<'program> {
     // exact generation/telescope/substitution contexts for that source row.
     // This is a collector-local query memo, never a semantic type identity.
     completed_requests: Vec<Vec<(TypeShapeRequest, TypeIdentityId)>>,
-    in_progress: BTreeSet<TypeIdentityId>,
-    domains_in_progress: BTreeSet<(u32, TypeIdentityId)>,
+    in_progress: ConsultedSet<TypeIdentityId>,
+    domains_in_progress: ConsultedSet<(u32, TypeIdentityId)>,
+    /// The domain rows this attempt looked up; see `forks`.
+    consulted_domains: BTreeSet<(u32, TypeIdentityId)>,
     /// The element rows registered beside borrowed byte views. A byte
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
@@ -98,20 +105,21 @@ pub(crate) struct ShapeCollector<'program> {
     /// The symbol-owning closed declaration settled per structural identity,
     /// built once on first use: declaration inventory never changes during
     /// collection, so one index supplies every later route to any identity.
-    canonical_carriers: Option<BTreeMap<TypeIdentityId, DataDefinition>>,
+    canonical_carriers: Option<std::sync::Arc<BTreeMap<TypeIdentityId, DataDefinition>>>,
 }
 
 impl<'program> ShapeCollector<'program> {
     pub(crate) fn new(program: &'program dyn ::validation::CheckingInput) -> Self {
         Self {
             program,
-            types: BTreeMap::new(),
+            types: TypeCatalog::default(),
             domains: Vec::new(),
             opaque_representations: Vec::new(),
             cleanup_control: Default::default(),
             completed_requests: Vec::new(),
-            in_progress: BTreeSet::new(),
-            domains_in_progress: BTreeSet::new(),
+            in_progress: ConsultedSet::new(),
+            domains_in_progress: ConsultedSet::new(),
+            consulted_domains: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
             unselected_opaque: None,
             canonical_carriers: None,
@@ -318,6 +326,7 @@ impl<'program> ShapeCollector<'program> {
             carrier_type_identity
         };
         for identity in [carrier_type_identity, stored_carrier_identity] {
+            self.consulted_domains.insert((domain.0, identity));
             let mut presented = plan.clone();
             presented.carrier_type_identity = identity;
             if let Some(existing) = self.domains.iter().find(|existing| {
@@ -1202,8 +1211,15 @@ impl<'program> ShapeCollector<'program> {
     /// the generated carrier; an origin whose `base_symbol` is still the
     /// candidate's own symbol marks that borrowed view, never the carrier.
     fn canonical_closed_carrier(&mut self, identity: TypeIdentityId) -> Option<DataDefinition> {
-        if self.canonical_carriers.is_none() {
-            let typed = self.program.typed_program();
+        self.canonical_carriers().get(&identity).cloned()
+    }
+
+    /// The symbol-owning closed declaration per structural identity, indexed
+    /// once from the declaration inventory.
+    fn canonical_carriers(&mut self) -> &BTreeMap<TypeIdentityId, DataDefinition> {
+        let program = self.program;
+        self.canonical_carriers.get_or_insert_with(|| {
+            let typed = program.typed_program();
             let mut carriers = BTreeMap::new();
             for candidate in typed.data_definitions().iter() {
                 let Some(origin) = candidate.generic_instance else {
@@ -1226,11 +1242,8 @@ impl<'program> ShapeCollector<'program> {
                     })
                     .or_insert_with(|| candidate.clone());
             }
-            self.canonical_carriers = Some(carriers);
-        }
-        self.canonical_carriers
-            .as_ref()
-            .and_then(|carriers| carriers.get(&identity).cloned())
+            std::sync::Arc::new(carriers)
+        })
     }
 
     pub(in super::super) fn add_data_shape(

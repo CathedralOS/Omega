@@ -6,6 +6,7 @@
 
 use super::retained_backing::retained_places;
 use crate::borrow::{owner_path_from_place_segments, owner_place_segments};
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::published::places::place_at;
 use arena::{Arena, Handle};
 use checked_trees::CheckedCallBorrowLoanSource;
@@ -29,6 +30,7 @@ pub(super) struct PermissionSupplier {
 pub(super) fn lending_sources(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
@@ -40,8 +42,8 @@ pub(super) fn lending_sources(
     let mut lending = source;
     let mut lending_path = projection.to_vec();
     let mut actual_projection = Vec::new();
-    let mut argument_grant =
-        projection.is_empty() && has_captured_entry_reference(program, facts, state, source);
+    let mut argument_grant = projection.is_empty()
+        && has_captured_entry_reference(program, facts, loan_occurrences, state, source);
     if projection.is_empty()
         && let Some(formation) = validation::reference_formation_source(program, capture.expression)
     {
@@ -66,7 +68,13 @@ pub(super) fn lending_sources(
                     lending = receiver;
                     lending_path.clear();
                     actual_projection = projection;
-                    argument_grant = has_captured_entry_reference(program, facts, state, receiver);
+                    argument_grant = has_captured_entry_reference(
+                        program,
+                        facts,
+                        loan_occurrences,
+                        state,
+                        receiver,
+                    );
                 }
             }
             AddressReceiver::InlineValue => argument_grant = true,
@@ -87,6 +95,7 @@ pub(super) fn lending_sources(
     let complete = collect(
         program,
         facts,
+        loan_occurrences,
         state,
         invocation,
         lending,
@@ -113,19 +122,22 @@ pub(super) fn lending_sources(
     Ok((suppliers, parents))
 }
 
-/// An unchanged entry descriptor has a borrowing owner at its captured cut.
-/// The storage query excludes overwritten slots; the incoming identity excludes
-/// type-only parameter guesses and lifetime debts of reference-bearing contents.
+/// A helper can retain either a borrowed input or a reference field read from
+/// it. The unchanged storage snapshot and current entry roster identify that
+/// descriptor. Its complete owner path selects the pointer's own permission;
+/// an enclosing record's borrow cannot stand in for an interior reference.
 fn has_captured_entry_reference(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     source: Handle<FlowOperandFact>,
 ) -> bool {
     let capture = facts.flow.control.operands.get(source);
-    if capture.state_symbol != state.state_symbol
-        || validation::reference_shell(program, capture.type_reference).is_none()
-    {
+    let Some(actual) = validation::reference_shell(program, capture.type_reference) else {
+        return false;
+    };
+    if capture.state_symbol != state.state_symbol {
         return false;
     }
     let Some(place) = place_at(
@@ -150,6 +162,7 @@ fn has_captured_entry_reference(
     super::super::aliases::resolve_descriptor_places(
         program,
         facts,
+        loan_occurrences,
         state,
         capture.constraints,
         checked_trees::CapturedPlace {
@@ -161,19 +174,48 @@ fn has_captured_entry_reference(
     .is_some_and(|sources| {
         !sources.is_empty()
             && sources.iter().all(|source| {
-                !source.local_loan.is_valid()
-                    && facts
+                if source.local_loan.is_valid()
+                    || !source.place.segments.is_empty()
+                    || !facts
                         .borrow
                         .incoming_references
                         .is_valid(source.place.incoming_reference)
-                    && matches!(
-                        facts
-                            .borrow
-                            .incoming_references
-                            .get(source.place.incoming_reference)
-                            .origin,
-                        checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
-                    )
+                {
+                    return false;
+                }
+                let incoming = facts
+                    .borrow
+                    .incoming_references
+                    .get(source.place.incoming_reference);
+                if !matches!(
+                    incoming.origin,
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                        | checked_trees::IncomingReferenceOrigin::Parameter { .. }
+                ) {
+                    return false;
+                }
+                let Some(owner) = facts.borrow.owner_segments.span(incoming.owner_path) else {
+                    return false;
+                };
+                let Some(selected) = validation::owned_projection_type_reference(
+                    program,
+                    incoming.carrier_type,
+                    &owner_place_segments(owner),
+                ) else {
+                    return false;
+                };
+                validation::reference_shell(program, selected).is_some_and(|declared| {
+                    checked_trees::BorrowAccessKind::from(declared.access)
+                        .direct_reborrow_effect(&checked_trees::BorrowAccessKind::from(
+                            actual.access,
+                        ))
+                        .is_some()
+                        && validation::storage_origin_types_match(
+                            program,
+                            actual.referee,
+                            declared.referee,
+                        )
+                })
             })
     })
 }
@@ -181,6 +223,7 @@ fn has_captured_entry_reference(
 pub(super) fn collect(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
@@ -214,6 +257,7 @@ pub(super) fn collect(
             collect(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 call,
                 $source,
@@ -305,6 +349,7 @@ pub(super) fn collect(
     } else if let Some(complete) = collect_completed_formations(
         program,
         facts,
+        loan_occurrences,
         state,
         call,
         source,
@@ -319,6 +364,7 @@ pub(super) fn collect(
     } else if let Some(complete) = collect_descriptor_captures(
         program,
         facts,
+        loan_occurrences,
         state,
         call,
         source,
@@ -359,6 +405,7 @@ pub(super) fn collect(
                 collect_invocation_accesses(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     source,
@@ -450,6 +497,7 @@ pub(super) fn collect(
     } else if let Some(complete) = collect_reborrow_sources(
         program,
         facts,
+        loan_occurrences,
         state,
         call,
         source,
@@ -474,6 +522,7 @@ pub(super) fn collect(
         match collect_invocation_accesses(
             program,
             facts,
+            loan_occurrences,
             state,
             call,
             source,
@@ -524,6 +573,7 @@ pub(super) fn collect(
 fn collect_reborrow_sources(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
@@ -578,7 +628,18 @@ fn collect_reborrow_sources(
     for (source, path, suffix) in selected {
         let start = output.len();
         if !collect(
-            program, facts, state, call, source, &path, access, true, active, output, parents,
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            source,
+            &path,
+            access,
+            true,
+            active,
+            output,
+            parents,
         ) {
             output.truncate(before);
             return Some(false);
@@ -667,6 +728,7 @@ fn collect_completed_output(
 fn collect_descriptor_captures(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
@@ -721,6 +783,7 @@ fn collect_descriptor_captures(
                 collect(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     selected.capture,
@@ -850,6 +913,7 @@ fn trace_descriptor_storage(
 fn collect_completed_formations(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
@@ -897,6 +961,7 @@ fn collect_completed_formations(
         if !collect(
             program,
             facts,
+            loan_occurrences,
             state,
             call,
             selected,
@@ -931,6 +996,7 @@ enum InvocationAccessCoverage {
 fn collect_invocation_accesses(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
@@ -1019,6 +1085,7 @@ fn collect_invocation_accesses(
             match super::super::access_sources::stored_address(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 formation.target,
                 true,
@@ -1033,6 +1100,7 @@ fn collect_invocation_accesses(
             retained_places(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 capture.statement_index,
                 capture.constraints,

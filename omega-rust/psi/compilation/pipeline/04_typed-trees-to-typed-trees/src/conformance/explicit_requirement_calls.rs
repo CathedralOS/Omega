@@ -878,22 +878,35 @@ pub(crate) fn refresh_occurrence_selections(
                 .map(|selection| (handle, selection.operand_ordinal))
         })
         .collect::<Vec<_>>();
+    // Every occurrence is derived from the same unchanged source operands.
+    // Share declared-contract queries while computing replacements, then drop
+    // that checking context before publishing them. Other queries can observe
+    // the replaced selections and must not reuse this invocation's answers.
+    let replacements = {
+        let checking = validation::CheckingContext::new(program);
+        let mut replacements = Vec::with_capacity(pending.len());
+        for (handle, ordinal) in pending {
+            let operand = expressions_of(program)
+                .static_machine_application_arguments(handle)
+                .get(ordinal as usize)
+                .cloned()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "direct conformance occurrence lost its selected operand",
+                    )]
+                })?;
+            let mut application =
+                close_conformance_application(&checking, &operand).map_err(|d| vec![d])?;
+            let retained =
+                retain_prepared_conformance_views(program, handle, ordinal, &mut application)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            replacements.push((handle, application, retained));
+        }
+        replacements
+    };
     let mut changed = Vec::new();
-    for (handle, ordinal) in pending {
-        let operand = expressions_of(program)
-            .static_machine_application_arguments(handle)
-            .get(ordinal as usize)
-            .cloned()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "direct conformance occurrence lost its selected operand",
-                )]
-            })?;
-        let mut application =
-            close_conformance_application(program, &operand).map_err(|d| vec![d])?;
-        if !retain_prepared_conformance_views(program, handle, ordinal, &mut application)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?
-        {
+    for (handle, application, retained) in replacements {
+        if !retained {
             changed.push(handle);
         }
         expressions_of_mut(program)

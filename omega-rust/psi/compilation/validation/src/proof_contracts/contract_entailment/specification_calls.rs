@@ -2211,8 +2211,10 @@ fn term_has_complete_substitution(
                 && term_has_complete_substitution(program, right)
         }
         StructuralTerm::Variable(_) | StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
-        StructuralTerm::Constructor { data, case, fields } => {
-            constructor_fields_are_complete(program, data, case, fields)
+        StructuralTerm::Constructor {
+            identity, fields, ..
+        } => {
+            constructor_fields_are_complete(program, *identity, fields)
                 && fields
                     .iter()
                     .all(|(_, value)| term_has_complete_substitution(program, value))
@@ -2222,25 +2224,19 @@ fn term_has_complete_substitution(
 
 fn constructor_fields_are_complete(
     program: &dyn crate::CheckingInput,
-    data: &str,
-    case: &str,
+    identity: super::structural_judgment::ConstructorIdentity,
     fields: &[(String, StructuralTerm)],
 ) -> bool {
     use typed_trees::data::DataMember;
-    if data == "bool" {
-        return language_semantics::const_value::boolean_literal_spelling(case).is_some()
-            && fields.is_empty();
+    if identity.boolean().is_some() {
+        return fields.is_empty();
     }
-    let mut definitions = program
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.name.as_str() == data);
-    let Some(definition) = definitions.next() else {
+    let Some(definition) = identity
+        .declaration()
+        .and_then(|symbol| program.data_definition_by_symbol(symbol))
+    else {
         return false;
     };
-    if definitions.next().is_some() {
-        return false;
-    }
     let mut declared = program
         .data_members(definition)
         .iter()
@@ -2249,13 +2245,19 @@ fn constructor_fields_are_complete(
             DataMember::Variant(_) => None,
         })
         .collect::<Vec<_>>();
-    if !case.is_empty() {
+    if let super::structural_judgment::ConstructorIdentity::Nominal { case: Some(_), .. } = identity
+    {
         let Some(variant) =
             program
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case => Some(variant),
+                    DataMember::Variant(variant)
+                        if identity.matches_case(program, definition.symbol, variant.symbol)
+                            == Some(true) =>
+                    {
+                        Some(variant)
+                    }
                     _ => None,
                 })
         else {

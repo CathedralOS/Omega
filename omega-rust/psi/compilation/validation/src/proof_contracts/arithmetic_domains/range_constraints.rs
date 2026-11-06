@@ -275,9 +275,9 @@ pub(crate) fn check_range_containment(
     }
 }
 
-/// A store into a field whose data states only interval `where` facts owes
-/// that field's interval as a bracketed field owes its range. An unstated end
-/// constrains nothing; a stated end needs the matching proven end.
+/// An atomic resident update must preserve its declaration's interval at the
+/// event. Ordinary record predicates use restoration windows instead. An
+/// unstated end constrains nothing; a stated end needs the matching proven end.
 pub(crate) fn check_where_interval_containment(
     program: &dyn CheckingInput,
     stated: Interval,

@@ -5,13 +5,13 @@
 
 use crate::execution::terminal_unit::cleanup::residuals;
 use crate::execution::terminal_unit::{
-    BTreeMap, CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
 pub(crate) fn partial_affine_residuals(
-    types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    types: &crate::execution::terminal_unit::types::TypeCatalog,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: TypeIdentityId,
     moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, TypeIdentityId)],

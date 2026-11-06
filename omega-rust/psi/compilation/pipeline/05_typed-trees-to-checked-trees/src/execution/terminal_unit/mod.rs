@@ -104,7 +104,7 @@ use crate::execution::terminal_unit::control::{
     build_static_boundary_requirements,
 };
 use crate::execution::terminal_unit::plan_gaps::{GapSite, plan_gap};
-use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::execution::terminal_unit::types::{ChangeLog, ShapeCollector};
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::{
@@ -257,112 +257,113 @@ pub(crate) fn build_checked_unit_effect_plans(
     phase_profile::scope(
         "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies",
         || {
-            for machine in program
+            // A bodied `boundary machine` is a checked adapter: its body is
+            // authored in-package, so it is planned like any other checked body.
+            let bodies = program
                 .machines()
                 .iter()
-                // A bodied `boundary machine` is a checked adapter: its body is
-                // authored in-package, so it is planned like any other checked body.
                 .filter(|machine| machine.supplies_checked_body())
-            {
-                let trace = LocalConstructionTrace::default();
-                shapes.take_unselected_opaque();
-                let mut attempt_calls = structural_value_calls::PreparedCalls::default();
-                let route = phase_profile::scope(
-                    "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.body_route",
-                    || body_route(program, machine),
-                );
-                let planned = match route {
-                    BodyRoute::Sequence => phase_profile::scope(
-                        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.sequence_body",
-                        || {
-                            build_checked_machine_residual_parts(
-                                program,
-                                facts,
-                                scalar_callees,
-                                &mut shapes,
-                                &mut attempt_calls,
-                                machine,
-                                call_frames,
-                                &trace,
+                .collect::<Vec<_>>();
+            let plan = |shapes: &mut ShapeCollector<'_>,
+                        machine: &typed_trees::machine::Machine| {
+                plan_checked_body(
+                    program,
+                    facts,
+                    &retained_records,
+                    scalar_callees,
+                    call_frames,
+                    shapes,
+                    machine,
+                )
+            };
+            // Bodies plan on forks of the collector in parallel and merge in
+            // roster order (`types/shape_collector/forks.rs`). A fork that
+            // consulted a row an earlier body changed after the fork's base is
+            // stale: every stale body from there on plans again, in parallel,
+            // from the merged collector, and a lone stale body plans in place.
+            shapes.prepare_forks();
+            let fork_from = |shapes: &ShapeCollector<'_>, base: usize, roster: &[usize]| {
+                let snapshot = shapes.fork();
+                ::validation::checking_thread_pool().install(|| {
+                    use rayon::prelude::*;
+                    roster
+                        .par_iter()
+                        .map(|&index| {
+                            let mut fork = snapshot.fork();
+                            let marks = fork.row_marks();
+                            let planned = plan(&mut fork, bodies[index]);
+                            (
+                                index,
+                                Some((base, planned, fork.edits_since(Some(&snapshot), marks))),
                             )
-                            .and_then(
-                                |(
-                                    mut plan,
-                                    residual_affine_discards,
-                                    has_projected_parameter_moves,
-                                )| {
-                                    structural_value_calls::prepare_state(
-                                        program,
-                                        facts,
-                                        &mut shapes,
-                                        &mut attempt_calls,
-                                        plan.machine,
-                                        plan.state,
-                                        &structural_value_calls::StateCallInputs {
-                                            parameters: &plan.structural_parameters,
-                                            entry_claims: &plan.entry_claims,
-                                            operations: &plan.operations,
-                                            trivial_locals: &plan.trivial_affine_locals,
-                                        },
-                                    )?;
-                                    trace.phase("single-state body: value call source custody");
-                                    structural_value_calls::consume_caller_results(
-                                        program,
-                                        plan.machine,
-                                        plan.state,
-                                        &mut plan.operations,
-                                        attempt_calls.state_schedules(
-                                            cleanup::owning_cleanup_machine(program, plan.state),
-                                            plan.state,
-                                        ),
-                                    )?;
-                                    if has_projected_parameter_moves {
-                                        partial_affine_machines.push(
-                                            CheckedPartialAffineUnitCleanupMachinePlan {
-                                                machine: plan,
-                                                residual_affine_discards,
-                                            },
-                                        );
-                                    } else {
-                                        candidates.push(plan);
-                                    }
-                                    Some(())
-                                },
-                            )
-                        },
-                    ),
-                    BodyRoute::Graph => phase_profile::scope(
-                        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body",
-                        || {
-                            state_graph::build_traced(
-                                program,
-                                facts,
-                                &retained_records,
-                                scalar_callees,
-                                &mut shapes,
-                                &mut attempt_calls,
-                                machine,
-                                call_frames,
-                                &trace,
-                            )
-                            .map(|plan| composed_machines.push(plan))
-                        },
-                    ),
-                };
-                if planned.is_some() {
-                    prepared_calls.append(machine.symbol, attempt_calls);
-                }
-                if planned.is_none() {
-                    let mut gap = trace.gap(program, machine.symbol);
-                    // A shape the collector could not supply because the build
-                    // selects no representation for an opaque is the program's
-                    // missing selection; it displaces the phase the builder was in.
-                    if let Some(opaque) = shapes.take_unselected_opaque() {
-                        gap.reason = GapReason::UnselectedOpaqueRepresentation(opaque);
+                        })
+                        .collect::<Vec<_>>()
+                })
+            };
+            let mut attempts = Vec::new();
+            attempts.resize_with(bodies.len(), || None);
+            for (index, attempt) in fork_from(&shapes, 0, &(0..bodies.len()).collect::<Vec<_>>()) {
+                attempts[index] = attempt;
+            }
+            let mut log = ChangeLog::default();
+            let (mut rounds, mut replanned) = (1, 0);
+            let mut position = 0;
+            while let Some(&machine) = bodies.get(position) {
+                let planned = match attempts[position].take() {
+                    Some((base, planned, edits)) if log.admits(&edits, base) => {
+                        log.record(&edits, position);
+                        shapes.apply(edits);
+                        planned
                     }
-                    construction_gaps.insert(symbol_key(machine.symbol), gap);
+                    stale => {
+                        attempts[position] = stale;
+                        let roster = (position..bodies.len())
+                            .filter(|&index| {
+                                index == position
+                                    || attempts[index]
+                                        .as_ref()
+                                        .is_none_or(|(base, _, edits)| !log.admits(edits, *base))
+                            })
+                            .collect::<Vec<_>>();
+                        if roster.len() > 1 {
+                            rounds += 1;
+                            for (index, attempt) in fork_from(&shapes, position, &roster) {
+                                attempts[index] = attempt;
+                            }
+                            continue;
+                        }
+                        replanned += 1;
+                        attempts[position] = None;
+                        shapes.forget_consulted();
+                        let marks = shapes.row_marks();
+                        let planned = plan(&mut shapes, machine);
+                        log.record(&shapes.edits_since(None, marks), position);
+                        planned
+                    }
+                };
+                position += 1;
+                match planned {
+                    Ok((body, attempt_calls)) => {
+                        match body {
+                            PlannedBody::Sequence(plan) => candidates.push(plan),
+                            PlannedBody::PartialAffine(plan) => partial_affine_machines.push(plan),
+                            PlannedBody::Graph(plan) => composed_machines.push(plan),
+                        }
+                        prepared_calls.append(machine.symbol, attempt_calls);
+                    }
+                    Err(gap) => {
+                        construction_gaps.insert(symbol_key(machine.symbol), gap);
+                    }
                 }
             }
+            phase_profile::count(
+                "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies.fork_rounds",
+                rounds,
+            );
+            phase_profile::count(
+                "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies.replanned",
+                replanned,
+            );
         },
     );
 
@@ -1256,6 +1257,118 @@ fn planned_machines(
                 .map(|plan| symbol_key(plan.machine.machine)),
         )
         .collect()
+}
+
+/// One checked body's plan, under the catalog its route publishes it in.
+enum PlannedBody {
+    Sequence(CheckedUnitEffectMachinePlan),
+    PartialAffine(CheckedPartialAffineUnitCleanupMachinePlan),
+    Graph(CheckedComposedUnitControlMachinePlan),
+}
+
+/// Plan one checked body against `shapes`, or name the gap where its builder
+/// stopped. Everything it changes besides `shapes` is in the result, so the
+/// same body planned against an equal collector plans the same way.
+fn plan_checked_body(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    retained_records: &state_graph::RetainedBorrowRecords<'_>,
+    scalar_callees: ScalarCalleeClosure,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+) -> Result<(PlannedBody, structural_value_calls::PreparedCalls), checked_trees::CheckedUnitPlanGap>
+{
+    let _subject = phase_profile::subject(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies",
+        || program.symbols.profile_label(machine.symbol),
+    );
+    let trace = LocalConstructionTrace::default();
+    shapes.take_unselected_opaque();
+    let mut attempt_calls = structural_value_calls::PreparedCalls::default();
+    let route = phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.body_route",
+        || body_route(program, machine),
+    );
+    let planned = match route {
+        BodyRoute::Sequence => phase_profile::scope(
+            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.sequence_body",
+            || {
+                let (mut plan, residual_affine_discards, has_projected_parameter_moves) =
+                    build_checked_machine_residual_parts(
+                        program,
+                        facts,
+                        scalar_callees,
+                        shapes,
+                        &mut attempt_calls,
+                        machine,
+                        call_frames,
+                        &trace,
+                    )?;
+                structural_value_calls::prepare_state(
+                    program,
+                    facts,
+                    shapes,
+                    &mut attempt_calls,
+                    plan.machine,
+                    plan.state,
+                    &structural_value_calls::StateCallInputs {
+                        parameters: &plan.structural_parameters,
+                        entry_claims: &plan.entry_claims,
+                        operations: &plan.operations,
+                        trivial_locals: &plan.trivial_affine_locals,
+                    },
+                )?;
+                trace.phase("single-state body: value call source custody");
+                structural_value_calls::consume_caller_results(
+                    program,
+                    plan.machine,
+                    plan.state,
+                    &mut plan.operations,
+                    attempt_calls.state_schedules(
+                        cleanup::owning_cleanup_machine(program, plan.state),
+                        plan.state,
+                    ),
+                )?;
+                Some(if has_projected_parameter_moves {
+                    PlannedBody::PartialAffine(CheckedPartialAffineUnitCleanupMachinePlan {
+                        machine: plan,
+                        residual_affine_discards,
+                    })
+                } else {
+                    PlannedBody::Sequence(plan)
+                })
+            },
+        ),
+        BodyRoute::Graph => phase_profile::scope(
+            "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body",
+            || {
+                state_graph::build_traced(
+                    program,
+                    facts,
+                    retained_records,
+                    scalar_callees,
+                    shapes,
+                    &mut attempt_calls,
+                    machine,
+                    call_frames,
+                    &trace,
+                )
+                .map(PlannedBody::Graph)
+            },
+        ),
+    };
+    if let Some(body) = planned {
+        return Ok((body, attempt_calls));
+    }
+    let mut gap = trace.gap(program, machine.symbol);
+    // A shape the collector could not supply because the build selects no
+    // representation for an opaque is the program's missing selection; it
+    // displaces the phase the builder was in.
+    if let Some(opaque) = shapes.take_unselected_opaque() {
+        gap.reason = GapReason::UnselectedOpaqueRepresentation(opaque);
+    }
+    Err(gap)
 }
 
 /// The one plan route of a checked body, chosen by its authored shape before

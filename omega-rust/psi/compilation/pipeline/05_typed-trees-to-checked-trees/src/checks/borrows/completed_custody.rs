@@ -7,6 +7,7 @@
 //! expression as their source would substitute an unrelated storage identity.
 //! This query excludes candidates; it grants no output membership or custody.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::checks::ownership_occurrences::{
     StatementStep, routes_compatible, statement_steps_at_evaluation,
 };
@@ -183,6 +184,8 @@ pub(crate) fn require_unborrowed_completion(
     // Call operands also lend storage without creating a named local loan.
     // Their ordered access roster distinguishes a completed copied read from
     // a reference still held across a later operand's completion.
+    let prepared_loans = LoanOccurrences::for_state(program, facts, state_flow);
+    let loan_occurrences = &prepared_loans;
     for call in facts
         .borrow
         .calls
@@ -249,6 +252,7 @@ pub(crate) fn require_unborrowed_completion(
             let backings = super::place_access::place_backings(
                 program,
                 facts,
+                loan_occurrences,
                 state_flow,
                 operand.statement_index,
                 active.iter().copied(),

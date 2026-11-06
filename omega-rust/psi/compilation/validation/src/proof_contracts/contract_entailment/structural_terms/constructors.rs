@@ -17,52 +17,85 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+use super::super::structural_judgment::ConstructorIdentity;
 use super::StructuralTerm;
 
 /// Read an already carrier-validated canonical value in the structural term
 /// vocabulary. Encoded names retain no declaration authority here: the static
 /// application intake must first replay the value against its resolved carrier.
 pub(in super::super) fn admitted_const_value_term(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
     value: &language_semantics::const_value::CanonicalConstIdentity,
 ) -> Option<StructuralTerm> {
     fn decoded(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
         value: language_semantics::const_value::DecodedCanonicalConstValue,
     ) -> Option<StructuralTerm> {
         use language_semantics::const_value::DecodedCanonicalConstValue;
+        let reference = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         let (data, case, fields) = match value {
             DecodedCanonicalConstValue::Integer { value, .. } => {
                 return Some(StructuralTerm::Integer(BigInt::from_i128(value)));
             }
             DecodedCanonicalConstValue::Boolean(value) => {
-                return Some(StructuralTerm::Constructor {
-                    data: "bool".to_owned(),
-                    case: value.to_string(),
-                    fields: Vec::new(),
-                });
+                return (program.type_reference_table.primitive_type(reference)
+                    == Some(PrimitiveType::Bool))
+                .then(|| StructuralTerm::boolean(value));
             }
-            DecodedCanonicalConstValue::Record { type_name, fields } => {
-                (type_name, String::new(), fields)
-            }
+            DecodedCanonicalConstValue::Record { type_name, fields } => (type_name, None, fields),
             DecodedCanonicalConstValue::Variant {
                 type_name,
                 case_name,
                 fields,
-            } => (type_name, case_name, fields),
-            // These values have separate observation vocabularies; an encoded
-            // array or float is not a record constructor or an integer atom.
+            } => (type_name, Some(case_name), fields),
             DecodedCanonicalConstValue::Array { .. } | DecodedCanonicalConstValue::Float { .. } => {
                 return None;
             }
         };
-        let mut fields = fields
+        let symbol = program.type_reference_table.type_head_symbol(reference)?;
+        let definition = program.data_constructor_definition(reference, symbol)?;
+        if definition.name.as_str() != data {
+            return None;
+        }
+        let variant = match case.as_deref() {
+            None => None,
+            Some(name) => {
+                // The encoded member was validated inside this exact owner.
+                let mut selected = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| match member {
+                        DataMember::Variant(variant) if variant.name.as_str() == name => {
+                            Some(variant)
+                        }
+                        _ => None,
+                    });
+                let variant = selected.next()?;
+                if selected.next().is_some() {
+                    return None;
+                }
+                Some(variant)
+            }
+        };
+        let declared = constructor_fields(program, definition, variant);
+        if fields.len() != declared.len() {
+            return None;
+        }
+        let fields = fields
             .into_iter()
-            .map(|(name, value)| Some((name, decoded(value)?)))
+            .map(|(name, value)| {
+                let field = declared.iter().find(|field| field.name.as_str() == name)?;
+                Some((name, decoded(program, field.type_reference, value)?))
+            })
             .collect::<Option<Vec<_>>>()?;
-        fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-        Some(StructuralTerm::Constructor { data, case, fields })
+        let identity = ConstructorIdentity::at_reference(program, reference, definition, variant)?;
+        Some(constructed_term(identity, definition, variant, fields))
     }
-
-    decoded(value.decode_encoding()?)
+    decoded(program, reference, value.decode_encoding()?)
 }
 
 /// Exclusion test only: a retained membership occurrence must never be read as
@@ -150,7 +183,12 @@ pub(in super::super) fn case_value_term(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
-    Some(constructed_term(definition, Some(variant), fields))
+    Some(constructed_term(
+        ConstructorIdentity::nominal(program, definition, Some(variant))?,
+        definition,
+        Some(variant),
+        fields,
+    ))
 }
 
 pub(in super::super) fn constructor_literal_term(
@@ -208,39 +246,48 @@ pub(in super::super) fn constructor_literal_term(
     }) {
         return None;
     }
-    complete_constructor_term(definition, variant, declared.into_iter(), |field| {
-        let mut matches =
-            supplied
-                .iter()
-                .zip(&selected_fields)
-                .filter_map(|(supplied, selected)| {
-                    (selected.symbol == field.symbol).then_some(supplied)
-                });
-        let value = if let Some(supplied) = matches.next() {
-            if matches.next().is_some() {
-                return None;
-            }
-            field_term(field, Some(supplied))?
-        } else {
-            if field.relevance.is_erased()
-                || crate::value_custody::data::type_requires_establishment(
-                    program,
-                    field.type_reference,
-                )
-                || crate::proof_only_classification(program)
-                    .proof_only_mention(program, field.type_reference)
-                    .is_some()
-            {
-                return None;
-            }
-            // A completed runtime value may retain an opaque field identity
-            // when this independently established zero has no mathematical
-            // denotation. Pure term callers decline that observation.
-            zero_value_structural_term(program, field.type_reference)
-                .or_else(|| field_term(field, None))?
-        };
-        Some(value)
-    })
+    let reference =
+        crate::value_custody::struct_literals::construction_application(program, expression);
+    let identity = ConstructorIdentity::at_reference(program, reference, definition, variant)?;
+    complete_constructor_term(
+        identity,
+        definition,
+        variant,
+        declared.into_iter(),
+        |field| {
+            let mut matches =
+                supplied
+                    .iter()
+                    .zip(&selected_fields)
+                    .filter_map(|(supplied, selected)| {
+                        (selected.symbol == field.symbol).then_some(supplied)
+                    });
+            let value = if let Some(supplied) = matches.next() {
+                if matches.next().is_some() {
+                    return None;
+                }
+                field_term(field, Some(supplied))?
+            } else {
+                if field.relevance.is_erased()
+                    || crate::value_custody::data::type_requires_establishment(
+                        program,
+                        field.type_reference,
+                    )
+                    || crate::proof_only_classification(program)
+                        .proof_only_mention(program, field.type_reference)
+                        .is_some()
+                {
+                    return None;
+                }
+                // A completed runtime value may retain an opaque field identity
+                // when this independently established zero has no mathematical
+                // denotation. Pure term callers decline that observation.
+                zero_value_structural_term(program, field.type_reference)
+                    .or_else(|| field_term(field, None))?
+            };
+            Some(value)
+        },
+    )
 }
 
 /// A complete unqualified value snapshot from exact declared field captures.
@@ -253,6 +300,7 @@ pub(in super::super) fn captured_constructor_term(
     field_value: impl FnMut(&DataField) -> Option<StructuralTerm>,
 ) -> Option<StructuralTerm> {
     complete_constructor_term(
+        ConstructorIdentity::nominal(program, definition, variant)?,
         definition,
         variant,
         constructor_fields(program, definition, variant).into_iter(),
@@ -261,6 +309,7 @@ pub(in super::super) fn captured_constructor_term(
 }
 
 fn complete_constructor_term<'field>(
+    identity: ConstructorIdentity,
     definition: &DataDefinition,
     variant: Option<&DataVariant>,
     declared: impl ExactSizeIterator<Item = &'field DataField>,
@@ -270,7 +319,7 @@ fn complete_constructor_term<'field>(
     for field in declared {
         fields.push((field.name.as_str().to_owned(), field_value(field)?));
     }
-    Some(constructed_term(definition, variant, fields))
+    Some(constructed_term(identity, definition, variant, fields))
 }
 
 fn constructor_fields<'program>(
@@ -294,12 +343,14 @@ fn constructor_fields<'program>(
 }
 
 fn constructed_term(
+    identity: ConstructorIdentity,
     definition: &DataDefinition,
     variant: Option<&DataVariant>,
     mut fields: Vec<(String, StructuralTerm)>,
 ) -> StructuralTerm {
     fields.sort_by(|(left, _), (right, _)| left.cmp(right));
     StructuralTerm::Constructor {
+        identity,
         data: definition.name.as_str().to_owned(),
         case: variant
             .map(|variant| variant.name.as_str())
@@ -364,11 +415,7 @@ fn zero_term(
     }
     if let Some(primitive) = program.type_reference_table.primitive_type(type_reference) {
         return match primitive {
-            PrimitiveType::Bool => Some(StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: "false".to_owned(),
-                fields: Vec::new(),
-            }),
+            PrimitiveType::Bool => Some(StructuralTerm::boolean(false)),
             PrimitiveType::F32 | PrimitiveType::F64 => Some(StructuralTerm::Float(
                 FloatLiteral::from_f64(0.0).with_landing(if primitive == PrimitiveType::F32 {
                     numerics::literals::FloatFormat::F32
@@ -408,12 +455,12 @@ fn zero_term(
     if !symbol.is_valid() || active.contains(&symbol) {
         return None;
     }
-    let definition = crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
+    let definition = program.data_constructor_definition(type_reference, symbol)?;
     if crate::value_custody::data::data_requires_establishment(program, definition) {
         return None;
     }
     active.push(symbol);
-    let value = zero_constructor(program, definition, active);
+    let value = zero_constructor(program, definition, Some(type_reference), active);
     active.pop();
     value
 }
@@ -425,12 +472,18 @@ pub(in super::super) fn zero_constructor_operands(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
 ) -> Option<StructuralTerm> {
-    zero_constructor(program, definition, &mut vec![definition.symbol])
+    zero_constructor(
+        program,
+        definition,
+        definition.generic_instance,
+        &mut vec![definition.symbol],
+    )
 }
 
 fn zero_constructor(
     program: &dyn crate::CheckingInput,
     definition: &DataDefinition,
+    reference: Option<TypeReferenceHandle>,
     active: &mut Vec<SymbolHandle>,
 ) -> Option<StructuralTerm> {
     let variant = program
@@ -452,5 +505,11 @@ fn zero_constructor(
             ))
         })
         .collect::<Option<Vec<_>>>();
-    Some(constructed_term(definition, variant, fields?))
+    let identity = match reference {
+        Some(reference) => {
+            ConstructorIdentity::at_reference(program, reference, definition, variant)?
+        }
+        None => ConstructorIdentity::nominal(program, definition, variant)?,
+    };
+    Some(constructed_term(identity, definition, variant, fields?))
 }

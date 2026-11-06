@@ -91,10 +91,10 @@ impl<'execution> ConstructorValue<'execution> {
         }
     }
 
-    /// Snapshot a scalar tree and resolve its receiving cells in the original
-    /// owner before any store. Packed arrays and placed values differ only in
-    /// how their completed payload is read, never in where replacement writes.
-    /// Non-scalar subtrees retain their descriptor/case transplant transaction.
+    /// Snapshot source scalars and stage writes to the destination's existing
+    /// cells. A borrowed array may still belong to a suspended caller; replacing
+    /// its contents must keep that backing. Other value shapes use the
+    /// constructor's storage transaction.
     pub(crate) fn replacement_writes(
         &self,
         execution: &TerminalExecution,

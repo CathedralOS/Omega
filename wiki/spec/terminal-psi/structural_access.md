@@ -219,6 +219,17 @@ the element the same way and open its
 [restoration window](ownership.md#borrowed-storage-restoration) on the view's
 loan.
 
+For [contract-gated core operations](../language/expressions.md#contract-gated-core-operations),
+the primitive's complete instantiated contract is discharged before lowering.
+Changing the source prover does not remove the evidence carried by an access:
+each `RuntimeIndex` obligation retains the exact selector, live extent,
+descriptor/backing and applicable storage versions from that occurrence.
+The existing source-checked evidence handoff must preserve this relation;
+neither an occurrence handle alone nor a producer's assertion of success proves
+the bound. Receivers check the applicable evidence at the existing trust
+boundaries; ordinary pipeline stages consume their producer's checked plans.
+Bounds evidence remains distinct from readable/writable access and loan custody.
+
 Structural signatures derive from parameter declarations and resolved referent
 shapes through one exhaustive access classifier. All structural-call producers
 must use that construction; they cannot attach access to an independently

@@ -680,13 +680,16 @@ pub(super) fn lower_operation(
             // One admitted settlement selects the row owner; the recognizer is
             // read once here instead of once per guard, and the row owners no
             // longer re-derive the same realization.
-            let Some(realization) = settlements
-                .get(boundary)
-                .map(|binding| &binding.realization)
-            else {
+            let Some(settlement) = settlements.get(boundary) else {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             };
-            match realization {
+            match &settlement.realization {
+                BoundarySettlementRealization::Builtin(BoundaryRealization::EmptyRunRelease) => {
+                    let declaration = boundary_machines
+                        .get(boundary)
+                        .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                    super::run_custody::lower(operation, site, declaration, settlement)
+                }
                 BoundarySettlementRealization::Builtin(BoundaryRealization::AccessLifecycle {
                     ..
                 }) => {

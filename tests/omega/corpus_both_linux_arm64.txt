@@ -246,8 +246,7 @@ pass/atomics/runtime_shared_case_waived_atomic_exit built 7482ms exit:70 interpr
 pass/atomics/runtime_stored_reference_atomic_events_exit rejected 1902ms interpreter:unchecked @6e42425cd720
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(10)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
 pass/atomics/selected_reference_atomic_provider built 1979ms @6e42425cd720
-pass/atomics/shared_receiver_atomic_store rejected 7523ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 2, machine: Some(MachineId(15)), operation: Some(OperationId(127)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
+pass/atomics/shared_receiver_atomic_store built 118662ms exit:70 interpreter-exit:70 interpreter:agrees @f00661dbe2a1
 pass/blockexec/blocking_executor_custody_claims_compile built 2470ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/blockexec/runtime_selected_worker_body_exit built 2195ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 1683ms @6e42425cd720

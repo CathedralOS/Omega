@@ -146,9 +146,9 @@ pub(crate) fn schema_fields_for_target(
             scalar_leaf_width_bits: scalar_leaf_width_bits(typed, field.type_reference),
         });
     }
-    if fields.is_empty() && typed.data_members(data).is_empty() {
-        return Err(format!("schema data `{schema_data}` has no members"));
-    }
+    // An empty record has an empty physical schema, just like a record whose
+    // fields all erase. Its type identity, qualifications and cleanup remain
+    // semantic obligations; having no layout entries does not discard them.
     if fields.len() > SCHEMA_FIELD_CAPACITY {
         return Err(format!(
             "schema data `{schema_data}` has {} fields; the current layout slice supports at most {}",
@@ -381,4 +381,24 @@ pub(super) fn checked_align_up(value: u64, align: u64) -> Option<u64> {
     value
         .checked_add(align - 1)
         .map(|value| value / align * align)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::schema_fields_for;
+    use typed_trees::TypedTrees;
+    use typed_trees::data::DataDefinition;
+
+    #[test]
+    fn empty_record_has_an_empty_physical_schema() {
+        let typed = TypedTrees::default();
+        let record = DataDefinition::default();
+        let (fields, fingerprint) = schema_fields_for(&typed, &record)
+            .expect("an empty record needs no physical field entries");
+        assert!(fields.is_empty());
+        assert_eq!(
+            fingerprint,
+            typed_trees::identity::normalized_schema_report_fingerprint(&typed, &record)
+        );
+    }
 }

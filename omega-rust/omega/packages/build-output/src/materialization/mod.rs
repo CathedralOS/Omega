@@ -217,6 +217,7 @@ pub(crate) fn retained_native_path(
     Ok(native)
 }
 
+#[cfg(any(test, unix))]
 fn retained_symlink_target(
     target: &[u8],
 ) -> Result<PathBuf, BuildStagedOutputMaterializationError> {

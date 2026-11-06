@@ -153,6 +153,7 @@ fn plan_inner(
         local_phase("statement sequence: local data: atomic storage home");
         establish_declared_home(
             program,
+            facts,
             machine,
             state,
             shapes,
@@ -164,6 +165,7 @@ fn plan_inner(
             index,
             statement_index,
             local,
+            None,
         )?;
         return Some(LocalPlan::Planned);
     }
@@ -188,6 +190,7 @@ fn plan_inner(
             local_phase("statement sequence: local data: deferred structural binding");
             establish_declared_home(
                 program,
+                facts,
                 machine,
                 state,
                 shapes,
@@ -199,6 +202,7 @@ fn plan_inner(
                 index,
                 statement_index,
                 local,
+                None,
             )?;
             return Some(LocalPlan::Planned);
         }
@@ -608,6 +612,7 @@ fn plan_inner(
         if stable_home {
             establish_declared_home(
                 program,
+                facts,
                 machine,
                 state,
                 shapes,
@@ -619,28 +624,12 @@ fn plan_inner(
                 index,
                 statement_index,
                 local,
-            )?;
-            operations.push(CheckedUnitEffectOperationPlan::new_store(
-                statement_index,
-                checked_trees::CheckedStoreRoot::Local { symbol: local.symbol },
-                Vec::new(),
-                checked_trees::CheckedStoreLeaf::StructuralStore {
-                    type_identity,
-                    multiplicity: result.multiplicity,
-                    opening_binding: None,
-                },
-                checked_trees::CheckedStoreValue::Place(
-                    checked_trees::CheckedUnitStructuralArgumentPlan {
-                        projection_evaluations: Default::default(),
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal: result.binding_ordinal,
-                        },
-                        path: Vec::new(),
-                        type_identity,
-                        access: CheckedStructuralAccess::Owned,
-                    },
+                Some(
+                    checked_trees::CheckedStructuralLocalInitialization::completed_result(
+                        &result, root.root,
+                    ),
                 ),
-            ));
+            )?;
         }
         return Some(LocalPlan::Planned);
     }
@@ -986,6 +975,7 @@ fn place_loan(
 #[allow(clippy::too_many_arguments)]
 fn establish_declared_home(
     program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     shapes: &mut ShapeCollector<'_>,
@@ -997,6 +987,7 @@ fn establish_declared_home(
     declaration_ordinal: usize,
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
+    initial_value: Option<checked_trees::CheckedStructuralLocalInitialization>,
 ) -> Option<()> {
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index,
@@ -1011,6 +1002,31 @@ fn establish_declared_home(
         ),
         local: initialized_local(program, machine, state, local),
     };
+    if let Some(initial) = &initial_value {
+        // The source has already been checked and evaluated in this plan.
+        // Retain its one normal result and exact receiving type here; lowering
+        // transports that contract instead of establishing it a second time.
+        let mut sources = operations.iter().filter(|operation| {
+            operation
+                .structural_result_binding()
+                .is_some_and(|binding| binding.binding_ordinal == initial.source_binding_ordinal())
+        });
+        let source = sources.next()?;
+        if sources.next().is_some() || !result.local.is_named() {
+            return None;
+        }
+        let binding = source.structural_result_binding()?;
+        let (value, calls) = source.structural_value_evaluation()?;
+        if value != initial.value
+            || binding.statement_index != statement_index
+            || binding.type_identity != result.type_identity
+            || binding.multiplicity != result.multiplicity
+            || facts.values.structural_values.completion(value, calls)?
+                == checked_trees::CheckedValueCompletion::NoNormal
+        {
+            return None;
+        }
+    }
     *structural_count = structural_count.checked_add(1)?;
     // A descriptor home declares the local's byte domains; every store into
     // it then proves them. Other homes keep their members' own invariants.
@@ -1025,6 +1041,7 @@ fn establish_declared_home(
             declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
             symbol: local.symbol,
             result: result.clone(),
+            initial_value,
             qualifications,
             discard_result_on_return: result.multiplicity == Multiplicity::Affine,
         },

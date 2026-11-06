@@ -34,6 +34,7 @@ record_variants!(effects::CompilerIntrinsicExecutionIdentity {
     13 => TaskRegisterRead,
     14 => SegmentReload(value0),
     15 => SegmentRead(value0),
+    16 => EmptyRunRelease,
 });
 
 record_variants!(effects::CompilerNumericType {

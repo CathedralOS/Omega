@@ -91,6 +91,7 @@ impl Execution<'_, '_, '_> {
         let mut shared_qualifications = None;
         let mut value_coverage = false;
         let mut alternatives = HandleSpan::empty();
+        let mut prior_evaluation = arena::Handle::invalid();
         for (ordinal, arm) in self
             .program
             .expression_table
@@ -98,6 +99,10 @@ impl Execution<'_, '_, '_> {
             .iter()
             .enumerate()
         {
+            let mut evaluation_inputs = Vec::new();
+            if !prior_evaluation.is_valid() {
+                evaluation_inputs.push(subject_operand);
+            }
             let mut covered = matches!(arm.pattern, MatchPattern::Wildcard);
             if let Some(reference) = structural
                 && let Some(case) = structural_match_pattern_case(
@@ -121,6 +126,7 @@ impl Execution<'_, '_, '_> {
                 let pattern_operand = self
                     .evaluated_operand(pattern, contexts, constraints)
                     .capture;
+                evaluation_inputs.push(pattern_operand);
                 if let Ok(ordinal) = u32::try_from(ordinal) {
                     let source_arm = dispatch.arms.handle_at(ordinal);
                     self.record_operator_invocation(
@@ -138,7 +144,10 @@ impl Execution<'_, '_, '_> {
             let mut selected_contexts = *contexts;
             let mut selected_constraints = *constraints;
             if let MatchPattern::Destructure(pattern) = arm.pattern {
-                self.evaluated_operand(pattern.condition, contexts, constraints);
+                evaluation_inputs.push(
+                    self.evaluated_operand(pattern.condition, contexts, constraints)
+                        .capture,
+                );
                 selected_contexts = *contexts;
                 selected_constraints = *constraints;
                 let prefix = self.write_prefix();
@@ -262,9 +271,15 @@ impl Execution<'_, '_, '_> {
             let source_arm = u32::try_from(ordinal)
                 .map(|ordinal| dispatch.arms.handle_at(ordinal))
                 .unwrap_or_default();
-            self.context.control.operand_alternatives.append_to_span(
+            let evaluation_inputs = self.context.control.operands.insert_many(evaluation_inputs);
+            prior_evaluation = self.context.control.operand_alternatives.append_to_span(
                 &mut alternatives,
-                FlowOperandAlternative { source_arm, value },
+                FlowOperandAlternative {
+                    prior_evaluation,
+                    evaluation_inputs,
+                    source_arm,
+                    value,
+                },
             );
             let yielded = self.predicates_on_value(arm.value, &selected_contexts);
             match shared_predicates.as_mut() {
