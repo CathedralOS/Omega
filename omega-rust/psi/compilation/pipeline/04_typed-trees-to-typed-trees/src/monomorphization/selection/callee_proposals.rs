@@ -1,11 +1,10 @@
 //! Callee resolution, machine proposals, contract facts and expression
 //! trees.
 
-use arena::HandleSpan;
 use const_arguments::resolve_runtime_subject;
 use const_integer::classify;
 use validation::expression_traversal::{
-    collect_contract_facts, collect_statement_expression_trees,
+    collect_proof_fact_expression_trees, collect_statement_expression_trees,
 };
 
 use crate::monomorphization::selection::proposals::{BindingContext, StaticProposals};
@@ -341,9 +340,14 @@ pub(crate) fn contract_expression_scopes(
     for machine in program.machines() {
         let entry = program.machine_states(machine).first();
         let mut expressions = Vec::new();
-        for contract in program.machine_contracts(machine) {
-            collect_contract_facts(program, contract.facts, &mut expressions);
-        }
+        collect_proof_fact_expression_trees(
+            program,
+            program
+                .machine_contracts(machine)
+                .iter()
+                .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts)),
+            &mut expressions,
+        );
         scopes.extend(
             expressions
                 .into_iter()
@@ -355,9 +359,14 @@ pub(crate) fn contract_expression_scopes(
         );
         for state in program.machine_states(machine) {
             let mut expressions = Vec::new();
-            for contract in program.state_contracts(state) {
-                collect_contract_facts(program, contract.facts, &mut expressions);
-            }
+            collect_proof_fact_expression_trees(
+                program,
+                program
+                    .state_contracts(state)
+                    .iter()
+                    .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts)),
+                &mut expressions,
+            );
             scopes.extend(
                 expressions
                     .into_iter()
@@ -402,9 +411,11 @@ pub(crate) fn contract_expression_handles(
         .collect::<Vec<_>>();
     // Prepared and imported proof schemas also contain non-executable
     // occurrences, even when no source declaration supplies their telescope.
-    for (fact, _) in program.proof_facts.iter() {
-        collect_contract_facts(program, HandleSpan::from_parts(fact, 1), &mut handles);
-    }
+    collect_proof_fact_expression_trees(
+        program,
+        program.proof_facts.iter().map(|(_, fact)| fact),
+        &mut handles,
+    );
     handles.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     handles.dedup();
     handles
