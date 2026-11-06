@@ -12,7 +12,7 @@ use typed_trees::domain::ProofFact;
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
 use validation::{CanonicalPlace, StaticMachineContractObligation};
 
-pub(super) fn seed_contract_inputs(
+pub(in crate::flow) fn seed_contract_inputs(
     program: &dyn validation::CheckingInput,
     build: &mut FlowBuildContext<'_>,
     machines: &[usize],
