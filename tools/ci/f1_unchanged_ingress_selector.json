@@ -1,6 +1,6 @@
 {
   "kind": "ONE exact nonignored F1 real-unit control; no runtime/whole-outcome claim",
-  "source": "64cd495da173c0d89340d7ce388ea70666351d8a",
+  "source": "a7d187bc0cd24ea41c6967770a5dbd0099dbc0f3",
   "base_semantics": "873cd7effbde8cc588011498638837a3705ea949",
   "expected_total_passes": 1,
   "groups": [
@@ -12,7 +12,7 @@
         "unchanged_borrowed_holder_returns_when_reachable_pointer_array_exceeds_inventory"
       ],
       "source_path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/unchanged_ingress_tests.rs",
-      "source_sha256": "50805a3be52070f964e7478e25ddeca8bb7d148271c298118d98ccb920cc7b30"
+      "source_sha256": "fe6330dd39904188eda27815d02d08b1e592b57534ef8a7582dceb9cf7b594ad"
     }
   ]
 }
