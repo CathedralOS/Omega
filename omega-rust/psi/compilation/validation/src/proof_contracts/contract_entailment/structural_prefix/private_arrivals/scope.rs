@@ -244,7 +244,6 @@ impl ProgramPrivateArrivalIndex {
     }
 
     fn build(program: &dyn CheckingInput) -> Self {
-        program.prepare_applied_machine_callable_queries();
         let machines = program.machines();
         let mut members_by_root: SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
         let mut target_roots: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();

@@ -249,7 +249,6 @@ impl super::TypedTrees {
         indexes.data_members.seal();
         self.tables.data_definitions.seal();
         self.tables.data_type_parameters.seal();
-        self.tables.applied_callable_signatures.seal();
         indexes.domains.seal();
         indexes.call_targets.seal();
         indexes.requirement_applications.seal();
@@ -272,7 +271,6 @@ impl super::TypedTrees {
         indexes.data_members.unseal();
         self.tables.data_definitions.unseal();
         self.tables.data_type_parameters.unseal();
-        self.tables.applied_callable_signatures.unseal();
         indexes.domains.unseal();
         indexes.call_targets.unseal();
         indexes.requirement_applications.unseal();
