@@ -203,7 +203,7 @@ pub(super) fn index_structural_types(
             }
         }
     }
-    validate_structural_type_graph(&types)?;
+    validate_structural_type_graph(&types, unit.structural_types.referents())?;
     // Owned constructors relocate complete declaration-derived leaf rosters,
     // including every element of a fixed array. A view instead carries a
     // runtime pointer and extent: its type cannot supply the concrete element

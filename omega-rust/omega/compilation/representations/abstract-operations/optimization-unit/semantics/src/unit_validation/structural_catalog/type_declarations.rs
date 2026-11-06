@@ -140,10 +140,12 @@ pub(crate) fn validate_structural_cases(
 
 pub(crate) fn validate_structural_type_graph(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    referents: &[terminal_psi::StructuralReferentIdentity],
 ) -> Result<(), OptimizationUnitValidationError> {
     fn visit(
         id: StructuralTypeId,
         types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+        referents: &[terminal_psi::StructuralReferentIdentity],
         active: &mut BTreeSet<StructuralTypeId>,
         complete: &mut BTreeSet<StructuralTypeId>,
     ) -> Result<(), OptimizationUnitValidationError> {
@@ -153,10 +155,21 @@ pub(crate) fn validate_structural_type_graph(
         if !active.insert(id) {
             return Err(OptimizationUnitValidationError::RecursiveStructuralType(id));
         }
-        let declaration = types[&id];
+        let declaration = types
+            .get(&id)
+            .ok_or(OptimizationUnitValidationError::UnknownStructuralType(id))?;
         match &declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
-                visit(*referent, types, active, complete)?;
+                // A registered opaque referent names a pointer target, without
+                // declaring storage. Only this reference edge may stop there;
+                // owned members still need a concrete declaration below.
+                if types.contains_key(referent)
+                    || referents
+                        .binary_search_by_key(referent, |identity| identity.id)
+                        .is_err()
+                {
+                    visit(*referent, types, referents, active, complete)?;
+                }
             }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::AtomicCell(_) => {}
@@ -164,18 +177,18 @@ pub(crate) fn validate_structural_type_graph(
             terminal_psi::StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if let Some(target) = field.field_type.as_structural() {
-                        visit(target, types, active, complete)?;
+                        visit(target, types, referents, active, complete)?;
                     }
                 }
             }
             terminal_psi::StructuralTypeShape::FixedArray { element, .. }
             | terminal_psi::StructuralTypeShape::ElementView { element, .. } => {
-                visit(*element, types, active, complete)?;
+                visit(*element, types, referents, active, complete)?;
             }
             terminal_psi::StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
                     if let Some(target) = field.field_type.as_structural() {
-                        visit(target, types, active, complete)?;
+                        visit(target, types, referents, active, complete)?;
                     }
                 }
             }
@@ -185,7 +198,7 @@ pub(crate) fn validate_structural_type_graph(
                     .chain(cases.iter().flat_map(|case| &case.fields))
                 {
                     if let Some(target) = field.field_type.as_structural() {
-                        visit(target, types, active, complete)?;
+                        visit(target, types, referents, active, complete)?;
                     }
                 }
             }
@@ -198,7 +211,7 @@ pub(crate) fn validate_structural_type_graph(
     let mut active = BTreeSet::new();
     let mut complete = BTreeSet::new();
     for id in types.keys().copied() {
-        visit(id, types, &mut active, &mut complete)?;
+        visit(id, types, referents, &mut active, &mut complete)?;
     }
     Ok(())
 }
