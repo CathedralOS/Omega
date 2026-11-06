@@ -60,7 +60,11 @@ pub(super) fn prepare(
     let typed = &program.typed;
     let mut headers = Vec::new();
     let mut unavailable_bodies = Vec::new();
-    for machine in typed.machines() {
+    // Headers describe every admitted declaration, including bodies that are
+    // ineligible for Product execution. Callback selection below uses Product.
+    let checked_declarations = checked.source_inspection().checked_declarations();
+    for machine in checked_declarations.machines() {
+        let typed = &checked_declarations.typed;
         let callable = typed.machine_callable_identity(machine);
         let header = Header {
             callable: callable
@@ -76,7 +80,7 @@ pub(super) fn prepare(
             body: machine.supplies_checked_body(),
         };
         if header.body
-            && program
+            && checked_declarations
                 .facts
                 .declaration_descriptions
                 .for_machine(machine.symbol)
