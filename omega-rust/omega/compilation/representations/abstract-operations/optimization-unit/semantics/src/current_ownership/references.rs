@@ -2392,6 +2392,7 @@ pub(super) fn transfer_return(
             function,
             structural_types,
             &reference.root,
+            &reference.interpretation,
             referent,
             access,
         )
@@ -2491,6 +2492,7 @@ fn return_origin_family(
     function: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     origin: &ReferenceOrigin,
+    interpretation: &ReferenceInterpretation,
     expected: StructuralTypeId,
     access: StructuralAccess,
 ) -> Option<Vec<ReferenceOriginSource>> {
@@ -2520,21 +2522,28 @@ fn return_origin_family(
             .collect::<Vec<_>>();
         let endpoint =
             reference_origin_type(types.values().copied(), parameter.structural_type, &path)?;
-        if origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
-            && endpoint != expected
-        {
-            if !matches!(types.get(&endpoint).map(|declaration| &declaration.shape),
+        let mut extent = origin.extent;
+        if extent == semantic_vocabulary::ReferenceOriginExtent::Projected && endpoint != expected {
+            if matches!(types.get(&endpoint).map(|declaration| &declaration.shape),
                 Some(terminal_psi::StructuralTypeShape::Reference { referent, access: supplied })
                     if *referent == expected && access_covers(*supplied, access))
             {
+                path.push(Exact(Referent));
+            } else if matches!(interpretation, ReferenceInterpretation::Captured(backing)
+                if backing.carrier() == expected)
+            {
+                // The performed conversion proves an interpretation of this
+                // physical backing. It may fit a public region allowance;
+                // it does not prove that a typed Access value is stored here.
+                extent = semantic_vocabulary::ReferenceOriginExtent::WithinRegion;
+            } else {
                 return None;
             }
-            path.push(Exact(Referent));
         }
         sources.push(ReferenceOriginSource {
             place: origin.place,
             path,
-            extent: origin.extent,
+            extent,
             access,
         });
     }

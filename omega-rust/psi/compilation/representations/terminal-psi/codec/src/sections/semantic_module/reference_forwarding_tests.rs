@@ -215,3 +215,33 @@ fn expected_original_value_membership_rejection() -> CodecError {
         reason: "reference establishment cannot retain source membership obligations",
     }
 }
+
+#[test]
+#[ignore = "explicit qualification supplies OMEGA_INSTALLED_EMPTY_FORWARDING_CANONICAL_ARTIFACT"]
+fn qualified_installed_empty_rejects_missing_forwarding_condition() {
+    let path = std::env::var_os("OMEGA_INSTALLED_EMPTY_FORWARDING_CANONICAL_ARTIFACT")
+        .expect("supply the fresh qualified installed-empty program");
+    let bytes = std::fs::read(path).expect("read the unchanged fresh program");
+    let artifact = crate::CanonicalTerminalArtifact::from_bytes(&bytes)
+        .expect("the intact fresh program must first pass public canonical admission");
+    let mut omitted = artifact.semantic_module().clone();
+    assert!(
+        !omitted.boundary_reference_forwarding.is_empty(),
+        "the fresh producer must retain the condition this use needs",
+    );
+    // Preserve all bodies, declarations and other requests. This negative
+    // component removes only the forwarding roster from the admitted module.
+    omitted.boundary_reference_forwarding.clear();
+    let wire = super::module_wire::encode_raw(&omitted)
+        .expect("raw-encode only the request-roster omission");
+    let error = crate::decode_module(&wire)
+        .expect_err("the omitted condition must fail reference formation");
+    eprintln!("INSTALLED_EMPTY_FORWARDING_OMISSION {error:?}");
+    assert!(matches!(
+        error,
+        CodecError::MalformedOperationFoundation {
+            reason: "reference establishment cannot retain source membership obligations",
+            ..
+        }
+    ));
+}

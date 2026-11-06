@@ -216,8 +216,8 @@ impl Fixture {
                 callee: AbstractCallTarget::Machine(machine(callee)),
                 arguments: Vec::new(),
                 structural_arguments: vec![
-                    self.parameter(101, 0).into(),
-                    self.parameter(102, 1).into(),
+                    StructuralArgument::whole(place(101), StructuralAccess::MutableBorrow),
+                    StructuralArgument::whole(place(102), StructuralAccess::MutableBorrow),
                 ],
                 claim_transfers: Vec::new(),
                 result: AbstractStructuralCallResult::Unit,
