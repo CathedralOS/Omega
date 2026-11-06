@@ -324,7 +324,7 @@ pub(super) fn expression_origins_before_statement(
     before: &StatementNode,
     expression: ExpressionHandle,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<Vec<FrameSourcePlace>> {
     expression_sources_before_statement(program, machine, symbols, before, expression, collections)
@@ -339,7 +339,7 @@ pub(super) fn expression_sources_before_statement(
     before: &StatementNode,
     expression: ExpressionHandle,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<Vec<super::FramePlaceOrigin>> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
@@ -393,7 +393,7 @@ pub(super) fn coordinate_sources_before_statement(
     index: usize,
     source: &FrameSourcePlace,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<Vec<super::caller_aliases::LocalWriteSource>> {
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
@@ -456,7 +456,7 @@ pub(super) fn expression_read_paths_before_statement(
     before: &StatementNode,
     expression: ExpressionHandle,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<Vec<String>> {
     let (state, _, index) = caller_aliases::caller_statement_owner(
@@ -498,7 +498,7 @@ pub(super) fn expression_lender_declarations_before_statement(
     before: &StatementNode,
     expression: ExpressionHandle,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Result<Vec<TypeReferenceHandle>, &'static str> {
     let (state, _, statement_index) = caller_aliases::caller_statement_owner(
@@ -563,7 +563,7 @@ pub(super) fn local_origin(
     before: &StatementNode,
     local_symbol: SymbolHandle,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<FrameSourcePlace> {
     let origins = local_origins(program, machine, symbols, before, local_symbol, collections)?;
@@ -580,7 +580,7 @@ pub(super) fn local_origins(
     before: &StatementNode,
     local_symbol: SymbolHandle,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<Vec<FrameSourcePlace>> {
     let (state, _, index) = caller_aliases::caller_statement_owner(

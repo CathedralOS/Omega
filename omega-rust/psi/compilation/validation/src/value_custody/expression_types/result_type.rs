@@ -255,10 +255,10 @@ fn result_type(
     });
     let cached = memo.as_ref().and_then(|(memos, key)| match key {
         ResultTypeMemoKey::State(key) => {
-            memos.expression_result_types.lock().ok()?.get(key).copied()
+            memos.expression_result_types.read().ok()?.get(key).copied()
         }
         ResultTypeMemoKey::Telescope(key) => {
-            memos.parameter_result_types.lock().ok()?.get(key).copied()
+            memos.parameter_result_types.read().ok()?.get(key).copied()
         }
     });
     if let Some(cached) = cached {
@@ -735,12 +735,12 @@ fn result_type(
     {
         match key {
             ResultTypeMemoKey::State(key) => {
-                if let Ok(mut types) = memos.expression_result_types.lock() {
+                if let Ok(mut types) = memos.expression_result_types.write() {
                     types.insert(key, result);
                 }
             }
             ResultTypeMemoKey::Telescope(key) => {
-                if let Ok(mut types) = memos.parameter_result_types.lock() {
+                if let Ok(mut types) = memos.parameter_result_types.write() {
                     types.insert(key, result);
                 }
             }
