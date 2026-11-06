@@ -189,37 +189,13 @@ fn inspect_optimization_replay(
     use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
     use optimization_unit_semantics::{
         OperationSite, OptimizationUnitValidationError,
-        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
         validate_psi_optimization_unit_with_admitted_cycle_machines,
-    };
-    use terminal_psi_to_abstract_operations::{
-        ArtifactSections, build_verified_psi_optimization_unit, lower_artifact,
     };
 
     let module = artifact.semantic_module();
     let source = &module.machines[site.machine];
     let operation = &source.blocks[site.block].operations[site.operation];
-    let bytes = terminal_codec::encode_module(module).map_err(|error| format!("{error:?}"))?;
-    let input = lower_artifact(ArtifactSections {
-        semantic_bytes: &bytes,
-    })
-    .map_err(|error| format!("result control lowering: {error:?}"))?
-    .into_optimization_artifact()
-    .into_optimization_input();
-    let (_, unit) = build_verified_psi_optimization_unit(
-        input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .map_err(|error| format!("result control unit: {error:?}"))?
-    .into_parts();
-    // The acyclic source needs no external cycle authority. First prove that
-    // its intact unit and reconstructed ownership pass this public consumer.
-    let frontiers = reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
-        .map_err(|error| format!("result control intact ownership: {error:?}"))?;
-    let mut unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
-        .map_err(|error| format!("result control ownership attachment: {error:?}"))?;
-    validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[])
-        .map_err(|error| format!("result control intact replay: {error:?}"))?;
+    let mut unit = super::optimization_catalog_controls::intact_unit(artifact)?;
     let function = unit
         .functions
         .iter_mut()
