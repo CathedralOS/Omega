@@ -4,20 +4,48 @@
 
 use super::*;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, current_payload_contract, current_selected_payload_contract,
-    descriptor_contents_query, payload_memberships, terminal_graph, terminal_payload_contract,
+    DescriptorAnalysis, DescriptorMachine, current_payload_contract,
+    current_selected_payload_contract, descriptor_contents_query, payload_memberships,
+    terminal_graph, terminal_payload_contract,
 };
 use terminal_semantics::{canonical_static_projection, is_copyable_carrier};
+
+/// Prepare the unchanged module's descriptor graph once while validating its
+/// transfers. Keep the first preparation at the original query point so an
+/// earlier malformed operation still reports the same error.
+pub(in crate::sections::semantic_module::module_foundation_validation) struct StructuralTransferInputs<
+    'a,
+> {
+    module: &'a TerminalModule,
+    descriptors: Option<Vec<DescriptorMachine>>,
+}
+
+impl<'a> StructuralTransferInputs<'a> {
+    pub(in crate::sections::semantic_module::module_foundation_validation) fn new(
+        module: &'a TerminalModule,
+    ) -> Self {
+        Self {
+            module,
+            descriptors: None,
+        }
+    }
+
+    fn descriptors(&mut self) -> &[DescriptorMachine] {
+        self.descriptors
+            .get_or_insert_with(|| terminal_graph(self.module))
+    }
+}
 
 /// The source checker owns predicate establishment; decoding owns the typed
 /// transfer shape and cannot reinterpret a receiving roster as routed issuance.
 /// Exact live claim transfer is checked by ordered ownership, as for aggregate
 /// construction. This operation never changes the selected carrier.
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_move_structural_value(
-    module: &TerminalModule,
+    inputs: &mut StructuralTransferInputs<'_>,
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
+    let module = inputs.module;
     let OperationKind::MoveStructuralValue { source } = &operation.kind else {
         return malformed("owned value transfer dispatch differs");
     };
@@ -82,11 +110,11 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .ok_or(CodecError::MalformedStructuralFoundation(
             "owned transfer position is absent",
         ))?;
-    let graph = terminal_graph(module);
+    let graph = inputs.descriptors();
     let contract = current_selected_payload_contract(
         &module.structural_types,
         &module.structural_domains,
-        &graph,
+        graph,
         machine.id,
         position,
         source.place,
@@ -162,10 +190,11 @@ fn validate_transfer_domain_additions(
 }
 
 pub(in crate::sections::semantic_module::module_foundation_validation) fn validate_structural_leaf_copy(
-    module: &TerminalModule,
+    inputs: &mut StructuralTransferInputs<'_>,
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
+    let module = inputs.module;
     let (terminal_psi::structural_leaf_copy_pair_pattern!()) = &operation.kind else {
         unreachable!("dispatched validate_structural_leaf_copy")
     };
@@ -191,8 +220,8 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
             return malformed("case leaf copy does not authenticate memberships");
         };
-        let descriptors = terminal_graph(module);
-        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &descriptors);
+        let descriptors = inputs.descriptors();
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, descriptors);
         let mut history_failures = Vec::new();
         let mut query_phase = "root";
         let memberships = (|| {
@@ -228,7 +257,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                     current_payload_contract(
                         &module.structural_types,
                         &module.structural_domains,
-                        &descriptors,
+                        descriptors,
                         machine.id,
                         position,
                         place,
