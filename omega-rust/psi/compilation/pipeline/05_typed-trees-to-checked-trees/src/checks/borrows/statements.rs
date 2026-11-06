@@ -77,7 +77,7 @@ pub(super) fn check_statement_borrows<'p>(
         else {
             continue;
         };
-        let typed_call_sites = std::cell::OnceCell::new();
+        let invocation_arguments = std::cell::OnceCell::new();
 
         for (loan_handle, loan) in facts
             .borrow
@@ -166,23 +166,27 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 if loan.retained_input_parameter.is_some() {
-                    let sites = typed_call_sites.get_or_init(|| {
-                        validation::collect_call_sites_in_statement(
+                    let arguments = invocation_arguments.get_or_init(|| {
+                        super::aliases::statement_input_arguments(
                             program,
                             machine,
                             state,
                             statement.statement_index,
                         )
                     });
-                    completed_input = sites.get(establishing.call_ordinal).and_then(|site| {
-                        super::aliases::prepare_completed_input_debt(
-                            facts,
-                            state_flow,
-                            loan_handle,
-                            call,
-                            validation::call_site_argument_expressions(program, site),
-                        )
-                    });
+                    completed_input = arguments
+                        .get(&call.authored_expression)
+                        .copied()
+                        .flatten()
+                        .and_then(|arguments| {
+                            super::aliases::prepare_completed_input_debt(
+                                facts,
+                                state_flow,
+                                loan_handle,
+                                call,
+                                arguments,
+                            )
+                        });
                 }
                 call.exit_constraints
             } else if !loan.formation_expression.is_valid() {

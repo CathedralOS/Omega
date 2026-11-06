@@ -6,8 +6,58 @@ use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CheckFacts, FlowCallFact, FlowStateFact,
 };
+use std::collections::HashMap;
 
 use super::same_carrier_generation;
+
+type InvocationArguments<'program> = HashMap<
+    typed_trees::expression::ExpressionHandle,
+    Option<&'program [typed_trees::expression::ExpressionHandle]>,
+>;
+
+/// Typed traversal and borrow collection do not count the same operations.
+/// Keep each expression's identity, rather than sharing their ordinal numbers.
+pub(in crate::checks::borrows) fn statement_input_arguments<'program>(
+    program: &'program dyn validation::CheckingInput,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    statement_index: usize,
+) -> InvocationArguments<'program> {
+    input_argument_index(
+        validation::collect_call_sites_in_statement(program, machine, state, statement_index)
+            .into_iter()
+            .filter_map(|site| {
+                let validation::CallSite::Expression { expression, .. } = site else {
+                    // Statement calls and named transfers have no expression
+                    // result identity. Their output custody is checked separately.
+                    return None;
+                };
+                Some((
+                    expression,
+                    validation::call_site_argument_expressions(program, &site),
+                ))
+            }),
+    )
+}
+
+fn input_argument_index<'program>(
+    inputs: impl IntoIterator<
+        Item = (
+            typed_trees::expression::ExpressionHandle,
+            &'program [typed_trees::expression::ExpressionHandle],
+        ),
+    >,
+) -> InvocationArguments<'program> {
+    let mut rows = InvocationArguments::new();
+    for (expression, arguments) in inputs {
+        if expression.is_valid() {
+            rows.entry(expression)
+                .and_modify(|row| *row = None)
+                .or_insert(Some(arguments));
+        }
+    }
+    rows
+}
 
 /// Construction authenticates the exact call input and its saved storage
 /// version. Private fields ensure comparisons use only the authenticated input.
@@ -49,7 +99,7 @@ pub(in crate::checks::borrows) fn prepare_completed_input_debt<'facts>(
         return None;
     }
     // Source-custody publication fills call.authored_arguments after checking.
-    // The checking caller supplies this same ordinal's typed invocation inputs.
+    // The checking caller supplies this exact expression's typed invocation inputs.
     let argument = arguments.get(parameter)?;
     let position = parameter.checked_add(usize::from(completion.has_receiver))?;
     let input_handle = call.operands.handles().nth(position)?;
@@ -132,6 +182,35 @@ mod tests {
     use facts::PlaceRoot;
     use symbols::SymbolHandle;
     use typed_trees::expression::ExpressionHandle;
+
+    #[test]
+    fn a_preceding_probe_does_not_shift_an_invocations_arguments() {
+        let probe = ExpressionHandle::from_parts(1, 1);
+        let call = ExpressionHandle::from_parts(2, 1);
+        let probe_arguments = [ExpressionHandle::from_parts(3, 1)];
+        let arguments = [ExpressionHandle::from_parts(4, 1)];
+        let rows = input_argument_index([
+            (probe, probe_arguments.as_slice()),
+            (call, arguments.as_slice()),
+        ]);
+        assert_eq!(
+            rows.get(&call).copied().flatten(),
+            Some(arguments.as_slice())
+        );
+        assert_eq!(
+            rows.get(&probe).copied().flatten(),
+            Some(probe_arguments.as_slice())
+        );
+    }
+
+    #[test]
+    fn repeated_invocation_identity_cannot_select_an_argument_roster() {
+        let call = ExpressionHandle::from_parts(1, 1);
+        let arguments = [ExpressionHandle::from_parts(2, 1)];
+        let rows =
+            input_argument_index([(call, arguments.as_slice()), (call, arguments.as_slice())]);
+        assert_eq!(rows.get(&call), Some(&None));
+    }
 
     fn completed_inputs() -> (CheckFacts, FlowStateFact, [Handle<BorrowLoanFact>; 2]) {
         let mut facts = CheckFacts::default();

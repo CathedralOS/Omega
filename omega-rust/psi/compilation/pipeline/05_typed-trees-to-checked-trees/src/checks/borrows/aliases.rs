@@ -12,7 +12,7 @@ use typed_trees::types::TypeReferenceNode;
 
 mod completed_inputs;
 pub(in crate::checks::borrows) use completed_inputs::{
-    prepare_completed_input_debt, same_completed_input_debt,
+    prepare_completed_input_debt, same_completed_input_debt, statement_input_arguments,
 };
 
 mod lineage;
