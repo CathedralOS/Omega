@@ -96,7 +96,10 @@ pub use predecessors::{
     terminal_alternatives,
 };
 mod memberships;
-pub use memberships::completed_membership;
+mod owned_memberships;
+pub use memberships::{
+    CompletedMembershipRefusal, completed_membership, completed_membership_with_refusal,
+};
 
 mod occurrences;
 pub use occurrences::consumer_captures;

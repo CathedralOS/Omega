@@ -519,7 +519,7 @@ fn byte_field_predicates_in<'t>(
     // The carrier's affine permission and referent shape are reconstructed
     // before traversing storage. Keep the explicit path on the operation.
     let (structural_type, path) = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
-        let catalog = types
+        let catalog: std::collections::BTreeMap<_, _> = types
             .clone()
             .map(|declaration| (declaration.id, declaration))
             .collect();

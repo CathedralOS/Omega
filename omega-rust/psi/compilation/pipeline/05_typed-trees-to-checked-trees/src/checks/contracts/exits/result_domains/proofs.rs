@@ -688,6 +688,37 @@ impl ScalarReturnProof<'_> {
     }
 }
 
+/// Explain a refused returned membership after its ordinary check has failed.
+pub(in crate::checks::contracts::exits) fn completed_result_domain_diagnostic(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    exit: &FlowExitFact,
+    requirement: &Fact,
+    refusal: Option<validation::completed_storage::CompletedMembershipRefusal>,
+) -> Option<String> {
+    requirement.payload.domain_membership()?;
+    let place = requirement.place.as_place()?;
+    if !facts.semantic.places.is_valid(place) {
+        return None;
+    }
+    let place = facts.semantic.places.get(place);
+    let root = place.root.as_expression()?;
+    if !program.expression_table.expression_is_valid(root)
+        || reserved_result_owner(program, root)
+            .is_none_or(|(owner, _)| owner != exit.machine_symbol)
+    {
+        return None;
+    }
+    Some(
+        refusal
+            .map_or(
+                "the returned value does not establish this domain",
+                |refusal| refusal.reason,
+            )
+            .to_owned(),
+    )
+}
+
 /// Rebase an ensures fact rooted at the reserved `result` occurrence onto the
 /// returned expression's canonical place, keeping the fact's own declared
 /// field coordinates. `result.bytes` on a `rows[0]` return is exactly
@@ -699,6 +730,7 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     exit: &FlowExitFact,
     contexts: &[FactContextHandle],
     requirement: &Fact,
+    refusal: &mut Option<validation::completed_storage::CompletedMembershipRefusal>,
 ) -> bool {
     let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership()
     else {
@@ -721,13 +753,14 @@ pub(in crate::checks::contracts::exits) fn proves_result_domain(
     // An authored result membership consumes the same completed custody
     // judgment as a declared result field. The checked transformation binds
     // exact input and output claims; the postcondition itself supplies none.
-    if crate::checks::content::completed_membership(
+    if validation::completed_storage::completed_membership_with_refusal(
         program,
         facts,
         exit.returned_value,
         facts.semantic.place_segments.span_or_empty(place.segments),
         domain_symbol,
         semantic_domain,
+        refusal,
     ) {
         return true;
     }

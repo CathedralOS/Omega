@@ -35,42 +35,6 @@ fn is_borrowed_member_move(
             .is_some_and(|source| source.access == StructuralAccess::MutableBorrow)
 }
 
-/// Byte observations borrow storage without consuming it. Dominating producer
-/// evidence does not make a consumed or partially moved owner readable again.
-fn validate_byte_observations(
-    function: &PsiOptimizationFunction,
-    block: BlockId,
-    node: u32,
-    operation: &O,
-    frontier: &CurrentOwnership,
-) -> Result<(), OptimizationUnitValidationError> {
-    let observe = |source| {
-        let invalid = || {
-            OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
-                OperationSite::new(function.machine, block, node),
-                source,
-            )
-        };
-        let signature = structural_source_contract(function, source).ok_or_else(invalid)?;
-        if signature.access == StructuralAccess::Owned
-            && ((signature.multiplicity != StructuralMultiplicity::Unrestricted
-                && frontier.owned_places.get(&source) != Some(&signature.multiplicity))
-                || frontier.partial_custody_paths.contains_key(&source))
-        {
-            return Err(invalid());
-        }
-        Ok(())
-    };
-    match operation {
-        abstract_operations::byte_len_or_field_read_pattern!(source, ..) => observe(*source),
-        O::EstablishByteSequenceConcatenation { left, right, .. } => {
-            observe(left.source())?;
-            observe(right.source())
-        }
-        _ => Ok(()),
-    }
-}
-
 /// Coherence identifies the resident, but grants no access to its storage.
 /// Rejoin the current root contract and custody before observing or modifying it.
 fn validate_atomic_access(
@@ -198,8 +162,7 @@ fn claim_path_is_inactive(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
-    identities: &terminal_psi::TerminalIdentityTable,
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    unit: &optimization_unit::PsiOptimizationUnit,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -210,12 +173,14 @@ pub(super) fn validate_current_ownership_cfg(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &mut super::CallAccesses,
     entry: CurrentOwnership,
-    psi: terminal_psi::TerminalPsiIdentity,
     facts: &mut Vec<OwnershipFrontierFact>,
 ) -> Result<
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
 > {
+    let identities = &unit.identities;
+    let dynamic_dispatch = &unit.dynamic_dispatch;
+    let psi = unit.psi;
     let pins = super::address_joins::AddressJoinPins::new(
         function,
         functions,
@@ -260,6 +225,16 @@ pub(super) fn validate_current_ownership_cfg(
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
             let psi_operation = node.operation.psi_operation();
+            let admitted_case = |place, path: &[StructuralPathSegment], case| {
+                !membership_at(node_index as usize, place, path, case, false)
+            };
+            let value_use = super::value_custody::ValueUse {
+                function,
+                types: &unit.structural_types,
+                block: block_id,
+                node: node_index,
+                admitted_case: &admitted_case,
+            };
             if let Some(operation) = psi_operation {
                 snapshots
                     .entry(OwnershipFrontierSite::OperationEntry(operation))
@@ -299,9 +274,15 @@ pub(super) fn validate_current_ownership_cfg(
                     },
                 )
                 .is_some_and(|selected| {
-                    consumed
-                        .iter()
-                        .all(|absent| !structural_paths_may_overlap(absent, &selected))
+                    consumed.iter().all(|absent| {
+                        // The initial missing whole value is a writable
+                        // home, while paths lost by later moves remain
+                        // unavailable to restoration stores.
+                        (absent.is_empty()
+                            && matches!(&node.operation, O::StoreStructuralField { .. })
+                            && super::value_custody::uninstalled_home(&frontier, root.place()))
+                            || !structural_paths_may_overlap(absent, &selected)
+                    })
                 });
                 if !available {
                     return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
@@ -328,6 +309,7 @@ pub(super) fn validate_current_ownership_cfg(
                 }
                 _ => None,
             };
+            value_use.observations(&frontier, &node.operation)?;
             super::references::apply_operation(
                 function,
                 functions,
@@ -340,7 +322,6 @@ pub(super) fn validate_current_ownership_cfg(
                 &node.operation,
                 &mut frontier.live_references,
             )?;
-            validate_byte_observations(function, block_id, node_index, &node.operation, &frontier)?;
             validate_atomic_access(
                 function,
                 structural_types,
@@ -555,6 +536,15 @@ pub(super) fn validate_current_ownership_cfg(
                     .collect(),
                 _ => Vec::new(),
             };
+            // Internal store destinations supply storage. Every ordinary
+            // operand, including &write, must still name an existing value.
+            for argument in structural_arguments {
+                if argument.access == StructuralAccess::Owned {
+                    value_use.moving(&frontier, argument)?;
+                } else {
+                    value_use.observing(&frontier, argument.place, &argument.path)?;
+                }
+            }
             let mut consumed_places = structural_arguments
                 .iter()
                 .zip(&parameter_multiplicities)
@@ -1068,6 +1058,25 @@ pub(super) fn validate_current_ownership_cfg(
                 }
             }
 
+            if let O::StoreStructuralField {
+                disposition,
+                destination,
+                path,
+                field,
+                value,
+                ..
+            } = &node.operation
+            {
+                value_use.install_store(
+                    &mut frontier,
+                    destination,
+                    path,
+                    *field,
+                    value,
+                    disposition.required_access(),
+                )?;
+            }
+
             // An affine descriptor carries disposal custody even when its backing
             // is borrowed. Access permission is checked independently; recording
             // its carrier here must not grant ownership of that backing.
@@ -1154,6 +1163,18 @@ pub(super) fn validate_current_ownership_cfg(
                     result.place,
                     result.multiplicity,
                 )?;
+                if matches!(&node.operation, O::EstablishStructuralLocal { .. })
+                    && result.multiplicity == StructuralMultiplicity::Linear
+                {
+                    // A declared home owns storage, not an established T.
+                    // Reuse the current absence frontier until a performed
+                    // store installs completed value custody.
+                    frontier
+                        .partial_custody_paths
+                        .entry(result.place)
+                        .or_default()
+                        .insert(Vec::new());
+                }
                 for binding in &result.claims {
                     let claim = if let Some(transferred) = &transferred_claims {
                         let Some(claim) = transferred.get(&binding.claim) else {
@@ -1216,6 +1237,14 @@ pub(super) fn validate_current_ownership_cfg(
                     cleanup_actions,
                     ..
                 } => {
+                    value_use.moving(
+                        &frontier,
+                        &StructuralArgument {
+                            place: *source,
+                            path: Vec::new(),
+                            access: StructuralAccess::Owned,
+                        },
+                    )?;
                     // A returned carrier transfers its loans to the caller's
                     // checked result roster; the frame-local rows end here.
                     super::references::transfer_return(

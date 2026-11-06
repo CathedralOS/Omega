@@ -14,6 +14,21 @@ use validation::{CanonicalPlace, CheckingInput};
 
 pub(crate) use validation::completed_storage::{StoredObservation, StoredOperand, at_snapshot};
 
+/// Captures need a real state-local cut before any write occurs. The empty
+/// entry event preserves incoming storage without establishing contents or
+/// permission; the invalid predecessor remains abstract incoming storage.
+pub(crate) fn append_state_entry(control: &mut FlowControlFacts) -> Handle<FlowStorageSnapshot> {
+    control.storage_snapshots.insert(FlowStorageSnapshot {
+        previous: Handle::invalid(),
+        operation: FlowStorageOperation::Writes {
+            bindings: HandleSpan::empty(),
+            contents: HandleSpan::empty(),
+            bindings_complete: true,
+            contents_complete: true,
+        },
+    })
+}
+
 pub(crate) fn append_writes(
     control: &mut FlowControlFacts,
     previous: Handle<FlowStorageSnapshot>,
