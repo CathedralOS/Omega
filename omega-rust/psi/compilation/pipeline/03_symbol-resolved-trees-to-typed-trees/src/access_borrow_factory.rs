@@ -31,6 +31,15 @@ pub fn access_borrow_factory(
     let Some(machine) = found else {
         return Ok(None);
     };
+    access_borrow_factory_of(program, machine)
+}
+
+/// `access_borrow_factory` for a caller that already selected the machine its
+/// target names.
+pub fn access_borrow_factory_of(
+    program: &resolved::SymbolResolvedTrees,
+    machine: &resolved::machine::Machine,
+) -> Result<Option<typed::expression::AccessBorrowOperationRequest>, Diagnostic> {
     let (access, resident) = match machine.name.as_str().rsplit("::").next() {
         Some("view") => (language_core::ReferenceAccess::Shared, false),
         Some("view_mut") => (language_core::ReferenceAccess::Mutable, false),
