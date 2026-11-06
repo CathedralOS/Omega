@@ -112,5 +112,6 @@
         "rewrites::runtime_spill::snapshot_copy::tests::bulk_snapshot_definition_walk_keeps_the_existing_work_budget"
       ]
     }
-  ]
+  ],
+  "observer_parent": "151488f176274a34bc782bd7235eedf5e99cc03c"
 }

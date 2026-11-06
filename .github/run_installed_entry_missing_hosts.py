@@ -31,7 +31,7 @@ host = os.environ['INSTALLED_ENTRY_HOST']
 assert host in recipe['hosts'] and corpus_gate.host_target() == host
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 assert revision == os.environ['GITHUB_SHA']
-assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == recipe['semantic_source']
+assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == recipe['observer_parent']
 assert not subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()
 assert input_objects(R, revision) == manifest['compiled_input_roots']
 assert all(hashlib.sha256((R / path).read_bytes()).hexdigest() == digest
@@ -108,7 +108,7 @@ elif args.phase == 'prepare':
                 actual_names = cargo_names + nextest_names
                 exact_names = sorted(actual_names) == sorted(test['names'])
                 count = test['count']
-                exact_count = re.search(r'test result: ok[.] '+str(count)+r' passed; 0 failed|'+str(count)+r' tests run: '+str(count)+r' passed', text) is not None
+                exact_count = re.search(r'test result: ok[.] '+str(count)+r' passed; 0 failed|'+str(count)+r' tests? run: '+str(count)+r' passed', text) is not None
                 passed = code == 0 and error is None and not timed_out and exact_count and exact_names
                 channels = {path.name:dict(bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
                             for path in (stdout, stderr) if path.is_file()}
