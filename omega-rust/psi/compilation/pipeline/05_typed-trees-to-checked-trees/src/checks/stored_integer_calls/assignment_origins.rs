@@ -77,7 +77,7 @@ pub(super) fn operand_write_refusal<'program>(
     program: &'program dyn validation::CheckingInput,
     frames: &CallFrameResolver<'program>,
     machine: &'program Machine,
-    state: &State,
+    state: &'program State,
     statement_index: usize,
     statement: &StatementNode,
     destinations: &[LocalWriteSource],

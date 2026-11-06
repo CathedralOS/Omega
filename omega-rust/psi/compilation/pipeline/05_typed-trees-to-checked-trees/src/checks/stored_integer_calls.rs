@@ -55,7 +55,7 @@ pub(crate) fn performed_assignment_origin_refusal<'program>(
     program: &'program dyn validation::CheckingInput,
     frames: &CallFrameResolver<'program>,
     machine: &'program Machine,
-    state: &State,
+    state: &'program State,
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
 ) -> Option<&'static str> {
