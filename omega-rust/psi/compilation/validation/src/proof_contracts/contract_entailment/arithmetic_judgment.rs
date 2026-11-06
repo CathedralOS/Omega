@@ -1607,6 +1607,8 @@ impl<'program> Engine<'program> {
                         &call,
                     )?;
                     let target = super::specification_calls::owner_symbol(&owner);
+                    let parameters =
+                        super::specification_calls::owner_parameters(self.program, &owner);
                     let supplied_arguments =
                         expression_table(self.program).expression_handles(call.arguments);
                     let arguments = supplied_arguments
@@ -1623,7 +1625,11 @@ impl<'program> Engine<'program> {
                                 self.normalize(*argument)
                                     .map(IntegerApplicationInput::Scalar)
                             } else {
-                                self.captured_record_call_input(*argument, expression)
+                                self.captured_record_call_input(
+                                    *argument,
+                                    parameters,
+                                    supplied_arguments,
+                                )
                             }
                         })
                         .collect::<Option<Vec<_>>>()?;
