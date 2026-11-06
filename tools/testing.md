@@ -541,6 +541,12 @@ release qualification are separate from the deliberately small admission gate.
 Postlanding verification observes the merged source head, published commit and
 CI results; it does not rebuild the compiler or rerun local qualification.
 
+To lint tests and examples in selected packages on a hosted runner, dispatch
+`Compiler admission` (`compiler.yml`) with `lint_packages` set to comma-separated
+workspace package names. It runs `cargo clippy --locked --all-targets` with an
+explicit `-p` for each name and treats warnings as errors. An empty value skips
+this optional step. The ordinary production admission check still runs first.
+
 ### Independent semantic review
 
 When the assignment requires independent review, provide the exact submitted
