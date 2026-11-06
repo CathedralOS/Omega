@@ -74,7 +74,7 @@ pub fn reconstruct_reference_output_catalog(
         boundaries.values().copied(),
         &view.dynamic_dispatch,
         &types,
-        &view.structural_types.access_views(),
+        &view.structural_types,
     );
     let outputs = Rc::new(RefCell::new(ReferenceOutputCatalog::new(
         view.functions.iter().map(|function| function.machine),
@@ -255,6 +255,11 @@ impl ReferenceOutputCatalog {
         }
     }
 
+    pub(crate) fn normally_completed(&self, machine: MachineId) -> bool {
+        self.position(machine)
+            .is_some_and(|position| self.normal_completion[position])
+    }
+
     pub fn unavailable_reason(&self, machine: MachineId) -> Option<&str> {
         match &self.rows.get(self.position(machine)?)?.1 {
             ReferenceOutputState::Unavailable(reason) => Some(reason),
@@ -289,7 +294,10 @@ impl ReferenceOutputCatalog {
             .collect::<Vec<_>>();
         rows.sort_by_key(|(machine, _)| *machine);
         rows.dedup_by_key(|(machine, _)| *machine);
-        Self { rows }
+        Self {
+            normal_completion: vec![false; rows.len()],
+            rows,
+        }
     }
 
     pub(crate) fn begin(&mut self, machine: MachineId) -> bool {
@@ -306,11 +314,15 @@ impl ReferenceOutputCatalog {
     pub(crate) fn finish(
         &mut self,
         machine: MachineId,
-        body: Result<ReferenceBodyOutputs, String>,
+        body: Result<ReferenceBodyCompletion, String>,
     ) {
         let Some(position) = self.position(machine) else {
             return;
         };
+        let body = body.and_then(|completion| {
+            self.normal_completion[position] = completion.unconditional;
+            completion.outputs
+        });
         self.rows[position].1 = match body {
             Ok(body) if body.compatibility_requirements().is_empty() => {
                 ReferenceOutputState::Complete(Arc::new(body))

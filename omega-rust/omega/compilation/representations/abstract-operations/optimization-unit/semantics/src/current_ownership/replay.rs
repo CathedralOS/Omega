@@ -316,19 +316,6 @@ pub(super) fn validate_current_ownership_cfg(
             // owned-place checks below: establishment, release, record
             // relocation, call transfer, and suspended-root access all settle
             // before the ordinary custody roster is consumed.
-            let moved_reference_owner = match &node.operation {
-                O::EstablishReference { source, .. }
-                | O::EstablishAccessReference { source, .. } => {
-                    super::references::transferred_ingress_leaf(
-                        function,
-                        structural_types,
-                        &frontier.live_references,
-                        source,
-                    )
-                    .map(|_| source.place)
-                }
-                _ => None,
-            };
             super::references::apply_operation(
                 function,
                 functions,
@@ -568,7 +555,6 @@ pub(super) fn validate_current_ownership_cfg(
                 .collect::<Vec<_>>();
             // Moving the sole ingress leaf retires the old carrier, in the
             // same transaction that preserved its loan identity above.
-            consumed_places.extend(moved_reference_owner);
             // Releasing a reference consumes its carrier place; the referent
             // keeps its original home and is never disposed here. Copyable
             // carriers hold no owned-place slot — `release` already ended

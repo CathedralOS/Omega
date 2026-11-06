@@ -134,7 +134,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         boundary_machines.values().copied(),
         &unit.dynamic_dispatch,
         &structural_types,
-        &unit.structural_types.access_views(),
+        &unit.structural_types,
     );
     let output_catalog = crate::reference_outputs::reconstruct_reference_output_catalog(
         unit,

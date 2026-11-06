@@ -12,8 +12,8 @@ use crate::unit_validation::references::{
     LiveReference, ReferenceFormation, ReferenceIdentity, ReferenceInterpretation,
     ReferenceOccurrenceIdentity, ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
     access_path_type, access_reference_source_compatible, access_referent_tail, contains_reference,
-    formal_origin, is_reference_projection, leaf_access_within, leaf_paths, leaf_referent,
-    leaf_type, reference_access, reference_source_type, storage_projection,
+    is_reference_projection, leaf_access_within, leaf_paths, leaf_referent, leaf_type,
+    reference_access, reference_source_type, storage_projection,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -39,6 +39,7 @@ pub enum CallRegion {
 mod access_paths;
 pub(super) mod call_effects;
 mod call_outputs;
+mod result_interpretations;
 mod windows;
 use crate::unit_validation::references::access_covers;
 use access_paths::{access_reference_custody, call_dependency_conflict};
@@ -1901,6 +1902,37 @@ pub(super) fn apply_operation(
             let access = leaf_type(structural_types, result.structural_type, &path)
                 .and_then(|leaf| reference_access(structural_types, leaf))
                 .ok_or_else(|| refusal("reference call result access is absent"))?;
+            let ordinary_interpretation = |public: Option<ReferenceInterpretation>| {
+                if !call_effects.is_access_carrier(expected) {
+                    return ReferenceInterpretation::Unplaced;
+                }
+                let O::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Machine(machine),
+                    structural_arguments,
+                    ..
+                } = operation
+                else {
+                    return public.unwrap_or(ReferenceInterpretation::Unavailable);
+                };
+                call_effects.result_interpretation(
+                    *machine,
+                    &path,
+                    |parameter, source| {
+                        result_interpretations::incoming(
+                            function,
+                            structural_types,
+                            parameter,
+                            structural_arguments,
+                            source,
+                            expected,
+                            block,
+                            node,
+                            live,
+                        )
+                    },
+                    public,
+                )
+            };
             let mut alternatives = Vec::with_capacity(candidates.len());
             for ReferenceCallSource {
                 origin,
@@ -1953,7 +1985,7 @@ pub(super) fn apply_operation(
                             carrier: result.place,
                             carrier_path: path.clone(),
                             parent: ReferenceParent::Root(root.clone()),
-                            interpretation: ReferenceInterpretation::Unavailable,
+                            interpretation: ordinary_interpretation(None),
                             root,
                         });
                         continue;
@@ -2087,7 +2119,7 @@ pub(super) fn apply_operation(
                         }
                         root = interpreted;
                     }
-                    let interpretation = match operation {
+                    let public_interpretation = match operation {
                         O::EstablishAccessReference { correspondence, .. } => {
                             ReferenceInterpretation::Captured(correspondence.clone())
                         }
@@ -2108,7 +2140,18 @@ pub(super) fn apply_operation(
                                 call_effects.is_access_carrier(expected),
                             )
                         }
+                        _ if call_effects.is_access_carrier(expected) => {
+                            ReferenceInterpretation::Unavailable
+                        }
                         _ => ReferenceInterpretation::Unplaced,
+                    };
+                    let interpretation = if matches!(operation, O::CallStructural { .. }) {
+                        ordinary_interpretation(
+                            (public_interpretation != ReferenceInterpretation::Unavailable)
+                                .then_some(public_interpretation),
+                        )
+                    } else {
+                        public_interpretation
                     };
                     LiveReference {
                         identity: formed_identity(

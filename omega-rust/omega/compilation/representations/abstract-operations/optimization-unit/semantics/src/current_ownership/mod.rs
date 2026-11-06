@@ -100,7 +100,7 @@ pub(crate) fn reconstruct_reference_outputs(
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &mut CallAccesses,
-) -> Result<crate::reference_outputs::ReferenceBodyOutputs, OptimizationUnitValidationError> {
+) -> Result<crate::reference_outputs::ReferenceBodyCompletion, OptimizationUnitValidationError> {
     let entry = reconstruct_entry_ownership(function, structural_types)?;
     let mut outputs = reference_output_builder(function, structural_types, &entry.live_references)?;
     let mut facts = Vec::new();
@@ -120,16 +120,15 @@ pub(crate) fn reconstruct_reference_outputs(
         &mut outputs,
     )?;
     // The replay returns only after complete CFG joins and return coverage.
-    outputs
-        .seal(function, structural_types, compatibility_requirements)
-        .map_err(
-            |reason| OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
-                machine: function.machine,
-                block: function.entry,
-                node: None,
-                reason,
-            },
-        )
+    // A pure returned reference can have an independently checked interpretation
+    // even when this optional stored-output graph cannot represent its parent.
+    let unconditional = compatibility_requirements.is_empty();
+    Ok(crate::reference_outputs::ReferenceBodyCompletion {
+        unconditional,
+        outputs: outputs
+            .seal(function, structural_types, compatibility_requirements)
+            .map_err(str::to_owned),
+    })
 }
 
 fn reference_output_builder(

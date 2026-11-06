@@ -997,7 +997,7 @@ pub(super) fn commit(
         .collect::<Vec<_>>();
     ancestry.sort_by(|left, right| left.identity.cmp(&right.identity));
     let mut ancestor_index = None;
-    let mut related = |ancestor, child| {
+    let mut related = |ancestor: &OccurrenceIdentity, child: &OccurrenceIdentity| {
         ancestor_index
             .get_or_insert_with(|| {
                 optimization_unit_semantics::reference_outputs::ReferenceAncestryIndex::new(

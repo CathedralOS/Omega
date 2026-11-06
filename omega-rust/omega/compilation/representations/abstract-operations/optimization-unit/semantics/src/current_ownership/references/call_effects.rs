@@ -24,6 +24,7 @@ pub(crate) struct ReferenceCallEffects {
     declarations: Vec<StructuralTypeDeclaration>,
     access_carriers: Vec<StructuralTypeId>,
     outputs: Option<crate::reference_outputs::ReferenceOutputPreparation>,
+    result_interpretations: Vec<super::result_interpretations::ResultInterpretation>,
 }
 
 impl ReferenceCallEffects {
@@ -32,7 +33,7 @@ impl ReferenceCallEffects {
         boundaries: &[&BoundaryMachineDeclaration],
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        access_views: &[terminal_psi::TerminalAccessViewPlan],
+        catalog: &abstract_operations::StructuralTypeCatalog,
     ) -> Self {
         let declarations = types
             .values()
@@ -48,6 +49,12 @@ impl ReferenceCallEffects {
         let mut analysis = graph
             .as_ref()
             .map(|graph| DescriptorAnalysis::with_reference_slots(&declarations, graph));
+        let result_interpretations = super::result_interpretations::prepare(
+            functions,
+            boundaries,
+            catalog,
+            analysis.as_mut(),
+        );
         let functions = functions
             .iter()
             .map(|(machine, function)| {
@@ -137,7 +144,8 @@ impl ReferenceCallEffects {
             functions,
             declarations,
             access_carriers: {
-                let mut carriers = access_views
+                let mut carriers = catalog
+                    .access_views()
                     .iter()
                     .map(|plan| plan.carrier)
                     .collect::<Vec<_>>();
@@ -146,11 +154,34 @@ impl ReferenceCallEffects {
                 carriers
             },
             outputs: None,
+            result_interpretations,
         }
     }
 
     pub(super) fn is_access_carrier(&self, carrier: StructuralTypeId) -> bool {
         self.access_carriers.binary_search(&carrier).is_ok()
+    }
+
+    pub(super) fn result_interpretation(
+        &self,
+        machine: MachineId,
+        path: &[StructuralPathSegment],
+        incoming: impl Fn(usize, &StructuralArgument) -> Option<ReferenceInterpretation>,
+        public: Option<ReferenceInterpretation>,
+    ) -> ReferenceInterpretation {
+        let completed = self.outputs.as_ref().map(|outputs| outputs.borrow());
+        super::result_interpretations::resolve(
+            &self.result_interpretations,
+            machine,
+            path,
+            |machine| {
+                completed
+                    .as_ref()
+                    .is_some_and(|rows| rows.normally_completed(machine))
+            },
+            incoming,
+            public,
+        )
     }
 
     pub(crate) fn use_output_preparation(
@@ -589,7 +620,8 @@ impl StoredReferences {
             }
         }
         let mut ancestry = None;
-        let mut related = |ancestor, child| {
+        let mut related = |ancestor: &ReferenceOccurrenceIdentity,
+                           child: &ReferenceOccurrenceIdentity| {
             ancestry
                 .get_or_insert_with(|| {
                     crate::reference_outputs::ReferenceAncestryIndex::new(graph.iter().map(

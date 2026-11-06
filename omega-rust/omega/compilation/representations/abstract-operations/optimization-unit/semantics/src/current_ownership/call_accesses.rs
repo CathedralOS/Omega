@@ -53,7 +53,7 @@ impl<'unit> CallAccesses<'unit> {
         boundaries: impl IntoIterator<Item = &'unit BoundaryMachineDeclaration>,
         dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        access_views: &[terminal_psi::TerminalAccessViewPlan],
+        catalog: &abstract_operations::StructuralTypeCatalog,
     ) -> Self {
         let boundaries = boundaries.into_iter().collect::<Vec<_>>();
         let references = super::references::call_effects::ReferenceCallEffects::new(
@@ -61,7 +61,7 @@ impl<'unit> CallAccesses<'unit> {
             &boundaries,
             dynamic_dispatch,
             types,
-            access_views,
+            catalog,
         );
         let declarations = types.values().copied().cloned().collect::<Vec<_>>();
         let view_graph = crate::descriptor_results::optimized_catalog_graph(

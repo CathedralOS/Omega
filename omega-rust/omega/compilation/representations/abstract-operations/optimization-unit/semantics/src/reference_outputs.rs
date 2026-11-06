@@ -213,6 +213,7 @@ impl ReferenceBodyOutputs {
 #[derive(Clone, Debug)]
 pub struct ReferenceOutputCatalog {
     rows: Vec<(MachineId, ReferenceOutputState)>,
+    normal_completion: Vec<bool>,
 }
 
 #[derive(Clone, Debug)]
@@ -222,6 +223,13 @@ enum ReferenceOutputState {
     Complete(Arc<ReferenceBodyOutputs>),
     Conditional(Arc<ReferenceBodyOutputs>),
     Unavailable(String),
+}
+
+/// Successful ordinary replay is independent of whether its optional stored
+/// graph can be represented. Conditional completion cannot donate interpretation.
+pub(crate) struct ReferenceBodyCompletion {
+    pub(crate) outputs: Result<ReferenceBodyOutputs, String>,
+    pub(crate) unconditional: bool,
 }
 
 pub(crate) type ReferenceOutputPreparation = Rc<RefCell<ReferenceOutputCatalog>>;
