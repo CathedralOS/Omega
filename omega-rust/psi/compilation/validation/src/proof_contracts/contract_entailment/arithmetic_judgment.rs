@@ -112,14 +112,33 @@ impl Polynomial {
 
     pub(super) fn add(&self, other: &Self) -> Self {
         let mut terms = self.terms.clone();
+        Self::accumulate(&mut terms, other, false);
+        Self { terms }
+    }
+
+    /// Add (or subtract) `other` term by term. A shared monomial updates in
+    /// place; only a new one clones its key, so subtraction needs no negated
+    /// copy of `other`. Zero coefficients are still never stored.
+    fn accumulate(terms: &mut BTreeMap<Monomial, BigInt>, other: &Self, subtract: bool) {
         for (monomial, coefficient) in &other.terms {
-            let entry = terms.entry(monomial.clone()).or_insert_with(BigInt::zero);
-            *entry = entry.add(coefficient);
-            if entry.is_zero() {
-                terms.remove(monomial);
+            if let Some(entry) = terms.get_mut(monomial) {
+                *entry = if subtract {
+                    entry.sub(coefficient)
+                } else {
+                    entry.add(coefficient)
+                };
+                if entry.is_zero() {
+                    terms.remove(monomial);
+                }
+            } else if !coefficient.is_zero() {
+                let coefficient = if subtract {
+                    coefficient.negate()
+                } else {
+                    coefficient.clone()
+                };
+                terms.insert(monomial.clone(), coefficient);
             }
         }
-        Self { terms }
     }
 
     fn neg(&self) -> Self {
@@ -131,7 +150,9 @@ impl Polynomial {
     }
 
     pub(super) fn sub(&self, other: &Self) -> Self {
-        self.add(&other.neg())
+        let mut terms = self.terms.clone();
+        Self::accumulate(&mut terms, other, true);
+        Self { terms }
     }
 
     /// Coefficients are exact; the only remaining failure is monomial POWER

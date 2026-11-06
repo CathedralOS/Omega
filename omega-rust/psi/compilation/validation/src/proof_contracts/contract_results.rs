@@ -425,8 +425,9 @@ fn contract_occurrence_owner(
             .owner(root, expression);
     }
     let mut owner = None;
+    let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
     for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
-        let seen = contract_nodes(program, contract);
+        contract_nodes(program, contract, &mut nodes, &mut seen);
         if !seen.contains(&expression) || !seen.contains(&root) {
             continue;
         }
@@ -599,39 +600,45 @@ pub(crate) fn machine_parameter_contract_signatures(
     signatures
 }
 
-/// Every expression node one contract's facts reach.
+type ContractNodeSet = std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher>;
+
+/// The expression nodes one contract's facts reach, recorded in both buffers.
+///
+/// Ownership queries walk every callable contract, so each walk keeps one pair
+/// of buffers and this clears them per contract instead of allocating a pair.
 fn contract_nodes(
     program: &dyn crate::CheckingInput,
     contract: &SignatureContract,
-) -> std::collections::HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
-    let mut nodes = Vec::new();
-    let mut seen = std::collections::HashSet::default();
+    nodes: &mut Vec<ExpressionHandle>,
+    seen: &mut ContractNodeSet,
+) {
+    nodes.clear();
+    seen.clear();
     for fact in program.proof_facts.span_or_empty(contract.facts) {
         match fact {
             ProofFact::Expression(root) => {
                 crate::queries::expression_traversal::collect_expression_nodes(
-                    program, *root, &mut nodes, &mut seen,
+                    program, *root, nodes, seen,
                 );
             }
             ProofFact::Membership(membership) => {
                 crate::queries::expression_traversal::collect_expression_nodes(
                     program,
                     membership.value,
-                    &mut nodes,
-                    &mut seen,
+                    nodes,
+                    seen,
                 );
             }
             ProofFact::Proposition(application) => {
                 for argument in expression_table(program).expression_handles(application.arguments)
                 {
                     crate::queries::expression_traversal::collect_expression_nodes(
-                        program, *argument, &mut nodes, &mut seen,
+                        program, *argument, nodes, seen,
                     );
                 }
             }
         }
     }
-    seen
 }
 
 /// Whether a contract reaching a reserved `result` occurrence can own it: an
@@ -687,10 +694,12 @@ impl ContractOccurrenceIndex {
     fn of(program: &dyn crate::CheckingInput) -> Self {
         let mut contracts = Vec::new();
         let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
+        let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
         for (callable, return_type, parameters, contract) in callable_contract_scopes(program) {
             let position =
                 u32::try_from(contracts.len()).expect("callable contract position overflow");
-            for node in contract_nodes(program, contract) {
+            contract_nodes(program, contract, &mut nodes, &mut seen);
+            for node in nodes.iter().copied() {
                 containing.entry(node).or_default().push(position);
             }
             contracts.push((

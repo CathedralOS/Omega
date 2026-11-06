@@ -324,7 +324,6 @@ pub fn storage_names(machine: &TerminalMachine, block: BlockId, root: PlaceId) -
         for predecessor in &machine.blocks {
             let reaches = crate::control_graph::reaches_by_case(predecessor, block)
                 || crate::control_graph::forwarded_bindings(predecessor)
-                    .iter()
                     .any(|binding| binding.target == block);
             if reaches && let Some(before) = root_before_edge(machine, block, predecessor, root) {
                 pending.push((predecessor.id, before));
