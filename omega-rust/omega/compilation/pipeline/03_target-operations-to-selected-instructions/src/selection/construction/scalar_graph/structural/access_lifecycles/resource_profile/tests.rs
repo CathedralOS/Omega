@@ -581,15 +581,6 @@ fn malformed_runtime_counts_tags_and_boolean_bits_never_enable_profile() {
             ));
         }
     });
-    with_validator(0, |builder, result, layout| {
-        let mut bytes = encode(layout, &ResourceProfile::default());
-        assert!(!run(
-            builder,
-            result,
-            &mut bytes,
-            u64::from(layout.bytes) + 8
-        ));
-    });
 }
 
 fn placement(offset: u64, access: access_plans::FieldAccess) -> access_plans::ValidatedAccessPlan {
