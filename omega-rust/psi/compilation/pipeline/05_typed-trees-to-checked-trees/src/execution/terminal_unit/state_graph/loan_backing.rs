@@ -1862,24 +1862,39 @@ impl Dependencies<'_> {
             else {
                 return false;
             };
-            let same_output_supplier = suppliers.iter().any(|parent| {
-                self.facts.borrow.loans.is_valid(*parent) && {
-                    let source = self.facts.borrow.loans.get(*parent);
+            let same_output = |parent| {
+                self.facts.borrow.state_owns_loan(self.borrow_state, parent) && {
+                    let source = self.facts.borrow.loans.get(parent);
                     source.incoming_reference == loan.incoming_reference
                         && self
                             .facts
                             .borrow
                             .access_segments
-                            .span_or_empty(source.incoming_owner_path)
-                            == self
-                                .facts
-                                .borrow
-                                .access_segments
-                                .span_or_empty(loan.incoming_owner_path)
+                            .span(source.incoming_owner_path)
+                            .zip(
+                                self.facts
+                                    .borrow
+                                    .access_segments
+                                    .span(loan.incoming_owner_path),
+                            )
+                            .is_some_and(|(source, current)| source == current)
                         && source.root == loan.root
                 }
-            });
-            if self.facts.borrow.output_origin_call(handle).is_none() && !same_output_supplier {
+            };
+            let same_output_supplier = suppliers.iter().copied().any(same_output);
+            // A performed reborrow keeps its immediate parent's output
+            // namespace even when it has no additional supplier rows. The
+            // recursive walk below still validates that parent and all debts.
+            let same_output_parent = match loan.lineage {
+                checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
+                    same_output(parent_loan)
+                }
+                _ => false,
+            };
+            if self.facts.borrow.output_origin_call(handle).is_none()
+                && !same_output_supplier
+                && !same_output_parent
+            {
                 return false;
             }
         }
