@@ -5,6 +5,7 @@
 //! permission; operation validation and custody replay establish those separately.
 //! Byte snapshots retain their distinct leaf-shape rule below.
 
+use crate::structural_types::StructuralTypes;
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::StructuralDomainDeclaration;
@@ -52,13 +53,13 @@ pub(crate) fn structural_projected_qualifications_match(
 }
 
 pub(crate) fn resolve_structural_path(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     resolve_path(
-        types.values().copied(),
-        |identity| types.get(&identity).copied(),
+        types.declarations(),
+        |identity| types.declaration(identity),
         structural_type,
         path,
         StructuralFieldType::canonical_leaf_type,
@@ -305,4 +306,15 @@ pub(crate) fn byte_carrier_leaf_window(
     index
         .checked_add(layout.size)
         .is_some_and(|end| end <= *length)
+}
+
+// Existing validators can share the same query without changing their index.
+impl StructuralTypes for BTreeMap<StructuralTypeId, &StructuralTypeDeclaration> {
+    fn declaration(&self, id: StructuralTypeId) -> Option<&StructuralTypeDeclaration> {
+        self.get(&id).copied()
+    }
+
+    fn declarations(&self) -> impl Iterator<Item = &StructuralTypeDeclaration> + Clone {
+        self.values().copied()
+    }
 }

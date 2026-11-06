@@ -493,6 +493,7 @@ impl TerminalExecution<'_> {
         };
         let mut local_array_roots = RuntimeRows::new(self.account.as_ref());
         for (parameter, argument) in parameters.iter().zip(arguments) {
+            self.require_owned_value_claims(argument)?;
             if matches!(
                 self.structural_declaration(parameter.structural_type)?
                     .shape,

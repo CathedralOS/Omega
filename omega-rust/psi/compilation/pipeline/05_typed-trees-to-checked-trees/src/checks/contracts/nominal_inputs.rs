@@ -154,6 +154,7 @@ pub(super) fn check(
                 path: segments.clone(),
                 operand_position,
             });
+            let mut failed_capture = None;
             // Every obligation uses the completed operand tree. Detached
             // children retain their completion epoch; live views use the
             // invocation facts on every retained referent. Replaying a local
@@ -193,7 +194,8 @@ pub(super) fn check(
                             // later observation also retains qualifications
                             // established on the stored copy. Keep their
                             // subjects and epochs paired; never union contexts.
-                            [
+                            let mut route_refusals = [None, None];
+                            let satisfied_by_sources = [
                                 (
                                     captured.observation,
                                     captured.observation_type,
@@ -213,14 +215,15 @@ pub(super) fn check(
                                 ),
                             ]
                             .into_iter()
+                            .enumerate()
                             .any(
-                                |(
+                                |(route, (
                                     operand,
                                     reference,
                                     subjects,
                                     invocation,
                                     (source_state, source_statement),
-                                )| {
+                                ))| {
                                     let Some(selection) = operand_contexts.for_operand(
                                         operand,
                                         reference,
@@ -228,11 +231,15 @@ pub(super) fn check(
                                         source_state,
                                         source_statement,
                                     ) else {
+                                        route_refusals[route] = Some("operand context unavailable");
                                         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                                             eprintln!("CHECKSITE nominal-field-context-unavailable state={:?} statement={} target={:?} expression={:?} reference={reference:?} source_state={source_state:?} source_statement={source_statement} invocation={invocation:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression);
                                         }
                                         return false;
                                     };
+                                    if subjects.as_ref().is_none_or(Vec::is_empty) {
+                                        route_refusals[route] = Some("operand projection unavailable or empty");
+                                    }
                                     subjects.is_some_and(|subjects| {
                                         !subjects.is_empty()
                                             && subjects.iter().all(|place| {
@@ -252,7 +259,8 @@ pub(super) fn check(
                                                 // a case. A declared field row is
                                                 // conditional validity, not a read
                                                 // that requires its case active.
-                                                let satisfied = selection.cases_are_selected(&place.storage)
+                                                let cases_selected = selection.cases_are_selected(&place.storage);
+                                                let satisfied = cases_selected
                                                     && (selection
                                                         .path_is_inactive(&place.projected)
                                                         || prove_declared_field_domain(
@@ -263,6 +271,13 @@ pub(super) fn check(
                                                             *domain_symbol,
                                                             *semantic_domain,
                                                         ));
+                                                if !satisfied {
+                                                    route_refusals[route] = Some(if cases_selected {
+                                                        "declared field domain not proved"
+                                                    } else {
+                                                        "source case not selected"
+                                                    });
+                                                }
                                                 if !satisfied && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                                                     eprintln!("CHECKSITE nominal-field-proof-refused state={:?} statement={} target={:?} expression={:?} reference={reference:?} subject={:?} storage={:?} source_state={source_state:?} source_statement={source_statement} contexts={:?} constraints={:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression, place.projected, place.storage, selection.contexts, facts.flow.contexts.constraint_refs.span_or_empty(invocation));
                                                 }
@@ -270,12 +285,20 @@ pub(super) fn check(
                                             })
                                     })
                                 },
-                            )
+                            );
+                            if !satisfied_by_sources {
+                                failed_capture = Some(route_refusals);
+                            }
+                            satisfied_by_sources
                         })
                 });
             if !satisfied {
+                let detail = failed_capture
+                    .and_then(|routes| routes.into_iter().flatten().next())
+                    .map(|reason| format!(" ({reason})"))
+                    .unwrap_or_default();
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove default-domain field requirement for call {} from {}::{}: parameter {} requires {}",
+                    "cannot prove default-domain field requirement for call {} from {}::{}: parameter {} requires {}{detail}",
                     call_target_label(program, call.target_symbol),
                     machine_name(program, state.machine_symbol),
                     symbol_name(program, state.state_symbol),

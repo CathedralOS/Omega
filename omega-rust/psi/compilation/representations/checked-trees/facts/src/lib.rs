@@ -32,7 +32,8 @@ pub use fact_plan::evidence::{
     DataDefinitionFactDependency, DataDefinitionFactRecord, DomainDefinitionFactDependency,
     DomainDefinitionFactRecord, Fact, FactOrigin, FactPayload, FloatPredicate,
     InstantiatedExpression, InstructionEffectOperation, IntegerRange, ProofObligationKind,
-    QualificationCorrespondence, QualificationEvidence, QualificationPayloadIdentity, ScalarValue,
+    QualificationCorrespondence, QualificationEvidence, QualificationPayloadIdentity,
+    QualificationProvenance, ScalarValue,
 };
 pub use fact_plan::places::resolution::{
     canonical_place_label_from_parts, effective_member_symbol, payload_variant_for_field,

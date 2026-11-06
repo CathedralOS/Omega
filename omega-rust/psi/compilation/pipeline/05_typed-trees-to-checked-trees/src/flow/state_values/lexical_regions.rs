@@ -173,6 +173,7 @@ pub(in crate::flow) fn record<'plans>(
                 build,
                 capture,
                 completed,
+                destination.symbol,
                 parameter.symbol,
             ));
         }

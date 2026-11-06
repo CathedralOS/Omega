@@ -457,6 +457,12 @@ record field identities for array positions.
 
 ## Store vocabulary
 
+`EstablishStructuralLocal` reserves a declared storage home. For a linear
+carrier, its empty claim roster establishes neither a semantic value nor a live
+obligation. A checked whole-value store installs the exact source value and its
+existing claims. Reading or forwarding that value requires its established
+contents and custody; retiring an empty home releases no linear claim.
+
 Ordinary initialization and replacement of a local borrowed-view descriptor
 obey the same establishment, access, qualification and backing-lifetime rules
 as a stored view field. `StructuralByteViewFieldStore` takes a destination root

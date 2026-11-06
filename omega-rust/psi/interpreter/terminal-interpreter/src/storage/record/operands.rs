@@ -144,6 +144,7 @@ impl TerminalExecution<'_> {
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
         consumed: &mut Vec<StructuralArgument>,
     ) -> Result<bool, TerminalInterpretError> {
+        self.require_owned_value_claims(argument)?;
         let affine = self.live_affine_frontier.iter().any(|entry| {
             entry.place == argument.place
                 && terminal_semantics::structural_paths_may_overlap(&entry.path, &argument.path)

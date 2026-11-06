@@ -51,6 +51,27 @@ pub(super) fn validate_return_cleanup_actions(
         actions,
         membership,
     )?;
+    // Stored element multiplicity can remain Linear for an empty aggregate.
+    // Its completed value is available, but it has no resource to dispose.
+    // A missing home or a missing nominal claim cannot take this route.
+    remaining.owned_places.retain(|place, multiplicity| {
+        *multiplicity != StructuralMultiplicity::Linear
+            || remaining.partial_custody_paths.contains_key(place)
+            || remaining
+                .claims
+                .values()
+                .any(|claim| claim.input == Some(*place))
+            || place_structural_type(function, *place).is_none_or(|root| {
+                terminal_semantics::owned_structure::validate_owned_claim_frontier(
+                    &|identity| structural_types.get(&identity).copied(),
+                    root,
+                    &[],
+                    std::iter::empty(),
+                    &|_, _| true,
+                )
+                .is_err()
+            })
+    });
     if !remaining.owned_places.is_empty()
         || !remaining.partial_custody_paths.is_empty()
         || !remaining.claims.is_empty()
@@ -277,6 +298,23 @@ pub(super) fn consume_owner_cleanup(
         machine: function.machine,
         block,
     };
+    if super::value_custody::uninstalled_home(frontier, place) {
+        if !matches!(actions, [TerminalAffineCleanupAction::RetireHome(retired)] if *retired == place)
+            || frontier
+                .claims
+                .values()
+                .any(|claim| claim.input == Some(place))
+            || frontier.live_references.iter().any(|reference| {
+                reference.carrier == place
+                    && super::references::owned_resident(&reference.carrier_path, &[])
+            })
+        {
+            return Err(mismatch());
+        }
+        frontier.owned_places.remove(&place);
+        frontier.partial_custody_paths.remove(&place);
+        return Ok(());
+    }
     let Some(&multiplicity) = frontier.owned_places.get(&place) else {
         // Transferring the final child drains disposal debt, not the frame
         // home. Exact absent-path history must survive until its marker.

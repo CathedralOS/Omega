@@ -66,6 +66,108 @@ pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: Pla
     claims.values().any(|claim| claim.place == Some(place))
 }
 
+/// A stored owned value needs its complete selected nominal claim frontier.
+/// A declared home supplies no value, including for a zero-byte type. A
+/// nominal owner encapsulates its descendants; transparent aggregates instead
+/// retain each selected child's existing claim without a fabricated root.
+pub(crate) fn require_owned_value_claims<'claims>(
+    structural_types: &crate::embedding::program::ProgramDeclarations<
+        '_,
+        StructuralTypeDeclaration,
+    >,
+    live_claims: impl Iterator<Item = &'claims LiveClaim> + Clone,
+    root_type: StructuralTypeId,
+    argument: &StructuralArgument,
+    selected_case: &dyn Fn(&[StructuralPathSegment], semantic_vocabulary::StructuralCaseId) -> bool,
+) -> Result<(), TerminalInterpretError> {
+    if argument.access != StructuralAccess::Owned {
+        return Ok(());
+    }
+    let selected = resolve_structural_path_type(structural_types, root_type, &argument.path)?;
+    let refusal = |reason| TerminalInterpretError::OwnedValueCustodyMismatch {
+        source: argument.place,
+        structural_type: selected,
+        path_length: argument.path.len(),
+        path_prefix: argument.path.iter().take(4).cloned().collect(),
+        reason,
+    };
+    let claims = live_claims.filter(|claim| {
+        claim.place == Some(argument.place)
+            && (claim.path.starts_with(&argument.path) || argument.path.starts_with(&claim.path))
+    });
+    if claims
+        .clone()
+        .any(|claim| claim.multiplicity != Some(StructuralMultiplicity::Linear))
+    {
+        return Err(refusal(
+            "owned value claim has no exact linear multiplicity",
+        ));
+    }
+    terminal_semantics::owned_structure::validate_owned_claim_frontier(
+        &|identity| structural_types.get(&identity),
+        selected,
+        &argument.path,
+        claims.map(|claim| claim.path.clone()),
+        selected_case,
+    )
+    .map_err(refusal)
+}
+
+impl crate::engine::execution::TerminalExecution<'_> {
+    pub(crate) fn require_owned_value_claims(
+        &self,
+        argument: &StructuralArgument,
+    ) -> Result<(), TerminalInterpretError> {
+        if argument.access != StructuralAccess::Owned {
+            return Ok(());
+        }
+        if let Some(home) = self.linear_homes.get(&argument.place) {
+            return Err(TerminalInterpretError::OwnedValueCustodyMismatch {
+                source: argument.place,
+                structural_type: home.structural_type,
+                path_length: argument.path.len(),
+                path_prefix: argument.path.iter().take(4).cloned().collect(),
+                reason: "owned operand is an unestablished storage home",
+            });
+        }
+        // The catalog classifies the selected carrier, including literal and
+        // array homes; only the current ledger supplies the existing claim.
+        let machine = self.program.machine(self.current_machine)?;
+        let root_type = machine
+            .structural_place_type(argument.place)
+            .ok_or_else(malformed)?;
+        if machine
+            .structural_parameter(argument.place)
+            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+            || !terminal_semantics::projection_stays_in_inline_storage(
+                self.structural_types().values(),
+                root_type,
+                &argument.path,
+            )
+        {
+            // Borrowed-window custody belongs to the existing loan owner,
+            // not to equal-looking claims in this activation's namespace.
+            return Ok(());
+        }
+        require_owned_value_claims(
+            &self.structural_types(),
+            self.live_claims.values(),
+            root_type,
+            argument,
+            &|path, case| {
+                self.structural_values.get(&argument.place).is_some_and(|value| {
+                    crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
+                        &self.structural_types(),
+                        value,
+                        self.structural_cases.as_map(),
+                        path,
+                    ) == Some(case)
+                })
+            },
+        )
+    }
+}
+
 /// The whole-path discard row for one live affine place. A freshly established
 /// carrier, and every lookup that names it without a projection, addresses the
 /// place itself rather than a descendant.
@@ -104,6 +206,7 @@ pub(crate) fn commit_cleanup_action(
     machines: &crate::embedding::program::ProgramDeclarations<'_, TerminalMachine>,
     current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
+    linear_homes: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     scalar_arrays: &mut crate::storage::scalar_array::ScalarArrayBindings,
     reference_referents: &mut RuntimeRows<
         StructuralRuntimePlace,
@@ -169,8 +272,15 @@ pub(crate) fn commit_cleanup_action(
             });
         }
         TerminalAffineCleanupAction::RetireHome(place) => {
+            if linear_homes.contains_key(place) && structural_values.contains_key(place) {
+                return Err(malformed());
+            }
             retire_cleanup_home(
-                structural_values,
+                if linear_homes.contains_key(place) {
+                    linear_homes
+                } else {
+                    structural_values
+                },
                 scalar_arrays,
                 frontier,
                 live_claims,

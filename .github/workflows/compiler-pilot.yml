@@ -1,4 +1,4 @@
-name: Nominal callback Build migration baseline
+name: Check whether current main needs the reference-read repair
 
 on:
   pull_request:
@@ -164,6 +164,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         with:
           name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: build/compiler-pilot/
           if-no-files-found: warn
           compression-level: 0
@@ -207,6 +208,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: |
             build/compiler-pilot/
             !build/compiler-pilot/producer-*/**
@@ -219,6 +221,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: build/compiler-pilot/*.json
           if-no-files-found: warn
           retention-days: 7

@@ -90,12 +90,15 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         );
         let previous_statements =
             appended_span_since(&build.control.statements, build.state_statements_start);
-        let storage_snapshot = build
+        let storage_snapshot = match build
             .control
             .statements
             .span_or_empty(previous_statements)
             .last()
-            .map_or_else(Handle::invalid, |statement| statement.storage_snapshot);
+        {
+            Some(statement) => statement.storage_snapshot,
+            None => super::stored_values::append_state_entry(&mut build.control),
+        };
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
             storage_snapshot,

@@ -250,13 +250,14 @@ impl TerminalExecution<'_> {
         storage: &crate::boundary::values::TerminalStructuralValue,
         path: &[StructuralPathSegment],
         hole: &StructuralRuntimePlace,
-        value: PlaceId,
+        value: &StructuralArgument,
         frontier: &mut BTreeSet<StructuralAffineDiscard>,
     ) -> Result<BTreeMap<ClaimId, LiveClaim>, TerminalInterpretError> {
         let destination = self.owned_window_projection(destination, storage, path, hole)?;
+        self.require_owned_value_claims(value)?;
         let mut claims = self.live_claims.clone();
         for (identity, claim) in &self.live_claims {
-            if claim.place != Some(value) {
+            if claim.place != Some(value.place) {
                 continue;
             }
             claims.remove(identity);
@@ -300,7 +301,7 @@ impl TerminalExecution<'_> {
                         let (root, path) = if let Some(relative) =
                             current.path.strip_prefix(destination.path.as_slice())
                         {
-                            (self.structural_values.get(&value)?, relative)
+                            (self.structural_values.get(&value.place)?, relative)
                         } else {
                             (storage, current.path.as_slice())
                         };

@@ -1,6 +1,7 @@
 //! Rejoin current-IR source contracts before resolving shared storage geometry.
 //! The immutable Terminal snapshot cannot supply a rewritten root's type.
 
+use crate::structural_types::StructuralTypes;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
@@ -15,7 +16,7 @@ use terminal_psi::{
 
 pub(super) fn projected(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     place: PlaceId,
     path: &[StructuralPathSegment],
     field: Option<StructuralFieldId>,
@@ -34,7 +35,7 @@ pub(super) fn projected(
         },
         |root| {
             let mut region = terminal_semantics::projected_storage_region(
-                types.values().copied(),
+                types.declarations(),
                 root.structural_type,
                 &path,
                 field,
@@ -55,14 +56,14 @@ pub(super) fn projected(
 
 pub(super) fn canonical_field(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     place: PlaceId,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Vec<StructuralPathSegment> {
     structural_source_contract(function, place).map_or_else(Vec::new, |root| {
         terminal_semantics::canonical_field_storage_region(
-            types.values().copied(),
+            types.declarations(),
             root.structural_type,
             path,
             field,
