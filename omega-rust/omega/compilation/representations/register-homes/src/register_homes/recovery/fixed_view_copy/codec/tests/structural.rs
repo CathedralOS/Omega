@@ -166,6 +166,8 @@ fn activation_local_roster_and_memory_roles_round_trip() {
         (SelectedMemoryAccessRole::ReadLocal { slot }, 8),
         (SelectedMemoryAccessRole::ReadBacking, 8),
         (SelectedMemoryAccessRole::WriteBacking, 8),
+        (SelectedMemoryAccessRole::ReadBackingSpan, 0),
+        (SelectedMemoryAccessRole::WriteBackingSpan, 0),
         (SelectedMemoryAccessRole::WriteLocal { slot }, 8),
         (SelectedMemoryAccessRole::AddressLocal { slot }, 8),
         (
@@ -223,6 +225,8 @@ fn operation_scratch_read_identity_is_not_its_anchor_place() {
         SelectedMemoryAccessRole::ReadPlace,
         SelectedMemoryAccessRole::ReadBacking,
         SelectedMemoryAccessRole::WriteBacking,
+        SelectedMemoryAccessRole::ReadBackingSpan,
+        SelectedMemoryAccessRole::WriteBackingSpan,
         SelectedMemoryAccessRole::WriteLocal {
             slot: LocalStorageSlotId::Boundary { operation },
         },
