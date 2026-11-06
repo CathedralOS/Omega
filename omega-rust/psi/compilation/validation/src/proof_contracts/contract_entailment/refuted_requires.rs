@@ -12,12 +12,15 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
-/// The closed-operand judge of one caller machine, shared by its value calls.
+/// The closed-operand entry premises of one caller machine, built once for
+/// its value calls.
 ///
 /// `reject_refuted_value_call_requires` judges every value call against the
-/// caller's runtime entry with no requires and no executed prefix, so that
-/// judge depends only on the caller machine. The machine pass that scans the
-/// calls builds it on first use instead of once per call site.
+/// caller's runtime entry with no requires and no executed prefix, so those
+/// premises depend only on the caller machine. The machine pass that scans the
+/// calls builds them on first use instead of once per call site. Each call
+/// still judges with its own empty query memos: no resolution one call
+/// completes is visible to another call's check.
 pub(crate) struct CallerEntryJudge<'program> {
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
@@ -36,9 +39,17 @@ impl<'program> CallerEntryJudge<'program> {
         }
     }
 
-    fn judge(&self) -> &StructuralJudge<'program> {
+    /// Whether this is the judge of `machine`'s own validation pass.
+    pub(crate) fn judges(&self, machine: &Machine) -> bool {
+        self.machine.symbol == machine.symbol
+    }
+
+    /// A judge for one call: the machine's shared entry premises with fresh,
+    /// empty query memos.
+    fn judge(&self) -> StructuralJudge<'program> {
         self.judge
             .get_or_init(|| StructuralJudge::from_runtime_requires(self.program, self.machine, &[]))
+            .with_fresh_query_memos()
     }
 }
 
@@ -49,16 +60,17 @@ impl<'program> CallerEntryJudge<'program> {
 /// the later fail-closed obligation rung instead of becoming a false positive.
 pub(crate) fn reject_refuted_value_call_requires(
     program: &dyn crate::CheckingInput,
-    caller_machine: &Machine,
+    entry_judge: &CallerEntryJudge<'_>,
     caller_state: &typed_trees::state::State,
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
     terminal_transfer: bool,
-    entry_judge: &CallerEntryJudge<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    debug_assert_eq!(entry_judge.machine.symbol, caller_machine.symbol);
+    // The caller is the judge's own machine, so a call can never be judged
+    // against another machine's entry.
+    let caller_machine = entry_judge.machine;
     let Some(map) = argument_term_map(
         program,
         caller_machine,

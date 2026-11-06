@@ -1096,6 +1096,24 @@ impl<'program> StructuralJudge<'program> {
         judge
     }
 
+    /// This judge's premises for an independent query. Clones share the
+    /// mutable query memos by design; an independent check must not see
+    /// resolutions another check completed, so each memo starts empty here,
+    /// as it does for a newly built judge.
+    pub(super) fn with_fresh_query_memos(&self) -> Self {
+        let mut judge = self.clone();
+        judge.completed_resolutions = self
+            .completed_resolutions
+            .as_ref()
+            .map(|_| Arc::new(std::sync::Mutex::new(Default::default())));
+        judge.prepared_integer_premises_cache = Arc::new(std::sync::Mutex::new(
+            integer_predicates::PreparedIntegerPremisesCache::default(),
+        ));
+        judge.frame_resolver = Arc::new(std::sync::OnceLock::new());
+        judge.returned_field_trace = None;
+        judge
+    }
+
     pub(super) fn premise_facts(&self) -> &[ExpressionHandle] {
         &self.premise_facts
     }
