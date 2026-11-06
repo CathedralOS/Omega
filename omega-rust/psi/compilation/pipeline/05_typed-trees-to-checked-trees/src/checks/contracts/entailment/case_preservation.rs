@@ -83,9 +83,9 @@ pub(super) fn body_preserves_case_tags(
         for (_, state) in facts
             .flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == symbol)
+            .machine_states(symbol)
+            .into_iter()
+            .map(|state| ((), state))
         {
             for call in facts.flow.control.calls.span_or_empty(state.calls) {
                 let callee = program

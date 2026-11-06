@@ -30,12 +30,10 @@ fn check_operation(
     facts: &CheckFacts,
     operation: &checked_trees::CheckedQuotientOperation,
 ) -> Result<(), &'static str> {
-    let (_, state) = facts
+    let state = facts
         .flow
         .control
-        .states
-        .iter()
-        .find(|(_, state)| state.state_symbol == operation.public_state)
+        .state_by_symbol(operation.public_state)
         .ok_or("public flow state is absent")?;
     let mut calls = crate::flow::call_flows(&facts.flow.control, state.calls)
         .iter()
@@ -103,9 +101,9 @@ fn check_operation(
         for (_, state) in facts
             .flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == machine.symbol)
+            .machine_states(machine.symbol)
+            .into_iter()
+            .map(|state| ((), state))
         {
             for call in facts.flow.control.calls.span_or_empty(state.calls) {
                 let site = validation::find_call_site(

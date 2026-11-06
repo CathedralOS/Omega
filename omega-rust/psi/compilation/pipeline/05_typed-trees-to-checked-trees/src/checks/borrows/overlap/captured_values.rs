@@ -337,12 +337,7 @@ fn stored_copy<'facts>(
     symbol: SymbolHandle,
 ) -> Option<(&'facts FlowStateFact, crate::flow::CapturedOperand<'facts>)> {
     let state_symbol = program.symbols.get(symbol).parent;
-    let (_, state_flow) = captures
-        .flow
-        .control
-        .states
-        .iter()
-        .find(|(_, state)| state.state_symbol == state_symbol)?;
+    let state_flow = captures.flow.control.state_by_symbol(state_symbol)?;
     let state = find_state_in_machine(program, state_flow.machine_symbol, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let (statement_index, local) =

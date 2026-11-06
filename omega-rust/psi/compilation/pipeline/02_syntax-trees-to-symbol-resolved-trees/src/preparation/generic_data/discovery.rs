@@ -84,6 +84,25 @@ pub(crate) fn selected_data_item(
     candidates.next().is_none().then_some(first)
 }
 
+/// `selected_data_item` through a root index built once for many lookups in
+/// the same unchanged forest.
+pub(crate) fn selected_data_item_in(
+    roots: &declaration_selection::RootDeclarations<'_>,
+    selection: Option<&declaration_selection::ConstantSelection>,
+    name: &Identifier,
+) -> Option<syntax_trees::item::ItemHandle> {
+    let Some(selection) = selection else {
+        return selected_data_item(roots.syntax(), None, name);
+    };
+    let declaration = selection.data_in(roots, name).ok()?;
+    let syntax = roots.syntax();
+    // The selected declaration is a root data item named at its own span;
+    // the first root item that is exactly it is the one the scan found.
+    roots.at(declaration.name.source_span()).find(|handle| {
+        matches!(syntax.root_item(*handle), Item::Data(data) if std::ptr::eq(data, declaration))
+    })
+}
+
 pub(super) fn selected_generic_data<'a>(
     syntax: &SyntaxTrees,
     templates: &'a HashMap<syntax_trees::item::ItemHandle, GenericData>,

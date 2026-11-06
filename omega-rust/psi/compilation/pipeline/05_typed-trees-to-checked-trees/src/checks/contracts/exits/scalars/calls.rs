@@ -205,9 +205,9 @@ impl ExitScalars<'_, '_> {
             .facts
             .flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == self.machine.symbol)
+            .machine_states(self.machine.symbol)
+            .into_iter()
+            .map(|state| ((), state))
             .flat_map(|(_, state)| {
                 self.facts
                     .flow
