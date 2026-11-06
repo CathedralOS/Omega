@@ -2379,11 +2379,11 @@ fail/build/root_binding_shared_receiver rejected 343ms expected @ccdb99ca2214
 	exclusive operation receiver is not writable in this state
 fail/build/scoped_build_stops_before_unaccepted_effect rejected 289ms expected @ccdb99ca2214
 	restricted Build execution requires explicit consent; generated-source and final product findings are unavailable; pending request: RestrictedBuildRequest { operation: ScopedFilesystemExecution, read_grants: [RestrictedBuildGrant { root: SourceInventory, narrowed: true, captured: Some(BuildCapturedSourceInventory { entry_count: 5, file_bytes: 885, source_metadata_identity: BuildCanonicalSourceMetadataIdentity { policy_version: 1, source_content_commitment: [7, 52, 33, 12, 211, 241, 30, 234, 236, 20, 48, 27, 190, 202, 79, 150, 21, 254, 221, 38, 218, 29, 35, 57, 16, 127, 167, 233, 75, 193, 100, 114] } }) }], write_grants: [RestrictedBuildGrant { root: StagedOutput, narrowed: false, captured: None }], bounds: RestrictedBuildBounds { filesystem_sponsor_limits: Some(FilesystemSponsorLimits { maximum_entries: 4096, maximum_total_logical_bytes: 268435456, maximum_object_extent: 268435456 }), evaluation_sponsor_limits: Some(BuildEvaluationSponsorLimits { maximum_fuel_units: 100000000, maximum_build_log_bytes: 16777216, maximum_filesystem_operation_attempts: 65536, maximum_live_filesystem_handles: 4096, maximum_live_storage_cells: 1048576, maximum_live_payload_bytes: 67108864, maximum_result_storage_cells: 1048576, maximum_result_payload_bytes: 67108864 }), required_outputs: [], artifact_only: false }, build_execution_profile: Some(MacosArm64), selected_target_profile: None }
-fail/build/segment_selector_invalidates_descriptor rejected 34277ms expected @2b8a1382008c
+fail/build/segment_selector_invalidates_descriptor rejected 126078ms expected @393c6c5fe83d
 	cannot prove requires contract for call consume_unchanged from exercise: buffers.table[3] == old_descriptor (needs fact `value == old` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/build/segment_selector_missing_machine_control rejected 29192ms expected @2b8a1382008c
+fail/build/segment_selector_missing_machine_control rejected 58190ms expected @393c6c5fe83d
 	machine `exercise` publishes service reach `CodeSegmentControl + DataSegmentControl` but its checked body reaches undeclared service `MachineControl`
-fail/build/segment_selector_shared_gdt rejected 20388ms expected @2b8a1382008c
+fail/build/segment_selector_shared_gdt rejected 38647ms expected @393c6c5fe83d
 	argument `gdt` for state `reload` is declared `&mut` (`&mut [u64; 7]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/build/service_audit_requires_boundary rejected 707ms expected @ccdb99ca2214
 	Build declaration operand does not resolve to one visible product declaration of the required kind: `Ordinary` (BoundarySubject)
@@ -2422,7 +2422,7 @@ fail/build/task_register_missing_machine_control rejected 40841ms expected @030a
 	machine `exercise` publishes service reach `TaskRegisterControl` but its checked body reaches undeclared service `MachineControl`
 fail/build/task_register_shared_gdt rejected 36368ms expected @030ac31225e6+wt
 	argument `gdt` for state `activate` is declared `&mut` (`&mut [u64; 5]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/build/task_register_wrong_tss_extent rejected 29283ms expected @030ac31225e6+wt
+fail/build/task_register_wrong_tss_extent rejected 38702ms expected @393c6c5fe83d
 	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
 	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
 	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
