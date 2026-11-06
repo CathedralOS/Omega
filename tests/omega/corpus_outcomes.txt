@@ -11885,7 +11885,7 @@ fail/facts/saved_case_predicate_through_target_body_rejected rejected 5790ms exp
 	machine `ArmProbe::probe` state `probe` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected rejected 3833ms expected @ccdb99ca2214
 	cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected rejected 2618ms expected @ccdb99ca2214
+fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected rejected 3508ms expected @bf5cc360e384
 	cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected rejected 2968ms expected @ccdb99ca2214
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -12810,7 +12810,7 @@ fail/facts/skipped_short_circuit_call_through_const_name_rejected rejected 8879m
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_field_rejected rejected 10942ms expected @91458311fe6a+wt
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_local_rejected rejected 10828ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_local_rejected rejected 3511ms expected @bf5cc360e384
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_match_join_rejected rejected 10663ms expected @91458311fe6a+wt
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -16595,6 +16595,8 @@ fail/proofs/field_view_index_wrong_sibling rejected 5343ms expected @ccdb99ca221
 	cannot prove requires contract for call index from radiance: __hoist_2 < batch.selected.samples.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/field_view_saved_descriptor_replaced rejected 2311ms expected @ccdb99ca2214
 	cannot prove requires contract for call read from invalid: index < saved.child.samples.len (needs fact `index < value.child.samples.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/finite_boolean_policy_exit rejected 18505ms expected @bf5cc360e384
+	cannot prove ensures contract for exit from validate at statement 0: table_policy(result, table)
 fail/proofs/float_false_ordered_guard_is_not_reverse rejected 1927ms expected @ccdb99ca2214
 	machine `invalid_absolute` ensures contract proof fact `value < 0.0 && F64.meaning(result) == FloatSemantics.negate(FloatFormat, F64.meaning(value)) || value >= 0.0 && F64.meaning(result) == F64.meaning(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/float_guarded_negated_result_mismatch rejected 1928ms expected @ccdb99ca2214
@@ -16922,8 +16924,8 @@ fail/proofs/range_result_unrelated_bound rejected 2195ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from check, state entry, at statement 1: Checked::Ready.value requires Range::Bounded
 fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 12910ms unexpected regressed-from:checked @ccdb99ca2214
 	cannot prove ensures contract for exit from descend at statement 1: result <= previous
-fail/proofs/recursive_formals_do_not_read_caller_constants rejected 2606ms unexpected regressed-from:checked @ccdb99ca2214
-	cannot prove ensures contract for exit from recurse at statement 1: result == value + 1
+fail/proofs/recursive_formals_do_not_read_caller_constants rejected 3151ms expected regressed-from:checked @bf5cc360e384
+	machine `recurse` ensures contract proof fact `result == value + 1` is disproved by constant arithmetic on the transition arm guarded by `__transition_subject#13 == true`
 fail/proofs/recursive_terminal_missing_erased_evidence rejected 2344ms expected @ccdb99ca2214
 	call `scan` supplies 0 erased evidence arguments but its named requires lane has 1
 fail/proofs/referenced_law_slot_ambiguous rejected 2177ms expected @ccdb99ca2214
@@ -17038,7 +17040,7 @@ fail/proofs/selected_specification_requires_wrong_subject rejected 1102ms expect
 fail/proofs/self_call_without_witness_not_denotational rejected 2124ms expected @ccdb99ca2214
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
-fail/proofs/short_circuit_skipped_rhs_bound rejected 2274ms expected @ccdb99ca2214
+fail/proofs/short_circuit_skipped_rhs_bound rejected 3519ms expected @bf5cc360e384
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/specification_case_exclusion_ambiguous_payload rejected 5087ms expected @7e945672b7b4+wt
 	cannot form specification payload projection `first` in trait `Observe` state `read` requires contract: establish its exact active case before projecting the payload
@@ -26799,6 +26801,7 @@ pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
 pass/proofs/field_view_index_contract checked 10931ms @93ac4da811fe
+pass/proofs/finite_boolean_policy_exit checked 26449ms check-target:macos_arm64 @bf5cc360e384
 pass/proofs/float_guarded_negated_result_contract checked 5232ms @ccdb99ca2214
 pass/proofs/float_named_contract_literal_landing checked 5145ms @ccdb99ca2214
 pass/proofs/guarded_dynamic_field_arrival checked 12441ms check-target:macos_arm64 @ccdb99ca2214

@@ -1,63 +1,125 @@
 //! Short-circuit path selection shared by body and contract observations.
-//! A right operand inherits the selecting left observation. Rejoins discard
-//! branch-only facts; they never evaluate an unselected payload or effect.
+//! Pending connective frames keep finite expression depth separate from proof
+//! unfolding. A right operand still inherits only its selecting left path;
+//! rejoins never evaluate an unselected payload or import a sibling's effects.
 
 use super::{
     NormalReturnPath, NormalValueDemand, NormalValueObservation, StructuralJudge,
     StructuralJudgment, boolean_term,
 };
+use std::collections::VecDeque;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableBinaryExpression};
 
-impl<'program> StructuralJudge<'program> {
-    pub(super) fn evaluate_logical_paths<'query>(
-        self,
+pub(super) type LogicalOperand<'program, 'query> = (
+    StructuralJudge<'program>,
+    ExpressionHandle,
+    NormalValueDemand<'query>,
+);
+
+enum LogicalBranch<'program> {
+    Complete(NormalReturnPath<'program>),
+    Right(StructuralJudge<'program>),
+}
+
+pub(super) struct LogicalFrame<'program, 'query> {
+    pub expression: ExpressionHandle,
+    pub demand: NormalValueDemand<'query>,
+    right: ExpressionHandle,
+    evaluate_right: bool,
+    pre_binary_judge: StructuralJudge<'program>,
+    awaiting_left: bool,
+    short_circuit_steps_pure: bool,
+    branches: VecDeque<LogicalBranch<'program>>,
+    outcomes: Vec<NormalReturnPath<'program>>,
+}
+
+impl<'program, 'query> LogicalFrame<'program, 'query> {
+    pub fn new(
+        judge: StructuralJudge<'program>,
         expression: ExpressionHandle,
         binary: &TableBinaryExpression,
         demand: NormalValueDemand<'query>,
-        mut evaluate: impl FnMut(
-            Self,
-            ExpressionHandle,
-            NormalValueDemand<'query>,
-        ) -> Option<Vec<NormalReturnPath<'program>>>,
-    ) -> Option<Vec<NormalReturnPath<'program>>> {
-        let program = self.program;
-        let pre_binary_judge = self.clone();
-        let evaluate_right = binary.operator == BinaryOperator::And;
-        let mut short_circuit_steps_pure = true;
-        let mut outcomes = Vec::new();
-        for left in evaluate(self, binary.left, NormalValueDemand::Value)? {
-            let left_value = left.observed_value()?.clone();
-            for truth in [false, true] {
-                let mut selected = left.judge.clone();
-                let guard_value = boolean_term(truth);
-                if matches!(
-                    selected.judge_equation(
-                        selected.resolve(left.value.clone()),
-                        guard_value.clone(),
-                        0
-                    ),
-                    StructuralJudgment::Refuted
-                ) {
-                    continue;
-                }
-                selected.assume_normal_equation(left_value.clone(), guard_value);
-                if truth == evaluate_right {
-                    for right in evaluate(selected, binary.right, demand)? {
-                        outcomes.push(right.at_expression(expression, demand));
+    ) -> (Self, LogicalOperand<'program, 'query>) {
+        let frame = Self {
+            expression,
+            demand,
+            right: binary.right,
+            evaluate_right: binary.operator == BinaryOperator::And,
+            pre_binary_judge: judge.clone(),
+            awaiting_left: true,
+            short_circuit_steps_pure: true,
+            branches: VecDeque::new(),
+            outcomes: Vec::new(),
+        };
+        (frame, (judge, binary.left, NormalValueDemand::Value))
+    }
+
+    /// Keep the original left-path / false-then-true ordering. A queued right
+    /// branch owns the exact judge after its selecting observation.
+    pub fn resume(
+        &mut self,
+        paths: Vec<NormalReturnPath<'program>>,
+    ) -> Option<Option<LogicalOperand<'program, 'query>>> {
+        if self.awaiting_left {
+            self.awaiting_left = false;
+            for left in paths {
+                let left_value = left.observed_value()?.clone();
+                for truth in [false, true] {
+                    let mut selected = left.judge.clone();
+                    let guard_value = boolean_term(truth);
+                    if matches!(
+                        selected.judge_equation(
+                            selected.resolve(left.value.clone()),
+                            guard_value.clone(),
+                            0,
+                        ),
+                        StructuralJudgment::Refuted
+                    ) {
+                        continue;
                     }
-                } else {
-                    if !selected.has_no_new_effects_or_guarantees_since(&left.judge)
-                        || !selected.has_no_new_non_boolean_facts_since(&left.judge)
-                    {
-                        short_circuit_steps_pure = false;
+                    selected.assume_normal_equation(left_value.clone(), guard_value);
+                    if truth == self.evaluate_right {
+                        self.branches.push_back(LogicalBranch::Right(selected));
+                    } else {
+                        if !selected.has_no_new_effects_or_guarantees_since(&left.judge)
+                            || !selected.has_no_new_non_boolean_facts_since(&left.judge)
+                        {
+                            self.short_circuit_steps_pure = false;
+                        }
+                        self.branches.push_back(LogicalBranch::Complete(
+                            NormalReturnPath::observed(boolean_term(truth), selected)
+                                .at_expression(self.expression, self.demand),
+                        ));
                     }
-                    outcomes.push(
-                        NormalReturnPath::observed(boolean_term(truth), selected)
-                            .at_expression(expression, demand),
-                    );
                 }
             }
+        } else {
+            self.outcomes.extend(
+                paths
+                    .into_iter()
+                    .map(|right| right.at_expression(self.expression, self.demand)),
+            );
         }
+        while let Some(branch) = self.branches.pop_front() {
+            match branch {
+                LogicalBranch::Complete(path) => self.outcomes.push(path),
+                LogicalBranch::Right(judge) => return Some(Some((judge, self.right, self.demand))),
+            }
+        }
+        Some(None)
+    }
+
+    pub fn finish(self) -> Vec<NormalReturnPath<'program>> {
+        let Self {
+            expression,
+            demand,
+            evaluate_right,
+            pre_binary_judge,
+            short_circuit_steps_pure,
+            mut outcomes,
+            ..
+        } = self;
+        let program = pre_binary_judge.program;
         if outcomes.len() > 1
             && (matches!(demand, NormalValueDemand::Location)
                 || matches!(
@@ -76,11 +138,10 @@ impl<'program> StructuralJudge<'program> {
                     .has_no_new_effects_or_guarantees_since(&pre_binary_judge)
             })
         {
-            let judge_refs: Vec<&Self> = outcomes.iter().map(|path| &path.judge).collect();
+            let judge_refs: Vec<&StructuralJudge<'program>> =
+                outcomes.iter().map(|path| &path.judge).collect();
             let rejoined = pre_binary_judge.rejoin_pure_outcomes(&judge_refs, Some(expression));
-            return Some(vec![
-                NormalReturnPath::unobserved(rejoined).at_expression(expression, demand),
-            ]);
+            return vec![NormalReturnPath::unobserved(rejoined).at_expression(expression, demand)];
         }
         let short_circuit_value = boolean_term(!evaluate_right);
         if short_circuit_steps_pure && outcomes.len() > 1 {
@@ -103,7 +164,7 @@ impl<'program> StructuralJudge<'program> {
                         .has_no_new_non_boolean_facts_since(&pre_binary_judge)
                 });
             if can_merge_sc {
-                let sc_judges: Vec<&Self> =
+                let sc_judges: Vec<&StructuralJudge<'program>> =
                     sc_indices.iter().map(|&idx| &outcomes[idx].judge).collect();
                 let rejoined_sc =
                     pre_binary_judge.rejoin_pure_outcomes(&sc_judges, Some(expression));
@@ -125,6 +186,29 @@ impl<'program> StructuralJudge<'program> {
                 outcomes = merged_outcomes;
             }
         }
-        Some(outcomes)
+        outcomes
+    }
+}
+
+impl<'program> StructuralJudge<'program> {
+    pub(super) fn evaluate_logical_paths<'query>(
+        self,
+        expression: ExpressionHandle,
+        binary: &TableBinaryExpression,
+        demand: NormalValueDemand<'query>,
+        mut evaluate: impl FnMut(
+            Self,
+            ExpressionHandle,
+            NormalValueDemand<'query>,
+        ) -> Option<Vec<NormalReturnPath<'program>>>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let (mut frame, mut operand) = LogicalFrame::new(self, expression, binary, demand);
+        loop {
+            let paths = evaluate(operand.0, operand.1, operand.2)?;
+            match frame.resume(paths)? {
+                Some(next) => operand = next,
+                None => return Some(frame.finish()),
+            }
+        }
     }
 }
