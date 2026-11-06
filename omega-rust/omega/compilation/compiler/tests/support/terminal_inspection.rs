@@ -30,6 +30,8 @@ mod indexed_family_controls;
 mod mathematical_actuals;
 #[path = "native_layout_controls.rs"]
 mod native_layout_controls;
+#[path = "optimization_catalog_controls.rs"]
+mod optimization_catalog_controls;
 #[path = "ownership_claim_controls.rs"]
 mod ownership_claim_controls;
 #[path = "provider_choice_controls.rs"]
@@ -65,6 +67,7 @@ enum InspectionControls<'selection> {
     ScalarIssuer,
     ResultClaims,
     OwnershipClaims,
+    OptimizationCatalog,
 }
 
 #[derive(Clone, Copy)]
@@ -171,6 +174,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "scalar-issuer-controls"] => {
                 (*machine, false, Some(InspectionControls::ScalarIssuer))
             }
+            [machine, "optimization-catalog-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::OptimizationCatalog),
+            ),
             [machine, "result-claim-controls"] => {
                 (*machine, false, Some(InspectionControls::ResultClaims))
             }
@@ -182,7 +190,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `result-claim-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -396,6 +404,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 }
                 InspectionControls::ScalarIssuer => scalar_issuer_controls::inspect(&decoded)?,
                 InspectionControls::ResultClaims => result_claim_controls::inspect(&decoded)?,
+                InspectionControls::OptimizationCatalog => {
+                    optimization_catalog_controls::inspect(&decoded)?
+                }
                 InspectionControls::OwnershipClaims => ownership_claim_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {

@@ -155,10 +155,11 @@ pub(crate) fn validate_structural_type_graph(
         }
         let declaration = types[&id];
         match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
-                visit(*referent, types, active, complete)?;
-            }
-            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            // References and views carry a pointer, not inline child storage.
+            // Their target identities are checked independently by the catalog.
+            terminal_psi::StructuralTypeShape::Reference { .. }
+            | terminal_psi::StructuralTypeShape::ElementView { .. }
+            | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::AtomicCell(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
             terminal_psi::StructuralTypeShape::Record { fields, .. } => {
@@ -168,8 +169,7 @@ pub(crate) fn validate_structural_type_graph(
                     }
                 }
             }
-            terminal_psi::StructuralTypeShape::FixedArray { element, .. }
-            | terminal_psi::StructuralTypeShape::ElementView { element, .. } => {
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
                 visit(*element, types, active, complete)?;
             }
             terminal_psi::StructuralTypeShape::Sum { cases } => {
