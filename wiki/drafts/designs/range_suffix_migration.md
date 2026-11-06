@@ -1095,6 +1095,24 @@ projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
 
+## Audited funnel guard owner field
+
+The existing `pass/range/runtime_funnel_guard_agreement_exit` and
+`fail/range/funnel_guard_one_edge_unguarded` customers each declared
+`Main.y: i32 [0..=15]` at the original inventory revision `7a9a7b8287e6`.
+Both now declare `Main.y: i32` with data `requires y >= 0 && y <= 15`, and
+retain the original store `main.y = main.sp` and subsequent field read.
+These are the only historical scalar suffix positions in the two programs.
+
+Migration `443406c0f4f` had moved the field obligation to `push`'s input
+contract while data predicates could not support the store; `b5f039d59e3`
+then replaced the unrestricted field with a local. Restoring the data owner
+retains the storage obligation as well as call admission. The existing
+`push` requirement `main.sp >= 0 && main.sp < 16` is exactly the original
+store's required integer interval, not an additional restriction. The
+positive keeps both guarded entries and exit 7. The negative keeps its
+runtime input and unguarded entry, and its existing diagnostic is unchanged.
+
 ## Audited write-only scalar owner fields
 
 The two `Limited` fields in
