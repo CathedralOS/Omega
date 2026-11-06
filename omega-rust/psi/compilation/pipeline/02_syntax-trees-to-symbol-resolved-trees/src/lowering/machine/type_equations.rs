@@ -2,6 +2,7 @@
 //! checking. Application preparation still discharges every requires equation;
 //! current callers never create assumptions for a declaration's body.
 
+use crate::lowering::type_reference;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;

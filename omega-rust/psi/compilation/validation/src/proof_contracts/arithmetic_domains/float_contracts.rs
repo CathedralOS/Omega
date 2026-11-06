@@ -249,7 +249,7 @@ fn callee_parameter_interval(
     program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,
     other: ExpressionHandle,
-    other_type: Option<TypeReferenceHandle>,
+    _other_type: Option<TypeReferenceHandle>,
     primitive: PrimitiveType,
 ) -> Option<FloatInterval> {
     let path = super::place_path(program, other)?;

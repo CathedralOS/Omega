@@ -632,7 +632,7 @@ pub fn ranking_range_state_premise_coordinates(
             );
         }
     }
-    let mut coordinates = Vec::new();
+    let mut coordinates: Vec<RankPremiseCoordinate> = Vec::new();
     let mut pending = expressions
         .into_iter()
         .map(|expression| (expression, 0))
@@ -1743,9 +1743,7 @@ fn entry_comparisons(
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
     let mut comparisons = contract_comparisons(program, machine, root, engine)?;
-    comparisons.extend(parameter_comparisons(
-        program, machine, root, engine, bindings,
-    )?);
+    comparisons.extend(parameter_comparisons(program, machine, root, bindings)?);
     Some(comparisons)
 }
 
@@ -1783,7 +1781,6 @@ fn parameter_comparisons(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
-    engine: &mut Engine<'_>,
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
     let mut comparisons = Vec::new();

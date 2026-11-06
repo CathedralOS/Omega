@@ -2,11 +2,9 @@
 //! identities and array lengths into canonical atoms.
 
 use crate::TypedTrees;
-use crate::expression::ExpressionHandle;
 use crate::type_identity::substitution;
 use crate::typed_trees::type_system::type_identity::identity_context::{
-    TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
-    normalize_type_reference,
+    TypeIdentityContext, TypeIdentityQualification, normalize_type_reference,
 };
 use crate::types::{
     DomainConstraint, DomainConstraintSubject, FixedArrayLength, TypeConstraintNode,
