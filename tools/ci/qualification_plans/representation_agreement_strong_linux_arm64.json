@@ -58,7 +58,15 @@
   ],
   "source_only": false,
   "samples": [
-    "samples/cli/facts/representation_agreement"
+    "samples/cli/facts/representation_agreement/local",
+    "samples/cli/facts/representation_agreement/field",
+    "samples/cli/facts/representation_agreement/parameter",
+    "samples/cli/facts/representation_agreement/call_result",
+    "samples/cli/facts/representation_agreement/match_join",
+    "samples/cli/facts/representation_agreement/const_name",
+    "samples/cli/facts/representation_agreement/other_state",
+    "samples/cli/facts/representation_agreement/other_machine",
+    "samples/cli/facts/representation_agreement/target_body"
   ],
   "cli_fixtures": [
     "samples/cli/facts/representation_agreement/other_machine",
