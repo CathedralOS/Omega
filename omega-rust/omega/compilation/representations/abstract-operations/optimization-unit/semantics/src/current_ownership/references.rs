@@ -36,6 +36,18 @@ pub enum CallRegion {
     Referent,
 }
 
+/// One call reads one captured frontier with the same caller, type catalog and
+/// operation coordinates. Keep those inputs together across output binding and
+/// interpretation lookup; none is retained as a callee summary.
+#[derive(Clone, Copy)]
+struct CallReferenceInputs<'call, 'types> {
+    function: &'call PsiOptimizationFunction,
+    types: &'call BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
+    block: BlockId,
+    node: u32,
+    live: &'call [LiveReference],
+}
+
 mod access_paths;
 pub(super) mod call_effects;
 mod call_outputs;
@@ -1919,15 +1931,17 @@ pub(super) fn apply_operation(
                     &path,
                     |parameter, source| {
                         result_interpretations::incoming(
-                            function,
-                            structural_types,
+                            &CallReferenceInputs {
+                                function,
+                                types: structural_types,
+                                block,
+                                node,
+                                live,
+                            },
                             parameter,
                             structural_arguments,
                             source,
                             expected,
-                            block,
-                            node,
-                            live,
                         )
                     },
                     public,

@@ -343,7 +343,7 @@ impl ReferenceOutputBuilder {
     pub(crate) fn seal(
         mut self,
         function: &PsiOptimizationFunction,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        types: &[StructuralTypeDeclaration],
         compatibility_requirements: Vec<
             terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
         >,

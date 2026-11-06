@@ -29,9 +29,17 @@ pub(crate) mod affine_authority;
 pub(crate) mod arrival_storage;
 
 /// The catalog-mismatch rejection for `function`, named once per check site.
+#[track_caller]
 pub(crate) fn catalog_mismatch(
     function: &PsiOptimizationFunction,
 ) -> OptimizationUnitValidationError {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "optimizer structural catalog mismatch {:?} at {}",
+            function.machine,
+            std::panic::Location::caller()
+        );
+    }
     OptimizationUnitValidationError::StructuralCatalogMismatch {
         machine: Some(function.machine),
     }

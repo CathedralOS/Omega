@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) fn output_graph(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &[StructuralTypeDeclaration],
     entry: &[LiveReference],
     slots: &[ReferenceOutputSlot],
     exit: &ReferenceOutputExit,
@@ -44,7 +44,7 @@ pub(super) fn output_graph(
     fn visit(
         index: usize,
         function: &PsiOptimizationFunction,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        types: &[StructuralTypeDeclaration],
         entry: &[LiveReference],
         current: &[&LiveReference],
         entry_index: &impl Fn(&ReferenceOccurrenceIdentity) -> Option<usize>,
@@ -108,8 +108,22 @@ pub(super) fn output_graph(
             };
             (residence, root_type)
         };
-        let reference_type = crate::unit_validation::references::access_path_type(
-            types,
+        let reference_type = crate::unit_validation::references::access_path_type_by(
+            |id| {
+                types
+                    .binary_search_by_key(&id, |declaration| declaration.id)
+                    .ok()
+                    .map(|position| &types[position])
+            },
+            |scalar| {
+                types
+                    .iter()
+                    .find(|declaration| {
+                        matches!(declaration.shape,
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(shape) if shape == scalar)
+                    })
+                    .map(|declaration| declaration.id)
+            },
             root_type,
             &reference.carrier_path,
         )

@@ -12,8 +12,8 @@ pub(super) struct ResultInterpretation {
     slots: Option<Vec<access_results::ResultSlot>>,
 }
 
-pub(super) fn prepare(
-    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+pub(super) fn prepare<'unit>(
+    functions: impl Clone + Iterator<Item = &'unit PsiOptimizationFunction>,
     boundaries: &[&terminal_psi::BoundaryMachineDeclaration],
     types: &abstract_operations::StructuralTypeCatalog,
     mut analysis: Option<&mut DescriptorAnalysis<'_>>,
@@ -21,7 +21,7 @@ pub(super) fn prepare(
     // Authenticate actual issuing coordinates once. An ambiguous operation
     // cannot supply a correspondence merely because its type happens to match.
     let mut operations = functions
-        .values()
+        .clone()
         .flat_map(|function| {
             function.block_nodes().filter_map(|node| {
                 Some((
@@ -39,9 +39,10 @@ pub(super) fn prepare(
         (after - first == 1).then(|| operations[first].1)
     };
     let boundaries = boundaries.iter().copied().cloned().collect::<Vec<_>>();
+    // CallAccesses supplies its already checked, increasing machine roster.
     functions
-        .iter()
-        .map(|(&machine, function)| {
+        .map(|function| {
+            let machine = function.machine;
             let mut issuers = Vec::new();
             let slots =
                 (|| {
@@ -127,16 +128,19 @@ pub(super) fn resolve(
 /// output replacement. Pointer contents or an equal root cannot replace it.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn incoming(
-    caller: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    inputs: &CallReferenceInputs<'_, '_>,
     parameter: usize,
     arguments: &[StructuralArgument],
     source: &StructuralArgument,
     expected: StructuralTypeId,
-    block: BlockId,
-    node: u32,
-    live: &[LiveReference],
 ) -> Option<ReferenceInterpretation> {
+    let CallReferenceInputs {
+        function: caller,
+        types,
+        block,
+        node,
+        live,
+    } = *inputs;
     let mut actual = abstract_operations::calls::call_source_at(
         arguments,
         parameter,
