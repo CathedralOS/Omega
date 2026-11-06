@@ -18,7 +18,14 @@ pub(crate) fn lower_decoded_module(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_selected_module(module, entry, module.structural_types.clone(), None, None)
+    lower_selected_module(
+        module,
+        entry,
+        module.structural_types.clone(),
+        None,
+        None,
+        None,
+    )
 }
 
 /// Consume the invocation's work domain and geometry before lowering any body.
@@ -29,6 +36,7 @@ pub(crate) fn lower_selected_module(
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
     scope: Option<&crate::native_execution_scope::NativeExecutionScope>,
     scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
+    layouts: Option<&terminal_installation::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
     // Catalog retention and successful source checking are not target closure.
     // Native lowering must consume a complete scalar admission before this
@@ -42,6 +50,35 @@ pub(crate) fn lower_selected_module(
     // natively, so no abstract operation needs a separate continuation lane.
     if !module.machine(entry).is_some() {
         return Err(LoweringError::VerifiedEntryMachineMissing(entry));
+    }
+    if layouts.is_none() && module.access_lifecycle_plans.iter().any(|plan| plan.target.is_some()) {
+        return Err(LoweringError::SemanticIdentity(
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "native lifecycle requires an admitted target placement selection",
+            ),
+        ));
+    }
+    let lifecycles = layouts.map_or(module.access_lifecycle_plans.as_slice(), |layouts| {
+        layouts.resolved_lifecycles()
+    });
+    for boundary in module
+        .boundary_machines
+        .iter()
+        .filter(|boundary| scope.is_some_and(|scope| scope.contains_boundary(boundary.id)))
+    {
+        if boundary
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.execution.placement_operation())
+            .is_some()
+            && !lifecycles.iter().any(|plan| plan.boundary == boundary.id)
+        {
+            return Err(LoweringError::SemanticIdentity(
+                terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "native lifecycle has no admitted target placement",
+                ),
+            ));
+        }
     }
     let functions = module
         .machines
@@ -58,7 +95,7 @@ pub(crate) fn lower_selected_module(
         )
         .with_access_views(module.access_view_plans.clone())
         .with_access_view_inputs(module.access_view_inputs.clone())
-        .with_access_lifecycles(module.access_lifecycle_plans.clone())
+        .with_access_lifecycles(lifecycles.to_vec())
         .map_err(LoweringError::SemanticIdentity)?
         .with_quotients(module.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?,

@@ -246,6 +246,32 @@ where
         .ok_or(StorageGeometryError::UnresolvedLayout(root))
     }
 
+    /// Describe the tag, common fields and case payloads with the same packing
+    /// used for the whole extent. Offsets cover represented fields in roster
+    /// order; selecting an active case remains the consumer's obligation.
+    pub fn sum_layout(
+        &mut self,
+        root: StructuralTypeId,
+    ) -> Result<layout_plans::ConventionalSumGeometry, StorageGeometryError> {
+        let declaration = crate::structural_declaration(self.types.clone(), root)
+            .ok_or(StorageGeometryError::MissingType(root))?;
+        let (fields, cases) = match &declaration.shape {
+            StructuralTypeShape::Sum { cases } => (&[][..], cases),
+            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+            _ => return Err(StorageGeometryError::UnsupportedType(root)),
+        };
+        sum_layout(
+            self.types.clone(),
+            fields,
+            cases,
+            &mut vec![root],
+            self.carriers,
+            &self.records,
+            &mut |application| (self.extents)(application).map(Some),
+        )?
+        .ok_or(StorageGeometryError::UnresolvedLayout(root))
+    }
+
     /// Select a captured path under the same admitted record/extent context
     /// as whole-type geometry. No declaration is copied or relabelled.
     pub fn region(
@@ -611,6 +637,27 @@ fn sum_geometry<'types>(
     records: &impl RecordStorageResolver,
     extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
 ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+    Ok(sum_layout(
+        types,
+        common_fields,
+        cases,
+        active,
+        carriers,
+        records,
+        extents,
+    )?
+    .map(|geometry| (geometry.storage.byte_size, geometry.storage.byte_alignment)))
+}
+
+fn sum_layout<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    common_fields: &[StructuralFieldDeclaration],
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    active: &mut Vec<StructuralTypeId>,
+    carriers: Option<TargetCarrierLayout>,
+    records: &impl RecordStorageResolver,
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+) -> Result<Option<layout_plans::ConventionalSumGeometry>, StorageGeometryError> {
     let mut fields = |fields: &[StructuralFieldDeclaration]| {
         fields
             .iter()
@@ -662,10 +709,7 @@ fn sum_geometry<'types>(
             .map(|fields| fields.into_iter().map(shape)),
     )
     .map_err(StorageGeometryError::AggregateLayout)?;
-    Ok(Some((
-        geometry.storage.byte_size,
-        geometry.storage.byte_alignment,
-    )))
+    Ok(Some(geometry))
 }
 
 fn carrier_geometry(size: u64, alignment: u64) -> Result<(u64, u64), StorageGeometryError> {
@@ -1063,6 +1107,76 @@ mod tests {
             relevance: BindingRelevance::Relevant,
             field_type,
             storage,
+        }
+    }
+
+    #[test]
+    fn sum_image_offsets_and_array_extent_share_the_selected_tag_geometry() {
+        let declaration = |value, shape| StructuralTypeDeclaration {
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            id: identity(value),
+            identity: TerminalIdentityIndex(value as u32),
+            shape,
+        };
+        let types = [
+            declaration(
+                1,
+                StructuralTypeShape::Mixed {
+                    fields: vec![field(1, StructuralFieldType::Scalar(scalar(16)), None)],
+                    cases: vec![
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                            identity: TerminalIdentityIndex(10),
+                            fields: vec![],
+                        },
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                            identity: TerminalIdentityIndex(11),
+                            fields: vec![
+                                field(1, StructuralFieldType::Scalar(scalar(8)), None),
+                                field(2, StructuralFieldType::Scalar(scalar(64)), None),
+                            ],
+                        },
+                    ],
+                },
+            ),
+            declaration(
+                2,
+                StructuralTypeShape::FixedArray {
+                    element: identity(1),
+                    length: terminal_psi::ArrayExtent::Literal(3),
+                },
+            ),
+        ];
+        let unresolved = |application| Err(StorageGeometryError::UnresolvedExtent(application));
+        assert_eq!(
+            ReferenceStorageGeometry::new(types.iter(), unresolved).sum_layout(identity(1)),
+            Err(StorageGeometryError::MissingCarrierLayout)
+        );
+        for (tag_size, common, payload, extent) in [(4, 4, 8, 24), (8, 8, 16, 32)] {
+            let mut geometry = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(TargetCarrierLayout {
+                    pointer_byte_size: 8,
+                    pointer_byte_alignment: 8,
+                    descriptor_byte_size: 16,
+                    descriptor_byte_alignment: 8,
+                    case_tag_byte_size: tag_size,
+                    case_tag_byte_alignment: tag_size,
+                }));
+            let sum = geometry.sum_layout(identity(1)).unwrap();
+            assert_eq!(sum.common_field_offsets, vec![common]);
+            assert_eq!(
+                sum.case_field_offsets,
+                vec![vec![], vec![payload, payload + 8]]
+            );
+            assert_eq!(geometry.layout(identity(1)), Ok((extent, 8)));
+            assert_eq!(sum.storage.byte_size, extent);
+            assert_eq!(geometry.layout(identity(2)), Ok((3 * extent, 8)));
         }
     }
 

@@ -17,6 +17,7 @@ mod storage_contract;
 pub fn retain_access_lifecycle_plans(
     program: FrozenTypedTrees,
     authority: Option<&dyn crate::BuildTimeSelectionAuthority>,
+    scopes: &[crate::FixedLayoutTargetScope],
 ) -> Result<FrozenTypedTrees, Vec<Diagnostic>> {
     let mut program = program.into_inner();
     let demands = demands::collect(&mut program)?;
@@ -24,6 +25,7 @@ pub fn retain_access_lifecycle_plans(
         return Ok(program.into());
     }
     let admission = BuildTimeAdmissionPlan::infer(&program, None);
+    let checking = super::plan_laid::checking_target_applications(&program, scopes)?;
     for demand in demands {
         let source = demand.sources[0];
         let diagnostic = |reason| vec![Diagnostic::error(reason).with_source_span(source)];
@@ -54,65 +56,102 @@ pub fn retain_access_lifecycle_plans(
         if demand.operation == AccessLifecycleOperation::View {
             validate_nonresident_schema(&program, schema).map_err(diagnostic)?;
         }
-        let retained_placement = program
-            .access_view_plans
-            .iter()
-            .find(|view| {
-                view.policy_symbol == policy
-                    && view.schema_symbol == schema
-                    && view.policy_plan_machine_symbol == policy_machine_symbol
-            })
-            .map(|view| &view.placement)
-            .or_else(|| {
-                program
-                    .access_lifecycle_plans
-                    .iter()
-                    .find_map(|(_, row)| match row {
-                        AccessLifecyclePlan::Evaluated {
-                            policy: retained_policy,
-                            schema: retained_schema,
-                            policy_machine: retained_machine,
-                            placement,
-                            ..
-                        } if *retained_policy == policy
-                            && *retained_schema == schema
-                            && *retained_machine == policy_machine_symbol =>
-                        {
-                            Some(placement)
-                        }
-                        _ => None,
-                    })
-            });
-        let placement = match retained_placement {
-            Some(placement) => placement.clone(),
-            None => super::access_plans::compute_selected_access_plan(
-                &program,
-                policy_machine,
-                schema_definition,
-                // Lifecycle geometry is evaluated after source completion,
-                // outside its retained accounting ledger. Ordinary evaluation
-                // still enforces admission and its logical work ceiling.
-                &Default::default(),
-            )
-            .map_err(diagnostic)?,
-        };
+        let mut targets = Vec::new();
+        if scopes.is_empty() {
+            targets.push(None);
+        } else {
+            for (scope, selected) in scopes.iter().zip(&checking) {
+                if !demand.owners.iter().any(|owner| selected.contains(*owner)) {
+                    continue;
+                }
+                if let Some(facts) = &scope.facts {
+                    facts
+                        .validate()
+                        .map_err(|reason| diagnostic(reason.into()))?;
+                    if facts.profile != scope.target {
+                        return Err(diagnostic(
+                            "lifecycle scope differs from its target geometry".into(),
+                        ));
+                    }
+                }
+                if !targets.contains(&scope.facts) {
+                    targets.push(scope.facts.clone());
+                }
+            }
+        }
+        if targets.is_empty() {
+            return Err(diagnostic(
+                "lifecycle invocation has no source checking context".into(),
+            ));
+        }
         let storage = storage_contract::check(&program, demand.callable, demand.operation)
             .map_err(|error| vec![error.with_source_span(source)])?;
+        let mut placements = Vec::new();
+        for target in targets {
+            let retained_placement = program
+                .access_view_plans
+                .iter()
+                .find(|view| {
+                    view.policy_symbol == policy
+                        && view.schema_symbol == schema
+                        && view.policy_plan_machine_symbol == policy_machine_symbol
+                })
+                .map(|view| &view.placement)
+                .or_else(|| {
+                    program
+                        .access_lifecycle_plans
+                        .iter()
+                        .find_map(|(_, row)| match row {
+                            AccessLifecyclePlan::Evaluated {
+                                policy: retained_policy,
+                                schema: retained_schema,
+                                policy_machine: retained_machine,
+                                placement,
+                                target: retained_target,
+                                ..
+                            } if *retained_policy == policy
+                                && *retained_schema == schema
+                                && *retained_machine == policy_machine_symbol =>
+                            {
+                                (*retained_target == target).then_some(placement)
+                            }
+                            _ => None,
+                        })
+                });
+            let placement = match retained_placement {
+                Some(placement) => placement.clone(),
+                None => super::access_plans::compute_selected_access_plan(
+                    &program,
+                    policy_machine,
+                    schema_definition,
+                    target.as_ref(),
+                    // Lifecycle geometry is evaluated after source completion,
+                    // outside its retained accounting ledger. Ordinary evaluation
+                    // still enforces admission and its logical work ceiling.
+                    &Default::default(),
+                )
+                .map_err(diagnostic)?,
+            };
+            placements.push((target, placement));
+        }
         let invocations = program
             .access_policy_invocations
             .insert_many(demand.sources);
-        program
-            .access_lifecycle_plans
-            .append(AccessLifecyclePlan::Evaluated {
-                callable: demand.callable,
-                operation: demand.operation,
-                policy,
-                schema,
-                policy_machine: policy_machine_symbol,
-                invocations,
-                placement,
-                storage,
-            });
+        for (target, placement) in placements {
+            program
+                .access_lifecycle_plans
+                .append(AccessLifecyclePlan::Evaluated {
+                    callable: demand.callable,
+                    operation: demand.operation,
+                    policy,
+                    schema,
+                    policy_machine: policy_machine_symbol,
+                    invocations,
+                    target,
+                    placement,
+                    storage: storage.clone(),
+                });
+        }
     }
     Ok(program.into())
 }

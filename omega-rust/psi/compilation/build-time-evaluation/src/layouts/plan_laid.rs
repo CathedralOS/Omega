@@ -49,30 +49,9 @@ pub fn evaluate_fixed_layout_applications(
         return Ok(());
     }
     typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
-    let defaults = retain_provider_defaults(
-        crate::product::provider_declarations::ProviderPlanningContext::new(
-            typed,
-            DependencyScope::Product,
-        ),
-    )?;
-    let mut topology =
-        typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
-    let dynamic = validation::describe_dynamic_conformances(typed)?;
-    let symbols = &mut topology.symbols;
-    topology.machines.for_each_mut(|_, machine| {
-        machine.dynamic_realizations = symbols.insert_many(
-            dynamic
-                .selections
-                .iter()
-                .filter(|selection| selection.machine == machine.machine)
-                .flat_map(|selection| selection.rows.iter().map(|row| row.realization_machine)),
-        );
-    });
-    let operational = validation::infer_operational_may(typed);
+    let checking = checking_target_applications(typed, scopes)?;
     let mut targets = Vec::new();
     let mut inputs = Vec::new();
-    let checking = source_checking_applications(typed, scopes, &defaults, &topology, &operational)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     // `cross_platform_cli`, `local_unchecked`, and `alpha_bootstrap` can select
     // a provider whose body names a fixed layout, but they publish no
     // representation profile. A facts-bearing target still forms that layout.
@@ -93,8 +72,6 @@ pub fn evaluate_fixed_layout_applications(
                     "fixed representation scope differs from its explicit target facts",
                 )]);
             }
-            // Explicit checking inputs exist independently of whether this
-            // scope happens to contain a closed consumer of an open recipe.
             if !targets.contains(facts) {
                 targets.push(facts.clone());
             }
@@ -129,7 +106,6 @@ pub fn evaluate_fixed_layout_applications(
     let mut domain = crate::build_time_evaluation::EvaluationDomain::all();
     domain.layout_targets = targets;
     domain.layout_applications = Some(inputs);
-    // Every query since preparation above only read the program.
     compute_prepared_plan_laid_layouts_in(typed, selection_authority, &domain)?;
     layout_installation::validate_layout_application_coverage(
         typed,
@@ -149,4 +125,34 @@ pub fn evaluate_fixed_layout_applications(
         }
     }
     Ok(())
+}
+
+/// Physical operations and authored layouts use the same supplied application
+/// scopes. A private target body must not acquire another target's geometry.
+pub(super) fn checking_target_applications(
+    typed: &TypedTrees,
+    scopes: &[FixedLayoutTargetScope],
+) -> Result<Vec<typed_trees::references::DeclarationSelection>, Vec<Diagnostic>> {
+    let defaults = retain_provider_defaults(
+        crate::product::provider_declarations::ProviderPlanningContext::new(
+            typed,
+            DependencyScope::Product,
+        ),
+    )?;
+    let mut topology =
+        typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
+    let dynamic = validation::describe_dynamic_conformances(typed)?;
+    let symbols = &mut topology.symbols;
+    topology.machines.for_each_mut(|_, machine| {
+        machine.dynamic_realizations = symbols.insert_many(
+            dynamic
+                .selections
+                .iter()
+                .filter(|selection| selection.machine == machine.machine)
+                .flat_map(|selection| selection.rows.iter().map(|row| row.realization_machine)),
+        );
+    });
+    let operational = validation::infer_operational_may(typed);
+    source_checking_applications(typed, scopes, &defaults, &topology, &operational)
+        .map_err(|reason| vec![Diagnostic::error(reason)])
 }

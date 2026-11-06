@@ -74,8 +74,7 @@ impl TerminalExecution<'_> {
             .map_err(|reason| format!("provider storage result path: {reason:?}"))?;
         let storage = self
             .program
-            .catalogs
-            .access_lifecycle_plans
+            .access_lifecycle_plans()
             .iter()
             .find(|plan| {
                 plan.storage.carrier == value.structural_type
@@ -370,8 +369,7 @@ impl TerminalExecution<'_> {
         }
         let mut roles = self
             .program
-            .catalogs
-            .access_lifecycle_plans
+            .access_lifecycle_plans()
             .iter()
             .map(|plan| &plan.storage)
             .filter(|storage| storage.carrier == value.structural_type);
