@@ -12,6 +12,29 @@ impl CallableApplication {
         program: &mut TypedTrees,
         original: types::TypeReferenceHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        if !original.is_valid() {
+            return Ok(original);
+        }
+        // A child may later become a standalone field or element destination.
+        // Keep its inherited source declaration when copying it, rather than
+        // relying on an enclosing type still being present at that later use.
+        let previous_owner = self.source_lifetime_owner;
+        let owner = program
+            .type_reference_table
+            .operand_lifetime_owner(original);
+        if owner.is_valid() {
+            self.source_lifetime_owner = owner;
+        }
+        let copied = self.copy_type_reference(program, original);
+        self.source_lifetime_owner = previous_owner;
+        copied
+    }
+
+    fn copy_type_reference(
+        &mut self,
+        program: &mut TypedTrees,
+        original: types::TypeReferenceHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
         let obligations = program
             .type_reference_table
             .type_alias_applications(original)
@@ -65,9 +88,7 @@ impl CallableApplication {
         if !original.is_valid() {
             return Ok(original);
         }
-        let owner = program
-            .type_reference_table
-            .operand_lifetime_owner(original);
+        let owner = self.source_lifetime_owner;
         if owner.is_valid()
             && !program
                 .type_reference_table
@@ -93,9 +114,7 @@ impl CallableApplication {
         program: &mut TypedTrees,
         original: types::TypeReferenceHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
-        let mut applied_owner = program
-            .type_reference_table
-            .operand_lifetime_owner(original);
+        let mut applied_owner = self.source_lifetime_owner;
         let mut applied_lifetimes = Vec::new();
         let mut supplied_origins = Vec::new();
         let mut supplied_extent_argument = None;

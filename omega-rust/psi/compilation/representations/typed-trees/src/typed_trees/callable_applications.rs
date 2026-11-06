@@ -268,6 +268,9 @@ struct CallableApplication {
     /// Value binders realized as ordinary formals by this owned signature.
     runtime_values: Vec<SymbolHandle>,
     region_scope: SymbolHandle,
+    /// Source scope inherited while copying one type graph. A child's retained
+    /// supplier overrides it; a substituted caller operand keeps its own scope.
+    source_lifetime_owner: SymbolHandle,
     /// Complete captured application during materialization. Local callable
     /// binders remain in `lifetimes` and mask same-spelled captured regions.
     trait_region_application: Option<(crate::trait_definition::TraitApplicationEnvironment, usize)>,
