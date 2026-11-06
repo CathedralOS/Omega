@@ -30,10 +30,29 @@ mod suite;
 use std::path::Path;
 
 fn main() {
-    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    let mut arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    // A leading `--address-space-gib N` sets the Linux address-space cap for
+    // every process this invocation measures; records name the value used.
+    if arguments
+        .first()
+        .is_some_and(|argument| argument == "--address-space-gib")
+    {
+        let gibibytes = arguments
+            .get(1)
+            .and_then(|value| value.to_str())
+            .and_then(|value| value.parse::<u64>().ok())
+            .filter(|value| (1..=1 << 20).contains(value));
+        let Some(gibibytes) = gibibytes else {
+            eprintln!("omega-bench: --address-space-gib takes a whole number of GiB");
+            std::process::exit(2);
+        };
+        process::set_address_space_limit(gibibytes << 30);
+        arguments.drain(..2);
+    }
     if arguments.len() == 1 && (arguments[0] == "--help" || arguments[0] == "-h") {
         println!(
-            "omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <phase|allocations|wpr|perf-stat|perf-record> <new-result-directory>
+            "Any command may start with --address-space-gib N (Linux address-space cap, default 64).
+omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <phase|allocations|wpr|perf-stat|perf-record> <new-result-directory>
 omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>] [--completion]"
         );
         return;
