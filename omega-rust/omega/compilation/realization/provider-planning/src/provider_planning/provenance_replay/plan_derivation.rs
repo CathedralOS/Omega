@@ -24,7 +24,6 @@ use crate::provider_planning::source_provider_selections::{
 };
 use crate::provider_planning::trait_name_text;
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
-use checked_trees::typed_trees::provider_declarations::independent_satisfactions;
 use effects::provider_plan::{ProviderIdentityId, ProviderIdentityTable};
 use language_semantics::direct_calls::DirectCallDeclarations;
 use symbols::SymbolHandle;

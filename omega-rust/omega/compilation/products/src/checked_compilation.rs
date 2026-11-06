@@ -298,6 +298,8 @@ impl CheckedCompilation {
     }
 }
 
+// Semantic inspection reads complete admitted declarations. Execution uses the
+// separate Product program and its published artifact.
 impl std::ops::Deref for CheckedCompilation {
     type Target = CheckedTrees;
 

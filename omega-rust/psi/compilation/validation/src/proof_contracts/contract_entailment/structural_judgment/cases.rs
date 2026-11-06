@@ -572,11 +572,25 @@ mod constructor_identity_tests {
 
     #[test]
     fn known_constructor_keeps_its_case_when_another_owner_has_the_same_name() {
-        let mut symbols = SymbolTableBuilder::default();
-        let owners = [
-            symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Choice")),
-            symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Choice")),
-        ];
+        let mut sources = source::SourceMap::default();
+        let spans = [1u8, 2].map(|marker| {
+            let root = std::path::PathBuf::from(format!("package-{marker}"));
+            let source_id = sources
+                .add_with_metadata(
+                    root.join("main.omg"),
+                    "Choice".to_owned(),
+                    root,
+                    Some(
+                        semantic_vocabulary::PackageKeyIdentity::from_digest([marker; 32]).unwrap(),
+                    ),
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            source::SourceSpan::new(source_id, source::Span::new(0, 6))
+        });
+        let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let owners =
+            spans.map(|span| symbols.insert_root(SymbolKind::Data, SymbolNameRef::Source(span)));
         let cases = owners.map(|owner| {
             symbols.insert_children(
                 owner,
