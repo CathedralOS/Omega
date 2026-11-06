@@ -494,6 +494,32 @@ fn runtime_profile_validation_matches_complete_normalizer() {
 }
 
 #[test]
+fn zero_backing_accepts_only_an_empty_supply_roster() {
+    with_validator(0, |builder, result, layout| {
+        for profile in [
+            ResourceProfile::default(),
+            ResourceProfile {
+                regions: vec![region(0, 0)],
+            },
+            ResourceProfile {
+                regions: vec![region(0, 1)],
+            },
+        ] {
+            let expected = profile.regions.is_empty();
+            assert_eq!(
+                access_plans::validate_resource_profile(profile.clone(), 0).is_ok(),
+                expected
+            );
+            let mut bytes = encode(layout, &profile);
+            assert_eq!(
+                run(builder, result, &mut bytes, u64::from(layout.bytes) + 8),
+                expected
+            );
+        }
+    });
+}
+
+#[test]
 fn malformed_runtime_counts_tags_and_boolean_bits_never_enable_profile() {
     with_validator(256, |builder, result, layout| {
         let mut profile = region(0, 256);
