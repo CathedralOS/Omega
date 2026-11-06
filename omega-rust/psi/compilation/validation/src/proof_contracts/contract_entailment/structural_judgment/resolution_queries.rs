@@ -1709,7 +1709,7 @@ mod completed_read_roster_tests {
             .as_mut()
             .unwrap()
             .push(ApplicationRead {
-                application: late.clone(),
+                application: late.clone().into(),
                 fingerprint: fingerprint(&late),
                 was_active: false,
                 specification_terms: judge.specification_terms,
