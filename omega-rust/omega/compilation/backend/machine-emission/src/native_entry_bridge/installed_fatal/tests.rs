@@ -149,7 +149,7 @@ fn fatal_arrival_keeps_complete_body_state_evidence() {
     for request in [outside_ceiling, vector] {
         assert_eq!(
             emit(request, plan()),
-            Err(Error::InterruptBodyStateExceedsPlan)
+            Err(Error::FatalInterruptBodyStateExceedsPlan)
         );
     }
 }

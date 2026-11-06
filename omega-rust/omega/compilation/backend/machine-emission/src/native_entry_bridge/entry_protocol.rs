@@ -116,7 +116,10 @@ pub(super) fn validate_fatal(request: &NativeEntryBridgeRequest) -> Result<(), E
     {
         return Err(Error::UnsupportedInterruptState);
     }
-    interrupt_body_footprint(request)?;
+    interrupt_body_footprint(request).map_err(|error| match error {
+        Error::InterruptBodyStateExceedsPlan => Error::FatalInterruptBodyStateExceedsPlan,
+        error => error,
+    })?;
     Ok(())
 }
 

@@ -96,6 +96,7 @@ pub enum NativeEntryBridgeError {
     UnsupportedInterruptState,
     MissingInterruptBodyFootprint,
     InterruptBodyStateExceedsPlan,
+    FatalInterruptBodyStateExceedsPlan,
     InvalidParameterJoin,
     UnsupportedValueTransport,
     MissingScalarCodec,
@@ -127,7 +128,10 @@ impl std::fmt::Display for NativeEntryBridgeError {
                 "interrupt entry lacks the checked handler's machine-state effects"
             }
             Self::InterruptBodyStateExceedsPlan => {
-                "interrupt handler exceeds its entry's machine-state ceiling or preservation protocol"
+                "interrupt handler uses machine state its entry does not permit, save and restore"
+            }
+            Self::FatalInterruptBodyStateExceedsPlan => {
+                "fatal interrupt handler exceeds its entry's machine-state ceiling"
             }
             _ => return write!(formatter, "native entry bridge failed: {self:?}"),
         };
