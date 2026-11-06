@@ -769,11 +769,15 @@ impl FactSpelling<'_> {
     /// Whether an authored operator application selected anything but its
     /// builtin meaning.
     fn selects_declared_operator(&self, expression: ExpressionHandle) -> bool {
-        self.operators.uses.iter().any(|(_, operator)| {
-            operator.expression == expression
-                && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        })
+        // The existing roster retains every use of this complete expression
+        // handle, including implicit occurrences and distinct origins.
+        let mut selected = false;
+        self.operators
+            .for_each_expression_use(expression, |_, operator| {
+                selected |= operator.status
+                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback;
+            });
+        selected
     }
 
     fn boolean(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {
