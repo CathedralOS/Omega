@@ -14,6 +14,62 @@ pub(super) struct IncomingLeaf {
 }
 
 impl Captures<'_> {
+    /// Keep a descriptor's place within its completed call result. The
+    /// descriptor type alone cannot name a producing operation when it is a
+    /// field or case payload of that result.
+    pub(super) fn invocation_carrier(
+        &self,
+        state: &typed_trees::state::State,
+        incoming: &checked_trees::IncomingReferenceIdentity,
+    ) -> Option<(
+        TypeReferenceHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> {
+        let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } =
+            incoming.origin
+        else {
+            return None;
+        };
+        if incoming.state_symbol != state.symbol
+            || incoming.machine_symbol != self.flow(state.symbol)?.machine_symbol
+            || !matches!(self.program.expression_table.expression(expression), typed_trees::expression::ExpressionNode::Call(call) if crate::call_target_entry_symbol(self.program, crate::call_target_symbol(self.program, call)) == crate::call_target_entry_symbol(self.program, target))
+        {
+            return None;
+        }
+        let machine = self.program.machine_holding_state(state.symbol)?;
+        let carrier =
+            crate::expression_result_type_reference(self.program, machine, state, expression)?;
+        let owner = self.facts.borrow.owner_segments.span(incoming.owner_path)?;
+        let mut matches = super::super::record_carrier_sources(
+            self.program,
+            carrier,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 0,
+            },
+        )?
+        .into_iter()
+        .filter(|leaf| {
+            if super::super::loan_owner_path(self.program, carrier, &leaf.path).as_deref()
+                != Some(owner)
+            {
+                return false;
+            }
+            super::super::loan_place_segments(self.program, carrier, &leaf.path)
+                .and_then(|path| {
+                    crate::project_type_reference_from_segments(self.program, carrier, &path)
+                })
+                .is_some_and(|leaf| {
+                    self.program.normalized_type_identity(leaf)
+                        == self.program.normalized_type_identity(incoming.carrier_type)
+                })
+        });
+        let leaf = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some((carrier, leaf.path))
+    }
+
     pub(super) fn incoming_leaf(
         &self,
         state: &typed_trees::state::State,

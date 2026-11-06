@@ -191,15 +191,24 @@ impl Captures<'_> {
                         || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
                             if expression == call.authored_expression
                                 && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
-                        || self.program.normalized_type_identity(incoming.carrier_type)
-                            != *carrier_type
                         || leaf.source.access.borrow_access_kind()? != loan.kind
+                    {
+                        continue;
+                    }
+                    let (invocation_carrier, descriptor_path) =
+                        self.invocation_carrier(state, incoming)?;
+                    let prefix: Vec<_> = descriptor_path
+                        .into_iter()
+                        .map(CheckedReferenceOriginProjection::Exact)
+                        .collect();
+                    if self.program.normalized_type_identity(invocation_carrier) != *carrier_type
+                        || !candidate.source.path.starts_with(&prefix)
                     {
                         continue;
                     }
                     let mut projection = super::super::origin_place_projection(
                         self.program,
-                        incoming.carrier_type,
+                        invocation_carrier,
                         candidate.source.path.iter().cloned(),
                     )?;
                     if projection.type_identity(self.program) != candidate.source.type_identity {

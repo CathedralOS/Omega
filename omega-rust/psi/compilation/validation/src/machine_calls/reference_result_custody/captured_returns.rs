@@ -826,6 +826,8 @@ impl Captures<'_> {
                 {
                     return None;
                 }
+                let (invocation_carrier, descriptor_path) =
+                    self.invocation_carrier(state, incoming)?;
                 let shell = crate::reference_shell(self.program, incoming.carrier_type)?;
                 if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                     return None;
@@ -856,10 +858,15 @@ impl Captures<'_> {
                 }
                 return Some(vec![CheckedReferenceOriginSourcePlan {
                     root: checked_trees::CheckedReferenceOriginRoot::Invocation {
-                        carrier_type: self.program.normalized_type_identity(incoming.carrier_type),
+                        carrier_type: self.program.normalized_type_identity(invocation_carrier),
                     },
                     entry_reference_hops: 0,
-                    path: prefix.into_iter().chain(suffix).collect(),
+                    path: descriptor_path
+                        .into_iter()
+                        .map(CheckedReferenceOriginProjection::Exact)
+                        .chain(prefix)
+                        .chain(suffix)
+                        .collect(),
                     extent,
                     type_identity: identity,
                     access: leaf.source.access,
