@@ -5756,6 +5756,7 @@ pass/layouts/runtime_recursive_encoded_reference_exit rejected 1961ms interprete
 pass/layouts/runtime_returned_encoded_reference_exit rejected 1803ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_run_zero_sized_element_exit built 15701ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @2cd7911033f0
 pass/layouts/runtime_selected_reference_parent_restoration_exit rejected 1463ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
