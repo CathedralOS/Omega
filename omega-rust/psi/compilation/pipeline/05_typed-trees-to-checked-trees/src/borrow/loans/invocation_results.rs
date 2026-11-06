@@ -101,9 +101,8 @@ pub(in crate::borrow) fn complete(
     ) {
         return Ok(Vec::new());
     }
-    let contract = super::call_view_return_contract(program, state.symbol, call)
-        .ok_or("completed call result has no applied contract")?;
-    let result = contract.return_type_reference(program);
+    let result = validation::expression_result_type_reference(program, machine, state, expression)
+        .ok_or("completed call result has no checked value type")?;
     if !super::types::is_reference_type(program, result)
         && !crate::borrow::view_link::is_borrow_carrying_data(program, result)
     {

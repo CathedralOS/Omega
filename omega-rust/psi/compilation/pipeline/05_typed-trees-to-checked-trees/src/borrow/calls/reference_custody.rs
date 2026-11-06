@@ -165,7 +165,10 @@ pub(in crate::borrow) fn append_reference_custody(
                         incoming,
                         frames,
                     )
-                    .map_err(diagnostics::Diagnostic::error)?,
+                    .map_err(|reason| diagnostics::Diagnostic::error(format!(
+                        "normal call {expression:?} in machine `{}` state `{}` statement {statement_index}: {reason}",
+                        machine.name, state.name,
+                    )))?,
                 );
                 for loan in &mut produced {
                     loan.formation_expression = expression;
