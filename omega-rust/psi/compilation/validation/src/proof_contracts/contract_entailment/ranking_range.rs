@@ -1227,17 +1227,11 @@ fn prove_edge(
             Vec::new()
         };
     let mut comparisons = auxiliary.clone();
-    // A state's own constrained formals are enforced by ordinary arrival
+    // A state's own formal carriers are enforced by ordinary arrival
     // formation. They remain facts of this exact source frame under either
     // rank regime; only transported entry-template hypotheses require the
     // separate invariant-preservation obligation below.
-    comparisons.extend(parameter_comparisons(
-        program,
-        machine,
-        state,
-        &mut engine,
-        &bindings,
-    )?);
+    comparisons.extend(parameter_comparisons(program, machine, state, &bindings)?);
     if let Some(field) = &field_rank {
         comparisons.extend(field.comparisons(program));
     }
@@ -1774,7 +1768,7 @@ fn contract_comparisons(
     Some(comparisons)
 }
 
-/// Carrier and declared-domain facts for the supplied frame bindings. Runtime
+/// Carrier facts for the supplied frame bindings. Runtime
 /// formals belong to this state; explicit immutable indices belong to its one
 /// invocation. Cross-call actuals require their own substitution.
 fn parameter_comparisons(

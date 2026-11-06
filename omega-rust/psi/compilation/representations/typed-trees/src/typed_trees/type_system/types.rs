@@ -1454,8 +1454,6 @@ impl fmt::Display for DomainConstraint {
     }
 }
 
-impl TypeConstraintNode {}
-
 impl Default for TypeConstraintNode {
     fn default() -> Self {
         Self::Named(Identifier::default())

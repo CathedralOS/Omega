@@ -19,12 +19,9 @@ use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use typed_trees::unsigned_integer_primitive_pattern;
-use validation::closed_integer_range_bound;
-use validation::closed_integer_range_maximum;
 use validation::declared_constant_array_type;
 use validation::declared_domain_predicate_bounds;
 use validation::declared_place_type_raw;
-use validation::exact_attached_field;
 use validation::exact_self_field;
 use validation::expression_result_type_reference;
 use validation::project_type_reference_from_segments;
@@ -145,20 +142,10 @@ pub(super) fn expression_is_slice(
         .is_some_and(|type_reference| type_reference_is_slice(program, type_reference))
 }
 
-/// The DECLARED range constraint of `expression`'s type (`i: usize [0..=4]`)
-/// as inclusive i64 bounds -- ONLY when that range is a true invariant the
-/// index prover may rely on:
-/// - the base type is a plain INTEGER primitive (an atomic's hardware
-///   semantics wrap; a float range never indexes), and
-/// - the arithmetic domain is EXACT: a `in Wrapping`/`Saturating` store is
-///   deliberately permissive (probed live: `[0..=4] in Wrapping` accepts a
-///   store of 100), so a non-Exact range must never discharge an index bound.
-///
-/// Every store into an Exact ranged place is range-checked (the narrowing
-/// keystone) and ZII requires 0 in range, so the declared interval holds at
-/// every read. An exactly selected ordinary call contributes its declared
-/// return interval and enforced result contract, intersected with its carrier.
-/// Checking the callee's return remains an independent duty.
+/// Closed bounds established by a declared integer domain or an exactly
+/// selected ordinary call's result contract. Declared-domain bounds retain
+/// the Exact arithmetic-policy gate; checking their formation and each
+/// callee's return remains an independent duty.
 pub(in crate::checks) fn expression_enforced_declared_range(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -177,12 +164,21 @@ pub(in crate::checks) fn expression_enforced_declared_range(
     if !primitive_of_type_reference(program, type_reference)?.is_fixed_integer() {
         return None;
     }
-    let (low, high) =
-        super::expressions::ensured_call_result_bounds(program, machine.symbol, expression)?;
-    let minimum = expression_integer_carrier_minimum(program, machine, state, expression)
-        .and_then(|value| value.to_i64());
-    let maximum = expression_integer_carrier_maximum(program, machine, state, expression)
-        .and_then(|value| i64::try_from(value).ok());
+    let declared = enforced_range_of_type_reference(program, type_reference);
+    let Some((low, high)) =
+        super::expressions::ensured_call_result_bounds(program, machine.symbol, expression)
+    else {
+        return declared;
+    };
+    let minimum = declared.map(|(minimum, _)| minimum).or_else(|| {
+        expression_integer_carrier_minimum(program, machine, state, expression)?.to_i64()
+    });
+    let maximum = declared.map(|(_, maximum)| maximum).or_else(|| {
+        i64::try_from(expression_integer_carrier_maximum(
+            program, machine, state, expression,
+        )?)
+        .ok()
+    });
     let minimum = match (minimum, low) {
         (Some(carrier), Some(ensured)) => Some(carrier.max(ensured)),
         (carrier, ensured) => carrier.or(ensured),
@@ -192,6 +188,78 @@ pub(in crate::checks) fn expression_enforced_declared_range(
         (carrier, ensured) => carrier.or(ensured),
     }?;
     (minimum <= maximum).then_some((minimum, maximum))
+}
+
+fn has_non_exact_domain(constraints: &[TypeConstraintNode]) -> bool {
+    constraints.iter().any(|constraint| {
+        matches!(
+            constraint,
+            TypeConstraintNode::ArithmeticDomain(domain)
+                if *domain != numerics::arithmetic::ArithmeticDomain::Exact
+        )
+    })
+}
+
+/// Visit declared constraints through references and Exact arithmetic shells.
+/// A non-Exact shell stops the walk before any bounds can be trusted.
+fn exact_domain_shell_constraints(
+    program: &dyn ::validation::CheckingInput,
+    mut handle: TypeReferenceHandle,
+    mut visit: impl FnMut(&[TypeConstraintNode]) -> bool,
+) -> Option<()> {
+    loop {
+        handle = program
+            .type_reference_table
+            .dereferenced_type_reference(handle);
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = program.type_reference_table.constraints(*constraints);
+                if has_non_exact_domain(constraints) {
+                    return None;
+                }
+                if !visit(constraints) {
+                    return Some(());
+                }
+                handle = *base_type;
+            }
+            _ => return Some(()),
+        }
+    }
+}
+
+fn enforced_range_of_type_reference(
+    program: &dyn ::validation::CheckingInput,
+    handle: TypeReferenceHandle,
+) -> Option<(i64, i64)> {
+    let mut bounds: Option<(BigInt, BigInt)> = None;
+    exact_domain_shell_constraints(program, handle, |constraints| {
+        for constraint in constraints {
+            // Membership and each write establish every predicate of the
+            // declared domain. Retain their closed integer consequences.
+            if let TypeConstraintNode::Domain(domain) = constraint
+                && let Some((minimum, maximum)) = declared_domain_predicate_bounds(program, domain)
+            {
+                bounds = Some(match bounds.take() {
+                    Some((prior_minimum, prior_maximum)) => {
+                        (minimum.max(prior_minimum), maximum.min(prior_maximum))
+                    }
+                    None => (minimum, maximum),
+                });
+            }
+        }
+        true
+    })?;
+    let (minimum, maximum) = bounds?;
+    // Intersect before bounded conversion so an empty intersection remains
+    // bottom even when an endpoint does not fit i64.
+    if minimum > maximum {
+        Some((1, 0))
+    } else {
+        Some((minimum.to_i64()?, maximum.to_i64()?))
+    }
 }
 
 /// Use the same receiver-substituted extent as ordered collection checking.
