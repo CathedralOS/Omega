@@ -287,7 +287,7 @@ impl Fixture {
         let factory = self.function(
             1,
             vec![self.source(101)],
-            self.result_contract(109, 101),
+            self.result_contract(119, 101),
             vec![
                 O::EstablishAccessReference {
                     psi_operation: op(1001),
@@ -307,7 +307,7 @@ impl Fixture {
         let relay = self.function(
             2,
             vec![self.source(201)],
-            self.result_contract(209, 201),
+            self.result_contract(219, 201),
             vec![
                 self.call(2001, 1, 201, 209),
                 O::ReturnStructural {

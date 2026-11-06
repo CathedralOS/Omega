@@ -19,6 +19,9 @@ mod storage_projection;
 mod type_declarations;
 mod witnesses;
 
+#[cfg(test)]
+mod opaque_referent_tests;
+
 pub(crate) use paths::structural_projection_type;
 pub(crate) use storage_projection::shared_view_declaration;
 pub use storage_projection::{

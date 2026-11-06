@@ -1,8 +1,8 @@
 {
   "schema": "omega-reviewed-compiler-input-map-v1",
-  "compiled_source": "9a0b196f4b52a63673e48b3960c3aa0f680cf47b",
+  "compiled_source": "45912dfdbfe35756a77bde342ff6e2932e942c5b",
   "compiler_inputs": {
-    "omega-rust": "61f680faf5bc5b5bf356a1b83e29cab136b55db0",
+    "omega-rust": "3f5b38296c33d03842e911ec928d7068e92b06f9",
     "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
     "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
     "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -14,9 +14,11 @@
     ".cargo": null
   },
   "provenance": {
-    "owner_source_map_sha256": "8f34ad8e8ccd07fd3e30329a04d9be85271d06381592488de4888cb35477fbfe",
-    "owner_source_map_original_path": "build/supplied-output-loan/source05-root-v3-and-f1-9a0b-ten-inputs.json",
+    "owner_source_map_sha256": "607631bf1b5eef9bec66c38797092bcdfa6191dc55a028d513f01df96dbe8299",
+    "owner_source_map_original_path": "build/supplied-output-loan/parent-graph-current-sixteen-source-map.json",
     "role_scope_sha256": "0a523e008cd9a63a893ca56c041c690173206eaf01e4f4d0bf114feb82db33d9",
-    "limits": "Current source availability/input identity only; no actual source-program/test outcomes for new root-role correction."
+    "limits": "Current45912 source/input binding, with reviewed root-grant full-handle ordering and opaque Reference-only graph fix; actual four Source05 positive outcomes still unobserved.",
+    "handle_order_review_sha256": "51a710751f4510bfe2d1651c3cd0b5b067fc68d12f15aa8844af2bd2bc9cfddf",
+    "opaque_graph_review_sha256": "91f53ee67c8f9e3caa2c624cedb9ed515a5ebb451ed19dba3557f303a3f0070a"
   }
 }

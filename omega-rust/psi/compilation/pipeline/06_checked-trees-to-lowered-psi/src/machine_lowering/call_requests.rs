@@ -241,7 +241,7 @@ mod tests {
             StatementCallKey::from_checked(
                 &checked,
                 CheckedValueOrigin::NestedExpression {
-                    parent: typed_trees::expression::ExpressionHandle::from_arena_index(1),
+                    parent: checked_trees::expression::ExpressionHandle::from_arena_index(1),
                 },
                 4,
             )
