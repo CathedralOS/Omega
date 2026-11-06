@@ -97,7 +97,7 @@ fn collect_declared_result_dispatch_terms(
                     predicate_presence: constituent_definition.predicate_presence,
                     semantic_roles: constituent_definition.semantic_roles,
                     establishment_routes: constituent_definition.establishment_routes.clone(),
-                    authored_selection: None,
+                    source_selection: None,
                 };
                 collect_declared_result_dispatch_terms(
                     program,

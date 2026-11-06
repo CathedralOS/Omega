@@ -40,15 +40,12 @@ pub(crate) use nominal_requirements::{
 pub(crate) use partial_affine_cleanup::partial_affine_residuals;
 
 use super::{
-    BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
+    CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode,
-    Multiplicity, PermissionEventSource, TypeReferenceNode,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment, Diagnostic,
+    MachineSupplyMode, Multiplicity, PermissionEventSource, TypeReferenceNode,
 };
-use crate::execution::terminal_unit::calls::{
-    entry_claims, free_structural_scalar_signature,
-};
+use crate::execution::terminal_unit::calls::{entry_claims, free_structural_scalar_signature};
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow,
 };
@@ -65,9 +62,7 @@ pub(in crate::execution::terminal_unit) fn owning_cleanup_machine(
     let mut scope = state;
     while scope.is_valid() {
         let parent = program.symbols.get(scope).parent;
-        if parent.is_valid()
-            && program.symbols.get(parent).kind == symbols::SymbolKind::Machine
-        {
+        if parent.is_valid() && program.symbols.get(parent).kind == symbols::SymbolKind::Machine {
             return parent;
         }
         scope = parent;

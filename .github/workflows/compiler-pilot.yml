@@ -20,6 +20,10 @@ on:
         description: Check only the exact fixtures and rejection controls, without repeating runtime observations
         type: boolean
         default: false
+      record_results:
+        description: Record the selected corpus source checks for review, without changing the published golden
+        type: boolean
+        default: false
       compiler_diagnostics:
         description: Enable verbose compiler diagnostics for a focused run
         type: boolean
@@ -151,6 +155,7 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
+          OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
         run: python tools/ci/compiler_pilot.py --phase prepare
       - name: Upload the prepared producer and build receipts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -191,6 +196,7 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
+          OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
         run: python tools/ci/compiler_pilot.py --phase consume
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)

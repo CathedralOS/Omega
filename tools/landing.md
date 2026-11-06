@@ -18,6 +18,7 @@ it still lands it, and does not leave it across unrelated landings.
 git status --short
 git rev-parse HEAD
 git push origin HEAD:refs/heads/work/NAME
+python tools/check_rules.py --title "lane: statement" --body-file PR_BODY
 gh pr create --draft --base main --head work/NAME --title "lane: statement" --body-file PR_BODY
 ```
 
@@ -97,7 +98,10 @@ Verify the landing on a later turn with `python tools/landing.py status NUMBER`
 (`state` MERGED and `mergeCommit`), or, where the host lets a command run in the
 background, add `--wait-seconds N` (at most 86400) so `land` also waits: it exits
 0 for MERGED, 2 at the deadline, and 1 for a red check, a conflict, a closed PR
-or removal from the queue. Waiting never re-enqueues a removed entry. A later
+or removal from the queue. A PR whose newest queue run passed but which still
+reads OPEN with no queue entry is merging, not removed: GitHub flips its state
+after main moves, so `land` keeps reading it for up to five minutes. Waiting
+never re-enqueues a removed entry. A later
 `land` leaves merged or queued PRs untouched, retains an armed pending request,
 and enqueues an already-armed green head. An armed request alone does not
 guarantee unattended publication; verify the final state.
@@ -109,7 +113,8 @@ backticks and escape sequences can execute commands or corrupt identifiers.
 Check its opening against the submitted diff before creating the PR or marking
 it ready; update the whole explanation when the scope changes. Summarize focused
 validation after the behavior and mechanism, then link or include the detailed
-records. Include actual agent/model provenance there when known, not in commit trailers.
+records. End it with the `Agent:` line that [Explain the change](../AGENTS.md#explain-the-change)
+requires; `compiler-check` refuses a description without one. Keep provenance out of commit trailers.
 GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.
@@ -143,7 +148,9 @@ single GitHub push destination. `--repository PATH` selects another worktree.
 ## Admission is not release qualification
 
 The only required status is `compiler-check` from GitHub Actions. It executes
-`cargo check --locked -p omega` on Linux for PR and `merge_group` candidates.
+`python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
+on Linux for PR and `merge_group` candidates, so formatting drift and warnings
+in the `omega` crate graph are refused. Run both before pushing.
 There are no path skips and no required full suite, customer boot, platform
 matrix or reviewer approval count. Focused author validation remains necessary
 to establish the change's behavior, including independent-workspace checks when

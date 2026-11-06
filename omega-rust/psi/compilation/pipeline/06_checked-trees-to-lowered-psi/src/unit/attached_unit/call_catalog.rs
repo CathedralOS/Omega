@@ -14,6 +14,7 @@ use super::{
 };
 use crate::expression_preparation::computation_graph::boundary_targets;
 use crate::expression_preparation::computation_graph::call_targets;
+use crate::expression_preparation::computation_graph::static_realization_targets;
 use crate::expression_preparation::computation_graph::structural_call_targets;
 use crate::expression_preparation::computation_graph::value_call_operations;
 use crate::shared::checked_facts::value_facts;
@@ -252,6 +253,26 @@ pub(super) fn discover(
                 }
                 if !ordinary_scalar_roots.contains(&target) {
                     ordinary_scalar_roots.push(target);
+                }
+            }
+            for target in static_realization_targets(checked, *machine_symbol) {
+                match CheckedScalarCallee::find_for_unit_call(checked, target) {
+                    Ok(callee) => {
+                        if !callee.structural_parameters().is_empty()
+                            && !structural_scalar_roots.contains(&target)
+                        {
+                            structural_scalar_roots.push(target);
+                        }
+                        if !ordinary_scalar_roots.contains(&target) {
+                            ordinary_scalar_roots.push(target);
+                        }
+                    }
+                    Err(_) if UnitBody::contains(plans, target) => {
+                        if !closure.contains(&target) && !new_roots.contains(&target) {
+                            new_roots.push(target);
+                        }
+                    }
+                    Err(error) => return Err(error),
                 }
             }
         }

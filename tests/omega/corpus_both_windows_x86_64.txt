@@ -2941,15 +2941,15 @@ pass/facts/field_where_index_through_other_machine_exit built 5071ms exit:0 inte
 pass/facts/field_where_index_through_other_state_exit built 4994ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/field_where_index_through_parameter_exit built 5040ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/field_where_index_through_target_body_exit built 5578ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/facts/finite_family_exclusive_result/call_result built 7244ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/const_name built 7231ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/field built 7254ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/local built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/match_join built 7221ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/other_machine built 7238ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/other_state built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/parameter built 7256ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
-pass/facts/finite_family_exclusive_result/target_body built 7335ms exit:0 interpreter-exit:0 interpreter:agrees @46cad3817d2f
+pass/facts/finite_family_exclusive_result/call_result built 7244ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/const_name built 7231ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/field built 7254ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/local built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/match_join built 7221ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/other_machine built 7238ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/other_state built 7242ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/parameter built 7256ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
+pass/facts/finite_family_exclusive_result/target_body built 7335ms exit:0 interpreter-exit:0 interpreter:agrees @9df129e92410
 pass/facts/finite_family_input_index/call_result built 7058ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/const_name built 7011ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
 pass/facts/finite_family_input_index/field built 7044ms exit:0 interpreter-exit:0 interpreter:agrees @2dcf275fa50f
@@ -5756,6 +5756,7 @@ pass/layouts/runtime_recursive_encoded_reference_exit rejected 1961ms interprete
 pass/layouts/runtime_returned_encoded_reference_exit rejected 1803ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_run_zero_sized_element_exit built 15701ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @2cd7911033f0
 pass/layouts/runtime_selected_reference_parent_restoration_exit rejected 1463ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach

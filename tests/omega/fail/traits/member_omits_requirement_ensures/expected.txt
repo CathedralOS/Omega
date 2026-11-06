@@ -1,1 +1,1 @@
-does not guarantee its `ensures result <= value`
+machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`

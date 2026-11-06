@@ -155,6 +155,7 @@ impl Execution<'_, '_, '_> {
                 operand_entry_constraints,
                 *constraints,
                 returned_value,
+                self.storage_snapshot,
                 cannot_return_normally,
                 self.context.active_completed_copies,
             );

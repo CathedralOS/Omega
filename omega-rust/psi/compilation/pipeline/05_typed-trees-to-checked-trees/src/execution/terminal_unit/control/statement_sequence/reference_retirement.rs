@@ -331,8 +331,8 @@ pub(super) struct Retirement<'a> {
     pub(super) returned: Option<&'a CheckedUnitStructuralReturnPlan>,
     /// A function's final expression can still use its local values. Exit
     /// cleanup must wait for those uses before releasing the data they need.
-    pub(super) scalar_completion:
-        Option<crate::execution::terminal_unit::storage_transfers::ScalarCompletion<'a>>,
+    pub(super) completion:
+        Option<&'a crate::execution::terminal_unit::storage_transfers::PreparedCompletion<'a>>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
     pub(super) storage_borrowers: &'a StorageBorrowers,
 }
@@ -446,7 +446,16 @@ impl Retirement<'_> {
                 reference,
                 u32::try_from(formation).ok()?,
                 &[],
-            )? {
+            )
+            .or_else(|| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE backing-storage-retirement state={:?} current_statement={} formation={formation} owner={owner:?} reference={reference:?}",
+                        self.state.symbol, self.statement_index,
+                    );
+                }
+                None
+            })? {
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,
@@ -993,10 +1002,9 @@ impl Retirement<'_> {
                 || self
                     .order
                     .at_or_before(statement_index, self.statement_index as usize))
+            && self.owner_home_established(loan.owner_symbol)
         {
-            if self.owner_home_established(loan.owner_symbol) {
-                return true;
-            }
+            return true;
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name
@@ -1187,7 +1195,18 @@ impl Retirement<'_> {
             }
             found = true;
             let (destination, mut path) = match &transfer.destination {
-                Destination::Unknown => return false,
+                Destination::Unknown | Destination::RetainedBySuccessor => return false,
+                Destination::Outgoing => {
+                    // The completion captures this descriptor before cleanup.
+                    // Its backing still belongs to the outgoing loan, so a
+                    // pending backing-owner death cannot use this as release.
+                    if exit.is_none()
+                        || self.uncommitted_owner != PlaceRoot::Symbol(Default::default())
+                    {
+                        return false;
+                    }
+                    continue;
+                }
                 Destination::Backing(value, path) => {
                     let mut path = path.clone();
                     path.extend_from_slice(&owner_path[selected.len()..]);

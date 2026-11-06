@@ -192,11 +192,7 @@ pub(super) fn builtin_anonymous_comparison_term(
                 || crate::value_custody::literals::has_anonymous_operator_meaning(program, source)
         },
     )
-    .map(|value| StructuralTerm::Constructor {
-        data: "bool".to_owned(),
-        case: value.to_string(),
-        fields: Vec::new(),
-    })
+    .map(StructuralTerm::boolean)
 }
 
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
@@ -311,7 +307,9 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Float(value) => value.to_string(),
-        StructuralTerm::Constructor { data, case, fields } => {
+        StructuralTerm::Constructor {
+            data, case, fields, ..
+        } => {
             let head = if case.is_empty() || data == "bool" {
                 if data == "bool" {
                     case.clone()
@@ -578,11 +576,7 @@ pub(super) fn static_type_predicate_term(
         program.applied_static_type_predicate_value(expression, substitutions)
     };
     if let Some(value) = value {
-        return Some(StructuralTerm::Constructor {
-            data: "bool".to_owned(),
-            case: value.to_string(),
-            fields: Vec::new(),
-        });
+        return Some(StructuralTerm::boolean(value));
     }
     static_type_equation_term(program, left, right, negate, substitutions)
 }
@@ -879,11 +873,7 @@ pub(super) fn structural_term(
                 expression_table(program).display_name(expression),
             ))
         }
-        ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
-            data: "bool".to_owned(),
-            case: value.to_string(),
-            fields: Vec::new(),
-        }),
+        ExpressionNode::Boolean(value) => Some(StructuralTerm::boolean(*value)),
         ExpressionNode::Member(member) => {
             // Contract projections can retain an unresolved member handle even
             // when the receiver's declared record fixes the field. Rejoin that

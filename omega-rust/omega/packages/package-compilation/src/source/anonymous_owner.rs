@@ -25,6 +25,7 @@ pub struct AnonymousSourceCapture {
     pub(crate) filesystem: source::SourceFileSystem,
     pub(crate) semantic_dependencies: Vec<[u8; 32]>,
     pub(crate) sources: Arc<source::SourceMap>,
+    pub(crate) toolchain_contract_custody: crate::source::source_imports::ToolchainContractCustody,
 }
 
 impl AnonymousSourceCapture {
@@ -46,6 +47,20 @@ impl AnonymousSourceCapture {
 
     pub fn sources(&self) -> &Arc<source::SourceMap> {
         &self.sources
+    }
+
+    /// A later Product context may admit compiler-owned entry contracts beside
+    /// the captured root. Only this assembly's exact, selected source records
+    /// can use that existing contract issuer; generated files cannot inherit it.
+    pub fn is_admitted_toolchain_contract_source(&self, file: &source::SourceFile) -> bool {
+        self.sources.get(file.source_id) == Some(file)
+            && self.sources.source_is_selected(file.source_id)
+            && file.origin == source::SourceOrigin::Toolchain
+            && file.package_identity.is_none()
+            && file.dependency_scope == source::DependencyScope::Product
+            && file.resolution_stratum == source::SourceResolutionStratum::Base
+            && self.toolchain_contract_custody.root_for(&file.path)
+                == Some(file.package_root.as_path())
     }
 
     /// Complete the empty dependency join before Product resolution. Supplied

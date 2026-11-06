@@ -906,104 +906,108 @@ impl OperationFrame<'_, '_> {
         else {
             unreachable!("dispatched release_reference")
         };
-        let storage = self
-            .evaluation
-            .value_storage(released, &self.parameters, |binding| {
-                self.results.value_storage(binding, self.operations)
-            })?;
-        let types = self.structural_types.declarations();
-        // Case identities belong to the selected declaration, not the physical
-        // home's type. Resolve the suffix before restoring its captured prefix.
-        let suffix = lower_static_argument_path(identities, path, storage.selected_type, types)?;
-        let leaf = terminal_semantics::runtime_structural_path_tip(
-            types.iter(),
-            storage.selected_type,
-            &suffix,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "loan retirement lost its carrier",
-        ))?;
-        let source = storage.place;
-        let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
-            identities,
-            self.checked,
-            &flow_facts(self.checked)
-                .terminal_unit_effects
-                .cleanup_control,
-            *case_conditions,
-            types,
-            |identities, selected_path| {
-                let mut selected = storage.path.clone();
-                selected.extend(lower_static_argument_path(
-                    identities,
-                    selected_path,
-                    storage.selected_type,
-                    types,
-                )?);
-                Ok((source, selected))
-            },
-        )?;
-        let mut path = storage.path;
-        path.extend(suffix);
-        if !matches!(
-            leaf.shape,
-            terminal_psi::StructuralTypeShape::Reference { .. }
-        ) && !leaf.descriptor_cleanup
-        {
-            return unsupported("loan retirement requires a descriptor carrier");
-        }
-        // Every checked descriptor death uses ordinary regional disposal.
-        // A reference leaf is not a second path vocabulary: its selected region
-        // ends the descriptor without disposing its referent or scalar siblings.
-        self.evaluation.continue_cleanup_regions(
-            identities,
-            self.checked,
-            vec![crate::unit::unit_cleanup::CleanupRegion {
-                declaration_order: None,
-                selected_region: select_evaluated_storage.then(|| {
-                    terminal_psi::StructuralArgument {
-                        place: source,
-                        path: path.clone(),
-                        access: StructuralAccess::Owned,
-                    }
-                }),
-                conditions,
-                action: if path.is_empty() {
-                    self.evaluation
-                        .descriptor_retirement(source, self.operations)?
-                } else {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                        terminal_psi::StructuralAffineDiscard {
+        // One home can have a result name and a local name. A completed
+        // whole disposal through either name settles only this descriptor
+        // action; its other cleanup work below still has to run.
+        let already_released = path.is_empty()
+            && self.evaluation.cleanup_source_is_retired(
+                released,
+                &self.parameters,
+                |binding| self.results.value_storage(binding, self.operations),
+            )?;
+        if !already_released {
+            let storage = self
+                .evaluation
+                .value_storage(released, &self.parameters, |binding| {
+                    self.results.value_storage(binding, self.operations)
+                })?;
+            let types = self.structural_types.declarations();
+            // Case identities belong to the selected declaration, not the physical
+            // home's type. Resolve the suffix before restoring its captured prefix.
+            let suffix =
+                lower_static_argument_path(identities, path, storage.selected_type, types)?;
+            let leaf = terminal_semantics::runtime_structural_path_tip(
+                types.iter(),
+                storage.selected_type,
+                &suffix,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "loan retirement lost its carrier",
+            ))?;
+            let source = storage.place;
+            let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
+                identities,
+                self.checked,
+                &flow_facts(self.checked)
+                    .terminal_unit_effects
+                    .cleanup_control,
+                *case_conditions,
+                types,
+                |identities, selected_path| {
+                    let mut selected = storage.path.clone();
+                    selected.extend(lower_static_argument_path(
+                        identities,
+                        selected_path,
+                        storage.selected_type,
+                        types,
+                    )?);
+                    Ok((source, selected))
+                },
+            )?;
+            let mut path = storage.path;
+            path.extend(suffix);
+            if !matches!(
+                leaf.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            ) && !leaf.descriptor_cleanup
+            {
+                return unsupported("loan retirement requires a descriptor carrier");
+            }
+            // Guarded cleanup can leave the home present on another path. Its
+            // existing names remain available to later guarded cleanup; only an
+            // unconditional whole disposal records that every path ended the home.
+            let completes_home =
+                path.is_empty() && conditions.is_empty() && !*select_evaluated_storage;
+            // Every checked descriptor death uses ordinary regional disposal.
+            // A reference leaf is not a second path vocabulary: its selected region
+            // ends the descriptor without disposing its referent or scalar siblings.
+            self.evaluation.continue_cleanup_regions(
+                identities,
+                self.checked,
+                vec![crate::unit::unit_cleanup::CleanupRegion {
+                    declaration_order: None,
+                    selected_region: select_evaluated_storage.then(|| {
+                        terminal_psi::StructuralArgument {
                             place: source,
                             path: path.clone(),
-                            structural_type: leaf.id,
-                        },
-                    )
-                },
-            }],
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-        )?;
-        self.retire_selection_complements(identities, selection_complements)?;
-        if path.is_empty() {
-            // A whole descriptor release ends this physical owner. Keeping it
-            // in the selection frontier would move a dead parent on the next
-            // private edge; projected releases retain the owner's siblings.
-            // A result carrier and the declared local share that place. Ending
-            // the result leaves the named local established for the release
-            // that still names the symbol.
-            if matches!(
-                released,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
-            ) {
+                            access: StructuralAccess::Owned,
+                        }
+                    }),
+                    conditions,
+                    action: if path.is_empty() {
+                        self.evaluation
+                            .descriptor_retirement(source, self.operations)?
+                    } else {
+                        terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                            terminal_psi::StructuralAffineDiscard {
+                                place: source,
+                                path: path.clone(),
+                                structural_type: leaf.id,
+                            },
+                        )
+                    },
+                }],
+                self.values,
+                self.next_value,
+                self.next_block,
+                self.next_edge,
+                self.operations,
+            )?;
+            if completes_home {
                 self.evaluation.retire_structural_home(source);
-            } else {
-                self.evaluation.retire_result_carrier(source);
             }
         }
+        self.retire_selection_complements(identities, selection_complements)?;
         let checked = self.checked;
         let control = &checked.facts.flow.terminal_unit_effects.cleanup_control;
         for owner in control

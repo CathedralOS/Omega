@@ -19,10 +19,17 @@ pub(crate) struct PendingIntegerFormation {
     pub(super) diagnostic: String,
 }
 
+pub(crate) struct DischargedFormations {
+    pub(crate) proven: Vec<ExpressionHandle>,
+    /// Exact overflow kept beside the occurrence. Call-requires checking still
+    /// has to run: an unproved callee precondition is what withdrew the bound.
+    pub(crate) overflow: Vec<Diagnostic>,
+}
+
 pub(crate) fn discharge(
     program: &dyn crate::CheckingInput,
     pending: &[PendingIntegerFormation],
-) -> Result<Vec<ExpressionHandle>, Vec<Diagnostic>> {
+) -> Result<DischargedFormations, Vec<Diagnostic>> {
     let mut proven = Vec::new();
     let mut diagnostics = Vec::new();
     for obligation in pending {
@@ -54,9 +61,13 @@ pub(crate) fn discharge(
             proven.push(obligation.expression);
         }
     }
-    if diagnostics.is_empty() {
-        Ok(proven)
-    } else {
-        Err(diagnostics)
+    let (overflow, blocking): (Vec<_>, Vec<_>) = diagnostics
+        .into_iter()
+        .partition(crate::program_validation::is_exact_overflow_diagnostic);
+    if !blocking.is_empty() {
+        let mut diagnostics = overflow;
+        diagnostics.extend(blocking);
+        return Err(diagnostics);
     }
+    Ok(DischargedFormations { proven, overflow })
 }

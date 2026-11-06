@@ -16,6 +16,25 @@ fn loans_are_bounded_and_derive_parent_borrow_polarity() {
 }
 
 #[test]
+fn empty_loans_retain_identity_and_obey_parent_bounds() {
+    let mut extent = grant(1, 0x1000, 64);
+    for offset in [0, 32, 64] {
+        let shared = extent.loan(offset, 0).expect("contained empty shared loan");
+        assert_eq!((shared.base(), shared.length()), (0x1000 + offset, 0));
+        assert_eq!(shared.provider_issuance(), Some(provider_issuance(1)));
+        assert_eq!(shared.polarity(), LoanPolarity::Shared);
+        let exclusive = extent
+            .loan_mut(offset, 0)
+            .expect("contained empty exclusive loan");
+        assert_eq!(exclusive.polarity(), LoanPolarity::Exclusive);
+        assert_eq!(exclusive.provider_issuance(), Some(provider_issuance(1)));
+    }
+    assert!(extent.loan(65, 0).is_err());
+    assert!(extent.loan_mut(65, 0).is_err());
+    assert!(extent.loan(u64::MAX, 1).is_err());
+}
+
+#[test]
 fn peer_writable_backing_never_yields_an_exclusive_borrow() {
     let mut extent = root_grant(1)
         .admitting_peer_shared_backing()
@@ -27,6 +46,7 @@ fn peer_writable_backing_never_yields_an_exclusive_borrow() {
         .loan_mut(0, 8)
         .expect_err("writable peer has no exclusive borrow");
     assert!(refused.0.contains("writable peer"));
+    assert!(extent.loan_mut(0, 0).is_err());
 
     // The refused borrow cannot have burned the extent's shared reads.
     let shared = extent.loan(0, 8).expect("shared reads remain");

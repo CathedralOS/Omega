@@ -38,6 +38,11 @@ pub(super) fn require_reached_providers(
                 .boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == *boundary)?;
+            if declaration.declaration.as_ref().is_some_and(|row|
+                row.execution == terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
+            {
+                return None;
+            }
             // Private memory operations are not supplied by provider selection.
             // Their operation owner joins the installed profile call and keeps
             // the native-execution fence until backing realization exists.

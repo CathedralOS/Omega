@@ -5,7 +5,9 @@ mod contracts;
 mod field_domains;
 mod points;
 use contracts::append_contract_semantic_facts;
-pub(crate) use contracts::{contract_fact_place, inherited_contract_scope_parts};
+pub(crate) use contracts::{
+    applied_inherited_requirement, contract_fact_place, inherited_contract_scope_parts,
+};
 pub(crate) use contracts::{contract_parameter_position, projected_argument_place};
 pub(crate) use field_domains::declared_field_domain_carrier;
 use field_domains::{append_local_zii_field_domain_facts, append_state_parameter_domain_facts};

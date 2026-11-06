@@ -366,6 +366,7 @@ mod tests {
                 boundary,
                 requirement_identity: identity,
                 source_requirement_identity: identity,
+                declaration_application: TerminalIdentityIndex(0),
                 receiving_application: TerminalIdentityIndex(0),
                 receiving_region_arguments: vec![],
                 provider_identity: identity,

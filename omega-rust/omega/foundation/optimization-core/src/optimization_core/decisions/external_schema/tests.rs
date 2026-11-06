@@ -1,7 +1,7 @@
 use super::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
-    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
+    external_psi_decision_schema_identity, psi_target_neutral_decision_target_identity,
 };
 use crate::optimization_core::manifest::tests::{
     fact, obligation_fact, ownership_fact, range_fact,
@@ -16,7 +16,23 @@ use crate::{
 use crate::{BaselineDecisionOutcome, ValidatedCandidateSummary};
 
 const POINT_CANDIDATE_START: usize = 8 + 4 + 32 + 32 + 32 + 4;
-const FEATURE_FIXED_WIDTH: usize = 32 + 8 + 8 + 4;
+const FEATURE_FIXED_WIDTH: usize = super::codec::MINIMUM_CANDIDATE_WIDTH;
+
+#[test]
+fn minimum_candidate_width_is_the_encoded_width_of_an_empty_feature_row() {
+    let features = ExternalCandidateFeatures::new(
+        ValidatedCandidateSummary {
+            candidate: OptimizationCandidateIdentity::from_canonical_bytes(b"width-candidate"),
+            predicted_cost_delta: 0,
+        },
+        AnalysisSet::default(),
+        [],
+    )
+    .unwrap();
+    let mut row = Vec::new();
+    features.write_row(&mut row, crate::optimization_core::CountFrame::Wire);
+    assert_eq!(row.len(), super::codec::MINIMUM_CANDIDATE_WIDTH);
+}
 
 fn summary(name: &[u8], cost: i64) -> ValidatedCandidateSummary {
     ValidatedCandidateSummary {
@@ -36,11 +52,11 @@ fn features(
 
 fn context() -> ExternalDecisionContext {
     ExternalDecisionContext::new(
-        external_psi_decision_schema_v2_identity(),
+        external_psi_decision_schema_identity(),
         OptimizationUnitIdentity::from_canonical_bytes(b"source"),
         OptimizationSelectionIdentity::from_bytes([1; 32]),
         OptimizationSelectionIdentity::from_bytes([2; 32]),
-        psi_target_neutral_decision_target_v2_identity(),
+        psi_target_neutral_decision_target_identity(),
         OptimizationRuleSetIdentity::from_canonical_bytes(b"rules"),
         TargetCostModelIdentity::from_canonical_bytes(b"cost"),
     )

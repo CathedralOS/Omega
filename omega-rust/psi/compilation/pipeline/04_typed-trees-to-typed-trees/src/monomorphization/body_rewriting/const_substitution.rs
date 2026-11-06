@@ -6,8 +6,9 @@ use crate::monomorphization::{
 use crate::tables::{expressions_of, expressions_of_mut};
 use numerics::literals::{IntegerLiteral, IntegerRadix};
 use typed_trees::const_integer::{self, ConstIntegerExpression};
-use typed_trees::expression::StaticMachineArgument;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle, StaticMachineArgument};
 use typed_trees::name::Identifier;
+use typed_trees::statement::TransitionTargetNode;
 use typed_trees::types::TypeReferenceHandle;
 use validation::parameter_expression_result_type_reference;
 
@@ -474,6 +475,149 @@ fn closed_structural_argument(
         return Ok(None);
     };
     validation::normalize_closed_const_expression(program, owner, *expression, carrier)
+}
+
+/// A specialization whose value actuals are closed integers rewrites
+/// `Nodes == 0 && Total == 0` into `3 == 0 && 7 == 0`. The arm that calls
+/// under that fact is not a live obligation of this instance. Other
+/// instances keep the arm, including one whose own actuals are still the
+/// runtime parameters.
+pub(crate) fn drop_refuted_closed_transition_arms(
+    program: &mut TypedTrees,
+    candidate: &Candidate,
+    machine: &typed_trees::machine::Machine,
+) {
+    let mut rewrites = Vec::new();
+    for (index, state) in program.machine_states(machine).iter().enumerate() {
+        let statements = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .to_vec();
+        if !statements.iter().any(|statement| {
+            transition_arm_requires_are_closed_false(program, candidate, machine, statement)
+        }) {
+            continue;
+        }
+        let live = statements
+            .into_iter()
+            .filter(|statement| {
+                !transition_arm_requires_are_closed_false(program, candidate, machine, statement)
+            })
+            .collect::<Vec<_>>();
+        if live
+            .iter()
+            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+        {
+            rewrites.push((index, live));
+        }
+    }
+    for (index, live) in rewrites {
+        let body = program.statement_table.insert_statements(live);
+        program.machine_states_mut(machine)[index].statement_nodes = body;
+    }
+}
+
+fn transition_callee_symbol(
+    program: &TypedTrees,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> Option<SymbolHandle> {
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, .. } => path.symbol.is_valid().then_some(path.symbol),
+        TransitionTargetNode::Value(expression) => {
+            let expression = *expression;
+            let ExpressionNode::Call(call) = expressions_of(program).expression(expression) else {
+                return None;
+            };
+            call.target_symbol.is_valid().then_some(call.target_symbol)
+        }
+        TransitionTargetNode::Terminal => None,
+    }
+}
+
+fn transition_arm_requires_are_closed_false(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    machine: &typed_trees::machine::Machine,
+    statement: &StatementNode,
+) -> bool {
+    let StatementNode::Transition(transition) = statement else {
+        return false;
+    };
+    let Some(path_symbol) = transition_callee_symbol(program, transition.target) else {
+        return false;
+    };
+    // A nested `done` is its own machine. Its entry is not a state of the
+    // caller, and the caller clone is not indexed yet when the arm is one of
+    // its own states. Prefer the indexed owner, then this clone's span.
+    let owner = program.machine_holding_state(path_symbol).or(program
+        .machine_states(machine)
+        .iter()
+        .any(|state| state.symbol == path_symbol)
+        .then_some(machine));
+    let Some(owner) = owner else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(owner)
+        .iter()
+        .find(|state| state.symbol == path_symbol)
+    else {
+        return false;
+    };
+    let requirements = program
+        .contract_expressions(
+            program
+                .machine_contracts(owner)
+                .iter()
+                .chain(program.state_contracts(state)),
+            typed_trees::signature::SignatureContractKind::Requires,
+        )
+        .collect::<Vec<_>>();
+    requirements
+        .into_iter()
+        .any(|expression| closed_bool(program, candidate, expression) == Some(false))
+}
+
+fn closed_bool(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    expression: ExpressionHandle,
+) -> Option<bool> {
+    match expressions_of(program).expression(expression) {
+        ExpressionNode::Boolean(value) => Some(*value),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => Some(
+            closed_bool(program, candidate, binary.left)?
+                && closed_bool(program, candidate, binary.right)?,
+        ),
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+            let left = integer_spelling(program, candidate, binary.left)?;
+            let right = integer_spelling(program, candidate, binary.right)?;
+            Some(left == right)
+        }
+        _ => None,
+    }
+}
+
+fn integer_spelling(
+    program: &TypedTrees,
+    candidate: &Candidate,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    match expressions_of(program).expression(expression) {
+        ExpressionNode::Integer(literal) => Some(literal.canonical_spelling().as_str().to_owned()),
+        ExpressionNode::Name(path) => {
+            let origin = program.symbols.get(path.symbol).generated_from;
+            let index = candidate
+                .template
+                .const_parameters
+                .iter()
+                .position(|(parameter, _, _)| *parameter == path.symbol || *parameter == origin)?;
+            let binding = candidate.const_bindings[index]?;
+            let literal = program.static_const_literal_from_type_reference(binding)?;
+            Some(literal.canonical_spelling().as_str().to_owned())
+        }
+        _ => None,
+    }
 }
 
 fn declared_value_carriers(

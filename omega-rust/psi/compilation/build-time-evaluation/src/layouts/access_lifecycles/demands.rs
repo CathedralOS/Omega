@@ -49,7 +49,24 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Demand>, Vec<Diagn
             TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
             _ => None,
         };
-        let (Some(policy), Some(schema)) = (nominal(arguments.policy), nominal(arguments.schema))
+        // Qualifications constrain the stored value, not its byte geometry.
+        // Keep the complete schema operand on the invocation/signature; only
+        // layout selection uses its carrier. A raw view has no owned value
+        // whose establishment could justify those qualifications.
+        let schema_carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(arguments.schema);
+        if arguments.operation == AccessLifecycleOperation::View
+            && schema_carrier != arguments.schema
+        {
+            return Err(vec![
+                Diagnostic::error(
+                    "nonresident access View cannot establish schema qualifications; initialization or existing resident custody is required",
+                )
+                .with_source_span(call.source),
+            ]);
+        }
+        let (Some(policy), Some(schema)) = (nominal(arguments.policy), nominal(schema_carrier))
         else {
             return Err(vec![
                 Diagnostic::error(

@@ -105,6 +105,7 @@ pub(crate) fn evaluate_statement_permissions(
     selections: &mut super::super::owned_selection::SelectionOccurrences,
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
+    conservation_candidates: &[crate::checks::content::ConservationCandidate],
 ) -> Result<Option<EvaluatedStorage>, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
@@ -847,6 +848,7 @@ pub(crate) fn evaluate_statement_permissions(
                         event_start,
                         cleanup_dispositions,
                         crate::checks::multiplicity::CompletedClaimLocation::Expression,
+                        conservation_candidates,
                     );
                 }
                 complete_occurrence!(occurrence_ordinal, places, remaining);
@@ -913,6 +915,7 @@ pub(crate) fn complete_statement_permissions(
     selections: &mut super::super::owned_selection::SelectionOccurrences,
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
+    conservation_candidates: &[crate::checks::content::ConservationCandidate],
 ) -> Result<ProducedStorage, diagnostics::Diagnostic> {
     let EvaluatedStorage {
         binding_changes,
@@ -1041,6 +1044,7 @@ pub(crate) fn complete_statement_permissions(
             event_start,
             cleanup_dispositions,
             crate::checks::multiplicity::CompletedClaimLocation::ReceivingStorage,
+            conservation_candidates,
         );
     }
     // Returning a completed expression transfers its established frontier;
@@ -1119,6 +1123,7 @@ fn complete_body_custody(
     event_start: usize,
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     location: crate::checks::multiplicity::CompletedClaimLocation,
+    conservation_candidates: &[crate::checks::content::ConservationCandidate],
 ) {
     if facts.qualifications.content.conservation_plans.is_empty() {
         return;
@@ -1135,6 +1140,7 @@ fn complete_body_custody(
         permission_events,
         &permission_events[event_start..],
         location,
+        conservation_candidates,
     );
     let transformation_start = permission_events.len();
     // A missing conservation grants nothing; ordinary checking still owns

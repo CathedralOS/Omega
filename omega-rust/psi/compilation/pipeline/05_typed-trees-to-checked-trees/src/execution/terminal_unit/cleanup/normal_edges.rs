@@ -2,7 +2,7 @@
 //! The shared ownership selection supplies order and exact outgoing coordinates;
 //! hook requirements remain obligations at that edge, never new unconditional facts.
 mod exits;
-pub(in crate::execution::terminal_unit) use exits::state_exits;
+pub(in crate::execution::terminal_unit) use exits::{state_exit_storage, state_exits};
 
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
@@ -213,13 +213,10 @@ fn cleanup_rows(
         .collect::<Vec<_>>();
     let mut retirements = Vec::new();
     let mut establishment_ordered = Vec::new();
-    for disposition_handle in facts
-        .contextual_cleanup
-        .state_disposition_handles(
-            super::owning_cleanup_machine(program, state.symbol),
-            state.symbol,
-        )
-    {
+    for disposition_handle in facts.contextual_cleanup.state_disposition_handles(
+        super::owning_cleanup_machine(program, state.symbol),
+        state.symbol,
+    ) {
         let disposition = facts
             .contextual_cleanup
             .dispositions

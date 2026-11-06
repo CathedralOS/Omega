@@ -302,6 +302,7 @@ pub(super) fn append_statement_calls<'plans>(
                         *constraints,
                         *constraints,
                         returned_value,
+                        execution.storage_snapshot,
                         false,
                         HandleSpan::empty(),
                     );
@@ -605,14 +606,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .and_then(|writes| writes.descriptor_stores());
         let stores = phase_profile::scope(
             "psi.05.build_check_facts.flow.invoke.capture_stores",
-            || {
-                self.capture_call_stores(
-                    site,
-                    borrowed_call,
-                    argument_operands,
-                    binding_writes.as_deref(),
-                )
-            },
+            || self.capture_call_stores(site, borrowed_call, argument_operands, binding_writes),
         );
         // Exact binding writes retire replaced reference resources independently
         // of value-history association and pointee observation invalidation.
@@ -626,7 +620,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.machine.symbol,
                     self.state.symbol,
                     borrowed_call,
-                    binding_writes.as_deref(),
+                    binding_writes,
                     constraints,
                 )
             },

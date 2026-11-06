@@ -1641,8 +1641,13 @@ fn construction_local_uses<'operation>(
         pending.push(*value);
         visited.clear();
         while let Some(value) = pending.pop() {
-            if !values.nodes.is_valid(value) || visited.contains(&value) {
+            if !values.nodes.is_valid(value) {
                 return None;
+            }
+            // A shared child is one operand. Reaching it again is not a second
+            // disposition, and it is not a reason to abandon the producer.
+            if visited.contains(&value) {
+                continue;
             }
             visited.push(value);
             let node = values.nodes.get(value);

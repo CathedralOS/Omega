@@ -244,14 +244,11 @@ impl StructuralJudge<'_> {
         else {
             return None;
         };
-        let Some(capture) = self
+        let capture = self
             .completed_nominal_values
             .iter()
             .rev()
-            .find(|capture| capture.value.same_resolution_payload(root))
-        else {
-            return None;
-        };
+            .find(|capture| capture.value.same_resolution_payload(root))?;
         let names = path.split('.').collect::<Vec<_>>();
         // Case checks apply to proper prefixes of this requested field path.
         // They cannot assume the field being read or use a reference crossing
@@ -272,14 +269,12 @@ impl StructuralJudge<'_> {
         };
         let projected =
             crate::project_type_reference_from_segments(self.program, capture.reference, path);
-        let Some(_) = projected.filter(|projected| {
+        projected.filter(|projected| {
             crate::reference_shell(self.program, *projected).is_none()
                 && owned.is_none_or(|owned| {
                     crate::declared_carriers_match(self.program, owned, *projected)
                 })
-        }) else {
-            return None;
-        };
+        })?;
         super::super::super::observed_projections::project_observed_value_in_scope(
             self.program,
             self,
@@ -304,7 +299,13 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
     ) -> StructuralTerm {
         match self.completed_nominal_observation(value) {
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+            StructuralTerm::Constructor {
+                identity,
+                data,
+                case,
+                fields,
+            } => StructuralTerm::Constructor {
+                identity,
                 data,
                 case,
                 fields: fields

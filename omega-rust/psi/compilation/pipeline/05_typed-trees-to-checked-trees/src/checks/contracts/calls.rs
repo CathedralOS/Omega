@@ -102,13 +102,7 @@ pub(super) fn check_call_requires(
     phase_profile::scope(
         "psi.05.check_checked_facts.check_flow_call_contracts.lender_domains",
         || {
-            check_lender_domain_restoration(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                diagnostics,
-            );
+            check_lender_domain_restoration(program, facts, state_flow, call_flow, diagnostics);
         },
     );
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
@@ -377,7 +371,11 @@ pub(super) fn check_call_requires(
                     constant_obligations.push(obligation);
                     continue;
                 }
-                let requirement = semantic_fact_requirement_label(program, &facts.semantic, fact);
+                let requirement = present_captured_parameter(&semantic_fact_requirement_label(
+                    program,
+                    &facts.semantic,
+                    fact,
+                ));
                 let authored_requirement = match fact.payload {
                     FactPayload::ContractBooleanExpression { expression, .. } => {
                         authored_requirement_label(program, state_flow, call_flow, expression)
@@ -425,6 +423,36 @@ pub(super) fn check_call_requires(
             }
         }
     }
+}
+
+/// A captured generic parameter is a member of a saved subject. The authored
+/// requirement names that parameter. The capture carrier is not part of it.
+fn present_captured_parameter(label: &str) -> String {
+    let marker = "<saved subject #";
+    let mut rest = label;
+    let mut presented = String::new();
+    while let Some(start) = rest.find(marker) {
+        presented.push_str(&rest[..start]);
+        let after_marker = &rest[start + marker.len()..];
+        let Some(close) = after_marker.find('>') else {
+            presented.push_str(&rest[start..]);
+            return presented;
+        };
+        let identity = &after_marker[..close];
+        let tail = &after_marker[close + 1..];
+        if identity
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || byte == b':')
+            && let Some(stripped) = tail.strip_prefix('.')
+        {
+            rest = stripped;
+            continue;
+        }
+        presented.push_str(&rest[start..start + marker.len() + close + 1]);
+        rest = tail;
+    }
+    presented.push_str(rest);
+    presented
 }
 
 /// The authored invocation a requires diagnostic should point at: the call
@@ -1093,7 +1121,8 @@ fn check_lender_domain_restoration(
     call_flow: &FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(parameters) = validation::call_target_parameters(program, call_flow.target_symbol) else {
+    let Some(parameters) = validation::call_target_parameters(program, call_flow.target_symbol)
+    else {
         return;
     };
     if !parameters.iter().any(|p| {
@@ -1202,8 +1231,7 @@ fn check_lender_domain_restoration(
                 else {
                     continue;
                 };
-                for row in
-                    validation::field_domains::declared_type_domain_rows(program, local_type)
+                for row in validation::field_domains::declared_type_domain_rows(program, local_type)
                 {
                     if row.transfer {
                         continue;

@@ -117,9 +117,13 @@ have actual observations; only Linux executes the final contract-join refactor.
 The other three retain their original stamps and the reviewed applicability
 argument above.
 
-The two unchanged Std-based controls also
-[time out with the published pre-repair compiler](https://github.com/CathedralOS/Omega/actions/runs/41974279825);
-their enforcement remains unresolved. No result is promoted to a newer main.
+The two unchanged Std-based controls
+[time out with the published pre-repair compiler](https://github.com/CathedralOS/Omega/actions/runs/41974279825).
+The later [checking repair](https://github.com/CathedralOS/Omega/pull/1900)
+reaches both intended contract errors at their original limits; its fresh
+Linux observations are described in the [cleanup row](../finite_family_exclusive_result/README.md#restored-contract-checks).
+The older timeout reports remain failed, and their results retain their actual
+compiler identities.
 Goldens retain the old timing when the recorded behavior is unchanged; fresh
 raw elapsed times remain in their reports.
 

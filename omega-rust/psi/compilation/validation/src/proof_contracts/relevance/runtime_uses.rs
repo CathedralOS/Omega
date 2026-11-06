@@ -42,6 +42,10 @@ pub(super) fn validate_expression(
         ExpressionNode::Name(path) => {
             if context == Context::Runtime {
                 let mut reported = false;
+                // Runtime relevance follows the admitted context, not the
+                // surrounding expression shape. Proof discrimination arrives
+                // here in Proof context; runtime control cannot read an erased
+                // parameter simply because it is a transition scrutinee.
                 for symbol in
                     expression_table(program).name_path_member_symbols(path.member_symbols)
                 {

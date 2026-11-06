@@ -24,6 +24,7 @@ mod diagnostics;
 mod installation;
 mod provider_supply;
 mod request;
+mod run_custody;
 mod settlements;
 mod source_evaluated_bindings;
 mod terminal_authority_permission_policy;
@@ -33,8 +34,8 @@ mod terminal_authority_review;
 
 pub use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
-    CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin, TerminalCompilerBuiltinProposal,
-    TerminalCompilerBuiltinSettlement,
+    AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin,
+    TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement, admit_terminal_intrinsics,
 };
 pub use compiler_builtins::{
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
@@ -186,6 +187,10 @@ pub fn admit_native_providers<'request>(
     // settlement is not a host-supplied claim about equal-shaped result bytes.
     settlements.extend(lifecycle_settlements);
     mechanisms.extend(lifecycle_mechanisms);
+    let (run_settlements, run_mechanisms) =
+        run_custody::settle_empty_releases(input, request.terminal_authority_policy)?;
+    settlements.extend(run_settlements);
+    mechanisms.extend(run_mechanisms);
     // The toolchain-settled `FilesystemHost` cohort rows emitted for demanded
     // leaves join the supplied receiving rows into the effective policy the
     // closure review and the artifact identity bind. The supplied policy is

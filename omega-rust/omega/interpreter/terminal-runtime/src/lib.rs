@@ -12,6 +12,7 @@ mod execution;
 #[cfg(test)]
 mod runtime_boundary;
 
+pub use execution::bind_admitted_intrinsics;
 pub use execution::{
     TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
     TerminalFilesystemDelegation, TerminalNativeServiceDelegation, TerminalRuntimeError,

@@ -29,7 +29,6 @@ samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md STRUCTURAL-
 samples/cli/facts/free_entry_local_state/README.md EXPLICIT-ENTRY-STORAGE
 samples/cli/facts/index_every_width/README.md ONE-INTEGER-BOUNDS-ENGINE
 samples/cli/facts/inherited_scalar_domain/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
-samples/cli/facts/installed_entry_storage/README.md EXPLICIT-ENTRY-STORAGE
 samples/cli/facts/integer_width_truncation_mask_bound/README.md INTEGER-TRUNCATION-MASK
 samples/cli/facts/mutable_borrow_field_writeback/README.md STRUCTURAL-ACCESS
 samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/README.md INTEGER-TRUNCATION-MASK

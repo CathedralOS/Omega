@@ -388,6 +388,16 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
         }) {
             continue;
         }
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE stored-reference-release state={:?} owner={owner:?} formation={formation} statement={} source={owner_source:?} path={:?} loans={group:?} at_exit={} pending_owner={:?}",
+                retirement.state.symbol,
+                retirement.statement_index,
+                source.path,
+                retirement.at_exit,
+                retirement.uncommitted_owner,
+            );
+        }
         output.push(OperationPlan::ReleaseReference {
             statement_index: retirement.statement_index,
             source: owner_source.clone(),

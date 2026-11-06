@@ -286,9 +286,7 @@ pub(super) fn observed_projections(
     let mut children = Vec::new();
     let mut complete_constructor = false;
     if let StructuralTerm::Constructor {
-        data: name,
-        case,
-        fields,
+        identity, fields, ..
     } = value.semantic_value()
     {
         let peeled = program.type_reference_table.unconstrained_type_reference(
@@ -296,16 +294,22 @@ pub(super) fn observed_projections(
                 .type_reference_table
                 .dereferenced_type_reference(reference),
         );
-        if let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
-            && let Some(data) = program.data_definition_by_symbol(owner)
-            && data.name.as_str() == name.as_str()
+        if let Some(owner) = identity.declaration()
+            && let Some(data) = program.data_constructor_definition(peeled, owner)
+            && super::structural_judgment::ConstructorIdentity::at_reference(
+                program, peeled, data, None,
+            )
+            .is_some_and(|expected| identity.same_carrier(expected))
         {
             let declared = program
                 .data_members(data)
                 .iter()
                 .flat_map(|member| match member {
                     DataMember::Field(field) => std::slice::from_ref(field),
-                    DataMember::Variant(variant) if variant.name.as_str() == case.as_str() => {
+                    DataMember::Variant(variant)
+                        if identity.matches_case(program, data.symbol, variant.symbol)
+                            == Some(true) =>
+                    {
                         program.data_payload_fields(variant)
                     }
                     _ => &[],
@@ -710,6 +714,22 @@ fn populate_machine_completed_cases(
     }
 }
 
+/// A completed case can name only a variant of this exact owned nominal type.
+/// A record without variants has no case answer, so it needs no value-prefix
+/// replay. Formation, effects and default-domain obligations remain with their
+/// ordinary validators.
+pub(crate) fn completed_value_case_definition(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let definition = crate::field_domains::owned_nominal_data_definition(program, reference)?;
+    program
+        .data_members(definition)
+        .iter()
+        .any(|member| member.as_variant().is_some())
+        .then_some(definition)
+}
+
 /// Case identity emitted by the completed value, before a later statement
 /// can mutate its source. This is geometry only, not default-domain admission.
 /// Every normal initializer path must prove the same exact applied case.
@@ -721,6 +741,7 @@ pub(crate) fn completed_value_case_at_occurrence(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
+    completed_value_case_definition(program, reference)?;
     // The completed-case demand is identical for every occurrence the
     // default-domain walkers enumerate: one population walks each of this
     // machine's state prefixes once, and later occurrences replay the
@@ -803,9 +824,7 @@ impl StructuralPrefixVisitor for CompletedCaseVisitor {
     }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
         let (program, machine, state, judge, environment) = observation;
-        let Some(definition) =
-            crate::field_domains::owned_nominal_data_definition(program, self.reference)
-        else {
+        let Some(definition) = completed_value_case_definition(program, self.reference) else {
             self.complete = false;
             return;
         };

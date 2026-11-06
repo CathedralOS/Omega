@@ -37,29 +37,13 @@ pub(crate) fn observe_body_completion(
     events: &[checked_trees::FlowPermissionEventFact],
     evaluation_events: &[checked_trees::FlowPermissionEventFact],
     location: CompletedClaimLocation,
+    candidates: &[ConservationCandidate],
 ) -> Vec<arena::Handle<ContentBodyConservationFact>> {
     if facts.qualifications.content.conservation_plans.is_empty() {
         return Vec::new();
     }
     let mut observed = Vec::new();
-    let entry = program
-        .machine_states(machine)
-        .first()
-        .map(|state| state.symbol);
-    let plans = facts
-        .qualifications
-        .content
-        .conservation_plans
-        .iter()
-        .enumerate()
-        .filter(|(_, plan)| {
-            plan.owner_kind == ContentConservationOwnerKind::Machine
-                && plan.owner == machine.symbol
-                && (plan.callable == state.symbol || Some(plan.callable) == entry)
-        })
-        .map(|(position, plan)| (position, plan.clone()))
-        .collect::<Vec<_>>();
-    for (plan_index, plan) in plans {
+    for (plan_index, plan) in state_conservation_plans(program, facts, machine, state) {
         if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
             continue;
         }
@@ -101,22 +85,27 @@ pub(crate) fn observe_body_completion(
                 // order with domain predicates. Conditional call laws remain
                 // provisional here; the rooted publication pass checks their
                 // exact sources before any callable theorem can be consumed.
-                if !validation::completed_value_has_content_conservation_candidate(
-                    program,
-                    machine,
-                    state,
-                    captured.statement_index,
-                    captured.expression,
-                    captured.type_reference,
-                    &plan,
-                    &facts.qualifications.content.plans,
-                ) {
-                    trace_body_refusal(
-                        machine,
-                        state,
-                        captured.expression,
-                        "conservation equation is not established at completion",
-                    );
+                let prepared = candidates.iter().find(|candidate| {
+                    candidate.plan_index == plan_index
+                        && candidate.returned_at == returned_at
+                        && candidate.completed_value == completed_value
+                });
+                // The prepared answers only save time; an unprepared query is
+                // asked here exactly as preparation would have asked it.
+                let admitted = prepared.map_or_else(
+                    || {
+                        has_conservation_candidate(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            completed_value,
+                            &plan,
+                        )
+                    },
+                    |candidate| candidate.admitted,
+                );
+                if !admitted {
                     continue;
                 }
                 let mut conditions = SelectionConditions::new();
@@ -184,16 +173,18 @@ pub(crate) fn observe_body_completion(
                 // prove them. Judge each projected value in the same completed
                 // frame as the conservation equation, before recording a candidate.
                 if !output_bindings.rows().all(|(binding, path)| {
-                    validation::completed_value_proves_domain_predicate(
-                        program,
-                        machine,
-                        state,
-                        statement_index,
-                        expression,
-                        binding.domain,
-                        typed_trees::expression::ExpressionHandle::invalid(),
-                        path,
-                    )
+                    prepared
+                        .and_then(|candidate| candidate.proven_domain(binding.domain, path))
+                        .unwrap_or_else(|| {
+                            proves_domain(
+                                program,
+                                machine,
+                                state,
+                                (statement_index, expression),
+                                binding.domain,
+                                path,
+                            )
+                        })
                 }) {
                     trace_body_refusal(
                         machine,
@@ -249,6 +240,220 @@ fn trace_body_refusal(
             machine.name, state.name,
         );
     }
+}
+
+/// The proof answers one conservation site needs: whether its completed value
+/// is a conservation candidate and, if so, which result-field domains it
+/// proves. Both are proof searches over the program, flow control rows and
+/// content plans, none of which the permission walk writes, so the walk
+/// prepares every site of a state on the checking pool before its sequential
+/// custody replay reaches the completions that ask.
+#[derive(Debug, Clone)]
+pub(crate) struct ConservationCandidate {
+    plan_index: usize,
+    returned_at: arena::Handle<checked_trees::FlowStateOutgoingFact>,
+    completed_value: arena::Handle<checked_trees::FlowOperandFact>,
+    admitted: bool,
+    /// Each output projection's domain and claim path with its answer; empty
+    /// for a site that is not admitted, which never asks.
+    proven_domains: Vec<(symbols::SymbolHandle, Vec<facts::PlaceSegment>, bool)>,
+}
+
+impl ConservationCandidate {
+    fn proven_domain(
+        &self,
+        domain: symbols::SymbolHandle,
+        path: &[facts::PlaceSegment],
+    ) -> Option<bool> {
+        self.proven_domains
+            .iter()
+            .find(|(proven, proven_path, _)| *proven == domain && proven_path == path)
+            .map(|(_, _, answer)| *answer)
+    }
+}
+
+/// The conservation sites one state's completions can ask about: every
+/// returned producer of every machine conservation plan the state owns, with
+/// the plan's output projections. Enumerating them is cheap; answering them
+/// is a proof search per site.
+#[derive(Default)]
+pub(crate) struct ConservationSites {
+    plans: Vec<(
+        language_semantics::content::ContentConservationPlan,
+        Vec<(symbols::SymbolHandle, Vec<facts::PlaceSegment>)>,
+    )>,
+    /// `(plan slot, plan index, returned_at, completed_value)`.
+    sites: Vec<(
+        usize,
+        usize,
+        arena::Handle<checked_trees::FlowStateOutgoingFact>,
+        arena::Handle<checked_trees::FlowOperandFact>,
+    )>,
+}
+
+impl ConservationSites {
+    pub(crate) fn len(&self) -> usize {
+        self.sites.len()
+    }
+
+    /// Answer one site's candidate query and, when admitted, its domains.
+    pub(crate) fn answer(
+        &self,
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        site: usize,
+    ) -> ConservationCandidate {
+        let (plan, plan_index, returned_at, completed_value) = self.sites[site];
+        let (plan, output_projections) = &self.plans[plan];
+        let admitted =
+            has_conservation_candidate(program, facts, machine, state, completed_value, plan);
+        let captured = facts.flow.control.operands.get(completed_value);
+        let site = (captured.statement_index, captured.expression);
+        let proven_domains = if admitted {
+            output_projections
+                .iter()
+                .map(|(domain, path)| {
+                    let answer = proves_domain(program, machine, state, site, *domain, path);
+                    (*domain, path.clone(), answer)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        ConservationCandidate {
+            plan_index,
+            returned_at,
+            completed_value,
+            admitted,
+            proven_domains,
+        }
+    }
+}
+
+/// Enumerate the sites `observe_body_completion` can reach in this state.
+pub(crate) fn conservation_sites(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> ConservationSites {
+    let mut sites = ConservationSites {
+        plans: Vec::new(),
+        sites: Vec::new(),
+    };
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+        return sites;
+    }
+    for (plan_index, plan) in state_conservation_plans(program, facts, machine, state) {
+        let Some(plan) = plan_at_state(program, facts, state, plan) else {
+            continue;
+        };
+        let Some((_, outputs)) = owned_return_sides(plan.equation.left(), plan.equation.right())
+        else {
+            continue;
+        };
+        let mut output_projections = Vec::new();
+        let mut pending = vec![outputs];
+        while let Some(term) = pending.pop() {
+            match term {
+                ConservationTerm::Projection {
+                    domain, subject, ..
+                } => {
+                    if let Some(path) = content_segments_to_fact_path(&subject.segments) {
+                        output_projections.push((*domain, path));
+                    }
+                }
+                ConservationTerm::Separate(children) => pending.extend(children.iter()),
+            }
+        }
+        let slot = sites.plans.len();
+        for returned_at in ordinary_returns(program, facts.flow.control.outgoing.iter(), state) {
+            let outgoing = facts.flow.control.outgoing.get(returned_at);
+            if !outgoing.returned_value.is_valid() {
+                continue;
+            }
+            for completed_value in
+                completed_producers(program, facts, state, outgoing.returned_value)
+            {
+                sites
+                    .sites
+                    .push((slot, plan_index, returned_at, completed_value));
+            }
+        }
+        sites.plans.push((plan, output_projections));
+    }
+    sites
+}
+
+/// The machine conservation plans owned by this state or its machine entry.
+fn state_conservation_plans(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Vec<(usize, language_semantics::content::ContentConservationPlan)> {
+    let entry = program
+        .machine_states(machine)
+        .first()
+        .map(|state| state.symbol);
+    facts
+        .qualifications
+        .content
+        .conservation_plans
+        .iter()
+        .enumerate()
+        .filter(|(_, plan)| {
+            plan.owner_kind == ContentConservationOwnerKind::Machine
+                && plan.owner == machine.symbol
+                && (plan.callable == state.symbol || Some(plan.callable) == entry)
+        })
+        .map(|(position, plan)| (position, plan.clone()))
+        .collect()
+}
+
+/// Whether the value completed at `site` proves `domain` at `path`, in the
+/// same completed frame as its conservation equation.
+fn proves_domain(
+    program: &dyn validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    (statement_index, expression): (usize, typed_trees::expression::ExpressionHandle),
+    domain: symbols::SymbolHandle,
+    path: &[facts::PlaceSegment],
+) -> bool {
+    validation::completed_value_proves_domain_predicate(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        domain,
+        typed_trees::expression::ExpressionHandle::invalid(),
+        path,
+    )
+}
+
+fn has_conservation_candidate(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    completed_value: arena::Handle<checked_trees::FlowOperandFact>,
+    plan: &language_semantics::content::ContentConservationPlan,
+) -> bool {
+    let captured = facts.flow.control.operands.get(completed_value);
+    validation::completed_value_has_content_conservation_candidate(
+        program,
+        machine,
+        state,
+        captured.statement_index,
+        captured.expression,
+        captured.type_reference,
+        plan,
+        &facts.qualifications.content.plans,
+    )
 }
 
 /// A machine guarantee may be consumed in another state only after the shared

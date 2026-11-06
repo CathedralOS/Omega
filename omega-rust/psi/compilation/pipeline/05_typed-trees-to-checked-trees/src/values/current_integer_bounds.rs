@@ -4,6 +4,7 @@
 //! These consequences do not grant initialization, index formation or access.
 
 use super::scalar::structural_fields::resolve_structural_path;
+use super::snapshots::RootAssignmentObservations;
 use crate::published::facts::boolean_predicates::{self, BoundPredicate};
 use facts::{FactContextHandle, FactPlan, IntegerRange, PlaceSegment, ProgramPoint};
 use symbols::SymbolHandle;
@@ -21,6 +22,9 @@ pub(crate) struct CurrentIntegerBounds<'a> {
     /// a collection's per-element membership rows are not rebuilt for a query
     /// about an unrelated scalar, nor for a bounds object that is never asked.
     predicates: Vec<(facts::PlaceRoot, Vec<BoundPredicate>)>,
+    /// Repeated element and predicate reads share the exact selected root's
+    /// assignments. The borrowed fact plan cannot change within this read.
+    assignments: RootAssignmentObservations<'a>,
 }
 
 pub(crate) enum IntegerReadStep {
@@ -173,6 +177,7 @@ impl<'a> CurrentIntegerBounds<'a> {
             operators,
             point,
             predicates: Vec::new(),
+            assignments: RootAssignmentObservations::new(program, semantic, contexts),
         }
     }
 
@@ -263,22 +268,15 @@ impl<'a> CurrentIntegerBounds<'a> {
 
     fn exact(&mut self, place: &CanonicalPlace, primitive: PrimitiveType) -> Option<IntegerRange> {
         let rows = self.rows_position(place.root);
-        let contexts = || {
-            self.contexts
-                .iter()
-                .map(|context| self.semantic.contexts.get(*context))
-        };
         let mut bounds = validation::carrier_integer_range(primitive)?;
-        if let Some(snapshot) =
-            super::integer_bounds_at_place(self.program, self.semantic, contexts(), place)
-        {
+        if let Some(snapshot) = self.assignments.integer_bounds(place) {
             bounds.minimum = bounds.minimum.max(snapshot.minimum);
             bounds.maximum = bounds.maximum.min(snapshot.maximum);
         }
         for predicate in &self.predicates[rows].1 {
             if let Some(consequence) =
-                predicate.integer_interval_at_place(place, primitive, |place| {
-                    super::scalar_value_at_place(self.program, self.semantic, contexts(), place)
+                predicate.integer_interval_at_place(place, primitive, |subject| {
+                    self.assignments.scalar_value(subject)
                 })
             {
                 bounds.minimum = bounds.minimum.max(consequence.minimum);

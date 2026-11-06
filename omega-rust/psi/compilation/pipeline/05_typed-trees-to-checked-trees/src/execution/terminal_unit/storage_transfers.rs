@@ -30,7 +30,9 @@ use typed_trees::data::DataMember;
 
 mod completion;
 mod computations;
-pub(in crate::execution::terminal_unit) use completion::{ScalarCompletion, at_completion};
+pub(in crate::execution::terminal_unit) use completion::{
+    CompletionPlan, CompletionSignature, ComposedCompletion, PreparedCompletion, at_completion,
+};
 
 type Path = Vec<CheckedUnitStructuralPathSegment>;
 
@@ -60,6 +62,12 @@ pub(in crate::execution::terminal_unit) enum Destination {
         statement_index: u32,
         captured_selection: Path,
     },
+    /// This selected completion captures the value for its return or successor.
+    /// It ends the local holder, but never authorizes releasing its backing.
+    Outgoing,
+    /// A successor still needs this local source through its captured parents.
+    /// Retention is not a transfer or permission to release the source.
+    RetainedBySuccessor,
     Unknown,
 }
 
@@ -73,6 +81,7 @@ enum ValueReceiver<'a> {
         statement_index: u32,
         structural_result: bool,
     },
+    Outgoing,
     Unbound,
 }
 
@@ -88,6 +97,7 @@ impl ValueReceiver<'_> {
                 statement_index,
                 structural_result,
             },
+            Self::Outgoing => Destination::Outgoing,
             Self::Unbound => Destination::Unknown,
         }
     }
@@ -552,20 +562,21 @@ impl Query<'_> {
     }
 
     fn belongs(&self, argument: &CheckedUnitStructuralArgumentPlan) -> bool {
-        argument.access == CheckedStructuralAccess::Owned
-            && (argument.source == self.source
-                || match (&self.source, &argument.source) {
-                    (
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        },
-                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-                    ) => self.results.iter().any(|(result, root)| {
-                        result.binding_ordinal == *binding_ordinal
-                            && *root == PlaceRoot::Symbol(*symbol)
-                    }),
-                    _ => false,
-                })
+        argument.access == CheckedStructuralAccess::Owned && self.same_source(&argument.source)
+    }
+
+    fn same_source(&self, source: &CheckedUnitStructuralArgumentSourcePlan) -> bool {
+        *source == self.source
+            || match (&self.source, source) {
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal },
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                ) => self.results.iter().any(|(result, root)| {
+                    result.binding_ordinal == *binding_ordinal
+                        && *root == PlaceRoot::Symbol(*symbol)
+                }),
+                _ => false,
+            }
     }
 
     fn leaf(&self, source: Path, destination: Destination) -> Transfers {
@@ -624,7 +635,13 @@ impl Query<'_> {
             .iter()
             .map(|(_, root)| root)
             .filter(|root| root.expression == expression);
-        let root = roots.next()?;
+        let Some(root) = roots.next() else {
+            // The expression is not an anonymous structural construction.
+            // Reference and scalar bindings reach this roster without a value
+            // node; they do not move storage this query can follow. Two roots
+            // for one expression stay refused below.
+            return Some(Transfers::default());
+        };
         if roots.next().is_some() {
             return None;
         }

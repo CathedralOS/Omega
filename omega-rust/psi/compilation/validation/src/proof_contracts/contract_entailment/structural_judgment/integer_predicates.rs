@@ -1619,9 +1619,7 @@ impl<'program> StructuralJudge<'program> {
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
         let mut observations = IntegerObservations::empty(self.program);
         observations.operand_preparations = Some(Vec::new());
-        let mut premises = phase_profile::scope("psi.05.numeric.prove.prep.project", || {
-            self.project_observed_integer_premises(&mut observations)
-        });
+        let mut premises = self.project_observed_integer_premises(&mut observations);
         // Descriptions belong to this immutable judge invocation. The retained
         // premise owner and its reusable goal scratch must not retain them.
         observations.operand_preparations = None;
@@ -1738,7 +1736,10 @@ impl<'program> StructuralJudge<'program> {
                     resolved_truth.semantic_value()
                 }
             };
-            let StructuralTerm::Constructor { data, case, fields } = truth_sem else {
+            let StructuralTerm::Constructor {
+                identity, fields, ..
+            } = truth_sem
+            else {
                 // Selected normal guarantees also retain equations between
                 // mathematical values, not just predicates equated to true.
                 // Read both sides in the same captured-value namespace: a
@@ -1784,11 +1785,10 @@ impl<'program> StructuralJudge<'program> {
                 }
                 continue;
             };
-            if data != "bool" || !fields.is_empty() {
+            if identity.boolean().is_none() || !fields.is_empty() {
                 continue;
             }
-            let Some(holds) = language_semantics::const_value::boolean_literal_spelling(case)
-            else {
+            let Some(holds) = identity.boolean() else {
                 continue;
             };
             let start = observations.operations.len();

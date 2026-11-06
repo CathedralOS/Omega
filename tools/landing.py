@@ -25,6 +25,10 @@ import time
 REQUIRED_CHECK = "compiler-check"
 CHECK_POLL_SECONDS = 15
 LAND_MAX_SECONDS = 86400
+# How long `land` keeps reading a PR whose queue run passed but whose state is
+# still OPEN. GitHub merges the queue branch first and flips the PR afterwards;
+# the gap outlasted one CHECK_POLL_SECONDS read on #1921 (2026-11-05).
+MERGE_SETTLE_SECONDS = 300
 
 
 class LandingError(RuntimeError):
@@ -88,19 +92,37 @@ def rest(repository, method, path, *fields):
     return json.loads(output) if output else {}
 
 
-def rest_queue_entry(repository, slug, number):
-    """The PR's merge-queue entry, read from the queue's own CI run.
+def queue_runs(repository, slug, number):
+    """The PR's `merge_group` runs, newest first as GitHub lists them.
 
-    REST exposes no merge-queue object. GitHub tests each queued PR on a
-    `gh-readonly-queue/main/pr-<number>-<base>` branch, so an active
-    `merge_group` run there is the queue entry. Its position is unknown.
+    GitHub tests each queued PR on a `gh-readonly-queue/main/pr-<number>-<base>`
+    branch, so these runs are the queue's own record of the PR.
     """
     runs = rest(repository, "GET", f"repos/{slug}/actions/runs?event=merge_group&per_page=50")
     prefix = f"gh-readonly-queue/main/pr-{number}-"
-    for run in runs.get("workflow_runs", []):
-        if run.get("head_branch", "").startswith(prefix) and run.get("status") in QUEUE_RUN_ACTIVE:
-            return {"position": None, "state": "QUEUED"}
+    return [run for run in runs.get("workflow_runs", []) if run.get("head_branch", "").startswith(prefix)]
+
+
+def rest_queue_entry(repository, slug, number):
+    """The PR's merge-queue entry, read from the queue's own CI run.
+
+    REST exposes no merge-queue object, so an active `merge_group` run is the
+    queue entry. Its position is unknown.
+    """
+    if any(run.get("status") in QUEUE_RUN_ACTIVE for run in queue_runs(repository, slug, number)):
+        return {"position": None, "state": "QUEUED"}
     return None
+
+
+def queue_run_passed(repository, remote, number):
+    """Whether the PR's newest queue run completed successfully.
+
+    That is the queue's evidence that it is merging the PR: a failed,
+    cancelled or missing run, or one still running, is not.
+    """
+    runs = queue_runs(repository, repository_name(repository, remote), number)
+    newest = max(runs, key=lambda run: run.get("created_at") or "", default=None)
+    return bool(newest) and newest.get("status") == "completed" and newest.get("conclusion") == "success"
 
 
 def rest_pull_request(repository, remote, number):
@@ -350,6 +372,7 @@ def land(repository, remote, number, expected, seconds, interval=CHECK_POLL_SECO
     deadline = time.monotonic() + seconds
     remaining = lambda: max(0.0, deadline - time.monotonic())
     confirmed = False
+    settle_deadline = None
     while True:
         pull, code = wait(repository, remote, number, expected, remaining())
         if code != 1:
@@ -362,6 +385,18 @@ def land(repository, remote, number, expected, seconds, interval=CHECK_POLL_SECO
             description = check_outcome(head_check(repository, remote, expected))[1]
             raise LandingError(f"{description} on {expected}; the merge request stays armed, so a "
                                "pushed fix lands when its check passes.")
+        if confirmed and queue_run_passed(repository, remote, number):
+            # The queue merged main and GitHub has not yet flipped the PR to
+            # MERGED; keep reading for a bounded time rather than call it removed.
+            if settle_deadline is None:
+                settle_deadline = time.monotonic() + MERGE_SETTLE_SECONDS
+            if time.monotonic() >= settle_deadline:
+                raise LandingError(f"PR {number}'s queue run passed but the PR is still not merged after "
+                                   f"{MERGE_SETTLE_SECONDS}s; check status and main before acting.")
+            if not remaining():
+                return pull, 2
+            time.sleep(min(interval, remaining()))
+            continue
         if confirmed:
             raise LandingError(f"PR {number} left the merge queue without merging; inspect the queue "
                                "run with gh run list and do not re-enqueue blindly.")

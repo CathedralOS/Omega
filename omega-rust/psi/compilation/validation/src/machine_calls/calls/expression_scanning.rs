@@ -35,7 +35,7 @@ pub use result_realization::{
 };
 pub(crate) use target_resolution::declared_receiver_type_reference;
 use target_resolution::{named_type_reference_name, report_unresolved_value_call};
-pub(crate) use traversal::validate_value_position_calls;
+pub(crate) use traversal::{report_unresolved_name_use, validate_value_position_calls};
 
 /// A value-position call from emitted concrete code may not retain a generic
 /// callee: its result slot has no concrete layout. Uninstantiated generic

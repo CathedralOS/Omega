@@ -577,6 +577,13 @@ Weakening is per normalized atom:
   authority amplification; a view that cannot retain them rejects. Neither
   non-owning provenance nor explicit erasure waives the domain's access policy.
 
+Predicate-only weakening also applies to an otherwise compatible borrowed view:
+an input displayed as `&mut T in D` may supply `&mut T` without a redundant
+`as` when the omitted atoms meet the rule above. The adaptation preserves the
+referent, lifetime, access mode and original lender's restoration obligations;
+it changes neither the stored owner's declared qualification nor `T`'s default
+domain. See [contract-based repair](dependent_values.md#contract-based-repair).
+
 Thus `i32::Km & Positive` may flow to `i32::Km`, but not implicitly to bare
 `i32`. Carry demands survive qualification forgetting until the underlying
 claim is discharged. [Content custody](../resources/content_custody.md) governs

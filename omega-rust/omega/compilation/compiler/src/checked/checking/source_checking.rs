@@ -119,7 +119,7 @@ pub(crate) fn check_product_source(
     // and every target proposal. Package handoffs have the same default tier
     // on all three routes; only the root Build supplies overrides.
     let mut provider_defaults = provider_defaults.to_vec();
-    for selection in &build.package_provider_selections {
+    for selection in &build.default_provider_selections {
         provider_defaults.push(
             build_time_evaluation::provider_declarations::TargetProviderDefaults {
                 target: selection
@@ -192,7 +192,7 @@ fn layout_target_scopes(
     let choices = build
         .provider_selections
         .iter()
-        .chain(&build.package_provider_selections)
+        .chain(&build.default_provider_selections)
         .collect::<Vec<_>>();
     let mut profiles = Vec::new();
     for binding in &build.root_bindings {

@@ -280,8 +280,7 @@ fn sequence_actions(
                     }
                     let actions = shapes.cleanup_control.actions.insert_many(actions);
                     let handle = owner_cleanups.handle_at(
-                        u32::try_from(ordinal)
-                            .map_err(|_| "release owner ordinal exceeds u32")?,
+                        u32::try_from(ordinal).map_err(|_| "release owner ordinal exceeds u32")?,
                     );
                     shapes
                         .cleanup_control
@@ -361,12 +360,14 @@ fn sequence_actions(
                     });
                     let (consumer, producers) = match (local, enclosing) {
                         (Some(_), Some(_)) => {
-                            return Err("call boundary has both a local and a completion producer")
+                            return Err("call boundary has both a local and a completion producer");
                         }
                         (Some(consumer), None) => (consumer, prior),
                         (None, Some(completion)) => completion,
                         (None, None) => {
-                            return Err("call boundary has no producer in its prefix or completion")
+                            return Err(
+                                "call boundary has no producer in its prefix or completion",
+                            );
                         }
                     };
                     let actions = call_actions(

@@ -91,6 +91,7 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
                     .unwrap(),
                 requirement_identity: identities.intern(&format!("Parent::read<{tuple}>")),
                 source_requirement_identity: identities.intern("Parent::read"),
+                declaration_application: identities.intern("Parent<u64>"),
                 receiving_application: identities.intern("Parent<u64>"),
                 receiving_region_arguments: Vec::new(),
                 provider_identity: identities.intern("First"),
@@ -122,6 +123,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
                 .map(|candidate| terminal_psi::RequiredProviderInstance {
                     requirement_identity: candidate.requirement_identity,
                     candidate_identity: candidate.candidate_identity,
+                    declaration_application: candidate.declaration_application,
                     receiving_application: candidate.receiving_application,
                     receiving_region_arguments: candidate.receiving_region_arguments.clone(),
                 })
@@ -316,7 +318,16 @@ fn closed_invocation_headers_retain_selected_eligibility_and_instance_obligation
                 changed.scalar_applications.proof_scope.callable_headers = Default::default()
             }
             "association" => changed.scalar_applications.proof_scope.callables = Default::default(),
-            "instance" => changed.provider_candidates.clear(),
+            "instance" => {
+                // Keep the independent obligation and declaration view intact.
+                // A body for another actual application is not its instance.
+                let mut identities = changed.identities.clone().into_builder();
+                let other_application = identities.intern("Parent<bool>");
+                for candidate in &mut changed.provider_candidates {
+                    candidate.receiving_application = other_application;
+                }
+                changed.identities = identities.build();
+            }
             _ => {
                 let duplicate = changed
                     .scalar_applications
@@ -484,6 +495,7 @@ fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
                 let mut identities = changed.identities.clone().into_builder();
                 let substituted = identities.intern("Parent<bool>");
                 for row in &mut changed.provider_candidates {
+                    row.declaration_application = substituted;
                     row.receiving_application = substituted;
                 }
                 changed.identities = identities.build();
@@ -545,6 +557,7 @@ fn inherited_requirement_uses_its_declaring_receiver_not_the_child_view() {
     surface.receiver_applications[1].application = surface.receiver_applications[1].trait_name;
     surface.receiver_applications[1].argument_identities.clear();
     for candidate in &mut module.provider_candidates {
+        candidate.declaration_application = TerminalIdentityIndex::ABSENT;
         candidate.receiving_application = TerminalIdentityIndex::ABSENT;
     }
     assert_eq!(
@@ -558,6 +571,7 @@ fn inherited_requirement_uses_its_declaring_receiver_not_the_child_view() {
     let substituted_child = identities.intern("Child<u8>");
     module.identities = identities.build();
     for candidate in &mut module.provider_candidates {
+        candidate.declaration_application = substituted_child;
         candidate.receiving_application = substituted_child;
     }
     assert!(checked_candidate_roster(std::slice::from_ref(&selected), &module).is_err());

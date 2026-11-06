@@ -247,6 +247,15 @@ fn admit_request(
     Ok(())
 }
 
+fn merge_overflow(
+    overflow: &mut Vec<diagnostics::Diagnostic>,
+    errors: Vec<diagnostics::Diagnostic>,
+) -> Vec<diagnostics::Diagnostic> {
+    let mut diagnostics = std::mem::take(overflow);
+    diagnostics.extend(errors);
+    diagnostics
+}
+
 /// The check itself, over a program `lower_typed_trees` has found complete.
 fn check_program(
     program: typed_trees::FrozenTypedTrees,
@@ -314,6 +323,7 @@ fn check_program(
         phase_profile::checkpoint("numeric totals after typed preparation", scope);
     }
     let deferred_entailment = validated.deferred_entailment;
+    let mut deferred_overflow = std::mem::take(&mut validated.deferred_overflow);
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
     // Caller-visible mutation summaries depend only on the immutable typed
     // program and the borrow facts assembled once here. Fact construction, the
@@ -346,18 +356,20 @@ fn check_program(
             &mutation_summaries,
         )
     });
-    let (mut facts, prepared_effects, program) = match built {
+    let (mut facts, prepared_effects, program, formation_overflow) = match built {
         Ok(built) => built,
         Err(failure) => {
-            return Err(
+            return Err(merge_overflow(
+                &mut deferred_overflow,
                 crate::checking::program_validation::entailment_errors_first(
                     failure.program.as_deref().unwrap_or(&program),
                     deferred_entailment,
                     failure.diagnostics,
                 ),
-            );
+            ));
         }
     };
+    deferred_overflow.extend(formation_overflow);
     phase_profile::checkpoint("after check-fact construction", "psi.05.build_check_facts");
     // Contract entailment judges each checked body once, after the flow facts
     // it may read exist. The Psi 05 prover reads those proved postconditions
@@ -365,9 +377,12 @@ fn check_program(
     let validation::ContractEntailment {
         proven_machine_contracts,
         dependency_body_judgments,
-    } = phase_profile::scope("psi.05.contract_entailment", || {
+    } = match phase_profile::scope("psi.05.contract_entailment", || {
         validation::judge_contract_entailment(&program, deferred_entailment)
-    })?;
+    }) {
+        Ok(entailment) => entailment,
+        Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
+    };
     let program = program.with_prepared_effect_plans(&prepared_effects);
     facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;
@@ -375,12 +390,16 @@ fn check_program(
     // was proved: judge them now against the checked termination facts. The
     // batch publishes exact admission facts consumed by runtime planning.
     let mid_guard = phase_profile::guard("psi.05.quotients_borrows_identities");
-    let quotient_operations = validation::admit_checked_quotient_requests(&program, &|machine| {
-        facts
-            .termination
-            .for_machine(machine)
-            .map(|plan| plan.checked_summary.clone())
-    })?;
+    let quotient_operations =
+        match validation::admit_checked_quotient_requests(&program, &|machine| {
+            facts
+                .termination
+                .for_machine(machine)
+                .map(|plan| plan.checked_summary.clone())
+        }) {
+            Ok(operations) => operations,
+            Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
+        };
     facts
         .quotient_operations
         .extend(quotient_operations.into_iter().map(|operation| {
@@ -392,19 +411,28 @@ fn check_program(
                 correspondence: operation.correspondence,
             }
         }));
-    checks::initialize_checked_direct_borrow_resources(&program, &mut facts, &mutation_summaries)?;
+    if let Err(errors) = checks::initialize_checked_direct_borrow_resources(
+        &program,
+        &mut facts,
+        &mutation_summaries,
+    ) {
+        return Err(merge_overflow(&mut deferred_overflow, errors));
+    }
     // Compute at the original failure boundary, preserving diagnostic order.
     // Nothing below consumes the specialization commitments. Publish them
     // with the other checked facts, never by rewriting the typed roster.
     let specialization_identities =
-        validation::contract_identities::prepare_specialization_contract_identities(
+        match validation::contract_identities::prepare_specialization_contract_identities(
             &program,
             &facts.contract_plans,
             &prepared_effects,
-        )?;
+        ) {
+            Ok(identities) => identities,
+            Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
+        };
     drop(mid_guard);
 
-    phase_profile::scope("psi.05.check_checked_facts", || {
+    if let Err(errors) = phase_profile::scope("psi.05.check_checked_facts", || {
         checks::check_checked_facts_recording(
             &program,
             &mut facts,
@@ -412,7 +440,12 @@ fn check_program(
             &incoming_guard_index,
             &proven_machine_contracts,
         )
-    })?;
+    }) {
+        return Err(merge_overflow(&mut deferred_overflow, errors));
+    }
+    if !deferred_overflow.is_empty() {
+        return Err(merge_overflow(&mut deferred_overflow, Vec::new()));
+    }
     phase_profile::checkpoint("after checked-fact checks", "psi.05.check_checked_facts");
     let late_guard = phase_profile::guard("psi.05.finalize_execution_identities");
     crate::products::quotient_eligibility::check(&program, &facts)?;

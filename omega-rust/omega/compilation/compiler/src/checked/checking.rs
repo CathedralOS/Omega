@@ -5,7 +5,9 @@ pub(crate) mod compile_thread;
 mod product_queries;
 mod product_selections;
 pub use product_queries::ProductQueries;
+mod source_build;
 mod source_checking;
+pub use source_build::BuildAdvance;
 pub(crate) use source_checking::check_product_source;
 
 pub use compilation_products::{
@@ -112,10 +114,16 @@ pub(super) struct PreparedPackageInvocation {
     target: target::TargetProfile,
     inputs: Option<PackageCompilationInputs>,
     rollback: optimization_core::OptimizationRollback,
-    source: build_continuation::BuildSourceInvocation,
+    source: source_build::SourceBuild,
 }
 
 impl PreparedPackageInvocation {
+    pub(super) fn advance(
+        &mut self,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
+    ) -> Result<BuildAdvance, CompileFailure> {
+        self.source.advance(returned)
+    }
     pub(super) fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }
@@ -258,7 +266,7 @@ pub(super) fn begin_package_build_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         settled_check_reuse: reuse,
     };
-    let source = prepare_build_source_invocation(&request.root_path, source, child, Some(owner))?;
+    let source = source_build::SourceBuild::prepare(&request.root_path, source, child, owner)?;
     Ok(PreparedPackageInvocation {
         capture: request.source_capture,
         root: request.root_path,
@@ -278,10 +286,16 @@ pub struct SourceCompilation {
     inputs: Option<PackageCompilationInputs>,
     rollback: crate::OptimizationRollback,
     reuse: SettledCheckReuse,
-    source: build_continuation::BuildSourceInvocation,
+    source: source_build::SourceBuild,
 }
 
 impl SourceCompilation {
+    pub fn advance(
+        &mut self,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
+    ) -> Result<BuildAdvance, CompileFailure> {
+        self.source.advance(returned)
+    }
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }
@@ -355,8 +369,7 @@ pub(super) fn prepare_source_compilation(
     let inputs = child.package_inputs.cloned();
     let rollback = child.optimization_rollback.clone();
     let reuse = child.settled_check_reuse.clone();
-    let source =
-        prepare_build_source_invocation(root, source, child, Some(pure_build_compilation))?;
+    let source = source_build::SourceBuild::prepare(root, source, child, pure_build_compilation)?;
     Ok(SourceCompilation {
         root: root.to_path_buf(),
         target,
@@ -372,6 +385,7 @@ fn prepare_build_source_invocation(
     mut source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
+    purpose: source_build::BuildSourcePurpose<'_>,
 ) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
@@ -388,6 +402,7 @@ fn prepare_build_source_invocation(
         frontier,
         timings,
         pure_build_compilation,
+        purpose,
     )
     .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))
 }

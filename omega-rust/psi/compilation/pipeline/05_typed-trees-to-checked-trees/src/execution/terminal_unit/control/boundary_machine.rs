@@ -9,6 +9,7 @@ use super::super::calls::free_structural_scalar_entry_signature_traced;
 use super::boundary_contracts::boundary_scalar_requires;
 use super::boundary_contracts::pending_recipe_requires;
 use super::call_results::checked_structural_result_type;
+use checked_trees::CheckedBoundaryExecutionPlan;
 
 use crate::execution::terminal_unit::calls::{
     free_structural_scalar_signature, parameter_signatures,
@@ -23,6 +24,33 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, SymbolHandle,
     is_reference,
 };
+
+/// Select the execution owner while the declaration is still being checked.
+/// An application with the same name or shape never acquires a core route.
+fn boundary_execution(
+    program: &typed_trees::TypedTrees,
+    machine: SymbolHandle,
+) -> Result<CheckedBoundaryExecutionPlan, &'static str> {
+    use typed_trees::typed_trees::{
+        AccessExecutionDeclaration, AccessLifecycleOperation, EmptyRunReleaseDeclaration,
+    };
+    if let Some(declaration) = AccessExecutionDeclaration::authenticate(program, machine)
+        .map_err(|_| "placement primitive declaration is malformed")?
+    {
+        return Ok(match declaration.operation() {
+            AccessLifecycleOperation::Initialize => CheckedBoundaryExecutionPlan::AccessInitialize,
+            AccessLifecycleOperation::MoveOut => CheckedBoundaryExecutionPlan::AccessMoveOut,
+            AccessLifecycleOperation::View => CheckedBoundaryExecutionPlan::AccessView,
+        });
+    }
+    if EmptyRunReleaseDeclaration::authenticate(program, machine)
+        .map_err(|_| "empty-run release declaration is malformed")?
+        .is_some()
+    {
+        return Ok(CheckedBoundaryExecutionPlan::EmptyRunRelease);
+    }
+    Ok(CheckedBoundaryExecutionPlan::Provider)
+}
 
 pub(crate) fn build_boundary_machine(
     program: &dyn ::validation::CheckingInput,
@@ -137,6 +165,7 @@ pub(crate) fn build_boundary_machine(
         reference_outputs(program, program.state_parameters(state), &[])?
     };
     Ok(CheckedBoundaryMachinePlan {
+        execution: boundary_execution(program.typed_program(), machine.symbol)?,
         reference_outputs,
         result_reference_sources: reference_result_sources(
             program,
@@ -553,6 +582,7 @@ pub(crate) fn build_static_boundary_requirements(
                 })
                 .collect();
             plans.push(CheckedBoundaryMachinePlan {
+                execution: CheckedBoundaryExecutionPlan::Provider,
                 result_reference_sources: match reference_result_sources(
                     program,
                     program.state_signature_parameters(signature),
@@ -679,6 +709,7 @@ fn build_boundary_operator(
         transitive: language_semantics::ServiceReachRowTable::EMPTY_ROW,
     };
     Some(CheckedBoundaryMachinePlan {
+        execution: CheckedBoundaryExecutionPlan::Provider,
         result_reference_sources: reference_result_sources(
             program,
             program.operator_parameters(operator),

@@ -148,9 +148,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
     state: &typed_trees::state::State,
     statement_index: u32,
     returned: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
-    scalar_completion: Option<
-        crate::execution::terminal_unit::storage_transfers::ScalarCompletion<'_>,
-    >,
+    completion: Option<&crate::execution::terminal_unit::storage_transfers::PreparedCompletion<'_>>,
     at_exit: bool,
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
     results: &Results,
@@ -266,7 +264,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
                 at_exit,
                 uncommitted_owner: owner.row.root,
                 returned,
-                scalar_completion,
+                completion,
                 transported_loans: &transported_loans,
                 storage_borrowers: &candidates.storage_borrowers,
             };

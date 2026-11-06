@@ -6,7 +6,9 @@
 //! ordinary edge obligations, proved from the caller contract and selected path.
 use super::{CheckedTrees, LoweringError};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
+use crate::unit::attached_unit::argument_evaluation::{
+    Evaluation, ScalarReturnCleanup, StructuralValueStorage,
+};
 use crate::unit::attached_unit::scalar_completion::control::returning_destinations;
 use crate::unit::unit_cleanup::CleanupRegion;
 use crate::unit::unit_cleanup::bind_consumed_claims;
@@ -189,12 +191,27 @@ pub(crate) fn for_exit_regions(
         ));
     }
     let cleanup_control = catalog.control;
-    let actions = crate::unit::unit_cleanup::outstanding_actions(
+    let planned = crate::unit::unit_cleanup::outstanding_actions(
         cleanup_control.actions.span_or_empty(selected_exit.actions),
         source.operations,
         source.parameters,
         cleanup_control,
     );
+    let mut actions = Vec::with_capacity(planned.len());
+    for action in planned {
+        // Planned source enums do not describe the entire emitted prefix:
+        // nested calls can already have disposed this exact physical home.
+        // Rebinding clears the receipt; source consumption alone is insufficient.
+        if !matches!(
+            action,
+            checked_trees::CheckedNormalCleanupAction::InvokeNominal(_)
+        ) && evaluation.cleanup_source_is_retired(action.source(), parameters, |binding| {
+            result_storage(operations, binding)
+        })? {
+            continue;
+        }
+        actions.push(action);
+    }
     let declaration_orders = actions
         .iter()
         .map(|action| {
@@ -239,16 +256,7 @@ pub(crate) fn for_exit_regions(
                 operations,
             )
         },
-        |binding| {
-            let (_, result) = operations
-                .structural_values
-                .iter()
-                .find(|(ordinal, _)| *ordinal == binding)
-                .ok_or(LoweringError::Unsupported(
-                    "deferred reference release has no established carrier",
-                ))?;
-            Ok(result.into())
-        },
+        |binding| result_storage(operations, binding),
     )?;
     regions.extend(source.trivial_affine_discards.iter().map(|place| {
         CleanupRegion::unconditional(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
@@ -256,6 +264,20 @@ pub(crate) fn for_exit_regions(
         ))
     }));
     Ok(regions)
+}
+
+fn result_storage(
+    operations: &OperationBuffer,
+    binding: u32,
+) -> Result<StructuralValueStorage, LoweringError> {
+    let (_, result) = operations
+        .structural_values
+        .iter()
+        .find(|(ordinal, _)| *ordinal == binding)
+        .ok_or(LoweringError::Unsupported(
+            "cleanup result is not established",
+        ))?;
+    Ok(result.into())
 }
 
 /// Every completion action resolves through the same captured value namespace.
@@ -283,17 +305,9 @@ fn lower_regions<'actions>(
         catalog.types,
         catalog.type_ids,
         |identities, source, path| {
-            let mut storage =
-                evaluation.cleanup_value_storage(source, parameters, |binding_ordinal| {
-                    let (_, result) = operations
-                        .structural_values
-                        .iter()
-                        .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                        .ok_or(LoweringError::Unsupported(
-                            "cleanup result is not established",
-                        ))?;
-                    Ok(result.into())
-                })?;
+            let mut storage = evaluation.cleanup_value_storage(source, parameters, |binding| {
+                result_storage(operations, binding)
+            })?;
             storage.path.extend(crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
                 identities, path, storage.selected_type, catalog.types, None, &mut std::iter::empty(), None,
             )?);

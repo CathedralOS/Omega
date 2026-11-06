@@ -245,8 +245,11 @@ fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {
         StructuralTerm::Integer(value) => (5, integer_key(value)),
         StructuralTerm::RepeatedArray { length, .. } => (20, *length),
         StructuralTerm::Float(_) => (6, 0),
-        StructuralTerm::Constructor { data, case, .. } => {
-            (7, string_key(data) ^ string_key(case).rotate_left(32))
+        StructuralTerm::Constructor { identity, .. } => {
+            use std::hash::{Hash, Hasher};
+            let mut hash = std::collections::hash_map::DefaultHasher::new();
+            identity.hash(&mut hash);
+            (7, hash.finish())
         }
         StructuralTerm::Application { target, .. } => (8, handle_key(*target)),
         StructuralTerm::CallProjection { target, field, .. } => {
@@ -284,8 +287,10 @@ fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {
 
 fn is_potential_integer_premise(predicate: &StructuralTerm, truth: &StructuralTerm) -> bool {
     match truth.semantic_value() {
-        StructuralTerm::Constructor { data, fields, .. } => {
-            data == "bool"
+        StructuralTerm::Constructor {
+            identity, fields, ..
+        } => {
+            identity.boolean().is_some()
                 && fields.is_empty()
                 && predicate_may_unwrap_to_integer_comparison(predicate, 0)
         }

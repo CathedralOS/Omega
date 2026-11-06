@@ -169,14 +169,13 @@ impl StructuralJudge<'_> {
         captured: &super::super::StructuralTerm,
         pending: &super::super::super::scoped_arithmetic::PendingScopedCallResultObservation,
     ) -> bool {
-        let formed = self.scalar_coordinate_is_formed(
+        self.scalar_coordinate_is_formed(
             reference,
             captured,
             &pending.observation.path,
             &pending.cases,
             &pending.indices,
-        );
-        formed
+        )
     }
 
     pub(super) fn scalar_coordinate_is_formed(
@@ -315,33 +314,25 @@ impl StructuralJudge<'_> {
             return None;
         };
         prefix.extend_from_slice(path);
-        let Some(geometry) = crate::structural_scalar_coordinate_in_type(
+        let geometry = crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Expression(*expression),
             *result_type,
             &prefix,
-        ) else {
-            return None;
-        };
-        let Some(coordinate) = self.capture_storage_place(crate::CanonicalPlace {
+        )?;
+        let coordinate = self.capture_storage_place(crate::CanonicalPlace {
             root: facts::PlaceRoot::Expression(*expression),
             segments: prefix.clone(),
-        }) else {
-            return None;
-        };
+        })?;
         let value = self
             .stored_values
             .values_at(&coordinate)
             .find_map(|stored| {
-                if stored.backing.is_none() {
-                    return None;
-                }
+                stored.backing.as_ref()?;
                 if !self.storage_value_transfer_is_current(stored, self.storage_version) {
                     return None;
                 }
-                let Some(current) = stored.current.as_ref() else {
-                    return None;
-                };
+                let current = stored.current.as_ref()?;
                 let mut root = current.semantic_value();
                 loop {
                     root = match root {
@@ -647,14 +638,12 @@ impl StructuralJudge<'_> {
         }
         let machine = self.program.machine_by_symbol(source.machine)?;
         let state = self.program.state_in_machine(machine, source.state)?;
-        let Some(geometry) = crate::structural_scalar_coordinate_in_type(
+        let geometry = crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Expression(source.expression),
             source.type_reference,
             path,
-        ) else {
-            return None;
-        };
+        )?;
         let dependencies = source
             .context
             .frame_resolver()?
@@ -665,9 +654,7 @@ impl StructuralJudge<'_> {
                 source.type_reference,
                 path,
             );
-        let Some(dependencies) = dependencies else {
-            return None;
-        };
+        let dependencies = dependencies?;
         let values = source
             .context
             .backing_values_at(

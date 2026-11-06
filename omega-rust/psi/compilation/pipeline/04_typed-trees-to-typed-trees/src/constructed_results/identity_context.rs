@@ -69,30 +69,46 @@ pub(super) fn argument_tuples(
         .flatten()
         .filter_map(|peer| {
             let reference = scope.result_type(program, *peer)?;
-            let mut carrier = program
-                .type_reference_table
-                .unconstrained_type_reference(reference);
-            if let TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(carrier)
-            {
-                carrier = program
-                    .unique_data_definition_by_symbol(*symbol)?
-                    .generic_instance?;
-            }
-            let TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } = program.type_reference_table.type_reference(carrier)
-            else {
-                return None;
-            };
-            (*base_symbol == declaration).then(|| {
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .to_vec()
-            })
+            application_arguments(program, reference, declaration)
         })
         .collect()
+}
+
+/// Only the selected nominal declaration's argument tuple participates in
+/// inference. A receiving qualification is not evidence about the new value.
+pub(super) fn application_arguments(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    declaration: symbols::SymbolHandle,
+) -> Option<Vec<TypeReferenceHandle>> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(reference)
+    {
+        return None;
+    }
+    let mut carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(reference);
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(carrier)
+    {
+        carrier = program
+            .unique_data_definition_by_symbol(*symbol)?
+            .generic_instance?;
+    }
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(carrier)
+    else {
+        return None;
+    };
+    (*base_symbol == declaration).then(|| {
+        program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .to_vec()
+    })
 }

@@ -390,14 +390,25 @@ impl StructuralJudge<'_> {
             .primitive_type_reference(result_type)
             .filter(|primitive| *primitive == geometry.primitive_type)
             .ok_or("entry scalar carrier disagrees with its stored interpretation")?;
-        self.capture_sequence += 1;
-        let value = StructuralTerm::CapturedValue {
-            statement: arena::Handle::invalid(),
-            expression: arena::Handle::invalid(),
-            callable: symbols::SymbolHandle::invalid(),
-            occurrence: self.capture_sequence,
-            result_type,
-            integer_range: None,
+        // The same entry coordinate already names one value. Reuse it before
+        // creating a fresh unknown; relating a discarded unknown back to that
+        // value adds proof work without supplying another fact.
+        let retained = self
+            .capture_entry_storage_place(place.clone())
+            .and_then(|coordinate| self.stored_values.value_at(&coordinate)?.entry.clone());
+        let value = match retained {
+            Some(value) => value,
+            None => {
+                self.capture_sequence += 1;
+                StructuralTerm::CapturedValue {
+                    statement: arena::Handle::invalid(),
+                    expression: arena::Handle::invalid(),
+                    callable: symbols::SymbolHandle::invalid(),
+                    occurrence: self.capture_sequence,
+                    result_type,
+                    integer_range: None,
+                }
+            }
         };
         self.retain_entry_scalar_snapshot(machine, state, place, value)
     }
@@ -462,15 +473,33 @@ impl StructuralJudge<'_> {
         ) {
             return Err("entry snapshot lacks a formed scalar observation");
         }
+        let coordinate = self
+            .capture_entry_storage_place(place.clone())
+            .ok_or("entry predicate has no fixed declaration coordinate")?;
+        // A private call may already have transferred this scalar's exact
+        // value, together with a guard about it. Reuse that entry snapshot
+        // when installing its readable backing. Replacing current contents
+        // with a fresh predicate variable would detach later reads from the
+        // guard, even though no write occurred.
+        let value = match self
+            .stored_values
+            .value_at(&coordinate)
+            .and_then(|stored| stored.entry.clone())
+        {
+            Some(previous) => {
+                if !previous.same_resolution_payload(&value) {
+                    self.assume_completed_value_equation(observed_type, previous.clone(), value);
+                }
+                previous
+            }
+            None => value,
+        };
         if self
             .entry_read_backing(machine, state, root, &place.segments)
             .is_some()
         {
             return self.retain_entry_scalar_observation(machine, state, place, value);
         }
-        let coordinate = self
-            .capture_entry_storage_place(place.clone())
-            .ok_or("entry predicate has no fixed declaration coordinate")?;
         let values = std::sync::Arc::make_mut(&mut self.stored_values);
         let previous = if let Some(stored) = values.value_at_mut(&coordinate) {
             stored.entry.get_or_insert_with(|| value.clone()).clone()
@@ -487,11 +516,6 @@ impl StructuralJudge<'_> {
             });
             value.clone()
         };
-        // A second admitted observation of this exact entry coordinate keeps
-        // the first snapshot's identity and relates the two saved values.
-        if !previous.same_resolution_payload(&value) {
-            self.assume_completed_value_equation(observed_type, previous.clone(), value.clone());
-        }
         if super::super::super::struct_trace() {
             eprintln!(
                 "STRUCT entry-predicate-only place={place:?} value={value:?} awaiting=performed-load-and-preservation"

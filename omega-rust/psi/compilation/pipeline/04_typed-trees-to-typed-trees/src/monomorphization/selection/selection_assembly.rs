@@ -265,11 +265,39 @@ pub(crate) fn proposal_bindings(
     }
     for (_, parameter, binding) in const_proposals {
         if selection.runtime_value_bindings[parameter].is_some() {
-            // An explicit runtime Value actual already supplies this slot.
-            // A dependent argument or expected result constrains that actual;
-            // it cannot turn a future observed value into a second code key.
-            // Immutable occurrence checking owes equality for every call
-            // argument and result store after specialization.
+            // A descriptor read of an already-closed integer is that call's
+            // own actual, not a runtime subject shared with every other
+            // specialization. `tree_bound<Nodes, Total>` on `Tree<3, 7>`
+            // closes this instance to integer(3), integer(7). A different
+            // call whose index is still a parameter keeps the runtime
+            // instance and does not inherit these integers. Two closed
+            // integers for one slot stay a conflict.
+            if program
+                .static_const_literal_from_type_reference(binding)
+                .is_some()
+            {
+                let placeholder = candidate.template.const_parameters[parameter].2;
+                match selection.const_bindings[parameter] {
+                    Some(existing)
+                        if !same_const_identity(program, existing, placeholder)
+                            && !same_const_identity(program, existing, binding) =>
+                    {
+                        selection.conflicted = true;
+                        selection.conflict_reason.get_or_insert_with(|| {
+                            format!(
+                                "Const slot `{}` conflicts: {} versus {}",
+                                candidate.template.const_parameters[parameter].1,
+                                describe_binding(program, existing),
+                                describe_binding(program, binding),
+                            )
+                        });
+                    }
+                    _ => {
+                        selection.const_bindings[parameter] = Some(binding);
+                        selection.runtime_value_bindings[parameter] = None;
+                    }
+                }
+            }
             continue;
         }
         if !binding.is_valid() {

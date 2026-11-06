@@ -37,6 +37,8 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// selected profile completion and original allocation are separately
     /// required; this intrinsic creates no external allocation or host power.
     AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
+    /// Return the existing backing of an empty run, without invoking a provider.
+    EmptyRunRelease,
     /// Parameter-rooted scalar access to an exact sealed placed declaration.
     /// This describes the execution child; actual RAM custody is separately
     /// required at each occurrence and every activation boundary.
@@ -241,6 +243,7 @@ pub fn compiler_intrinsic_execution_identity_bytes(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
         CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => bytes[0] = 10,
+        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => bytes[0] = 16,
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             bytes[0] = 11;
             bytes[1] = match operation {

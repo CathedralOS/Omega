@@ -241,6 +241,9 @@ pub struct FlowStateOutgoingFact {
     /// transfers and valueless completion; reference results retain live
     /// referents captured during evaluation rather than replaying selectors.
     pub returned_value: arena::Handle<super::FlowOperandFact>,
+    /// Storage after this edge's operands complete, before successor arrival.
+    /// Named transfers retain this snapshot even when they return no value.
+    pub completed_storage: arena::Handle<super::FlowStorageSnapshot>,
     /// The control owner proved that this transfer cannot return normally.
     /// Custody still leaves on this edge, but result/partition consumers must
     /// not require a returned value. Unknown completion keeps this false;
@@ -272,6 +275,9 @@ pub struct FlowExitFact {
     /// transfers and valueless completion; reference results retain live
     /// referents captured during evaluation rather than replaying selectors.
     pub returned_value: arena::Handle<super::FlowOperandFact>,
+    /// The exact outgoing occurrence's completed storage, independent of
+    /// whether that occurrence carries a returned value. Zero is unknown.
+    pub completed_storage: arena::Handle<super::FlowStorageSnapshot>,
     pub parameter_origins: HandleSpan<FlowExitParameterOrigin>,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,

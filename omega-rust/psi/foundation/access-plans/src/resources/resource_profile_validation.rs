@@ -10,7 +10,8 @@ pub fn validate_resource_profile(
     mut profile: ResourceProfile,
     length: u64,
 ) -> Result<ValidatedResourceProfile, AccessPlanDiagnostic> {
-    reject_when! { length == 0 => "resource profile must describe a nonempty range" }
+    // An empty extent supplies no byte operations. The normal region checks
+    // admit only an empty roster for it, without inventing Stable authority.
     profile
         .regions
         .sort_by_key(|region| (region.offset, region.length));
