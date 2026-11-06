@@ -517,11 +517,11 @@ fn substitution_context(
     })
 }
 
-/// Caller facts can read constants and domains whose meanings are not captured
-/// by this portable body correspondence. Recheck those bodies in the consumer;
-/// statement text cannot authenticate the facts their callers supplied. Their
-/// enclosing callers also stay fresh, so no retained call can hide that check.
-/// Whole-program reuse still compares the complete source and entry roster.
+/// Checking a retained body without comparing the full program cannot validate
+/// caller facts imported from constants or domains. Statement text alone does
+/// not capture those definitions. Check these bodies and every enclosing caller
+/// again, so a retained call cannot skip that check. Whole-program reuse still
+/// compares the complete source and the entries callable from outside it.
 fn exclude_private_arrival_dependencies(
     program: &dyn crate::CheckingInput,
     callees: &[Vec<u32>],

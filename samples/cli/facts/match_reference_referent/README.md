@@ -7,10 +7,17 @@ The baseline compiler rejects this row's root and all nine positive places at
 `read_through`'s `place == 17` requirement. These refusals were observed on
 2026-11-05 with optimized macOS ARM64 producer
 `64376af6ae978b4ddb2d2d50874724226ccb0646`; the sources still use 17 and 5.
-The compiler change and the Build-selection migration remain under validation.
-The nested-machine twin also retains an older diagnostic expectation naming
-`main`/`pick`; this producer reports `pick`/`entry`. That mismatch remains open,
-and the twin does not count as passing.
+The repaired Linux producer
+`195774d028943e0adfc06e7bee331a9a187da740` runs the root and all nine places
+with native and Terminal Psi exit 0 in
+[run 42138842550](https://github.com/CathedralOS/Omega/actions/runs/42138842550).
+The ordinary target-provider project also passes package admission and both
+engines. All 29 focused negative controls reject, and 28 match their pins.
+The nested-machine twin retains an older expectation naming `main`/`pick`;
+the compiler reports `pick`/`entry` for the same missing 17 requirement.
+That expectation is unchanged, the twin does not count as passing, and the row
+remains open. Execution on the other three hosted targets and final review are
+still required.
 
 `choose()` is declared `ensures result == true`, so the join is taken on its true arm, and the
 consumer `read_through` requires `place == 17`. Exit 0 therefore holds exactly when the join
@@ -28,7 +35,7 @@ behavior remains outside this row's evidence.
 
 ## Places
 
-| Place | Positive Project | Reject Twin | Transport Mechanism |
+| Place | Positive | Reject twin | How the references arrive |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness running the same join and consumer |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the two candidate references are local bindings (`chosen_ref`, `spare_ref`) |
@@ -70,7 +77,7 @@ Each place has an `invalid/` reject twin with an authored
 `tests/omega/fail/facts/match_reference_referent_through_<place>_rejected` fixture. The twin changes only the
 construct's own input or selection, and checking fails closed during compile-time verification:
 
-| Place | Twin | What it changes | Pinned Diagnostic Fragment |
+| Place | Twin | What it changes | Pinned diagnostic fragment |
 | --- | --- | --- | --- |
 | local | [`local/invalid/main.omg`](local/invalid/main.omg) | the join selects `spare_ref` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 | field | [`field/invalid/main.omg`](field/invalid/main.omg) | the join selects `pair.spare` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => pair.spare, false => pair.chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
@@ -116,6 +123,15 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
    results, match joins, constants, a nested helper, a forwarding helper and four Build-selected
    providers; `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the construct's own
    selection (which candidate the true arm names).
+   Private helpers may use caller facts only when every actual incoming call proves
+   the requirement after substituting its arguments, as required by
+   [invocation contracts](../../../../wiki/spec/language/state_contracts.md).
+   Public entries, escaped callables and Build-selected members must satisfy their
+   declared contracts for independent inputs. The focused controls
+   [`second arrival`](../../../../tests/omega/fail/contracts/match_reference_private_second_arrival/main.omg),
+   [`public input`](../../../../tests/omega/fail/contracts/match_reference_public_input/main.omg),
+   and [`selected provider input`](../../../../tests/omega/fail/contracts/match_reference_selected_provider_input/main.omg)
+   reject when another caller or an independent input can supply 5.
 4. **Soundness boundaries:** every twin rejects during proof checking with
    ``cannot prove requires contract for call read_through …``; the recorded referent is not
    widened to "either candidate", and ownership/access of the borrowed referents is preserved.
@@ -131,7 +147,8 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
 8. **Form encoding, branch relaxation, relocations, native image emission (`Omega 07–09` +
    emission):** acceptance requires actual PE/ELF/Mach-O execution with exit 0 and agreement with
    Terminal Psi. The existing `tests/omega/pass/facts/match_reference_referent_through_*_exit`
-   fixtures retain `expected_native_exit.txt` `0`; current execution records remain pending.
+   fixtures retain `expected_native_exit.txt` `0`. Linux execution is recorded
+   at producer `195774d02894`; the other hosted executions remain required.
 
 ## Open items
 

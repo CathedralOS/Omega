@@ -70,9 +70,9 @@ pub(super) fn lexical_root(program: &dyn CheckingInput, machine: &Machine) -> Op
         }
         current = enclosing_declaration(program, current);
     }
-    // Ordinary private declarations share their semantic declaration owner.
-    // Source admission must first provide the complete independent entry list;
-    // a preparatory query without it retains the nested-only route.
+    // Ordinary private declarations use their enclosing declaration as the
+    // scope. Source admission must first list every externally callable entry;
+    // a preparatory query without that list can use only nested declarations.
     root.or_else(|| {
         program.external_invocation_roots()?;
         seen.last().copied()
