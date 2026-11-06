@@ -438,19 +438,27 @@ impl StructuralJudge<'_> {
                 )?;
                 // An unselected Boolean operand supplies no observation. In
                 // particular, a failed case test does not read its payload.
+                // Binding the right operand preserves this judge's facts, so
+                // both Boolean decisions use the same left judgment.
+                let left_judgment = matches!(
+                    binary.operator,
+                    typed_trees::expression::BinaryOperator::And
+                        | typed_trees::expression::BinaryOperator::Or
+                )
+                .then(|| self.judge_observed_predicate(left.clone(), depth + 1));
                 if matches!(
                     binary.operator,
                     typed_trees::expression::BinaryOperator::And
                 ) && matches!(
-                    self.judge_observed_predicate(left.clone(), depth + 1),
-                    super::StructuralJudgment::Refuted
+                    left_judgment,
+                    Some(super::StructuralJudgment::Refuted)
                 ) {
                     return Some(super::super::value_predicates::boolean_term(false));
                 }
                 if matches!(binary.operator, typed_trees::expression::BinaryOperator::Or)
                     && matches!(
-                        self.judge_observed_predicate(left.clone(), depth + 1),
-                        super::StructuralJudgment::Proven
+                        left_judgment,
+                        Some(super::StructuralJudgment::Proven)
                     )
                 {
                     return Some(super::super::value_predicates::boolean_term(true));
@@ -467,13 +475,13 @@ impl StructuralJudge<'_> {
                 )?;
                 if (binary.operator == typed_trees::expression::BinaryOperator::And
                     && matches!(
-                        self.judge_observed_predicate(left.clone(), depth + 1),
-                        super::StructuralJudgment::Proven
+                        left_judgment,
+                        Some(super::StructuralJudgment::Proven)
                     ))
                     || (binary.operator == typed_trees::expression::BinaryOperator::Or
                         && matches!(
-                            self.judge_observed_predicate(left.clone(), depth + 1),
-                            super::StructuralJudgment::Refuted
+                            left_judgment,
+                            Some(super::StructuralJudgment::Refuted)
                         ))
                 {
                     return Some(right);
