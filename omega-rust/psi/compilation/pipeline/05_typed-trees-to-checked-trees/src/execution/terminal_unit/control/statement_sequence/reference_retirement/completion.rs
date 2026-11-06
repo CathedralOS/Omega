@@ -4,15 +4,14 @@
 
 use super::{BorrowLoanFact, Handle, Retirement, RetirementNode};
 use checked_trees::{
-    CheckedScalarBranchDestination, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, FlowClaimJoinExit, FlowClaimJoinExitKind,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment, FlowClaimJoinExit,
 };
 use language_semantics::PermissionEventSource;
 use typed_trees::types::TypeReferenceHandle;
 
 struct CompletedDescriptorSources {
     formations: Vec<Handle<BorrowLoanFact>>,
-    call_values: Vec<validation::completed_storage::StoredCapture>,
+    call_descriptors: Vec<validation::completed_storage::CompletedCallDescriptor>,
 }
 
 impl Retirement<'_> {
@@ -22,12 +21,16 @@ impl Retirement<'_> {
     fn completed_descriptor_sources(
         &self,
         handle: Handle<BorrowLoanFact>,
-    ) -> Option<CompletedDescriptorSources> {
+    ) -> Result<CompletedDescriptorSources, &'static str> {
         let borrow = &self.facts.borrow;
         let loan = borrow.loans.get(handle);
-        let owner_path = borrow.owner_segments.span(loan.owner_path)?;
+        let owner_path = borrow
+            .owner_segments
+            .span(loan.owner_path)
+            .ok_or("completion cleanup: the descriptor has no retained owner path")?;
         let mut pending = self
-            .resource_loans()?
+            .resource_loans()
+            .ok_or("completion cleanup: the body has no unique resource roster")?
             .filter_map(|(handle, candidate)| {
                 (candidate.storage_owner == loan.storage_owner
                     && candidate.statement_index == loan.statement_index
@@ -36,18 +39,18 @@ impl Retirement<'_> {
             })
             .collect::<Vec<_>>();
         if pending.is_empty() {
-            return None;
+            return Err("completion cleanup: the descriptor has no exact slot alternatives");
         }
         let Some(Some(state)) =
             super::unique_borrow_state(self.facts, self.machine, self.state.symbol)
         else {
-            return None;
+            return Err("completion cleanup: the body has no unique borrow state");
         };
         let mut active = Vec::new();
         let mut completed = Vec::new();
         let mut output = CompletedDescriptorSources {
             formations: Vec::new(),
-            call_values: Vec::new(),
+            call_descriptors: Vec::new(),
         };
         while let Some((source, leaving)) = pending.pop() {
             if leaving {
@@ -59,7 +62,9 @@ impl Retirement<'_> {
                 continue;
             }
             if active.contains(&source) || !borrow.state_owns_loan(state, source) {
-                return None;
+                return Err(
+                    "completion cleanup: descriptor predecessors cycle or leave this state",
+                );
             }
             active.push(source);
             pending.push((source, true));
@@ -71,20 +76,27 @@ impl Retirement<'_> {
             }
             if occurrence.established_by_call.is_valid() {
                 output
-                    .call_values
-                    .extend(self.call_descriptor_values(source)?);
+                    .call_descriptors
+                    .extend(self.call_descriptor_sources(source)?);
             } else if occurrence.formation_expression.is_valid()
                 && occurrence.formation_owner_path.is_some()
             {
                 output.formations.push(source);
             } else {
-                let sources = borrow.loan_suppliers.span(occurrence.supplying_loans)?;
+                let sources = borrow
+                    .loan_suppliers
+                    .span(occurrence.supplying_loans)
+                    .ok_or("completion cleanup: descriptor predecessors are unavailable")?;
                 if sources.is_empty() {
-                    return None;
+                    return Err(
+                        "completion cleanup: the descriptor has no call or formation predecessor",
+                    );
                 }
                 for source in sources {
                     if !borrow.state_owns_loan(state, *source) {
-                        return None;
+                        return Err(
+                            "completion cleanup: a descriptor predecessor belongs to another state",
+                        );
                     }
                     let previous = borrow.loans.get(*source);
                     if previous.storage_owner != occurrence.storage_owner
@@ -92,25 +104,27 @@ impl Retirement<'_> {
                             != borrow.owner_segments.span(occurrence.owner_path)
                         || previous.kind != occurrence.kind
                     {
-                        return None;
+                        return Err(
+                            "completion cleanup: a predecessor names different storage or access",
+                        );
                     }
                     pending.push((*source, false));
                 }
             }
         }
-        Some(output)
+        Ok(output)
     }
 
     /// A call-written descriptor is the value in that exact invocation's
     /// completed slot, not an expression with the same statement number.
-    fn call_descriptor_values(
+    fn call_descriptor_sources(
         &self,
         handle: Handle<BorrowLoanFact>,
-    ) -> Option<Vec<validation::completed_storage::StoredCapture>> {
+    ) -> Result<Vec<validation::completed_storage::CompletedCallDescriptor>, &'static str> {
         let borrow = &self.facts.borrow;
         let loan = borrow.loans.get(handle);
         if !borrow.calls.is_valid(loan.established_by_call) {
-            return None;
+            return Err("completion cleanup: the descriptor has no checked establishing call");
         }
         let call = borrow.calls.get(loan.established_by_call);
         if borrow.call_at(
@@ -120,51 +134,120 @@ impl Retirement<'_> {
             call.call_ordinal,
         ) != Some(loan.established_by_call)
             || !borrow.loans_contain(call.completed_reference_loans, handle)
-            || !borrow
-                .reference_slot_effects
-                .span(call.reference_slot_effects)?
-                .iter()
-                .any(|slot| {
-                    slot.root == loan.storage_owner
-                        && borrow
-                            .owner_segments
-                            .span(slot.owner_path)
-                            .is_some_and(|prefix| borrow.loan_owner_path(loan).starts_with(prefix))
-                })
         {
-            return None;
+            return Err(
+                "completion cleanup: the descriptor does not belong to its exact checked call",
+            );
         }
-        let control = &self.facts.flow.control;
-        let state = control.state(self.machine, self.state.symbol)?;
-        let mut calls = control.calls.span(state.calls)?.iter().filter(|observed| {
-            observed.statement_index == call.statement_index
-                && observed.call_ordinal == call.call_ordinal
-                && observed.authored_expression == call.authored_expression
-        });
-        let completed = calls.next()?;
-        if calls.next().is_some() {
-            return None;
+        let slots = borrow
+            .reference_slot_effects
+            .span(call.reference_slot_effects)
+            .ok_or("completion cleanup: the checked call has no retained slot effects")?;
+        if !slots.iter().any(|slot| {
+            slot.root == loan.storage_owner
+                && borrow
+                    .owner_segments
+                    .span(slot.owner_path)
+                    .is_some_and(|prefix| borrow.loan_owner_path(loan).starts_with(prefix))
+        }) {
+            return Err(
+                "completion cleanup: the checked call does not establish this descriptor slot",
+            );
         }
-        let reference = super::storage_owner_type_reference(
+        validation::completed_storage::loan_call_descriptors(
             self.program,
-            self.state,
-            loan.owner_symbol,
-            u32::try_from(loan.statement_index).ok()?,
-        )?;
-        let path =
-            super::transport::carrier_path(self.program, reference, borrow.loan_owner_path(loan))?;
-        let segments = super::loan_place_segments(self.program, reference, &path)?;
-        validation::completed_storage::at_snapshot(
-            self.program,
-            control,
-            completed.completed_storage,
-            &validation::CanonicalPlace {
-                root: loan.storage_owner,
-                segments,
-            },
-            validation::completed_storage::StoredObservation::Binding,
+            self.facts,
+            self.machine,
+            self.state.symbol,
+            handle,
         )?
-        .captures()
+        .ok_or("completion cleanup: this call has no authenticated descriptor sources")
+    }
+
+    /// A skipped call leaves an earlier formation in the same slot. Check
+    /// every stored alternative against its own ordinary formation or exact
+    /// completed call; one matching alternative cannot cover another one.
+    fn completed_descriptor_matches(
+        &self,
+        stored: validation::completed_storage::StoredOperand,
+        sources: &CompletedDescriptorSources,
+        statements: arena::HandleSpan<checked_trees::FlowStatementFact>,
+    ) -> Result<bool, &'static str> {
+        use validation::completed_storage::StoredOperand;
+        match stored {
+            StoredOperand::Unavailable => Ok(false),
+            StoredOperand::Alternatives(alternatives) => {
+                if alternatives.is_empty() {
+                    return Ok(false);
+                }
+                for alternative in alternatives {
+                    if !self.completed_descriptor_matches(alternative, sources, statements)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            stored => {
+                if !sources.call_descriptors.is_empty()
+                    && validation::completed_storage::matches_call_descriptor_frontier(
+                        self.program,
+                        stored.clone(),
+                        &sources.call_descriptors,
+                    )?
+                {
+                    return Ok(true);
+                }
+                let Some(captures) = stored.captures() else {
+                    // Unchanged input is not a new local formation. Only the
+                    // exact call-source proof above can authenticate it here.
+                    return Ok(false);
+                };
+                Ok(!captures.is_empty()
+                    && captures.iter().all(|stored| {
+                        sources.formations.iter().any(|source| {
+                            validation::completed_storage::descriptor_formation_matches_loan(
+                                self.program,
+                                &self.facts.flow.control,
+                                &self.facts.borrow,
+                                self.state.symbol,
+                                statements,
+                                self.facts.borrow.loans.get(*source),
+                                stored.capture,
+                                &stored.projection,
+                            ) == Some(true)
+                        })
+                    }))
+            }
+        }
+    }
+
+    fn completion_refusal(&self, reason: &'static str, loan: Handle<BorrowLoanFact>) {
+        self.trace.phase(reason);
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+            return;
+        }
+        eprintln!(
+            "CHECKSITE completion-cleanup-refusal machine={:?} state={:?} loan={loan:?} reason={reason}",
+            self.machine, self.state.symbol
+        );
+        let borrow = &self.facts.borrow;
+        let mut pending = vec![loan];
+        let mut visited = Vec::new();
+        while let Some(handle) = pending.pop() {
+            if visited.contains(&handle) || !borrow.loans.is_valid(handle) {
+                continue;
+            }
+            visited.push(handle);
+            let row = borrow.loans.get(handle);
+            let suppliers = borrow.loan_suppliers.span(row.supplying_loans);
+            eprintln!(
+                "CHECKSITE completion-cleanup-predecessor loan={handle:?} occurrence={row:?} owner_path={:?} suppliers={suppliers:?}",
+                borrow.owner_segments.span(row.owner_path)
+            );
+            if let Some(suppliers) = suppliers {
+                pending.extend_from_slice(suppliers);
+            }
+        }
     }
 
     pub(super) fn completion_retires_holder(
@@ -176,7 +259,13 @@ impl Retirement<'_> {
         reference: TypeReferenceHandle,
         active: &mut Vec<RetirementNode>,
     ) -> bool {
-        let Some(completion) = self.scalar_completion.filter(|_| self.at_exit) else {
+        let Some(completion) = self.completion.filter(|_| self.at_exit) else {
+            if self.at_exit {
+                self.completion_refusal(
+                    "completion cleanup: the body has no prepared completion plan",
+                    loan,
+                );
+            }
             return false;
         };
         let transfers = match crate::execution::terminal_unit::storage_transfers::at_completion(
@@ -196,9 +285,9 @@ impl Retirement<'_> {
                 return false;
             }
         };
-        if transfers.returns.is_empty() {
+        if transfers.exits.is_empty() {
             self.trace
-                .phase("completion cleanup: the return plan has no branches");
+                .phase("completion cleanup: the completion plan has no normal exits");
             return false;
         }
         let Ok(exits) = crate::execution::terminal_unit::cleanup::normal_edges::state_exits(
@@ -208,42 +297,22 @@ impl Retirement<'_> {
             self.state,
         ) else {
             self.trace
-                .phase("completion cleanup: the body has no checked return exits");
+                .phase("completion cleanup: the body has no checked normal exits");
             return false;
         };
-        transfers.returns.iter().all(|(destination, returned)| {
-            let CheckedScalarBranchDestination::Return {
-                statement_ordinal,
-                is_continuation,
-            } = destination
-            else {
-                return false;
-            };
-            let mut matching = exits.iter().filter(|exit| {
-                exit.statement_index == *statement_ordinal as usize
-                    && if *is_continuation {
-                        exit.kind == FlowClaimJoinExitKind::TransitionContinuation
-                    } else {
-                        matches!(
-                            exit.kind,
-                            FlowClaimJoinExitKind::TransitionTarget
-                                | FlowClaimJoinExitKind::FinalExpression
-                        )
-                    }
-            });
-            let Some(exit) = matching.next() else {
+        transfers.exits.iter().all(|(exit, selected)| {
+            if !exits.contains(exit) {
                 self.trace
-                    .phase("completion cleanup: the selected return has no checked exit");
+                    .phase("completion cleanup: the selected completion has no exact checked exit");
                 return false;
-            };
-            matching.next().is_none()
-                && self.transferred_holder_retired(
-                    loan,
-                    reference,
-                    &[&transfers.prefix, returned],
-                    Some(*exit),
-                    active,
-                )
+            }
+            self.transferred_holder_retired(
+                loan,
+                reference,
+                &[&transfers.prefix, selected],
+                Some(*exit),
+                active,
+            )
         })
     }
 
@@ -259,8 +328,12 @@ impl Retirement<'_> {
         if !self.at_exit {
             return false;
         }
-        let Some(sources) = self.completed_descriptor_sources(handle) else {
-            return false;
+        let sources = match self.completed_descriptor_sources(handle) {
+            Ok(sources) => sources,
+            Err(reason) => {
+                self.completion_refusal(reason, handle);
+                return false;
+            }
         };
         let loan = self.facts.borrow.loans.get(handle);
         if loan.storage_owner == self.uncommitted_owner {
@@ -288,90 +361,56 @@ impl Retirement<'_> {
                 .phase("completion cleanup: the body has no retained flow state");
             return false;
         };
-        let mut completed = self
-            .facts
-            .flow
-            .control
-            .exits
-            .span_or_empty(state.exits)
-            .iter()
-            .filter(|row| {
-                row.machine_symbol == self.machine
-                    && row.state_symbol == exit.state_symbol
-                    && row.statement_index == exit.statement_index
-                    && row.is_continuation
-                        == (exit.kind == FlowClaimJoinExitKind::TransitionContinuation)
-            })
-            .peekable();
-        let control = &self.facts.flow.control;
-        let call_descriptors = if loan.formation_owner_path.is_none() {
-            match validation::completed_storage::loan_call_descriptors(
+        let completed =
+            match crate::execution::terminal_unit::cleanup::normal_edges::state_exit_storage(
                 self.program,
                 self.facts,
                 self.machine,
-                self.state.symbol,
-                handle,
+                self.state,
+                exit,
             ) {
-                Ok(Some(descriptors)) => Some(descriptors),
-                Ok(None) => return false,
+                Ok(snapshots) => snapshots,
                 Err(reason) => {
-                    self.trace.phase(reason);
+                    self.completion_refusal(reason, handle);
                     return false;
                 }
-            }
-        } else {
-            None
-        };
+            };
+        let control = &self.facts.flow.control;
         let storage = validation::CanonicalPlace {
             root: loan.storage_owner,
             segments: path.clone(),
         };
-        if completed.peek().is_none()
-            || !completed.all(|row| {
-                if !control.operands.is_valid(row.returned_value) {
-                    return false;
+        if !completed.iter().all(|snapshot| {
+            let Some(stored) = validation::completed_storage::sources_at_snapshot(
+                self.program,
+                control,
+                *snapshot,
+                &storage,
+                validation::completed_storage::StoredObservation::Binding,
+            ) else {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE completion-cleanup-storage-unavailable loan={handle:?} exit={exit:?} snapshot={snapshot:?} storage={storage:?}"
+                    );
                 }
-                let value = control.operands.get(row.returned_value);
-                let Some(stored) = validation::completed_storage::sources_at_snapshot(
-                    self.program,
-                    control,
-                    value.storage_snapshot,
-                    &storage,
-                    validation::completed_storage::StoredObservation::Binding,
-                ) else {
-                    return false;
-                };
-                if let Some(descriptors) = &call_descriptors {
-                    return validation::completed_storage::matches_call_descriptor_frontier(
-                        self.program,
-                        stored,
-                        descriptors,
-                    ) == Ok(true);
+                return false;
+            };
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE completion-cleanup-storage loan={handle:?} exit={exit:?} snapshot={snapshot:?} captures={:?} call_sources={} formations={:?}",
+                    stored.clone().captures().map(|values| values.into_iter().map(|value| (value.capture, value.projection)).collect::<Vec<_>>()),
+                    sources.call_descriptors.len(), sources.formations,
+                );
+            }
+            match self.completed_descriptor_matches(stored, &sources, state.statements) {
+                Ok(matches) => matches,
+                Err(reason) => {
+                    self.completion_refusal(reason, handle);
+                    false
                 }
-                let Some(stored) = stored.captures() else {
-                    return false;
-                };
-                !stored.is_empty()
-                    && stored.iter().all(|stored| {
-                        sources.call_values.iter().any(|source| {
-                            source.capture == stored.capture
-                                && source.projection == stored.projection
-                        }) || sources.formations.iter().any(|source| {
-                            validation::completed_storage::descriptor_formation_matches_loan(
-                                self.program,
-                                control,
-                                &self.facts.borrow,
-                                self.state.symbol,
-                                state.statements,
-                                self.facts.borrow.loans.get(*source),
-                                stored.capture,
-                                &stored.projection,
-                            ) == Some(true)
-                        })
-                    })
-            })
-        {
-            self.trace.phase("completion cleanup: the selected return has no matching stored occurrence of this saved access");
+            }
+        }) {
+            self.completion_refusal("completion cleanup: the selected return has no matching stored occurrence of this saved access", handle);
             self.trace
                 .statement(u32::try_from(exit.statement_index).ok());
             return false;
@@ -429,8 +468,10 @@ impl Retirement<'_> {
                     "CHECKSITE saved-exit-cleanup-candidate-count loan={handle:?} total={count} printed={printed} all_matching_owners=true"
                 );
             }
-            self.trace
-                .phase("completion cleanup: no checked cleanup covers this saved access");
+            self.completion_refusal(
+                "completion cleanup: no checked cleanup covers this saved access",
+                handle,
+            );
             self.trace
                 .statement(u32::try_from(exit.statement_index).ok());
         }

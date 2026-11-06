@@ -11,6 +11,7 @@
 //! handles retain all authority; no new durable proof, pointer or lifetime is
 //! manufactured by this traversal.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, BorrowLoanOwnerSegment, CapturedPlace, CheckFacts, FlowConstraintRef,
@@ -57,6 +58,7 @@ enum LoadPurpose {
 pub(super) fn resolve(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -65,6 +67,7 @@ pub(super) fn resolve(
     resolve_for(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -76,6 +79,7 @@ pub(super) fn resolve(
 pub(super) fn storage(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -84,6 +88,7 @@ pub(super) fn storage(
     resolve_for(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -95,6 +100,7 @@ pub(super) fn storage(
 fn resolve_for(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -104,6 +110,7 @@ fn resolve_for(
     match resolve_loads(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -126,6 +133,7 @@ fn resolve_for(
 fn resolve_loads(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
@@ -275,9 +283,15 @@ fn resolve_loads(
 
         let lookup = descriptor_lookup(program, facts, state, constraints, &descriptor)
             .ok_or("the selected slot has no exact current descriptor namespace")?;
-        let candidates =
-            aliases::resolve_descriptor_places(program, facts, state, constraints, lookup.clone())
-                .ok_or("the selected slot has no complete current occurrence roster")?;
+        let candidates = aliases::resolve_descriptor_places(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            constraints,
+            lookup.clone(),
+        )
+        .ok_or("the selected slot has no complete current occurrence roster")?;
         if candidates.is_empty() {
             return Err("the selected descriptor has no authority alternatives");
         }
@@ -285,28 +299,18 @@ fn resolve_loads(
         // owner is not the selected slot and cannot substitute its own pointer.
         let mut occurrences = Vec::with_capacity(candidates.len());
         for candidate in &candidates {
-            let (owner, incoming) = if candidate.local_loan.is_valid() {
+            let incoming = if candidate.local_loan.is_valid() {
                 let loan = facts.borrow.loans.get(candidate.local_loan);
                 if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
                     return Err("a lifetime dependency cannot supply a descriptor address");
                 }
-                (
-                    facts.borrow.loan_owner_path(loan),
-                    candidate.place.incoming_reference,
-                )
+                candidate.place.incoming_reference
             } else {
-                let incoming = current_incoming(facts, state, constraints, &candidate.place)
+                current_incoming(facts, state, constraints, &candidate.place)
                     .ok_or("an authority alternative has no exact current incoming identity")?;
-                (
-                    facts
-                        .borrow
-                        .owner_segments
-                        .span(incoming.owner_path)
-                        .ok_or("an incoming alternative has an incomplete owner path")?,
-                    candidate.place.incoming_reference,
-                )
+                candidate.place.incoming_reference
             };
-            if owner.len() != lookup.segments.len() {
+            if candidate.consumed_segments != lookup.segments.len() {
                 return Err("an enclosing descriptor cannot supply the selected slot's pointer");
             }
             occurrences.push(LoadOccurrence {
@@ -319,6 +323,7 @@ fn resolve_loads(
         let alternatives = super::retain_captured_lineage(
             program,
             facts,
+            loan_occurrences,
             state,
             statement_index,
             lookup,

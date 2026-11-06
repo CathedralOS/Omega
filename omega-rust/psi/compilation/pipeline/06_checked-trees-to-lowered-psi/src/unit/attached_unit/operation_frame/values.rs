@@ -213,9 +213,14 @@ impl OperationEnvironment<'_> {
         let (preceding_bindings, operand_calls) = value_facts(checked)
             .structural_values
             .call_schedule(value)
-            .ok_or(LoweringError::Unsupported(
-                "computed value lost its checked call namespace",
-            ))?;
+            .ok_or_else(|| {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE computed-value-call-namespace value={value:?} root={root:?} node={node:?}",
+                    );
+                }
+                LoweringError::Unsupported("computed value lost its checked call namespace")
+            })?;
         let observation = prepare_value_observation(
             identities,
             checked,

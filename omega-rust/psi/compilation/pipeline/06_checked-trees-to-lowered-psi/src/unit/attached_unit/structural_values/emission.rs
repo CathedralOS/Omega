@@ -96,6 +96,85 @@ pub(crate) fn emit<'source>(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ValueOutcome<CompletedValue>, LoweringError> {
+    emit_source(
+        identities,
+        production,
+        None,
+        environment,
+        calls,
+        evaluation,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+    )
+}
+
+/// Receive an already completed value at a new owned binding. Its original
+/// occurrence supplies the consumption receipt, never another evaluation or
+/// another issuance of its claims.
+pub(crate) fn receive_completed<'source>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    initialization: &checked_trees::CheckedStructuralLocalInitialization,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    source: argument_evaluation::StructuralValueStorage,
+    environment: &mut super::super::operation_frame::OperationEnvironment<'source>,
+    calls: &mut CallEmissionContext<'_>,
+    evaluation: &mut argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<ValueOutcome<CompletedValue>, LoweringError> {
+    // C5 retains a named receiving home and its exact normal initializer.
+    // This is transport of that completed contract, not another formation
+    // against a receiving annotation or another execution of its calls.
+    let production = ValueProduction {
+        value: initialization.value,
+        owner: facts::PlaceRoot::Symbol(result.local.symbol),
+        destination: ValueDestination::Binding,
+        statement: result.statement_index,
+        structural_type: source.selected_type,
+        multiplicity: result.multiplicity,
+        binding_type_reference: Default::default(),
+        access: StructuralAccess::Owned,
+        selection: Default::default(),
+        calls: &[],
+    };
+    emit_source(
+        identities,
+        production,
+        Some(StructuralArgument {
+            place: source.place,
+            path: source.path,
+            access: terminal_access(initialization.source().access),
+        }),
+        environment,
+        calls,
+        evaluation,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+    )
+}
+
+fn emit_source<'source>(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    production: ValueProduction<'source>,
+    completed_source: Option<StructuralArgument>,
+    environment: &mut super::super::operation_frame::OperationEnvironment<'source>,
+    calls: &mut CallEmissionContext<'_>,
+    evaluation: &mut argument_evaluation::Evaluation,
+    values: &mut Vec<ValueDeclaration>,
+    next_value: &mut u64,
+    next_block: &mut u64,
+    next_edge: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<ValueOutcome<CompletedValue>, LoweringError> {
     let checked = environment.checked;
     let machine = environment.machine;
     let state = environment.state;
@@ -115,21 +194,22 @@ pub(crate) fn emit<'source>(
     {
         return unsupported("structural producer has a different checked source coordinate");
     }
-    let prepared_claims = if production.destination == ValueDestination::Evaluation {
-        Vec::new()
-    } else {
-        crate::emission::claim_bindings::prepare_establishment_claims(
-            identities,
-            checked,
-            machine,
-            state,
-            production.statement as usize,
-            production.owner,
-            occurrence.type_reference,
-            structural_type,
-            structural_types,
-        )?
-    };
+    let prepared_claims =
+        if completed_source.is_some() || production.destination == ValueDestination::Evaluation {
+            Vec::new()
+        } else {
+            crate::emission::claim_bindings::prepare_establishment_claims(
+                identities,
+                checked,
+                machine,
+                state,
+                production.statement as usize,
+                production.owner,
+                occurrence.type_reference,
+                structural_type,
+                structural_types,
+            )?
+        };
     let result_claims = emit_establishment_claims(&prepared_claims, &mut calls.claims)?;
     let authored_state = crate::shared::declarations::state_declaration(checked, state)?.1;
     let captured_sources = production
@@ -248,7 +328,9 @@ pub(crate) fn emit<'source>(
     let view_loan = declaration.and_then(|declaration| {
         borrowed_view_join_access(&declaration.shape, production.multiplicity)
     });
-    let result_access = if let Some(access) = borrowed_alias {
+    let result_access = if completed_source.is_some() {
+        StructuralAccess::Owned
+    } else if let Some(access) = borrowed_alias {
         // Equal source/destination carriers transport the existing loan. They
         // do not acquire owned custody merely because mutable access is affine.
         access
@@ -439,7 +521,8 @@ pub(crate) fn emit<'source>(
         }
         _ => None,
     };
-    let projected_storage = if emission.sources.is_empty()
+    let projected_storage = if completed_source.is_none()
+        && emission.sources.is_empty()
         && let Some((
             source,
             path,
@@ -521,7 +604,12 @@ pub(crate) fn emit<'source>(
     } else {
         None
     };
-    let place = if let Some(alias) = projected_storage {
+    let place = if let Some(source) = completed_source {
+        // Its producer already completed the value and published its custody.
+        // Receiving it does not evaluate another authored consuming expression.
+        let completed = emission.completed_operand(source)?;
+        emission.materialize_completed_operand(identities, completed)?
+    } else if let Some(alias) = projected_storage {
         let first_new_place = *emission.environment.next_place;
         let mut argument = StructuralArgument {
             place: alias.place(),
@@ -766,7 +854,7 @@ fn prepare_owners(
         if evaluation
             .retired_structural_bindings
             .iter()
-            .any(|binding| binding.symbol == symbol)
+            .any(|binding| binding.root == facts::PlaceRoot::Symbol(symbol))
         {
             return Ok(false);
         }
@@ -1071,7 +1159,7 @@ fn prepare_owners(
                 .retired_structural_bindings
                 .iter()
                 .any(|retired| {
-                    retired.symbol == local.symbol
+                    retired.root == facts::PlaceRoot::Symbol(local.symbol)
                         && retired.statement == Some(local.statement_index)
                         && retired.end == argument_evaluation::StructuralBindingEnd::RetiredHome
                 })
@@ -2556,9 +2644,17 @@ impl Emission<'_, '_, '_> {
         } else {
             structural_values(self.checked).nodes.get(value).expression
         };
-        let source_claims = self
-            .capture_operand(identities, source.clone(), expression, first_new_place)?
-            .claims;
+        let completed = self.capture_operand(identities, source, expression, first_new_place)?;
+        self.materialize_completed_operand(identities, completed)
+    }
+
+    fn materialize_completed_operand(
+        &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        completed: super::operand_claims::CompletedOperand,
+    ) -> Result<PlaceId, LoweringError> {
+        let source = &completed.argument;
+        let source_claims = &completed.claims;
         let block = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.environment.next_place)?);
         // Common owners retain their dominating homes. Forwarding their
@@ -2570,7 +2666,7 @@ impl Emission<'_, '_, '_> {
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
         structural_parameters
-            .push(self.value_binding_parameter(identities, &source, place, position)?);
+            .push(self.value_binding_parameter(identities, source, place, position)?);
         let parameters = fresh_value_declarations(self.next_value, self.values)?;
         self.environment
             .private_places
@@ -2590,13 +2686,9 @@ impl Emission<'_, '_, '_> {
             current_claims: None,
             has_incoming_memberships: false,
         };
-        self.complete_value(
-            super::operand_claims::CompletedOperand {
-                argument: source.clone(),
-                claims: source_claims.clone(),
-            },
-            &mut continuation,
-        )?;
+        let source = source.clone();
+        let source_claims = source_claims.clone();
+        self.complete_value(completed, &mut continuation)?;
         self.seal_continuation_names(&mut continuation)?;
         self.operations.arrival_claims.push((place, source_claims));
         self.start(block);

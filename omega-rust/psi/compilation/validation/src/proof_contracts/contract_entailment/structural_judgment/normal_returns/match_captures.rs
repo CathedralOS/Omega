@@ -64,6 +64,59 @@ impl StructuralJudge<'_> {
         value: StructuralTerm,
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
+        self.retain_match_subject(expression, dispatch, value, |judge, value| {
+            let reference = judge.normal_value_type_reference(dispatch.subject, scope)?;
+            let owned = crate::reference_shell(judge.program, reference).is_none()
+                && crate::field_domains::readable_nominal_definition(judge.program, reference)
+                    .is_some();
+            // A returned case keeps the exact value bound by its call contract.
+            // Resolve that case before copying it; arbitrary scalar equations
+            // cannot supply admission of an owned value.
+            let value = if owned {
+                judge.resolve_case_subject(value.clone(), 0)?
+            } else {
+                value.clone()
+            };
+            let admitted =
+                owned && judge.has_admitted_nominal_subject(dispatch.subject, &value, reference);
+            let completed = if owned {
+                let snapshot = judge.capture_unknown_value(dispatch.subject, scope)?;
+                judge.intake_equation(snapshot.clone(), value.clone(), 0);
+                snapshot
+            } else {
+                value.clone()
+            };
+            Some((completed, admitted.then_some((reference, value))))
+        })
+    }
+
+    /// Retain a contract's bound subject for its saved-subject uses. Source
+    /// formation remains an independent debt; this creates no executed load
+    /// or nominal membership.
+    pub(super) fn complete_declared_match_subject(
+        &mut self,
+        expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        value: StructuralTerm,
+    ) -> Option<StructuralTerm> {
+        self.retain_match_subject(expression, dispatch, value, |_, value| {
+            Some((value.clone(), None))
+        })
+    }
+
+    fn retain_match_subject(
+        &mut self,
+        expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        value: StructuralTerm,
+        complete: impl FnOnce(
+            &mut Self,
+            &StructuralTerm,
+        ) -> Option<(
+            StructuralTerm,
+            Option<(TypeReferenceHandle, StructuralTerm)>,
+        )>,
+    ) -> Option<StructuralTerm> {
         let table = expression_table(self.program);
         if !dispatch.capture.is_valid() {
             return Some(value);
@@ -90,38 +143,16 @@ impl StructuralJudge<'_> {
             return None;
         }
         self.retire_match_subject(dispatch);
-        let reference = self.normal_value_type_reference(dispatch.subject, scope)?;
-        // A semantic nominal snapshot does not require closed physical storage.
-        // Prepared generic applications carry their exact substituted fields;
-        // references still retain their separate descriptor/loan semantics.
-        let owned = crate::reference_shell(self.program, reference).is_none()
-            && crate::field_domains::readable_nominal_definition(self.program, reference).is_some();
-        // A contract's result binder denotes the completed invocation value.
-        // Resolve that exact case binding before admitting the snapshot, not
-        // arbitrary scalar equalities that could impersonate an owned value.
-        let value = if owned {
-            self.resolve_case_subject(value, 0)?
-        } else {
-            value
-        };
-        let admitted =
-            owned && self.has_admitted_nominal_subject(dispatch.subject, &value, reference);
-        let completed = if owned {
-            let snapshot = self.capture_unknown_value(dispatch.subject, scope)?;
-            self.intake_equation(snapshot.clone(), value.clone(), 0);
-            snapshot
-        } else {
-            value.clone()
-        };
+        let (completed, admitted) = complete(self, &value)?;
         std::sync::Arc::make_mut(&mut self.normal_results)
             .push((capture.value_anchor, completed.clone()));
-        if admitted {
+        if let Some((reference, observed_value)) = admitted {
             std::sync::Arc::make_mut(&mut self.completed_nominal_values).push(
                 super::super::CompletedNominalValue {
                     anchor: capture.value_anchor,
                     reference,
                     value: completed.clone(),
-                    observed_value: value,
+                    observed_value,
                 },
             );
         }

@@ -4,6 +4,8 @@
 //! their own postconditions remain publishable after writes through the call.
 
 mod captured_aliases;
+mod captured_writes;
+pub(super) use captured_writes::{confined_write_parameter, intersect_captured_enclosure};
 
 use crate::published::places::place_at;
 use validation::CanonicalPlace;

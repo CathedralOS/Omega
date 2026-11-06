@@ -1331,6 +1331,8 @@ fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 2934ms expecte
 	statement 3 creates local borrow `fresh` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 borrows `main.bytes[main.position]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 4 mutates `held` while local borrow `fresh` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/generic_call_output_source_write rejected 9185ms expected @c011c9b7fe43
+	statement 2 mutates `source` while local borrow `slot` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 648ms expected @ccdb99ca2214
 	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/generic_result_keeps_lifetime_source rejected 1851ms expected @ccdb99ca2214
@@ -1454,9 +1456,9 @@ fail/borrows/mixed_result_backing_write_under_carried_reference rejected 4356ms 
 	statement 2 mutates `cell.value` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
 fail/borrows/multi_origin_returned_reference_live_source_write rejected 2292ms expected @ccdb99ca2214
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/mutable_primitive_reference_live_owner_read rejected 2299ms expected @ccdb99ca2214
+fail/borrows/mutable_primitive_reference_live_owner_read rejected 11041ms expected @b45dc4f7989c
 	state `observe` receives `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
-	statement 2 borrows `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
+	statement 2 borrows `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3) in machine `exercise`, state `entry`, statement 2
 fail/borrows/mutable_record_state_alias rejected 2315ms expected @ccdb99ca2214
 	state `finish` receives `cell` as mutable more than once
 fail/borrows/mutable_reference_borrow_through_shared_container rejected 1005ms expected @ccdb99ca2214
@@ -1701,8 +1703,8 @@ fail/borrows/reference_carrier_store_while_shared rejected 2308ms expected @ccdb
 	statement 2 mutates `carrier.destination` while local borrow `observed` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_join_escaping_alternative rejected 2285ms expected @ccdb99ca2214
 	machine `choose` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrows/reference_record_duplicate_mutable rejected 74114ms expected @911f6617ba9e
-	statement 4 borrows `main.first` while local borrow `pair` is still active (borrowed at statement 4; its last use is at statement 4)
+fail/borrows/reference_record_duplicate_mutable rejected 136147ms expected @b45dc4f7989c
+	statement 4 borrows `main.first` while local borrow `pair` is still active (borrowed at statement 4; its last use is at statement 4) in machine `Main::main`, state `main`, statement 4
 	`pair` holds `main.first` as mutable more than once
 fail/borrows/reference_record_field_predicate_invalid_store rejected 5310ms expected @46cdd6b85b82+wt
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
@@ -1714,6 +1716,8 @@ fail/borrows/reference_record_mutable_shared_overlap rejected 58875ms expected @
 fail/borrows/reference_result_case_payload_missing_premise rejected 24506ms expected @8fce926f9735
 	cannot prove requires contract for call relay from main: choice == constructor:80:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Choice9:name:Some && choice.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrows/reference_selector_guard_rebound_index_rejected rejected 11180ms expected @b45dc4f7989c
+	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/borrows/region_store_live_sibling_reference rejected 9313ms unexpected regressed-from:checked @61d32e24eb90
 	statement 5 cannot resolve the complete borrowed destination of `slots[1..3]`: the stored descriptor has no current value source
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
@@ -1977,7 +1981,7 @@ fail/borrows/stored_writeonly_carrier_shared_outer rejected 675ms expected @ccdb
 fail/borrows/stored_writeonly_carrier_shared_widening rejected 826ms expected @ccdb99ca2214
 	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `value` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
-fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden rejected 4246ms expected @ceec2d4e7d8b
+fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden rejected 8919ms expected @c011c9b7fe43
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade rejected 2145ms expected @70822431ff39
 	machine `exercise` state `entry` local `forbidden` requires mutable source access; shared or immutable storage cannot supply it
@@ -2020,9 +2024,9 @@ fail/borrows/symbolic_call_preserves_concrete_output_obligations rejected 1675ms
 	machine `concrete_first` state `entry` statement 0: operand has no complete completed call-slot relation
 fail/borrows/tail_recursive_mutation_retires_field_bound rejected 3917ms expected @ccdb99ca2214
 	cannot prove requires contract for call require_bound from guarded: work.count <= 8 (needs fact `work.count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 3850ms expected @ccdb99ca2214
+fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 7377ms expected @b45dc4f7989c
 	state `fill` receives `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
-	statement 3 borrows `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
+	statement 3 borrows `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4) in machine `main`, state `entry`, statement 3
 	statement 3 mutates `work.stable.value` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
 fail/borrows/target_family_backing_alternatives_rejected rejected 3204ms expected @ccdb99ca2214
 	state `store` receives `selected` as both mutable and read-only
@@ -2037,6 +2041,13 @@ fail/borrows/template_sibling_stored_view_local_escape rejected 2586ms expected 
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/temporary_backing_loan_survives_reference_last_use rejected 2111ms expected @ccdb99ca2214
 	statement 3 reads `counter[0]` while local borrow `__hoist_1` is still active (borrowed at statement 1)
+fail/borrows/terminal_call_keeps_caller_cleanup_loan rejected 8966ms expected @c011c9b7fe43
+	state `entered` receives `counter` while local borrow `cleanup` is still active
+	state `entered` receives `counter` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	state `entered` receives `counter` while local borrow `wrapper` is still active
+	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
+	statement 2 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 3 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0)
 fail/borrows/terminal_call_returned_loan_live_write rejected 1601ms expected @ccdb99ca2214
 	statement 1 mutates `container.cell.value` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/terminal_carrier_retained_observation rejected 2001ms expected @ccdb99ca2214
@@ -2507,8 +2518,8 @@ fail/calls/attached_parameter_overload_wrong_argument rejected 1149ms expected @
 	argument `value` for state `choose` expects `u64`, got `bool`
 fail/calls/authored_numeric_name_requires rejected 1607ms expected @ccdb99ca2214
 	cannot prove requires contract for call abs from main: 100 >= -3 && 100 <= 3 (needs fact `value >= -3 && value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/borrowed_record_old_pointee_after_write_rejected rejected 466ms expected @1e127a84987a
-	exact arithmetic in machine `observe` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/calls/borrowed_record_old_pointee_after_write_rejected rejected 6885ms expected @b45dc4f7989c
+	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). terminal expression may overflow `u64`.
 fail/calls/boundary_computed_selector_out_of_bounds rejected 1937ms expected @ccdb99ca2214
 	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 2090ms expected @ccdb99ca2214
@@ -3379,8 +3390,8 @@ fail/contracts/match_contract_unknown_arm_rejected rejected 2941ms expected @ccd
 	cannot prove ensures contract for exit from fabricated at statement 0: result == match choice { true => 7, false => 8 }
 fail/contracts/match_contract_wrong_case_rejected rejected 2893ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from bits at statement 1: result == match direction { Direction => 0, Direction => 0x80000000 } | 0x400000
-fail/contracts/match_payload_contract rejected 3486ms expected @ee44157f6632
-	cannot prove ensures contract for exit from choose at statement 2: match result { Reply::Kept { number, neighbor } => <saved subject #1:1>.number == input && <saved subject #1:1>.neighbor == 23, Reply::Refused { number, neighbor } => <saved subject #1:1>.number == input && <saved subject #1:1>.neighbor == 41 }
+fail/contracts/match_payload_contract rejected 7060ms expected @b45dc4f7989c
+	cannot prove ensures contract for exit from choose at statement 2: match result { Reply::Kept { number, neighbor } => <saved subject #3:1>.number == input && <saved subject #3:1>.neighbor == 23, Reply::Refused { number, neighbor } => <saved subject #3:1>.number == input && <saved subject #3:1>.neighbor == 41 }
 fail/contracts/match_payload_guarantee rejected 3515ms expected @ee44157f6632
 	cannot prove requires contract for call refused from roundtrip: __transition_subject#113.neighbor == 23 (needs fact `neighbor == 23` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from second_result at statement 2: result == input
@@ -3646,8 +3657,8 @@ fail/control_flow/qualified_case_wrong_carrier rejected 1904ms expected @ccdb99c
 	machine `read` state `entry` uses `shapes`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/control_flow/saved_case_predicate_guard_write_retires rejected 2644ms expected @ccdb99ca2214
 	machine `quotient` state `entry` statement 2: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
-fail/control_flow/saved_case_predicate_local_write_retires rejected 1844ms expected @ccdb99ca2214
-	machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
+fail/control_flow/saved_case_predicate_local_write_retires rejected 7066ms expected @b45dc4f7989c
+	machine `quotient` state `entry` statement 3: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/control_flow/saved_case_predicate_receiver_trailing_write_rejected rejected 3096ms expected @ccdb99ca2214
 	machine `probe` state `entry` statement 5: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence
 fail/control_flow/saved_case_predicate_receiver_writes_before_read_rejected rejected 3453ms expected @ccdb99ca2214
@@ -4289,7 +4300,7 @@ fail/dependent/data_where_retired rejected 478ms expected @d83ddecd7693+wt
 	tests/omega/fail/dependent/data_where_retired/main.omg:3:14: expected `{`, found identifier `where`
 fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 2189ms expected @f78c2623a68c
 	cannot complete return from machine `Main::ambiguous` state `ambiguous`: this write left the `requires` facts of `first` (data `Main`) unproved; restore them first
-fail/dependent/data_where_whole_read_during_window_rejected rejected 1074ms expected @911f6617ba9e
+fail/dependent/data_where_whole_read_during_window_rejected rejected 11192ms expected @56c2e35d1594
 	machine `Map::leak` state `leak` statement 1: reading `map` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Map`
 	machine `Map::leak` state `leak` statement 1: the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @89d5d2d7655c
@@ -4762,7 +4773,7 @@ fail/domains/qualified_fixed_byte_array_nested_zero_no_nul rejected 617ms expect
 	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
 fail/domains/qualified_fixed_byte_array_nested_zero_route rejected 849ms expected @ccdb99ca2214
 	construction of `Inner` omits gated field `bytes`: its zero-filled representation is not an established value -- initialize it explicitly
-fail/domains/qualified_fixed_byte_array_no_nul_store rejected 5936ms expected regressed-from:checked @29c0122d09c2
+fail/domains/qualified_fixed_byte_array_no_nul_store rejected 11449ms expected @b45dc4f7989c
 	cannot prove ensures contract for exit from mutate at statement 1: bytes in [u8; N]::NoNul
 fail/domains/qualified_fixed_byte_array_nul_default rejected 967ms expected @ccdb99ca2214
 	machine `main` state `entry` statement 1: reading `bytes` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[u8; 2][in NoNul]`
@@ -5065,8 +5076,8 @@ fail/drops/borrowed_projection_unselected_child_prerequisite rejected 10797ms ex
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 0: Pair.second does not establish drop_receipt clause `receipt.code == 7`
 fail/drops/borrowed_replacement_old_hook_prerequisite rejected 10332ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish drop_token clause `token.value == 7`
-fail/drops/borrowed_selected_cleanup_missing_child_requirement rejected 11958ms expected @ee4dbb4b2d56
-	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 1: elements[__hoist_27].child does not establish drop_child clause `child.value == 7`
+fail/drops/borrowed_selected_cleanup_missing_child_requirement rejected 11058ms expected @b45dc4f7989c
+	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 1: elements[__hoist_2].child does not establish drop_child clause `child.value == 7`
 fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 7713ms expected @ee4dbb4b2d56
 	cannot automatically dispose borrowed temporary `named(name(nominal\\(package-owner\\(32:e9c1cb83be99d2d9adcf0d52daa2bbeee8120717bff12c4e2a43536f4df3fe1b\\)\\,path\\(Pair\\)\\)))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/claim_bearing_temporary_hook_prerequisite rejected 8775ms expected @ee4dbb4b2d56
@@ -16046,10 +16057,10 @@ fail/ownership/copy_linear_conflict rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
 fail/ownership/cyclic_arrival_restores_consumed_field rejected 6259ms expected @ee4dbb4b2d56
 	cannot use `holder` in machine `spin` state `entry` (statement 3) after `holder.token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `holder.token` first
-fail/ownership/dispatch_payload_duplicates_linear_field rejected 2816ms expected @ccdb99ca2214
-	cannot use `__transition_subject#10::Present.left` in machine `duplicate` state `entry` (statement 2) after `__transition_subject#10::Present.left` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `__transition_subject#10::Present.left` first
-fail/ownership/dispatch_payload_omits_linear_sibling rejected 2996ms expected @ccdb99ca2214
-	linear value `__transition_subject#10::Present.right` reaches scope exit without being consumed or transferred in machine `omit` state `entry`
+fail/ownership/dispatch_payload_duplicates_linear_field rejected 9287ms expected @b45dc4f7989c
+	cannot use `__transition_subject#7::Present.left` in machine `duplicate` state `entry` (statement 1) after `__transition_subject#7::Present.left` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `__transition_subject#7::Present.left` first
+fail/ownership/dispatch_payload_omits_linear_sibling rejected 11309ms expected @b45dc4f7989c
+	linear value `__transition_subject#7::Present.right` reaches scope exit without being consumed or transferred in machine `omit` state `entry`
 fail/ownership/dispatch_payload_preserves_nominal_cleanup rejected 7611ms expected @ee4dbb4b2d56
 	cannot partially move a value of `Envelope<Leaf>` because `drop_envelope` requires the whole value
 fail/ownership/duplicate_constructor_payload rejected 2215ms expected @ccdb99ca2214
@@ -19385,8 +19396,7 @@ pass/borrows/completed_reference_read_preserves_prefix checked 3981ms check-targ
 pass/borrows/completed_reference_result_preserves_input_holds_exit checked 4046ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_selector_join_pattern_effect_exit checked 4279ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_selector_value_composition_exit checked 3927ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/conditional_copied_slot_restores_parent_exit incomplete 3722ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`selected` has no executable body: this compiler does not lower its declaration of it yet (statement sequence: completion carrier retirement order)
+pass/borrows/conditional_copied_slot_restores_parent_exit checked 8021ms check-target:macos_arm64 @b45dc4f7989c
 pass/borrows/constant_shared_boundary_exit checked 9004ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/borrows/constructor_reference_access checked 2403ms @ccdb99ca2214
 pass/borrows/copied_borrowed_slot_restores_parent_exit checked 3618ms check-target:macos_arm64 @ccdb99ca2214
@@ -19495,6 +19505,7 @@ pass/borrows/recast_suspension_branch_cleanup_exit checked 5432ms check-target:m
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 79303ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/reference_cycle_projection_root_partition checked 2282ms @ccdb99ca2214
 pass/borrows/reference_parameter_field_store_exit checked 3380ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/reference_selector_guard_current_index_exit checked 7690ms check-target:macos_arm64 @b45dc4f7989c
 pass/borrows/region_stored_reference_occurrences_exit checked 3627ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/resident_view_borrowed_helper_exit checked 12583ms check-target:macos_arm64 @74d6d6b03c6b
 pass/borrows/retained_envelope_refs checked 3036ms @ccdb99ca2214
@@ -19598,8 +19609,7 @@ pass/borrows/runtime_indexed_shared_primitive_loan_call_exit checked 7031ms chec
 pass/borrows/runtime_indexed_stored_reference_call checked 3540ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_initialized_computed_case_copy_order_exit checked 18235ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_literal_view_inclusive_range_exit checked 4168ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_local_reference_backing_state_exit rejected 3397ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call bounded from projected: envelope.context.count < 6 (needs fact `value.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `alias.count < 6`
+pass/borrows/runtime_local_reference_backing_state_exit checked 7608ms check-target:macos_arm64 @b45dc4f7989c
 pass/borrows/runtime_match_payload_parent_disjoint_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_measured_range_record_domains_exit rejected 3976ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "qualification storage has an unsupported collection window", gap: None })
@@ -19643,8 +19653,7 @@ pass/borrows/runtime_projected_reference_partition_exit checked 3507ms check-tar
 pass/borrows/runtime_projected_view_observations_exit checked 3997ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 66823ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_qualified_descriptor_replacement_exit checked 3967ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_qualified_owner_reference_storage_exit rejected 3670ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "owned_arrival::update", reason: "stored operand has no completed custody namespace", gap: None })
+pass/borrows/runtime_qualified_owner_reference_storage_exit checked 8053ms check-target:macos_arm64 @3aee1508eaee
 pass/borrows/runtime_qualified_returned_descriptor_exit checked 3782ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_qualified_statement_descriptor_replacement_exit checked 3911ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_reassigned_view_capture_exit checked 3671ms check-target:macos_arm64 @ccdb99ca2214
@@ -19766,14 +19775,13 @@ pass/borrows/static_carrier_bounded_reference_read_exit checked 60204ms check-ta
 pass/borrows/static_carrier_reference_read_exit checked 57827ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/static_projected_local_reference_exit checked 18221ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/static_record_reference_return_exit checked 3524ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/stored_parameter_referent_descriptor_write_exit checked 3308ms @f5bf0a27e599
+pass/borrows/stored_parameter_referent_descriptor_write_exit checked 9161ms check-target:macos_arm64 @c011c9b7fe43
 pass/borrows/stored_primitive_reference_observations_exit checked 16418ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/supplied_output_ordinary_helper_saved_reference_exit rejected 1835ms check-target:macos_arm64 @70822431ff39
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/borrows/supplied_output_ordinary_helper_saved_reference_exit checked 13262ms check-target:macos_arm64 @c011c9b7fe43
 pass/borrows/supplied_output_shared_stored_input_ceiling_exit rejected 2271ms check-target:macos_arm64 @70822431ff39
 	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
 pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 5499ms check-target:macos_arm64 @d68d95fa82f8
@@ -26678,13 +26686,7 @@ pass/ownership/runtime_selected_reference_local_exit checked 3241ms check-target
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 23900ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_staged_read_before_owned_move_exit checked 3401ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_stored_byte_view_return_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_successor_cleanup_before_writes_exit rejected 6835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	state `entered` receives `counter` while local borrow `cleanup` is still active
-	state `entered` receives `counter` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	state `entered` receives `counter` while local borrow `wrapper` is still active
-	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
-	statement 2 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 3 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0)
+pass/ownership/runtime_successor_cleanup_before_writes_exit checked 9390ms check-target:macos_arm64 @c011c9b7fe43
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_view_parameter_element_window_exit checked 12600ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_whole_borrowed_transform_exit checked 99374ms check-target:macos_arm64 @6b1c338126fa

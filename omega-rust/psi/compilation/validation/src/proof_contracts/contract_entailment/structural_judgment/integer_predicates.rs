@@ -18,7 +18,9 @@ use std::ops::Range;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::types::PrimitiveType;
 
+mod operand_preparation;
 mod rank_comparison;
+use operand_preparation::PreparedIntegerOperand;
 pub(in crate::proof_contracts::contract_entailment) use rank_comparison::{
     CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank,
 };
@@ -107,8 +109,8 @@ struct IntegerObservations<'program> {
     carrier_bounds: Vec<ObservedCarrierBounds>,
     installed_carrier_bounds: usize,
     next_operation_id: usize,
-    // Only one immutable judge's goal batch may share resolved operand payloads.
-    operand_resolutions: Option<Vec<(StructuralTerm, StructuralTerm)>>,
+    // Only one immutable judge's preparation or goal batch shares descriptions.
+    operand_preparations: Option<Vec<PreparedIntegerOperand>>,
 }
 
 /// Every retained comparison and operation has been independently admitted.
@@ -193,7 +195,7 @@ impl<'program> PreparedIntegerPremises<'program> {
 
     fn put_goal_work(&self, mut work: IntegerObservations<'program>) {
         self.reset_goal_work(&mut work);
-        work.operand_resolutions = None;
+        work.operand_preparations = None;
         if let Ok(mut guard) = self.goal_work.lock() {
             *guard = Some(work);
         }
@@ -247,7 +249,7 @@ impl<'program> IntegerObservations<'program> {
             carrier_bounds: Vec::new(),
             installed_carrier_bounds: 0,
             next_operation_id: 0,
-            operand_resolutions: None,
+            operand_preparations: None,
         }
     }
 
@@ -1200,41 +1202,6 @@ impl<'program> StructuralJudge<'program> {
         self.rewrites.iter().next().is_none()
     }
 
-    pub(in crate::proof_contracts::contract_entailment) fn has_no_rewrites_or_substitutions(
-        &self,
-    ) -> bool {
-        self.rewrites.iter().next().is_none()
-            && self.substitutions.is_empty()
-            && self.captured_result_equations.is_empty()
-    }
-
-    /// Numeric association filtering uses the same admitted leaf namespace
-    /// as prepared integer atoms. This identity filter supplies no equality
-    /// proof; its caller still proves the original operands on every path.
-    pub(in crate::proof_contracts::contract_entailment) fn completed_integer_semantic_value(
-        &self,
-        value: &StructuralTerm,
-    ) -> StructuralTerm {
-        let value = self.integer_projection_value(self.completed_value_identity(value.clone()));
-        self.completed_integer_call(&value)
-            .map(|(_, canonical, _)| canonical)
-            .unwrap_or(value)
-            .into_semantic_value()
-    }
-
-    pub(in crate::proof_contracts::contract_entailment) fn prepared_integer_premise_atoms_when_consistent(
-        &self,
-    ) -> Option<Vec<StructuralTerm>> {
-        if !self.runtime_body_values || self.case_facts_only {
-            return None;
-        }
-        if !self.rewrites.has_potential_integer_premises() {
-            return Some(Vec::new());
-        }
-        let prepared = self.cached_prepared_integer_premises()?;
-        (!prepared.is_contradictory()).then(|| prepared.observations.atoms.clone())
-    }
-
     /// Prepare independently formed premises once, then fork their exact
     /// captured-value namespace for each goal. Goal operations and opaque
     /// registrations remain private to that fork; no requested truth enters
@@ -1333,7 +1300,7 @@ impl<'program> StructuralJudge<'program> {
         let has_premises = prepared.observations.engine.requires_unsatisfiable
             || !prepared.observations.engine.bounds.is_empty();
         let mut work = prepared.take_goal_work();
-        work.operand_resolutions = Some(Vec::new());
+        work.operand_preparations = Some(Vec::new());
         let results = unresolved
             .iter()
             .map(|position| {
@@ -1651,7 +1618,11 @@ impl<'program> StructuralJudge<'program> {
 
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
         let mut observations = IntegerObservations::empty(self.program);
+        observations.operand_preparations = Some(Vec::new());
         let mut premises = self.project_observed_integer_premises(&mut observations);
+        // Descriptions belong to this immutable judge invocation. The retained
+        // premise owner and its reusable goal scratch must not retain them.
+        observations.operand_preparations = None;
         if !premises.complete {
             return None;
         }
@@ -1759,7 +1730,7 @@ impl<'program> StructuralJudge<'program> {
             let truth_sem = match truth.semantic_value() {
                 sem @ StructuralTerm::Constructor { .. } => sem,
                 _ => {
-                    resolved_truth = self.integer_projection_value(truth.clone());
+                    resolved_truth = self.resolve_integer_operand(truth.clone(), observations);
                     resolved_truth.semantic_value()
                 }
             };
@@ -1998,28 +1969,6 @@ impl<'program> StructuralJudge<'program> {
         self.resolve_with_at(value, 0, super::ResolutionPurpose::IntegerProjection)
     }
 
-    fn resolve_integer_operand(
-        &self,
-        value: StructuralTerm,
-        observations: &mut IntegerObservations<'_>,
-    ) -> StructuralTerm {
-        if self.has_resolution_dependency_collector() {
-            return self.integer_projection_value(value);
-        }
-        let Some(answers) = &mut observations.operand_resolutions else {
-            return self.integer_projection_value(value);
-        };
-        if let Some((_, resolved)) = answers
-            .iter()
-            .find(|(input, _)| input.same_resolution_payload(&value))
-        {
-            return resolved.clone();
-        }
-        let resolved = self.integer_projection_value(value.clone());
-        answers.push((value, resolved.clone()));
-        resolved
-    }
-
     fn integer_value(
         &self,
         value: &StructuralTerm,
@@ -2039,18 +1988,19 @@ impl<'program> StructuralJudge<'program> {
             }
             _ => false,
         };
-        let completed_before_resolution = self.completed_scalar_observation(value, primitive);
+        let completed_before_resolution =
+            self.prepared_scalar_observation(value, primitive, observations);
         // This is an admission query only. Consume current context through
         // the shared walk before using any saved whole-call leaf or atom.
         let resolved_call;
-        let resolves_completed_call = self.completed_integer_call(value).is_some();
+        let resolves_completed_call = self.prepared_completed_call(value, observations).is_some();
         let value = if resolves_completed_call {
-            resolved_call = self.integer_projection_value(value.clone());
+            resolved_call = self.resolve_integer_operand(value.clone(), observations);
             &resolved_call
         } else {
             value
         };
-        let call = self.completed_integer_call(value);
+        let call = self.prepared_completed_call(value, observations);
         if let Some((_, _, observed)) = call.as_ref()
             && *observed != primitive
         {
@@ -2063,7 +2013,7 @@ impl<'program> StructuralJudge<'program> {
         }
         let value = call.as_ref().map_or(value, |(captured, _, _)| captured);
         let completed = completed_before_resolution
-            .or_else(|| self.completed_scalar_observation(value, primitive));
+            .or_else(|| self.prepared_scalar_observation(value, primitive, observations));
         let canonical_atom = |identity: &StructuralTerm| {
             call.as_ref()
                 .filter(|(original, _, _)| original.same_resolution_payload(identity))
@@ -2074,7 +2024,7 @@ impl<'program> StructuralJudge<'program> {
             // scalar recipe. Keep this occurrence until an atom is installed.
             value.clone()
         } else {
-            self.completed_value_identity(value.clone())
+            self.prepared_completed_identity(value, observations)
         };
         // Preserve the authored operation tree until each node has admitted
         // its own children. General ring resolution may cancel an unsafe node.
@@ -2208,7 +2158,7 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 64 {
             return None;
         }
-        if let Some((_, _, primitive)) = self.completed_integer_call(value) {
+        if let Some((_, _, primitive)) = self.prepared_completed_call(value, observations) {
             // The retained row selects a carrier, not an answer. The integer
             // owner first consumes current rewrites through the shared walk.
             return self.integer_value(value, primitive, observations, depth + 1);
@@ -2228,7 +2178,7 @@ impl<'program> StructuralJudge<'program> {
         // scalar operands still resolve normally, with formation checked below.
         let value = match value.semantic_value() {
             StructuralTerm::MathematicalBinary { .. } => value.clone(),
-            _ => self.integer_projection_value(value.clone()),
+            _ => self.resolve_integer_operand(value.clone(), observations),
         };
         match value.semantic_value() {
             StructuralTerm::Integer(value) => Some(Polynomial::constant(value.clone())),
@@ -2324,7 +2274,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn operand_resolutions_preserve_payload_and_end_with_batch() {
+    fn operand_preparations_preserve_payload_and_end_with_batch() {
         let mut program = typed_trees::TypedTrees::default();
         let first = program
             .type_reference_table
@@ -2341,7 +2291,7 @@ mod tests {
         );
         let prepared = judge.prepare_integer_premises().unwrap();
         let mut work = prepared.take_goal_work();
-        work.operand_resolutions = Some(Vec::new());
+        work.operand_preparations = Some(Vec::new());
         let observation = |observed_type| StructuralTerm::ObservedValue {
             observed_type,
             value: Box::new(StructuralTerm::Integer(BigInt::from_i64(1))),
@@ -2351,19 +2301,29 @@ mod tests {
         for input in [observation(first), observation(second), observation(first)] {
             let resolved = judge.resolve_integer_operand(input.clone(), &mut work);
             assert!(resolved.same_resolution_payload(&input));
+            let identity = judge.prepared_completed_identity(&input, &mut work);
+            assert!(identity.same_resolution_payload(&input));
+            assert!(judge.prepared_completed_call(&input, &mut work).is_none());
+            for carrier in [PrimitiveType::U64, PrimitiveType::I32] {
+                assert!(
+                    judge
+                        .prepared_scalar_observation(&input, carrier, &mut work)
+                        .is_none()
+                );
+            }
         }
-        assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 2);
+        assert_eq!(work.operand_preparations.as_ref().unwrap().len(), 2);
         let variable = StructuralTerm::Variable("value".into());
         // Reuse the scratch in two different contexts; the second must see its own substitution.
         for expected in [1, 2] {
             prepared.put_goal_work(work);
             work = prepared.take_goal_work();
-            assert!(work.operand_resolutions.is_none());
+            assert!(work.operand_preparations.is_none());
             judge.substitutions = std::sync::Arc::new(vec![(
                 "value".into(),
                 StructuralTerm::Integer(BigInt::from_i64(expected)),
             )]);
-            work.operand_resolutions = Some(Vec::new());
+            work.operand_preparations = Some(Vec::new());
             for _ in 0..2 {
                 assert_eq!(
                     judge.resolve_integer_operand(variable.clone(), &mut work),
@@ -2371,7 +2331,7 @@ mod tests {
                 );
                 prepared.reset_goal_work(&mut work);
             }
-            assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 1);
+            assert_eq!(work.operand_preparations.as_ref().unwrap().len(), 1);
         }
     }
 }

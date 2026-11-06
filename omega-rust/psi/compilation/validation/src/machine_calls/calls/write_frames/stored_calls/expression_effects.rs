@@ -780,19 +780,6 @@ impl Evaluation<'_, '_> {
             if let Some(output) = observed.as_mut() {
                 output.call_entry = Some((context.clone(), inference.clone()));
             }
-            // Primitive queries observe operands without installing reference
-            // slots. Their operands have already executed above, including any
-            // calls that do install slots. The declaration classifier keeps a
-            // same-spelled ordinary callable on its own inferred effect route.
-            if crate::compiler_operations::expression_call_only_observes_operands(
-                self.program,
-                call,
-            ) {
-                if let Some(output) = observed {
-                    output.operands = completed_inputs;
-                }
-                return Some(());
-            }
             let called = super::invocation_effects(
                 self.program,
                 self.machine,

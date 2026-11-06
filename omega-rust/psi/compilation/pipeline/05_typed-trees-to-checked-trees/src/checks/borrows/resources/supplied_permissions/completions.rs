@@ -2,6 +2,7 @@
 //! variable itself. Keep that permission and every promised input together;
 //! copying the reference must not forget either when the variable changes.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanLineage, CheckFacts, CheckedCallBorrowLoanSource,
@@ -14,6 +15,8 @@ pub(in crate::checks::borrows::resources) fn install(
     program: &dyn validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let prepared_loans = LoanOccurrences::new(program, facts);
+    let loan_occurrences = &prepared_loans;
     let mut plans = Vec::new();
     for (loan, row) in facts.borrow.loans.iter() {
         if row.lineage != BorrowLoanLineage::SuppliedOutput {
@@ -78,8 +81,16 @@ pub(in crate::checks::borrows::resources) fn install(
             .control
             .unique_state(incoming.machine_symbol, incoming.state_symbol)
             .ok_or_else(|| diagnostic("completed output has no unique flow owner"))?;
-        let inputs = super::inputs::plan(program, facts, state, call, sources, &ceilings)
-            .map_err(diagnostic)?;
+        let inputs = super::inputs::plan(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            sources,
+            &ceilings,
+        )
+        .map_err(diagnostic)?;
         let origin = facts
             .borrow
             .supplied_output_call(loan)
@@ -115,6 +126,7 @@ pub(in crate::checks::borrows::resources) fn install(
             debts,
         ));
     }
+    drop(prepared_loans);
     facts
         .borrow
         .supplied_output_resources
