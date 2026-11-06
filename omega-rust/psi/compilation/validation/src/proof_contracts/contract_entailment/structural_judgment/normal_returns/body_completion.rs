@@ -157,17 +157,23 @@ impl<'program> StructuralJudge<'program> {
                 let completed = public_capture.and_then(|(prepared, guarantees)| {
                     judge.capture_prepared_normal_call(prepared, guarantees, Some(&result), scope)
                 });
+                let mut value = result.value;
                 if let Some(completed) = completed {
                     if let Some(captured) = completed.result {
-                        judge.assume_normal_equation(captured, result.value.clone());
+                        // Public guarantees and returned storage belong to this
+                        // call result. Keep that identity while its checked body
+                        // supplies the field equation; returning only the private
+                        // body value loses the call's current byte observations.
+                        judge.assume_normal_equation(captured.clone(), value);
+                        value = captured;
                     }
                     for storage in completed.post_storage {
                         judge.install_post_call_storage(scope.1, storage);
                     }
                 }
                 std::sync::Arc::make_mut(&mut judge.normal_results)
-                    .push((expression, result.value.clone()));
-                Some(NormalReturnPath::observed(result.value, judge))
+                    .push((expression, value.clone()));
+                Some(NormalReturnPath::observed(value, judge))
             })
             .collect()
     }
