@@ -131,8 +131,6 @@ machine CallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlanResul
     plan.call.ordinary_clobbers.registers[41] = MachineRegister::Aarch64V { index: 31 };
     plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
     plan.state.permitted_transitive_use.general_registers = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
     plan.state.stack = EntryStack::ProviderSelected;
@@ -254,8 +252,6 @@ machine LinuxCallbackPolicies::finish(output: BoundaryEntryPlan) -> BoundaryPlan
     plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
     plan.state.initial_regime = MachineRegime::X86Long64;
     plan.state.permitted_transitive_use.general_registers = true;
-    plan.state.permitted_transitive_use.instruction_pointer = true;
-    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
     plan.state.stack = EntryStack::ProviderSelected;
