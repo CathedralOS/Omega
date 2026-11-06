@@ -979,10 +979,34 @@ impl SourceCallBindings {
         let (occurrence_index, occurrence) = occurrences.next().ok_or(
             LoweringError::Unsupported("required source call has no emitted occurrence"),
         )?;
-        if occurrences.next().is_some()
+        let second_occurrence = occurrences.next();
+        if second_occurrence.is_some()
             || owning_callable_symbol(checked, occurrence.source_target)
                 != owning_callable_symbol(checked, target)
         {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                let matching = source_calls
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, candidate)| {
+                        candidate.matches_statement(state, statement_index, call_ordinal)
+                    })
+                    .take(8)
+                    .map(|(index, candidate)| {
+                        (
+                            index,
+                            &candidate.source_site,
+                            &candidate.origin,
+                            &candidate.terminal_site,
+                            candidate.source_target,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                eprintln!(
+                    "CHECKSITE required-source-call-refused coordinate={coordinate:?} requested_target={target:?} duplicate={} first_8_matching={matching:?}",
+                    second_occurrence.is_some(),
+                );
+            }
             return unsupported("required source call is duplicate or redirected");
         }
         let operation = occurrence
