@@ -1,0 +1,66 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "edd05427fd02b135bf896c3633dc55fb59bf73e2",
+    "tree": "daba660f3c23074bbc55e95b76e9d8f78f520d76",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "6d91d7c74b6150e30d283fef8439b06b32825eae",
+      "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+      "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+      "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": null
+    },
+    "executables": {
+      "cli": {
+        "sha256": "5285c53b9010de2fd7d7d8291515e35ef6b799bb496a4efc531438736fb354a7",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "cb8ed21d6fd2347df95bcfa99a73bdd7245435718a19a8d1a14f7f6d4bc77384",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42239810895,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-62e4d7305d6fcfd49b4593b42e8a49ad8644b916"
+  },
+  "fixtures": [
+    "pass/facts/nominal_callback_reach_through_local_exit",
+    "pass/facts/nominal_callback_reach_through_field_exit",
+    "pass/facts/nominal_callback_reach_through_parameter_exit",
+    "pass/facts/nominal_callback_reach_through_call_result_exit",
+    "pass/facts/nominal_callback_reach_through_match_join_exit",
+    "pass/facts/nominal_callback_reach_through_const_name_exit",
+    "pass/facts/nominal_callback_reach_through_other_state_exit",
+    "pass/facts/nominal_callback_reach_through_other_machine_exit",
+    "pass/facts/nominal_callback_reach_through_target_body_exit",
+    "fail/facts/nominal_callback_reach_through_local_rejected",
+    "fail/facts/nominal_callback_reach_through_field_rejected",
+    "fail/facts/nominal_callback_reach_through_parameter_rejected",
+    "fail/facts/nominal_callback_reach_through_call_result_rejected",
+    "fail/facts/nominal_callback_reach_through_match_join_rejected",
+    "fail/facts/nominal_callback_reach_through_const_name_rejected",
+    "fail/facts/nominal_callback_reach_through_other_state_rejected",
+    "fail/facts/nominal_callback_reach_through_other_machine_rejected",
+    "fail/facts/nominal_callback_reach_through_target_body_rejected"
+  ],
+  "source_only": false,
+  "samples": [
+    "samples/cli/facts/nominal_callback_reach"
+  ],
+  "cli_fixtures": [
+    "pass/facts/nominal_callback_reach_through_target_body_exit"
+  ]
+}

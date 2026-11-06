@@ -37,10 +37,32 @@ could not carry the provider's required `visits == 0` condition into the ordinar
 the public contracts and authored programs remain unchanged. That run checked
 Source only and supplies no runtime result.
 
-The provider migration and incrementing counter are not yet qualified. This row
-remains open until all nine revised places run on both engines, their twins reach
-the intended loan diagnostic, the counter effect is inspected, and normal review
-and landing complete.
+The revised programs pass on all four hosts using compiler `d32f1cbab409`,
+integrated with fixed main `c417f61c95b`:
+[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/42220565700) and
+[Linux ARM64, macOS ARM64 and Windows x86-64](https://github.com/CathedralOS/Omega/actions/runs/42227161874).
+Each host checks all 17 positive fixtures and 30 invalid controls, runs 17
+native/Terminal exit-zero comparisons, and passes all nine sample places and
+their nine invalid twins. Both ordinary CLI projects also pass. Every rejection
+matches its original diagnostic. Saved Terminal instructions and native code
+retain the counter read, increment, write and single call to `compute` in all
+nine places. The callback control retains its original snapshot assertions and
+an observable counter change from zero to one.
+
+Compiler `edd05427fd02` maintains invocation lookup in the callable-contract
+table. It preserves invocation generations,
+row order, stored bytes and recovery limits. Its
+[focused Linux run](https://github.com/CathedralOS/Omega/actions/runs/42239810895)
+passes the same 47 source checks, the target-place and callback execution
+comparisons, both ordinary CLI projects, seven table tests and the existing
+contract-record test. All 17 generated Terminal programs have byte-identical
+semantic sections compared with `d32f1cbab409`. The unchanged programs, library,
+interpreter and native backend make the earlier runtime evidence applicable;
+those observations retain their original compiler and host identities. Fixture
+limits remain 120 seconds, with one worker and profiling disabled.
+
+Execution and counter inspection cover this row. The broader Build-selection
+migration stays open.
 
 ## Places
 
