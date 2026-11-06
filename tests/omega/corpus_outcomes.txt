@@ -14171,9 +14171,9 @@ fail/float/float_guard_missing_upper_bound rejected 4071ms expected @ccdb99ca221
 	cannot prove requires contract for call admit from open_upper: difference >= 0.5 && difference <= 8.0 (needs fact `difference >= 0.5 && difference <= 8.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_range_field_store_outside_range rejected 3609ms expected @f78c2623a68c
 	cannot complete return from machine `main` state `entry`: this write left the `requires` facts of `built` (data `Ratio`) unproved; restore them first
-fail/float/float_selected_comparison_authority rejected 11960ms expected @c2cfe5f3dece+wt
+fail/float/float_selected_comparison_authority rejected 27968ms expected @82043b0ca04b
 	cannot prove requires contract for call require_one from probe: entry(1.0) == 1.0 (needs fact `value == 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected @ccdb99ca2214
+fail/float/float_semantics_lookalike_grants_no_primitive rejected 12889ms expected @82043b0ca04b
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/format_conversion_exclusive_upper rejected 5315ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
@@ -14358,12 +14358,12 @@ fail/float/saved_ieee_conversion_guard_after_write rejected 1965ms expected @b12
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `current` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/saved_ieee_guard_copy_after_write rejected 6035ms expected @95f6bd2b4430
 	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `copied` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
-fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
+fail/float/specification_index_reference_selector_unbounded rejected 24261ms expected @82043b0ca04b
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `peek` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `peek` requires contract: independent collection bounds are not established by preceding formed facts
-fail/float/specification_index_write_only_selector rejected 2468ms expected @e8827ad1dd64+wt
+fail/float/specification_index_write_only_selector rejected 24104ms expected @82043b0ca04b
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 fail/float/state_arrival_ieee_predicate_unsatisfied rejected 4613ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from Main::main: main.value == main.value && main.value >= 0.0 && main.value < 1000.0 (needs fact `value == value && value >= 0.0 && value < 1000.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
@@ -16361,6 +16361,9 @@ fail/ownership/zero_case_tag_replaced rejected 2010ms expected @ccdb99ca2214
 	cannot prove requires contract for call empty from invalid: inventory.slots[0] == constructor:78:package:05f083efe81bcf7c90d83a8f9807b3de1b05bb855cebd1395f99c5384a4790cf::Slot10:name:Empty (needs fact `slot == Slot::Empty` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/packages/indexed_contract_out_of_bounds rejected 718ms expected @5c5c178f82c7
 	cannot prove index `8` is within length 8
+fail/packages/public_case_default_domain_wrong_case rejected 24138ms expected @82043b0ca04b
+	data `Locator` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Locator` case `Absolute` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/packages/retained_dependency_body_loan rejected 2879ms expected @ccdb99ca2214
 	statement 2 mutates `cell.value` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 6)
 fail/packages/rootless_numeric_provider_missing_satisfaction rejected 23534ms expected @6b1c338126fa
@@ -16729,7 +16732,7 @@ fail/proofs/negated_guard_after_mutation rejected 2053ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from changed at statement 2: !selection.enabled || result == 1
 fail/proofs/nested_boolean_target_family_requires_agreement rejected 2299ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: relay() == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/nested_machine_computed_rank_preserving rejected 833ms expected @ccdb99ca2214
+fail/proofs/nested_machine_computed_rank_preserving rejected 24347ms expected @82043b0ca04b
 	proof-only machine call cycle: `descend`, `forward` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/proofs/nested_machine_escaping_selection_rejected rejected 3076ms expected @ccdb99ca2214
 	cannot prove requires contract for call same from forward: left == right (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17087,9 +17090,9 @@ fail/proofs/value_call_refuted_inequality_rejected rejected 6346ms expected @ab2
 	cannot prove requires contract: machine `invalid_nonzero_identity` state `entry` value call to `nonzero_identity` violates required fact `value != Nat`: the instantiated fact is structurally false (`Nat::Zero != Nat::Zero`)
 fail/proofs/wrapping_zero_product_does_not_cancel_factor rejected 12168ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from claimed_zero at statement 0: result == 0
-fail/proofs/zero_value_executable_rejected rejected 990ms expected @ccdb99ca2214
+fail/proofs/zero_value_executable_rejected rejected 24266ms expected @82043b0ca04b
 	machine `Main::main` state `main` uses `zero_value<Choice>()` in executable code; `zero_value<T>()` is a proof-only representation observation and may appear only in contracts
-fail/proofs/zero_value_gated_home_rejected rejected 866ms expected @911f6617ba9e
+fail/proofs/zero_value_gated_home_rejected rejected 27276ms expected @82043b0ca04b
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Gated::None` for `Gated`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
 fail/providers/applied_binding_borrowed_result_wrong_source rejected 2256ms expected @ccdb99ca2214
 	machine `invalid` returns a view borrowing input `other`, which is not permitted by the declared result lifetime relation
@@ -18883,7 +18886,7 @@ fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c7
 	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
 fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
 	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
-fail/traits/inherited_nominal_requirement_wrong_application rejected 2298ms expected @07aa19d13db7
+fail/traits/inherited_nominal_requirement_wrong_application rejected 24033ms expected @82043b0ca04b
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
@@ -18891,12 +18894,15 @@ fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/traits/inherited_region_application_descendant_ambiguity rejected 1687ms expected @e5ac5a94234e
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
-fail/traits/inherited_region_application_phantom_ambiguity rejected 1821ms expected @ccdb99ca2214
+fail/traits/inherited_region_application_phantom_ambiguity rejected 26470ms expected @82043b0ca04b
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_result_ambiguity rejected 1356ms expected @ccdb99ca2214
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_telescope_ambiguity rejected 6571ms expected @0f36ecb1ab02
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
+fail/traits/inline_member_wrong_exact_application rejected 25997ms expected @82043b0ca04b
+	machine `Values::ExactValue::forward` state `forward` does not satisfy trait `ExactValue` machine `forward` parameter `value`: expected `u8`, got `u64`
+	machine `Values::ExactValue::forward` state `forward` does not satisfy trait `ExactValue` machine `forward`: expected return `Item`, got `u64`
 fail/traits/inline_requirement_inherited_false_ensures rejected 15730ms expected @6b1c338126fa
 	cannot prove ensures contract for exit from ReadRoute::forward at statement 0: result == input
 fail/traits/member_omits_requirement_ensures rejected 13166ms expected @6b1c338126fa
@@ -19935,7 +19941,7 @@ pass/build/project_session_shared_budget_exit checked 3665ms check-target:macos_
 pass/build/provider_applied_const29_exit checked 5898ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_nested_type_application_exit checked 4739ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_package_default_exit checked 3805ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match provider-choice-controls:match terminal-inspections:match @867738eb9535+wt
-pass/build/provider_package_default_override_exit checked 4951ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/build/provider_package_default_override_exit checked 69117ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match provider-choice-controls:match terminal-inspections:match @82043b0ca04b
 pass/build/provider_package_generated_owner_exit checked 5691ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_package_helper_exit checked 4626ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45a5c677e255
 pass/build/provider_selection_cross_file_author_exit checked 4881ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
@@ -19958,13 +19964,7 @@ pass/build/same_leaf_runner_entry_left_exit rejected 973ms regressed-from:checke
 pass/build/same_leaf_runner_entry_right_exit rejected 771ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	product entry `right::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
 pass/build/segment_selector_reload checked 77704ms check-target:linux_x86_64 @2b8a1382008c
-pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
-	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-13` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-17` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-21` has non-hermetic source origin `User`"))
-	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-25` has non-hermetic source origin `User`"))
+pass/build/selected_const_array_length_exit checked 64624ms check-target:macos_arm64 @82043b0ca04b
 pass/build/separate_build_product_imports_exit checked 8375ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -25687,7 +25687,7 @@ pass/float/runtime_absolute_shared_call_operands_exit checked 348202ms check-tar
 pass/float/runtime_authored_max_selection_exit checked 416979ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_builtin_guard_application_exit checked 412660ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_builtin_ieee_order_exit checked 409821ms check-target:macos_arm64 @72a0af2d293d
-pass/float/runtime_classification_result_categories_exit checked 15782ms check-target:macos_arm64 @6b1c338126fa
+pass/float/runtime_classification_result_categories_exit checked 30581ms check-target:macos_arm64 @82043b0ca04b
 pass/float/runtime_coercion_future_policy_exit checked 17556ms check-target:macos_arm64 @6fbf73342bf2
 pass/float/runtime_exact_format_narrowing_exit checked 6281ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_exact_integer_coercion_exit checked 14465ms check-target:macos_arm64 @18fc751d0060+wt
@@ -25729,7 +25729,7 @@ pass/float/runtime_std_trigonometric_endpoints checked 352134ms check-target:mac
 pass/float/runtime_total_order_satisfiers_exit checked 14841ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/saturating_named_operations_retain_ordered_inputs checked 7007ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/scalar_helper_boundary_sequence_exit checked 16852ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/specification_index_reference_selector_exit checked 13950ms check-target:macos_arm64 @e8827ad1dd64+wt
+pass/float/specification_index_reference_selector_exit checked 30227ms check-target:macos_arm64 @82043b0ca04b
 pass/float/state_arrival_ieee_predicates checked 417573ms check-target:macos_arm64 @ff514b7f093c
 pass/float/state_loop_field_refinement_restoration_exit checked 57026ms check-target:macos_arm64 @911f6617ba9e
 pass/float/symbolic_integer_conversion_finite_requires_exit checked 7540ms check-target:macos_arm64 @ccdb99ca2214
@@ -28029,7 +28029,8 @@ pass/traits/inherited_nominal_requirement_application_exit checked 5852ms check-
 pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_nominal_requirement_exit checked 2546ms check-target:macos_arm64 @45a5c677e255
 pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
-pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
+pass/traits/inherited_region_application_identity_exit checked 31137ms check-target:macos_arm64 @82043b0ca04b
+pass/traits/inline_member_exact_application_exit checked 30603ms check-target:macos_arm64 @82043b0ca04b
 pass/traits/named_contract_arithmetic_refinement checked 17731ms check-target:macos_arm64 @6b1c338126fa
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_machine_binder_static_dispatch checked 11534ms check-target:macos_arm64 @ccdb99ca2214
