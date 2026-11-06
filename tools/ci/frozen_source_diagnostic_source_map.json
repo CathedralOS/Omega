@@ -1,8 +1,8 @@
 {
   "schema": "omega-reviewed-compiler-input-map-v1",
-  "compiled_source": "8283f1ae0a2999039904039a6af780cd32c1cd87",
+  "compiled_source": "866772a2fdabc4729db112067ba8eed1e86c8e05",
   "compiler_inputs": {
-    "omega-rust": "9d865655e38522a4e6ebf74d11986121d7b2cc8d",
+    "omega-rust": "df6310138ac6c92653d054c482e2a5c1a172098e",
     "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
     "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
     "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -15,12 +15,12 @@
   },
   "provenance": {
     "role_scope_sha256": "0a523e008cd9a63a893ca56c041c690173206eaf01e4f4d0bf114feb82db33d9",
-    "limits": "Reviewed actual ParameterReferent member-grant transport through both stored-effect routes, with one prepared formal join and no new identity, descriptor tracker, local parent, geometry or relocation authority. Includes independently reviewed current-history production source and unrun counterfactual tests. Same four frozen source checks only; engines remain unobserved and full98 acceptance remains false.",
+    "limits": "Same four frozen source checks, now tracing the actual Source06 required-call refusal after Source05 root-grant consumption was observed. New call logger is failure-only behind CHECK_SITES with original predicates/order/error unchanged. Includes reviewed primitive-store scalar observation repair and unrun grant boundary tests. No engines, normal performance qualification, canonical receiving or full98 claim.",
     "handle_order_review_sha256": "51a710751f4510bfe2d1651c3cd0b5b067fc68d12f15aa8844af2bd2bc9cfddf",
     "opaque_graph_review_sha256": "91f53ee67c8f9e3caa2c624cedb9ed515a5ebb451ed19dba3557f303a3f0070a",
     "prepared_catalog_scope_sha256": "be9159e01b118aa0d4f9c48f3b4aa84b7000a4020937bc92dd550df20e0302ce",
     "source05_failure_context_scope_sha256": "be3e6b8acc4650cb3268060e8c3d82c5444aa2213b2810903a01a995a35755f8",
-    "parent_normalized_source_map_sha256": "1082a53ed3963faa6dab41a9080faae76d57a7ba1479cc22c2f61b56d9f65064",
+    "parent_normalized_source_map_sha256": "daa25a587c18717d4ecd3a834cf2f2f93c6b1696b27c8537b99ab76127a7401e",
     "source05_output_range_scope_sha256": "85b4189c9db1b25eb2d6eb686553dba668813901877700ad879e98b2a6bdab6e",
     "range_refinement_scope_sha256": "d2e6cbd290e7bf399ccceedb53742a50b3c8ac593429490d9a69db495e7848d7",
     "output_source_review_diff_sha256": "5ffdd6b34d6b1041ffc51a50a4fef5fc9c1c79d2bddd0c24d04ade577d32b358",
@@ -28,6 +28,10 @@
     "grant_context_proposal_patch_sha256": "b6f494339a19934d8f1d31de1f625cd52eef5973dd64fcb65458ffa05a509006",
     "grant_context_source": "8283f1ae0a2999039904039a6af780cd32c1cd87",
     "current_history_source": "1dd0838fe12606aaafebe38bf90afee0e39d76b9",
-    "formation_counterfactual_tests_source": "8ef703c8eb2589f18e3d463ad3b2fa5704f777bd"
+    "formation_counterfactual_tests_source": "8ef703c8eb2589f18e3d463ad3b2fa5704f777bd",
+    "grant_boundary_tests_source": "63c8ccce24cf315059328d3378a35d6812d78b9b",
+    "primitive_store_observation_source": "3012986e944750b588ae6f11deccd4fa969e8b33",
+    "required_call_diagnostic_source": "866772a2fdabc4729db112067ba8eed1e86c8e05",
+    "required_call_diagnostic_diff_sha256": "94bad8f095250c522f011061ed80cf480a7e862b0161c3730b280a588a037fce"
   }
 }
