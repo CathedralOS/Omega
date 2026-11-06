@@ -90,29 +90,29 @@ impl StructuralJudge<'_> {
         }
         let left = left.into_semantic_value();
         let right = right.into_semantic_value();
-        let right_is_true = right == value_predicates::boolean_term(true);
-        let left = match left {
-            StructuralTerm::MathematicalBinary {
+        if right == value_predicates::boolean_term(true)
+            && let StructuralTerm::MathematicalBinary {
                 operator: BinaryOperator::And,
                 left,
                 right,
-            } if right_is_true && left.is_checked_predicate() && right.is_checked_predicate() => {
-                self.intake_equation_with_purpose(
-                    *left,
-                    value_predicates::boolean_term(true),
-                    depth + 1,
-                    purpose,
-                );
-                self.intake_equation_with_purpose(
-                    *right,
-                    value_predicates::boolean_term(true),
-                    depth + 1,
-                    purpose,
-                );
-                return;
-            }
-            left => left,
-        };
+            } = &left
+            && left.is_checked_predicate()
+            && right.is_checked_predicate()
+        {
+            self.intake_equation_with_purpose(
+                *left.clone(),
+                value_predicates::boolean_term(true),
+                depth + 1,
+                purpose,
+            );
+            self.intake_equation_with_purpose(
+                *right.clone(),
+                value_predicates::boolean_term(true),
+                depth + 1,
+                purpose,
+            );
+            return;
+        }
         if let Some((operand, truth)) = self
             .boolean_equality_operand(&left, &right)
             .or_else(|| self.boolean_equality_operand(&right, &left))
@@ -135,10 +135,7 @@ impl StructuralJudge<'_> {
                 return;
             }
         }
-        // Decomposition consumes the terms this call already owns. Keep the
-        // right fields available: repeated left names still use their first
-        // matching right field, in the original left-field order.
-        let (left, right) = match (left, right) {
+        match (&left, &right) {
             (
                 StructuralTerm::Constructor {
                     identity: identity_l,
@@ -150,28 +147,23 @@ impl StructuralJudge<'_> {
                     fields: fields_r,
                     ..
                 },
-            ) if identity_l.same_carrier(identity_r) => {
+            ) if identity_l.same_carrier(*identity_r) => {
                 if identity_l != identity_r {
                     self.hypotheses_contradictory = true;
                     return;
                 }
                 for (name_l, value_l) in fields_l {
-                    if let Some((_, value_r)) =
-                        fields_r.iter().find(|(name_r, _)| name_r == &name_l)
+                    if let Some((_, value_r)) = fields_r.iter().find(|(name_r, _)| name_r == name_l)
                     {
                         self.intake_equation_with_purpose(
-                            value_l,
+                            value_l.clone(),
                             value_r.clone(),
                             depth + 1,
                             purpose,
                         );
                     }
                 }
-                return;
             }
-            terms => terms,
-        };
-        match (&left, &right) {
             (
                 StructuralTerm::Application { .. }
                 | StructuralTerm::CapturedValue { .. }
