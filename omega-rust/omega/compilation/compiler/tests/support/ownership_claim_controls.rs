@@ -16,6 +16,8 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         .as_structural()
         .ok_or("ownership control lost its result")?;
     let left = &result.claims[selected.left].path;
+    let mut through_reference = result.claims[selected.right].path.clone();
+    through_reference.insert(0, StructuralPathSegment::Referent);
     let mut unknown = result.claims[selected.right].path.clone();
     unknown[selected.case] = StructuralPathSegment::Case(unknown_case(module)?);
     // Keep the actual constructor, claim identities and order. Each control
@@ -35,6 +37,11 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
             "unknown alternative payload",
             unknown,
             "structural path has an unknown case",
+        ),
+        (
+            "owned payload through a reference",
+            through_reference,
+            "aggregate claim path is not static owned storage",
         ),
     ] {
         let mut invalid = module.clone();
