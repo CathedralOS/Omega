@@ -52,6 +52,19 @@ impl<T> HandleSpan<T> {
         self.count == 0
     }
 
+    /// Test the handle's position and generation without walking the span.
+    /// The owning arena separately validates that its slot is available.
+    #[inline]
+    pub fn contains(self, handle: Handle<T>) -> bool {
+        self.start.is_valid()
+            && handle.is_valid()
+            && handle.generation() == self.start.generation()
+            && handle
+                .arena_index()
+                .checked_sub(self.start.arena_index())
+                .is_some_and(|offset| offset < self.count)
+    }
+
     /// The handle `offset` positions into the span.
     pub fn handle_at(self, offset: u32) -> Handle<T> {
         Handle::from_parts(
@@ -256,6 +269,31 @@ impl<T: 'static> compiler_storage::Record for HandleSpan<T> {
 #[cfg(test)]
 mod tests {
     use crate::{Handle, HandleSpan};
+
+    #[test]
+    fn membership_keeps_range_and_generation_identity() {
+        let span = HandleSpan::<String>::from_parts(Handle::from_parts(4, 2), 2);
+        assert!(span.contains(Handle::from_parts(4, 2)));
+        assert!(span.contains(Handle::from_parts(5, 2)));
+        assert!(!span.contains(Handle::from_parts(3, 2)));
+        assert!(!span.contains(Handle::from_parts(6, 2)));
+        assert!(!span.contains(Handle::from_parts(4, 1)));
+        assert!(!span.contains(Handle::invalid()));
+        assert!(!HandleSpan::<String>::empty().contains(Handle::from_parts(4, 2)));
+        assert!(
+            !HandleSpan::<String>::from_parts(Handle::invalid(), 1)
+                .contains(Handle::from_parts(1, 1))
+        );
+    }
+
+    #[test]
+    fn membership_near_the_maximum_index_does_not_overflow() {
+        let span = HandleSpan::<String>::from_parts(Handle::from_parts(u32::MAX - 1, 2), 2);
+        assert!(span.contains(Handle::from_parts(u32::MAX - 1, 2)));
+        assert!(span.contains(Handle::from_parts(u32::MAX, 2)));
+        assert!(!span.contains(Handle::from_parts(u32::MAX - 2, 2)));
+        assert!(!span.contains(Handle::from_parts(u32::MAX, 1)));
+    }
 
     #[test]
     fn pushes_contiguous_handles() {

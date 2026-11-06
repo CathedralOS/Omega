@@ -126,6 +126,7 @@ pub(super) fn check_statement_borrows<'p>(
                 borrow_state,
                 loan_handle,
             );
+            let mut completed_input = None;
             let formation_constraints = if loan.established_by_call.is_valid() {
                 if !facts.borrow.calls.is_valid(loan.established_by_call) {
                     diagnostics.push(Diagnostic::error(
@@ -163,6 +164,12 @@ pub(super) fn check_statement_borrows<'p>(
                     ));
                     continue;
                 }
+                completed_input = super::aliases::prepare_completed_input_debt(
+                    facts,
+                    state_flow,
+                    loan_handle,
+                    call,
+                );
                 call.exit_constraints
             } else if !loan.formation_expression.is_valid() {
                 // A zero formation expression records the joined normal-call
@@ -238,9 +245,8 @@ pub(super) fn check_statement_borrows<'p>(
                     loan_handle,
                     active_loan_handle,
                 ) || super::aliases::same_completed_input_debt(
-                    facts,
-                    state_flow,
-                    loan_handle,
+                    &facts.borrow,
+                    completed_input.as_ref(),
                     active_loan_handle,
                 ) {
                     continue;

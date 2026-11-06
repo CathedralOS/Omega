@@ -11,7 +11,9 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 mod completed_inputs;
-pub(in crate::checks::borrows) use completed_inputs::same_completed_input_debt;
+pub(in crate::checks::borrows) use completed_inputs::{
+    prepare_completed_input_debt, same_completed_input_debt,
+};
 
 mod lineage;
 pub(in crate::checks) use lineage::transport_suppliers;
