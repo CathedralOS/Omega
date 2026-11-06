@@ -1,4 +1,4 @@
-name: Qualify integrated computed-root and callback calls
+name: Qualify integrated computed-root calls on the remaining hosts
 
 on:
   pull_request:
@@ -36,15 +36,6 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
 
 permissions:
   contents: read
@@ -53,16 +44,18 @@ permissions:
 # merely because another PR entered the queue. Manual revisions use isolated
 # runners and may proceed while an earlier revision finishes its consumers.
 concurrency:
-  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
+  group: compiler-pilot-${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.number || github.ref }}-remaining-hosts
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        native_host: [macos_arm64, windows_x86_64, linux_arm64]
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[matrix.native_host] || 'ubuntu-24.04' }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (matrix.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
     env:
-      OMEGA_WARM_CACHE_KEY: ${{ fromJSON('{"linux_x86_64":"compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-3e0188c4cdff3f96d4b39281f51c4efa05e9f2bd","macos_arm64":"compiler-regression-macos15-macOS-ARM64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-d58b8ab0f8fed8e2cd06c6fe4197fd20013334e2","windows_x86_64":"compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-d58b8ab0f8fed8e2cd06c6fe4197fd20013334e2","linux_arm64":""}')[inputs.native_host] }}
-      OMEGA_WARM_CACHE_ID: ${{ fromJSON('{"linux_x86_64":10115376050,"macos_arm64":10112441065,"windows_x86_64":10112894407,"linux_arm64":0}')[inputs.native_host] }}
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
@@ -72,7 +65,7 @@ jobs:
       OMEGA_CORPUS_JOBS: '1'
       RUST_MIN_STACK: '67108864'
       # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
+      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && matrix.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -86,24 +79,19 @@ jobs:
         shell: python
         env:
           OMEGA_WORKFLOW_DRIVER_REVISION: ${{ github.sha }}
-          OMEGA_QUALIFICATION_HOST: ${{ inputs.native_host }}
+          OMEGA_QUALIFICATION_HOST: ${{ matrix.native_host }}
         run: |
           import json, os, subprocess
           from pathlib import Path
           actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           assert actual == 'd32f1cbab4094e6ae280975fa0febb19b5ee4bc4'
-          assert os.environ['OMEGA_QUALIFICATION_HOST'] in ('linux_x86_64', 'linux_arm64', 'macos_arm64', 'windows_x86_64')
-          fresh_arm = os.environ['OMEGA_QUALIFICATION_HOST'] == 'linux_arm64'
-          assert bool(os.environ.get('OMEGA_WARM_CACHE_KEY')) != fresh_arm
+          assert os.environ['OMEGA_QUALIFICATION_HOST'] in ('linux_arm64', 'macos_arm64', 'windows_x86_64')
           output = Path('build/compiler-pilot')
           output.mkdir(parents=True, exist_ok=False)
           record = dict(driver_revision=os.environ['OMEGA_WORKFLOW_DRIVER_REVISION'],
                         compiler_program_source=actual, target=os.environ['OMEGA_QUALIFICATION_HOST'],
-                        warm_cache_key=os.environ['OMEGA_WARM_CACHE_KEY'],
-                        warm_cache_id=int(os.environ['OMEGA_WARM_CACHE_ID']),
-                        warm_cache_ref=(None if fresh_arm else ('refs/heads/work/qual-proof-invocation-hosts-20261105' if os.environ['OMEGA_QUALIFICATION_HOST'] == 'linux_x86_64' else 'refs/heads/work/qualified-source-reference-contract-20261105')),
-                        warm_cache_source=(None if fresh_arm else ('3e0188c4cdff3f96d4b39281f51c4efa05e9f2bd' if os.environ['OMEGA_QUALIFICATION_HOST'] == 'linux_x86_64' else 'd58b8ab0f8fed8e2cd06c6fe4197fd20013334e2')),
-                        cache_use=('One fresh ARM build: no restored repository cache, borrowed active ref, fallback or retry.' if fresh_arm else 'Build objects only; no prior compiler execution is reused.'))
+                        warm_cache_key='', warm_cache_id=0, warm_cache_ref=None, warm_cache_source=None,
+                        cache_use='One fresh build on this host: no restored repository cache, borrowed active ref, fallback or automatic retry. Previously proposed completed-reference caches and normally visible default-main host caches are absent.')
           (output / 'driver.json').write_text(json.dumps(record, indent=2) + chr(10))
           print(json.dumps(record, sort_keys=True))
       - name: Retain the fixed published source prerequisite
@@ -128,48 +116,10 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
       - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
+        if: github.event_name == 'workflow_dispatch' && matrix.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - name: Select the retained compiler cache from its validated plan
-        id: replay-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "import os; from tools.ci import compiler_pilot; compiler_pilot.write_replay_cache_key(os.environ['OMEGA_COMPILER_PILOT_FIXTURES'], os.environ['GITHUB_OUTPUT'])"
-      - name: Restore the exact retained compiler cache
-        id: replay-build-cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@')
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.replay-cache.outputs.key }}
-          fail-on-cache-miss: true
-      - name: Refuse an absent or partial retained compiler cache
-        if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
-        run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
-        if: inputs.native_host != 'linux_arm64' && (github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@'))
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ env.OMEGA_WARM_CACHE_KEY }}
-          fail-on-cache-miss: true
-      - name: Verify the exact restored warm cache before Cargo
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host != 'linux_arm64' && !startsWith(inputs.fixtures, '@')
-        env:
-          OMEGA_RESTORED_CACHE_KEY: ${{ steps.build-cache.outputs.cache-matched-key }}
-        run: python -c "import os; expected = os.environ['OMEGA_WARM_CACHE_KEY']; observed = os.environ.get('OMEGA_RESTORED_CACHE_KEY'); assert observed == expected, f'Restored cache {observed!r} differs from the required retained cache {expected!r}'; print('Verified exact retained warm cache:', observed)"
-      - name: Declare the single necessary fresh ARM build
-        if: inputs.native_host == 'linux_arm64'
-        run: python -c "print('No normally visible completed-ref/default-main ARM cache exists. One fresh build is required for changed integrated source; no cache fallback, active branch borrowing or automatic retry. Prior cold ARM preparation took about 18 minutes; fixture limits remain unchanged.')"
+      - name: Declare the single necessary fresh build on this host
+        run: python -c "print('No normally visible completed-reference/default-main host cache exists. One fresh build is required for integrated source d32f; no cache restore, fallback, active branch borrowing or automatic retry. Fixture120s/sample300s bounds and one consumer worker remain unchanged.')"
       - name: Check and prepare the optimized producer under one build slot
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
@@ -232,24 +182,14 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          name: compiler-pilot-${{ matrix.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
           path: build/compiler-pilot/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
-      - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.producer-preparation.outputs.compiler_check == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Retain the fresh ARM build objects before consumers
-        if: always() && !cancelled() && inputs.native_host == 'linux_arm64' && steps.producer-preparation.outputs.compiler_check == 'success'
+      # Save useful objects after the held check/preparation chain and before consumers.
+      - name: Retain this fresh build before consumers
+        if: always() && !cancelled() && steps.producer-preparation.outputs.compiler_check == 'success'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
@@ -281,7 +221,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
-          name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          name: compiler-pilot-observations-${{ matrix.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
           include-hidden-files: true
           path: |
             build/compiler-pilot/
@@ -294,7 +234,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          name: compiler-pilot-records-${{ matrix.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
           path: build/compiler-pilot/*.json
           if-no-files-found: warn
           retention-days: 7
