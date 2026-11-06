@@ -120,7 +120,7 @@ Follow [the pipeline](omega-rust/pipeline.md): Psi owns source through Terminal 
   Acceptance: `termination/,control_flow/`, `progress_selector/`, `array_max`/`dot_product`/`horner_eval`, crash rows, and unreachable warnings pass `--both`.
 
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics under [concurrency](wiki/spec/language/concurrency.md) and [atomic_operations.md](omega-rust/psi/foundation/language-core/atomic_operations.md) in `atomic_events.rs`.
-  Acceptance: `shared_receiver_atomic_store` and `atomic_global_order_operations` pass `omega run --both` on all hosts, and concurrent witnesses run with **TR3-TR8**.
+  Acceptance: `atomic_global_order_operations` passes `omega run --both` on all hosts, and concurrent witnesses run with **TR3-TR8**.
 
 <a id="checked-assembly-control-flow"></a>
 
