@@ -235,6 +235,14 @@ facts that mention the selected field, including predicate-call arguments,
 remain fences. The runtime local-loan control temporarily writes 2 then
 restores 0, distinguishing handback from per-store parameter restrictions.
 
+On Linux x86_64, both unchanged programs returned 0 in native and Terminal
+execution. `runtime_scalar_field_local_loan_handback_exit` verified restoration
+to 0 after the temporary write of 2. `runtime_tail_recursive_nested_field_frame_exit`
+verified count 2 survived recursive writes of 4.0 to `scratch[1]`. Existing
+controls rejected missing restoration and a write of 9 to the guarded count.
+These observations belong to consumer `f07ae35f9283` with retained producer
+`1cd41f4fb925`; other hosts and newer compiler inputs are unverified.
+
 ## Audited call selectors and mutable arrival observations
 
 Five call customers retain six historical field bounds as data predicates.

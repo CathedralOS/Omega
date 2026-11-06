@@ -873,7 +873,7 @@ fail/borrow/returned_write_destination_readable_access rejected 756ms expected @
 	machine `widen` state `entry` terminal expression expects `&i32`, got `call expression`
 fail/borrow/scalar_field_declared_range_requires_handback rejected 1256ms expected @f78c2623a68c
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/borrow/scalar_field_local_loan_requires_handback rejected 226ms expected @8fce926f9735
+fail/borrow/scalar_field_local_loan_requires_handback rejected 6331ms expected @f07ae35f9283
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/scalar_reborrow_does_not_preserve_arrival_bound rejected 2220ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from replace at statement 1: position <= 1
@@ -2036,7 +2036,7 @@ fail/borrows/symbolic_call_before_concrete_output_obligation rejected 3348ms exp
 	machine `symbolic_first` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 fail/borrows/symbolic_call_preserves_concrete_output_obligations rejected 1675ms expected @923ef974b33c
 	machine `concrete_first` state `entry` statement 0: operand has no complete completed call-slot relation
-fail/borrows/tail_recursive_mutation_retires_field_bound rejected 3917ms expected @ccdb99ca2214
+fail/borrows/tail_recursive_mutation_retires_field_bound rejected 6825ms expected @f07ae35f9283
 	cannot prove requires contract for call require_bound from guarded: work.count <= 8 (needs fact `work.count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/tail_recursive_write_conflicts_with_live_sibling_loan rejected 7377ms expected @b45dc4f7989c
 	state `fill` receives `work` while local borrow `observed` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -19748,8 +19748,7 @@ pass/borrows/runtime_returned_reference_array_restoration_exit checked 77761ms c
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 61137ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_stored_view_reborrow_exit checked 3531ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_scalar_call_stored_carrier_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_scalar_field_local_loan_handback_exit rejected 3918ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8fce926f9735
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "computed borrow lost its established local", gap: None })
+pass/borrows/runtime_scalar_field_local_loan_handback_exit checked 9013ms check-target:macos_arm64 @f07ae35f9283
 pass/borrows/runtime_scalar_reads_shared_result_exit checked 4052ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_byte_descriptor_store checked 3470ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_descriptor_after_fixed_store checked 3954ms check-target:macos_arm64 @ccdb99ca2214
@@ -19800,7 +19799,7 @@ pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 5895
 pass/borrows/runtime_stored_view_reborrow_extent_exit checked 3516ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_tail_expression_views_exit checked 16643ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit checked 6281ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 5929ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 8518ms check-target:macos_arm64 @f07ae35f9283
 pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit checked 6500ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_terminal_static_callback_snapshot_exit checked 10451ms check-target:macos_arm64 @e9afae5fccb7
 pass/borrows/runtime_transitive_mixed_result_backing_exit checked 4782ms check-target:macos_arm64 @ccdb99ca2214
