@@ -36,7 +36,6 @@ pub(crate) fn collect_machine_proposals_for_callee(
         program,
         &candidate.template.type_parameters,
         &candidate.template.const_parameters,
-        None,
         callee.candidate_index,
     );
     let mut type_index = 0usize;

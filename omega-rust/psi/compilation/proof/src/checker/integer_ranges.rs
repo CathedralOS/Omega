@@ -8,8 +8,8 @@ use crate::checker::guards::{
 use crate::checker::requires_conditions;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
-    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
-    ProofConstraint, ProofPlan, declared_integer_range, integer_binary_range,
+    BoundedTransitionArgumentObligation, IntegerRange, ProofConstraint, ProofPlan,
+    declared_integer_range, integer_binary_range,
 };
 use crate::typed_expressions::{dehoisted_operand, expression_table};
 use arena::HandleSpan;
@@ -226,11 +226,6 @@ fn place_refined_binary_range(
 argument_obligation_range!(
     integer_range_for_call_argument,
     BoundedCallArgumentObligation
-);
-
-value_obligation_range!(
-    pub(crate) integer_range_for_state_return,
-    BoundedStateReturnObligation
 );
 
 fn anonymous_integer_argument_range(

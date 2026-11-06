@@ -17,7 +17,6 @@ use crate::checker::diagnostics::{
     cannot_prove_bounded_initializer_float, cannot_prove_bounded_initializer_integer,
     cannot_prove_bounded_return_float, cannot_prove_bounded_return_integer,
     cannot_prove_bounded_transition_float, cannot_prove_bounded_transition_integer,
-    expression_display_name,
 };
 use crate::checker::float_ranges::{
     float_range_for_assignment, float_range_for_call_argument, float_range_for_initializer,
@@ -27,8 +26,7 @@ use crate::checker::float_ranges::{
 use crate::checker::integer_ranges::{
     guarded_integer_range_for_assignment_with_context,
     guarded_integer_range_for_transition_argument, integer_range_for_call_argument,
-    integer_range_for_initializer, integer_range_for_state_return, integer_range_from_constraints,
-    type_constraints,
+    integer_range_for_initializer, integer_range_from_constraints, type_constraints,
 };
 use crate::checker::measurement::ProofPlanMeasurements;
 use crate::checker::named_constraints::{
@@ -42,10 +40,9 @@ use crate::obligations::{
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofPlan,
 };
 use crate::obligations::{FloatRange, IntegerRange, ProofConstraint};
-use crate::typed_expressions::{expression_contains_call_node, expression_table};
+use crate::typed_expressions::expression_contains_call_node;
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
-use semantic_vocabulary::ScalarConditionRole;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::state::state_by_symbol;
 use typed_trees::statement::StatementNode;
@@ -56,7 +53,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) -> Option<IntegerRange> {
@@ -251,7 +248,7 @@ pub(crate) fn check_bounded_initializer(
     obligation: &BoundedInitializerObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
@@ -333,7 +330,7 @@ pub(crate) fn check_bounded_state_return<'program>(
     context: &AssignmentRangeContext<'program>,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
@@ -401,7 +398,7 @@ pub(crate) fn check_bounded_call_argument(
     obligation: &BoundedCallArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
 ) {
@@ -490,7 +487,7 @@ pub(crate) fn check_bounded_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
     seed: u64,
     diagnostics: &mut Vec<Diagnostic>,
-    recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
+    _recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
     measurements: &mut ProofPlanMeasurements,
     mut derivations: Option<&mut DerivationConsultation<'_>>,
 ) {

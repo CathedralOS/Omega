@@ -1,4 +1,3 @@
-use crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution;
 use crate::tables::{type_constraints, type_references};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;

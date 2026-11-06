@@ -15,10 +15,7 @@ use typed_trees::expression::{
 use typed_trees::machine::Machine;
 use typed_trees::operator::primitive_float_binary_semantics;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
-use validation::closed_float_range_endpoint;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use validation::expression_type_reference_in_state;
 use validation::find_machine_by_entry_state;
 use validation::has_builtin_decomposed_guard_meaning;

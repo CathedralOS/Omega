@@ -8,7 +8,6 @@
 //! not the syntax producer's interval observations or its synthetic names.
 use super::{Diagnostic, resolved, typed};
 use crate::expressions::expression::lower_expression_handle_from_table;
-use crate::tables::type_constraints;
 use arena::{Handle, HandleSpan};
 use numerics::bignum::BigInt;
 use resolved::name::DiagnosticName;

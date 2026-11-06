@@ -182,7 +182,6 @@ pub(super) fn close(
             program,
             &provider.template.type_parameters,
             &provider.template.const_parameters,
-            None,
             0,
         );
         super::super::infer_static_bindings(context, actual, required, &mut proposals);

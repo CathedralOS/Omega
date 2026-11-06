@@ -736,6 +736,19 @@ fn attached_field_type(
         })
 }
 
+/// The declared resolved type of state parameter `name`.
+fn parameter_type(
+    source_trees: &resolved::SymbolResolvedTrees,
+    state: &resolved::state::State,
+    name: &str,
+) -> Option<TypeReference> {
+    source_trees
+        .state_parameters(state.parameters)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == name)
+        .map(|parameter| parameter.type_reference.clone())
+}
+
 fn local_type(
     source_trees: &resolved::SymbolResolvedTrees,
     state: &resolved::state::State,

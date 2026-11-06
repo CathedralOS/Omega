@@ -2,18 +2,16 @@
 //! the bounded obligation carriers checking consumes.
 
 use crate::obligations::collection::estimated_proof_obligation_capacity;
-use crate::obligations::ranges::float_range_bound;
 use crate::typed_expressions::type_reference_table;
 use arena::{Arena, HandleSpan};
 pub(crate) use facts::IntegerRange;
 use language_semantics::value_domain::ValueDomain;
-use numerics::bignum::BigInt;
 use std::fmt;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, FloatLiteral};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
-use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle};
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProofPlan<'program> {
@@ -134,13 +132,9 @@ impl Default for ProofConstraint {
 }
 
 impl ProofConstraint {
-    /// `base_type` is the constrained reference's carrier handle: floating
-    /// range endpoints read their authored spelling at that declared carrier
-    /// (validation's `closed_float_range_endpoint` twin), never at the
-    /// transitional f64 window.
     pub(crate) fn from_node(
-        program: &dyn ::validation::CheckingInput,
-        base_type: TypeReferenceHandle,
+        _program: &dyn ::validation::CheckingInput,
+        _base_type: TypeReferenceHandle,
         constraint: &TypeConstraintNode,
     ) -> Option<Self> {
         match constraint {
@@ -363,18 +357,6 @@ pub enum ProofObligationOwner {
 }
 
 impl ProofObligationOwner {
-    pub(crate) fn machine_symbol(&self) -> Option<SymbolHandle> {
-        match self {
-            Self::Unknown => None,
-            Self::MachineOwnedData { machine_symbol, .. }
-            | Self::StateParameter { machine_symbol, .. }
-            | Self::StateReturn { machine_symbol, .. }
-            | Self::StateLocal { machine_symbol, .. }
-            | Self::ConstructorField { machine_symbol, .. }
-            | Self::ArrayElement { machine_symbol, .. } => Some(*machine_symbol),
-        }
-    }
-
     /// `(machine, state, statement index)` of the statement that evaluates
     /// the owned value. Local and constructor-field initializers have one; owned data,
     /// parameters and returns are not evaluated at a single statement.

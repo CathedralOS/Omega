@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::mathematical::{MathematicalType, MathematicalTypeHandle};
 use typed_trees::name::Identifier;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::{Elaborator, ScalarCarrier, ScopeEntry};
 

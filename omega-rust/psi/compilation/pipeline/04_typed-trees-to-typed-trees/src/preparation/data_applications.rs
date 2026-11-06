@@ -35,7 +35,6 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataDefinition;
 use typed_trees::data::DataMember;
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::name::Identifier;
 use typed_trees::type_identity::applied_type_identity;
 use typed_trees::types::FixedArrayLength;
@@ -572,17 +571,6 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
         }
     }
     true
-}
-
-fn closed_expression(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let mut expressions = Vec::new();
-    validation::collect_expression_tree(program, expression, &mut expressions);
-    !expressions.iter().any(|expression| {
-        matches!(expressions_of(program).expression(*expression),
-            typed_trees::expression::ExpressionNode::Name(path)
-                if path.symbol.is_valid() && matches!(program.symbols.get(path.symbol).kind,
-                    SymbolKind::TypeParameter | SymbolKind::Parameter | SymbolKind::Local))
-    })
 }
 
 #[derive(Clone, Copy)]

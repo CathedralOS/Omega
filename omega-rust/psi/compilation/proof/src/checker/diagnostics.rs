@@ -8,7 +8,6 @@ use crate::obligations::{
 };
 pub(crate) use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::name::Identifier;
 
 pub(crate) fn cannot_prove_bounded_transition_integer(
     proof_plan: &ProofPlan,

@@ -569,7 +569,6 @@ fn retain_constructor_result_type(
         program,
         &type_parameters,
         &const_parameters,
-        None,
         0,
     );
     let mut inferred = crate::monomorphization::StaticProposals::default();

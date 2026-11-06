@@ -19,7 +19,7 @@ use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
     BoundedInitializerObligation, BoundedStateReturnObligation,
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
-    IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
+    IntegerRange, ProofObligation, ProofObligationOwner, ProofPlan,
 };
 use crate::typed_expressions::{
     dehoisted_operand, expression_contains_call_node, expression_table, expression_type_reference,
