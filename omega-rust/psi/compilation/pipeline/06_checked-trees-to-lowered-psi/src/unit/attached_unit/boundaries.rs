@@ -191,42 +191,23 @@ pub(crate) fn lower_declarations(
             .map(|source| {
                 Ok::<_, LoweringError>(terminal_psi::CheckedBoundaryCallable {
                     source,
-                    execution:
-                        match typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(
-                            &checked.typed,
-                            plan.machine,
-                        )
-                        .map_err(|_| {
-                            LoweringError::Unsupported(
-                                "placement primitive declaration is malformed",
-                            )
-                        })? {
-                            None => {
-                                if typed_trees::typed_trees::EmptyRunReleaseDeclaration::authenticate(
-                                    &checked.typed, plan.machine,
-                                )
-                                .map_err(|_| LoweringError::Unsupported(
-                                    "empty-run release declaration is malformed",
-                                ))?
-                                .is_some()
-                                {
-                                    terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
-                                } else {
-                                    terminal_psi::CheckedBoundaryExecution::Provider
-                                }
-                            },
-                            Some(declaration) => match declaration.operation() {
-                                typed_trees::typed_trees::AccessLifecycleOperation::Initialize => {
-                                    terminal_psi::CheckedBoundaryExecution::AccessInitialize
-                                }
-                                typed_trees::typed_trees::AccessLifecycleOperation::MoveOut => {
-                                    terminal_psi::CheckedBoundaryExecution::AccessMoveOut
-                                }
-                                typed_trees::typed_trees::AccessLifecycleOperation::View => {
-                                    terminal_psi::CheckedBoundaryExecution::AccessView
-                                }
-                            },
-                        },
+                    execution: match plan.execution {
+                        checked_trees::CheckedBoundaryExecutionPlan::Provider => {
+                            terminal_psi::CheckedBoundaryExecution::Provider
+                        }
+                        checked_trees::CheckedBoundaryExecutionPlan::AccessInitialize => {
+                            terminal_psi::CheckedBoundaryExecution::AccessInitialize
+                        }
+                        checked_trees::CheckedBoundaryExecutionPlan::AccessMoveOut => {
+                            terminal_psi::CheckedBoundaryExecution::AccessMoveOut
+                        }
+                        checked_trees::CheckedBoundaryExecutionPlan::AccessView => {
+                            terminal_psi::CheckedBoundaryExecution::AccessView
+                        }
+                        checked_trees::CheckedBoundaryExecutionPlan::EmptyRunRelease => {
+                            terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
+                        }
+                    },
                     method_arguments: checked_method_arguments(identities, checked, plan.machine)?,
                 })
             })

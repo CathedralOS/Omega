@@ -4,8 +4,6 @@
 use super::RowSite;
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
-use semantic_vocabulary::BoundaryMachineId;
-use std::collections::BTreeMap;
 use target_operations::{
     BoundaryExecutionBinding, BoundarySettlementBinding, CompilerBuiltinExecution,
 };
@@ -14,8 +12,8 @@ use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess, StructuralPathS
 pub(super) fn lower(
     operation: &AbstractOperation,
     site: &mut RowSite<'_>,
-    boundaries: &BTreeMap<BoundaryMachineId, &BoundaryMachineDeclaration>,
-    settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
+    declaration: &BoundaryMachineDeclaration,
+    settlement: &BoundarySettlementBinding,
 ) -> Result<(), LoweringError> {
     let AbstractOperation::BoundaryCall {
         psi_operation,
@@ -36,9 +34,6 @@ pub(super) fn lower(
         boundary: *boundary,
         reason,
     };
-    let declaration = boundaries
-        .get(boundary)
-        .ok_or_else(|| invalid("empty-run release lost its declaration"))?;
     let contract = terminal_semantics::empty_run_release_contract(
         site.types.catalog().as_slice(),
         declaration,
@@ -49,10 +44,8 @@ pub(super) fn lower(
     };
     if !arguments.is_empty()
         || source.access != StructuralAccess::Owned
-        || settlements.get(boundary).map(|row| &row.execution)
-            != Some(&BoundaryExecutionBinding::CompilerBuiltin(
-                CompilerBuiltinExecution::EmptyRunRelease,
-            ))
+        || settlement.execution
+            != BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::EmptyRunRelease)
         || result.structural_type != contract.result.structural_type
         || result.multiplicity != contract.result.multiplicity
     {
