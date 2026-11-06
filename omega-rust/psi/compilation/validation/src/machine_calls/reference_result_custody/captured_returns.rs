@@ -144,6 +144,7 @@ struct CapturedReturnPresentation {
     source_type: typed_trees::type_identity::TypeIdentityId,
     endpoint_type: typed_trees::type_identity::TypeIdentityId,
     result_type: typed_trees::type_identity::TypeIdentityId,
+    extent: ReferenceOriginExtent,
 }
 
 impl Captures<'_> {
@@ -1035,8 +1036,13 @@ impl Captures<'_> {
                     let mut source_identity =
                         self.program.normalized_type_identity(captured.backing);
                     let extent = if let Some(presentation) = &origin.presentation
-                        && !presentation.path.is_empty()
+                        && (!presentation.path.is_empty()
+                            || presentation.extent == ReferenceOriginExtent::WithinRegion)
                     {
+                        // A completed call can return a different referent
+                        // family from within its declared input region. Keep
+                        // that checked relation even without a field path;
+                        // the returned descriptor still owns the address.
                         if self.program.normalized_type_identity(captured.presentation)
                             != presentation.source_type
                             || presentation.result_type != leaf.source.type_identity
