@@ -3,7 +3,6 @@
 //! This selects declaration roots after source admission. It preserves checked
 //! backing rows and completed values, independently of optional optimization.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use checked_trees::CheckedTrees;
@@ -35,16 +34,15 @@ pub fn project_checked_product_context(
     let original = DeclarationSelection::from_symbols(original_roots);
     let selected = DeclarationSelection::from_program(&typed);
     let index = MachineIndex::build(&*checked);
-    let retained = typed
-        .machines()
-        .iter()
-        .map(|machine| machine.symbol)
-        .collect::<HashSet<_>>();
-    let pruned = index
-        .machine_symbols
-        .difference(&retained)
-        .copied()
-        .collect();
+    let retained =
+        DeclarationSelection::from_symbols(typed.machines().iter().map(|machine| machine.symbol));
+    let pruned = DeclarationSelection::from_symbols(
+        checked
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .filter(|symbol| !retained.contains(*symbol)),
+    );
     let checked = Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
     let mut facts = checked.facts;
     retain_facts(&mut facts, &retained, &pruned, &index);

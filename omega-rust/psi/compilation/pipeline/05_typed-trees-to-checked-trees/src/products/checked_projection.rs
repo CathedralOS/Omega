@@ -2,38 +2,34 @@
 //! Referenced arena rows keep their original identities.
 
 use super::product_pruning::dependencies::MachineIndex;
-use std::collections::HashSet;
 use symbols::SymbolHandle;
+use typed_trees::references::DeclarationSelection;
 
 pub(super) fn retain_facts(
     facts: &mut checked_trees::CheckFacts,
-    retained: &HashSet<SymbolHandle>,
-    pruned: &HashSet<SymbolHandle>,
+    kept: &DeclarationSelection,
+    removed_machines: &DeclarationSelection,
     index: &MachineIndex,
 ) {
+    let retained = |symbol: &SymbolHandle| kept.contains(*symbol);
+    let pruned = |symbol: &SymbolHandle| removed_machines.contains(*symbol);
     facts
         .proof_applications
-        .retain_product_machines(|machine| retained.contains(&machine));
-    facts
-        .mutation
-        .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain_product_machines(|machine| retained(&machine));
+    facts.mutation.machines.retain(|row| retained(&row.machine));
     facts
         .suspensions
         .machines
-        .retain(|row| retained.contains(&row.machine));
-    facts
-        .blocking
-        .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
+    facts.blocking.machines.retain(|row| retained(&row.machine));
     facts
         .synchronous_invocations
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .termination
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     // A proof recursive component is one SCC: it survives pruning only when
     // every member survives, which the closed edge relation guarantees for
     // any component containing a retained member.
@@ -44,34 +40,34 @@ pub(super) fn retain_facts(
             component
                 .members
                 .iter()
-                .all(|member| retained.contains(&member.machine))
+                .all(|member| retained(&member.machine))
         });
     facts
         .contract_plans
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .contract_plans
         .realized_envelopes
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .qualifications
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .qualifications
         .vacuous_uses
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .qualifications
         .content
         .identity_reshuffles
-        .retain(|row| retained.contains(&row.machine_symbol));
+        .retain(|row| retained(&row.machine_symbol));
     facts
         .qualifications
         .content
         .partition_compositions
-        .retain(|row| retained.contains(&row.machine_symbol));
+        .retain(|row| retained(&row.machine_symbol));
     // Transformation rows are iteration roots, with no inbound handles. Their
     // derivation/equation/binding arenas are referenced evidence and keep their
     // original handles, just like the flow and proof arenas below.
@@ -80,7 +76,7 @@ pub(super) fn retain_facts(
         .content
         .body_transformations
         .iter()
-        .filter(|(_, row)| retained.contains(&row.machine_symbol))
+        .filter(|(_, row)| retained(&row.machine_symbol))
         .map(|(_, row)| row.clone())
         .collect::<Vec<_>>();
     let mut retained_transformations = arena::Arena::default();
@@ -90,25 +86,25 @@ pub(super) fn retain_facts(
         .qualifications
         .content
         .partition_returns
-        .retain(|row| retained.contains(&row.plan.owner));
+        .retain(|row| retained(&row.plan.owner));
     facts
         .dynamic_conformances
         .selections
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .carry
         .suspension_crossings
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .carry
         .activation_wide_carry
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .access_view_inputs
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .provider_closed_requirements
-        .retain(|row| retained.contains(&row.provider));
+        .retain(|row| retained(&row.provider));
     let removed = facts
         .provider_instance_publication
         .requirements
@@ -119,7 +115,7 @@ pub(super) fn retain_facts(
             } else {
                 row.template
             };
-            (!retained.contains(&owner)).then_some(handle)
+            (!retained(&owner)).then_some(handle)
         })
         .collect::<Vec<_>>();
     for handle in removed {
@@ -131,13 +127,13 @@ pub(super) fn retain_facts(
     facts
         .operators
         .symbolic_boundary_applications
-        .retain(|row| retained.contains(&row.machine_symbol));
+        .retain(|row| retained(&row.machine_symbol));
     // Occurrence arenas retain dead evidence. Template applicability used to
     // query the projected machine roster; retain that same meaning explicitly.
     let retained_template = |origin: checked_trees::CheckedValueOrigin| {
         origin
             .machine_symbol()
-            .is_some_and(|machine| retained.contains(&machine))
+            .is_some_and(|machine| retained(&machine))
     };
     facts.operators.uses.for_each_mut(|_, operator_use| {
         operator_use.is_generic_template &= retained_template(operator_use.origin);
@@ -157,7 +153,7 @@ pub(super) fn retain_facts(
                 matches!(
                     requirement.kind,
                     checked_trees::CheckedProviderRequirementKind::Operator { .. }
-                ) || retained.contains(&requirement.symbol)
+                ) || retained(&requirement.symbol)
             })
             .map(|(_, requirement)| requirement.clone()),
     );
@@ -169,7 +165,7 @@ pub(super) fn retain_facts(
             checked_trees::NominalMachineUseSite::Statement(statement) => index
                 .statement_machine
                 .get(&statement)
-                .is_some_and(|owner| retained.contains(owner)),
+                .is_some_and(|owner| retained(owner)),
             checked_trees::NominalMachineUseSite::Expression(_) => true,
         });
 
@@ -178,13 +174,21 @@ pub(super) fn retain_facts(
         .proof
         .contract_expression_evidence_calls
         .retain(|row| {
-            contract_owner_retained(row.owner, pruned, &facts.proof.call_contract_signatures)
+            contract_owner_retained(
+                row.owner,
+                removed_machines,
+                &facts.proof.call_contract_signatures,
+            )
         });
     facts
         .proof
         .contract_expression_static_conformance_applications
         .retain(|row| {
-            contract_owner_retained(row.owner, pruned, &facts.proof.call_contract_signatures)
+            contract_owner_retained(
+                row.owner,
+                removed_machines,
+                &facts.proof.call_contract_signatures,
+            )
         });
 
     // Machine-keyed roster arenas with no inbound handles or spans are
@@ -202,7 +206,7 @@ pub(super) fn retain_facts(
             .states
             .iter()
             .map(|(_, state)| state)
-            .filter(|state| retained.contains(&state.machine_symbol))
+            .filter(|state| retained(&state.machine_symbol))
             .cloned()
             .collect();
         let mut states = arena::PagedArenaSet::default();
@@ -215,7 +219,7 @@ pub(super) fn retain_facts(
             .machines
             .iter()
             .map(|(_, row)| row)
-            .filter(|row| retained.contains(&row.machine))
+            .filter(|row| retained(&row.machine))
             .cloned()
             .collect();
         let mut machines = arena::Arena::default();
@@ -226,59 +230,61 @@ pub(super) fn retain_facts(
     // Whole-product semantic dependencies: drop rows owned by or naming a
     // pruned machine. The table is independently rederivable via
     // `derive_checked_semantic_dependencies`.
-    facts.flow.semantic_dependencies.rows.retain(|row| {
-        retained.contains(&row.consumer_machine) && !pruned.contains(&row.dependency)
-    });
+    facts
+        .flow
+        .semantic_dependencies
+        .rows
+        .retain(|row| retained(&row.consumer_machine) && !pruned(&row.dependency));
 
     // Terminal plan families whose machine rosters enumerate the product.
     facts
         .flow
         .terminal_machines
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .flow
         .terminal_debug
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts.flow.guarded_exits.tails.retain(|row| {
         index
             .state_machine
             .get(&row.state)
-            .is_none_or(|machine| retained.contains(machine))
+            .is_none_or(|machine| retained(machine))
     });
     facts
         .flow
         .terminal_unit_effects
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .flow
         .terminal_unit_effects
         .composed_machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     // A static boundary requirement's plan is keyed by its trait signature,
     // not a machine: only plans of a pruned machine leave.
     facts
         .flow
         .terminal_unit_effects
         .boundary_machines
-        .retain(|row| !pruned.contains(&row.machine));
+        .retain(|row| !pruned(&row.machine));
     facts
         .flow
         .terminal_partial_affine_unit_cleanups
         .machines
-        .retain(|row| retained.contains(&row.machine.machine));
+        .retain(|row| retained(&row.machine.machine));
     facts
         .flow
         .terminal_nominal_affine_unit_cleanups
         .machines
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
     facts
         .flow
         .terminal_structural_control_cleanups
         .states
-        .retain(|row| retained.contains(&row.machine));
+        .retain(|row| retained(&row.machine));
 }
 
 /// Whether a contract-fact owner survives pruning: machine owners must be
@@ -286,18 +292,18 @@ pub(super) fn retain_facts(
 /// retained.
 fn contract_owner_retained(
     owner: checked_trees::ContractProofFactOwner,
-    pruned: &HashSet<SymbolHandle>,
+    removed: &DeclarationSelection,
     signatures: &arena::Arena<checked_trees::CallContractSignature>,
 ) -> bool {
     match owner {
         checked_trees::ContractProofFactOwner::Machine { machine_symbol }
         | checked_trees::ContractProofFactOwner::MachineState { machine_symbol, .. } => {
-            !pruned.contains(&machine_symbol)
+            !removed.contains(machine_symbol)
         }
         checked_trees::ContractProofFactOwner::CallSignature { application, .. } => {
             crate::published::proof::contracts::call_signatures::owner(signatures, application)
                 == Some(owner)
-                && !pruned.contains(&signatures.get(application).caller_machine_symbol)
+                && !removed.contains(signatures.get(application).caller_machine_symbol)
         }
         _ => true,
     }

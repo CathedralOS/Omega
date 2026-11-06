@@ -214,7 +214,6 @@
 4 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/context.rs
 7 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products/product_pruning/dependencies.rs
 2 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products/product_pruning/mod.rs
-5 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products/product_pruning/rewrite.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/proof/float_meaning.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/shared/authored_selections/operator_targets.rs
 24 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/affine_cleanup.rs

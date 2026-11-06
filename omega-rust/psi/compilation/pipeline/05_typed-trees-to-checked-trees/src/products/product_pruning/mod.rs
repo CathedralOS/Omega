@@ -297,7 +297,16 @@ pub fn prune_checked_tree_product(
         .filter(|symbol| !retained.contains(symbol))
         .collect();
 
-    checked = apply_pruning(checked, &retained, &pruned, &index);
+    let mut typed = checked.typed.into_inner();
+    let mut facts = checked.facts;
+    validation::execution_projection::retain_machine_roster(&mut typed, &retained, &pruned);
+    retain_live_family_members(&mut typed);
+    let kept =
+        typed_trees::references::DeclarationSelection::from_symbols(retained.iter().copied());
+    let removed =
+        typed_trees::references::DeclarationSelection::from_symbols(pruned.iter().copied());
+    retain_facts(&mut facts, &kept, &removed, &index);
+    checked = CheckedTrees::with_roots(typed, facts);
 
     let retained_machines: Vec<SymbolHandle> = checked
         .typed
@@ -323,22 +332,6 @@ pub fn prune_checked_tree_product(
         identity,
     };
     Ok(CheckedTreeProductPruningOutcome { checked, selection })
-}
-
-/// Optional machine pruning shares fact-roster selection with mandatory
-/// Product-context selection. Referenced backing rows keep their original IDs.
-fn apply_pruning(
-    checked: CheckedTrees,
-    retained: &HashSet<SymbolHandle>,
-    pruned: &HashSet<SymbolHandle>,
-    index: &MachineIndex,
-) -> CheckedTrees {
-    let mut typed = checked.typed.into_inner();
-    let mut facts = checked.facts;
-    validation::execution_projection::retain_machine_roster(&mut typed, retained, pruned);
-    retain_live_family_members(&mut typed);
-    retain_facts(&mut facts, retained, pruned, index);
-    CheckedTrees::with_roots(typed, facts)
 }
 
 /// Keep the target-machine family roster consistent with the pruned machine
