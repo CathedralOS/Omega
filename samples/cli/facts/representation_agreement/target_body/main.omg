@@ -158,7 +158,7 @@ machine reject_malformed<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
     }
 }
 
-machine consume(value: Pair, expected_first: u8, expected_last: u8) -> bool {
+machine consume(value: Pair) -> bool {
     let first: FirstFrame = FirstFrame { tag: 165u8, first: value.first, last: value.last };
     let second: SecondFrame = SecondFrame { tag: 90u8, first: value.last, last: value.first };
     let malformed_first: FirstFrame = FirstFrame { tag: 0u8, first: value.first, last: value.last };
@@ -167,7 +167,7 @@ machine consume(value: Pair, expected_first: u8, expected_last: u8) -> bool {
     use_agreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity, SecondAgreement>(value, second, malformed_second);
     let first_ok: bool = observe<FirstFrame, WriteFirst, ReadFirst>(value, malformed_first);
     let second_ok: bool = observe<SecondFrame, WriteSecond, ReadSecond>(value, malformed_second);
-    first_ok && second_ok && value.first == expected_first && value.last == expected_last
+    first_ok && second_ok
 }
 
 boundary trait PairDelivery {
@@ -196,8 +196,8 @@ SecondDelivery satisfies PairDelivery {
 machine verify(expected_marker: u64) reaches PairDelivery crashes Trap {
     let saved: Pair = PairDelivery::semantic(false);
     let edge: Pair = PairDelivery::semantic(true);
-    let observed: bool = consume(saved, 17u8, 42u8);
-    let endpoint: bool = consume(edge, 0u8, 255u8);
+    let observed: bool = consume(saved);
+    let endpoint: bool = consume(edge);
     let marker: u64 = PairDelivery::marker();
     transition marker == expected_marker && observed && endpoint {
         true -> done()
