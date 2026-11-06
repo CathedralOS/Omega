@@ -993,17 +993,62 @@ impl SourceCallBindings {
                     })
                     .take(8)
                     .map(|(index, candidate)| {
+                        let mut owners = Vec::new();
+                        let mut owner_count = 0;
+                        if let Some(operation) = candidate.terminal_site.operation() {
+                            for machine in &module.machines {
+                                for block in &machine.blocks {
+                                    for (position, emitted) in block.operations.iter().enumerate() {
+                                        if emitted.id != operation {
+                                            continue;
+                                        }
+                                        owner_count += 1;
+                                        if owners.len() >= 8 {
+                                            continue;
+                                        }
+                                        let predecessors = machine
+                                            .blocks
+                                            .iter()
+                                            .flat_map(|predecessor| {
+                                                predecessor
+                                                    .terminator
+                                                    .successor_edges()
+                                                    .into_iter()
+                                                    .filter_map(move |(edge, target)| {
+                                                        (target == block.id)
+                                                            .then_some((predecessor.id, edge))
+                                                    })
+                                            })
+                                            .take(32)
+                                            .collect::<Vec<_>>();
+                                        owners.push((
+                                            machine.id,
+                                            machine.declaration.as_ref().and_then(|declaration| {
+                                                module.identities.text(declaration.callable)
+                                            }),
+                                            machine.entry,
+                                            block.id,
+                                            position,
+                                            predecessors,
+                                            &emitted.kind,
+                                        ));
+                                    }
+                                }
+                            }
+                        }
                         (
                             index,
                             &candidate.source_site,
                             &candidate.origin,
                             &candidate.terminal_site,
                             candidate.source_target,
+                            owner_count,
+                            owners,
                         )
                     })
                     .collect::<Vec<_>>();
                 eprintln!(
-                    "CHECKSITE required-source-call-refused coordinate={coordinate:?} requested_target={target:?} duplicate={} first_8_matching={matching:?}",
+                    "CHECKSITE required-source-call-refused coordinate={coordinate:?} requested_target={target:?} duplicate={} owner_row=(machine,callable,entry,block,index,first_32_predecessors,operation) first_8_matching=(index,source_site,origin,terminal_site,target,owner_count,first_8_owners) {matching:?}",
                     second_occurrence.is_some(),
                 );
             }
