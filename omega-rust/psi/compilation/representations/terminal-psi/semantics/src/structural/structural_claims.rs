@@ -28,10 +28,10 @@ pub fn structural_claim_paths_may_overlap<'types>(
 }
 
 /// Join machine-local return identities to the caller's possible path roster.
-/// Every unguarded path occurs on every successful exit. Guarded paths occur
-/// on the exits that own them, and their union is exactly the caller catalogue.
-/// Neither a missing branch nor an extra potential payload can disappear in a
-/// cardinality-only comparison.
+/// Every returned path must have a receiving slot, and every unguarded slot
+/// occurs on every successful exit. A guarded slot can remain unused when the
+/// callee returns only other declared cases. It establishes no case membership
+/// or live claim; the returning occurrence supplies both independently.
 pub fn result_claim_catalog_matches_returns<'returns>(
     catalogue: &[StructuralResultClaimBinding],
     returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
@@ -39,7 +39,6 @@ pub fn result_claim_catalog_matches_returns<'returns>(
     matches_paths(
         catalogue.iter().map(|binding| binding.path.as_slice()),
         returns,
-        true,
     )
 }
 
@@ -51,13 +50,12 @@ pub fn result_claim_paths_match_returns<'returns>(
     catalogue: &[Vec<StructuralPathSegment>],
     returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
 ) -> bool {
-    matches_paths(catalogue.iter().map(Vec::as_slice), returns, false)
+    matches_paths(catalogue.iter().map(Vec::as_slice), returns)
 }
 
 fn matches_paths<'catalogue, 'returns>(
     catalogue: impl IntoIterator<Item = &'catalogue [StructuralPathSegment]>,
     returns: impl IntoIterator<Item = &'returns [StructuralResultClaimBinding]>,
-    require_complete_catalogue: bool,
 ) -> bool {
     let mut catalogue_paths = BTreeSet::new();
     for path in catalogue {
@@ -65,10 +63,7 @@ fn matches_paths<'catalogue, 'returns>(
             return false;
         }
     }
-    let mut returned_paths = BTreeSet::new();
-    let mut has_return = false;
     for bindings in returns {
-        has_return = true;
         let paths = bindings
             .iter()
             .map(|binding| binding.path.as_slice())
@@ -87,7 +82,6 @@ fn matches_paths<'catalogue, 'returns>(
         {
             return false;
         }
-        returned_paths.extend(paths);
     }
-    !require_complete_catalogue || !has_return || returned_paths == catalogue_paths
+    true
 }

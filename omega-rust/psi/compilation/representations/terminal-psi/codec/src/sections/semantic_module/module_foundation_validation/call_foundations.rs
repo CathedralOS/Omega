@@ -603,18 +603,33 @@ fn validate_result_claim_shape(
     module: &TerminalModule,
     actual_result: &StructuralOperationResult,
 ) -> Result<(), CodecError> {
-    let mut result_paths = Vec::with_capacity(actual_result.claims.len());
+    let mut result_paths: Vec<&[StructuralPathSegment]> =
+        Vec::with_capacity(actual_result.claims.len());
     for binding in &actual_result.claims {
         validate_structural_path(module, actual_result.structural_type, &binding.path)?;
-        if result_paths
-            .iter()
-            .any(|previous: &Vec<StructuralPathSegment>| {
-                previous.starts_with(&binding.path) || binding.path.starts_with(previous)
-            })
-        {
-            return malformed("structural call result has overlapping claim paths");
+        terminal_semantics::canonical_static_projection(
+            module.structural_types.iter(),
+            actual_result.structural_type,
+            &binding.path,
+        )
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "structural call result claim is not static owned storage",
+        ))?;
+        for previous in &result_paths {
+            let overlap = terminal_semantics::structural_claim_paths_may_overlap(
+                module.structural_types.iter(),
+                actual_result.structural_type,
+                previous,
+                &binding.path,
+            )
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "structural call result claim is not static owned storage",
+            ))?;
+            if overlap {
+                return malformed("structural call result has overlapping claim paths");
+            }
         }
-        result_paths.push(binding.path.clone());
+        result_paths.push(binding.path.as_slice());
     }
     let caller_result_claims = actual_result
         .claims
