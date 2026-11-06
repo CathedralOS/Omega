@@ -52,13 +52,13 @@ stored zero; the target bodies perform the same consuming call.
 Parent: FILESYSTEM-PLATFORM-SERVICES. The immediate customer is Windows
 handle-relative removal's nested borrowed native input contract.
 
-On source `8c82ca17ac2c`, the unchanged earlier positives all run with native
-and Terminal exit 0 on Linux x86-64; the local project also passes ordinary CLI
-admission and both engines on macOS ARM64. The prior private-consumer twins
-were valid under private helper inference. A nonzero-tail countercheck rejects,
-as does the exported unqualified consumer; exporting its required domain lets
-the qualified consumer check. The current exported-consumer and neighbor-check
-witnesses still need their full fresh execution and rejection record.
+On producer `d58b8ab0f8fed8e2cd06c6fe4197fd20013334e2`, all nine
+positives execute with native and Terminal exit 0 on Linux x64, Linux ARM64,
+macOS ARM64 and Windows x64. Each reject twin reaches the missing stored-field
+qualification at the same public consumer. Nonzero neighbors and both match
+choices make incorrect addresses, stores or branch selection observable.
+The [PR 1880 validation records](https://github.com/CathedralOS/Omega/pull/1880)
+identify the exact producer and each host run.
 
 This row establishes nested qualification transport. The parent Windows
 filesystem-provider acceptance remains separate; a foreign image alone does
@@ -72,10 +72,11 @@ fixtures, each a byte-identical copy of its place program and `build.omg`
 (`ProgramEntry` for all four hosted targets, `Expected exit: 0`), and nine
 `tests/omega/fail/facts/nested_borrow_qualification_through_<place>_rejected`
 twins, each a byte-identical copy of its `invalid/` program pinning the
-diagnostic `cannot prove requires contract`. Refresh their source records in
-[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt) from direct
-runs of those fixture IDs after the current programs are committed. Sample
-observations and pinned-fixture observations retain their own input identities.
+diagnostic `cannot prove requires contract`. Their source records in
+[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt) come from
+direct clean fixture observations at `ee4db530ba1e`. The fresh d58 cohorts
+check these eighteen fixture IDs as well as the corresponding sample projects.
+Fixture and sample observations retain their own input identities.
 
 ## Requirements witnessed
 

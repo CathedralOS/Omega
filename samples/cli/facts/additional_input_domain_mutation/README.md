@@ -44,6 +44,14 @@ therefore fails its runtime oracle; the input fact remains `Cell.value == 0`.
 
 ## Evidence and requirements
 
+Fresh nine-place observations use producer
+`d58b8ab0f8fed8e2cd06c6fe4197fd20013334e2`: every standard positive runs
+with native and Terminal exit 0 on Linux x64, Linux ARM64, macOS ARM64 and
+Windows x64, and every standard twin rejects its false return promise.
+The [PR 1880 validation records](https://github.com/CathedralOS/Omega/pull/1880)
+link those host runs and the separate source controls. The earlier observations
+below retain their original producer identities and additional control scope.
+
 Initial optimized producer
 `ec7f75640e2e0eed5d6558889ef487ca7f4e2d1f` refused the local source's qualified
 record projection and its otherwise-provable write-only input admission. A
@@ -60,8 +68,8 @@ qualification records. The 153-fixture comparison against clean baseline
 `7276fbb60b5cf17423e4978f299e22fdd5ba68ba` lost no outcomes; after integration,
 155 relevant fixtures produced 70 checked and 85 expected rejections with no
 lost success or wrong rejection reason. Raw execution records retain their
-actual producer provenance. Compiler-dependent golden rows will be recorded
-in a scoped follow-up after this compiler is published.
+actual producer provenance. Current changed source records are retained in
+`tests/omega/corpus_outcomes.txt`; the fresh host runs keep their own identities.
 
 - Establishment: the actual source's zero field proves `Before` at the exact
   call, not the formal annotation. Initial value 1 fails that admission.
@@ -81,13 +89,12 @@ in a scoped follow-up after this compiler is published.
   input observation separately from storage requirements. Copies and joins keep
   that distinction, and the Terminal and retained native-plan encodings preserve it.
 - Layout/provider/ABI: existing `u32` record geometry and write-only pointer
-  arguments; all four hosted `ProgramEntry` bindings. Other hosts are not yet
-  execution observations for this change.
+  arguments; all four hosted `ProgramEntry` bindings and fresh native/Terminal
+  execution of the nine standard places on each host.
 - Instruction selection/frame realization: ordinary field stores, helper calls,
   restored loans and caller loads; no special case for this carrier or value.
-- Encoding/native emission: actual emitted macOS ARM64 programs return 0 and
-  agree with Terminal Psi. Other targets retain their authored bindings, not a
-  claim of execution on a different host.
+- Encoding/native emission: actual emitted programs return 0 and agree with
+  Terminal Psi on each of the four hosted targets, under the recorded producer.
 
 Return to the separate `domain_access_authority` fact and Cathedral after this
 prerequisite. Nothing here establishes the full domain-policy acceptance or a
@@ -108,5 +115,6 @@ reject twins to pass. It adds five-profile installations of the same Terminal
 artifact and actual macOS ARM/X86 native execution for the migrated target body.
 It does not establish a new numeric-width, argument-count or ownership mechanism,
 renew unrelated historical row claims, or close the target/native migration
-parent tasks. Windows/Linux native execution and native trap controls remain
-unverified here; wrong-selection controls execute in Terminal Psi.
+parent tasks. The fresh row runs establish Windows and Linux positive execution;
+migration-specific native trap controls remain outside those observations.
+The earlier wrong-selection controls execute in Terminal Psi.
