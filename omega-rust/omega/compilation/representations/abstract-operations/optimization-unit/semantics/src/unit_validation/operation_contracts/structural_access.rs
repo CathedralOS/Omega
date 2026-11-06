@@ -1101,9 +1101,6 @@ pub(crate) fn owned_bounded_owner_loan(
         .is_some_and(|available| available.implies(required))
 }
 
-/// Reconstructs declared custody without deciding whether a particular use is
-/// legal. Literal descriptors have the same source facts at every consumer;
-/// availability, backing access, predicates and ownership are checked separately.
 /// Prepare this function's declared payload inputs once for history replay.
 /// Producer contracts remain declarations until their actual operation is
 /// reached; collecting them supplies no observation, access or body proof.
@@ -1136,8 +1133,16 @@ pub(crate) fn structural_payload_contracts(
         })
         .collect::<Vec<_>>();
     for node in caller.block_nodes() {
-        if let Some(contract) = structural_operation_result_contract(caller, &node.operation) {
-            contracts.push((contract.place, contract.payload_contract()));
+        if let Some(metadata) = node.operation.structural_result_metadata() {
+            let result = metadata.result;
+            contracts.push((
+                result.place,
+                payload(
+                    result.structural_type,
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                ),
+            ));
             continue;
         }
         match &node.operation {
@@ -1162,6 +1167,9 @@ pub(crate) fn structural_payload_contracts(
     contracts
 }
 
+/// Reconstructs declared custody without deciding whether a particular use is
+/// legal. Literal descriptors have the same source facts at every consumer;
+/// availability, backing access, predicates and ownership are checked separately.
 pub(crate) fn structural_source_contract(
     caller: &PsiOptimizationFunction,
     place: PlaceId,
