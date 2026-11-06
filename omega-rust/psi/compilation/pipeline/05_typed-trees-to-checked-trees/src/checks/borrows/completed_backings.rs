@@ -926,6 +926,42 @@ impl Resolver<'_> {
             }
         }
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            let expression = self
+                .program
+                .expression_table
+                .expression_is_valid(operand.expression)
+                .then(|| self.program.expression_table.expression(operand.expression));
+            let receiver = self
+                .facts
+                .flow
+                .control
+                .operands
+                .is_valid(operand.backing)
+                .then(|| self.facts.flow.control.operands.get(operand.backing));
+            let receiver_expression = receiver.and_then(|receiver| {
+                self.program
+                    .expression_table
+                    .expression_is_valid(receiver.expression)
+                    .then(|| {
+                        self.program
+                            .expression_table
+                            .expression(receiver.expression)
+                    })
+            });
+            eprintln!(
+                "CHECKSITE stored-descriptor-source-context capture={capture:?} operand={operand:?} expression_node={expression:?} receiver={receiver:?} receiver_node={receiver_expression:?} referents={:?} address_projection={:?}",
+                self.facts
+                    .flow
+                    .control
+                    .operand_referents
+                    .span(operand.referents),
+                operand.address_projection.and_then(|path| self
+                    .facts
+                    .flow
+                    .control
+                    .operand_child_paths
+                    .span(path.path()))
+            );
             eprintln!(
                 "CHECKSITE stored-descriptor-source-unavailable state={:?} statement={} capture={capture:?} expression={:?} type={:?} completion={:?} backing={:?} retention={:?} source={source:?} path={path:?}",
                 operand.state_symbol,

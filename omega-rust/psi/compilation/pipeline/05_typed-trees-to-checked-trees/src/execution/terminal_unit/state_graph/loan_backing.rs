@@ -588,6 +588,7 @@ fn retained_parents(
         // The resource leaf owns this evaluation cut, including constructed
         // and selected children. Later actuals may have replaced its old slot.
         if !dependencies.captured_storage(resource, leaf.constraints, &mut captured) {
+            dependencies.trace_failure("captured-storage", resource, leaf, None);
             return Err("state loan parents: incomplete captured storage dependencies");
         }
         let loans = match resource.source {
@@ -607,6 +608,7 @@ fn retained_parents(
                 &mut Vec::new(),
                 &mut captured,
             ) {
+                dependencies.trace_failure("captured-loan", resource, leaf, Some(loan));
                 return Err("state loan parents: incomplete captured loan lineage");
             }
         }
@@ -1290,6 +1292,81 @@ struct Dependencies<'a> {
 }
 
 impl Dependencies<'_> {
+    /// Report only an already refused retained-parent query. The bounded
+    /// roster is diagnostic input, never a substitute for complete closure.
+    fn trace_failure(
+        &self,
+        phase: &str,
+        resource: &checked_trees::CheckedCallBorrowLoanResource,
+        leaf: &checked_trees::FlowOperandFact,
+        failed_loan: Option<Handle<checked_trees::BorrowLoanFact>>,
+    ) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+            return;
+        }
+        let incoming = self
+            .facts
+            .borrow
+            .incoming_references
+            .is_valid(resource.backing_incoming_reference)
+            .then(|| {
+                self.facts
+                    .borrow
+                    .incoming_references
+                    .get(resource.backing_incoming_reference)
+            });
+        let loans = self
+            .borrow_state
+            .loans
+            .handles()
+            .take(32)
+            .map(|handle| {
+                if !self.facts.borrow.loans.is_valid(handle) {
+                    return (handle, None);
+                }
+                let loan = self.facts.borrow.loans.get(handle);
+                let incoming = self
+                    .facts
+                    .borrow
+                    .incoming_references
+                    .is_valid(loan.incoming_reference)
+                    .then(|| {
+                        self.facts
+                            .borrow
+                            .incoming_references
+                            .get(loan.incoming_reference)
+                    });
+                (
+                    handle,
+                    Some((
+                        loan,
+                        self.facts.borrow.owner_segments.span(loan.owner_path),
+                        self.facts
+                            .borrow
+                            .access_segments
+                            .span(loan.incoming_owner_path),
+                        incoming,
+                    )),
+                )
+            })
+            .collect::<Vec<_>>();
+        eprintln!(
+            "CHECKSITE retained-parent-failure phase={phase} state={:?} statement={} failed_loan={failed_loan:?} resource={resource:?} leaf={leaf:?} incoming={incoming:?} backing_owner={:?} backing_path={:?} root_grants={:?} state_loan_count={} first_32_loans={loans:?}",
+            self.state,
+            self.statement,
+            self.facts
+                .borrow
+                .call_loan_backing_paths
+                .span(resource.backing_incoming_owner_path),
+            self.facts
+                .borrow
+                .call_loan_backing_paths
+                .span(resource.backing_path),
+            self.root_grants,
+            self.borrow_state.loans.count()
+        );
+    }
+
     fn root_grant(
         &self,
         handle: Handle<checked_trees::IncomingReferenceIdentity>,
@@ -1785,24 +1862,39 @@ impl Dependencies<'_> {
             else {
                 return false;
             };
-            let same_output_supplier = suppliers.iter().any(|parent| {
-                self.facts.borrow.loans.is_valid(*parent) && {
-                    let source = self.facts.borrow.loans.get(*parent);
+            let same_output = |parent| {
+                self.facts.borrow.state_owns_loan(self.borrow_state, parent) && {
+                    let source = self.facts.borrow.loans.get(parent);
                     source.incoming_reference == loan.incoming_reference
                         && self
                             .facts
                             .borrow
                             .access_segments
-                            .span_or_empty(source.incoming_owner_path)
-                            == self
-                                .facts
-                                .borrow
-                                .access_segments
-                                .span_or_empty(loan.incoming_owner_path)
+                            .span(source.incoming_owner_path)
+                            .zip(
+                                self.facts
+                                    .borrow
+                                    .access_segments
+                                    .span(loan.incoming_owner_path),
+                            )
+                            .is_some_and(|(source, current)| source == current)
                         && source.root == loan.root
                 }
-            });
-            if self.facts.borrow.output_origin_call(handle).is_none() && !same_output_supplier {
+            };
+            let same_output_supplier = suppliers.iter().copied().any(same_output);
+            // A performed reborrow keeps its immediate parent's output
+            // namespace even when it has no additional supplier rows. The
+            // recursive walk below still validates that parent and all debts.
+            let same_output_parent = match loan.lineage {
+                checked_trees::BorrowLoanLineage::Reborrow { parent_loan } => {
+                    same_output(parent_loan)
+                }
+                _ => false,
+            };
+            if self.facts.borrow.output_origin_call(handle).is_none()
+                && !same_output_supplier
+                && !same_output_parent
+            {
                 return false;
             }
         }

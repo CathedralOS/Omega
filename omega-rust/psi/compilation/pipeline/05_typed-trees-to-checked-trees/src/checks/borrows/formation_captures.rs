@@ -14,7 +14,11 @@ pub(super) fn descriptor_capture(
     while facts.flow.control.operands.is_valid(capture) && !visited.contains(&capture) {
         visited.push(capture);
         let row = facts.flow.control.operands.get(capture);
-        if validation::reference_shell(program, row.type_reference).is_some() {
+        if validation::reference_shell(program, row.type_reference).is_some()
+            && !row
+                .address_projection
+                .is_some_and(|projection| projection.forms_view())
+        {
             return Some(capture);
         }
         row.address_projection?;
@@ -69,7 +73,11 @@ pub(super) fn address_receiver(
     while facts.flow.control.operands.is_valid(capture) && !visited.contains(&capture) {
         visited.push(capture);
         let row = facts.flow.control.operands.get(capture);
-        if validation::reference_shell(program, row.type_reference).is_some() {
+        if validation::reference_shell(program, row.type_reference).is_some()
+            && !row
+                .address_projection
+                .is_some_and(|projection| projection.forms_view())
+        {
             return AddressReceiver::Reference {
                 capture,
                 projection,
@@ -80,7 +88,7 @@ pub(super) fn address_receiver(
             // The address owner separately authenticates its completed places.
             return AddressReceiver::InlineValue;
         };
-        let Some(path) = facts.flow.control.operand_child_paths.span(path) else {
+        let Some(path) = facts.flow.control.operand_child_paths.span(path.path()) else {
             return AddressReceiver::Unavailable;
         };
         let mut complete = path.to_vec();

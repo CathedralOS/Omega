@@ -13,7 +13,8 @@ use optimization_unit::SourceCheckedScalarReceiving;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
 use semantic_vocabulary::ObligationId;
 use semantic_vocabulary::{
-    BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
+    BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralDomainId,
+    StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_codec::canonical_proposition_order_key;
@@ -24,19 +25,27 @@ use terminal_semantics::indexed_byte_store_goal;
 use terminal_semantics::projected_field_declaration;
 use terminal_semantics::runtime_structural_path_tip;
 
-pub(super) struct UnitIndexes<'a> {
-    pub(super) machines: BTreeMap<MachineId, &'a PsiOptimizationFunction>,
-    pub(super) boundary_machines:
-        BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
-    pub(super) services: BTreeMap<ServiceId, &'a terminal_psi::ServiceDeclaration>,
-    pub(super) pruned: BTreeSet<MachineId>,
+/// The existing catalog owner prepares one exact unit before any body replay.
+/// Holding these rows asserts no function completion or final authority.
+pub(crate) struct PreparedUnitCatalogs<'unit> {
+    unit: &'unit PsiOptimizationUnit,
+    pub(super) machines: BTreeMap<MachineId, &'unit PsiOptimizationFunction>,
+    boundary_machines: BTreeMap<BoundaryMachineId, &'unit terminal_psi::BoundaryMachineDeclaration>,
+    services: BTreeMap<ServiceId, &'unit terminal_psi::ServiceDeclaration>,
+    structural_types: BTreeMap<StructuralTypeId, &'unit terminal_psi::StructuralTypeDeclaration>,
+    structural_domains:
+        BTreeMap<StructuralDomainId, &'unit terminal_psi::StructuralDomainDeclaration>,
+    pruned: BTreeSet<MachineId>,
+}
+
+pub(super) struct UnitIndexes<'unit> {
+    pub(super) catalogs: PreparedUnitCatalogs<'unit>,
     pub(super) ownership_frontiers: Vec<optimization_unit::OwnershipFrontierFact>,
 }
 
-pub(super) fn index_and_validate_unit_catalogs<'unit>(
+pub(crate) fn prepare_unit_catalogs<'unit>(
     unit: &'unit PsiOptimizationUnit,
-    cycle_policy: &function_structure::ControlCyclePolicy,
-) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
+) -> Result<PreparedUnitCatalogs<'unit>, OptimizationUnitValidationError> {
     // Strict order is what lets `PsiOptimizationUnit::function` binary search.
     if let Some(pair) = unit
         .functions
@@ -114,29 +123,45 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     }
     let services = index_service_catalog(unit)?;
     let (structural_types, structural_domains) = index_structural_catalogs(unit)?;
-    validate_dynamic_catalog(unit, &machines, &structural_types)?;
+    let catalogs = PreparedUnitCatalogs {
+        unit,
+        machines,
+        boundary_machines,
+        services,
+        structural_types,
+        structural_domains,
+        pruned,
+    };
+    catalogs.validate_dynamic_catalog()?;
     for boundary in &unit.boundary_machines {
-        if !valid_service_ceiling(&boundary.published_service_ceiling, &services) {
+        if !valid_service_ceiling(&boundary.published_service_ceiling, &catalogs.services) {
             return Err(
                 OptimizationUnitValidationError::InvalidBoundaryServiceCeiling(boundary.id),
             );
         }
-        if !boundary_structural_signature_matches(boundary, &structural_types, &structural_domains)
-        {
+        if !boundary_structural_signature_matches(
+            boundary,
+            &catalogs.structural_types,
+            &catalogs.structural_domains,
+        ) {
             return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
                 machine: None,
             });
         }
     }
-    validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
-    let function_catalogs = function_structure::FunctionCatalogs {
-        unit,
-        functions: &machines,
-        boundary_machines: &boundary_machines,
-        services: &services,
-        structural_types: &structural_types,
-        structural_domains: &structural_domains,
-    };
+    validate_provider_service_refinements(unit, &catalogs.machines, &catalogs.boundary_machines)?;
+    Ok(catalogs)
+}
+
+pub(super) fn index_and_validate_unit_catalogs<'unit>(
+    unit: &'unit PsiOptimizationUnit,
+    cycle_policy: &function_structure::ControlCyclePolicy,
+) -> Result<UnitIndexes<'unit>, OptimizationUnitValidationError> {
+    let catalogs = prepare_unit_catalogs(unit)?;
+    let function_catalogs = catalogs.function_catalogs();
+    let machines = function_catalogs.functions;
+    let boundary_machines = function_catalogs.boundary_machines;
+    let structural_types = function_catalogs.structural_types;
     let mut call_accesses = crate::current_ownership::CallAccesses::new(
         &machines,
         boundary_machines.values().copied(),
@@ -144,15 +169,15 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         &structural_types,
         &unit.structural_types,
     );
-    let output_catalog = crate::reference_outputs::reconstruct_reference_output_catalog(
-        unit,
+    let output_catalog = crate::reference_outputs::prepare_reference_output_catalog(
+        &function_catalogs,
         &unit
             .functions
             .iter()
             .filter(|function| cycle_policy.admits(function.machine))
             .map(|function| function.machine)
             .collect::<Vec<_>>(),
-        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
+        &[],
     )?;
     call_accesses
         .references
@@ -170,8 +195,20 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         })
         .then(|| crate::descriptor_results::optimized_graph(unit))
         .flatten();
+    let borrowed_graph = reference_graph.as_ref().and_then(|_| {
+        crate::descriptor_results::optimized_borrowed_storage_catalog_graph(
+            unit.functions.iter(),
+            boundary_machines.values().copied(),
+            &unit.structural_types,
+            &unit.dynamic_dispatch,
+        )
+    });
     let mut reference_memberships = reference_graph.as_ref().map(|graph| {
-        function_structure::ReferenceMembershipValidation::new(&unit.structural_types, graph)
+        function_structure::ReferenceMembershipValidation::new(
+            &unit.structural_types,
+            graph,
+            borrowed_graph.as_deref(),
+        )
     });
     let mut descriptor_requirements = BTreeMap::new();
     let mut ownership_frontiers = Vec::new();
@@ -194,230 +231,246 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         call_accesses.view_graph(),
     )?;
     Ok(UnitIndexes {
-        machines,
-        boundary_machines,
-        services,
-        pruned,
+        catalogs,
         ownership_frontiers,
     })
 }
 
-fn validate_dynamic_catalog(
-    unit: &PsiOptimizationUnit,
-    machines: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<(), OptimizationUnitValidationError> {
-    let invalid = || OptimizationUnitValidationError::DynamicDispatchCatalogMismatch;
-    for (ordinal, interface) in unit.dynamic_dispatch.interfaces.iter().enumerate() {
-        if usize::try_from(interface.id).ok() != Some(ordinal)
-            || interface.identity == terminal_psi::TerminalIdentityIndex::ABSENT
-        {
-            return Err(invalid());
+impl<'unit> PreparedUnitCatalogs<'unit> {
+    pub(crate) fn function_catalogs(&self) -> function_structure::FunctionCatalogs<'_, 'unit> {
+        function_structure::FunctionCatalogs {
+            unit: self.unit,
+            functions: &self.machines,
+            boundary_machines: &self.boundary_machines,
+            services: &self.services,
+            structural_types: &self.structural_types,
+            structural_domains: &self.structural_domains,
         }
-        for (ordinal, slot) in interface.slots.iter().enumerate() {
-            terminal_semantics::validate_dynamic_reference_regions(types.values().copied(), slot)
-                .map_err(
-                |reason| OptimizationUnitValidationError::DynamicReferenceContract {
-                    interface: interface.id,
-                    slot: slot.slot,
-                    reason,
-                },
-            )?;
-            if usize::try_from(slot.slot).ok() != Some(ordinal)
-                || slot.declaring_trait_identity == terminal_psi::TerminalIdentityIndex::ABSENT
-                || slot.requirement_identity == terminal_psi::TerminalIdentityIndex::ABSENT
-                || slot
-                    .structural_parameters
-                    .iter()
-                    .any(|formal| !types.contains_key(&formal.structural_type))
+    }
+
+    fn validate_dynamic_catalog(&self) -> Result<(), OptimizationUnitValidationError> {
+        let unit = self.unit;
+        let machines = &self.machines;
+        let types = &self.structural_types;
+        let invalid = || OptimizationUnitValidationError::DynamicDispatchCatalogMismatch;
+        for (ordinal, interface) in unit.dynamic_dispatch.interfaces.iter().enumerate() {
+            if usize::try_from(interface.id).ok() != Some(ordinal)
+                || interface.identity == terminal_psi::TerminalIdentityIndex::ABSENT
             {
                 return Err(invalid());
             }
-            if slot
-                .result_claim_paths
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
-            {
-                return Err(invalid());
-            }
-            match &slot.result {
-                terminal_psi::BoundaryMachineResult::Unit
-                | terminal_psi::BoundaryMachineResult::Scalar(_) => {
-                    if !slot.result_claim_paths.is_empty() {
-                        return Err(invalid());
+            for (ordinal, slot) in interface.slots.iter().enumerate() {
+                terminal_semantics::validate_dynamic_reference_regions(
+                    types.values().copied(),
+                    slot,
+                )
+                .map_err(|reason| {
+                    OptimizationUnitValidationError::DynamicReferenceContract {
+                        interface: interface.id,
+                        slot: slot.slot,
+                        reason,
                     }
+                })?;
+                if usize::try_from(slot.slot).ok() != Some(ordinal)
+                    || slot.declaring_trait_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+                    || slot.requirement_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+                    || slot
+                        .structural_parameters
+                        .iter()
+                        .any(|formal| !types.contains_key(&formal.structural_type))
+                {
+                    return Err(invalid());
                 }
-                terminal_psi::BoundaryMachineResult::Structural(result) => {
-                    if !types.contains_key(&result.structural_type)
-                        || match result.multiplicity {
-                            terminal_psi::StructuralMultiplicity::Unrestricted => {
-                                !slot.result_claim_paths.is_empty()
+                if slot
+                    .result_claim_paths
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(invalid());
+                }
+                match &slot.result {
+                    terminal_psi::BoundaryMachineResult::Unit
+                    | terminal_psi::BoundaryMachineResult::Scalar(_) => {
+                        if !slot.result_claim_paths.is_empty() {
+                            return Err(invalid());
+                        }
+                    }
+                    terminal_psi::BoundaryMachineResult::Structural(result) => {
+                        if !types.contains_key(&result.structural_type)
+                            || match result.multiplicity {
+                                terminal_psi::StructuralMultiplicity::Unrestricted => {
+                                    !slot.result_claim_paths.is_empty()
+                                }
+                                terminal_psi::StructuralMultiplicity::Linear => {
+                                    !matches!(slot.result_claim_paths.as_slice(), [path] if path.is_empty())
+                                }
+                                terminal_psi::StructuralMultiplicity::Affine => {
+                                    slot.result_claim_paths.iter().any(Vec::is_empty)
+                                }
                             }
-                            terminal_psi::StructuralMultiplicity::Linear => {
-                                !matches!(slot.result_claim_paths.as_slice(), [path] if path.is_empty())
-                            }
-                            terminal_psi::StructuralMultiplicity::Affine => {
-                                slot.result_claim_paths.iter().any(Vec::is_empty)
+                        {
+                            return Err(invalid());
+                        }
+                        for (position, path) in slot.result_claim_paths.iter().enumerate() {
+                            if path.iter().any(|segment| {
+                                !matches!(
+                                    segment,
+                                    terminal_psi::StructuralPathSegment::Field(_)
+                                        | terminal_psi::StructuralPathSegment::Case(_)
+                                        | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                                )
+                            }) || resolve_structural_path(types, result.structural_type, path)
+                                .is_none()
+                                || slot.result_claim_paths[..position].iter().any(|previous| {
+                                    path.starts_with(previous) || previous.starts_with(path)
+                                })
+                            {
+                                return Err(invalid());
                             }
                         }
-                    {
-                        return Err(invalid());
                     }
-                    for (position, path) in slot.result_claim_paths.iter().enumerate() {
-                        if path.iter().any(|segment| {
+                }
+                if slot
+                    .entry_claim_paths
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(invalid());
+                }
+                for (claim_position, claim) in slot.entry_claim_paths.iter().enumerate() {
+                    let Some(formal) = slot
+                        .structural_parameters
+                        .get(claim.argument_index as usize)
+                    else {
+                        return Err(invalid());
+                    };
+                    if formal.access != terminal_psi::StructuralAccess::Owned
+                        || formal.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                        || (claim.path.is_empty()
+                            && formal.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
+                        || claim.path.iter().any(|segment| {
                             !matches!(
                                 segment,
                                 terminal_psi::StructuralPathSegment::Field(_)
                                     | terminal_psi::StructuralPathSegment::Case(_)
                                     | terminal_psi::StructuralPathSegment::FixedIndex(_)
                             )
-                        }) || resolve_structural_path(types, result.structural_type, path)
+                        })
+                        || resolve_structural_path(types, formal.structural_type, &claim.path)
                             .is_none()
-                            || slot.result_claim_paths[..position].iter().any(|previous| {
-                                path.starts_with(previous) || previous.starts_with(path)
+                        || slot.entry_claim_paths[..claim_position]
+                            .iter()
+                            .any(|previous| {
+                                previous.argument_index == claim.argument_index
+                                    && (previous.path.starts_with(&claim.path)
+                                        || claim.path.starts_with(&previous.path))
                             })
-                        {
-                            return Err(invalid());
-                        }
+                    {
+                        return Err(invalid());
                     }
                 }
+                // Even a slot without any executable rows must describe complete
+                // disposal custody; table absence cannot authorize a malformed shape.
+                if slot
+                    .structural_parameters
+                    .iter()
+                    .enumerate()
+                    .any(|(argument_index, formal)| {
+                        formal.access == terminal_psi::StructuralAccess::Owned
+                            && formal.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                            && !slot
+                                .entry_claim_paths
+                                .iter()
+                                .any(|claim| claim.argument_index as usize == argument_index)
+                    })
+                {
+                    return Err(invalid());
+                }
             }
-            if slot
-                .entry_claim_paths
-                .windows(2)
-                .any(|pair| pair[0] >= pair[1])
+        }
+        for (ordinal, table) in unit.dynamic_dispatch.tables.iter().enumerate() {
+            let interface = unit
+                .dynamic_dispatch
+                .interface(table.interface)
+                .ok_or_else(invalid)?;
+            if usize::try_from(table.id).ok() != Some(ordinal)
+                || table.implementation_identity == terminal_psi::TerminalIdentityIndex::ABSENT
+                || table.rows.len() != interface.slots.len()
             {
                 return Err(invalid());
             }
-            for (claim_position, claim) in slot.entry_claim_paths.iter().enumerate() {
-                let Some(formal) = slot
-                    .structural_parameters
-                    .get(claim.argument_index as usize)
-                else {
-                    return Err(invalid());
+            for (row, slot) in table.rows.iter().zip(&interface.slots) {
+                let Some(machine) = row else {
+                    continue;
                 };
-                if formal.access != terminal_psi::StructuralAccess::Owned
-                    || formal.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                    || (claim.path.is_empty()
-                        && formal.multiplicity != terminal_psi::StructuralMultiplicity::Linear)
-                    || claim.path.iter().any(|segment| {
-                        !matches!(
-                            segment,
-                            terminal_psi::StructuralPathSegment::Field(_)
-                                | terminal_psi::StructuralPathSegment::Case(_)
-                                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                let function = machines.get(machine).ok_or_else(invalid)?;
+                let result_matches = match &function.result {
+                    abstract_operations::AbstractFunctionResult::Unit => slot.result.is_unit(),
+                    abstract_operations::AbstractFunctionResult::Scalar(result) => {
+                        slot.result.scalar() == Some(result.scalar_type)
+                    }
+                    abstract_operations::AbstractFunctionResult::Structural(result) => {
+                        terminal_semantics::reference_result_refines_regions(
+                            types.values().copied(),
+                            &function.structural_parameters,
+                            result,
+                            &slot.result_reference_regions,
+                        ) && slot.result.matches_machine_result(
+                            &terminal_psi::TerminalMachineResult::Structural(result.clone()),
                         )
-                    })
-                    || resolve_structural_path(types, formal.structural_type, &claim.path).is_none()
-                    || slot.entry_claim_paths[..claim_position]
+                    }
+                } && terminal_semantics::result_claim_paths_match_returns(
+                    &slot.result_claim_paths,
+                    function
+                        .block_nodes()
+                        .filter_map(|node| match &node.operation {
+                            abstract_operations::AbstractOperation::ReturnStructural {
+                                returned_claims,
+                                ..
+                            } => Some(returned_claims.as_slice()),
+                            _ => None,
+                        }),
+                );
+                if !result_matches
+                    || crate::unit_validation::operation_contracts::function_entry_claim_paths(
+                        function,
+                    )
+                    .as_ref()
+                        != Some(&slot.entry_claim_paths)
+                    || function.parameters.len() != slot.scalar_parameters.len()
+                    || !function
+                        .parameters
                         .iter()
-                        .any(|previous| {
-                            previous.argument_index == claim.argument_index
-                                && (previous.path.starts_with(&claim.path)
-                                    || claim.path.starts_with(&previous.path))
+                        .zip(&slot.scalar_parameters)
+                        .all(|(actual, formal)| actual.scalar_type == *formal)
+                    || function.structural_parameters.len() != slot.structural_parameters.len()
+                    || !function
+                        .structural_parameters
+                        .iter()
+                        .zip(&slot.structural_parameters)
+                        .all(|(actual, formal)| {
+                            // Compare the same place-free signature projection
+                            // used at the call site. The present requirement
+                            // schema exposes empty qualification rosters; reject
+                            // stronger private preconditions rather than infer
+                            // caller authority from one executable table row.
+                            let actual = abstract_operations::StructuralCallFormal::from(actual);
+                            let formal = abstract_operations::StructuralCallFormal::from(formal);
+                            actual.position == formal.position
+                                && actual.structural_type == formal.structural_type
+                                && actual.multiplicity == formal.multiplicity
+                                && actual.access == formal.access
+                                && actual.qualifications == formal.qualifications
+                                && actual.projected_qualifications
+                                    == formal.projected_qualifications
                         })
                 {
                     return Err(invalid());
                 }
             }
-            // Even a slot without any executable rows must describe complete
-            // disposal custody; table absence cannot authorize a malformed shape.
-            if slot
-                .structural_parameters
-                .iter()
-                .enumerate()
-                .any(|(argument_index, formal)| {
-                    formal.access == terminal_psi::StructuralAccess::Owned
-                        && formal.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-                        && !slot
-                            .entry_claim_paths
-                            .iter()
-                            .any(|claim| claim.argument_index as usize == argument_index)
-                })
-            {
-                return Err(invalid());
-            }
         }
+        Ok(())
     }
-    for (ordinal, table) in unit.dynamic_dispatch.tables.iter().enumerate() {
-        let interface = unit
-            .dynamic_dispatch
-            .interface(table.interface)
-            .ok_or_else(invalid)?;
-        if usize::try_from(table.id).ok() != Some(ordinal)
-            || table.implementation_identity == terminal_psi::TerminalIdentityIndex::ABSENT
-            || table.rows.len() != interface.slots.len()
-        {
-            return Err(invalid());
-        }
-        for (row, slot) in table.rows.iter().zip(&interface.slots) {
-            let Some(machine) = row else {
-                continue;
-            };
-            let function = machines.get(machine).ok_or_else(invalid)?;
-            let result_matches = match &function.result {
-                abstract_operations::AbstractFunctionResult::Unit => slot.result.is_unit(),
-                abstract_operations::AbstractFunctionResult::Scalar(result) => {
-                    slot.result.scalar() == Some(result.scalar_type)
-                }
-                abstract_operations::AbstractFunctionResult::Structural(result) => {
-                    terminal_semantics::reference_result_refines_regions(
-                        types.values().copied(),
-                        &function.structural_parameters,
-                        result,
-                        &slot.result_reference_regions,
-                    ) && slot.result.matches_machine_result(
-                        &terminal_psi::TerminalMachineResult::Structural(result.clone()),
-                    )
-                }
-            } && terminal_semantics::result_claim_paths_match_returns(
-                &slot.result_claim_paths,
-                function
-                    .block_nodes()
-                    .filter_map(|node| match &node.operation {
-                        abstract_operations::AbstractOperation::ReturnStructural {
-                            returned_claims,
-                            ..
-                        } => Some(returned_claims.as_slice()),
-                        _ => None,
-                    }),
-            );
-            if !result_matches
-                || crate::unit_validation::operation_contracts::function_entry_claim_paths(function)
-                    .as_ref()
-                    != Some(&slot.entry_claim_paths)
-                || function.parameters.len() != slot.scalar_parameters.len()
-                || !function
-                    .parameters
-                    .iter()
-                    .zip(&slot.scalar_parameters)
-                    .all(|(actual, formal)| actual.scalar_type == *formal)
-                || function.structural_parameters.len() != slot.structural_parameters.len()
-                || !function
-                    .structural_parameters
-                    .iter()
-                    .zip(&slot.structural_parameters)
-                    .all(|(actual, formal)| {
-                        // Compare the same place-free signature projection
-                        // used at the call site. The present requirement
-                        // schema exposes empty qualification rosters; reject
-                        // stronger private preconditions rather than infer
-                        // caller authority from one executable table row.
-                        let actual = abstract_operations::StructuralCallFormal::from(actual);
-                        let formal = abstract_operations::StructuralCallFormal::from(formal);
-                        actual.position == formal.position
-                            && actual.structural_type == formal.structural_type
-                            && actual.multiplicity == formal.multiplicity
-                            && actual.access == formal.access
-                            && actual.qualifications == formal.qualifications
-                            && actual.projected_qualifications == formal.projected_qualifications
-                    })
-            {
-                return Err(invalid());
-            }
-        }
-    }
-    Ok(())
 }
 
 fn validate_structural_field_range_authority(
@@ -1193,13 +1246,13 @@ pub(super) fn validate_final_authorities(
     unit: &PsiOptimizationUnit,
     indexes: &UnitIndexes<'_>,
 ) -> Result<(), OptimizationUnitValidationError> {
-    let UnitIndexes {
+    let PreparedUnitCatalogs {
         machines,
         boundary_machines,
         services,
         pruned,
         ..
-    } = indexes;
+    } = &indexes.catalogs;
     for fact in &unit.ownership_frontier_facts {
         if unit.function(fact.machine).is_none() && !pruned.contains(&fact.machine) {
             return Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch);
