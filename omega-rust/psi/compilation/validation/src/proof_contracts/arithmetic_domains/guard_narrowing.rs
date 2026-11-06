@@ -471,6 +471,79 @@ pub(crate) fn fall_through_narrowed_environment(
     evaluated_condition_environment(program, machine, state, *guard_expr, false, &environment)
 }
 
+/// Push ordered facts through the intervals already recorded.
+///
+/// `count < ceiling && ceiling <= 64` records the order before `ceiling`'s
+/// high endpoint exists, so `count` would otherwise keep its carrier high.
+/// Each pass only tightens an interval; a fixed number of passes is enough
+/// for a chain of operand bounds and cannot invent a wider one.
+fn project_ordered_intervals(environment: &mut ValueEnvironment) {
+    for _ in 0..8 {
+        let mut changed = false;
+        let relations = environment.ordered_values.clone();
+        for relation in &relations {
+            let ordered_values::RelationConstraint::MinimumDifference(distance) =
+                relation.constraint
+            else {
+                continue;
+            };
+            if let (Some(left_high), Some(path)) = (
+                operand_interval_high(environment, &relation.left),
+                relation.right.static_path(),
+            ) && let Some(high) = left_high.checked_sub(distance)
+            {
+                let before = environment.get(&path);
+                environment.narrow(
+                    path.clone(),
+                    Interval {
+                        low: None,
+                        high: Some(high),
+                    },
+                );
+                changed |= environment.get(&path) != before;
+            }
+            if let (Some(right_low), Some(path)) = (
+                operand_interval_low(environment, &relation.right),
+                relation.left.static_path(),
+            ) && let Some(low) = right_low.checked_add(distance)
+            {
+                let before = environment.get(&path);
+                environment.narrow(
+                    path.clone(),
+                    Interval {
+                        low: Some(low),
+                        high: None,
+                    },
+                );
+                changed |= environment.get(&path) != before;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
+fn operand_interval_high(
+    environment: &ValueEnvironment,
+    operand: &ordered_values::Operand,
+) -> Option<i64> {
+    match operand {
+        ordered_values::Operand::Integer(literal, _) => literal.value_i64(),
+        other => environment.get(&other.static_path()?)?.high,
+    }
+}
+
+fn operand_interval_low(
+    environment: &ValueEnvironment,
+    operand: &ordered_values::Operand,
+) -> Option<i64> {
+    match operand {
+        ordered_values::Operand::Integer(literal, _) => literal.value_i64(),
+        other => environment.get(&other.static_path()?)?.low,
+    }
+}
+
 /// Narrow `environment` by a guard condition holding with the given polarity,
 /// recursing through the boolean structure: a POSITIVE `a && b` narrows by
 /// both conjuncts (each may bound a DIFFERENT place -- `dir >= 0 && dir <= 1`
@@ -479,6 +552,28 @@ pub(crate) fn fall_through_narrowed_environment(
 /// attribute which side holds, so it leaves the environment unchanged (sound). Leaves
 /// are the existing simple `place <OP> literal` comparisons.
 pub(super) fn narrow_environment_by_condition(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &mut ValueEnvironment,
+    condition: ExpressionHandle,
+    positive: bool,
+) {
+    narrow_environment_by_condition_inner(
+        program,
+        machine,
+        state,
+        environment,
+        condition,
+        positive,
+    );
+    // A conjunction records `count < ceiling` before `ceiling <= 64` has
+    // tightened `ceiling`. Project ordered facts once the whole condition
+    // is in the environment so the earlier relation sees the later bound.
+    project_ordered_intervals(environment);
+}
+
+fn narrow_environment_by_condition_inner(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
@@ -495,7 +590,7 @@ pub(super) fn narrow_environment_by_condition(
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)
         && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
     {
-        narrow_environment_by_condition(
+        narrow_environment_by_condition_inner(
             program,
             machine,
             state,
@@ -510,7 +605,14 @@ pub(super) fn narrow_environment_by_condition(
     // observed true is `x < 4`, so a snapshot bound on `ok` keeps that arm's
     // comparison exactly as a spelled one would.
     if let Some(arm_value) = meaning::match_result_unique_arm(program, condition, positive) {
-        narrow_environment_by_condition(program, machine, state, environment, arm_value, positive);
+        narrow_environment_by_condition_inner(
+            program,
+            machine,
+            state,
+            environment,
+            arm_value,
+            positive,
+        );
         return;
     }
     let Some(comparison) =
@@ -564,7 +666,7 @@ pub(super) fn narrow_environment_by_comparison(
             }
             let operand_positive =
                 positive == (value == (comparison.operator == BinaryOperator::Equal));
-            narrow_environment_by_condition(
+            narrow_environment_by_condition_inner(
                 program,
                 machine,
                 state,
@@ -578,14 +680,35 @@ pub(super) fn narrow_environment_by_comparison(
     match comparison.operator {
         BinaryOperator::And if positive => {
             let (left, right) = (comparison.left, comparison.right);
-            narrow_environment_by_condition(program, machine, state, environment, left, true);
-            narrow_environment_by_condition(program, machine, state, environment, right, true);
+            narrow_environment_by_condition_inner(program, machine, state, environment, left, true);
+            narrow_environment_by_condition_inner(
+                program,
+                machine,
+                state,
+                environment,
+                right,
+                true,
+            );
             return;
         }
         BinaryOperator::Or if !positive => {
             let (left, right) = (comparison.left, comparison.right);
-            narrow_environment_by_condition(program, machine, state, environment, left, false);
-            narrow_environment_by_condition(program, machine, state, environment, right, false);
+            narrow_environment_by_condition_inner(
+                program,
+                machine,
+                state,
+                environment,
+                left,
+                false,
+            );
+            narrow_environment_by_condition_inner(
+                program,
+                machine,
+                state,
+                environment,
+                right,
+                false,
+            );
             return;
         }
         BinaryOperator::And | BinaryOperator::Or => return,
