@@ -729,7 +729,16 @@ mod resolution_payload_tests {
 
     #[test]
     fn payload_comparison_keeps_authority_on_the_last_of_three_fields() {
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let carrier = identities.intern("Carrier");
         let left = StructuralTerm::Constructor {
+            identity: super::super::ConstructorIdentity::Nominal {
+                carrier,
+                reference: TypeReferenceHandle::from_arena_index(1),
+                declaration: symbols::SymbolHandle::from_arena_index(1),
+                case: None,
+                member: None,
+            },
             data: "Carrier".to_owned(),
             case: "Only".to_owned(),
             fields: ["first", "second", "third"]
