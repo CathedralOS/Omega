@@ -22,6 +22,7 @@ mod history;
 mod plan;
 mod process;
 mod profiling;
+mod progress;
 mod records;
 mod statistics;
 mod suite;
@@ -32,11 +33,28 @@ fn main() {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     if arguments.len() == 1 && (arguments[0] == "--help" || arguments[0] == "-h") {
         println!(
-            "omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <phase|allocations|wpr|perf-stat|perf-record> <new-result-directory>"
+            "omega-bench compare <plan.json> <new-result-directory>\nomega-bench suite <suite.json> <new-result-directory>\nomega-bench validate <run-directory>\nomega-bench show <run-directory>\nomega-bench check <run-directory> <maximum-regression-percent>\nomega-bench history <old-run-directory> <new-run-directory>\nomega-bench profile <plan.json> <baseline|candidate> <phase|allocations|wpr|perf-stat|perf-record> <new-result-directory>
+omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>] [--completion]"
         );
         return;
     }
     let command = arguments.first().and_then(|argument| argument.to_str());
+    if command == Some("progress") {
+        let options: Option<Vec<String>> = arguments[1..]
+            .iter()
+            .map(|argument| argument.to_str().map(str::to_owned))
+            .collect();
+        match options
+            .ok_or("progress arguments must be UTF-8".to_owned())
+            .and_then(|options| progress::run(&options))
+        {
+            Ok(()) => return,
+            Err(error) => {
+                eprintln!("omega-bench: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
     if arguments.len() == 3 && command == Some("history") {
         match history::compare(Path::new(&arguments[1]), Path::new(&arguments[2])).and_then(
             |report| serde_json::to_string_pretty(&report).map_err(|error| error.to_string()),
