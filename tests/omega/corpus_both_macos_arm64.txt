@@ -70,6 +70,8 @@ pass/build/installed_entry_ram_stack_occurrence_exit built 6001ms exit:0 entry-r
 pass/build/named_map_target_family_rows_exit built 76481ms exit:70 interpreter-exit:70 interpreter:agrees @0d0998b4be90
 pass/build/native_component_case_cycle built 1825ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/build/native_component_case_loan_cycle built 1179ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
+pass/build/optional_build_product_exit built 6249ms exit:0 interpreter-exit:0 interpreter:agrees @057733a0ad15
+pass/build/optional_product_only_exit built 5691ms exit:0 interpreter-exit:0 interpreter:agrees @057733a0ad15
 pass/build/package_batch_distinct_builds built 5140ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
 pass/build/package_owned_callable_identity built 1676ms exit:0 interpreter-exit:0 interpreter:agrees @946b56944a1b
 pass/build/policy_array_entry_context_exit built 4784ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
