@@ -52,24 +52,24 @@ def expected_exit(root, fixture, target):
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
     inspection_machines(project)
-    if not oracles["exit"] and relative.parts[:2] == ("samples", "cli"):
-        declared_exit, _ = oracle(project)
-        if declared_exit is not None:
-            return require_interpreter_exit(project, declared_exit)
-    if not oracles["exit"]:
-        raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
-    text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
-    if not re.fullmatch(r"-?\d+", text):
-        raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
-    return require_interpreter_exit(project, int(text))
-
-
-def require_interpreter_exit(project, expected):
-    path = project / "expected_interpreter_exit.txt"
-    if path.is_file():
-        text = path.read_text(encoding="utf-8").strip()
-        if not re.fullmatch(r"-?\d+", text) or int(text) != expected:
-            raise ValueError("ordinary CLI requires the authored native and interpreter exits to agree")
+    if oracles["exit"]:
+        text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"-?\d+", text):
+            raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
+        expected = int(text)
+    else:
+        expected = oracle(project)[0] if relative.parts[:2] == ("samples", "cli") else None
+        if expected is None:
+            raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
+    # A corpus fixture can declare both engine exits. The product's --both
+    # command must satisfy both authored expectations.
+    interpreter = project / "expected_interpreter_exit.txt"
+    if interpreter.is_file():
+        text = interpreter.read_text(encoding="utf-8").strip()
+        if not re.fullmatch(r"-?\d+", text):
+            raise ValueError("ordinary CLI fixture requires a numeric interpreter exit oracle")
+        if int(text) != expected:
+            raise ValueError("ordinary CLI requires matching native and interpreter exit oracles")
     return expected
 
 
@@ -103,6 +103,21 @@ def validate_exits(code, stderr, expected):
             f"wrapper {code}, native {native}, Terminal {[line[:1500] for line in terminal[:3]]}")
 
 
+def inspect_kept_artifact(producer, products, runtime, command):
+    """Describe the kept artifact without changing its execution verdict."""
+    artifact = products / "program.oterm"
+    diagnostic = dict(artifact=str(artifact), status="missing")
+    if not artifact.is_file():
+        return diagnostic
+    try:
+        code = command("diagnostic-terminal-inspection",
+                       [producer.cli, "inspect-terminal", "--artifact", artifact], runtime, 240)
+        diagnostic.update(status="completed", exit_code=code)
+    except (OSError, ValueError) as error:
+        diagnostic.update(status="failed", error=str(error))
+    return diagnostic
+
+
 def observe(root, producer, fixture, output, *, dependency_projects=()):
     # The child runs inside the copied workspace, so project and library paths must be absolute.
     output = output.absolute()
@@ -134,6 +149,8 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
                   dependency_projects=[project.as_posix() for project in projects[1:]],
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
+    # Full compiler tracing can dwarf the program check. Leave full tracing
+    # opt-in and inherit it when the caller explicitly requests it.
     env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
     project = workspace / project_relative
 
@@ -156,6 +173,8 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
         try:
             with (output / f"{stage}.stdout").open("wb") as out, (output / f"{stage}.stderr").open("wb") as err:
                 command_env = dict(env, OMEGA_REVIEW_TIMINGS="1") if stage in ("update", "resume") else env
+                if stage == "both" and "OMEGA_COMPILER_CHECK_SITES" in env:
+                    command_env = dict(command_env, OMEGA_TERMINAL_TRACE="1")
                 result = subprocess.run(arguments, cwd=cwd, env=command_env, stdin=stdin,
                                         stdout=out, stderr=err, timeout=timeout)
             event["exit_code"] = result.returncode
@@ -220,6 +239,14 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
                 path.relative_to(output / "products").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
                 for path in sorted((output / "products").rglob("*")) if path.is_file()
             }
+        if "OMEGA_COMPILER_CHECK_SITES" in env:
+            # The producer already kept this artifact. Its public inspection
+            # helps locate a failed operation, but does not approve execution.
+            record["diagnostic_inspection"] = inspect_kept_artifact(
+                producer, output / "products", runtime, command)
+            # Inspection refusal is optional diagnostics; changed producer or
+            # source inputs remain a custody failure for the whole observation.
+            verify()
         validate_exits(code, text, expected)
         if not kept or not (output / "products/program.oterm").is_file():
             raise ValueError("ordinary CLI fixture lost its retained Terminal product")

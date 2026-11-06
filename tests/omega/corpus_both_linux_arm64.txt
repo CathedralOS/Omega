@@ -246,8 +246,7 @@ pass/atomics/runtime_shared_case_waived_atomic_exit built 7482ms exit:70 interpr
 pass/atomics/runtime_stored_reference_atomic_events_exit rejected 1902ms interpreter:unchecked @6e42425cd720
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 0, machine: Some(MachineId(1)), operation: Some(OperationId(10)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
 pass/atomics/selected_reference_atomic_provider built 1979ms @6e42425cd720
-pass/atomics/shared_receiver_atomic_store rejected 7523ms interpreter:unchecked @6e42425cd720
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(UnsupportedSourceShape { function: 2, machine: Some(MachineId(15)), operation: Some(OperationId(127)), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }))
+pass/atomics/shared_receiver_atomic_store built 118662ms exit:70 interpreter-exit:70 interpreter:agrees @f00661dbe2a1
 pass/blockexec/blocking_executor_custody_claims_compile built 2470ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/blockexec/runtime_selected_worker_body_exit built 2195ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 1683ms @6e42425cd720
@@ -421,8 +420,8 @@ pass/borrows/nested_reference_write_disjoint_facts_exit built 2007ms exit:0 inte
 pass/borrows/opaque_generic_owned_input_declaration checked 1750ms @6e42425cd720
 pass/borrows/opaque_generic_reference_readers checked 1725ms @6e42425cd720
 pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 1710ms @6e42425cd720
-pass/borrows/opaque_incoming_nested_projected_array_result_exit built 2011ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/borrows/opaque_incoming_nested_projected_record_result_exit built 2277ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/opaque_incoming_nested_projected_array_result_exit built 10023ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/borrows/opaque_incoming_nested_projected_record_result_exit built 10199ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/borrows/opaque_incoming_nested_stored_byte_view_exit built 2040ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/opaque_incoming_stored_byte_view_exit built 1991ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/opaque_reference_identity checked 1605ms @6e42425cd720
@@ -545,8 +544,8 @@ pass/borrows/runtime_disjoint_child_loans_restore_parent_exit built 1971ms exit:
 pass/borrows/runtime_dropped_reference_qualification_exit rejected 1452ms interpreter:unchecked @6e42425cd720
 	cannot prove ensures contract for exit from refresh at statement 0: ticket in Ticket::Issued
 pass/borrows/runtime_dyn_image_result_snapshot_exit built 4137ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
-pass/borrows/runtime_dyn_multi_input_window_snapshot_exit built 2184ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/borrows/runtime_dyn_result_region_snapshot_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/runtime_dyn_multi_input_window_snapshot_exit built 10331ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/borrows/runtime_dyn_result_region_snapshot_exit built 10396ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 1940ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_expired_call_carrier_selection_exit built 2025ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit built 2126ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -728,7 +727,7 @@ pass/borrows/runtime_tail_expression_views_exit built 7746ms exit:0 interpreter-
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit built 4084ms interpreter-exit:0 @6e42425cd720
 pass/borrows/runtime_tail_recursive_nested_field_frame_exit built 4670ms interpreter-exit:0 @6e42425cd720
 pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit built 4702ms interpreter-exit:0 @6e42425cd720
-pass/borrows/runtime_terminal_static_callback_snapshot_exit built 2054ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/borrows/runtime_terminal_static_callback_snapshot_exit built 10713ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/borrows/runtime_transitive_mixed_result_backing_exit built 2085ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_uniform_projected_reference_selection_exit built 2021ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_unit_call_mutable_view_local_exit built 7730ms interpreter-exit:70 @6e42425cd720
@@ -1491,7 +1490,7 @@ pass/collections/runtime_stored_reference_array_owned_record_contract_exit built
 pass/collections/runtime_stored_reference_array_replacement_contract_exit rejected 1987ms interpreter:unchecked @6e42425cd720
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "value storage local is not established", gap: None })
 pass/collections/runtime_three_indexed_record_float_read_exit built 10298ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/collections/runtime_vec_u32_growth_exit timeout 120000ms @6e42425cd720
+pass/collections/runtime_vec_u32_growth_exit built 28893ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/collections/runtime_view_element_structural_replacement_exit built 1995ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/collections/runtime_whole_array_value_copy_exit built 7690ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/collections/shared_slice_view_dropped_receiver rejected 5ms interpreter:unchecked @6e42425cd720
@@ -6358,6 +6357,11 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 1950ms exit:0 in
 pass/facts/replaced_field_loan_through_other_state_exit built 2074ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/replaced_field_loan_through_parameter_exit built 1909ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/replaced_field_loan_through_target_body_exit built 2124ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/resident_backing_runtime_cells_exit built 18421ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/facts/resident_backing_runtime_growth_exit built 26849ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/facts/resident_backing_runtime_helper_loop_exit built 18433ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/facts/resident_backing_runtime_loop_exit built 18868ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/facts/resident_backing_runtime_reconstruction_loop_exit built 18458ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/facts/result_cleanup_guarantees_through_call_result_exit built 2269ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/result_cleanup_guarantees_through_const_name_exit built 2030ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/result_cleanup_guarantees_through_field_exit built 1972ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -8900,6 +8904,7 @@ pass/layouts/extent_view_external_content rejected 1092ms terminal-inspections:f
 pass/layouts/extent_view_external_write rejected 1118ms terminal-inspections:failed @6e42425cd720
 	provider choice must supply the declaration's complete static application
 	inspection attempt admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 107, end: 122 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/layouts/extent_view_external_write/build.omg", line: 3, column: 12 }) }]
+pass/layouts/extent_view_preserves_grant_exit built 19975ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/layouts/five_element_array_layout_compile checked 1680ms @6e42425cd720
 pass/layouts/float_member_layout_queries_compile checked 4446ms @6e42425cd720
 pass/layouts/generic_constant_layout_contract_exit built 2373ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -9095,9 +9100,7 @@ pass/machines/write_state_forward checked 2103ms @6e42425cd720
 pass/math/extent_no_wrap_requires_denotation checked 1508ms @6e42425cd720
 pass/memory/address_translation_canary rejected 12ms @6e42425cd720
 	tests/omega/pass/memory/address_translation_canary/cathedral/provider.omg:46:35: expected identifier, found punctuation `::`
-pass/memory/bump_allocator_canary rejected 2714ms @6e42425cd720
-	linear state-call result truncation::Truncated.vec.strategy.tail in exercise_shrink::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `exercise_shrink` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 5 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Truncated.vec.strategy.tail in again::entry at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `again` state `entry` statement 0 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 5 TransitionTarget: returned capture omits a declared claim path on an alternative
+pass/memory/bump_allocator_canary built 26017ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/memory/indexed_resident_bodyless_handback checked 1721ms @6e42425cd720
 pass/memory/interrupt_table_canary checked 9274ms @6e42425cd720
 pass/memory/resident_content_mutation_transport checked 3006ms @6e42425cd720
@@ -10139,6 +10142,7 @@ pass/relevance/erased_signature_param checked 2030ms @6e42425cd720
 pass/relevance/erased_state_param checked 2218ms @6e42425cd720
 pass/relevance/erased_subject_call checked 2190ms @6e42425cd720
 pass/relevance/runtime_static_proof_namespace_exit built 2184ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/resources/owned_extent_label_erasure_exit built 22659ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/slices/bounded_byte_parameter_range_exit built 2201ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/slices/byte_sequence_literal_tail_return_compile built 1987ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/slices/callee_non_byte_view_len_index_subslice built 7703ms exit:9 interpreter-exit:9 interpreter:agrees @6e42425cd720
@@ -11316,7 +11320,7 @@ run/ownership/claim_correspondence_all_returns rejected 2026ms interpreter:unche
 	linear state-call result chosen in main::entry at statement 6 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `main` state `entry` statement 6 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 2 TransitionTarget: outgoing edge has no completed value capture
 run/ownership/content_transform_case_alias built 2562ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/ownership/content_transform_case_parent built 2435ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-run/ownership/content_transform_empty_array built 2621ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+run/ownership/content_transform_empty_array built 10407ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 run/ownership/content_transform_ended_parent_loan built 2954ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/ownership/content_transform_inactive_content built 2595ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/ownership/content_transform_inactive_payload built 2547ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

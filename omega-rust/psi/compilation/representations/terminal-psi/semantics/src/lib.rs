@@ -25,6 +25,7 @@ pub use storage::calling_storage::{
     ForeignRecordStorage, callback_storage_has_slots, calling_abi_extent_dependencies,
     foreign_opaque_carrier, foreign_record_storage, foreign_storage_extent_dependencies,
 };
+pub use storage::run_custody::{EmptyRunReleaseContract, empty_run_release_contract};
 pub use storage::storage_dependencies::{
     inline_storage_extent_dependencies, storage_operand_dependencies,
 };
@@ -64,9 +65,12 @@ mod scalars;
 mod storage;
 mod structural;
 pub use calls::invocation_inputs::validate_empty_erased_invocation_inputs;
-pub use descriptors::membership_presentations::present_structural_memberships;
+pub use descriptors::membership_presentations::{
+    present_structural_membership_contract, present_structural_memberships,
+};
 pub use descriptors::selected_memberships::{
-    reference_carrier_memberships, reference_source_memberships,
+    reference_carrier_membership_contract, reference_carrier_memberships,
+    reference_source_memberships,
 };
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,

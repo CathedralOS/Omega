@@ -44,10 +44,14 @@ impl DeclaredInputRead {
                     return read(&coordinate);
                 }
                 if place.segments.is_empty()
-                    && let Some((_, actual)) = self
+                    && let Some((formal, actual)) = self
                         .selector_arguments
                         .iter()
-                        .find(|(formal, _)| *formal == root)
+                        .find(|(bound, _)| *bound == root)
+                    && let ExpressionNode::Name(name) =
+                        program.expression_table.expression(expression)
+                    && name.symbol == *formal
+                    && *actual != expression
                 {
                     return self.selector_value_at(program, *actual, read, active);
                 }

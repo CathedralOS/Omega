@@ -17,8 +17,8 @@ mod cycles;
 mod observations;
 use observations::PrivateArrivalObserver;
 mod scope;
-pub use scope::private_invocation_entry_is_closed;
 pub(crate) use scope::{ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index};
+pub use scope::{private_invocation_entry_is_closed, with_private_invocation_inputs};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Arrival {

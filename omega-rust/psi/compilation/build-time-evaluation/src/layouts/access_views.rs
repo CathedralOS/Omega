@@ -67,7 +67,7 @@ mod template_applications;
 
 use template_applications::scoped_template_applications;
 
-use plan_installation::install_access_view_plan;
+use plan_installation::{install_access_view_plan, selected_access_view};
 use record_synthesis::{
     accessor_operations, retire_accessor_templates, synthesize_exact_records,
     synthesize_probe_records,
@@ -433,7 +433,43 @@ pub(crate) fn validate_access_view_plans_in(
     if records.is_empty() {
         return Ok(());
     }
-    let execution = domain.execution_program(typed);
+    // Synthesis already evaluated each policy to derive its accessor fields.
+    // Recheck that result against the final declarations before any ordinary
+    // call can select an accessor. Evaluate the policies, reflected schemas and
+    // generated view shapes; unrelated target queries may remain deferred.
+    let mut roots = Vec::new();
+    for record in records {
+        let (policy, schema) =
+            selected_access_declarations(typed, record.policy_machine_source, record.schema_source)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let (view, _) =
+            selected_access_view(typed, record, policy.attached_data_symbol, schema.symbol)?;
+        push_unique(&mut roots, policy.symbol);
+        push_unique(&mut roots, schema.symbol);
+        push_unique(&mut roots, view.symbol);
+    }
+    let evaluation = domain.demanded_roots(typed, &roots);
+    let mut execution = evaluation.execution_program(typed);
+    // The probe performed these same prerequisite steps. Run them on the
+    // private dependency closure so const-sized fields and nested fixed layouts
+    // have complete geometry without preparing the caller's accessor calls.
+    crate::const_evaluation::const_lengths::evaluate_const_array_lengths_in(
+        &mut execution,
+        selection_authority.clone(),
+        &evaluation,
+    )?;
+    crate::const_evaluation::const_domain_facts::evaluate_selected_domain_facts(
+        &mut execution,
+        selection_authority.clone(),
+        crate::SelectedBuildTimeOperators::default(),
+        &evaluation,
+    )?;
+    super::plan_laid::compute_plan_laid_layouts_in(
+        &mut execution,
+        selection_authority.clone(),
+        &evaluation,
+    )?;
+    let mut plans = Vec::with_capacity(records.len());
     for record in records {
         let (policy_machine, schema) = selected_access_declarations(
             &execution,
@@ -471,7 +507,15 @@ pub(crate) fn validate_access_view_plans_in(
                 record.synthetic_name
             ))]);
         }
-        install_access_view_plan(typed, record, &plan)?;
+        plans.push(plan);
+    }
+    crate::const_evaluation::const_lengths::publish_evaluated_array_lengths(
+        typed,
+        &execution,
+        &evaluation,
+    );
+    for (record, plan) in records.iter().zip(&plans) {
+        install_access_view_plan(typed, record, plan)?;
     }
     Ok(())
 }

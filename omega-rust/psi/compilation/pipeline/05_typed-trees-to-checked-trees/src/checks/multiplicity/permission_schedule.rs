@@ -314,15 +314,35 @@ impl<'program> SelectedCases<'program> {
             return;
         }
         self.evidence.for_each_inactive_owned_case(|excluded| {
-            for place in places.iter_mut().filter(|place| {
-                place.root == excluded.root && place.path.starts_with(&excluded.segments)
-            }) {
-                place.live = false;
-                place.case_excluded = true;
-            }
-            if let Some(remaining) = remaining.as_deref_mut() {
-                remaining.exclude_absent_case(excluded);
-            }
+            exclude_case(excluded, places, remaining.as_deref_mut());
         });
+    }
+
+    /// Copy this step's exclusions out of the borrowed evidence. The evidence
+    /// reads no custody, so the parallel preparation of the permission walk
+    /// computes it ahead of the sequential custody replay that applies it.
+    pub(super) fn into_inactive_owned_cases(self) -> Vec<validation::CanonicalPlace> {
+        let mut cases = Vec::new();
+        self.evidence
+            .for_each_inactive_owned_case(|excluded| cases.push(excluded.clone()));
+        cases
+    }
+}
+
+/// Retire one inactive owned case namespace from claim and cleanup custody.
+pub(super) fn exclude_case(
+    excluded: &validation::CanonicalPlace,
+    places: &mut [LinearPlace],
+    remaining: Option<&mut RemainingCustody>,
+) {
+    for place in places
+        .iter_mut()
+        .filter(|place| place.root == excluded.root && place.path.starts_with(&excluded.segments))
+    {
+        place.live = false;
+        place.case_excluded = true;
+    }
+    if let Some(remaining) = remaining {
+        remaining.exclude_absent_case(excluded);
     }
 }

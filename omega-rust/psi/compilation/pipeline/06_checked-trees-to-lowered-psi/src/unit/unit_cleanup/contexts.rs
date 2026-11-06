@@ -212,6 +212,7 @@ pub(crate) fn prepare_signature(
                 access: terminal_psi::StructuralAccess::MutableBorrow,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             });
         }
         if let Some(parameter) = predicate_parameters.first() {

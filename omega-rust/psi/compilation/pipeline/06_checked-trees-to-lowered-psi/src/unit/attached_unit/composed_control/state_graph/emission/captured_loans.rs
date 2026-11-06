@@ -468,6 +468,7 @@ impl CapturedLoans {
                         access: StructuralAccess::Owned,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
                     };
                     places.push(StructuralPlaceDeclaration {
                         id: place,

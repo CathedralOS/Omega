@@ -25,16 +25,15 @@ mod parameter_bounds;
 mod predicate_facts;
 pub(super) mod projected_facts;
 mod requirements;
-pub(crate) use arrivals::{
-    CrossMachineArrivalSites, OccurrenceValueEnvironments, ReturnInference,
-    inferred_normal_return_interval, occurrence_integer_child_values, occurrence_value_environment,
-    occurrence_value_environments,
-};
 pub use arrivals::{
     OccurrenceIntegerBounds, arrival_integer_expression_bounds,
     occurrence_collection_footprint_fits, occurrence_integer_bounds,
     occurrence_integer_expression_bounds, occurrence_integer_expression_fits_range,
     occurrence_integer_expression_recipe, occurrence_integer_expressions_bounds,
+};
+pub(crate) use arrivals::{
+    OccurrenceValueEnvironments, ReturnInference, inferred_normal_return_interval,
+    occurrence_integer_child_values, occurrence_value_environment, occurrence_value_environments,
 };
 use projected_facts::ProjectedOperand;
 
@@ -212,15 +211,9 @@ pub(crate) fn requires_value_environment(
         );
     }
     requirements::seed_state_requirements(program, machine, entry_state, None, &mut environment);
-    // Nested machines are separate machines. Their entry is this state's
-    // body, so caller guards and closed by-value arguments have to land here
-    // and not only on a later state's incoming join.
-    arrivals::apply_cross_machine_reference_arrivals(
-        program,
-        machine,
-        entry_state,
-        &mut environment,
-    );
+    // A declaration starts under its own requirements. Private callers may
+    // supply more facts only through the complete arrival observer at the
+    // consuming operation; a partial caller scan cannot seed body assumptions.
     environment
 }
 

@@ -12,6 +12,7 @@ use super::linear_validation::event_statement_index;
 use super::linear_validation::loan_completions::regions_for_calls;
 use super::permission_schedule::PermissionStep;
 use super::permission_schedule::SelectedCases;
+use super::permission_schedule::exclude_case;
 use super::selected_cleanup::SelectedCleanup;
 use super::selected_evaluation::ExpressionRoutes;
 use crate::checks::multiplicity::claim_outcomes::{
@@ -114,7 +115,25 @@ pub(crate) fn prepare_permission_events(
         .iter()
         .map(|(handle, state)| (handle, state.clone()))
         .collect::<Vec<_>>();
-    for (state_handle, state_flow) in state_flows {
+    let mutated_places = |machine: &typed_trees::machine::Machine,
+                          state: &typed_trees::state::State,
+                          call: &checked_trees::BorrowCallFact| {
+        crate::flow::call_mutated_places(
+            program,
+            machine.symbol,
+            state.symbol,
+            &facts.borrow,
+            call,
+            mutation_summaries,
+            call_frames,
+        )
+    };
+    let prepared_walks = prepare_state_walks(program, facts, &state_flows, &mutated_places);
+    for ((state_handle, state_flow), prepared) in state_flows.into_iter().zip(prepared_walks) {
+        let _subject =
+            phase_profile::subject("psi.05.build_check_facts.permissions.state_loop", || {
+                program.symbols.profile_label(state_flow.machine_symbol)
+            });
         let _setup_guard = phase_profile::guard("psi.05.permissions.setup");
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;
@@ -249,84 +268,24 @@ pub(crate) fn prepare_permission_events(
                 }
             }
         };
-        // Mutation invalidates observations even when no linear claim needs
-        // restoration. The shared write owner may be unknown: forgetting then
-        // requires no invented storage authority or additional admission.
-        let call_writes = calls
-            .iter()
-            .map(|call| {
-                let borrowed = checked_trees::BorrowCallFact {
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
-                    authored_expression: call.authored_expression,
-                    input_reference_loans: None,
-                    reference_slot_effects: Default::default(),
-                    completed_reference_loans: Default::default(),
-                    receiver_symbol: call.receiver_symbol,
-                    target_symbol: call.target_symbol,
-                    has_receiver: call.has_receiver,
-                    accesses: call.accesses,
-                };
-                let source = PermissionEventSource::Call {
-                    statement_index: call.statement_index,
-                    call_ordinal: call.call_ordinal,
-                    target_symbol: call.target_symbol,
-                };
-                // An internal arrival captures arguments and retires this
-                // state's residual storage before the destination executes.
-                // Its future writes cannot invalidate case observations used
-                // by that cleanup. Argument calls remain distinct ordinary
-                // invocations in this roster, as do terminal machine calls.
-                let internal_transfer = validation::find_call_site_in_state(
-                    program,
-                    machine,
-                    state,
-                    call.statement_index,
-                    call.call_ordinal,
-                )
-                .is_some_and(|site| site.is_internal_state_transfer(program, machine.symbol));
-                (
-                    source,
-                    if internal_transfer {
-                        Some(Vec::new())
-                    } else {
-                        crate::flow::call_mutated_places(
-                            program,
-                            machine.symbol,
-                            state.symbol,
-                            &facts.borrow,
-                            &borrowed,
-                            mutation_summaries,
-                            call_frames,
-                        )
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-        let temporary_owners =
-            match temporary_results::temporary_owners(program, facts, machine, state, &calls) {
-                Ok(owners) => owners,
-                Err(diagnostic) => {
-                    selection_diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
+        let call_writes = prepared.call_writes;
+        let temporary_owners = match prepared.temporary_owners {
+            Ok(owners) => owners,
+            Err(diagnostic) => {
+                selection_diagnostics.push(diagnostic);
+                continue;
+            }
+        };
         // Expression-owned completions need the same claim namespace as
         // named destinations. A name/projection already refers to existing
         // custody; only a real expression root reserves a new owner here.
         let mut completed_temporaries_by_statement = Vec::with_capacity(statements.len());
         let mut observed_receivers_by_statement = Vec::with_capacity(statements.len());
-        for (statement_index, statement) in statements.iter().enumerate() {
-            let temporary_occurrences =
-                crate::checks::ownership_occurrences::owned_temporary_occurrences(
-                    program,
-                    machine,
-                    state,
-                    statement_index,
-                    statement,
-                    &facts.operators,
-                    &facts.flow.control,
-                );
+        for ((statement_index, statement), temporary_occurrences) in statements
+            .iter()
+            .enumerate()
+            .zip(prepared.temporary_occurrences)
+        {
             for &(expression, reference) in &temporary_occurrences.completed {
                 reserve_owner_places(
                     program,
@@ -395,6 +354,9 @@ pub(crate) fn prepare_permission_events(
             });
         drop(_setup_guard);
         let _walk_guard = phase_profile::guard("psi.05.permissions.walk");
+        // `walk` visits the same step sequence for any custody value, so the
+        // visit ordinal selects the exclusions prepared for this exact step.
+        let mut visit = 0;
         super::permission_schedule::walk(
             program,
             state,
@@ -409,11 +371,12 @@ pub(crate) fn prepare_permission_events(
             |step, custody| {
                 let (places, remaining, selections, selected_cleanup, instruction_dispositions) =
                     custody;
-                if state_needs_case_exclusions
-                    && let Some(selected) =
-                        SelectedCases::at_step(program, facts, &state_flow, machine, state, step)
-                {
-                    selected.apply(places, Some(remaining));
+                let excluded = &prepared.case_exclusions[visit];
+                visit += 1;
+                if state_needs_case_exclusions && let Some(excluded) = excluded {
+                    for case in excluded {
+                        exclude_case(case, places, Some(&mut *remaining));
+                    }
                 }
                 match step {
                     PermissionStep::Evaluate {
@@ -499,6 +462,7 @@ pub(crate) fn prepare_permission_events(
                             selections,
                             &mut cleanup_dispositions,
                             claim_outcomes,
+                            &prepared.conservation_candidates,
                         ) {
                             Ok(Some(evaluated)) => evaluated,
                             Ok(None) => return,
@@ -562,6 +526,7 @@ pub(crate) fn prepare_permission_events(
                             selections,
                             &mut cleanup_dispositions,
                             claim_outcomes,
+                            &prepared.conservation_candidates,
                         ) {
                             Ok(produced) => produced,
                             Err(diagnostic) => {
@@ -814,6 +779,264 @@ pub(crate) fn prepare_permission_events(
     } else {
         Err(selection_diagnostics)
     }
+}
+
+/// The parts of one state's permission walk that read only the program and
+/// facts the walk never writes: flow control rows, semantic facts and content
+/// plans. The checking pool prepares them for every state at once. The walk
+/// itself stays sequential in roster order, because it mints claim ordinals,
+/// interns place segments and appends events and cleanup rows into tables
+/// shared by all states, and later passes observe those numbers.
+struct PreparedStateWalk {
+    /// What each call may write, by call ordinal in the state's call roster.
+    call_writes: Vec<(
+        PermissionEventSource,
+        Option<Vec<validation::CanonicalPlace>>,
+    )>,
+    temporary_owners: Result<Vec<temporary_results::TemporaryOwner>, Diagnostic>,
+    /// Owned temporaries completed and observed in each statement.
+    temporary_occurrences: Vec<crate::checks::ownership_occurrences::OwnedTemporaryOccurrences>,
+    /// Inactive owned case namespaces at each step `walk` visits, by visit
+    /// ordinal; `None` where the step selects no case evidence.
+    case_exclusions: Vec<Option<Vec<validation::CanonicalPlace>>>,
+    conservation_candidates: Vec<crate::checks::content::ConservationCandidate>,
+}
+
+impl PreparedStateWalk {
+    /// The preparation of a state the walk skips before reading any of it.
+    fn skipped() -> Self {
+        Self {
+            call_writes: Vec::new(),
+            temporary_owners: Ok(Vec::new()),
+            temporary_occurrences: Vec::new(),
+            case_exclusions: Vec::new(),
+            conservation_candidates: Vec::new(),
+        }
+    }
+}
+
+/// The queries one state's walk will ask, enumerated before answering any,
+/// with the state's cheaper preparation already done.
+struct StateQueries<'program> {
+    state_flow: &'program checked_trees::FlowStateFact,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program typed_trees::state::State,
+    steps: Vec<PermissionStep>,
+    conservation: crate::checks::content::ConservationSites,
+    call_writes: Vec<(
+        PermissionEventSource,
+        Option<Vec<validation::CanonicalPlace>>,
+    )>,
+    temporary_owners: Result<Vec<temporary_results::TemporaryOwner>, Diagnostic>,
+    temporary_occurrences: Vec<crate::checks::ownership_occurrences::OwnedTemporaryOccurrences>,
+}
+
+/// One prepared walk per state, in roster order. A bodyless or unknown state
+/// has no walk and gets an empty preparation.
+fn prepare_state_walks(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flows: &[(
+        arena::Handle<checked_trees::FlowStateFact>,
+        checked_trees::FlowStateFact,
+    )],
+    mutated_places: &MutatedPlaces<'_>,
+) -> Vec<PreparedStateWalk> {
+    use rayon::prelude::*;
+    const PASS: &str = "psi.05.build_check_facts.permissions.prepare_walks";
+    let _guard = phase_profile::guard(PASS);
+    validation::checking_thread_pool().install(|| {
+        let queries = state_flows
+            .par_iter()
+            .map(|(_, state_flow)| {
+                let _subject = phase_profile::subject(PASS, || {
+                    program.symbols.profile_label(state_flow.machine_symbol)
+                });
+                let machine = program.machine_by_symbol(state_flow.machine_symbol)?;
+                let state = program.state_by_symbol(state_flow.state_symbol)?;
+                if machine.has_bodyless_signature() {
+                    return None;
+                }
+                let calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls);
+                let mut steps = Vec::new();
+                super::permission_schedule::walk(program, state, calls, (), |step, _| {
+                    steps.push(step)
+                });
+                let conservation = if facts.qualifications.content.conservation_plans.is_empty() {
+                    crate::checks::content::ConservationSites::default()
+                } else {
+                    crate::checks::content::conservation_sites(program, facts, machine, state)
+                };
+                let call_writes = state_call_writes(program, machine, state, calls, mutated_places);
+                let temporary_owners =
+                    temporary_results::temporary_owners(program, facts, machine, state, calls);
+                let temporary_occurrences = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .enumerate()
+                    .map(|(statement_index, statement)| {
+                        crate::checks::ownership_occurrences::owned_temporary_occurrences(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            statement,
+                            &facts.operators,
+                            &facts.flow.control,
+                        )
+                    })
+                    .collect();
+                Some(StateQueries {
+                    state_flow,
+                    machine,
+                    state,
+                    steps,
+                    conservation,
+                    call_writes,
+                    temporary_owners,
+                    temporary_occurrences,
+                })
+            })
+            .collect::<Vec<_>>();
+        // A few large states hold most queries, so answer every query of
+        // every state as one flat list rather than one task per state.
+        let steps = queries
+            .iter()
+            .flatten()
+            .flat_map(|state| state.steps.iter().map(move |&step| (state, step)))
+            .collect::<Vec<_>>();
+        let sites = queries
+            .iter()
+            .flatten()
+            .flat_map(|state| (0..state.conservation.len()).map(move |site| (state, site)))
+            .collect::<Vec<_>>();
+        let (case_exclusions, conservation_candidates) = rayon::join(
+            || {
+                steps
+                    .par_iter()
+                    .map(|&(query, step)| {
+                        let _subject = phase_profile::subject(PASS, || {
+                            program
+                                .symbols
+                                .profile_label(query.state_flow.machine_symbol)
+                        });
+                        SelectedCases::at_step(
+                            program,
+                            facts,
+                            query.state_flow,
+                            query.machine,
+                            query.state,
+                            step,
+                        )
+                        .map(SelectedCases::into_inactive_owned_cases)
+                    })
+                    .collect::<Vec<_>>()
+            },
+            || {
+                sites
+                    .par_iter()
+                    .map(|&(query, site)| {
+                        let _subject = phase_profile::subject(PASS, || {
+                            program
+                                .symbols
+                                .profile_label(query.state_flow.machine_symbol)
+                        });
+                        query
+                            .conservation
+                            .answer(program, facts, query.machine, query.state, site)
+                    })
+                    .collect::<Vec<_>>()
+            },
+        );
+        let mut case_exclusions = case_exclusions.into_iter();
+        let mut conservation_candidates = conservation_candidates.into_iter();
+        queries
+            .into_iter()
+            .map(|query| match query {
+                None => PreparedStateWalk::skipped(),
+                Some(query) => PreparedStateWalk {
+                    case_exclusions: case_exclusions.by_ref().take(query.steps.len()).collect(),
+                    conservation_candidates: conservation_candidates
+                        .by_ref()
+                        .take(query.conservation.len())
+                        .collect(),
+                    call_writes: query.call_writes,
+                    temporary_owners: query.temporary_owners,
+                    temporary_occurrences: query.temporary_occurrences,
+                },
+            })
+            .collect()
+    })
+}
+
+/// The places one call may write, from the borrow facts and the published
+/// mutation summaries; built once by the caller and shared by every state.
+type MutatedPlaces<'a> = dyn Fn(
+        &typed_trees::machine::Machine,
+        &typed_trees::state::State,
+        &checked_trees::BorrowCallFact,
+    ) -> Option<Vec<validation::CanonicalPlace>>
+    + Sync
+    + 'a;
+
+/// What each call of the state may write. Mutation invalidates observations
+/// even when no linear claim needs restoration. The shared write owner may be
+/// unknown: forgetting then requires no invented storage authority or
+/// additional admission.
+fn state_call_writes(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    calls: &[checked_trees::FlowCallFact],
+    mutated_places: &MutatedPlaces<'_>,
+) -> Vec<(
+    PermissionEventSource,
+    Option<Vec<validation::CanonicalPlace>>,
+)> {
+    calls
+        .iter()
+        .map(|call| {
+            let borrowed = checked_trees::BorrowCallFact {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                authored_expression: call.authored_expression,
+                input_reference_loans: None,
+                reference_slot_effects: Default::default(),
+                completed_reference_loans: Default::default(),
+                receiver_symbol: call.receiver_symbol,
+                target_symbol: call.target_symbol,
+                has_receiver: call.has_receiver,
+                accesses: call.accesses,
+            };
+            let source = PermissionEventSource::Call {
+                statement_index: call.statement_index,
+                call_ordinal: call.call_ordinal,
+                target_symbol: call.target_symbol,
+            };
+            // An internal arrival captures arguments and retires this
+            // state's residual storage before the destination executes.
+            // Its future writes cannot invalidate case observations used
+            // by that cleanup. Argument calls remain distinct ordinary
+            // invocations in this roster, as do terminal machine calls.
+            let internal_transfer = validation::find_call_site_in_state(
+                program,
+                machine,
+                state,
+                call.statement_index,
+                call.call_ordinal,
+            )
+            .is_some_and(|site| site.is_internal_state_transfer(program, machine.symbol));
+            (
+                source,
+                if internal_transfer {
+                    Some(Vec::new())
+                } else {
+                    mutated_places(machine, state, &borrowed)
+                },
+            )
+        })
+        .collect()
 }
 
 #[derive(Debug)]

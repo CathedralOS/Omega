@@ -312,9 +312,9 @@ pub(crate) fn emit(
                     .chain(span.structural_parameters.iter())
                     .cloned()
                     .collect::<Vec<_>>();
-                let (qualifications, projected) =
+                let (qualifications, projected, additional) =
                     argument_memberships(&source, &parameters, evaluation, operations)?;
-                let (structural_type, qualifications, projected) =
+                let (structural_type, qualifications, projected, additional) =
                     crate::emission::completed_place::present_capture(
                         capture,
                         *access,
@@ -322,6 +322,7 @@ pub(crate) fn emit(
                         calls.domain_declarations,
                         qualifications,
                         projected,
+                        additional,
                     )?;
                 evaluation.current = span.id;
                 evaluation.operation_start = span.operation_start;
@@ -338,6 +339,7 @@ pub(crate) fn emit(
                     *access,
                     qualifications,
                     projected,
+                    additional,
                     *place,
                     evaluation,
                     values,

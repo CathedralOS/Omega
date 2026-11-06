@@ -187,6 +187,7 @@ pub(crate) struct TypingCohort<'completed> {
     /// Typed checkpoint: machines, type references and expressions the
     /// retained base already published.
     pub(crate) typed_machines: usize,
+    pub(crate) typed_type_parameters: usize,
     pub(crate) typed_type_references: usize,
     pub(crate) typed_expressions: usize,
 }
@@ -212,6 +213,7 @@ impl<'completed> TypingCohort<'completed> {
             generic_application_origins: resolved.tables.types.generic_application_origins.len(),
             completed_machines: &[],
             typed_machines: typed.machines().len(),
+            typed_type_parameters: typed.data_type_parameters.len(),
             typed_type_references: typed.type_reference_table.type_reference_count(),
             typed_expressions: typed.expression_table.expression_count(),
         }
@@ -365,7 +367,7 @@ pub(crate) fn close_typed_cohort(
     lowerer.typed_trees.retain_static_argument_contexts();
     lowerer
         .typed_trees
-        .instantiate_nominal_machine_parameter_contracts()
+        .instantiate_nominal_machine_parameter_contracts(cohort.typed_type_parameters)
         .and_then(|_| lowerer.typed_trees.prepare_applied_callable_signatures())
         .map_err(|message| Diagnostic::error(message.to_owned()))?;
     normalize_const_argument_carriers(&mut lowerer.typed_trees, cohort.typed_type_references)?;
@@ -383,7 +385,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
-    crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(
+    crate::expressions::construction_destinations::prepare(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,

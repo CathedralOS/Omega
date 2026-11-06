@@ -57,7 +57,7 @@ pub fn prepare_private_observation(
     }
     static NEXT: AtomicU64 = AtomicU64::new(1);
     let ordinal = NEXT
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
             value.checked_add(1)
         })
         .map_err(|_| io::Error::other("private observation identities exhausted"))?;

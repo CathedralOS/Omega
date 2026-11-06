@@ -47,13 +47,13 @@ pub fn validate_complete_claim_frontier<'a>(
 }
 
 #[derive(Default)]
-struct ClaimTypes {
+pub(super) struct ClaimTypes {
     known: IdSet<StructuralTypeId>,
     with_claims: IdSet<StructuralTypeId>,
     active: IdSet<StructuralTypeId>,
 }
 
-fn contains_claim<'a>(
+pub(super) fn contains_claim<'a>(
     declaration: &impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration>,
     current: StructuralTypeId,
     possible: &mut ClaimTypes,

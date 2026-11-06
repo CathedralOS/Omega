@@ -800,44 +800,10 @@ impl Observations {
             return;
         }
         let _build_guard = phase_profile::guard("psi.05.numeric.assoc.build_preds");
-        let has_no_rewrites_or_subs = judge.has_no_rewrites_or_substitutions();
-        let mut consistent_premise_atoms: Option<Option<Vec<StructuralTerm>>> = None;
-        let is_simple_leaf = |term: &StructuralTerm| {
-            !matches!(
-                term,
-                StructuralTerm::MathematicalBinary { .. } | StructuralTerm::ScalarBinary { .. }
-            )
-        };
-        let is_uncorrelated_simple_leaf = |term: &StructuralTerm, atoms: &[StructuralTerm]| {
-            is_simple_leaf(term)
-                && !matches!(term, StructuralTerm::Integer(_))
-                && !matches!(
-                    term,
-                    StructuralTerm::BoundValue(symbol)
-                        if program.symbols.builtin_type_member(*symbol)
-                            == Some(symbols::BuiltinTypeMember::AddressBound)
-                )
-                && !atoms.contains(term)
-        };
-        let is_trivial_identity_leaf = |term: &StructuralTerm| {
-            matches!(
-                term,
-                StructuralTerm::Integer(_)
-                    | StructuralTerm::Variable(_)
-                    | StructuralTerm::BoundValue(_)
-                    | StructuralTerm::CapturedValue { .. }
-                    | StructuralTerm::Opaque(_)
-            )
-        };
-        let resolve_sem = |value: &StructuralTerm| -> StructuralTerm {
-            let inner = value.semantic_value();
-            if has_no_rewrites_or_subs && is_trivial_identity_leaf(inner) {
-                inner.clone()
-            } else {
-                judge.completed_integer_semantic_value(value)
-            }
-        };
-        let mut read_semantics: Vec<Option<StructuralTerm>> = Vec::new();
+        // The equality batch owns numeric projection and proof. Normalizing
+        // these operands here first repeats its premise preparation without
+        // establishing an association. Keep the exact completed operands;
+        // only a successful proof below can relate them to current storage.
         let mut current = vec![Vec::new(); expressions.len()];
         let mut predicates = Vec::new();
         let mut destinations = Vec::new();
@@ -865,29 +831,9 @@ impl Observations {
             else {
                 continue;
             };
-            let mut result_sem: Option<StructuralTerm> = None;
             for (read_index, (place, value, reference)) in current_reads.iter().enumerate() {
                 if prior.is_some_and(|previous| !previous.contains(place)) {
                     continue;
-                }
-                let atoms_opt = consistent_premise_atoms
-                    .get_or_insert_with(|| judge.prepared_integer_premise_atoms_when_consistent());
-                if let Some(atoms) = atoms_opt.as_deref() {
-                    if read_semantics.is_empty() {
-                        read_semantics.resize(current_reads.len(), None);
-                    }
-                    let result_sem = result_sem.get_or_insert_with(|| resolve_sem(result));
-                    let read_sem =
-                        read_semantics[read_index].get_or_insert_with(|| resolve_sem(value));
-                    if result_sem != read_sem
-                        && (is_uncorrelated_simple_leaf(result_sem, atoms)
-                            || is_uncorrelated_simple_leaf(read_sem, atoms)
-                            || (atoms.is_empty()
-                                && is_simple_leaf(result_sem)
-                                && is_simple_leaf(read_sem)))
-                    {
-                        continue;
-                    }
                 }
                 predicates.push(StructuralTerm::MathematicalBinary {
                     operator: BinaryOperator::Equal,
@@ -904,6 +850,10 @@ impl Observations {
             }
         }
         drop(_build_guard);
+        phase_profile::count(
+            "psi.05.numeric.assoc.candidate_pairs",
+            predicates.len() as u64,
+        );
         if !predicates.is_empty() {
             let proven_list = phase_profile::scope("psi.05.numeric.assoc.prove", || {
                 judge.prove_observed_predicates(&predicates, 0)

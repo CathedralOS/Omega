@@ -24,7 +24,7 @@ impl Emission<'_, '_, '_> {
             return Ok(source);
         }
         let current = self.occurrence_memberships(identities, &source, expression)?;
-        let (whole, projected) =
+        let (whole, projected, _) =
             self.completed_memberships(source.place)
                 .ok_or(LoweringError::Unsupported(
                     "completed source membership contract disappeared",
@@ -57,7 +57,7 @@ impl Emission<'_, '_, '_> {
         source: &StructuralArgument,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Result<Memberships, LoweringError> {
-        let (whole, projected) =
+        let (whole, projected, _) =
             self.completed_memberships(source.place)
                 .ok_or(LoweringError::Unsupported(
                     "completed source has no published memberships",

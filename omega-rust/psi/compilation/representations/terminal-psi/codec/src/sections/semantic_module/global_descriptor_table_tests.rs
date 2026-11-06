@@ -47,6 +47,7 @@ fn descriptor_module(operation: GlobalDescriptorTableOperation) -> TerminalModul
             access: StructuralAccess::MutableBorrow,
             qualifications: vec![],
             projected_qualifications: vec![],
+            additional_input_qualifications: Vec::new(),
         });
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: place,

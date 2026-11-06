@@ -537,7 +537,7 @@ fn exclude_private_arrival_dependencies(
     let mut excluded = program
         .machines()
         .iter()
-        .map(|machine| index.has_closed_private_uses(program, machine))
+        .map(|machine| index.has_complete_private_uses(program, machine))
         .collect::<Vec<_>>();
     let mut pending = excluded
         .iter()

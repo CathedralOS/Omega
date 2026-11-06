@@ -154,9 +154,10 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             // A private compiler operation is not a selectable implementation of
             // an authored provider requirement. It is bound from its own retained
             // declaration and lifecycle contract, never from a Build intrinsic row.
-            Some(CompilerIntrinsicExecutionIdentity::AccessLifecycle(_)) => {
-                super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization
-            }
+            Some(
+                CompilerIntrinsicExecutionIdentity::AccessLifecycle(_)
+                | CompilerIntrinsicExecutionIdentity::EmptyRunRelease,
+            ) => super::TerminalCompilerBuiltinSettlement::NoNativeBoundaryRealization,
             Some(identity) => {
                 match super::SettledCompilerBuiltin::from_identity(identity, boundary.id, format) {
                     Some(execution) => super::TerminalCompilerBuiltinSettlement::Execution {

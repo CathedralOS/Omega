@@ -639,6 +639,7 @@ pass/build/dependency_generated_source_unimported rejected 310ms regressed-from:
 pass/build/dependency_implementation_closure built 3412ms exit:0 @a92f16431042
 pass/build/described_runner_entry_left_exit built 11130ms exit:11 @a92f16431042
 pass/build/described_runner_entry_right_exit built 12740ms exit:37 @a92f16431042
+pass/build/descriptor_table_round_trip built 254541ms @393c6c5fe83d
 pass/build/discarded_provider_selection_exit rejected 8163ms regressed-from:built+exit:70 @a92f16431042
 	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
 pass/build/entry_schema_same_leaf_exit built 2983ms exit:0 @a92f16431042
@@ -661,12 +662,14 @@ pass/build/runtime_opaque_by_value_selected_exit built 11330ms exit:72 @a92f1643
 pass/build/runtime_static_service_exclusion_exit built 2447ms exit:0 @a92f16431042
 pass/build/same_leaf_runner_entry_left_exit built 10308ms exit:11 @a92f16431042
 pass/build/same_leaf_runner_entry_right_exit built 10597ms exit:37 @a92f16431042
+pass/build/segment_selector_reload built 247413ms @393c6c5fe83d
 pass/build/selected_const_array_length_exit rejected 16734ms regressed-from:built+exit:0 @a92f16431042
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Optional::None` for `Optional`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
 	machine `zero_is_none` cannot establish zero-value representation obligation `zero_value<type>() == Optional::None` for `Optional`: all-zero storage is gated, has no payload-free authored home case, or is not a cased data representation
 pass/build/sibling_module_service_exclusion_exit built 2280ms exit:0 @a92f16431042
 pass/build/sibling_module_slot_family_rows_exit built 10044ms exit:70 @a92f16431042
 pass/build/static_assumed_binding_spelling_exit built 2670ms exit:0 @a92f16431042
+pass/build/task_register_activation built 257638ms @393c6c5fe83d
 pass/build/uefi_context_cleanup_entry built 17282ms @a92f16431042
 pass/build/uefi_entry_schema_same_leaf rejected 11060ms expected native-rejection:match @a92f16431042
 	native artifact physical program entry failed: semantic entry requires an explicitly selected checked physical adapter
@@ -7412,8 +7415,7 @@ run/layouts/placed_ram_capture_retirement rejected 3224ms regressed-from:built+e
 	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 run/layouts/placed_ram_capture_return rejected 3246ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
-run/layouts/placed_ram_original_backing rejected 3351ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
-	placed view `Placed<RegPlacement,Registers>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `RegPlacement::plan` state `place_status` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
+run/layouts/placed_ram_original_backing built 116543ms exit:0 stdout:match stderr:match @95596d66052e
 run/layouts/placed_ram_scalar_types rejected 3773ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	placed view `Placed<ScalarPlacement,ScalarRegisters>`: demanded premise closure checking failed: cannot use `schema.fields[0].key` in machine `ScalarPlacement::plan` state `field0` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first; cannot use `schema.fields[1].key` in machine `ScalarPlacement::plan` state `field1` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first; cannot use `schema.fields[2].key` in machine `ScalarPlacement::plan` state `field2` (statement 0) after `schema` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `schema` first
 run/layouts/placed_ram_stored_field_return built 29941ms exit:0 stdout:match stderr:match @a92f16431042

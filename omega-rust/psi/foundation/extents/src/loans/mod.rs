@@ -134,9 +134,9 @@ impl std::fmt::Debug for ExtentLoan<'_> {
 }
 
 fn validate_subrange(extent: &Extent, offset: u64, length: u64) -> Result<u64, ExtentDiagnostic> {
-    if length == 0 {
-        return Err(ExtentDiagnostic("extent loan cannot be empty".into()));
-    }
+    // Zero-byte values still borrow their backing and carry obligations. An
+    // empty subrange retains that loan identity without authorizing any bytes;
+    // its position must pass the same containment and overflow checks below.
     let end = offset
         .checked_add(length)
         .ok_or_else(|| ExtentDiagnostic("extent loan range overflows".into()))?;

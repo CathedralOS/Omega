@@ -89,6 +89,7 @@ wire_record! {
         access: Access,
         qualifications: Ids,
         projected_qualifications: List<PathQualification>,
+        additional_input_qualifications: List<PathQualification>,
     }
     BorrowPlace: RetainedBorrowPlace {
         version: PlaceVersion,
@@ -131,6 +132,7 @@ wire_enum! {
         1 => AccessInitialize,
         2 => AccessMoveOut,
         3 => AccessView,
+        4 => EmptyRunRelease,
     }
     Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
     RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

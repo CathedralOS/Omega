@@ -19,6 +19,7 @@
 //! holds its captured referent through invocation; that hold cannot authorize
 //! the earlier carrier read or erase a loan suspending its descriptor slot.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, CapturedPlace, CheckFacts, FlowStateFact, FlowStatementFact,
@@ -410,6 +411,7 @@ fn transfers_descriptor_value(
 pub(super) fn check_storage_read<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     read: StatementRead<'_>,
     premises: &[StatedOrderingPremise],
     diagnostics: &mut Vec<Diagnostic>,
@@ -451,11 +453,12 @@ pub(super) fn check_storage_read<'p>(
         ..Default::default()
     };
     let backings = if metadata_receiver.is_some() {
-        metadata_backings(program, facts, &read, place)
+        metadata_backings(program, facts, loan_occurrences, &read, place)
     } else {
         place_access::place_backings(
             program,
             facts,
+            loan_occurrences,
             read.state,
             statement_index,
             read.active_loans.iter().copied(),
@@ -469,7 +472,8 @@ pub(super) fn check_storage_read<'p>(
             .filter(|loan| {
                 place_access::access_interferes(
                     program,
-                    &facts.borrow,
+                    facts,
+                    loan_occurrences,
                     backings,
                     &kind,
                     *loan,
@@ -514,6 +518,7 @@ pub(super) fn check_storage_read<'p>(
 fn metadata_backings(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     read: &StatementRead<'_>,
     place: CapturedPlace,
 ) -> Option<Vec<super::aliases::ResolvedAlias>> {
@@ -532,6 +537,7 @@ fn metadata_backings(
     super::access_sources::metadata_storage(
         program,
         facts,
+        loan_occurrences,
         read.state,
         read.statement.statement_index,
         observed,

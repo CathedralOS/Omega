@@ -164,6 +164,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
         access: StructuralAccess::SharedBorrow,
         qualifications: vec![],
         projected_qualifications: vec![],
+        additional_input_qualifications: Vec::new(),
     };
     assert!(
         !matches!(scalar_type, ScalarType::IeeeFloat(_)),
@@ -478,6 +479,7 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
             multiplicity,
             qualifications: vec![],
             projected_qualifications: vec![],
+            additional_input_qualifications: Vec::new(),
             qualification_establishments: vec![],
             claims: vec![],
         };
@@ -899,6 +901,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         multiplicity: StructuralMultiplicity::Affine,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         claims: Vec::new(),
     };
     function.structural_parameters[0].access = StructuralAccess::MutableBorrow;
@@ -1335,6 +1338,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: vec![StructuralDomainId::new(1).unwrap()],
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         claims: Vec::new(),
     };
     function.operations = vec![
@@ -1443,6 +1447,7 @@ fn returned_and_parameter_bounded_owners_use_inline_payload_offset() {
             access: StructuralAccess::Owned,
             qualifications: vec![StructuralDomainId::new(1).unwrap()],
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         });
     assert!(replacement_footprints_retained(
         &function,
@@ -2067,6 +2072,7 @@ fn whole_byte_replacement_rejoins_one_qualified_local_producer() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: vec![StructuralDomainId::new(1).unwrap()],
         projected_qualifications: vec![],
+        additional_input_qualifications: Vec::new(),
         qualification_establishments: vec![],
         claims: vec![],
     };

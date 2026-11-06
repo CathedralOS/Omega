@@ -21,7 +21,9 @@ mod realization_scopes;
 mod requirement_instances;
 mod selected_operands;
 mod signatures;
+mod table;
 mod trait_scopes;
+pub(crate) use table::AppliedCallableTable;
 
 pub use requirement_instances::{ClosedRequirementApplication, RequirementLocalArgument};
 
@@ -243,11 +245,26 @@ pub struct CallableSubstitution {
     pub actual: types::TypeReferenceHandle,
 }
 
+/// An exact stored applied-callable row. Default means no retained row.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AppliedMachineCallableId(arena::Handle<AppliedCallableSignature>);
+
+impl AppliedMachineCallableId {
+    pub fn is_valid(self) -> bool {
+        self.0.is_valid()
+    }
+}
+
 /// A symbolic application is a checking view, not an executable instance.
 pub struct AppliedMachineCallable<'a> {
+    /// Exact row emitted by the applied-callable owner, including its generation.
+    pub identity: AppliedMachineCallableId,
     /// Exact receiving call; its declaration owns the caller-lifetime formals
     /// and its lexical owner supplies their actuals. Provider custody is separate.
     pub invocation: crate::static_applications::StaticMachineApplicationHandle,
+    /// Position and binder identity in this invocation's machine telescope.
+    pub ordinal: usize,
+    pub demand: SymbolHandle,
     pub lexical_owner: SymbolHandle,
     pub provider: crate::static_applications::StaticMachineApplicationHandle,
     /// Executable entry selected by this occurrence. The substituted source
@@ -681,13 +698,17 @@ impl TypedTrees {
         .parameter_kind(self, kind)
     }
 
-    /// Prepare nominal callable applications after all declarations are lowered.
-    /// Invalid identities/arity remain absent for ordinary declaration checking;
-    /// an application that cannot be represented fails instead of looking applied.
-    pub fn instantiate_nominal_machine_parameter_contracts(&mut self) -> Result<(), &'static str> {
+    /// Finish the handler contracts introduced by this typing run. Earlier
+    /// declarations were already finished in their own source context; their
+    /// backing rows can remain after that context's traits leave the live roots.
+    /// Missing contracts in the new rows still fail ordinary lowering.
+    pub fn instantiate_nominal_machine_parameter_contracts(
+        &mut self,
+        first_parameter: usize,
+    ) -> Result<(), &'static str> {
         let pending = self
             .data_type_parameters
-            .iter()
+            .iter_from(first_parameter)
             .filter_map(|(handle, parameter)| match &parameter.kind {
                 data::TypeParameterKind::Machine {
                     contract:

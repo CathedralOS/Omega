@@ -23,7 +23,7 @@ mod operand_claims;
 pub(crate) mod record;
 pub(crate) mod structural_case;
 
-pub(crate) use emission::{ValueDestination, ValueProduction, emit};
+pub(crate) use emission::{ValueDestination, ValueProduction, emit, receive_completed};
 pub(super) use locals::local_binding;
 
 /// An evaluation may leave the caller suspended in a checked invocation.

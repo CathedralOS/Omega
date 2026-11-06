@@ -66,7 +66,7 @@ impl<'a> Reviewer<'a> {
             .boundaries
             .get(&boundary)
             .ok_or_else(|| format!("reachable boundary {boundary:?} has no declaration"))?;
-        if let Some(plan) = self
+        let lifecycle = self
             .context
             .input
             .module()
@@ -79,14 +79,22 @@ impl<'a> Reviewer<'a> {
                         terminal_psi::TerminalAccessLifecycleExecution::CompilerPrimitive { .. }
                     )
             })
+            .map(|plan| {
+                effects::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation)
+            });
+        let intrinsic = if declaration.declaration.as_ref().map(|row| row.execution)
+            == Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
         {
+            Some(effects::CompilerIntrinsicExecutionIdentity::EmptyRunRelease)
+        } else {
+            lifecycle
+        };
+        if let Some(intrinsic) = intrinsic {
             // These private, source-authenticated operations consume existing
             // extent custody. Their profile supplier is an ordinary selected
             // call and is reviewed separately. Do not invent a provider/service
             // identity for the primitive, or silently skip a missing settlement.
-            let expected = TerminalMechanismIdentity::CompilerIntrinsic(
-                effects::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation),
-            );
+            let expected = TerminalMechanismIdentity::CompilerIntrinsic(intrinsic);
             if self.context.mechanisms.get(&boundary) != Some(&expected) {
                 return Err(format!(
                     "private lifecycle {boundary:?} has no exact admitted execution"

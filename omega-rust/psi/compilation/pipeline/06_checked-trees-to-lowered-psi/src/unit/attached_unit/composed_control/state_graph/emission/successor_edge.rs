@@ -371,10 +371,14 @@ impl StateGraphEmission<'_, '_> {
                                             ),
                                         )?;
                                         if super::super::result_custody::loan_subject(&transfer.source, &checked.facts.values.structural_values).is_some() {
-                                            let source = operations.iter().find_map(|operation| {
-                                                if operation.result.structural().is_some_and(|result| result.place == place) {
-                                                    match &operation.kind { OperationKind::EstablishReference { source, .. } => Some(source), _ => None }
-                                                } else { None }
+                                            // The producer records the evaluated backing for both
+                                            // descriptor operations and borrowed block arrivals.
+                                            let source = operations.reference_backings.source(place).or_else(|| {
+                                                if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+                                                    let producer = operations.iter().find(|operation| operation.result.structural().is_some_and(|result| result.place == place));
+                                                    eprintln!("state reference backing unavailable: place={place:?} binding={binding:?} producer={:?}", producer.map(|operation| (&operation.id, &operation.kind)));
+                                                }
+                                                None
                                             }).ok_or(LoweringError::Unsupported("completed state reference lost its emitted formation"))?;
                                             captured_backing = Some((source.place, source.path.clone()));
                                             if let Some(group) = self.captured_loans.group(target, target_index as u32) {
@@ -416,6 +420,8 @@ impl StateGraphEmission<'_, '_> {
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                             ref subject,
+                            backing_type,
+                            ref source_contract,
                             formation_expression,
                             carrier_type_identity,
                             ..
@@ -546,16 +552,11 @@ impl StateGraphEmission<'_, '_> {
                                 let carrier = crate::unit::attached_unit::reference_results::emit_carrier(
                                     identities,
                                     crate::unit::attached_unit::reference_results::Formation {
-                                        checked, state: state.state,
+                                        checked,
                                         statement_index: edge.statement_ordinal as usize,
                                         expression: formation_expression,
-                                        backing_type: validation::expression_type_reference_in_state(
-                                            &checked.typed,
-                                            state.state,
-                                            edge.statement_ordinal as usize,
-                                            validation::reference_formation_source(&checked.typed, formation_expression)
-                                                .map_or(formation_expression, |formation| formation.source),
-                                        ).ok_or(LoweringError::Unsupported("state loan lost its supplying type"))?,
+                                        backing_type,
+                                        source_contract,
                                         qualification_decisions: Default::default(),
                                         domain_ids: &self.catalogs.domain_ids,
                                     },
@@ -989,6 +990,7 @@ impl StateGraphEmission<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
                 };
                 // Private cleanup transport retains the same owner as the
                 // authored arrival, including a hidden affine readonly home.

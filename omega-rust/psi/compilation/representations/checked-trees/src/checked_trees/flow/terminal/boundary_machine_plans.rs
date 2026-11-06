@@ -99,8 +99,20 @@ pub struct CheckedBoundaryScalarDomainRequirementPlan {
     pub predicate: crate::CheckedBooleanExpression,
 }
 
+/// Checking authenticates compiler-owned operations once. Later stages retain
+/// this execution owner instead of recognizing declarations from source again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedBoundaryExecutionPlan {
+    Provider,
+    AccessInitialize,
+    AccessMoveOut,
+    AccessView,
+    EmptyRunRelease,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryMachinePlan {
+    pub execution: CheckedBoundaryExecutionPlan,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,

@@ -363,7 +363,8 @@ impl TypedTrees {
                     .then_some(handle)
             });
         if let Some(previous) = previous {
-            self.applied_callable_signatures.get_mut(previous).signature = signature.clone();
+            self.applied_callable_signatures
+                .replace_signature(previous, signature.clone())?;
         } else {
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {

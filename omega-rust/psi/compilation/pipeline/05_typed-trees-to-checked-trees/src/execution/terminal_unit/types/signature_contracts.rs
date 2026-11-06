@@ -492,6 +492,14 @@ pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
             let Some(membership) = fact.as_membership() else {
                 continue;
             };
+            // Progress subjects use the dedicated checked progress schema,
+            // as on a boundary declaration, rather than ordinary qualifiers.
+            if let Some(valid) = signature_progress_requirement(program, parameters, membership) {
+                if !valid {
+                    return None;
+                }
+                continue;
+            }
             let Some(root) = validation::single_segment_name_symbol(program, membership.value)
             else {
                 continue;

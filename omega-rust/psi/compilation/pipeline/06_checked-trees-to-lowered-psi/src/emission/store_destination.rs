@@ -18,6 +18,7 @@ pub(crate) struct LocalStoreRoot<'a> {
     pub(crate) selected_type: StructuralTypeId,
     pub(crate) qualifications: &'a [semantic_vocabulary::StructuralDomainId],
     pub(crate) projected_qualifications: &'a [terminal_psi::StructuralPathQualification],
+    pub(crate) additional_input_qualifications: &'a [terminal_psi::StructuralPathQualification],
 }
 
 impl LocalStoreRoot<'_> {
@@ -76,6 +77,7 @@ pub(crate) fn local_store_place<'a>(
                 parameter.qualifications.as_slice(),
                 parameter.projected_qualifications.as_slice(),
                 parameter.multiplicity,
+                parameter.additional_input_qualifications.as_slice(),
             )
         })
         .chain(operations.operations.iter().filter_map(|operation| {
@@ -86,10 +88,11 @@ pub(crate) fn local_store_place<'a>(
                     result.qualifications.as_slice(),
                     result.projected_qualifications.as_slice(),
                     result.multiplicity,
+                    result.additional_input_qualifications.as_slice(),
                 )
             })
         }))
-        .find(|(place, _, _, _, _)| *place == argument.place)
+        .find(|(place, _, _, _, _, _)| *place == argument.place)
         .ok_or(LoweringError::Unsupported(
             "store local has no declared storage root",
         ))?;
@@ -100,6 +103,7 @@ pub(crate) fn local_store_place<'a>(
         selected_type: *selected_type,
         qualifications: declaration.2,
         projected_qualifications: declaration.3,
+        additional_input_qualifications: declaration.5,
     })
 }
 

@@ -161,6 +161,7 @@ pub(super) fn validate_asm_intrinsic_declarations(
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let assembly_services = super::super::assembly_services::AssemblyServices::new(program);
     for machine in program.machines() {
         let mut direct_asm_services = Vec::new();
 
@@ -178,11 +179,13 @@ pub(super) fn validate_asm_intrinsic_declarations(
                 if !direct_asm_services.contains(&service_name) {
                     direct_asm_services.push(service_name);
                 }
-                if program.service_reaches.id_for_name(service_name).is_none() {
+                if let Err(reason) =
+                    assembly_services.resolve(program, machine.symbol, service_name)
+                {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` uses asm instruction `{}`, which reaches canonical \
                          service `{service_name}`, but that service identity is unavailable: \
-                         add `use omega::language::core::assembly;`",
+                         {reason}; add `use omega::language::core::assembly;`",
                         machine.name, instruction
                     )));
                 }
@@ -195,7 +198,8 @@ pub(super) fn validate_asm_intrinsic_declarations(
             continue;
         };
         for service_name in direct_asm_services {
-            let Some(service) = program.service_reaches.id_for_name(service_name) else {
+            let Ok(service) = assembly_services.resolve(program, machine.symbol, service_name)
+            else {
                 continue;
             };
             debug_assert!(

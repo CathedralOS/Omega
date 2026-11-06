@@ -412,7 +412,7 @@ pub(super) fn overlaps(
     machine: semantic_vocabulary::MachineId,
     place: PlaceId,
     path: &[StructuralPathSegment],
-    activation_local: bool,
+    independent_carrier: bool,
     origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
 ) -> bool {
     match backing {
@@ -428,17 +428,18 @@ pub(super) fn overlaps(
                 )
         }
         Backing::Source(Root::Alternatives(origins)) => origins.iter().any(|origin| {
-            origin_overlaps_storage(origin, place, activation_local, origin_overlaps)
+            origin_overlaps_storage(origin, place, independent_carrier, origin_overlaps)
         }),
-        // The captured value is outside this activation's owned inline homes.
-        // Keep its conservative geometry for accesses to external storage;
-        // ordinary in-body backing still protects its actual owned region.
+        // Captured input contents are separate from admitted inline carrier
+        // storage, including a carrier lent at machine entry. Actual-call
+        // compatibility still owns pointee aliasing; this grants no pointer
+        // inequality or authority through a descriptor crossing.
         Backing::Descriptor {
             origin:
                 DescriptorSourceOrigin::IncomingSlot(_)
                 | DescriptorSourceOrigin::IncomingContents { .. },
             ..
-        } if activation_local => false,
+        } if independent_carrier => false,
         Backing::Descriptor { geometry, .. } => match geometry {
             // Formation tokens carry no disjoint physical storage evidence.
             DescriptorCallOrigin::Invocation { .. }
@@ -465,14 +466,16 @@ pub(super) fn overlaps(
 pub(super) fn origin_overlaps_storage(
     origin: &target_operations::TargetReferenceOrigin,
     place: PlaceId,
-    activation_local: bool,
+    independent_carrier: bool,
     origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
 ) -> bool {
     match origin.base {
         target_operations::TargetReferenceOriginBase::Storage { root } => {
             root == place && origin_overlaps(&origin.path)
         }
-        target_operations::TargetReferenceOriginBase::IncomingContents { .. } => !activation_local,
+        target_operations::TargetReferenceOriginBase::IncomingContents { .. } => {
+            !independent_carrier
+        }
         target_operations::TargetReferenceOriginBase::Invocation { .. }
         | target_operations::TargetReferenceOriginBase::Provider { .. } => true,
     }

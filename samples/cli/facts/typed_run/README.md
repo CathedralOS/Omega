@@ -22,8 +22,13 @@ require its zero count, zero byte length and original base; runtime checks
 observe the same descriptor. The [forged-empty control](../../../../tests/omega/fail/memory/typed_run_empty_forgery/main.omg)
 cannot establish `Live` from a raw descriptor, and the
 [nonempty-backing control](../../../../tests/omega/fail/memory/typed_run_empty_nonempty_backing/main.omg)
-cannot pass nonempty backing to `Run::empty`. Process exit abandons the fixture's
-remaining backing claims; it does not demonstrate empty-run release.
+cannot pass nonempty backing to `Run::empty`. The positive then consumes the
+empty run with `Run::release_empty`, checks that its returned vacant extent has
+the original base and zero length, and retains the singleton's cleanup oracle.
+The [release control](../../../../tests/omega/fail/memory/typed_run_release_obligations/main.omg)
+supplies zero byte length without zero element count and must reject: a
+zero-footprint element can still owe cleanup. Process exit abandons the returned
+backing claims; this tests empty-run release, not return to an allocator.
 
 Command: `omega run --both tests/omega/pass/facts/typed_run_singleton/main.omg`.
 The [rejected-initialization rung](../../../../tests/omega/pass/facts/typed_run_singleton_rejection/main.omg) supplies an
@@ -63,3 +68,8 @@ and the generic library Vec consumer. Retained Terminal evidence must carry the
 checked cell transformation into both engines without per-element runtime tags,
 custody tables or hidden occupancy updates. No part of that acceptance is closed
 by the presence of this first witness.
+
+The [zero-sized element witness](../../../../tests/omega/pass/layouts/runtime_run_zero_sized_element_exit/README.md)
+retains an empty record's cleanup through singleton storage and extraction,
+alongside an empty run with the same byte geometry. Its double-drop control
+rejects reuse; neither an empty schema nor zero backing bytes erase ownership.

@@ -303,6 +303,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         // storage; no declaration or program contents are copied for a call.
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
+        if boundary_declaration
+            .declaration
+            .as_ref()
+            .map(|row| row.execution)
+            == Some(terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
+        {
+            self.release_empty_run(operation, boundary_declaration)?;
+            return Ok(OperationFlow::Advance);
+        }
         // A compiler primitive's completion is not a selectable assertion.
         // Until its execution binds the live extent, completed profile call
         // and actual backing, neither a checked adapter nor a host handler may

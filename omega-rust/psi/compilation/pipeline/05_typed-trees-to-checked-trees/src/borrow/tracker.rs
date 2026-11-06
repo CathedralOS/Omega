@@ -25,6 +25,11 @@ pub(super) struct StateLoanTracker {
     /// A result root supplies no borrowing ancestry on its own. An exact
     /// descriptor transfer may still carry an earlier borrowing occurrence.
     pub(super) formation: super::loans::BorrowFormation,
+    /// Value-relative result path at formation. A descriptor loaded from a
+    /// field keeps that field as its source home, while the produced value's
+    /// own reference is at the empty path.
+    pub(super) formation_expression: checked_trees::expression::ExpressionHandle,
+    pub(super) formation_owner_path: Option<Vec<BorrowOwnerSegment>>,
     pub(super) permission_sources: Vec<RetainedBorrowSource>,
     /// Projection within a borrow-carrying owner that holds this loan. Fixed
     /// array literal positions retain their ordinal; a dynamic later index

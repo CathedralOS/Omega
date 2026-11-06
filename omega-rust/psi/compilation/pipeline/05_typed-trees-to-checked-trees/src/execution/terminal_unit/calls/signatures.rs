@@ -154,6 +154,53 @@ pub(crate) fn parameter_signatures(
         trace.phase("state graph: state signature: parameter signature: projected qualifications");
         let projected_qualifications =
             projected_parameter_qualifications(program, shapes, parameter_type, binders)?;
+        // The formal may require more than its underlying storage type does.
+        // Keep those entry facts separate from the duties every write retains;
+        // callers still establish the complete ordinary qualification roster.
+        let mut additional_input_qualifications = Vec::new();
+        if let Some(shell) = validation::reference_shell(program, parameter_type) {
+            // The annotation on the referee is an entry condition. The
+            // carrier's declared fields still retain their own domains.
+            let carrier = program
+                .type_reference_table
+                .unconstrained_type_reference(shell.referee);
+            let storage = validation::structural_qualification_contract(program, carrier).ok()?;
+            additional_input_qualifications.extend(
+                qualifications
+                    .iter()
+                    .filter(|domain| !storage.qualifications.contains(domain))
+                    .map(|domain| checked_trees::CheckedStructuralPathQualification {
+                        path: Vec::new(),
+                        domain: *domain,
+                    }),
+            );
+            additional_input_qualifications.extend(
+                projected_qualifications
+                    .iter()
+                    .filter(|row| !storage.projected_qualifications.contains(row))
+                    .cloned(),
+            );
+        }
+        // Only a complete predicate theory can be treated as an expiring
+        // observation. Issuer, content, policy and unknown prerequisite duties
+        // keep the original receiving contract.
+        additional_input_qualifications.retain(|row| {
+            let mut matching = shapes
+                .domains
+                .iter()
+                .filter(|domain| domain.domain == row.domain);
+            let Some(first) = matching.next() else {
+                return false;
+            };
+            std::iter::once(first).chain(matching).all(|domain| {
+                domain.complete_predicate_theory
+                    && domain.establishment_routes.is_empty()
+                    && domain
+                        .required_memberships
+                        .as_ref()
+                        .is_some_and(|required| required.is_empty())
+            })
+        });
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             primitive_referent: shapes.primitive_scalar(type_identity),
@@ -162,6 +209,7 @@ pub(crate) fn parameter_signatures(
             access,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications,
         });
     }
     Some((structural_parameters, scalar_parameters))

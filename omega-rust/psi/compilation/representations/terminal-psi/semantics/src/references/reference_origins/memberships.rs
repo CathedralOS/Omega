@@ -383,6 +383,7 @@ mod tests {
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             qualification_establishments: Vec::new(),
             claims: Vec::new(),
         };

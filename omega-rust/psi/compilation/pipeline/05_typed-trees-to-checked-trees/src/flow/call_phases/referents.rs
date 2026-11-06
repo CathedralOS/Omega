@@ -41,6 +41,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     domains: &DomainFacts,
     writes: Option<&[ObservedCallMutation]>,
 ) {
+    let trace = std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
+        .is_ok_and(|selected| selected == "1" || selected == machine.name.as_str());
     let key = (
         machine.symbol,
         state.symbol,
@@ -60,6 +62,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, borrow_call.target_symbol))
     else {
+        if trace {
+            eprintln!(
+                "returned-field-contracts target={:?} parameters=unavailable",
+                borrow_call.target_symbol
+            );
+        }
         return;
     };
     let mut rows = Vec::new();
@@ -111,20 +119,28 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
+            // An explicit postcondition restores the captured referent whether
+            // the domain needs provenance or only a predicate. Include it in
+            // the same all-writers judgment as declared child obligations;
+            // an entry qualification alone still supplies no return promise.
             for (position, domain, identity) in
                 parameter_claims.iter().flat_map(|claims| claims.iter())
             {
-                if *position == argument_position
-                    && validation::field_domains::domain_requires_provenance(program, *domain)
-                {
+                if *position == argument_position {
                     let row = (Vec::new(), *domain, *identity);
                     crate::shared::collections::push_unique(&mut paths, row);
                 }
             }
         }
-        let Some(targets) =
-            argument_sources.and_then(|sources| sources.referent_places(argument_position))
-        else {
+        let targets =
+            argument_sources.and_then(|sources| sources.referent_places(argument_position));
+        if trace {
+            eprintln!(
+                "returned-field-contracts target={:?} argument={argument_position} parameter={:?} declared={paths:?} captured={targets:?}",
+                borrow_call.target_symbol, parameter.symbol
+            );
+        }
+        let Some(targets) = targets else {
             continue;
         };
         // Facts live on the evaluated reference's captured backing. A
@@ -293,7 +309,23 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 matches!(
                     contribution.write.region,
                     crate::flow::mutation::StorageRegion::Declared(_)
-                ) && write_stays_in_captured_storage(program, parameters, source)
+                ) && super::copied_guarantees::confined_write_parameter(program, parameters, source)
+                    .is_some()
+            })
+            .collect();
+        let captured_writes: Vec<_> = writes
+            .iter()
+            .zip(&confined_writes)
+            .map(|(write, confined)| {
+                if !*confined {
+                    return None;
+                }
+                let crate::flow::mutation::StorageRegion::Declared(source) =
+                    write.write.source.as_ref()?
+                else {
+                    return None;
+                };
+                argument_sources?.inline_write_places(source)
             })
             .collect();
         if confined_writes.iter().any(|&confined| confined) {
@@ -328,11 +360,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 let is_subslice_byte_domain =
                     validation::field_domains::domain_byte_predicate(program, domain_symbol)
                         .is_some_and(|restriction| restriction.is_subslice_preserving());
-                if !is_subslice_byte_domain
-                    && !guarantees.has_domain(domain_symbol, semantic_domain)
-                {
-                    continue;
-                }
                 let semantic_place = semantic.places.get(handle);
                 if !semantic
                     .place_segments
@@ -366,19 +393,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 {
                     continue;
                 }
-                if !is_subslice_byte_domain
-                    && !guarantees.can_restore_place(
-                        program,
-                        &place,
-                        domain_symbol,
-                        semantic_domain,
-                    )
-                {
-                    continue;
-                }
                 let mut affected = false;
-                let mut prepared_writes = writes.iter().zip(&confined_writes);
-                let restored = prepared_writes.all(|(contribution, confined)| {
+                let mut prepared_writes = writes.iter().zip(&confined_writes).zip(&captured_writes);
+                let restored = prepared_writes.all(|((contribution, confined), captured)| {
                     if contribution
                         .write
                         .region
@@ -409,6 +426,23 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         // there. Its own observation frontier must be proved.
                         return false;
                     }
+                    // Invalidation may keep an unknown source selector even
+                    // after evaluation captured one exact element. A disjoint
+                    // captured write leaves this fact unchanged. Other alias
+                    // namespaces keep the original conservative judgment.
+                    let mutated = if let Some(captured) = captured
+                        .as_ref()
+                        .filter(|places| places.iter().all(|place| place.root == mutated.root))
+                    {
+                        match crate::flow::domain::matching_mutation_for_fact_place(
+                            program, semantic, domains, fact, handle, captured,
+                        ) {
+                            Some((mutated, _)) => mutated,
+                            None => return true,
+                        }
+                    } else {
+                        mutated
+                    };
                     // A per-byte class is a property of every element. An indexed
                     // store does not retire it when the callee's normal exits
                     // still prove that class on the formal that was written.
@@ -457,6 +491,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts = preserved;
+    if trace {
+        eprintln!(
+            "returned-field-contracts target={:?} republished={rows:?}",
+            borrow_call.target_symbol
+        );
+    }
     for (storage, path, domain_symbol, semantic_domain) in rows {
         let Some(place) = crate::flow::project_captured_view_place(storage, &path) else {
             continue;
@@ -478,43 +518,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         contexts.push((place, fact));
     }
     batches::append_place_contexts(semantic, build, exit, point, contexts);
-}
-
-/// A callee-relative inline write stays within this captured occurrence.
-/// A stored reference crosses to another home, so its formal root alone is
-/// insufficient provenance for restoring the containing owner's promises.
-fn write_stays_in_captured_storage(
-    program: &dyn ::validation::CheckingInput,
-    parameters: &[typed_trees::signature::StateParameter],
-    source: &validation::CanonicalPlace,
-) -> bool {
-    let Some(parameter) = parameters
-        .iter()
-        .find(|parameter| source.root.as_symbol() == Some(parameter.symbol))
-    else {
-        return false;
-    };
-    let Some(shell) = validation::reference_shell(program, parameter.type_reference) else {
-        return false;
-    };
-    let mut reference = shell.referee;
-    for segment in &source.segments {
-        if validation::reference_shell(program, reference).is_some() {
-            return false;
-        }
-        let Some(projected) = validation::project_type_reference_from_segments(
-            program,
-            reference,
-            std::slice::from_ref(segment),
-        ) else {
-            return false;
-        };
-        reference = projected;
-    }
-    // A write summary ending at a stored pointer can denote its referent,
-    // not only replacement of the descriptor slot. Without that distinction
-    // in the summary, it cannot establish confinement to the inline owner.
-    validation::reference_shell(program, reference).is_none()
 }
 
 /// An indexed store keeps a per-byte class when every state that writes an

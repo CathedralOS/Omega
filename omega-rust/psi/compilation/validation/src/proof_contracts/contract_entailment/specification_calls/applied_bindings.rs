@@ -137,11 +137,32 @@ impl AppliedRuntimeBinding {
 }
 
 enum AppliedConstValue {
-    Closed(CanonicalConstIdentity),
+    Closed {
+        value: CanonicalConstIdentity,
+        term: Option<StructuralTerm>,
+    },
     Parameter {
         symbol: SymbolHandle,
         type_reference: TypeReferenceHandle,
     },
+}
+
+// Constant validation already established this carrier. Preserve its complete
+// application while the simultaneous binding scope is available; decoded
+// names cannot recover a missing nominal owner afterward.
+fn admitted_constant_term(
+    program: &dyn crate::CheckingInput,
+    carrier: crate::value_custody::type_references::AppliedValueCarrier<'_>,
+    value: &CanonicalConstIdentity,
+) -> Option<StructuralTerm> {
+    let carrier = carrier.resolved(program);
+    let reference = if carrier.matches(program, carrier.reference()) {
+        carrier.reference()
+    } else {
+        let identity = carrier.identity(program)?;
+        result_reference_for_identity(program, &program.type_identity_text(identity)?)?
+    };
+    super::super::structural_terms::admitted_const_value_term(program, reference, value)
 }
 
 impl AppliedConstBinding {
@@ -152,9 +173,7 @@ impl AppliedConstBinding {
                 type_reference,
             } => (symbol.is_valid() && type_reference.is_valid())
                 .then_some(StructuralTerm::BoundValue(*symbol)),
-            AppliedConstValue::Closed(value) => {
-                super::super::structural_terms::admitted_const_value_term(value)
-            }
+            AppliedConstValue::Closed { term, .. } => term.clone(),
         }
     }
 }
@@ -247,7 +266,13 @@ impl AppliedProofBindings {
                     .ok()?;
                     result.constants.push(AppliedConstBinding {
                         symbol: actual.symbol,
-                        value: AppliedConstValue::Closed(actual.value.clone()),
+                        value: AppliedConstValue::Closed {
+                            term: admitted_constant_term(program,
+                                crate::value_custody::type_references::AppliedValueCarrier::ordinary(
+                                    typed_trees::static_applications::project_type_operand(program, type_reference, types)),
+                                &actual.value),
+                            value: actual.value.clone(),
+                        },
                     });
                 }
                 // These categories are not integer constants or type operands.
@@ -846,7 +871,18 @@ impl AppliedProofBindings {
                             &value,
                         )
                         .ok()?;
-                        AppliedConstValue::Closed(value)
+                        AppliedConstValue::Closed {
+                            term: admitted_constant_term(
+                                program,
+                                crate::value_custody::type_references::AppliedValueCarrier::applied(
+                                    *type_reference,
+                                    parameters,
+                                    &applied_arguments,
+                                ),
+                                &value,
+                            ),
+                            value,
+                        }
                     } else {
                         let symbol = match program.type_reference_table.type_reference(*reference) {
                             TypeReferenceNode::Named { symbol, .. } => *symbol,
@@ -1354,7 +1390,7 @@ impl AppliedProofBindings {
     }
 
     pub fn constant_integer(&self, symbol: SymbolHandle) -> Option<numerics::bignum::BigInt> {
-        let AppliedConstValue::Closed(value) = &self
+        let AppliedConstValue::Closed { value, .. } = &self
             .constants
             .iter()
             .find(|binding| binding.symbol == symbol)?
