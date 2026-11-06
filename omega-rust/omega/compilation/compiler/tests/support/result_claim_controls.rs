@@ -81,12 +81,55 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         .iter()
         .rposition(|part| matches!(part, Path::Field(_)))
         .ok_or("unused result slot has no payload field")?;
-    result_mut(&mut invalid, site)?.claims[unused].path[field] =
-        Path::Field(terminal_psi::TerminalIdentityIndex(0));
+    let (prefix, selected_case) = match unused_path[..field].split_last() {
+        Some((Path::Case(case), prefix)) => (prefix, Some(*case)),
+        _ => (&unused_path[..field], None),
+    };
+    let (_, parent) = terminal_semantics::canonical_static_projection(
+        module.structural_types.iter(),
+        original.structural_type,
+        prefix,
+    )
+    .ok_or("unused result field has no exact owned parent")?;
+    let fields = if let Some(case) = selected_case {
+        parent
+            .shape
+            .sum_cases()
+            .and_then(|cases| cases.iter().find(|row| row.id == case))
+            .map(|case| case.fields.as_slice())
+    } else {
+        parent.shape.direct_fields()
+    }
+    .ok_or("unused result field has no declared namespace")?;
+    let foreign_field = module
+        .structural_types
+        .iter()
+        .flat_map(|declaration| {
+            declaration
+                .shape
+                .direct_fields()
+                .into_iter()
+                .flatten()
+                .chain(
+                    declaration
+                        .shape
+                        .sum_cases()
+                        .into_iter()
+                        .flatten()
+                        .flat_map(|case| &case.fields),
+                )
+        })
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| field.identity)
+        .find(|identity| {
+            !identity.is_absent() && !fields.iter().any(|field| field.identity == *identity)
+        })
+        .ok_or("result control needs a field from another namespace")?;
+    result_mut(&mut invalid, site)?.claims[unused].path[field] = Path::Field(foreign_field);
     super::reject_module_at_ingress(
         &invalid,
         "unknown unused result field",
-        "structural path field identity cannot be empty",
+        "structural path has an unknown structural field",
     )?;
     let mut invalid = module.clone();
     result_mut(&mut invalid, site)?.claims[unused].path = active_path;
