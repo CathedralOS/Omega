@@ -1222,7 +1222,12 @@ fn incoming_root_grants(
         .state_parameters(typed_state)
         .iter()
         .collect::<Vec<_>>();
-    parameters.sort_by_key(|parameter| parameter.symbol);
+    parameters.sort_by_key(|parameter| {
+        (
+            parameter.symbol.arena_index(),
+            parameter.symbol.generation(),
+        )
+    });
     let mut grants = state
         .incoming_references
         .handles()
@@ -1239,8 +1244,19 @@ fn incoming_root_grants(
             if facts.borrow.owner_segments.span(incoming.owner_path) != Some(&[][..]) {
                 return false;
             }
-            let first = parameters.partition_point(|parameter| parameter.symbol < symbol);
-            let after = parameters.partition_point(|parameter| parameter.symbol <= symbol);
+            let key = (symbol.arena_index(), symbol.generation());
+            let first = parameters.partition_point(|parameter| {
+                (
+                    parameter.symbol.arena_index(),
+                    parameter.symbol.generation(),
+                ) < key
+            });
+            let after = parameters.partition_point(|parameter| {
+                (
+                    parameter.symbol.arena_index(),
+                    parameter.symbol.generation(),
+                ) <= key
+            });
             if after - first != 1 {
                 return false;
             }
@@ -1252,7 +1268,7 @@ fn incoming_root_grants(
                 && validation::reference_shell(program, carrier).is_some()
         })
         .collect::<Vec<_>>();
-    grants.sort_unstable();
+    grants.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     grants
 }
 
@@ -1280,7 +1296,12 @@ impl Dependencies<'_> {
         root: PlaceRoot,
     ) -> bool {
         self.question == StorageQuestion::RetainForArrival
-            && self.root_grants.binary_search(&handle).is_ok()
+            && self
+                .root_grants
+                .binary_search_by_key(&(handle.arena_index(), handle.generation()), |handle| {
+                    (handle.arena_index(), handle.generation())
+                })
+                .is_ok()
             && self
                 .facts
                 .borrow
