@@ -178,7 +178,7 @@ fn print_elapsed(started: std::time::Instant) {
     );
     if phase_profile::enabled() {
         eprint!("{}", phase_profile::render());
-        eprint!("{}", phase_profile::render_subjects(15));
+        eprint!("{}", phase_profile::render_subject_report());
     }
 }
 

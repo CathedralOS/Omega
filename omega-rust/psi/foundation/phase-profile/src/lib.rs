@@ -293,6 +293,154 @@ pub fn render_subjects(limit: usize) -> String {
     text
 }
 
+/// One subject's work summed over every pass that recorded it. A parallel
+/// pass's per-subject times are that subject's own work on its worker, so
+/// summing them per subject is sound even where pass coverage exceeds 100%.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubjectTotal {
+    pub subject: String,
+    pub nanos: u64,
+    /// Nanoseconds per pass, in [`subject_passes`] order.
+    pub per_pass: Vec<u64>,
+}
+
+/// Every pass that recorded a subject, sorted by name.
+pub fn subject_passes(rows: &[SubjectRow]) -> Vec<&'static str> {
+    let mut passes: Vec<&'static str> = rows.iter().map(|row| row.pass).collect();
+    passes.sort_unstable();
+    passes.dedup();
+    passes
+}
+
+/// One row per subject, heaviest first.
+pub fn subject_totals(rows: &[SubjectRow]) -> Vec<SubjectTotal> {
+    let passes = subject_passes(rows);
+    let mut by_subject: Vec<&SubjectRow> = rows.iter().collect();
+    by_subject.sort_by(|left, right| left.subject.cmp(&right.subject));
+    let mut totals: Vec<SubjectTotal> = Vec::new();
+    for row in by_subject {
+        if totals.last().is_none_or(|total| total.subject != row.subject) {
+            totals.push(SubjectTotal {
+                subject: row.subject.clone(),
+                nanos: 0,
+                per_pass: vec![0; passes.len()],
+            });
+        }
+        let total = totals.last_mut().expect("pushed above");
+        let column = passes.binary_search(&row.pass).expect("pass listed");
+        total.per_pass[column] += row.nanos;
+        total.nanos += row.nanos;
+    }
+    totals.sort_by(|left, right| right.nanos.cmp(&left.nanos));
+    totals
+}
+
+/// The pass name without the shared `psi.05.` stage prefix, for columns.
+fn short_pass(pass: &str) -> &str {
+    let tail = pass.strip_prefix("psi.05.").unwrap_or(pass);
+    tail.rsplit('.').next().unwrap_or(tail)
+}
+
+/// The `limit` heaviest subjects across all passes, one column per pass.
+pub fn render_subject_totals(limit: usize) -> String {
+    let rows = subject_snapshot();
+    let passes = subject_passes(&rows);
+    let totals = subject_totals(&rows);
+    let all: u64 = totals.iter().map(|total| total.nanos).sum();
+    let ms = |nanos: u64| nanos as f64 / 1_000_000.0;
+    let mut text = format!(
+        "SUBJECT TOTALS: {} subject(s), {:.3} ms across {} pass(es); top {}\n",
+        totals.len(),
+        ms(all),
+        passes.len(),
+        limit.min(totals.len())
+    );
+    text.push_str(&format!("  {:>10}", "total ms"));
+    for pass in &passes {
+        text.push_str(&format!(" {:>12.12}", short_pass(pass)));
+    }
+    text.push_str("  subject\n");
+    for total in totals.iter().take(limit) {
+        text.push_str(&format!("  {:>10.3}", ms(total.nanos)));
+        for nanos in &total.per_pass {
+            text.push_str(&format!(" {:>12.3}", ms(*nanos)));
+        }
+        text.push_str(&format!("  {}\n", total.subject.replace('\t', "  ")));
+    }
+    text
+}
+
+fn csv_field(text: &str) -> String {
+    if text.contains([',', '"', '\n']) {
+        format!("\"{}\"", text.replace('"', "\"\""))
+    } else {
+        text.to_owned()
+    }
+}
+
+/// Write every subject row to `path` and the per-subject totals beside it as
+/// `<path>.totals.csv`. Times are milliseconds with microsecond precision.
+pub fn write_subject_csvs(path: &std::path::Path) -> std::io::Result<()> {
+    let rows = subject_snapshot();
+    let ms = |nanos: u64| format!("{:.3}", nanos as f64 / 1_000_000.0);
+    let split = |subject: &str| {
+        let (file, declaration) = subject.split_once('\t').unwrap_or(("", subject));
+        format!("{},{}", csv_field(file), csv_field(declaration))
+    };
+    let mut detail = String::from("pass,file,function,ms,count\n");
+    for row in &rows {
+        detail.push_str(&format!(
+            "{},{},{},{}\n",
+            csv_field(row.pass),
+            split(&row.subject),
+            ms(row.nanos),
+            row.count
+        ));
+    }
+    std::fs::write(path, detail)?;
+    let passes = subject_passes(&rows);
+    let mut totals = String::from("file,function,total_ms");
+    for pass in &passes {
+        totals.push(',');
+        totals.push_str(&csv_field(pass));
+    }
+    totals.push('\n');
+    for total in subject_totals(&rows) {
+        totals.push_str(&format!("{},{}", split(&total.subject), ms(total.nanos)));
+        for nanos in &total.per_pass {
+            totals.push(',');
+            totals.push_str(&ms(*nanos));
+        }
+        totals.push('\n');
+    }
+    let mut totals_path = path.as_os_str().to_owned();
+    totals_path.push(".totals.csv");
+    std::fs::write(std::path::PathBuf::from(totals_path), totals)
+}
+
+/// The report every profile consumer prints after its pass rows: per-pass
+/// subjects, the cross-pass totals, and the CSVs when
+/// `OMEGA_PHASE_PROFILE_SUBJECTS` names a file.
+pub fn render_subject_report() -> String {
+    let mut text = render_subjects(15);
+    text.push_str(&render_subject_totals(30));
+    if let Some(path) = std::env::var_os("OMEGA_PHASE_PROFILE_SUBJECTS") {
+        let path = std::path::PathBuf::from(path);
+        match write_subject_csvs(&path) {
+            Ok(()) => text.push_str(&format!(
+                "SUBJECT CSV: {} and {}.totals.csv\n",
+                path.display(),
+                path.display()
+            )),
+            Err(error) => text.push_str(&format!(
+                "SUBJECT CSV: could not write {}: {error}\n",
+                path.display()
+            )),
+        }
+    }
+    text
+}
+
 /// Snapshot of every row, sorted by name so nested names group together.
 pub fn snapshot() -> Vec<Row> {
     ROWS.lock()
@@ -429,6 +577,24 @@ mod tests {
         assert!(report.contains("SUBJECTS test.pass: 2 subject(s)"), "{report}");
         assert!(report.contains("% coverage"), "{report}");
         assert!(report.contains("a.omg"), "{report}");
+    }
+
+    #[test]
+    fn totals_sum_each_subject_across_passes_and_csv_quotes_commas() {
+        super::STATE.store(super::ENABLED, std::sync::atomic::Ordering::Relaxed);
+        let rows = vec![
+            super::SubjectRow { pass: "p.one", subject: "f.omg	Map<K, V>::get".into(), count: 1, nanos: 2_000_000 },
+            super::SubjectRow { pass: "p.two", subject: "f.omg	Map<K, V>::get".into(), count: 3, nanos: 5_000_000 },
+            super::SubjectRow { pass: "p.two", subject: "g.omg	Small".into(), count: 1, nanos: 1_000_000 },
+        ];
+        assert_eq!(super::subject_passes(&rows), vec!["p.one", "p.two"]);
+        let totals = super::subject_totals(&rows);
+        assert_eq!(totals[0].subject, "f.omg	Map<K, V>::get");
+        assert_eq!(totals[0].nanos, 7_000_000);
+        assert_eq!(totals[0].per_pass, vec![2_000_000, 5_000_000]);
+        assert_eq!(totals[1].per_pass, vec![0, 1_000_000]);
+        assert_eq!(super::csv_field("Map<K, V>"), "\"Map<K, V>\"");
+        assert_eq!(super::csv_field("plain"), "plain");
     }
 
     #[test]
