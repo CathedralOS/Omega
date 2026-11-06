@@ -101,6 +101,56 @@ fn clones_replacement_and_record_recovery_keep_their_own_associations() {
     assert_eq!(restored, table);
     assert_eq!(rows(&restored, second), [replacement_one, replacement_two]);
     assert!(rows(&restored, first).is_empty());
+    // The old derived wrapper added one record-depth boundary around Arena.
+    // Compare both directions against that independent generated implementation.
+    #[derive(compiler_storage::Record)]
+    struct PriorTableRecord {
+        arena: Arena<AppliedCallableSignature>,
+    }
+    let prior = PriorTableRecord {
+        arena: table.arena.clone(),
+    };
+    assert_eq!(
+        compiler_storage::encode(&prior, compiler_storage::RecordLimits::default()).unwrap(),
+        encoded
+    );
+    let mut saw_write_success = false;
+    let mut saw_read_success = false;
+    for depth in 0..=compiler_storage::RecordLimits::default().depth {
+        let limits = compiler_storage::RecordLimits {
+            depth,
+            ..Default::default()
+        };
+        let old_write = compiler_storage::encode(&prior, limits);
+        let new_write = compiler_storage::encode(&table, limits);
+        assert_eq!(old_write.is_ok(), new_write.is_ok(), "write depth {depth}");
+        if old_write.is_ok() {
+            saw_write_success = true;
+            assert_eq!(old_write.unwrap(), new_write.unwrap());
+        }
+        let old_read = compiler_storage::decode::<PriorTableRecord>(&encoded, limits);
+        let new_read = compiler_storage::decode::<AppliedCallableTable>(&encoded, limits);
+        assert_eq!(old_read.is_ok(), new_read.is_ok(), "read depth {depth}");
+        if let Ok(restored) = new_read {
+            saw_read_success = true;
+            assert_eq!(rows(&restored, second), [replacement_one, replacement_two]);
+        }
+        if depth == 0 {
+            assert!(
+                compiler_storage::encode(&table, limits)
+                    .unwrap_err()
+                    .reason
+                    .contains("nesting")
+            );
+            assert!(
+                compiler_storage::decode::<AppliedCallableTable>(&encoded, limits)
+                    .unwrap_err()
+                    .reason
+                    .contains("nesting")
+            );
+        }
+    }
+    assert!(saw_write_success && saw_read_success);
 }
 
 #[test]
