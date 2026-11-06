@@ -80,7 +80,9 @@ machine Main::main(main: &mut Main) reaches FilesystemContentRead + FilesystemCo
     machine read_count(main: &mut Main) {
         transition main.n as u64 <= 320 - main.received { true -> read_advance(main) _ -> read_error(main) }
     }
-    machine read_advance(main: &mut Main) {
+    // Arrival is a positive read that fits the unused suffix of the 320-byte
+    // window. That makes `n as u64` exact and keeps `received <= 320`.
+    machine read_advance(main: &mut Main) requires main.n > 0 && main.n as u64 <= 320 - main.received {
         main.received = main.received + main.n as u64;
         transition { _ -> read_more(main) }
     }
