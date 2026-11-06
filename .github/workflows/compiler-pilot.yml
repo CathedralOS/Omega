@@ -36,6 +36,10 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
+      frozen_controls:
+        description: Observe the two exact frozen reference-control groups with unchanged inputs
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -59,7 +63,7 @@ concurrency:
 jobs:
   compiler-pilot:
     runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || inputs.frozen_controls && 90 || 60) || 30 }}
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
@@ -178,6 +182,36 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         run: python tools/ci/compiler_pilot.py --phase consume
+      - name: Observe both exact frozen reference-control groups
+        if: always() && !cancelled() && github.event_name == 'workflow_dispatch' && inputs.frozen_controls && steps.producer-preparation.outcome == 'success'
+        run: python tools/build_slot.py -- python tools/ci/run_frozen_controls.py
+      - name: Retain complete frozen-control artifacts and observations
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.frozen_controls
+        with:
+          name: compiler-pilot-frozen-controls-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/frozen-controls/
+            build/supplied-output-loan/ci-frozen-observations/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
+      - name: Retain bounded frozen-control records separately
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.frozen_controls
+        with:
+          name: compiler-pilot-frozen-control-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/frozen-controls/
+            build/supplied-output-loan/ci-frozen-observations/*.json
+            build/supplied-output-loan/ci-frozen-observations/*-check.stdout
+            build/supplied-output-loan/ci-frozen-observations/*-check.stderr
+            build/supplied-output-loan/ci-frozen-observations/*-both.stdout
+            build/supplied-output-loan/ci-frozen-observations/*-both.stderr
+            build/supplied-output-loan/ci-frozen-observations/*-inspect.stderr
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
