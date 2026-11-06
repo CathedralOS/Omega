@@ -497,7 +497,7 @@ pub use proof_contracts::contract_entailment::call_requirements::selected_value_
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
 pub use proof_contracts::contract_entailment::exit_predicates::{
-    NormalExitContract, normal_exit_proves,
+    NormalExitCompletion, NormalExitContract, normal_exit_proves,
 };
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::law_conformance::{

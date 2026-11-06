@@ -215,6 +215,16 @@ pub(super) trait StructuralPrefixVisitor {
     ) {
     }
 
+    /// The completed guard independently refuted this exact terminal arm.
+    /// Missing guard observations never invoke this hook.
+    fn excluded_transition(
+        &mut self,
+        _state: SymbolHandle,
+        _statement: usize,
+        _target: typed_trees::statement::TransitionTargetHandle,
+    ) {
+    }
+
     /// A ranked entry starts a fresh induction interval. Observers checking
     /// that interval stop at the next ranked invocation, before its body.
     fn stops_at_machine(&self, _machine: SymbolHandle) -> bool {

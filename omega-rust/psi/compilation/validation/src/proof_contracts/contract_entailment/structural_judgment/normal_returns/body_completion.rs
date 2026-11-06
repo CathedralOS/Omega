@@ -46,6 +46,89 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// Observe a terminal invocation using its actual transition identity.
+    /// Its operands, storage frame and selected body have the same owners as
+    /// the enclosing state walk; no expression or result identity is invented.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_transition_return_paths(
+        &self,
+        target: typed_trees::statement::TransitionTargetHandle,
+        statement_index: usize,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let program = self.program;
+        let target_node = program.statement_table.transition_target(target);
+        if !matches!(
+            target_node,
+            typed_trees::statement::TransitionTargetNode::Named { .. }
+        ) {
+            return self.terminal_completion_paths(target_node, environment, scope);
+        }
+        if !self.requires_value_preservation() {
+            return None;
+        }
+        let theorem = program.machine(self.machine_symbol)?;
+        let classification = crate::proof_only_classification(program);
+        let (entry, arguments, expression) =
+            super::super::super::structural_case_arms::terminal_body_transfer(
+                program,
+                theorem,
+                scope.0,
+                scope.1,
+                target_node,
+                Some(target),
+                &classification,
+                false,
+                true,
+            )?;
+        if expression.is_some()
+            || entry.symbol == scope.1.symbol
+            || self.body_invocations.contains(&entry.symbol)
+        {
+            return None;
+        }
+        let callee = program.machine_holding_state(entry.symbol)?;
+        let parameters = program.state_parameters(entry);
+        let subjects = self
+            .frame_resolver()?
+            .transition_entry_reference_subjects(scope.0, target, parameters)
+            .unwrap_or_default();
+        let frames = self.normal_argument_entries(
+            arguments,
+            parameters,
+            OperationOperandDemand::All,
+            environment,
+            scope,
+            None,
+        )?;
+        let statement = program
+            .statement_table
+            .statement_at(scope.1, statement_index)?;
+        let mut paths = Vec::new();
+        for frame in frames {
+            let actuals = frame.observed_arguments()?;
+            let caller = frame.judge;
+            let writes = caller
+                .frame_resolver()?
+                .statement_value_write_frame(scope.0, statement);
+            let version = caller.transition_call_storage_version(scope.0, scope.1, target);
+            paths.extend(caller.checked_body_return_paths(
+                callee,
+                entry,
+                &actuals,
+                &subjects,
+                environment,
+                scope,
+                &writes,
+                version,
+                Some(entry.return_type),
+                None,
+                None,
+            )?);
+        }
+        Some(paths)
+    }
+
     pub(super) fn observed_body_paths(
         &self,
         expression: ExpressionHandle,
@@ -92,21 +175,59 @@ impl<'program> StructuralJudge<'program> {
             .unwrap_or_default();
         // Preparation already froze the call inputs. Body admission remains
         // independent of whether its optional public capture was available.
+        let result_type =
+            crate::expression_result_type_reference(program, scope.0, scope.1, expression);
+        self.checked_body_return_paths(
+            callee,
+            entry,
+            actuals?,
+            &subjects,
+            environment,
+            scope,
+            writes,
+            self.call_storage_version(scope.1, expression),
+            result_type,
+            Some(expression),
+            public_capture,
+        )
+    }
+
+    /// Bind completed operands once, read the selected checked body without
+    /// assuming its guarantees, then restore the caller's exact storage frame.
+    #[allow(clippy::too_many_arguments)]
+    fn checked_body_return_paths(
+        &self,
+        callee: &'program typed_trees::machine::Machine,
+        entry: &'program typed_trees::state::State,
+        actuals: &[StructuralTerm],
+        subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+        writes: &NormalizedWriteFrame,
+        completion_version: Option<super::super::storage_effects::StorageVersion>,
+        result_type: Option<TypeReferenceHandle>,
+        expression: Option<ExpressionHandle>,
+        public_capture: Option<(
+            &call_completion::PreparedNormalCall<'program, '_>,
+            &super::super::selected_contracts::PreparedSelectedGuarantees<'_>,
+        )>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let program = self.program;
         let caller = self;
         let (incoming, captured) =
             caller
                 .clone()
-                .bind_invocation(entry, actuals?, &subjects, environment, scope)?;
+                .bind_invocation(entry, actuals, subjects, environment, scope)?;
         let theorem = program.machine(self.machine_symbol)?;
         let parameter_names = self
             .declaration_parameters
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect::<Vec<_>>();
-        let integer_result =
-            crate::expression_result_type_reference(program, scope.0, scope.1, expression)
-                .and_then(|reference| program.primitive_type_reference(reference))
-                .filter(|primitive| primitive.integer_bounds().is_some());
+        let integer_result = result_type
+            .and_then(|reference| program.primitive_type_reference(reference))
+            .filter(|primitive| primitive.integer_bounds().is_some());
+        let classification = crate::proof_only_classification(program);
         let mut diagnostics = Vec::new();
         // This operation reads the selected body directly, rather than through
         // application unfolding or a returned-field correspondence query.
@@ -149,10 +270,10 @@ impl<'program> StructuralJudge<'program> {
                 let mut judge = arm.normal_judge.complete_invocation(
                     caller,
                     scope.1,
-                    &subjects,
+                    subjects,
                     writes,
                     &result.value,
-                    caller.call_storage_version(scope.1, expression),
+                    completion_version,
                 )?;
                 let completed = public_capture.and_then(|(prepared, guarantees)| {
                     judge.capture_prepared_normal_call(prepared, guarantees, Some(&result), scope)
@@ -171,8 +292,10 @@ impl<'program> StructuralJudge<'program> {
                         judge.install_post_call_storage(scope.1, storage);
                     }
                 }
-                std::sync::Arc::make_mut(&mut judge.normal_results)
-                    .push((expression, value.clone()));
+                if let Some(expression) = expression {
+                    std::sync::Arc::make_mut(&mut judge.normal_results)
+                        .push((expression, value.clone()));
+                }
                 Some(NormalReturnPath::observed(value, judge))
             })
             .collect()

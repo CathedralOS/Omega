@@ -30,7 +30,9 @@ pub(super) fn proves(
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    let returned = super::super::return_values::exit_return_expression(program, exit);
+    let Some(returned) = super::super::return_values::exit_return_completion(program, exit) else {
+        return false;
+    };
     let mut inherited = false;
     for (_, contract) in facts.proof.contract_facts.iter().filter(|(_, contract)| {
         contract.kind == ContractProofFactKind::Ensures

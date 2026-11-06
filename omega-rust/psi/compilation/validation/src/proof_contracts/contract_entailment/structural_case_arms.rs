@@ -2015,6 +2015,11 @@ fn recognize_structural_state_leaves_from<'a>(
                         next_remaining.push((next_judge, skipped_equations));
                     }
                     if matches!(subject_judgment, Some(StructuralJudgment::Refuted)) {
+                        if let Some(target) = transition.source_target {
+                            for visitor in visitors.iter_mut() {
+                                visitor.excluded_transition(state.symbol, statement_index, target);
+                            }
+                        }
                         call_entries::exclude_target_calls(
                             program,
                             invocation,
@@ -2651,7 +2656,7 @@ struct TerminalArm {
 /// selected declaration, then capture expression-call actuals through the normal
 /// ordered entry owner. No completed result or callee guarantee is assumed.
 #[allow(clippy::too_many_arguments)]
-fn terminal_body_transfer<'program>(
+pub(in crate::proof_contracts::contract_entailment) fn terminal_body_transfer<'program>(
     program: &'program dyn crate::CheckingInput,
     proof_root: &Machine,
     invocation: &Machine,

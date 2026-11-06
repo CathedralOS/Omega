@@ -189,6 +189,35 @@ fn matching_exit_return_call<'facts>(
     matching.next().is_none().then_some(call)
 }
 
+/// Keep a named terminal invocation's real source occurrence for exit proof.
+/// Other consumers may still need only an actual returned expression.
+pub(super) fn exit_return_completion(
+    program: &dyn ::validation::CheckingInput,
+    exit: &FlowExitFact,
+) -> Option<validation::NormalExitCompletion> {
+    let state = validation::find_state_for_exit(program, exit)?;
+    let statements = program.statement_table.statements(state.statement_nodes);
+    match statements.get(exit.statement_index)? {
+        StatementNode::Expression(expression)
+            if !exit.transition_target.is_valid()
+                && exit.statement_index.checked_add(1) == Some(statements.len()) =>
+        {
+            Some(validation::NormalExitCompletion::Expression(*expression))
+        }
+        StatementNode::Transition(transition)
+            if exit.transition_target.is_valid()
+                && [transition.target, transition.continuation]
+                    .contains(&exit.transition_target)
+                && transition.exit == TransitionExit::Ordinary =>
+        {
+            Some(validation::NormalExitCompletion::Transition(
+                exit.transition_target,
+            ))
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn exit_return_expression(
     program: &dyn ::validation::CheckingInput,
     exit: &FlowExitFact,

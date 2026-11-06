@@ -13,6 +13,14 @@ use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
+/// The authored operation supplying one normal exit. Named transitions retain
+/// their own occurrence; they do not have a source expression result.
+#[derive(Clone, Copy)]
+pub enum NormalExitCompletion {
+    Expression(ExpressionHandle),
+    Transition(typed_trees::statement::TransitionTargetHandle),
+}
+
 /// The declaration whose predicate an implementation must prove, with the exact
 /// parameter correspondence retained by its checked signature. These are only
 /// subjects to substitute; the completed return and all-arrival origins must
@@ -33,24 +41,45 @@ pub fn normal_exit_proves(
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    returned: ExpressionHandle,
+    returned: NormalExitCompletion,
     contract: NormalExitContract<'_>,
     origins: &[(SymbolHandle, SymbolHandle)],
     ranks: &checked_trees::CheckedRankArrivalPlan,
 ) -> bool {
-    if !returned.is_valid() || contract.parameters.len() != contract.supplying_parameters.len() {
+    if contract.parameters.len() != contract.supplying_parameters.len() {
         return false;
     }
     let mut query = ExitPredicate {
         site: StructuralPrefixSite {
             state: state.symbol,
             statement_index,
-            in_transition_target: super::structural_prefix::expression_is_transition_target(
-                program,
-                state,
-                statement_index,
-                returned,
-            ),
+            in_transition_target: match returned {
+                NormalExitCompletion::Expression(expression) => {
+                    if !expression.is_valid() {
+                        return false;
+                    }
+                    super::structural_prefix::expression_is_transition_target(
+                        program,
+                        state,
+                        statement_index,
+                        expression,
+                    )
+                }
+                NormalExitCompletion::Transition(target) => {
+                    let Some(typed_trees::statement::StatementNode::Transition(transition)) =
+                        program.statement_table.statement_at(state, statement_index)
+                    else {
+                        return false;
+                    };
+                    if transition.exit != typed_trees::statement::TransitionExit::Ordinary
+                        || target != transition.target
+                        || !program.statement_table.transition_target_is_valid(target)
+                    {
+                        return false;
+                    }
+                    true
+                }
+            },
         },
         returned,
         contract,
@@ -73,7 +102,7 @@ pub fn normal_exit_proves(
 
 struct ExitPredicate<'a> {
     site: StructuralPrefixSite,
-    returned: ExpressionHandle,
+    returned: NormalExitCompletion,
     contract: NormalExitContract<'a>,
     origins: &'a [(SymbolHandle, SymbolHandle)],
     ranks: &'a checked_trees::CheckedRankArrivalPlan,
@@ -88,6 +117,22 @@ impl StructuralPrefixVisitor for ExitPredicate<'_> {
 
     fn entered(&mut self) {
         self.seen = true;
+    }
+
+    fn excluded_transition(
+        &mut self,
+        state: SymbolHandle,
+        statement: usize,
+        target: typed_trees::statement::TransitionTargetHandle,
+    ) {
+        if state == self.site.state
+            && statement == self.site.statement_index
+            && matches!(self.returned, NormalExitCompletion::Transition(own) if own == target)
+        {
+            // This arrival has no normal result. Other arrivals still have to
+            // establish the whole predicate; exclusion cannot repair a refusal.
+            self.seen = true;
+        }
     }
 
     fn unresolved(&mut self, _machine: &Machine) {
@@ -179,15 +224,21 @@ impl ExitPredicate<'_> {
                 .ok_or("the input has no completed value observation")?;
             parameters.push((formal.symbol, value));
         }
-        let paths = judge
-            .normal_return_paths(
-                self.returned,
+        let scope = (machine, state, state.return_type);
+        let paths = match self.returned {
+            NormalExitCompletion::Expression(expression) => {
+                judge.normal_return_paths(expression, environment, scope)
+            }
+            NormalExitCompletion::Transition(target) => judge.normal_transition_return_paths(
+                target,
+                self.site.statement_index,
                 environment,
-                (machine, state, state.return_type),
-            )
-            .ok_or("the returned expression has no complete normal observations")?;
+                scope,
+            ),
+        }
+        .ok_or("the return operation has no complete normal observations")?;
         if paths.is_empty() {
-            return Err("the returned expression has no observed normal path");
+            return Err("the return operation has no observed normal path");
         }
         for path in paths {
             // Substitute exact formal identities and the completed result. A
@@ -219,5 +270,85 @@ impl ExitPredicate<'_> {
             }
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use typed_trees::statement::TransitionTargetHandle;
+
+    fn query(ranks: &checked_trees::CheckedRankArrivalPlan) -> ExitPredicate<'_> {
+        ExitPredicate {
+            site: StructuralPrefixSite {
+                state: SymbolHandle::from_parts(1, 1),
+                statement_index: 2,
+                in_transition_target: true,
+            },
+            returned: NormalExitCompletion::Transition(TransitionTargetHandle::from_parts(3, 1)),
+            contract: NormalExitContract {
+                expression: ExpressionHandle::invalid(),
+                callable: SymbolHandle::invalid(),
+                parameters: &[],
+                supplying_parameters: &[],
+                type_bindings: &[],
+            },
+            origins: &[],
+            ranks,
+            seen: false,
+            proven: true,
+        }
+    }
+
+    #[test]
+    fn a_refuted_guard_closes_its_exact_exit_without_a_result() {
+        let ranks = checked_trees::CheckedRankArrivalPlan::default();
+        let mut query = query(&ranks);
+        query.excluded_transition(
+            SymbolHandle::from_parts(1, 1),
+            2,
+            TransitionTargetHandle::from_parts(3, 1),
+        );
+        assert!(query.seen && query.proven);
+    }
+
+    #[test]
+    fn another_arm_or_arrival_does_not_close_the_exit() {
+        let ranks = checked_trees::CheckedRankArrivalPlan::default();
+        let mut query = query(&ranks);
+        for (state, statement, target) in [
+            (
+                SymbolHandle::from_parts(4, 1),
+                2,
+                TransitionTargetHandle::from_parts(3, 1),
+            ),
+            (
+                SymbolHandle::from_parts(1, 1),
+                4,
+                TransitionTargetHandle::from_parts(3, 1),
+            ),
+            (
+                SymbolHandle::from_parts(1, 1),
+                2,
+                TransitionTargetHandle::from_parts(3, 2),
+            ),
+        ] {
+            query.excluded_transition(state, statement, target);
+            assert!(!query.seen);
+        }
+    }
+
+    #[test]
+    fn an_excluded_arrival_does_not_erase_a_refused_arrival() {
+        let ranks = checked_trees::CheckedRankArrivalPlan::default();
+        let mut query = query(&ranks);
+        query.proven = false;
+        query.excluded_transition(
+            SymbolHandle::from_parts(1, 1),
+            2,
+            TransitionTargetHandle::from_parts(3, 1),
+        );
+        assert!(query.seen);
+        assert!(!query.proven);
     }
 }
