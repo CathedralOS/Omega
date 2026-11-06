@@ -1173,12 +1173,8 @@ pub(super) fn call_target_matches(
     }
 }
 
-/// Lifecycle lowering produces a whole-value operation, not an ABI call or
-/// scalar accessor event. The audit must compare that operation's retained
-/// operands and result, rather than demand a foreign-call settlement for it.
-/// The target audit checks the canonical lifecycle kind and operand roles;
-/// downstream replay checks instruction encoding, layout and frames. Runtime
-/// falsifiers separately exercise the selected lifecycle's behavior.
+/// Empty release must retain the actual backing projection, not a host call
+/// or an arbitrary record with the same physical shape.
 fn empty_run_release_retained(
     operation: &AbstractOperation,
     targeted: &target_operations::TargetFunction,
@@ -1228,6 +1224,12 @@ fn empty_run_release_retained(
     )).count() == 1
 }
 
+/// Lifecycle lowering produces a whole-value operation, not an ABI call or
+/// scalar accessor event. The audit must compare that operation's retained
+/// operands and result, rather than demand a foreign-call settlement for it.
+/// The target audit checks the canonical lifecycle kind and operand roles;
+/// downstream replay checks instruction encoding, layout and frames. Runtime
+/// falsifiers separately exercise the selected lifecycle's behavior.
 fn access_lifecycle_retained(
     operation: &AbstractOperation,
     targeted: &target_operations::TargetFunction,

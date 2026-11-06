@@ -13347,16 +13347,16 @@ fail/facts/thirtytwo_arg_stack_calling_plan_through_target_body_rejected rejecte
 	exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate32` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/typed_run_nested_borrowed rejected 5664ms expected @e57dabfcadce
+fail/facts/typed_run_nested_borrowed rejected 4263ms expected @82d911de2f69
 	callable `Carrier::unwrap` returns content-bearing custody `Token::Owned` sourced only from borrowed parameter `envelope` through a structural field; retained-after-return authority requires a consumed owned input
-fail/facts/typed_run_nested_duplicate rejected 8640ms expected @e57dabfcadce
+fail/facts/typed_run_nested_duplicate rejected 8478ms expected @82d911de2f69
 	callable `Carrier::duplicate` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
-fail/facts/typed_run_nested_two_inputs rejected 8574ms expected @e57dabfcadce
+fail/facts/typed_run_nested_two_inputs rejected 8715ms expected @82d911de2f69
 	cannot establish call-result qualification `Token::Owned` in `steal`, state `entry` (statement 0, call 0): the invocation does not transfer exactly one established input claim for this domain
-fail/facts/typed_run_singleton_count rejected 13524ms expected @e57dabfcadce
+fail/facts/typed_run_singleton_count rejected 13435ms expected @82d911de2f69
 	cannot prove requires contract for call extract_cell from extract: current.count == 1 (needs fact `run.count == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call extract_cell from extract: current in toolchain:product::Live<type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(WordPlacement\\)\\))),type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(Word\\)\\)))> (invalidated by prior mutation of current.count; current is part of Live) in state `entry`
-fail/facts/typed_run_singleton_double_drop rejected 11717ms expected @e57dabfcadce
+fail/facts/typed_run_singleton_double_drop rejected 11553ms expected @82d911de2f69
 	cannot use `value` in machine `finish` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/unannotated_direct_boundary_call_through_call_result_rejected rejected 1727ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
@@ -15777,13 +15777,13 @@ fail/memory/resident_result_requires_execution_contract rejected 1333ms expected
 fail/memory/resident_transfer_cast_forgery rejected 2632ms expected @ccdb99ca2214
 	`as ... in Resident` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: storage requires Resident
-fail/memory/typed_run_backing_geometry rejected 11212ms expected @e57dabfcadce
+fail/memory/typed_run_backing_geometry rejected 11394ms expected @82d911de2f69
 	cannot prove requires contract for call extract from allocated: (__transition_subject#183.view as Run<WordPlacement, Word> ).storage.length != backing_length (needs fact `run.storage.length != backing_length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/memory/typed_run_empty_forgery rejected 9449ms expected @e57dabfcadce
+fail/memory/typed_run_empty_forgery rejected 9437ms expected @82d911de2f69
 	cannot prove default-domain field requirement for return from counterfeit, state entry, at statement 1: result requires Live
-fail/memory/typed_run_empty_nonempty_backing rejected 8153ms expected @e57dabfcadce
+fail/memory/typed_run_empty_nonempty_backing rejected 8328ms expected @82d911de2f69
 	cannot prove requires contract for call empty from counterfeit: storage.length == 0 (needs fact `storage.length == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/memory/typed_run_release_obligations rejected 8629ms expected @e57dabfcadce
+fail/memory/typed_run_release_obligations rejected 8617ms expected @82d911de2f69
 	cannot prove requires contract for call release_empty from missing_count: run.count == 0 (needs fact `run.count == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/vacant_transfer_checked_adapter_forgery rejected 2567ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from pretend at statement 0: result in Extent::Vacant
@@ -25132,9 +25132,9 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit checked 4
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 3591ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/typed_run_nested_owned checked 11346ms @e57dabfcadce
-pass/facts/typed_run_singleton checked 20224ms check-target:macos_arm64 @e57dabfcadce
-pass/facts/typed_run_singleton_rejection checked 20102ms check-target:macos_arm64 @e57dabfcadce
+pass/facts/typed_run_nested_owned checked 10389ms @82d911de2f69
+pass/facts/typed_run_singleton checked 19325ms check-target:macos_arm64 @82d911de2f69
+pass/facts/typed_run_singleton_rejection checked 18834ms check-target:macos_arm64 @82d911de2f69
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
