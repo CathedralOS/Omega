@@ -26,7 +26,7 @@ jobs:
           import hashlib, json, os, shutil, subprocess
           from pathlib import Path
           assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == os.environ['GITHUB_SHA']
-          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == 'a8b8ba652cbf6cf242bcd4155dafc0e9682beb33'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == '5a07488f36303789496d4db31b6f92d9cc51cb03'
           stage = Path(os.environ['RUNNER_TEMP']) / 'installed-entry-current-observer'
           stage.mkdir(exist_ok=False)
           files = {}

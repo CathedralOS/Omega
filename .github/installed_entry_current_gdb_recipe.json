@@ -17,7 +17,7 @@
     "installed_entry_current_recipe.json": "96353456f95b3793e58a8b829245307f3a9fbe863aa26ef187a1f565fd920e27",
     "installed_entry_current_inputs.json": "32a539e374d6ae1d122bc52dace10642fd228d27cf0f435fcdd72b12f71ad644",
     "run_installed_entry_current_gdb.py": "6ba082286e5ff62c0f72e90c2d6ef9a8e7033129d35473126aef35979aaf7bff",
-    "setup_installed_entry_current_gdb.py": "4797ef52382a5aff4912ed1e83c058961977399801c142e5af3dc7a2bf891c91"
+    "setup_installed_entry_current_gdb.py": "f09e5220444f115b763cec58018b061ca08ba5abd7b9a8c73e6ed9b2c83b9c31"
   },
   "source_seconds": 20,
   "outer_stop_seconds": 22,
@@ -43,5 +43,25 @@
     "https://sourceware.org/gdb/current/onlinedocs/gdb.html/Calling.html"
   ],
   "limits": "Active stacks and owned counters only. No allocation-caller, dominant-cost, OOM, Source acceptance, engine, sample or parent closure claim.",
-  "package_source_fields": "Before APT, parse existing Deb822 field names case-insensitively with the narrow Types/URIs/Suites/Components/Signed-By/Architectures/Enabled allowlist. Refuse every unknown field, duplicate normalized name, continuation/ambiguous key, empty URI/suite/component roster and disabled stanza. In particular Trusted and all Allow-Insecure/Allow-Weak/Allow-Downgrade-To-Insecure spellings are refused. Preserve original validated official URI/suite/keyring checks; no source or key is written."
+  "package_source_fields": "Before APT, parse existing Deb822 field names case-insensitively with the narrow Types/URIs/Suites/Components/Signed-By/Architectures/Enabled allowlist. Refuse every unknown field, duplicate normalized name, continuation/ambiguous key, empty URI/suite/component roster and disabled stanza. In particular Trusted and all Allow-Insecure/Allow-Weak/Allow-Downgrade-To-Insecure spellings are refused. Preserve original validated official URI/suite/keyring checks; no source or key is written.",
+  "package_source_format": "Also accept only exact mirror+file:/etc/apt/apt-mirrors.txt, the format generated and tested by actual image ubuntu24/20261101.360. Read that existing local file and validate every endpoint/priority against the pinned generator (Azure HTTP priority1, archive HTTPS priority2, security HTTPS priority3), rejecting extra metadata, unknown endpoints, duplicates and missing endpoints. Source/keyring/mirror bytes are checked again before each unchanged APT command. Record safe inventories, phase and explicit failure traceback before refusing; write no host source/mirror/key file.",
+  "pinned_image_provenance": [
+    {
+      "url": "https://raw.githubusercontent.com/actions/runner-images/refs/tags/ubuntu24/20261101.360/images/ubuntu/scripts/build/configure-apt-sources.sh",
+      "sha256": "90b1cde55a1daacb8b65efd19faa3a1fe61c24353c3fef829da2104ff6be5f16"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/actions/runner-images/refs/tags/ubuntu24/20261101.360/images/ubuntu/scripts/tests/Apt.Tests.ps1",
+      "sha256": "d8542c76785e66b9a047c8d1eb81bc96b4128e162304d25844ea909e2271642a"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/actions/runner-images/refs/tags/ubuntu24/20261101.360/images/ubuntu/scripts/build/configure-apt.sh",
+      "sha256": "0857e4ceed76b032bbf82588f52ea2f9acea086c9c2609f170d03a6705f48807"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/actions/runner-images/refs/tags/ubuntu24/20261101.360/images/ubuntu/templates/build.ubuntu-24_04.pkr.hcl",
+      "sha256": "5b8a5f29c33d9c98a0368c0e3109eba9dc566ce8091aa412de56fc93518d1adf"
+    }
+  ],
+  "apt_mirror_format_documentation": "https://manpages.ubuntu.com/manpages/noble/man1/apt-transport-mirror.1.html"
 }
