@@ -35,7 +35,11 @@ impl<'program> StructuralJudge<'program> {
         StructuralTraversalInputs {
             resolution: self.resolution_inputs(),
             specification_terms: self.specification_terms,
-            returned_field_trace: self.returned_field_trace.as_ref().map(InputOwner::new),
+            returned_field_trace: self
+                .query_state
+                .returned_field_trace
+                .as_ref()
+                .map(InputOwner::new),
             active_application: self.active_application.as_ref().map(InputOwner::new),
             resolution_observations: self.resolution_observations.as_ref().map(InputOwner::new),
             ring_licenses: self

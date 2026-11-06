@@ -1602,7 +1602,7 @@ impl<'program> StructuralJudge<'program> {
             substitutions: std::sync::Arc::clone(&self.substitutions),
             require_closed_computation: self.require_closed_computation,
         };
-        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
+        if let Ok(mut cache) = self.query_state.prepared_integer_premises_cache.lock()
             && let Some(cached) = cache.get(&state)
         {
             phase_profile::count("psi.05.numeric.prove.prep.hit", 1);
@@ -1610,7 +1610,7 @@ impl<'program> StructuralJudge<'program> {
         }
         phase_profile::count("psi.05.numeric.prove.prep.miss", 1);
         let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
-        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
+        if let Ok(mut cache) = self.query_state.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());
         }
         prepared
