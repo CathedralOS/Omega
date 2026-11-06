@@ -47,6 +47,7 @@ pub use products::package_review::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
 
+pub use products::product_context::project_checked_product_context;
 pub use products::product_pruning::{
     CheckedTreeProductPruning, CheckedTreeProductPruningOutcome, CheckedTreeProductRoots,
     CheckedTreeProductRootsError, CheckedTreeProductSelection, CheckedTreeProductSelectionIdentity,

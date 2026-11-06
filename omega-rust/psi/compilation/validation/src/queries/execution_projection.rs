@@ -301,6 +301,39 @@ pub fn project_selected_program(
     )
 }
 
+/// Select Product declarations after their source obligations have been checked.
+/// Build-only declarations remain in their checked owner; completed constants
+/// and shared generated dependencies retain their original handles and values.
+/// This separates execution contexts, independently of optional root pruning.
+pub fn project_product_program(original: &dyn crate::CheckingInput) -> TypedTrees {
+    let instances = instantiated_declarations(original);
+    let derived = |symbol| is_derived_declaration(original, &instances, symbol);
+    let product = |symbol| {
+        original
+            .symbols
+            .symbol_is_in_dependency_scope(symbol, DependencyScope::Product)
+    };
+    let unknown = |symbol| {
+        original
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .is_none()
+    };
+    let generated_methods = original
+        .machines()
+        .iter()
+        .filter(|machine| machine.generic_data_template.is_valid())
+        .map(|machine| (machine.attached_data_symbol, machine.symbol))
+        .collect::<Vec<_>>();
+    project_declarations(
+        original,
+        |symbol| !derived(symbol) && (product(symbol) || unknown(symbol)),
+        |symbol| derived(symbol) || product(symbol) || unknown(symbol),
+        &generated_methods,
+        None,
+    )
+}
+
 fn project_declarations(
     original: &dyn crate::CheckingInput,
     selected_root: impl Fn(SymbolHandle) -> bool,

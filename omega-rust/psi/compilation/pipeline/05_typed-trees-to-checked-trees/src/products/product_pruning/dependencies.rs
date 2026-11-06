@@ -15,17 +15,17 @@ use typed_trees::{expression::StaticMachineArgument, statement::StatementHandle}
 
 /// Exact declaration indices used to resolve machine references and to key
 /// machine-owner lookups without scanning the declaration table.
-pub(super) struct MachineIndex {
+pub(in crate::products) struct MachineIndex {
     /// Membership of every declared machine symbol; order comes from the program.
-    pub(super) machine_symbols: HashSet<SymbolHandle>,
+    pub(in crate::products) machine_symbols: HashSet<SymbolHandle>,
     /// Owning machine for every machine state symbol.
-    pub(super) state_machine: HashMap<SymbolHandle, SymbolHandle>,
+    pub(in crate::products) state_machine: HashMap<SymbolHandle, SymbolHandle>,
     /// Owning machine for every statement handle inside a machine state.
-    pub(super) statement_machine: HashMap<StatementHandle, SymbolHandle>,
+    pub(in crate::products) statement_machine: HashMap<StatementHandle, SymbolHandle>,
 }
 
 impl MachineIndex {
-    pub(super) fn build(program: &dyn ::validation::CheckingInput) -> Self {
+    pub(in crate::products) fn build(program: &dyn ::validation::CheckingInput) -> Self {
         let mut machine_symbols = HashSet::new();
         let mut state_machine = HashMap::new();
         let mut statement_machine = HashMap::new();

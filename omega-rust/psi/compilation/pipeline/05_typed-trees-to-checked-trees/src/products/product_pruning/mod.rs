@@ -75,10 +75,9 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 pub(crate) mod dependencies;
-pub(crate) mod rewrite;
 
+use super::checked_projection::retain_facts;
 use dependencies::{MachineIndex, collect_machine_edges, interface_retention_set};
-use rewrite::apply_pruning;
 
 const PRODUCT_SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.psi.checked-tree-product-selection.v1\0";
 
@@ -324,6 +323,22 @@ pub fn prune_checked_tree_product(
         identity,
     };
     Ok(CheckedTreeProductPruningOutcome { checked, selection })
+}
+
+/// Optional machine pruning shares fact-roster selection with mandatory
+/// Product-context selection. Referenced backing rows keep their original IDs.
+fn apply_pruning(
+    checked: CheckedTrees,
+    retained: &HashSet<SymbolHandle>,
+    pruned: &HashSet<SymbolHandle>,
+    index: &MachineIndex,
+) -> CheckedTrees {
+    let mut typed = checked.typed.into_inner();
+    let mut facts = checked.facts;
+    validation::execution_projection::retain_machine_roster(&mut typed, retained, pruned);
+    retain_live_family_members(&mut typed);
+    retain_facts(&mut facts, retained, pruned, index);
+    CheckedTrees::with_roots(typed, facts)
 }
 
 /// Keep the target-machine family roster consistent with the pruned machine

@@ -1,33 +1,11 @@
-//! Product roster rewriting.
+//! Keep checked fact rosters aligned with selected declaration roots.
+//! Referenced arena rows keep their original identities.
 
+use super::product_pruning::dependencies::MachineIndex;
 use std::collections::HashSet;
-
-use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 
-use super::dependencies::MachineIndex;
-
-/// Rebuild the machine declaration surface and every machine-keyed `Vec`
-/// table so the product's iteration-visible rosters match the selection.
-/// Machine-keyed roster arenas with no inbound `Handle`/`HandleSpan`
-/// references are rebuilt the same way; arena rows referenced by spans or
-/// handles from other retained rows remain as valid dead evidence and are
-/// unreachable through the pruned declaration surface.
-pub(super) fn apply_pruning(
-    checked: CheckedTrees,
-    retained: &HashSet<SymbolHandle>,
-    pruned: &HashSet<SymbolHandle>,
-    index: &MachineIndex,
-) -> CheckedTrees {
-    let mut typed = checked.typed.into_inner();
-    let mut facts = checked.facts;
-    validation::execution_projection::retain_machine_roster(&mut typed, retained, pruned);
-    super::retain_live_family_members(&mut typed);
-    apply_fact_pruning(&mut facts, retained, pruned, index);
-    CheckedTrees::with_roots(typed, facts)
-}
-
-fn apply_fact_pruning(
+pub(super) fn retain_facts(
     facts: &mut checked_trees::CheckFacts,
     retained: &HashSet<SymbolHandle>,
     pruned: &HashSet<SymbolHandle>,

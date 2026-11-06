@@ -310,15 +310,16 @@ impl CheckedSource {
         // Defaults describe every authored target, including declarations root
         // pruning may remove. Decode them from the checked source before pruning;
         // realization later chooses a row without reading declaration bodies.
+        let program = typed_trees_to_checked_trees::project_checked_product_context(self.program);
         let provider_defaults =
             build_time_evaluation::provider_declarations::retain_provider_defaults(
                 build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
-                    &self.program.typed,
+                    &program.typed,
                     source::DependencyScope::Product,
                 ),
             )?;
         let (program, selection) =
-            typed_trees_to_checked_trees::select_checked_tree_product(self.program, roots)?;
+            typed_trees_to_checked_trees::select_checked_tree_product(program, roots)?;
         Ok(SelectedCheckedSource {
             program,
             provider_defaults: provider_defaults.into(),
