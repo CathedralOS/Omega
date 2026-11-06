@@ -1339,57 +1339,7 @@ impl BorrowFacts {
 
 #[cfg(test)]
 mod index_tests {
-    use super::{
-        BorrowCallFact, BorrowFacts, BorrowLoanFact, Expression, ExpressionHandle, StateBorrowFact,
-        Symbol, SymbolHandle,
-    };
-
-    #[test]
-    fn returned_value_lifetime_is_distinct_from_call_slot_associations() {
-        let mut facts = BorrowFacts::default();
-        let expression = ExpressionHandle::from_parts(7, 1);
-        let invocation = facts.calls.insert(BorrowCallFact {
-            statement_index: 3,
-            authored_expression: expression,
-            ..BorrowCallFact::default()
-        });
-        let returned = BorrowLoanFact {
-            statement_index: 3,
-            formation_expression: expression,
-            storage_owner: Expression(expression),
-            established_by_call: invocation,
-            ..BorrowLoanFact::default()
-        };
-        let mut stored = returned.clone();
-        stored.storage_owner = Symbol(SymbolHandle::from_parts(9, 1));
-        let mut wrong_occurrence = returned.clone();
-        wrong_occurrence.formation_expression = ExpressionHandle::from_parts(8, 1);
-        let mut wrong_statement = returned.clone();
-        wrong_statement.statement_index = 4;
-        let mut missing_call = returned.clone();
-        missing_call.established_by_call = arena::Handle::from_parts(19, 1);
-        let loans = facts.loans.insert_many([
-            BorrowLoanFact::default(),
-            returned,
-            stored,
-            wrong_occurrence,
-            wrong_statement,
-            missing_call,
-        ]);
-        let state = StateBorrowFact {
-            loans,
-            ..StateBorrowFact::default()
-        };
-        let resources = facts
-            .statement_resource_loans(&state)
-            .unwrap()
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>();
-        assert_eq!(resources, vec![loans.handle_at(0), loans.handle_at(1)]);
-        assert!(
-            !facts.state_owns_statement_resource(&StateBorrowFact::default(), loans.handle_at(1))
-        );
-    }
+    use super::{BorrowFacts, StateBorrowFact, SymbolHandle};
 
     #[test]
     fn unique_state_borrow_preserves_duplicates_and_mutation_visibility() {

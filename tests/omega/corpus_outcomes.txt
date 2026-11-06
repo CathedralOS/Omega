@@ -21333,7 +21333,7 @@ pass/drops/result_cleanup_original_exit checked 23791ms check-target:macos_arm64
 pass/drops/result_cleanup_replacement_exit checked 11345ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_abandoned_record_construction_prefix_exit checked 9440ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_affine_record_conditional_result_exit checked 104985ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit checked 13100ms check-target:linux_x86_64 @ee4dbb4b2d56
+pass/drops/runtime_borrowed_ingress_no_nominal_disposal_exit checked 12938ms check-target:macos_arm64 @a01cb78ea44c
 pass/drops/runtime_borrowed_nominal_replacement_exit checked 12850ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_borrowed_selected_cleanup_postcondition_exit checked 11714ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/runtime_borrowed_temporary_deferred_child_cleanup_exit checked 24802ms check-target:macos_arm64 @ee4dbb4b2d56
