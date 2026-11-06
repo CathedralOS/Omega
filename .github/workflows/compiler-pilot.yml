@@ -202,7 +202,7 @@ jobs:
           arguments = [str(producer.cli), 'inspect-terminal', '--machine', 'main', '--target', 'linux_x86_64', '--output', str(output / 'callback.oterm'), 'tests/omega/fail/contracts/private_counter_callback_input/main.omg']
           with (output / 'callback-inspection.stdout').open('w') as stdout, (output / 'callback-inspection.stderr').open('w') as stderr:
               result = subprocess.run(arguments, stdout=stdout, stderr=stderr, timeout=120)
-          (output / 'callback-inspection.json').write_text(json.dumps({'arguments': arguments, 'exit': result.returncode, 'producer': producer.record(), 'purpose': 'Read-only call-graph and existing proof-trace inspection; source and expected rejection are unchanged.'}, indent=2) + '\n')
+          (output / 'callback-inspection.json').write_text(json.dumps({'arguments': arguments, 'exit': result.returncode, 'producer': producer.record(), 'purpose': 'Read-only call-graph and existing proof-trace inspection; source and expected rejection are unchanged.'}, indent=2) + chr(10))
           raise SystemExit(result.returncode)
           PYTHON
       - name: Report actual producer and fixture observations
