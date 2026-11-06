@@ -25,6 +25,8 @@ use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
 mod conditional_guarantees;
+mod constructor_identity;
+pub(super) use constructor_identity::ConstructorIdentity;
 mod data_identity;
 mod domain_premises;
 mod equations;
@@ -198,6 +200,7 @@ pub(crate) enum StructuralTerm {
     /// the contract grammar), and both lowering fences stand down for
     /// recursive data so the raw Binary reaches this judge.
     Constructor {
+        identity: ConstructorIdentity,
         data: String,
         case: String,
         fields: Vec<(String, StructuralTerm)>,
@@ -328,13 +331,23 @@ impl StructuralTerm {
         }
     }
 
+    pub(super) fn boolean(value: bool) -> Self {
+        Self::Constructor {
+            identity: ConstructorIdentity::Boolean(value),
+            data: "bool".to_owned(),
+            case: value.to_string(),
+            fields: Vec::new(),
+        }
+    }
+
     pub(super) fn boolean_constructor(&self) -> Option<bool> {
-        let Self::Constructor { data, case, fields } = self else {
+        let Self::Constructor {
+            identity, fields, ..
+        } = self
+        else {
             return None;
         };
-        (data == "bool" && fields.is_empty())
-            .then(|| language_semantics::const_value::boolean_literal_spelling(case))
-            .flatten()
+        fields.is_empty().then(|| identity.boolean()).flatten()
     }
 
     pub(super) fn boolean_value(&self) -> Option<bool> {
@@ -410,7 +423,13 @@ impl StructuralTerm {
                 value: Box::new(map(*value)),
                 descriptor: descriptor.map(|descriptor| Box::new(map(*descriptor))),
             },
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+            StructuralTerm::Constructor {
+                identity,
+                data,
+                case,
+                fields,
+            } => StructuralTerm::Constructor {
+                identity,
                 data,
                 case,
                 fields: fields
@@ -1649,8 +1668,14 @@ impl<'program> StructuralJudge<'program> {
                     };
                     term = replacement.clone();
                 }
-                StructuralTerm::Constructor { data, case, fields } => {
+                StructuralTerm::Constructor {
+                    identity,
+                    data,
+                    case,
+                    fields,
+                } => {
                     return StructuralTerm::Constructor {
+                        identity,
                         data,
                         case,
                         fields: fields
@@ -2083,16 +2108,19 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let StructuralTerm::Constructor {
-            data: result_data,
+            identity,
             case,
             fields,
+            ..
         } = result
         else {
             return None;
         };
         // The checked return type fixes the owner; spelling only selects within
         // that owner's normalized value, after the exact field-handle join.
-        if result_data != data.name.as_str() || !case.is_empty() {
+        if Some(identity) != ConstructorIdentity::at_reference(program, result_type, data, None)
+            || !case.is_empty()
+        {
             return None;
         }
         fields
@@ -2376,17 +2404,12 @@ impl<'program> StructuralJudge<'program> {
                                 .resolve_at(environment[position].1.clone(), depth + 1);
                             &local_subject
                         };
-                        let StructuralTerm::Constructor {
-                            data: got_data,
-                            case: got_case,
-                            ..
-                        } = subject_term
-                        else {
+                        let StructuralTerm::Constructor { identity, .. } = subject_term else {
                             // The matched argument is not (yet) a constructor:
                             // arm selection is undecidable, no unfold.
                             return None;
                         };
-                        got_data == arm_data.name.as_str() && got_case == arm_case.name.as_str()
+                        identity.matches_case(program, arm_data.symbol, arm_case.symbol)?
                     } else {
                         // Preserve the case-arm fast path above: resolving its
                         // already-completed constructor arguments again repeats
@@ -3080,11 +3103,7 @@ impl<'program> StructuralJudge<'program> {
             // A checked borrow selects its referent; it does not create a new
             // case-bearing value. Preserve aliases to the same saved subject.
             ExpressionNode::Borrow(borrow) => child_term!(borrow.target),
-            ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: value.to_string(),
-                fields: Vec::new(),
-            }),
+            ExpressionNode::Boolean(value) => Some(StructuralTerm::boolean(*value)),
             ExpressionNode::Indexed(indexed) => super::structural_terms::indexed_term_in_scope(
                 program,
                 scope,
@@ -3535,14 +3554,14 @@ impl<'program> StructuralJudge<'program> {
         }
         let (
             StructuralTerm::Constructor {
-                data: data_l,
-                case: case_l,
+                identity: identity_l,
                 fields: fields_l,
+                ..
             },
             StructuralTerm::Constructor {
-                data: data_r,
-                case: case_r,
+                identity: identity_r,
                 fields: fields_r,
+                ..
             },
         ) = (&left, &right)
         else {
@@ -3560,10 +3579,10 @@ impl<'program> StructuralJudge<'program> {
             }
             return StructuralJudgment::Unknown;
         };
-        if data_l != data_r {
+        if !identity_l.same_carrier(*identity_r) {
             return StructuralJudgment::Unknown;
         }
-        if case_l != case_r {
+        if identity_l != identity_r {
             return StructuralJudgment::Refuted;
         }
         // Constructor equality compares complete values, not a left-side
@@ -3621,12 +3640,14 @@ impl<'program> StructuralJudge<'program> {
             let name = field.name.as_str();
             let value = match &term {
                 StructuralTerm::Constructor {
-                    data: constructed,
-                    case,
-                    fields,
-                } if constructed == data.name.as_str() && case.is_empty() => fields
-                    .iter()
-                    .find_map(|(field, value)| (field == name).then(|| value.clone())),
+                    identity, fields, ..
+                } if Some(*identity)
+                    == ConstructorIdentity::at_reference(self.program, reference, data, None) =>
+                {
+                    fields
+                        .iter()
+                        .find_map(|(field, value)| (field == name).then(|| value.clone()))
+                }
                 StructuralTerm::Constructor { .. } => None,
                 _ => super::observed_projections::project_field(term.clone(), name)
                     .map(|value| self.resolve(value)),
@@ -3645,7 +3666,12 @@ impl<'program> StructuralJudge<'program> {
             return term;
         }
         fields.sort_by(|left, right| left.0.cmp(&right.0));
+        let Some(identity) = ConstructorIdentity::at_reference(self.program, reference, data, None)
+        else {
+            return term;
+        };
         StructuralTerm::Constructor {
+            identity,
             data: data.name.as_str().to_owned(),
             case: String::new(),
             fields,
@@ -3657,7 +3683,13 @@ impl<'program> StructuralJudge<'program> {
     /// reads? All fields must be present, matched BY NAME to `{v}.{field}`
     /// opaques -- a permutation or a partial rebuild does not match.
     fn record_eta_matches(&self, constructor: &StructuralTerm, variable: &StructuralTerm) -> bool {
-        let StructuralTerm::Constructor { data, case, fields } = constructor else {
+        let StructuralTerm::Constructor {
+            identity,
+            case,
+            fields,
+            ..
+        } = constructor
+        else {
             return false;
         };
         if !case.is_empty() {
@@ -3666,7 +3698,10 @@ impl<'program> StructuralJudge<'program> {
         let StructuralTerm::Variable(name) = variable else {
             return false;
         };
-        let Some(definition) = self.program.data_definition_by_name_str(data.as_str()) else {
+        let Some(definition) = identity
+            .declaration()
+            .and_then(|symbol| self.program.data_definition_by_symbol(symbol))
+        else {
             return false;
         };
         let declared: Vec<&str> = self

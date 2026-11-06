@@ -103,8 +103,10 @@ fn fingerprint(term: &StructuralTerm) -> u64 {
                 value.is_negative().hash(hash);
                 value.magnitude_words().hash(hash);
             }
-            StructuralTerm::Constructor { data, case, fields } => {
-                (data, case, fields.len()).hash(hash);
+            StructuralTerm::Constructor {
+                identity, fields, ..
+            } => {
+                (identity, fields.len()).hash(hash);
                 for (field, _) in fields {
                     field.hash(hash);
                 }
