@@ -17,23 +17,28 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
-// Match the extractor's own traversal: only conjunctions, disjunctions and
-// case-membership leaves can publish a case guarantee. This reads declaration
-// metadata only; the caller still proves any sibling used to select a leaf.
-fn contract_contains_case_observation(
+// Prepare only expressions this extractor can visit to publish a case. Walk
+// both connective operands once; exact handles below retain every generation.
+fn collect_case_observation_expressions(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
+    expressions: &mut Vec<ExpressionHandle>,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(expression) else {
         return false;
     };
-    match binary.operator {
+    let contains_case = match binary.operator {
         BinaryOperator::And | BinaryOperator::Or => {
-            contract_contains_case_observation(program, binary.left)
-                || contract_contains_case_observation(program, binary.right)
+            let left = collect_case_observation_expressions(program, binary.left, expressions);
+            let right = collect_case_observation_expressions(program, binary.right, expressions);
+            left || right
         }
         _ => structural_terms::is_case_observation(program, expression),
+    };
+    if contains_case {
+        expressions.push(expression);
     }
+    contains_case
 }
 
 #[derive(Clone)]
@@ -224,18 +229,48 @@ impl StructuralJudge<'_> {
         map: &[(String, StructuralTerm)],
         guarantees: &mut Vec<CaseGuarantee>,
     ) {
-        use specification_calls::{SelectedCallContract, owner_parameters};
         if !self.has_exact_case_subjects() {
             return;
         }
+        let mut expressions = Vec::new();
+        if !collect_case_observation_expressions(self.program, fact, &mut expressions) {
+            return;
+        }
+        expressions
+            .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
+        expressions.dedup();
+        self.extend_contract_case_guarantees(owner, fact, map, guarantees, &expressions);
+    }
+
+    fn extend_contract_case_guarantees(
+        &self,
+        owner: &specification_calls::SelectedCallContract<'_>,
+        fact: ExpressionHandle,
+        map: &[(String, StructuralTerm)],
+        guarantees: &mut Vec<CaseGuarantee>,
+        case_expressions: &[ExpressionHandle],
+    ) {
+        use specification_calls::{SelectedCallContract, owner_parameters};
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
             return;
         };
         // Logical conjunction has fixed compiler meaning. Its children retain
         // their own selected meanings: a case classifier is not scalar equality.
         if binary.operator == BinaryOperator::And {
-            self.instantiated_contract_case_guarantees(owner, binary.left, map, guarantees);
-            self.instantiated_contract_case_guarantees(owner, binary.right, map, guarantees);
+            self.extend_contract_case_guarantees(
+                owner,
+                binary.left,
+                map,
+                guarantees,
+                case_expressions,
+            );
+            self.extend_contract_case_guarantees(
+                owner,
+                binary.right,
+                map,
+                guarantees,
+                case_expressions,
+            );
             return;
         }
         if binary.operator == BinaryOperator::Or {
@@ -250,14 +285,26 @@ impl StructuralJudge<'_> {
             let parameters = owner_parameters(self.program, owner);
             for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)]
             {
-                if !contract_contains_case_observation(self.program, alternative) {
+                if case_expressions
+                    .binary_search_by_key(
+                        &(alternative.arena_index(), alternative.generation()),
+                        |expression| (expression.arena_index(), expression.generation()),
+                    )
+                    .is_err()
+                {
                     continue;
                 }
                 if matches!(
                     self.captured_operand_predicate_judgment(scope, parameters, sibling, map),
                     StructuralJudgment::Refuted
                 ) {
-                    self.instantiated_contract_case_guarantees(owner, alternative, map, guarantees);
+                    self.extend_contract_case_guarantees(
+                        owner,
+                        alternative,
+                        map,
+                        guarantees,
+                        case_expressions,
+                    );
                 }
             }
             return;
