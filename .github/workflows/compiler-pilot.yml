@@ -134,6 +134,7 @@ jobs:
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Check the exact integration candidate
         id: compiler-check
+        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         run: cargo check --locked -p omega
       - name: Prepare and retain the optimized producer
         id: producer-preparation

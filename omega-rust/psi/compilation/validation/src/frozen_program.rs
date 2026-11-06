@@ -44,13 +44,6 @@ mod sealed {
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
 
-    /// Complete entries callable from outside the program, supplied by source
-    /// admission. Without this list, ordinary top-level calls cannot establish
-    /// private input requirements.
-    fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
-        None
-    }
-
     /// An unfinished numeric observation belongs to the borrowed query chain,
     /// not a memo answer. Re-entering that exact state supplies no evidence.
     #[doc(hidden)]
@@ -166,11 +159,10 @@ impl Deref for dyn CheckingInput + '_ {
     }
 }
 
-// Proof-plan equality includes externally callable entries, never query scratch.
+// Local proof-plan equality observes the typed program, never invocation scratch.
 impl PartialEq for dyn CheckingInput + '_ {
     fn eq(&self, other: &Self) -> bool {
-        self.external_invocation_roots() == other.external_invocation_roots()
-            && self.layout_target() == other.layout_target()
+        self.layout_target() == other.layout_target()
             && self.defers_pending_layout_geometry() == other.defers_pending_layout_geometry()
             && self.typed_program() == other.typed_program()
     }
@@ -248,7 +240,6 @@ impl CheckingInput for checked_trees::CheckedTrees {
 pub struct CheckingContext<'program> {
     defer_layout_geometry: bool,
     program: &'program TypedTrees,
-    external_roots: Option<&'program [symbols::SymbolHandle]>,
     retained_borrows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
@@ -299,7 +290,6 @@ impl<'program> CheckingContext<'program> {
         Self {
             defer_layout_geometry: false,
             program,
-            external_roots: None,
             retained_borrows: Arc::from([]),
             finalized_selections: None,
             prepared_effects: None,
@@ -310,20 +300,6 @@ impl<'program> CheckingContext<'program> {
             memos: Arc::new(CheckingMemos::default()),
             call_frame_tables: OnceLock::new(),
         }
-    }
-
-    /// Bind caller inference to every source-admitted external entry, across
-    /// all targets. Changing that list invalidates the complete query state.
-    pub fn with_external_invocation_roots(
-        mut self,
-        roots: &'program [symbols::SymbolHandle],
-    ) -> Self {
-        if self.external_roots != Some(roots) {
-            self.external_roots = Some(roots);
-            self.memos = Arc::new(CheckingMemos::default());
-            self.call_frame_tables = OnceLock::new();
-        }
-        self
     }
 
     /// Borrow checked selections for final visibility and cleanup judgments
@@ -352,7 +328,6 @@ impl<'program> CheckingContext<'program> {
         CheckingContext {
             defer_layout_geometry: self.defer_layout_geometry,
             program: self.program,
-            external_roots: self.external_roots,
             retained_borrows: self.retained_borrows.clone(),
             finalized_selections: self.finalized_selections,
             prepared_effects: self.prepared_effects,
@@ -403,7 +378,6 @@ impl<'program> CheckingContext<'program> {
         CheckingContext {
             defer_layout_geometry: self.defer_layout_geometry,
             program: self.program,
-            external_roots: self.external_roots,
             retained_borrows: self.retained_borrows.clone(),
             finalized_selections: self.finalized_selections,
             prepared_effects: Some(plans),
@@ -458,10 +432,6 @@ impl Deref for CheckingContext<'_> {
 }
 
 impl CheckingInput for CheckingContext<'_> {
-    fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
-        self.external_roots
-    }
-
     fn defers_pending_layout_geometry(&self) -> bool {
         self.defer_layout_geometry
     }
@@ -569,10 +539,6 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
-    fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
-        self.original.external_invocation_roots()
-    }
-
     fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
         self.memo_source()
             .is_some_and(|input| input.has_active_completed_case_population(machine))
@@ -964,8 +930,8 @@ impl CheckingMemos {
                 })
     }
 
-    /// Retain memos over the immutable trees and unchanged external entries,
-    /// resetting memos that may observe prepared effects,
+    /// Retain memos that depend strictly on the immutable `TypedTrees` tables
+    /// (`self.program`), resetting memos that may observe prepared effects,
     /// finalized selections, prepared mathematics, or opaque representations.
     /// Call-frame caches also retain prepared operational/service plans, so
     /// only an unchanged-context Arc clone may share those caches.

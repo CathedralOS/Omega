@@ -16,8 +16,8 @@
 //! stop at the requested occurrence, before any successor or future citation.
 //! Machine-entry assumptions are not state invariants merely because their
 //! declarations use the same names.
-//! Private entries may use independently checked actual arrivals. Public,
-//! selected and escaping entries keep arbitrary inputs under their own contracts;
+//! Private entries may use independently checked actual arrivals. Public and
+//! top-level bodies keep arbitrary inputs under their declared contracts;
 //! convenient callers cannot specialize an otherwise unproved requirement.
 
 use super::citations::{

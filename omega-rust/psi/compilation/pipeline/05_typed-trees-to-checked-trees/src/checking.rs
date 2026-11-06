@@ -8,8 +8,7 @@
 //! input's checkpoint. Every production request enforces crash admission.
 //!
 //! Whole-program reuse has one gate: the source facade compares the original
-//! program, complete preparation admission and entries callable from outside the
-//! program against a [`RetainedCheck`] from
+//! program and complete preparation admission against a [`RetainedCheck`] from
 //! this invocation. A miss prepares and checks afresh. Equal prepared trees
 //! and Copy receipts do not establish equal checking inputs: selected opaque
 //! carriers travel separately and determine structural plans. A second partial
@@ -90,7 +89,6 @@ pub struct RetainedCheck {
     /// equal request can take this judgment without preparing or checking.
     preparation_input: std::sync::Arc<typed_trees::TypedTrees>,
     preparation_admission: typed_trees_to_typed_trees::PreparationAdmission,
-    external_roots: Vec<symbols::SymbolHandle>,
     admits_pending_inputs: bool,
     checked: std::sync::Arc<CheckedTrees>,
     /// Dependency bodies whose declaration/state/expression correspondence
@@ -110,28 +108,25 @@ impl RetainedCheck {
         std::sync::Arc::ptr_eq(&self.checked, &other.checked)
     }
 
-    /// Whether this judgment was computed for the complete source request.
-    /// Preparation depends on the program and its admission; checking also
-    /// depends on which entries can be invoked independently. Only an equal
-    /// request can take this judgment without preparing or checking again.
+    /// Whether this judgment was computed for `program` under `admission`.
+    /// Preparation is a pure function of the typed program and its admission
+    /// inputs, so an equal pair reproduces this judgment's preparation and
+    /// check exactly — [`reuse_retained_check`] may be taken without either.
     pub fn judges_preparation_input(
         &self,
         program: &typed_trees::TypedTrees,
         admission: &typed_trees_to_typed_trees::PreparationAdmission,
-        external_roots: &[symbols::SymbolHandle],
     ) -> bool {
-        self.judges_preparation_admission(admission, external_roots)
-            && *self.preparation_input == *program
+        self.preparation_admission == *admission && *self.preparation_input == *program
     }
 
-    /// Whether preparation and independent entries match this request. An
-    /// equal typed program then completes [`Self::judges_preparation_input`].
+    /// Whether this judgment's preparation ran under `admission`. With an
+    /// equal typed program this is [`Self::judges_preparation_input`].
     pub fn judges_preparation_admission(
         &self,
         admission: &typed_trees_to_typed_trees::PreparationAdmission,
-        external_roots: &[symbols::SymbolHandle],
     ) -> bool {
-        self.preparation_admission == *admission && self.external_roots == external_roots
+        self.preparation_admission == *admission
     }
 
     /// Dependency-body entailment judgments a strict consumer may reuse.
@@ -173,11 +168,6 @@ pub fn reuse_retained_check(
     request: &CheckingRequest<'_>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
-    if prior.external_roots != request.external_roots {
-        return Err(vec![diagnostics::Diagnostic::error(
-            "retained source judgment has a different external invocation roster",
-        )]);
-    }
     let checked = prior.checked.clone();
     let retained = retain.then(|| prior.clone());
     phase_profile::scope("psi.05.request_admission", || {
@@ -223,7 +213,6 @@ pub fn lower_typed_trees_reusing(
         opaque_representation_selections,
         prior_dependency_bodies,
         prior_frozen_bodies,
-        request.external_roots,
         retain && !admits_pending_inputs && deferred_layout_applications.is_empty(),
     )?;
     let checked = std::sync::Arc::new(checked);
@@ -232,7 +221,6 @@ pub fn lower_typed_trees_reusing(
         preparation_admission,
         admits_pending_inputs: admits_pending_inputs || !deferred_layout_applications.is_empty(),
         checked: checked.clone(),
-        external_roots: request.external_roots.to_vec(),
         frozen_dependency_bodies,
         dependency_bodies,
     });
@@ -278,7 +266,6 @@ fn check_program(
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
     prior_frozen_bodies: &[validation::FrozenDependencyBody],
-    external_roots: &[symbols::SymbolHandle],
     record_dependency_bodies: bool,
 ) -> Result<
     (
@@ -293,7 +280,6 @@ fn check_program(
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program)
-        .with_external_invocation_roots(external_roots)
         .with_pending_layout_geometry(
             admits_pending_inputs || !deferred_layout_applications.is_empty(),
         )

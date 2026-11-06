@@ -96,10 +96,6 @@ impl<'input> CheckingQuery<'input> {
 // Query ancestry changes no checking authority, geometry, selected meaning or
 // completed memo. Forward every semantic input to its original owner.
 impl CheckingInput for CheckingQuery<'_> {
-    fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
-        self.input.external_invocation_roots()
-    }
-
     fn typed_program(&self) -> &typed_trees::TypedTrees {
         self.input.typed_program()
     }
