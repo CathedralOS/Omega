@@ -95,10 +95,15 @@ pub(in crate::borrow) fn complete(
     else {
         return Ok(Vec::new());
     };
-    if validation::call_target_has_checked_body_contract(
-        program,
-        validation::call_target_symbol(program, call),
-    ) {
+    // Unit calls publish effects without supplying a reference-bearing value.
+    // The shared result query recognizes admitted Build operations as well as
+    // ordinary signatures; an unknown result still fails below.
+    if validation::call_returns_unit(program, machine, expression)
+        || validation::call_target_has_checked_body_contract(
+            program,
+            validation::call_target_symbol(program, call),
+        )
+    {
         return Ok(Vec::new());
     }
     let result = validation::expression_result_type_reference(program, machine, state, expression)
