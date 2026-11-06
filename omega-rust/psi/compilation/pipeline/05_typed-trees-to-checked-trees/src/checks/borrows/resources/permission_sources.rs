@@ -122,9 +122,10 @@ pub(super) fn lending_sources(
     Ok((suppliers, parents))
 }
 
-/// An unchanged entry descriptor has a borrowing owner at its captured cut.
-/// The storage query excludes overwritten slots; the incoming identity excludes
-/// type-only parameter guesses and lifetime debts of reference-bearing contents.
+/// A helper can retain either a borrowed input or a reference field read from
+/// it. The unchanged storage snapshot and current entry roster identify that
+/// descriptor. Its complete owner path selects the pointer's own permission;
+/// an enclosing record's borrow cannot stand in for an interior reference.
 fn has_captured_entry_reference(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -133,9 +134,10 @@ fn has_captured_entry_reference(
     source: Handle<FlowOperandFact>,
 ) -> bool {
     let capture = facts.flow.control.operands.get(source);
-    if capture.state_symbol != state.state_symbol
-        || validation::reference_shell(program, capture.type_reference).is_none()
-    {
+    let Some(actual) = validation::reference_shell(program, capture.type_reference) else {
+        return false;
+    };
+    if capture.state_symbol != state.state_symbol {
         return false;
     }
     let Some(place) = place_at(
@@ -172,19 +174,48 @@ fn has_captured_entry_reference(
     .is_some_and(|sources| {
         !sources.is_empty()
             && sources.iter().all(|source| {
-                !source.local_loan.is_valid()
-                    && facts
+                if source.local_loan.is_valid()
+                    || !source.place.segments.is_empty()
+                    || !facts
                         .borrow
                         .incoming_references
                         .is_valid(source.place.incoming_reference)
-                    && matches!(
-                        facts
-                            .borrow
-                            .incoming_references
-                            .get(source.place.incoming_reference)
-                            .origin,
-                        checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
-                    )
+                {
+                    return false;
+                }
+                let incoming = facts
+                    .borrow
+                    .incoming_references
+                    .get(source.place.incoming_reference);
+                if !matches!(
+                    incoming.origin,
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                        | checked_trees::IncomingReferenceOrigin::Parameter { .. }
+                ) {
+                    return false;
+                }
+                let Some(owner) = facts.borrow.owner_segments.span(incoming.owner_path) else {
+                    return false;
+                };
+                let Some(selected) = validation::owned_projection_type_reference(
+                    program,
+                    incoming.carrier_type,
+                    &owner_place_segments(owner),
+                ) else {
+                    return false;
+                };
+                validation::reference_shell(program, selected).is_some_and(|declared| {
+                    checked_trees::BorrowAccessKind::from(declared.access)
+                        .direct_reborrow_effect(&checked_trees::BorrowAccessKind::from(
+                            actual.access,
+                        ))
+                        .is_some()
+                        && validation::storage_origin_types_match(
+                            program,
+                            actual.referee,
+                            declared.referee,
+                        )
+                })
             })
     })
 }
