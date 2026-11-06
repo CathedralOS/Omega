@@ -290,14 +290,29 @@ impl StructuralJudge<'_> {
             _ => owner_symbol(owner),
         };
         let mut completion = Cow::Borrowed(self);
-        // The case reader returns before consuming bindings in this mode.
-        // Avoid cloning complete arguments for a query that cannot use them.
+        // Prepare copied arguments only when this mode and the declaration
+        // metadata allow the case reader to use them.
         if completion.has_exact_case_subjects()
             && parameters.iter().all(|parameter| {
                 bindings
                     .iter()
                     .any(|(symbol, _)| *symbol == parameter.symbol)
             })
+            && owner_contracts(program, owner)
+                .filter(|contract| {
+                    contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
+                })
+                .any(|contract| {
+                    program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .any(|fact| {
+                            fact.as_expression().is_some_and(|expression| {
+                                completion.may_extract_contract_cases(*expression)
+                            })
+                        })
+                })
         {
             let map =
                 parameters

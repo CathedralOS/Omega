@@ -339,6 +339,20 @@ impl StructuralJudge<'_> {
         {
             return Vec::new();
         }
+        let may_have_cases = owner_contracts(self.program, owner)
+            .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+            .any(|contract| {
+                self.program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .any(|fact| {
+                        matches!(fact, ProofFact::Expression(expression) if self.may_extract_contract_cases(*expression))
+                    })
+            });
+        if !may_have_cases {
+            return Vec::new();
+        }
         let map = parameters
             .iter()
             .filter_map(|parameter| {

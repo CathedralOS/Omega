@@ -146,6 +146,22 @@ pub(super) fn applied_case_classifier(
 }
 
 impl StructuralJudge<'_> {
+    fn case_guarantee_eligibility(&self) -> Option<&CaseGuaranteeEligibility> {
+        crate::frozen_program::frozen_program_memos(self.program).map(|memos| {
+            memos
+                .case_guarantee_eligibility
+                .get_or_init(|| Arc::new(CaseGuaranteeEligibility::prepare(self.program)))
+                .as_ref()
+        })
+    }
+
+    /// Declaration metadata can exclude empty case work before argument values
+    /// are copied. Missing metadata keeps the original extraction route.
+    pub(super) fn may_extract_contract_cases(&self, fact: ExpressionHandle) -> bool {
+        self.case_guarantee_eligibility()
+            .is_none_or(|table| table.contains_case(fact) != Some(false))
+    }
+
     /// A failed case test excludes that case on this subject. Keep its exact
     /// declaration and application just as for a successful test; neither
     /// observation supplies unobserved payload fields.
@@ -308,12 +324,7 @@ impl StructuralJudge<'_> {
         if !self.has_exact_case_subjects() {
             return;
         }
-        let eligibility = crate::frozen_program::frozen_program_memos(self.program).map(|memos| {
-            memos
-                .case_guarantee_eligibility
-                .get_or_init(|| Arc::new(CaseGuaranteeEligibility::prepare(self.program)))
-                .as_ref()
-        });
+        let eligibility = self.case_guarantee_eligibility();
         if eligibility.is_some_and(|table| table.contains_case(fact) == Some(false)) {
             return;
         }
