@@ -78,6 +78,9 @@ impl SourceBuild {
             package_inputs: None,
             build: package_compilation::build_execution::BuildExecutionInputs {
                 profile: child.build.profile,
+                // An explicit account covers both sequential activations.
+                // Core's source and host-access admission remain independent.
+                evaluation_sponsor: child.build.evaluation_sponsor.clone(),
                 ..Default::default()
             },
             optimization_rollback: Default::default(),
