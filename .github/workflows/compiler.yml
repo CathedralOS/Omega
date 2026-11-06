@@ -10,6 +10,10 @@ on:
     types: [checks_requested]
   workflow_dispatch:
     inputs:
+      lint_packages:
+        description: Optional comma-separated workspace packages to lint, including tests and examples
+        type: string
+        default: ''
       test_package:
         description: Optional workspace package for focused Rust tests
         type: string
@@ -33,7 +37,7 @@ concurrency:
 jobs:
   compiler-check:
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.test_package != '' && 25 || 20 }}
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.test_package != '' || inputs.lint_packages != '') && 25 || 20 }}
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
@@ -77,6 +81,26 @@ jobs:
         run: python tools/check_native_boundary.py
       - name: Check and lint the exact integration candidate
         run: cargo clippy --locked -p omega -- -D warnings
+      - name: Lint the requested packages and all their targets
+        if: github.event_name == 'workflow_dispatch' && inputs.lint_packages != ''
+        env:
+          LINT_PACKAGES: ${{ inputs.lint_packages }}
+        run: |
+          python - <<'PYTHON'
+          import os, re, subprocess
+          packages = [name.strip() for name in os.environ['LINT_PACKAGES'].split(',')]
+          if (not packages or len(set(packages)) != len(packages)
+                  or any(not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_-]*', name) for name in packages)):
+              raise SystemExit('Select distinct workspace package names separated by commas')
+          command = ['cargo', 'clippy', '--locked', '--all-targets']
+          for package in packages:
+              command += ['-p', package]
+          command += ['--', '-D', 'warnings']
+          print('Source:', os.environ['GITHUB_SHA'], flush=True)
+          print('Command:', command, flush=True)
+          subprocess.run(['python', 'tools/build_slot.py', '--', *command],
+                         stdin=subprocess.DEVNULL, check=True)
+          PYTHON
       - name: Run requested focused Rust tests
         if: github.event_name == 'workflow_dispatch' && inputs.test_package != ''
         env:

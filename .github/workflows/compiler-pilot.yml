@@ -48,6 +48,10 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
+      build_count_checks:
+        description: Temporary qualification of Build count examples only, using a retained @plan
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -94,6 +98,17 @@ jobs:
         run: python tools/tests/test_compiler_pilot.py -v
       - name: Test Build control evidence refusal paths
         run: python tools/tests/test_build_consent_controls.py -v
+      - name: Validate the retained Build count request
+        if: github.event_name == 'workflow_dispatch' && inputs.build_count_checks
+        env:
+          COUNTER_PLAN: ${{ inputs.fixtures }}
+          COUNTER_HOST: ${{ inputs.native_host }}
+        run: |
+          python - <<'PYTEST'
+          import os
+          if not os.environ['COUNTER_PLAN'].startswith('@') or os.environ['COUNTER_HOST'] != 'linux_x86_64':
+              raise SystemExit('Build count checks require Linux and an exact retained @plan')
+          PYTEST
       - name: Validate exact fixture selection before building
         if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
         env:
@@ -177,6 +192,57 @@ jobs:
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
+      - name: Check Build execution counts for this qualification
+        if: ${{ !cancelled() && inputs.build_count_checks && steps.producer-preparation.outcome == 'success' }}
+        run: |
+          python tools/build_slot.py -- python - <<'PYTEST'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          from tools.ci import build_consent_controls as controls
+          import compiler_profile
+          output = Path('build/compiler-pilot/build-count-checks')
+          output.mkdir(parents=True, exist_ok=True)
+          report = dict(candidate=controls.git('rev-parse', 'HEAD'), passed=False, outcomes=[])
+          binary = None
+          try:
+              if controls.git('status', '--porcelain') or os.environ['GITHUB_SHA'] != report['candidate']:
+                  raise ValueError('Build count checks require the clean exact source')
+              binary, profile = controls.build(output, 'build_charge',
+                  ['build', '--locked', '-p', 'compiler', '--example', 'build_charge'])
+              report.update(cargo_profile=profile, reported_profile=compiler_profile.require_optimized(binary),
+                  binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(), target=controls.host_target())
+              for name, arguments in [('ordinary', []), ('one-shot', ['--one-shot'])]:
+                  row = dict(name=name, arguments=arguments, passed=False)
+                  try:
+                      controls.execute(binary, arguments, output, name)
+                      row['passed'] = True
+                  except subprocess.TimeoutExpired as error:
+                      for stream in ('stdout', 'stderr'):
+                          data = getattr(error, stream) or ''
+                          if isinstance(data, bytes):
+                              data = data.decode('utf-8', errors='replace')
+                          (output / (name + '.' + stream)).write_text(data)
+                      row['error'] = str(error)
+                  except (OSError, subprocess.SubprocessError) as error:
+                      row['error'] = str(error)
+                  report['outcomes'].append(row)
+              if controls.git('status', '--porcelain') or controls.git('rev-parse', 'HEAD') != report['candidate']:
+                  raise ValueError('Source changed during Build count checks')
+              if hashlib.sha256(binary.read_bytes()).hexdigest() != report['binary_sha256']:
+                  raise ValueError('Build count executable changed during its checks')
+              report['passed'] = all(row['passed'] for row in report['outcomes'])
+          except (OSError, ValueError, subprocess.SubprocessError) as error:
+              report['error'] = str(error)
+          finally:
+              text = json.dumps(report, indent=2) + '\n'
+              (output / 'results.json').write_text(text)
+              (output.parent / 'build-count-checks.json').write_text(text)
+              # The test receipt retains its identity; the optimized compiler was uploaded earlier.
+              if binary is not None:
+                  binary.unlink(missing_ok=True)
+          if not report['passed']:
+              raise SystemExit(1)
+          PYTEST
       - name: Observe public Build consent and filesystem isolation
         if: github.event_name == 'workflow_dispatch' && inputs.build_consent
         run: python tools/ci/build_consent_controls.py
@@ -190,7 +256,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.structural_trace
         run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_STRUCT_TRACE=1\n')"
       - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.build_count_checks && steps.producer-preparation.outcome == 'success' }}
         env:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
