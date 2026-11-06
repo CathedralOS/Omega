@@ -14941,8 +14941,8 @@ fail/generics/machine_equation_nested_open_const_shadow rejected 500ms expected 
 	machine equation retains an open caller binder; supply a closed explicit static argument
 fail/generics/machine_equation_nested_typed_literal_carrier rejected 439ms expected @b23365ced206+wt
 	machine equation application has a constructor argument with a different integer meaning
-fail/generics/machine_equation_open_const_shadow rejected 3419ms unexpected @b23365ced206+wt
-	cannot prove requires contract for call capacity from relay: Payload == [u8; Count] (needs fact `type == type` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/machine_equation_open_const_shadow rejected 2803ms expected @a81c7b2eb058
+	machine equation retains an open caller binder; supply a closed explicit static argument
 fail/generics/machine_equation_selected_const_carrier_conflict rejected 1064ms expected @b23365ced206+wt
 	const parameter `Count` of `capacity` requires `u64`, but `SelectedCount` declares `u32`
 fail/generics/machine_equation_selected_const_conflict rejected 837ms expected @46cdd6b85b82+wt
