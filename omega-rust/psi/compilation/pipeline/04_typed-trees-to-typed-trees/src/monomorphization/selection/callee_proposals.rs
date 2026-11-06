@@ -429,7 +429,7 @@ fn collect_contract_expression_handles(
 ) -> Vec<ExpressionHandle> {
     let mut handles = expressions.collect::<Vec<_>>();
     // Prepared and imported proof schemas also contain non-executable
-    // occurrences, even when no source declaration supplies their telescope.
+    // occurrences, even when no source declaration supplies their checking context.
     collect_proof_fact_expression_trees(
         program,
         program.proof_facts.iter().map(|(_, fact)| fact),
