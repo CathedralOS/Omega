@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let selected: &mut i64 = select(&mut chosen, &mut other, &mut visits);
     chosen = [7, 7];
     selected = 41;
-    transition selected == 41 && visits == 1 {
+    transition chosen[0] == 41 && chosen[1] == 5 && other[0] == 0 && visits == 1 {
         true -> done()
         false -> wrong()
     }
