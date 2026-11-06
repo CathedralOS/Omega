@@ -1,0 +1,1 @@
+output.body requires Ticket::Issued

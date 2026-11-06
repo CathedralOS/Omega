@@ -1,3 +1,0 @@
-may suspend while `original` remains live
-may suspend while `replacement` remains live
-carry(suspension: forbidden
