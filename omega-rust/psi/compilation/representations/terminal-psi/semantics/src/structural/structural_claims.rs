@@ -5,8 +5,27 @@
 //! This is signature geometry, not ownership replay. A Case path does not prove
 //! its tag or mint a claim. The producer and consuming custody ledger must
 //! independently establish each return's source, guards and complete live set.
+use semantic_vocabulary::StructuralTypeId;
 use std::collections::BTreeSet;
-use terminal_psi::{StructuralPathSegment, StructuralResultClaimBinding};
+use terminal_psi::{
+    StructuralPathSegment, StructuralResultClaimBinding, StructuralTypeDeclaration,
+};
+
+/// A value holds one case at a time, so its ownership record may list the
+/// possible payloads without claiming that they coexist. Validate both paths
+/// against the same structural type before comparing their ownership claims.
+/// Reference crossings and runtime-selected storage cannot establish separate
+/// owned paths. Borrowed storage keeps its physical overlap rule.
+pub fn structural_claim_paths_may_overlap<'types>(
+    declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    left: &[StructuralPathSegment],
+    right: &[StructuralPathSegment],
+) -> Option<bool> {
+    crate::canonical_static_projection(declarations.clone(), root, left)?;
+    crate::canonical_static_projection(declarations, root, right)?;
+    Some(left.starts_with(right) || right.starts_with(left))
+}
 
 /// Join machine-local return identities to the caller's possible path roster.
 /// Every unguarded path occurs on every successful exit. Guarded paths occur
