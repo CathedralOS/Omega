@@ -15,6 +15,10 @@ use typed_trees::type_identity::TypeIdentityId;
 pub struct CheckedErasedProofParameterPlan {
     /// The parameter's dense authored position in the signature.
     pub source_position: u32,
+    /// Dense position in this state's erased-proof roster. An edge that
+    /// names no separate proof actuals forwards `Formal` at this position.
+    /// The lane is recorded here so lowering does not remeasure it.
+    pub proof_position: u32,
     /// The parameter's symbol; callers resolve `Formal{parameter_symbol}`
     /// occurrences into this roster's dense proof-lane position.
     pub parameter_symbol: SymbolHandle,
@@ -108,6 +112,14 @@ pub enum CheckedProofTerm {
     /// A pass-through of the caller's own erased proof formal, keyed by the
     /// formal's symbol so scope lookup survives roster reorderings.
     Formal { parameter_symbol: SymbolHandle },
+    /// An erased payload read off the caller's erased proof formal. The field
+    /// path is root-to-leaf. The name is the projection, not a second formal
+    /// and not a reconstructed construction.
+    Projection {
+        parameter_symbol: SymbolHandle,
+        field_symbols: Vec<SymbolHandle>,
+        type_identity: TypeIdentityId,
+    },
     /// A scalar payload field of an erased record/enum carrier: the field's
     /// checked expression becomes the terminal `Scalar` leaf. The leaf is
     /// recorded whole; callers without an allocated scalar namespace reject

@@ -485,6 +485,11 @@ impl Execution<'_, '_, '_> {
                     statement_index: self.statement_index,
                 },
             );
+            // Every member reads this same completed cut. Prepare its assignment
+            // inputs once, after a member first needs them, rather than repeating
+            // every context's root lookup and place reconstruction per member.
+            // The shared reader still checks all matching payloads for agreement.
+            let mut assignment_values = None;
             for context in &captured_contexts {
                 for fact in self
                     .semantic
@@ -581,14 +586,18 @@ impl Execution<'_, '_, '_> {
                             .at_place(&place)
                             .map(ScalarValue::Boolean)
                             .or_else(|| {
-                                crate::values::scalar_value_at_place(
-                                    self.program,
-                                    self.semantic,
-                                    captured_contexts
-                                        .iter()
-                                        .map(|context| self.semantic.contexts.get(*context)),
-                                    &place,
-                                )
+                                assignment_values
+                                    .get_or_insert_with(|| {
+                                        crate::values::AssignmentObservationBatch::prepare_for_root(
+                                            self.program,
+                                            self.semantic,
+                                            captured_contexts.iter().map(|context| {
+                                                self.semantic.contexts.get(*context)
+                                            }),
+                                            source.root,
+                                        )
+                                    })
+                                    .scalar_value(&place)
                             }))
                         .map(OwnedValueObservation::Scalar),
                     };

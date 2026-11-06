@@ -186,6 +186,9 @@ fn prepare_instance_declarations(
                         applications
                             .into_iter()
                             .map(|application| ProviderInstanceApplication {
+                                declaration_application: Ok(application
+                                    .receiving_application
+                                    .clone()),
                                 receiving_application: Ok(application.receiving_application),
                                 candidates: vec![Ok(ClosedProviderInstance {
                                     requirement: application.requirement,
@@ -220,6 +223,7 @@ fn prepare_instance_declarations(
                                 })
                                 .collect();
                             projected.push(ProviderInstanceApplication {
+                                declaration_application: application.declaration_application,
                                 receiving_application: application.receiving_application,
                                 candidates,
                             });

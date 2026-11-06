@@ -1002,19 +1002,9 @@ impl Retirement<'_> {
                 || self
                     .order
                     .at_or_before(statement_index, self.statement_index as usize))
+            && self.owner_home_established(loan.owner_symbol)
         {
-            if self.owner_home_established(loan.owner_symbol) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                    eprintln!(
-                        "CHECKSITE holder-frame-completion state={:?} loan={handle:?} owner={:?} formation={} weakening={weakening:?} pending_owner={:?}",
-                        self.state.symbol,
-                        loan.storage_owner,
-                        loan.statement_index,
-                        self.uncommitted_owner,
-                    );
-                }
-                return true;
-            }
+            return true;
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name

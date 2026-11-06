@@ -24,6 +24,22 @@ ensures result.count == 0, result.storage.base == storage.base,
     result
 }
 
+// Discharge an empty run without inspecting T, selecting a storage provider,
+// or freeing its backing. The returned extent is the same allocation claim;
+// its owner still owes whatever return the allocation contract requires.
+public machine Run::release_empty<P, T>(run: Run<P, T> in Live<P, T>)
+    -> Extent in Granted & Vacant
+requires run.count == 0, run.storage.length == 0
+ensures result.base == run.storage.base, result.length == run.storage.length
+{
+    Run::retire_empty<P, T>(run)
+}
+
+boundary machine Run::retire_empty<P, T>(run: Run<P, T> in Live<P, T>)
+    -> Extent in Granted & Vacant
+requires run.count == 0, run.storage.length == 0
+ensures result.base == run.storage.base, result.length == run.storage.length;
+
 // This ordinary predicate publishes the count promised by cell initialization.
 // It grants no storage or custody and is not an alternative to Live.
 public domain<P, T> Run<P, T>::Singleton<P, T>

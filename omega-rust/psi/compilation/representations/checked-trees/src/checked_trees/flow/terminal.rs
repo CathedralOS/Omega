@@ -52,7 +52,7 @@ pub use affine_cleanup_plans::{
 };
 pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
-    CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
+    CheckedBoundaryExecutionPlan, CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryReferenceDestination,
     CheckedBoundaryReferenceOutput, CheckedBoundaryScalarDomainRequirementPlan,
     CheckedBoundaryScalarGuarantee,

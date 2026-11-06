@@ -10,8 +10,7 @@ use language_semantics::content::{
     ContentConservationEquation, ContentConservationOwnerKind, ContentConservationPlan,
     ContentConservationTerm, ContentPlaceRoot, conservation_report_fingerprint,
 };
-use typed_trees::signature::{StateParameter, StateSignature};
-use typed_trees::trait_definition::AppliedTraitScope;
+use typed_trees::signature::StateParameter;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -77,7 +76,11 @@ pub(super) fn proves_exit(
         {
             return false;
         }
-        let Some(applied) = applied_requirement(program, requirement, scope) else {
+        let Some(applied) = crate::published::semantic::facts::applied_inherited_requirement(
+            program,
+            requirement,
+            scope,
+        ) else {
             return false;
         };
         let Some(parameters) = validation::inherited_satisfier_parameters(
@@ -153,58 +156,6 @@ pub(super) fn proves_exit(
             &facts.qualifications.content.plans,
             available,
         )
-}
-
-/// A declaration and its complete applied telescope remain distinct. Select
-/// the exact retained conformance, rejecting ambiguous inherited applications.
-fn applied_requirement<'program>(
-    program: &'program dyn validation::CheckingInput,
-    requirement: &'program StateSignature,
-    scope: &checked_trees::InheritedContractScope,
-) -> Option<&'program StateSignature> {
-    let owner = program.machine_by_symbol(scope.conformance_machine)?;
-    let mut application = None;
-    for conformance in program.machine_trait_conformances(owner) {
-        let root = AppliedTraitScope::from_machine_conformance(
-            program.typed_program(),
-            owner,
-            conformance,
-        )?;
-        let Some(candidate) = root.declaring_scope(program.typed_program(), scope.declaring_trait)
-        else {
-            continue;
-        };
-        if let Some(known) = &application
-            && !candidate.same_application(program.typed_program(), known)
-        {
-            return None;
-        }
-        application = Some(candidate);
-    }
-    let application = application?;
-    let binders = program.trait_type_parameters(application.declaration);
-    if binders.len() != scope.trait_arguments.len()
-        || !binders
-            .iter()
-            .zip(&scope.trait_arguments)
-            .all(|(binder, actual)| {
-                same_type(
-                    program,
-                    application.parameter_argument(program.typed_program(), binder.symbol),
-                    *actual,
-                )
-            })
-    {
-        return None;
-    }
-    program
-        .applied_callable_signature(&application, requirement.symbol)
-        .or_else(|| {
-            (requirement.type_parameters.is_empty()
-                && application.substitutions.is_empty()
-                && application.declaration.lifetime_parameters.is_empty())
-            .then_some(requirement)
-        })
 }
 
 fn same_type(

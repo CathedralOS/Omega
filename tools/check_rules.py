@@ -69,6 +69,31 @@ cleanup:
   and status prose on the board. `TASKS.md` must stay at or below 460 lines,
   use discrete single-line bullets without wrapped continuation lines or
   status-history prose, and never grow in line or sub-bullet count across a PR.
+- Rewritten diagnostic pins. A fail fixture's `expected.txt` is the diagnostic
+  the corpus requires. Rewriting that text makes a new refusal look pinned
+  without the compiler learning the old one. An `expected.txt` that already
+  existed on the base keeps its diagnostic fragments. A new fixture file may
+  carry its own pin.
+- Duplicate fact programs. A fact already pinned under
+  `tests/omega/{pass,fail,run}/facts` does not need another program under
+  `samples/cli/facts`. A new `.omg` there fails when a base fixture's directory
+  name is that fact or starts with `<fact>_` and no longer fact folder owns it.
+
+One check reports instead of failing:
+
+- Capability evidence. A compiler repair should show what it closes. From
+  2026-10-29 to 2026-11-05, 549 of the 621 commits that added compiler Rust
+  under `omega-rust/psi/` or `omega-rust/omega/compilation/` turned no
+  existing pass/run row green, and 245 of all 1,085 commits were per-case
+  "keep/carry/preserve/retain" repairs, most of which added a new fixture row
+  rather than closing a failing one. Refusing that shape outright would also
+  refuse legitimate work (a new behavior pinned by its own fixture pair,
+  performance work, restructuring), so this prints a notice that coordinator
+  review must resolve. Evidence is a change to a row that existed at the base
+  (a positive row turned green, a control that now rejects for its pinned
+  reason, a control whose recorded diagnostic changed) or a deleted
+  `TASKS.md` line. Without it, the notice distinguishes code pinned only on
+  rows the change adds from code that changes no corpus outcome at all.
 
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
@@ -544,6 +569,129 @@ def golden_row_quality_violations(diff: str) -> list:
     return violations
 
 
+# Capability evidence (notice, not a violation) -------------------------------
+
+COMPILER_ROOTS = ("omega-rust/psi/", "omega-rust/omega/compilation/")
+GREEN_OUTCOMES = ("checked", "built")
+
+
+class Row(NamedTuple):
+    outcome: str
+    flags: frozenset
+    diagnostics: tuple
+
+
+def golden_records(text: str) -> dict:
+    """Each row's outcome, its flag tokens (`expected`, `unexpected`,
+    `regressed-from:…`; timings and stamps dropped, since a re-record changes
+    them without changing what was observed) and its diagnostic lines."""
+    records, name = {}, None
+    for line in text.splitlines():
+        if line.startswith("\t") and name:
+            records[name] = records[name]._replace(
+                diagnostics=records[name].diagnostics + (line.strip(),))
+            continue
+        if not line.strip() or line[0] in "#\t ":
+            continue
+        tokens = line.split()
+        if len(tokens) < 2:
+            name = None
+            continue
+        name = tokens[0]
+        flags = frozenset(token for token in tokens[2:]
+                          if not token.startswith("@") and not re.fullmatch(r"\d+m?s", token))
+        records[name] = Row(tokens[1], flags, ())
+    return records
+
+
+def is_green(row: Row) -> bool:
+    return row.outcome in GREEN_OUTCOMES and not any(
+        flag.startswith("regressed-from:") for flag in row.flags)
+
+
+def is_pinned_rejection(row: Row) -> bool:
+    return row.outcome == "rejected" and "expected" in row.flags and "unexpected" not in row.flags
+
+
+class CorpusEvidence(NamedTuple):
+    greened: list
+    closed_controls: list
+    diagnostic_changes: list
+    added_rows: list
+
+
+def corpus_evidence(base_text: str, head_text: str) -> CorpusEvidence:
+    """What the golden says the change did to fixtures that existed at the
+    base. Rows the change adds are listed separately: a new fixture shows the
+    repair's own case, not a failure the compiler already had."""
+    base, head = golden_records(base_text), golden_records(head_text)
+    greened, closed, reworded = [], [], []
+    for name, row in head.items():
+        before = base.get(name)
+        if before is None:
+            continue
+        if name.startswith(("pass/", "run/")) and is_green(row) and not is_green(before):
+            greened.append(name)
+        elif name.startswith("fail/") and is_pinned_rejection(row):
+            # A control closes when the base accepted it or rejected it for
+            # the wrong reason. An unpinned rejection that gains `expected`
+            # gained its pin in this change; the compiler did not move.
+            if before.outcome != "rejected" or "unexpected" in before.flags:
+                closed.append(name)
+            elif is_pinned_rejection(before) and row.diagnostics != before.diagnostics:
+                reworded.append(name)
+    return CorpusEvidence(sorted(greened), sorted(closed), sorted(reworded),
+                          sorted(set(head) - set(base)))
+
+
+def is_product_compiler_rust(path: str) -> bool:
+    parts = path.split("/")
+    return (path.startswith(COMPILER_ROOTS) and path.endswith(".rs")
+            and not {"tests", "benches"} & set(parts)
+            and not TEST_FILE.search(parts[-1]))
+
+
+def added_compiler_lines(numstat: str) -> int:
+    """Net lines added to product compiler Rust; binary entries count zero."""
+    total = 0
+    for line in numstat.splitlines():
+        fields = line.split("\t")
+        if len(fields) == 3 and fields[0] != "-" and is_product_compiler_rust(fields[2]):
+            total += int(fields[0]) - int(fields[1])
+    return total
+
+
+def capability_notices(compiler_lines: int, evidence: CorpusEvidence, tasks_deleted: int) -> list:
+    """No notice when the change closes something that already existed: a
+    positive row turned green, a control that now rejects for its pinned
+    reason, a control whose recorded diagnostic changed, or a board line.
+    Otherwise the notice says which of the two remaining shapes it is."""
+    if compiler_lines <= 0 or tasks_deleted or evidence.greened \
+            or evidence.closed_controls or evidence.diagnostic_changes:
+        return []
+    if evidence.added_rows:
+        shown = ", ".join(evidence.added_rows[:3]) + (", …" if len(evidence.added_rows) > 3 else "")
+        return [f"this change adds {compiler_lines} lines of compiler Rust pinned only on "
+                f"{len(evidence.added_rows)} row(s) it adds to {GOLDEN} ({shown}); no existing row "
+                f"turns green or changes its rejection, and no {TASKS_BOARD} line is deleted. Name "
+                "in the PR body the existing failing row, sample or acceptance it closes, or the "
+                "behavior no existing fixture covered."]
+    return [f"this change adds {compiler_lines} lines of compiler Rust and changes no corpus "
+            f"outcome: no row in {GOLDEN} is added, turns green or changes its rejection, and no "
+            f"{TASKS_BOARD} line is deleted. Performance or restructuring work says so in the PR "
+            "body with its measurement; any other repair with no observable outcome is per-case glue."]
+
+
+def capability_evidence(base: str, root: Path = ROOT) -> list:
+    numstat = git("diff", "--numstat", "--no-renames", base, "HEAD", "--",
+                  *[prefix.rstrip("/") for prefix in COMPILER_ROOTS], root=root)
+    tasks = git("diff", "--numstat", base, "HEAD", "--", TASKS_BOARD, root=root).split()
+    return capability_notices(
+        added_compiler_lines(numstat),
+        corpus_evidence(show(base, GOLDEN, root), show("HEAD", GOLDEN, root)),
+        int(tasks[1]) if len(tasks) >= 2 and tasks[1] != "-" else 0)
+
+
 def fixture_of(path: str, rows: set, fixture_dirs: set) -> str:
     """The fixture that owns `path`: the deepest recorded row whose directory
     holds it, else the shallowest directory that holds a main.omg."""
@@ -706,6 +854,26 @@ def subject_violations(subject: str, allowed: set) -> list:
     return []
 
 
+# Agent provenance -----------------------------------------------------------
+
+# Squash merges keep commit messages but drop the pull request description, and
+# AGENTS.md keeps tool attribution out of commits, so the description is the one
+# place a landing can say which agent wrote it. Several agents share each GitHub
+# account, so the account cannot say it either.
+AGENT_NAMES = ("Claude Code", "Codex", "Cursor", "Devin", "Antigravity", "Dot", "Human")
+AGENT_LINE = re.compile(r"^Agent: (?P<name>.+?)(?:,\s*(?P<detail>\S.*))?\s*$", re.MULTILINE)
+
+
+def provenance_violations(body: str) -> list:
+    """A pull request description must name its agent on an `Agent:` line."""
+    for match in AGENT_LINE.finditer(body):
+        if match["name"].strip() in AGENT_NAMES:
+            return []
+    return ["pull request description has no `Agent: <name>` line naming one of "
+            f"{', '.join(AGENT_NAMES)}, followed by its session link or worktree where "
+            "there is one (AGENTS.md 'Explain the change')"]
+
+
 # Driver ---------------------------------------------------------------------
 
 def show(revision: str, path: str, root: Path = ROOT) -> str:
@@ -713,6 +881,129 @@ def show(revision: str, path: str, root: Path = ROOT) -> str:
         return git("show", f"{revision}:{path}", root=root)
     except RuntimeError:
         return ""
+
+
+def diagnostic_fragments(text: str) -> frozenset:
+    """Non-empty trimmed lines of expected.txt. The corpus requires each one
+    to occur in the diagnostic, so the set is the pin."""
+    return frozenset(line.strip() for line in text.splitlines() if line.strip())
+
+
+def _is_omega_expected(path: str) -> bool:
+    return path.startswith("tests/omega/") and path.endswith("/expected.txt")
+
+
+def _quote_fragments(fragments: list) -> str:
+    shown = ", ".join(repr(fragment) for fragment in fragments[:3])
+    if len(fragments) > 3:
+        shown += f" (+{len(fragments) - 3} more)"
+    return shown
+
+
+def expected_pin_violations(changes: list, before, after) -> list:
+    """Refuse a rewrite of pinned diagnostic text.
+
+    `before(path)` and `after(path)` return the file at the base and at HEAD.
+    A newly added expected.txt may pin a new fixture. Changing or deleting the
+    fragments of an expected.txt that already existed on the base may not.
+    """
+    violations = []
+    for status, path in changes:
+        if status == "A" or not _is_omega_expected(path):
+            continue
+        old = diagnostic_fragments(before(path))
+        new = frozenset() if status == "D" else diagnostic_fragments(after(path))
+        if old == new:
+            continue
+        if status == "D":
+            detail = "removed the file and its pinned diagnostic"
+        else:
+            parts = []
+            removed = sorted(old - new)
+            added = sorted(new - old)
+            if removed:
+                parts.append("dropped " + _quote_fragments(removed))
+            if added:
+                parts.append("added " + _quote_fragments(added))
+            detail = "; ".join(parts)
+        violations.append(
+            f"{path}: broke existing-diagnostic-pin: {detail}. "
+            "An expected.txt that already existed on the base keeps its pinned "
+            "diagnostic; add a new fixture file to pin a different diagnostic.")
+    return violations
+
+
+def sample_fact_name(path: str) -> str:
+    """The fact folder of a samples/cli/facts path, or "" for a root file."""
+    if not path.startswith(FACTS_ROOT):
+        return ""
+    fact, separator, _rest = path[len(FACTS_ROOT):].partition("/")
+    return fact if separator and fact else ""
+
+
+def omega_fact_fixtures(paths) -> set:
+    """`tier/facts/<directory>` for files under tests/omega fact fixtures."""
+    found = set()
+    for path in paths:
+        parts = path.split("/")
+        if (len(parts) >= 5 and parts[0] == "tests" and parts[1] == "omega"
+                and parts[3] == "facts" and parts[4]):
+            found.add(f"{parts[2]}/facts/{parts[4]}")
+    return found
+
+
+def fixture_owner(directory: str, fact_names: set) -> str:
+    """The longest fact folder that `directory` names, at a '_' boundary."""
+    matches = [fact for fact in fact_names
+               if directory == fact or directory.startswith(fact + "_")]
+    if not matches:
+        return ""
+    return max(matches, key=lambda fact: (len(fact), fact))
+
+
+def pinned_fixture_for_fact(fact: str, fixtures: set, fact_names: set) -> str:
+    names = set(fact_names)
+    names.add(fact)
+    hits = [fixture for fixture in fixtures
+            if fixture_owner(fixture.rsplit("/", 1)[-1], names) == fact]
+    return min(hits) if hits else ""
+
+
+def already_pinned_fact_violations(changes: list, fixtures: set, fact_names: set) -> list:
+    """Refuse a new samples/cli/facts program for a fact the corpus already pins.
+
+    `fixtures` holds `tier/facts/<directory>` names present on the base.
+    `fact_names` holds samples/cli/facts folder names on the base and HEAD, so
+    a longer fact such as may_write_codec_argument keeps its own fixtures.
+    """
+    names = set(fact_names)
+    added = []
+    for status, path in changes:
+        if status != "A" or not path.startswith(FACTS_ROOT) or not path.endswith(".omg"):
+            continue
+        fact = sample_fact_name(path)
+        if not fact:
+            continue
+        names.add(fact)
+        added.append((path, fact))
+    violations = []
+    for path, fact in added:
+        witness = pinned_fixture_for_fact(fact, fixtures, names)
+        if not witness:
+            continue
+        violations.append(
+            f"{path}: broke already-pinned-fact: new .omg under {FACTS_ROOT}{fact} "
+            f"while tests/omega already has facts fixture `{witness}` for that fact. "
+            "Adding a samples/cli/facts program for a fact already pinned under "
+            "tests/omega/{pass,fail,run}/facts is refused.")
+    return violations
+
+
+def list_tree(revision: str, *paths, root: Path = ROOT) -> list:
+    if not paths:
+        return []
+    return [line for line in git("ls-tree", "-r", "--name-only", revision, *paths, root=root).splitlines()
+            if line]
 
 
 def diff_hygiene_violations(changes: list) -> list:
@@ -779,6 +1070,19 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
             f"{FACTS_ROOT}{name}: new fact folders are frozen to prevent corpus bloat; "
             f"pin the repair by flipping existing regressions in {GOLDEN} or adding a "
             "focused fixture pair under tests/omega/{pass,fail,run}/<behavior>/")
+    violations += expected_pin_violations(
+        changes,
+        lambda path: show(base, path, root),
+        lambda path: show("HEAD", path, root))
+    fixture_roots = ("tests/omega/pass/facts", "tests/omega/fail/facts", "tests/omega/run/facts")
+    fact_names = set()
+    for revision in (base, "HEAD"):
+        for path in list_tree(revision, FACTS_ROOT, root=root):
+            fact = sample_fact_name(path)
+            if fact:
+                fact_names.add(fact)
+    violations += already_pinned_fact_violations(
+        changes, omega_fact_fixtures(list_tree(base, *fixture_roots, root=root)), fact_names)
     return violations
 
 
@@ -788,6 +1092,8 @@ def main(arguments=None):
     parser.add_argument("--base", help="compare HEAD with this revision "
                         "(default: merge base with origin/main)")
     parser.add_argument("--title", help="pull request title to check as a commit subject")
+    parser.add_argument("--body-file", type=Path,
+                        help="pull request description to check for its `Agent:` line")
     for ratchet in RATCHETS:
         parser.add_argument(f"--{ratchet.flag}", action="store_true",
                             help=f"rewrite {ratchet.baseline} from the tree")
@@ -824,6 +1130,10 @@ def main(arguments=None):
     if options.title is not None:
         violations += subject_violations(
             options.title, lanes((ROOT / "AGENTS.md").read_text(encoding="utf-8")))
+    if options.body_file is not None:
+        violations += provenance_violations(options.body_file.read_text(encoding="utf-8"))
+    for notice in capability_evidence(base):
+        print(f"check_rules: notice: {notice}", file=sys.stderr)
     for violation in violations:
         print(f"check_rules: {violation}", file=sys.stderr)
     if not violations:

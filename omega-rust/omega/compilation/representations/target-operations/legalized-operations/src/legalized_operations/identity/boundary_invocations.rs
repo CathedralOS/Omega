@@ -9,6 +9,9 @@ pub fn encode_boundary_execution_identity(
     execution: BoundaryExecutionBinding,
 ) {
     match execution {
+        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::EmptyRunRelease) => {
+            bytes.push(9)
+        }
         BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::AccessLifecycle {
             boundary,
             operation,
@@ -77,6 +80,7 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
             super::normalized_foreign::encode_call_binding(bytes, call);
         }
         BoundarySettlementRealization::Builtin(realization) => match realization {
+            BoundaryRealization::EmptyRunRelease => bytes.push(12),
             BoundaryRealization::AccessLifecycle { boundary } => {
                 bytes.push(11);
                 bytes.extend_from_slice(&boundary.get().to_le_bytes());

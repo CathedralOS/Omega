@@ -105,22 +105,26 @@ impl ProgramValidationFacts {
     pub fn discharge_storage_formations(
         &mut self,
         program: &dyn crate::CheckingInput,
-    ) -> Result<(), Vec<Diagnostic>> {
-        let proven = arithmetic_domains::storage_formations::discharge(
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        let discharged = arithmetic_domains::storage_formations::discharge(
             program,
             &self.pending_integer_formations,
         )?;
-        struct_literals::discharge_pending_predicates(
+        if let Err(errors) = struct_literals::discharge_pending_predicates(
             program,
             &self.pending_construction_predicates,
-        )?;
-        self.decided_formations.extend(proven);
+        ) {
+            let mut diagnostics = discharged.overflow;
+            diagnostics.extend(errors);
+            return Err(diagnostics);
+        }
+        self.decided_formations.extend(discharged.proven);
         self.decided_formations
             .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
         self.decided_formations.dedup();
         self.pending_integer_formations.clear();
         self.pending_construction_predicates.clear();
-        Ok(())
+        Ok(discharged.overflow)
     }
 }
 
@@ -156,6 +160,10 @@ pub struct ProgramValidation {
     /// Bodies whose correspondence matched, including bodies whose entailment
     /// ordinals stay local. Query sites read these instead of source text.
     pub frozen_dependency_bodies: Vec<FrozenDependencyBody>,
+    /// Exact-arithmetic overflow found while walking values. Call-requires
+    /// checking still has to run: an unproved callee precondition is what
+    /// withdrew the bound, and that diagnostic belongs with the overflow.
+    pub deferred_overflow: Vec<Diagnostic>,
 }
 
 /// Validate a standalone program, including its generic contracts.
@@ -170,10 +178,17 @@ pub fn validate_program(program: &dyn crate::CheckingInput) -> Result<(), Vec<Di
         false,
     )
     .and_then(|mut validated| {
-        validated.facts.discharge_storage_formations(program)?;
-        judge_contract_entailment(program, validated.deferred_entailment)
+        let overflow = validated.facts.discharge_storage_formations(program)?;
+        match judge_contract_entailment(program, validated.deferred_entailment) {
+            Ok(_) if overflow.is_empty() => Ok(()),
+            Ok(_) => Err(overflow),
+            Err(errors) => {
+                let mut diagnostics = overflow;
+                diagnostics.extend(errors);
+                Err(diagnostics)
+            }
+        }
     })
-    .map(|_| ())
 }
 
 /// Prepare formation and source-flow inputs before ownership selects implicit
@@ -304,6 +319,7 @@ fn validate<'program>(
         diagnostics.push(Diagnostic::error(message));
     }
     literals::validate_anonymous_numeric_formation(program, &mut diagnostics);
+    crate::declarations::traits::validate_member_formations(program, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -315,6 +331,19 @@ fn validate<'program>(
         program,
         &mut diagnostics,
     );
+    for machine in program.machines() {
+        if typed_trees::float_providers::is_catalog_declaration(program.typed_program(), machine)
+            && let Err(reason) = typed_trees::float_providers::authenticate_intrinsic_member(
+                program.typed_program(),
+                machine,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "float provider member `{}` is not authenticated: {reason}",
+                machine.name,
+            )));
+        }
+    }
     crate::value_custody::atomic_fences::validate_atomic_fence_declarations(
         program,
         &mut diagnostics,
@@ -658,6 +687,12 @@ fn validate<'program>(
         let mut stored_integer_writes = Vec::new();
         let mut boundary_operator_applications = Vec::new();
         let mut self_call_descents = Vec::new();
+        // Machines run on parallel workers, so subject wall times overlap and
+        // their sum exceeds the loop's own row.
+        let _subject =
+            phase_profile::subject("psi.05.prepare_typed_program.validate.machine_loop", || {
+                program.symbols.profile_label(machine.symbol)
+            });
         let _machine_pkg_guard = phase_profile::enabled().then(|| {
             let is_toolchain_or_std = program
                 .symbols
@@ -1142,10 +1177,24 @@ fn validate<'program>(
         &expression_intervals,
         &mut diagnostics,
     );
+    // Overflow is reported, and so is an unproved call precondition that
+    // withdrew the bound. Keep overflow and continue into the call-requires
+    // checks. Any other error still stops here, with entailment beside it.
+    let mut deferred_overflow = Vec::new();
     if diagnostics.iter().any(Diagnostic::is_error) {
-        // A program that fails validation never reaches flow construction.
-        // Report its entailment diagnostics with the rest of validation.
-        diagnostics.append(&mut judge_machines(program, &body_index).diagnostics);
+        let mut retained = Vec::new();
+        for diagnostic in diagnostics.drain(..) {
+            if is_exact_overflow_diagnostic(&diagnostic) {
+                deferred_overflow.push(diagnostic);
+            } else {
+                retained.push(diagnostic);
+            }
+        }
+        diagnostics = retained;
+        if diagnostics.iter().any(Diagnostic::is_error) {
+            diagnostics.append(&mut judge_machines(program, &body_index).diagnostics);
+            diagnostics.append(&mut deferred_overflow);
+        }
     }
     finish_diagnostics(diagnostics)?;
     // Warning collection follows all formation and flow checks: a warning must
@@ -1226,7 +1275,14 @@ fn validate<'program>(
         },
         deferred_entailment: DeferredEntailment { body_index },
         frozen_dependency_bodies,
+        deferred_overflow,
     })
+}
+
+pub(crate) fn is_exact_overflow_diagnostic(diagnostic: &Diagnostic) -> bool {
+    diagnostic.is_error()
+        && diagnostic.message.starts_with("exact arithmetic in ")
+        && diagnostic.message.contains("may overflow")
 }
 
 /// Inputs that contract entailment needs from validation. Entailment runs as
@@ -1332,6 +1388,10 @@ fn judge_machines(
     body_index: &dependency_bodies::DependencyBodyIndex,
 ) -> JudgedEntailment {
     let judge_machine = |machine_index: usize, machine: &typed_trees::machine::Machine| {
+        // Judged on parallel workers when the roster is large; times overlap.
+        let _subject = phase_profile::subject("psi.05.contract_entailment", || {
+            program.symbols.profile_label(machine.symbol)
+        });
         let mut diagnostics = Vec::new();
         let mut proven_machine_contract = None;
         // Pristine templates remain in the frozen roster. Judge their declared

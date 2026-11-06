@@ -560,54 +560,79 @@ pub(crate) fn retain_closed_reach_applications(
                     .ok_or(LoweringError::Unsupported(
                         "closed reach call lost its original binder",
                     ))?;
-                let mut matches = occurrences.iter().filter(|occurrence| {
-                    occurrence.matches_statement(
-                        state.symbol,
-                        call.statement_index,
-                        call.call_ordinal,
-                    ) && resolved_source_entry(checked, occurrence.source_target)
-                        == Some(call.target_state_symbol)
-                });
-                let Some(occurrence) = matches.next() else {
+                let statement_matches = occurrences
+                    .iter()
+                    .filter(|occurrence| {
+                        occurrence.matches_statement(
+                            state.symbol,
+                            call.statement_index,
+                            call.call_ordinal,
+                        ) && resolved_source_entry(checked, occurrence.source_target)
+                            == Some(call.target_state_symbol)
+                    })
+                    .collect::<Vec<_>>();
+                let owner_matches = statement_matches
+                    .iter()
+                    .copied()
+                    .filter(|occurrence| {
+                        module.machine(owner).is_some_and(|machine| {
+                            machine
+                                .module_invocations()
+                                .any(|invocation| invocation.site == occurrence.terminal_site)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                // Several emissions can share one source coordinate. Bind the
+                // invocations this owner actually emitted. A coordinate with
+                // no owner invocation still fails closed below.
+                let matches = if owner_matches.is_empty() {
+                    statement_matches
+                } else {
+                    owner_matches
+                };
+                if matches.is_empty() {
                     // The complete owner substitution survives without an
                     // emitted direct operation.
                     continue;
+                }
+                let application = match &telescope[binder] {
+                    ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
+                        closed_call_application(
+                            identities,
+                            checked,
+                            source_machines,
+                            call.target_state_symbol,
+                        )?
+                    }
+                    _ => None,
                 };
-                if matches.next().is_some() {
-                    return unsupported("closed reach call has ambiguous emitted occurrences");
+                for occurrence in matches {
+                    let site = occurrence.terminal_site;
+                    let emitted = module
+                        .machine(owner)
+                        .and_then(|machine| {
+                            machine
+                                .module_invocations()
+                                .find(|invocation| invocation.site == site)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "closed reach call lost its exact emitted invocation",
+                        ))?;
+                    if emitted.inputs.callee.get() == 0 {
+                        return unsupported("closed reach call has no module callee");
+                    }
+                    calls.push(ClosedReachCall {
+                        site,
+                        binder: binder as u32,
+                        application: application.clone(),
+                    });
                 }
-                let site = occurrence.terminal_site;
-                let emitted = module
-                    .machine(owner)
-                    .and_then(|machine| {
-                        machine
-                            .module_invocations()
-                            .find(|invocation| invocation.site == site)
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "closed reach call lost its exact emitted invocation",
-                    ))?;
-                if emitted.inputs.callee.get() == 0 {
-                    return unsupported("closed reach call has no module callee");
-                }
-                calls.push(ClosedReachCall {
-                    site,
-                    binder: binder as u32,
-                    application: match &telescope[binder] {
-                        ClosedReachParameter::Machine(binding) if binding.schema.is_some() => {
-                            closed_call_application(
-                                identities,
-                                checked,
-                                source_machines,
-                                call.target_state_symbol,
-                            )?
-                        }
-                        _ => None,
-                    },
-                });
             }
         }
         calls.sort_by_key(|call| call.site);
+        if calls.windows(2).any(|pair| pair[0].site == pair[1].site) {
+            return unsupported("closed reach call has ambiguous emitted occurrences");
+        }
         // Type/const specialization selects actual custody leaves. Retain
         // their contractual contribution beside the template dependency; it
         // cannot be recovered from authored calls alone or by subtracting a

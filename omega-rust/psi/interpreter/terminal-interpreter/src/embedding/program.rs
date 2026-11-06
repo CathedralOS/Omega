@@ -468,10 +468,10 @@ impl<'artifact> TerminalProgram<'artifact> {
         &self,
         request: crate::boundary::effects::TerminalRuntimeSupplyRequest<'_>,
     ) -> Result<crate::boundary::effects::TerminalRuntimeSupplies, TerminalInterpretError> {
-        if request.installation.is_some_and(|installation| {
-            terminal_codec::TerminalExecutionIdentity::portable(installation.terminal_psi())
-                != self.program.identity
-        }) {
+        if request
+            .installation
+            .is_some_and(|installation| installation.execution_identity() != &self.program.identity)
+        {
             return Err(TerminalInterpretError::ProviderInstallationIdentityMismatch);
         }
         if request
@@ -1028,10 +1028,9 @@ impl TerminalProgram<'_> {
 /// Execution ownership comes from the authenticated callable, not from an
 /// optional plan or a host's willingness to return the expected result shape.
 pub(crate) fn compiler_owns_boundary_execution(declaration: &BoundaryMachineDeclaration) -> bool {
-    declaration
-        .declaration
-        .as_ref()
-        .is_some_and(|callable| callable.execution.placement_operation().is_some())
+    declaration.declaration.as_ref().is_some_and(|callable| {
+        callable.execution != terminal_psi::CheckedBoundaryExecution::Provider
+    })
 }
 
 #[cfg(test)]

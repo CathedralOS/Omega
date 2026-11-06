@@ -67,7 +67,7 @@ use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;
 pub(crate) use expression_scanning::{
     declared_receiver_type_reference, report_nested_call_in_local_initializer,
-    validate_value_position_calls,
+    report_unresolved_name_use, validate_value_position_calls,
 };
 pub use expression_scanning::{
     nested_boundary_applications_compose, result_initializer_call_is_admitted,
@@ -974,8 +974,8 @@ pub(crate) use argument_correspondence::{
 };
 mod occurrences;
 pub use argument_correspondence::{
-    SelectedCallArgument, SelectedCallArgumentError, selected_call_arguments,
-    selected_call_result_domain_matches,
+    SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters,
+    selected_call_arguments, selected_call_result_domain_matches,
 };
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,

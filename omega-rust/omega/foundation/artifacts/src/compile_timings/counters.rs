@@ -18,6 +18,18 @@ pub fn checked_compilation_call_count() -> u64 {
 static TYPED_FRONTIER_REUSES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static SOURCE_ASSEMBLY_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static BUILD_EXECUTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static SOURCE_BUILD_EXECUTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static PROVIDER_DEFAULT_EXECUTIONS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
+/// Diagnostic purpose of an admitted activation; this grants no execution authority.
+#[derive(Clone, Copy, Debug)]
+pub enum BuildExecutionPurpose {
+    /// The original program or package companion, including its compiler default.
+    Source,
+    /// The separate captured companion that supplies provider defaults.
+    ProviderDefaults,
+}
 static PRODUCT_SOURCE_COMPLETIONS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 static TERMINAL_PRODUCTIONS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -57,8 +69,25 @@ pub fn product_source_completion_count() -> u64 {
     PRODUCT_SOURCE_COMPLETIONS.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-pub fn record_build_execution() {
+/// Build attempts for programs and packages, excluding the separate defaults supplier.
+#[doc(hidden)]
+pub fn source_build_execution_count() -> u64 {
+    SOURCE_BUILD_EXECUTIONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Provider supplier attempts, including activations that pause or refuse.
+#[doc(hidden)]
+pub fn provider_defaults_execution_count() -> u64 {
+    PROVIDER_DEFAULT_EXECUTIONS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn record_build_execution(purpose: BuildExecutionPurpose) {
     BUILD_EXECUTIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let counter = match purpose {
+        BuildExecutionPurpose::Source => &SOURCE_BUILD_EXECUTIONS,
+        BuildExecutionPurpose::ProviderDefaults => &PROVIDER_DEFAULT_EXECUTIONS,
+    };
+    counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 pub fn record_product_source_completion() {

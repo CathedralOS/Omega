@@ -4,7 +4,7 @@
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use facts::FactPayload;
-use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 use crate::published::labels::semantic_fact_requirement_label;
@@ -157,6 +157,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
+    entry_contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
@@ -173,7 +174,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
         target_parameters,
         expression,
     );
-    guards.iter().any(|guard| {
+    (guards.iter().any(|guard| {
         guard_conjunct_matches(program, *guard, &required_label)
             || super::guard_observations::conjunct_matches(
                 program, facts, state_flow, call_flow, *guard, expression,
@@ -187,16 +188,28 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
                 expression,
                 Some(*guard),
             )
-    }) && super::super::guard_operands::requirement_reads_survive_earlier_operand_writes(
-        program,
-        facts,
-        state_flow,
-        call_flow,
-        validation::call_site_argument_expressions(program, &call_site),
-        target_parameters,
-        &super::super::guard_operands::boolean_requirement_mentions(program, expression),
-        call_frames,
-    )
+            || decomposed_guard_premise_proves(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                entry_contexts,
+                *guard,
+                expression,
+                &required_label,
+                call_frames,
+            )
+    }) || case_requirement_matches(program, state_flow, &guards, &required_label))
+        && super::super::guard_operands::requirement_reads_survive_earlier_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            validation::call_site_argument_expressions(program, &call_site),
+            target_parameters,
+            &super::super::guard_operands::boolean_requirement_mentions(program, expression),
+            call_frames,
+        )
 }
 
 /// A named transition is itself an incoming edge. Its taken-arm guard may
@@ -255,7 +268,9 @@ pub(super) fn transition_guard_proves_requires(
         }
         _ => false,
     };
-    let guard_establishes = matches_guard(&required_label) || copied_guard_establishes
+    let guard_establishes = matches_guard(&required_label)
+        || copied_guard_establishes
+        || case_requirement_matches(program, state_flow, &matching_guards, &required_label)
         || super::predicate_domains::predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
             labels
                 .iter()
@@ -301,6 +316,208 @@ pub(super) fn transition_guard_proves_requires(
         &super::super::guard_operands::fact_requirement_mentions(program, facts, fact),
         call_frames,
     )
+}
+
+/// A selected `subject in Data::Case` guard establishes that case's data
+/// `requires` conjuncts. Membership is the guard; the scalar obligations are
+/// the premises a callee `requires` may quote. Projection renames the
+/// predicate subject onto the dispatched value and the data's value
+/// parameters onto that value's type arguments, which is the vocabulary the
+/// instantiated callee contract already uses.
+fn case_requirement_matches(
+    program: &dyn ::validation::CheckingInput,
+    state_flow: &FlowStateFact,
+    guards: &[typed_trees::expression::ExpressionHandle],
+    required_label: &str,
+) -> bool {
+    let Some(machine) = program.machine(state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(state) = program.state_in_machine(machine, state_flow.state_symbol) else {
+        return false;
+    };
+    guards.iter().any(|guard| {
+        projected_case_requirement_labels(program, machine, state, *guard)
+            .iter()
+            .any(|label| {
+                label == required_label || label.split(" && ").any(|part| part == required_label)
+            })
+    })
+}
+
+fn projected_case_requirement_labels(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    guard: typed_trees::expression::ExpressionHandle,
+) -> Vec<String> {
+    let Some(comparison) = program.expression_table.binary_node(guard) else {
+        return Vec::new();
+    };
+    let Some(case) = validation::applied_case_membership_variant(
+        program,
+        machine,
+        Some(state),
+        guard,
+        comparison,
+    ) else {
+        return Vec::new();
+    };
+    let mut subject = comparison.left;
+    for _ in 0..8 {
+        match program.expression_table.expression(subject) {
+            ExpressionNode::Borrow(borrow) => subject = borrow.target,
+            ExpressionNode::Name(path) => {
+                let initial = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .find_map(|statement| match statement {
+                        StatementNode::LocalData(local) if local.symbol == path.symbol => {
+                            Some(local.initial_value)
+                        }
+                        _ => None,
+                    });
+                let Some(initial) = initial else {
+                    break;
+                };
+                subject = initial;
+            }
+            _ => break,
+        }
+    }
+    let Some(reference) =
+        validation::expression_result_type_reference(program, machine, state, subject)
+    else {
+        return Vec::new();
+    };
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return Vec::new();
+    };
+    let Some(definition) = program.data_definition_by_symbol(*base_symbol) else {
+        return Vec::new();
+    };
+    let parameters = program.declaration_type_parameters(*base_symbol);
+    let arguments = program
+        .type_reference_table
+        .type_reference_handles(*arguments);
+    let mut parameter_names = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments.iter()) {
+        if !matches!(
+            parameter.kind,
+            typed_trees::data::TypeParameterKind::Value { .. }
+                | typed_trees::data::TypeParameterKind::Const { .. }
+        ) {
+            continue;
+        }
+        let name = match program.type_reference_table.type_reference(*argument) {
+            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
+                program.expression_table.display_name(*expression)
+            }
+            _ => continue,
+        };
+        parameter_names.push((parameter.symbol, name));
+    }
+    let subject_name = program.expression_table.display_name(subject);
+    let requirements = validation::case_predicate_expressions(program, definition, case);
+    let rendered = requirements
+        .iter()
+        .map(|requirement| {
+            render_projected_requirement(
+                program,
+                definition.predicate_subject_symbol,
+                &subject_name,
+                &parameter_names,
+                *requirement,
+            )
+        })
+        .collect::<Vec<_>>();
+    if rendered.len() <= 1 {
+        return rendered;
+    }
+    let mut labels = vec![rendered.join(" && ")];
+    labels.extend(rendered);
+    labels
+}
+
+fn render_projected_requirement(
+    program: &dyn ::validation::CheckingInput,
+    predicate_subject: symbols::SymbolHandle,
+    subject_name: &str,
+    parameters: &[(symbols::SymbolHandle, String)],
+    expression: typed_trees::expression::ExpressionHandle,
+) -> String {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => format!(
+            "{} {} {}",
+            render_projected_requirement(
+                program,
+                predicate_subject,
+                subject_name,
+                parameters,
+                binary.left,
+            ),
+            binary.operator.display_name(),
+            render_projected_requirement(
+                program,
+                predicate_subject,
+                subject_name,
+                parameters,
+                binary.right,
+            ),
+        ),
+        ExpressionNode::Call(call) if !call.receiver.is_valid() => {
+            let arguments = program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| {
+                    render_projected_requirement(
+                        program,
+                        predicate_subject,
+                        subject_name,
+                        parameters,
+                        *argument,
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}({arguments})", call.target.as_str())
+        }
+        ExpressionNode::Name(path) => {
+            if path.symbol == predicate_subject {
+                return subject_name.to_string();
+            }
+            if let Some((_, name)) = parameters.iter().find(|(symbol, _)| *symbol == path.symbol) {
+                return name.clone();
+            }
+            program.expression_table.display_name(expression)
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = match program.expression_table.expression(member.receiver) {
+                ExpressionNode::Name(path) if path.symbol == predicate_subject => {
+                    subject_name.to_string()
+                }
+                _ => render_projected_requirement(
+                    program,
+                    predicate_subject,
+                    subject_name,
+                    parameters,
+                    member.receiver,
+                ),
+            };
+            format!("{receiver}.{}", member.member.as_str())
+        }
+        _ => program.expression_table.display_name(expression),
+    }
 }
 
 // A later guard conjunct can overwrite an earlier premise. Operand write
@@ -384,4 +601,172 @@ pub(super) fn negated_guard_conjunct_matches(
             ) == required_label
         }),
     }
+}
+
+/// A premise conjunct may be a defined Boolean name rather than a spelled
+/// predicate. Bound-Boolean transport publishes `premise <-> X` as the clause
+/// pair `premise || !X` and `!premise || X` in the state's semantic contexts;
+/// under the selected edge's premise the refuted disjunct dies and the
+/// survivor stands as premise evidence. The assembly `zf` scratch recovers
+/// `destination == 0` this way once normalization threads the flag through a
+/// generated parameter, where no statement-level capture exists.
+#[allow(clippy::too_many_arguments)]
+fn decomposed_guard_premise_proves(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    contexts: &[facts::FactContextHandle],
+    guard: ExpressionHandle,
+    required: ExpressionHandle,
+    required_label: &str,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> bool {
+    let establishes = |premise: ExpressionHandle| {
+        super::super::guard_operands::premise_reads_survive_arm_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            premise,
+            call_frames,
+        ) && (guard_conjunct_matches(program, premise, required_label)
+            || super::guard_observations::conjunct_matches(
+                program, facts, state_flow, call_flow, premise, required,
+            ))
+    };
+    let mut conjuncts = Vec::new();
+    premise_conjuncts(program, guard, &mut conjuncts);
+    // Only a bare name can carry a transported definition: the refuted
+    // disjunct below must spell `!name` or `name == false`, so comparisons
+    // and composite conjuncts never match and skip the context scan.
+    conjuncts
+        .iter()
+        .filter(|conjunct| premise_names_defined_boolean(program, **conjunct))
+        .any(|conjunct| {
+            contexts.iter().any(|context| {
+                facts
+                    .semantic
+                    .context_view(facts.semantic.contexts.get(*context))
+                    .facts()
+                    .any(|fact| {
+                        let clause = match fact.payload {
+                            FactPayload::BooleanExpression(expression)
+                            | FactPayload::ContractBooleanExpression { expression, .. } => {
+                                expression
+                            }
+                            _ => return false,
+                        };
+                        let Some(binary) = program.expression_table.binary_node(clause) else {
+                            return false;
+                        };
+                        binary.operator == typed_trees::expression::BinaryOperator::Or
+                            && [(binary.left, binary.right), (binary.right, binary.left)]
+                                .into_iter()
+                                .any(|(refuted, surviving)| {
+                                    expressions_are_logical_negations(program, refuted, *conjunct)
+                                        && establishes(surviving)
+                                })
+                    })
+            })
+        })
+}
+
+/// Whether a premise conjunct names a carried Boolean binding — a bare name,
+/// `!name`, or `name == <bool>` — the only spellings a transported
+/// definition clause can refute.
+fn premise_names_defined_boolean(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => true,
+        ExpressionNode::Unary(unary) => {
+            unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
+                && matches!(
+                    program.expression_table.expression(unary.operand),
+                    ExpressionNode::Name(_)
+                )
+        }
+        ExpressionNode::Binary(binary) => {
+            binary.operator == typed_trees::expression::BinaryOperator::Equal
+                && matches!(
+                    program.expression_table.expression(binary.left),
+                    ExpressionNode::Name(_)
+                )
+                && matches!(
+                    program.expression_table.expression(binary.right),
+                    ExpressionNode::Boolean(_)
+                )
+        }
+        _ => false,
+    }
+}
+
+/// The same conjunct decomposition `guard_conjunct_matches` applies: `&&`
+/// splits and `x == true` unwraps to `x`.
+fn premise_conjuncts(
+    program: &dyn ::validation::CheckingInput,
+    guard: ExpressionHandle,
+    conjuncts: &mut Vec<ExpressionHandle>,
+) {
+    let Some(binary) = program.expression_table.binary_node(guard) else {
+        conjuncts.push(guard);
+        return;
+    };
+    match binary.operator {
+        typed_trees::expression::BinaryOperator::And => {
+            premise_conjuncts(program, binary.left, conjuncts);
+            premise_conjuncts(program, binary.right, conjuncts);
+        }
+        typed_trees::expression::BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            premise_conjuncts(program, binary.left, conjuncts);
+        }
+        _ => conjuncts.push(guard),
+    }
+}
+
+/// Whether `refuted` spells the logical negation of `guard` in either checked
+/// shape — `!guard`, `guard == false`, or `false == guard` — and in either
+/// direction. Spelling identity is the same comparison the conjunct matchers
+/// already apply to premise labels.
+fn expressions_are_logical_negations(
+    program: &dyn ::validation::CheckingInput,
+    refuted: ExpressionHandle,
+    guard: ExpressionHandle,
+) -> bool {
+    let negated = |expression| match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary)
+            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+        {
+            Some(unary.operand)
+        }
+        ExpressionNode::Binary(binary)
+            if binary.operator == typed_trees::expression::BinaryOperator::Equal =>
+        {
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(false)
+            ) {
+                Some(binary.left)
+            } else {
+                matches!(
+                    program.expression_table.expression(binary.left),
+                    ExpressionNode::Boolean(false)
+                )
+                .then_some(binary.right)
+            }
+        }
+        _ => None,
+    };
+    let same = |left: ExpressionHandle, right: ExpressionHandle| {
+        program.expression_table.display_name(left) == program.expression_table.display_name(right)
+    };
+    negated(refuted).is_some_and(|inner| same(inner, guard))
+        || negated(guard).is_some_and(|inner| same(inner, refuted))
 }

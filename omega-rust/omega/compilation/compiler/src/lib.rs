@@ -49,8 +49,8 @@ pub use crate::checked::{
     typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
-pub use checked::SourceCompilation;
 pub use checked::checking::ProductQueries;
+pub use checked::{BuildAdvance, SourceCompilation};
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome,

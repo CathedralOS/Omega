@@ -61,6 +61,9 @@ const fn project_execution_identity(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> PackageReviewCompilerIntrinsicExecution {
     match identity {
+        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
+            PackageReviewCompilerIntrinsicExecution::EmptyRunRelease
+        }
         CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
             PackageReviewCompilerIntrinsicExecution::SegmentReload(kind)
         }
@@ -132,6 +135,9 @@ const fn project_execution_identity(
 
 fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> String {
     match identity {
+        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
+            "Return an empty run's existing vacant backing without calling a provider".to_owned()
+        }
         CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
             format!("Select {kind:?} descriptors after checking the borrowed GDT")
         }

@@ -37,6 +37,7 @@ use diagnostics::Diagnostic;
 use super::prover::semantic_contexts_prove_contract_fact;
 use crate::published::labels::{machine_name, semantic_fact_requirement_label};
 
+mod bindings;
 mod cases;
 mod cyclic_headers;
 mod result_domains;
@@ -132,15 +133,8 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         .filter(|origin| origin.contract == contract)
         .map(|origin| (origin.entry_parameter, origin.state_parameter))
         .collect::<Vec<_>>();
-    validation::normal_exit_proves(
-        program,
-        machine,
-        state,
-        exit_flow.statement_index,
-        super::return_values::exit_return_expression(program, exit_flow),
-        expression,
-        &origins,
-        &facts.termination.rank_arrivals,
+    bindings::proves(
+        program, facts, exit_flow, machine, state, contract, expression, &origins,
     )
 }
 

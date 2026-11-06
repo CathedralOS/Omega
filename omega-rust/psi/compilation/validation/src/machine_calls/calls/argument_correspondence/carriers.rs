@@ -29,6 +29,7 @@ impl<'program> CarrierCorrespondence<'program> {
         selection: StaticMachineApplicationHandle,
         application: &'program typed_trees::typed_trees::ClosedConformanceApplication,
         lineage: &[(SymbolHandle, SymbolHandle)],
+        authored_application: StaticMachineApplicationHandle,
     ) -> Result<Self, &'static str> {
         // The selected map exists even when an open, unused binder prevents
         // executable capture materialization. Its admitted authored tuple is
@@ -118,6 +119,36 @@ impl<'program> CarrierCorrespondence<'program> {
         }
         if lineage.is_empty() {
             return Err("selected carrier has no executable lineage");
+        }
+        if frames.len() == 1 && authored_application.is_valid() {
+            let template = lineage[0].0;
+            let binding =
+                expression_table(program).static_machine_application(authored_application);
+            if binding.binding_declaration == template {
+                let map = program
+                    .conformance_by_symbol(application.declaration)
+                    .ok_or("selected carrier lost its map declaration")?;
+                for binding_value in expression_table(program)
+                    .static_machine_application_bindings(authored_application)
+                {
+                    if let Some((parameter, argument)) = program
+                        .conformance_type_parameters(map)
+                        .iter()
+                        .zip(&application.arguments)
+                        .find(|(parameter, _)| parameter.symbol == binding_value.parameter)
+                        && !program.static_binding_matches_argument(
+                            &parameter.kind,
+                            &binding_value.value,
+                            argument,
+                            supplier,
+                            binding.lexical_owner,
+                        )
+                    {
+                        return Err("selected invocation changes its map's static operand");
+                    }
+                }
+                frames.push(Frame::from_application(program, authored_application)?);
+            }
         }
         Ok(Self { frames, supplier })
     }

@@ -838,7 +838,7 @@ impl TerminalExecution<'_> {
             _ => return Err(malformed()),
         };
         let Some(result) = operation.result.as_structural() else {
-            return Err(malformed());
+            return Err(malformed().in_reference_formation("element view result carrier"));
         };
         if destination != result.place
             || source.access != access
@@ -850,14 +850,14 @@ impl TerminalExecution<'_> {
                 .any(|row| !row.is_element_membership())
             || !result.claims.is_empty()
         {
-            return Err(malformed());
+            return Err(malformed().in_reference_formation("element view result signature"));
         }
         let machine = self.program.verified_machine(self.current_machine)?;
         if !machine.structural_places.iter().any(|place| {
             place.id == result.place
                 && place.kind.as_operation_result() == Some((operation.id, result.structural_type))
         }) {
-            return Err(malformed());
+            return Err(malformed().in_reference_formation("element view producer"));
         }
         let element_scalar = match &self.program.structural_declaration(element)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(*scalar),
@@ -878,7 +878,7 @@ impl TerminalExecution<'_> {
                         == Some(ScalarType::Integer(
                             IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
                         )) => {}
-            _ => return Err(malformed()),
+            _ => return Err(malformed().in_reference_formation("element view descriptor")),
         }
         if self.structural_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
@@ -887,7 +887,7 @@ impl TerminalExecution<'_> {
             || crate::engine::custody::place_is_claimed(&self.live_claims, result.place)
             || self.live_affine_discard_at(result.place).is_some()
         {
-            return Err(malformed());
+            return Err(malformed().in_reference_formation("element view destination already live"));
         }
         // A fixed byte range selects a descriptor window over its collection;
         // it is not a child type or storage-home path. Resolve the backing first
@@ -936,7 +936,8 @@ impl TerminalExecution<'_> {
             &self.structural_types(),
             root_type,
             declared_backing_path,
-        )?;
+        )
+        .map_err(|error| error.in_reference_formation("element view source projection"))?;
         if let ElementViewRegion::WholeRepresentation { source_length, .. } = region {
             let source_length = count(&source_length, &self.values)?;
             self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
@@ -1056,7 +1057,7 @@ impl TerminalExecution<'_> {
             formation_path,
             self.structural_types().get(&element),
         )
-        .ok_or_else(malformed)?;
+        .ok_or_else(|| malformed().in_reference_formation("element view collection descriptor"))?;
         if let Some(window) = &selected_window {
             let StructuralTypeShape::FixedArray {
                 element: source_element,
@@ -1184,7 +1185,9 @@ impl TerminalExecution<'_> {
             self.track_affine_result(result);
             return Ok(OperationFlow::Advance);
         }
-        let collection = collection.ok_or_else(malformed)?;
+        let collection = collection.ok_or_else(|| {
+            malformed().in_reference_formation("element view collection geometry")
+        })?;
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed
             && !descriptor.is_borrowed_byte_carrier()
             && collection.extent != terminal_semantics::CollectionExtent::StoredLength
@@ -1242,12 +1245,14 @@ impl TerminalExecution<'_> {
         match descriptor {
             StructuralTypeShape::ByteSequence(_) => {
                 let mut cursor = self.local_structural_identities.cursor();
-                let (value, binding) = self.establish_byte_array_binding(
-                    source,
-                    &descriptor_value,
-                    &collection,
-                    &mut cursor,
-                )?;
+                let (value, binding) = self
+                    .establish_byte_array_binding(
+                        source,
+                        &descriptor_value,
+                        &collection,
+                        &mut cursor,
+                    )
+                    .map_err(|error| error.in_reference_formation("element view byte storage"))?;
                 let (_value, binding) = if let Some(window) = &selected_window {
                     self.narrow_byte_sequence_binding(
                         &binding,

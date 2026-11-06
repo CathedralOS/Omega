@@ -10,6 +10,43 @@
 
 use super::StructuralTerm;
 
+/// Borrow immediate term edges without allocating a roster at every recursive
+/// metadata comparison. Variable arity borrows its existing storage; other
+/// variants retain at most two references in their declared order.
+enum StructuralChildren<'term> {
+    Terms(std::slice::Iter<'term, StructuralTerm>),
+    Fields(std::slice::Iter<'term, (String, StructuralTerm)>),
+    Fixed {
+        first: Option<&'term StructuralTerm>,
+        second: Option<&'term StructuralTerm>,
+    },
+}
+
+impl<'term> Iterator for StructuralChildren<'term> {
+    type Item = &'term StructuralTerm;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Terms(terms) => terms.next(),
+            Self::Fields(fields) => fields.next().map(|(_, value)| value),
+            Self::Fixed { first, second } => first.take().or_else(|| second.take()),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let length = match self {
+            Self::Terms(terms) => terms.len(),
+            Self::Fields(fields) => fields.len(),
+            Self::Fixed { first, second } => {
+                usize::from(first.is_some()) + usize::from(second.is_some())
+            }
+        };
+        (length, Some(length))
+    }
+}
+
+impl ExactSizeIterator for StructuralChildren<'_> {}
+
 pub(in crate::proof_contracts::contract_entailment) fn same_static_selection_payload(
     left: &[typed_trees::expression::StaticMachineArgument],
     right: &[typed_trees::expression::StaticMachineArgument],
@@ -43,35 +80,6 @@ fn same_static_selection_metadata(
                 }
         })
 }
-
-enum TermChildren<'term> {
-    Fixed([Option<&'term StructuralTerm>; 2]),
-    Fields(std::slice::Iter<'term, (String, StructuralTerm)>),
-    Arguments(std::slice::Iter<'term, StructuralTerm>),
-}
-
-impl<'term> Iterator for TermChildren<'term> {
-    type Item = &'term StructuralTerm;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Fixed([first, second]) => first.take().or_else(|| second.take()),
-            Self::Fields(fields) => fields.next().map(|(_, value)| value),
-            Self::Arguments(arguments) => arguments.next(),
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let length = match self {
-            Self::Fixed(children) => children.iter().filter(|child| child.is_some()).count(),
-            Self::Fields(fields) => fields.len(),
-            Self::Arguments(arguments) => arguments.len(),
-        };
-        (length, Some(length))
-    }
-}
-
-impl ExactSizeIterator for TermChildren<'_> {}
 
 impl StructuralTerm {
     /// Recurrence compares the complete retained resolver input. Semantic
@@ -153,14 +161,10 @@ impl StructuralTerm {
         }
         let children = self.children();
         let other_children = other.children();
-        let same_length = children.len() == other_children.len();
-        // Keep every paired comparison, including after an earlier mismatch.
-        // Walk child references rather than allocating a list per node.
-        let mut same = true;
-        for (value, other) in children.zip(other_children) {
-            same &= value.same_resolution_metadata(other);
-        }
-        same && same_length
+        children.len() == other_children.len()
+            && children
+                .zip(other_children)
+                .all(|(value, other)| value.same_resolution_metadata(other))
     }
 
     /// Visit every immediate child subterm of `self` once, in declaration
@@ -180,10 +184,7 @@ impl StructuralTerm {
         &'term self,
         mut visit: impl FnMut(&'term StructuralTerm),
     ) {
-        self.visit_children(&mut |child| {
-            visit(child);
-            false
-        });
+        self.children().for_each(&mut visit);
     }
 
     /// Whether any immediate child satisfies `predicate`, stopping at the
@@ -192,7 +193,7 @@ impl StructuralTerm {
         &'term self,
         mut predicate: impl FnMut(&'term StructuralTerm) -> bool,
     ) -> bool {
-        self.visit_children(&mut predicate)
+        self.children().any(&mut predicate)
     }
 
     /// Preserve callback order and stop immediately when a child matches.
@@ -209,36 +210,48 @@ impl StructuralTerm {
     /// a shell's observed value plus descriptor; leaves carry none. A caller
     /// that must ignore observation identity strips the shell with
     /// [`Self::semantic_value`] first, exactly as the identity relation does.
-    fn children(&self) -> TermChildren<'_> {
+    fn children(&self) -> StructuralChildren<'_> {
         match self {
             Self::ObservedValue {
                 value, descriptor, ..
-            } => TermChildren::Fixed([Some(value.as_ref()), descriptor.as_deref()]),
+            } => StructuralChildren::Fixed {
+                first: Some(value.as_ref()),
+                second: descriptor.as_deref(),
+            },
             self_ => match self_.semantic_value() {
-                Self::RepeatedArray { element, .. } => {
-                    TermChildren::Fixed([element.as_deref(), None])
-                }
-                Self::Constructor { fields, .. } => TermChildren::Fields(fields.iter()),
+                Self::RepeatedArray { element, .. } => StructuralChildren::Fixed {
+                    first: element.as_deref(),
+                    second: None,
+                },
+                Self::Constructor { fields, .. } => StructuralChildren::Fields(fields.iter()),
                 Self::Application { arguments, .. } | Self::CallProjection { arguments, .. } => {
-                    TermChildren::Arguments(arguments.iter())
+                    StructuralChildren::Terms(arguments.iter())
                 }
                 Self::IndexedValue {
                     collection, index, ..
-                } => TermChildren::Fixed([Some(collection.as_ref()), Some(index.as_ref())]),
+                } => StructuralChildren::Fixed {
+                    first: Some(collection.as_ref()),
+                    second: Some(index.as_ref()),
+                },
                 Self::CollectionMeasure {
                     collection: subject,
                     ..
                 }
                 | Self::Projection { subject, .. }
                 | Self::IntegerEmbedding { value: subject, .. }
-                | Self::ScalarRepresentation { value: subject, .. } => {
-                    TermChildren::Fixed([Some(subject.as_ref()), None])
-                }
+                | Self::ScalarRepresentation { value: subject, .. } => StructuralChildren::Fixed {
+                    first: Some(subject.as_ref()),
+                    second: None,
+                },
                 Self::ScalarBinary { left, right, .. }
-                | Self::MathematicalBinary { left, right, .. } => {
-                    TermChildren::Fixed([Some(left.as_ref()), Some(right.as_ref())])
-                }
-                _ => TermChildren::Fixed([None, None]),
+                | Self::MathematicalBinary { left, right, .. } => StructuralChildren::Fixed {
+                    first: Some(left.as_ref()),
+                    second: Some(right.as_ref()),
+                },
+                _ => StructuralChildren::Fixed {
+                    first: None,
+                    second: None,
+                },
             },
         }
     }

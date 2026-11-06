@@ -635,7 +635,13 @@ impl Query<'_> {
             .iter()
             .map(|(_, root)| root)
             .filter(|root| root.expression == expression);
-        let root = roots.next()?;
+        let Some(root) = roots.next() else {
+            // The expression is not an anonymous structural construction.
+            // Reference and scalar bindings reach this roster without a value
+            // node; they do not move storage this query can follow. Two roots
+            // for one expression stay refused below.
+            return Some(Transfers::default());
+        };
         if roots.next().is_some() {
             return None;
         }

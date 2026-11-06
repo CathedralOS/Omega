@@ -165,13 +165,15 @@ impl Builder<'_, '_> {
         Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     )> {
         let place = self.canonical_place(expression)?;
-        let symbol = place.root.as_symbol()?;
+        let source_symbol = place.root.as_symbol()?;
         // Value planning precedes the final structural parameter roster. Its
         // dense positions change when a borrowed receiver is retained, so an
         // authored leaf must keep its symbol until binding resolves that roster.
         // StructuralLocal already represents both live locals and named formals;
         // independent source replay still checks the exact authored root.
-        let source = SourcePlan::StructuralLocal { symbol };
+        let mut source = SourcePlan::StructuralLocal {
+            symbol: source_symbol,
+        };
         // A copied value observes its selector at this evaluation point. Use
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
@@ -186,7 +188,7 @@ impl Builder<'_, '_> {
         // registry's Reference shape requires a separate pointer crossing.
         if !place.segments.is_empty()
             && let Some(state) = self.program.state_by_symbol(self.state)
-            && let Some((_, local)) = self.program.state_local_declaration(state, symbol)
+            && let Some((_, local)) = self.program.state_local_declaration(state, source_symbol)
         {
             let mut reference = local.type_reference;
             let mut crossings = Vec::new();
@@ -216,6 +218,12 @@ impl Builder<'_, '_> {
         for _ in 0..projected.referent_crossings {
             path.push(PathSegment::Referent);
         }
+        source = crate::execution::terminal_unit::calls::retain_local_reference_source(
+            self.program,
+            self.state,
+            source,
+            &path,
+        );
         let type_identity =
             stored_structural_type_identity(self.program, projected.reference, &[], &[]);
         let mut source = ArgumentPlan {

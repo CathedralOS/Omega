@@ -14,7 +14,7 @@ fn account() -> EvaluationInvocationAccount {
 fn scope(root: &std::path::Path) -> BuildMachineFilesystemScope {
     std::fs::create_dir(root.join("source")).unwrap();
     let sponsor = filesystem_authority::FilesystemSponsor::create_private(
-        &root.join("staging"),
+        root.join("staging"),
         filesystem_authority::FilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();

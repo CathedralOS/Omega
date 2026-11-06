@@ -1,6 +1,6 @@
 use optimization_core::{
-    ExternalDecisionContext, external_psi_decision_schema_v2_identity,
-    psi_target_neutral_decision_target_v2_identity,
+    ExternalDecisionContext, external_psi_decision_schema_identity,
+    psi_target_neutral_decision_target_identity,
 };
 use optimization_core::{
     OptimizationRuleSetIdentity, OptimizationSelections, OptimizationUnitIdentity,
@@ -15,11 +15,11 @@ pub(crate) fn expected_context(
     rule_set: OptimizationRuleSetIdentity,
 ) -> ExternalDecisionContext {
     ExternalDecisionContext::new(
-        external_psi_decision_schema_v2_identity(),
+        external_psi_decision_schema_identity(),
         source,
         selections.identity(),
         phase_selections.identity(),
-        psi_target_neutral_decision_target_v2_identity(),
+        psi_target_neutral_decision_target_identity(),
         rule_set,
         baseline_psi_cost_model_identity(),
     )

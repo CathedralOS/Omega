@@ -25,6 +25,7 @@ fn provider() -> ProviderCandidateConformance {
         boundary: BoundaryMachineId::new(1).unwrap(),
         requirement_identity: TerminalIdentityIndex(1),
         source_requirement_identity: TerminalIdentityIndex(2),
+        declaration_application: TerminalIdentityIndex(3),
         receiving_application: TerminalIdentityIndex(3),
         receiving_region_arguments: vec![TerminalIdentityIndex(4)],
         provider_identity: TerminalIdentityIndex(5),

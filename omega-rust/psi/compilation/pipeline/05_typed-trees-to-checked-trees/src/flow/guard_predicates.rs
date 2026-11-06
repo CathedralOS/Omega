@@ -180,7 +180,16 @@ pub(crate) fn saved_guard_observations<'program>(
         let Some(symbol) = single_segment_name_symbol(program, subject) else {
             continue;
         };
-        if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Local {
+        // A rebound parameter participates in the same reaching-definition
+        // capture as a local: the assembly lowering models scratch storage as
+        // parameters of the normalized body, and an un-rebound parameter
+        // simply has no capture below.
+        if !symbol.is_valid()
+            || !matches!(
+                program.symbols.get(symbol).kind,
+                SymbolKind::Local | SymbolKind::Parameter
+            )
+        {
             continue;
         }
         let Some((predicate, observation_statement_index, writes)) =
@@ -283,6 +292,16 @@ fn reaching_capture<'program>(
             }
             extend_writes!(expression_write_frame, local.initial_value);
             return Some((local.initial_value, definition, writes));
+        }
+        // A whole-local rebind is the reaching definition ahead of the
+        // declaration's initializer: capturing the stale initial value would
+        // lend the guard a predicate the local no longer carries. Member
+        // writes keep their ordinary write-frame invalidation below.
+        if let Some(assignment) = statement.as_assignment()
+            && single_segment_name_symbol(program, assignment.target) == Some(symbol)
+        {
+            extend_writes!(expression_write_frame, assignment.value);
+            return Some((assignment.value, definition, writes));
         }
         match statement {
             StatementNode::Transition(transition) => {
@@ -568,8 +587,7 @@ pub(super) fn guard_observations(
             // can yield it: a literal yield of the other polarity rules its
             // arm out. When exactly one arm survives, its yield held at that
             // arm's own point; several survivors keep the decision opaque.
-            if let Some(arm_value) =
-                validation::match_result_unique_arm(program, expression, value)
+            if let Some(arm_value) = validation::match_result_unique_arm(program, expression, value)
             {
                 guard_observations(program, machine, state, arm_value, value, observations);
                 return;

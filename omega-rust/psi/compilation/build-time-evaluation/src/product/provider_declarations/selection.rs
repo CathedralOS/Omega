@@ -15,8 +15,8 @@ pub struct ProviderSelectionIdentity {
     /// selects its whole declaration family, so a generic declaration's
     /// missing identity is a family choice, never a dropped application.
     pub applied: bool,
-    /// Canonical complete application projected by its typing owner. None is a
-    /// declaration choice with no Type/Const telescope, never an erased tuple.
+    /// Complete authored application projected by its typing owner. None names
+    /// a bare declaration family, never an erased authored tuple.
     pub application_identity: Option<String>,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub canonical_path: String,

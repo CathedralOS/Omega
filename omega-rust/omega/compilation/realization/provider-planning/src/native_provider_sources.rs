@@ -6,34 +6,6 @@ use crate::{ProviderPlanningContext, SelectedProviderReviewProvenance};
 use backend_plan::{NativeProviderSources, TerminalTargetProviderPlan};
 use diagnostics::Diagnostic;
 
-/// Retain the selecting owner while its exact source custody is available.
-pub(crate) fn close_selecting_declaration(
-    context: ProviderPlanningContext<'_>,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    provider: &crate::ProviderPlanProvenance,
-) -> Result<Option<String>, Vec<Diagnostic>> {
-    provider
-        .provider_type
-        .map(|symbol| close_nominal_declaration(context, exact_toolchain_sources, symbol))
-        .transpose()
-}
-
-fn close_nominal_declaration(
-    context: ProviderPlanningContext<'_>,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    symbol: symbols::SymbolHandle,
-) -> Result<String, Vec<Diagnostic>> {
-    context
-        .typed
-        .exact_owner_nominal_identity(symbol, exact_toolchain_sources)
-        .and_then(|identity| context.typed.type_identity_text(identity))
-        .ok_or_else(|| {
-            vec![Diagnostic::error(
-                "native provider selection lost its exact declaration owner",
-            )]
-        })
-}
-
 /// Saved source identities for one candidate's target-family members.
 /// Final plan digests are attached only after calling plans are complete.
 #[derive(Debug, Clone)]
@@ -78,50 +50,6 @@ pub(crate) fn attach_native_provider_sources(
     Ok(NativeProviderSources {
         declarations,
         family_realizations,
-    })
-}
-
-/// Close exact declaration columns together with their whole plan.
-/// Preparation retains these identities without granting selection authority;
-/// public target proposals and immediate native production share this owner.
-pub(crate) fn close_provider_declarations(
-    context: ProviderPlanningContext<'_>,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    plan: &effects::provider_plan::ProviderPlan,
-    provider: &crate::ProviderPlanProvenance,
-) -> Result<TerminalTargetProviderPlan, Vec<Diagnostic>> {
-    let typed = context.typed;
-    let nominal = |symbol| close_nominal_declaration(context, exact_toolchain_sources, symbol);
-    if provider.row_realizations.len() != plan.rows.len()
-        || provider.row_requirements.len() != plan.rows.len()
-    {
-        return Err(vec![Diagnostic::error(
-            "native provider selection lost row realization custody",
-        )]);
-    }
-    let provider_declaration =
-        close_selecting_declaration(context, exact_toolchain_sources, provider)?;
-    let row_numeric_realizations = plan
-        .rows
-        .iter()
-        .zip(&provider.row_realizations)
-        .zip(&provider.row_requirements)
-        .map(|((row, realization), requirement)| {
-            if matches!(
-                row.binding,
-                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-            ) && typed.numeric_intrinsic_execution(*requirement).is_some()
-            {
-                realization.authored().map(nominal).transpose()
-            } else {
-                Ok(None)
-            }
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    Ok(TerminalTargetProviderPlan {
-        plan: plan.clone(),
-        provider_declaration,
-        row_numeric_realizations,
     })
 }
 

@@ -385,7 +385,10 @@ pub(super) fn emit_state(
             };
             *scalar_actuals =
                 lowered_erased_scalar_terms(qualify_erased_arguments, &values, &erased_formals)?;
-            *proof_actuals = proof_terms!(qualify_erased_proof_arguments, &values)?;
+            *proof_actuals = completion_roster(
+                proof_terms!(qualify_erased_proof_arguments, &values)?,
+                source_erased_proof_formals,
+            );
             terminator
         }
         LoweredScalarBranchTerminator::Capture {
@@ -427,8 +430,10 @@ pub(super) fn emit_state(
             let arguments = arguments(outgoing)?;
             let erased_arguments =
                 lowered_erased_scalar_terms(erased_arguments, &values, &erased_formals)?;
-            let erased_proof_arguments =
-                lowered_proof_terms(checked, erased_proof_arguments, &values, &erased_formals)?;
+            let erased_proof_arguments = completion_roster(
+                lowered_proof_terms(checked, erased_proof_arguments, &values, &erased_formals)?,
+                source_erased_proof_formals,
+            );
             let regions =
                 crate::unit::unit_cleanup::emit_prepared_cleanup_regions(cleanup_actions, calls)?;
             let cleanup_actions = if regions
@@ -573,10 +578,14 @@ pub(super) fn emit_state(
                 lowered_erased_scalar_terms(when_true_erased_arguments, &values, &erased_formals)?;
             let when_false_erased_arguments =
                 lowered_erased_scalar_terms(when_false_erased_arguments, &values, &erased_formals)?;
-            let when_true_erased_proof_arguments =
-                proof_terms!(when_true_erased_proof_arguments, &values)?;
-            let when_false_erased_proof_arguments =
-                proof_terms!(when_false_erased_proof_arguments, &values)?;
+            let when_true_erased_proof_arguments = completion_roster(
+                proof_terms!(when_true_erased_proof_arguments, &values)?,
+                source_erased_proof_formals,
+            );
+            let when_false_erased_proof_arguments = completion_roster(
+                proof_terms!(when_false_erased_proof_arguments, &values)?,
+                source_erased_proof_formals,
+            );
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
@@ -884,6 +893,25 @@ fn dispatch_arguments(
             Ok(emit_direct_expression(
                 expression, namespace, next_value, operations,
             ))
+        })
+        .collect()
+}
+
+/// An expansion edge that names no separate proof actuals still forwards the
+/// enclosing roster. Psi 05 recorded each formal's dense lane position on
+/// the checked plan. A const-name formal is a different carrier and is not
+/// substituted here.
+fn completion_roster(
+    actuals: Vec<semantic_vocabulary::ProofTerm>,
+    roster: &[checked_trees::CheckedErasedProofParameterPlan],
+) -> Vec<semantic_vocabulary::ProofTerm> {
+    if !actuals.is_empty() || roster.is_empty() {
+        return actuals;
+    }
+    roster
+        .iter()
+        .map(|parameter| semantic_vocabulary::ProofTerm::Formal {
+            position: parameter.proof_position,
         })
         .collect()
 }

@@ -123,7 +123,13 @@ pub(super) fn derive(
                 .find(|(parameter, _)| *parameter == binding.parameter)
             {
                 *previous = actual;
-            } else {
+            } else if type_parameters
+                .iter()
+                .any(|(parameter, _)| *parameter == binding.parameter)
+                || const_parameters
+                    .iter()
+                    .any(|(parameter, _, _)| *parameter == binding.parameter)
+            {
                 types.push((binding.parameter, actual));
             }
         }

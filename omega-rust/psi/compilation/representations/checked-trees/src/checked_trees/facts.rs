@@ -155,6 +155,7 @@ pub use provider_closed_requirements::{
     CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
 };
 pub use provider_instance_publication::{
+    CheckedProviderCandidate, CheckedProviderCandidateDeclaration,
     CheckedProviderInstanceDeclaration, CheckedProviderInstancePublication,
     CheckedProviderInstanceRequirement, CheckedProviderReceivingApplication,
     CheckedProviderReceivingDescription,

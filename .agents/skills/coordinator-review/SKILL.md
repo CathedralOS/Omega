@@ -125,6 +125,16 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 - **Stage 05/06 ratchets:** Confirm no new shape gates or source-context reads
   were added in violation of stage ratchets, and no production boundary checks
   were bypassed.
+- **Capability notices:** `check_rules.py` prints a notice when compiler Rust
+  closes nothing that existed at the base (no row turned green, no control newly
+  rejecting for its pin or changing its diagnostic, no `TASKS.md` line deleted).
+  - `… pinned only on N row(s) it adds`: the PR body names the existing failing
+    row, sample or acceptance it closes, or the behavior no existing fixture
+    covered. A repair whose only customer is its own new fixture is per-case
+    glue: return it to the worker.
+  - `… changes no corpus outcome`: accept it only as performance or
+    restructuring work with its measurement in the PR body. Any other repair
+    with no observable outcome goes back to the worker.
 - **Monotonic `TASKS.md` closure:** Confirm a `TASKS.md` bullet is deleted only
   when all nine places and nine reject twins pass and are pinned under
   `tests/omega/{pass,fail}/facts/`, and never rewritten into `"preserving /

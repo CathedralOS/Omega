@@ -10,7 +10,7 @@ pub(super) fn establish(
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
     let (established, shape) = crate::selection::structural_local_input::storage(source, row)
-        .ok_or(SelectedInstructionError::custody())?;
+        .map_err(SelectedInstructionError::custody_because)?;
     // Own admission remains above. Complete constructors and memberwise
     // locals share only the unpublished home's allocation and byte fill.
     let pointer = super::record::initialize_storage(row, builder, established.place, shape)?;

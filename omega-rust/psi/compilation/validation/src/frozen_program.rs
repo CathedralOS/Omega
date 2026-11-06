@@ -703,6 +703,8 @@ pub struct CheckingMemos {
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
+    /// Source call coordinates only, in original traversal order. Every
+    /// arrival still evaluates its own guards, arguments and interval join.
     pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
     /// Concrete body inference consumes exact captured integer intervals, not
     /// caller places. Recipe-bearing arguments use ordinary inference. Retain

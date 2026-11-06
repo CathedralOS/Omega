@@ -18,7 +18,7 @@ Read **only** the reference matching the runtime tools exposed in your current e
 | --- | --- | --- |
 | **1. Local Host** | `invoke_subagent`, `send_message`, `manage_subagents` on a host with local `cargo`/`mbx` | [references/local.md](references/local.md) & [references/host-setup.md](references/host-setup.md) |
 | **2. Antigravity Cloud** | `invoke_subagent`, `send_message`, `manage_subagents` in an `exebox` Linux VM without local `rustc` (validated via `compiler-pilot.yml`) | [references/antigravity.md](references/antigravity.md) |
-| **3. Claude Code Remote** | `claude-code-remote` (`list_environments`, `create_session`, `get_session`, `send_message`) | [references/claude.md](references/claude.md) & [references/environment-setup.sh](references/environment-setup.sh) |
+| **3. Claude Code Remote** | `claude-code-remote` (`list_environments`, `create_session`, `get_session`, `send_message`) | [references/claude.md](references/claude.md) & [tools/agent_setup.sh](../../../tools/agent_setup.sh) |
 | **4. Codex Cloud** | `list_threads`, `create_thread`, `send_message_to_thread`, `wait_threads` | [references/codex.md](references/codex.md) |
 | **5. Cursor Cloud** | `cursor` `Task` tool with `environment: "cloud"` and `run_in_background: true` | [references/cursor.md](references/cursor.md) |
 | **6. Devin Cloud** | `tools/swarm/launch.py` (`plan`, `launch`, `status`, `report`) | [references/devin.md](references/devin.md) |

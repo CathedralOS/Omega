@@ -70,7 +70,7 @@ pub(crate) use dynamic::{
     report_dynamic_receiver_call_error,
 };
 pub use named_implementations::revalidate_named_implementation;
-pub(crate) use named_implementations::validate_conformances;
+pub(crate) use named_implementations::{validate_conformances, validate_member_formations};
 pub use provider_regions::{
     ProviderRegionCorrespondence, closed_provider_region_correspondence,
     provider_region_correspondence,

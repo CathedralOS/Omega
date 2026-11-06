@@ -484,9 +484,7 @@ pub(super) fn membership_evidence(
     // call's entry contexts, which would answer with `x`'s own facts.
     // A stored reference initialized from an erasing cast (`v.t`) carries
     // that erasure to projections through the stored value.
-    if let Some((_, _, domain_symbol, semantic_domain)) =
-        requirement.payload.domain_membership()
-    {
+    if let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership() {
         let erased = (actual.path.is_empty()
             && actual.argument.is_some_and(|argument| {
                 validation::field_domains::expression_erases_membership(
@@ -1298,65 +1296,65 @@ pub(crate) fn operand_erases_membership(
         return true;
     }
 
-    if let checked_trees::FlowOperandCompletion::Constructed(children) = operand.completion {
-        if let Some(children) = control.operand_children.span(children) {
-            for child in children {
-                let child_path = control.operand_child_paths.span_or_empty(child.path);
-                if path.starts_with(child_path) {
-                    if operand_erases_membership(
-                        program,
-                        control,
-                        child.value,
-                        &path[child_path.len()..],
-                        domain_symbol,
-                        semantic_domain,
-                        active,
-                    ) {
-                        active.pop();
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion {
-        if let Some(rows) = control.operand_alternatives.span(alternatives) {
-            let any_erased = rows.iter().any(|row| {
-                operand_erases_membership(
+    if let checked_trees::FlowOperandCompletion::Constructed(children) = operand.completion
+        && let Some(children) = control.operand_children.span(children)
+    {
+        for child in children {
+            let child_path = control.operand_child_paths.span_or_empty(child.path);
+            if path.starts_with(child_path)
+                && operand_erases_membership(
                     program,
                     control,
-                    row.value,
-                    path,
+                    child.value,
+                    &path[child_path.len()..],
                     domain_symbol,
                     semantic_domain,
                     active,
                 )
-            });
-            if any_erased {
+            {
                 active.pop();
                 return true;
             }
         }
     }
 
-    if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion {
-        if control.copied_values.is_valid(copy) {
-            let copied = control.copied_values.get(copy);
-            let mut combined = control.operand_child_paths.span_or_empty(prefix).to_vec();
-            combined.extend_from_slice(path);
-            if operand_erases_membership(
+    if let checked_trees::FlowOperandCompletion::Selected(alternatives) = operand.completion
+        && let Some(rows) = control.operand_alternatives.span(alternatives)
+    {
+        let any_erased = rows.iter().any(|row| {
+            operand_erases_membership(
                 program,
                 control,
-                copied.source,
-                &combined,
+                row.value,
+                path,
                 domain_symbol,
                 semantic_domain,
                 active,
-            ) {
-                active.pop();
-                return true;
-            }
+            )
+        });
+        if any_erased {
+            active.pop();
+            return true;
+        }
+    }
+
+    if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion
+        && control.copied_values.is_valid(copy)
+    {
+        let copied = control.copied_values.get(copy);
+        let mut combined = control.operand_child_paths.span_or_empty(prefix).to_vec();
+        combined.extend_from_slice(path);
+        if operand_erases_membership(
+            program,
+            control,
+            copied.source,
+            &combined,
+            domain_symbol,
+            semantic_domain,
+            active,
+        ) {
+            active.pop();
+            return true;
         }
     }
 
@@ -1421,7 +1419,9 @@ pub(crate) fn operand_erases_membership(
         let profile = control.operand_retentions.get(operand.retention);
         if let Some(suppliers) = control.operand_retained_suppliers.span(profile.suppliers) {
             for supplier in suppliers {
-                let supp_path = control.operand_retained_paths.span_or_empty(supplier.projection);
+                let supp_path = control
+                    .operand_retained_paths
+                    .span_or_empty(supplier.projection);
                 if operand_erases_membership(
                     program,
                     control,

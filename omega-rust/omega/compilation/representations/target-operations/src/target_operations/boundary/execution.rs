@@ -515,6 +515,7 @@ mod tests {
 /// provider execution or a compact authority coordinate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
+    EmptyRunRelease,
     /// Compiler-private whole-value initialization or extraction. The exact
     /// boundary joins its retained lifecycle plan; an ordinary provider row
     /// cannot stand in for this executable operation.

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Warm build pack/restore controls on a throwaway repository; no compiler build or network."""
 
+import io
 import json
 import os
 from pathlib import Path
@@ -140,6 +141,48 @@ class WarmBuildTests(unittest.TestCase):
                 mock.patch.object(warm_build, "restore") as restore:
             self.assertEqual(warm_build.session_start(self.root), 0)
         restore.assert_not_called()
+
+    def test_an_interrupted_part_download_resumes_at_the_next_unread_byte(self):
+        def download(payload, status):
+            process = mock.Mock()
+            process.stdout = io.BytesIO(payload)
+            process.wait.return_value = status
+            return process
+
+        # The proxy cut the first connection after 3 bytes (curl exit 56).
+        attempts = [download(b"abc", 56), download(b"def", 0)]
+        with mock.patch.object(warm_build.subprocess, "Popen",
+                               side_effect=attempts) as popen:
+            data = b"".join(warm_build.part_blocks("https://host/release", "part.00",
+                                                   block_size=2))
+        self.assertEqual(data, b"abcdef")
+        commands = [call.args[0] for call in popen.call_args_list]
+        self.assertNotIn("-C", commands[0])
+        self.assertEqual(commands[1][1:3], ["-C", "3"])
+
+    def test_a_part_that_never_progresses_fails_after_bounded_attempts(self):
+        def refused(*_arguments, **_options):
+            process = mock.Mock()
+            process.stdout = io.BytesIO(b"")
+            process.wait.return_value = 56
+            return process
+
+        with mock.patch.object(warm_build.subprocess, "Popen", side_effect=refused) as popen:
+            with self.assertRaisesRegex(warm_build.WarmBuildError, "curl exit 56"):
+                list(warm_build.part_blocks("https://host/release", "part.00"))
+        self.assertEqual(popen.call_count, warm_build.PART_ATTEMPTS)
+
+    def test_session_start_without_zstd_reports_it_instead_of_downloading(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_REMOTE": "true"}), \
+                mock.patch.object(warm_build.shutil, "which", return_value=None), \
+                mock.patch.object(warm_build.subprocess, "run") as run, \
+                mock.patch.object(warm_build, "restore") as restore:
+            self.assertEqual(warm_build.session_start(self.root), 0)
+        restore.assert_not_called()
+        installs = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(installs[0], ["apt-get", "update", "-qq"])
+        status = warm_build.status_path(self.root).read_text(encoding="utf-8")
+        self.assertIn("zstd is not installed", status)
 
 
 if __name__ == "__main__":

@@ -32,16 +32,16 @@ def relative_project(root, selector):
     project = root.resolve() / relative
     if project.resolve() != project or not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI project lacks its own tracked directory/build: {selector}")
-    if path.parts[0] == "samples":
-        declared = project_at(project, root)
-        if declared.role not in ("program", "example", "library-consumer") or declared.entry != project / "main.omg":
-            raise ValueError("ordinary CLI samples require a normal program with main.omg entry")
     return relative
 
 
 def expected_exit(root, fixture, target):
     relative = relative_project(root, fixture)
-    project = root / relative
+    project = root.resolve() / relative
+    if relative.parts[:2] == ("samples", "cli"):
+        declared = project_at(project, root)
+        if declared.role not in ("program", "example", "library-consumer") or declared.entry != project / "main.omg":
+            raise ValueError("ordinary CLI samples require a normal program with main.omg entry")
     if not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
@@ -118,16 +118,26 @@ def inspect_kept_artifact(producer, products, runtime, command):
     return diagnostic
 
 
-def observe(root, producer, fixture, output):
+def observe(root, producer, fixture, output, *, dependency_projects=()):
+    # The child runs inside the copied workspace, so project and library paths must be absolute.
+    output = output.absolute()
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
     project_relative = relative_project(root, fixture)
+    if isinstance(dependency_projects, str):
+        raise ValueError("dependency_projects requires a sequence of exact project selectors")
+    projects = list(dict.fromkeys([
+        project_relative, *(relative_project(root, selector) for selector in dependency_projects),
+    ]))
+    # Preserve authored local dependency paths in the copied workspace. Every
+    # dependency file receives the same pre/post digest checks as the entry.
     paths = subprocess.check_output(
-        ["git", "ls-files", "source/library", project_relative.as_posix()],
+        ["git", "ls-files", "source/library", *(project.as_posix() for project in projects)],
         cwd=root, text=True).splitlines()
-    if not {(project_relative / "main.omg").as_posix(), (project_relative / "build.omg").as_posix()}.issubset(paths):
-        raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
+    for project in projects:
+        if not {(project / "main.omg").as_posix(), (project / "build.omg").as_posix()}.issubset(paths):
+            raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
     inputs = {}
     for relative in paths:
         source, copied = root / relative, workspace / relative
@@ -137,6 +147,7 @@ def observe(root, producer, fixture, output):
         shutil.copyfile(source, copied)
         inputs[relative] = hashlib.sha256(source.read_bytes()).hexdigest()
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
+                  dependency_projects=[project.as_posix() for project in projects[1:]],
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
     # Full compiler tracing can dwarf the program check. Leave full tracing
     # opt-in and inherit it when the caller explicitly requests it.

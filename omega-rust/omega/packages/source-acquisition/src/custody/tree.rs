@@ -3,11 +3,13 @@
 use super::lock::same_std_and_capability_file_identity;
 #[cfg(windows)]
 use super::platform::retain_verified_windows_cache_ancestor;
+#[cfg(unix)]
+use super::platform::verify_macos_cache_ancestor_acl_custody;
 use super::platform::{
     same_capability_file_identity, verify_cache_node_owner_and_mode,
-    verify_capability_cache_node_owner_and_mode, verify_macos_cache_ancestor_acl_custody,
-    verify_macos_cache_link_extended_acl_custody, verify_macos_open_cache_directory_acl_custody,
-    verify_macos_open_cache_extended_acl_custody, verify_macos_open_cache_regular_file_acl_custody,
+    verify_capability_cache_node_owner_and_mode, verify_macos_cache_link_extended_acl_custody,
+    verify_macos_open_cache_directory_acl_custody, verify_macos_open_cache_extended_acl_custody,
+    verify_macos_open_cache_regular_file_acl_custody,
     verify_macos_opened_cache_directory_acl_custody, verify_windows_open_cache_directory_identity,
     verify_windows_open_cache_link_identity, verify_windows_open_cache_regular_file_identity,
 };

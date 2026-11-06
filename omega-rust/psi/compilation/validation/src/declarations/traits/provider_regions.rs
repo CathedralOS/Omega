@@ -26,6 +26,9 @@ use typed_trees::types::TypeReferenceHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderRegionCorrespondence {
     pub selecting_declaration: SymbolHandle,
+    /// Exact interface view under the provider's own public binders. The
+    /// receiving tuple below substitutes actual caller regions into this view.
+    pub declaration_application: NormalizedTypeIdentity,
     pub receiving_regions: Vec<LifetimeParameterIdentity>,
 }
 
@@ -193,6 +196,7 @@ fn provider_region_correspondence_in_scope(
     };
     Some(ProviderRegionCorrespondence {
         selecting_declaration: provider.symbol,
+        declaration_application: supplied.portable_application_identity(program.typed_program())?,
         receiving_regions: regions.clone(),
     })
 }
