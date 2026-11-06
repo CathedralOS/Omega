@@ -564,6 +564,55 @@ fn qualified_generic_domain_does_not_select_a_root_or_module_local_leaf() {
 }
 
 #[test]
+fn declared_carrier_does_not_reach_another_sources_generic_family() {
+    // `Run::Live` is a leaf-named generic family beside `data Run`. A sum
+    // case `Lease::Live` in another source must not select that family.
+    let mut sources = SourceMap::default();
+    sources.add(PathBuf::from("program.omg"), "Lease".to_owned());
+    sources.add(PathBuf::from("run.omg"), "Run".to_owned());
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let mut declarations = SymbolTableBuilder::child_handles(builder.insert_children(
+        root,
+        [
+            (
+                SymbolKind::Data,
+                SymbolNameRef::OwnedSource {
+                    value: "Lease",
+                    source_span: reference(0),
+                },
+            ),
+            (
+                SymbolKind::Data,
+                SymbolNameRef::OwnedSource {
+                    value: "Run",
+                    source_span: reference(1),
+                },
+            ),
+            (
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Live",
+                    source_span: reference(1),
+                },
+            ),
+        ],
+    ));
+    declarations.next().expect("lease data");
+    declarations.next().expect("run data");
+    let live = declarations.next().expect("run live family");
+    let symbols = builder.finish();
+    assert!(
+        !symbols.domain_name_reaches(live, "Lease::Live", reference(0)),
+        "a sum case must not compete with another source's generic family"
+    );
+    assert!(
+        symbols.domain_name_reaches(live, "Run::Live", reference(0)),
+        "the carrier declared beside the family still abbreviates it"
+    );
+}
+
+#[test]
 fn warmed_lookup_environment_tracks_module_registration_and_rename() {
     let (mut symbols, declarations, _) = namespace_table(
         [1, 2, 2],
