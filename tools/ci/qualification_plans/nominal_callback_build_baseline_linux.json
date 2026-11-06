@@ -58,7 +58,15 @@
   ],
   "source_only": false,
   "samples": [
-    "samples/cli/facts/nominal_callback_reach"
+    "samples/cli/facts/nominal_callback_reach/local",
+    "samples/cli/facts/nominal_callback_reach/field",
+    "samples/cli/facts/nominal_callback_reach/parameter",
+    "samples/cli/facts/nominal_callback_reach/call_result",
+    "samples/cli/facts/nominal_callback_reach/match_join",
+    "samples/cli/facts/nominal_callback_reach/const_name",
+    "samples/cli/facts/nominal_callback_reach/other_state",
+    "samples/cli/facts/nominal_callback_reach/other_machine",
+    "samples/cli/facts/nominal_callback_reach/target_body"
   ],
   "cli_fixtures": [
     "pass/facts/nominal_callback_reach_through_target_body_exit"
