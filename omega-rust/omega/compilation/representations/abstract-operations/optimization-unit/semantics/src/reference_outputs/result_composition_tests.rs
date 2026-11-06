@@ -262,7 +262,10 @@ impl Fixture {
             psi_operation: op(operation),
             callee: AbstractCallTarget::Machine(machine(callee)),
             arguments: Vec::new(),
-            structural_arguments: vec![self.source(source).into()],
+            structural_arguments: vec![StructuralArgument::whole(
+                place(source),
+                StructuralAccess::SharedBorrow,
+            )],
             claim_transfers: Vec::new(),
             result: AbstractStructuralCallResult::Structural {
                 result: self.result(result),
@@ -289,7 +292,7 @@ impl Fixture {
                 O::EstablishAccessReference {
                     psi_operation: op(1001),
                     result: self.result(109),
-                    source: self.source(101).into(),
+                    source: StructuralArgument::whole(place(101), StructuralAccess::SharedBorrow),
                     correspondence: issued,
                 },
                 O::ReturnStructural {
