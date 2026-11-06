@@ -1067,7 +1067,8 @@ fail/borrows/borrowed_literal_backing_keeps_input_loan rejected 6965ms expected 
 	statement 2 mutates `second.payload` while local borrow `produced` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/borrowed_reference_field_live_child_write rejected 6506ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	statement 1 mutates `held.target.value` while local borrow `child` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/borrows/boundary_additional_input_domain_not_restored rejected 1965ms expected @ccdb99ca2214
+fail/borrows/boundary_additional_input_domain_not_restored rejected 8889ms expected @c0c5b49589b1
+	cannot prove default-domain field requirement for call replace from exercise::entry: parameter ticket requires Ticket::Issued
 	cannot prove requires contract for call read from exercise: ticket in Ticket::Issued (invalidated by prior mutation of ticket; ticket is part of Ticket::Issued) in state `entry`
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 1688ms expected @ccdb99ca2214
 	state `c_strnlen` receives `bytes` as both mutable and read-only
@@ -5280,9 +5281,11 @@ fail/effects/boundary_empty_provider_hides_reach rejected 1744ms expected @ccdb9
 	machine `Provider::evaluate` state `evaluate` does not satisfy trait `Pure` machine `evaluate`: service `Read` is not allowed by the trait requirement
 fail/effects/boundary_explicit_capability_required rejected 1477ms expected @ccdb99ca2214
 	machine `missing_capability` publishes service reach `Host` but its checked body reaches undeclared service `Read`
-fail/effects/create_dir_all_requires_metadata_query rejected 28277ms expected @ccdb99ca2214
+fail/effects/create_dir_all_requires_metadata_query rejected 96706ms expected @e40519df616f
 	machine `create_without_query` publishes service reach `FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
-fail/effects/directory_entry_query_requires_metadata_reach rejected 31543ms expected @ccdb99ca2214
+fail/effects/create_dir_all_requires_namespace rejected 90397ms expected @e40519df616f
+	machine `create_without_namespace` publishes service reach `FilesystemMetadataMutation + FilesystemMetadataQuery` but its checked body reaches undeclared service `FilesystemNamespaceMutation`
+fail/effects/directory_entry_query_requires_metadata_reach rejected 97231ms expected @e40519df616f
 	machine `list_without_metadata` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/filesystem_readonly_requires_metadata_query rejected 32732ms expected @ccdb99ca2214
 	machine `mutate_without_query` publishes service reach `FilesystemMetadataMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
@@ -25522,10 +25525,10 @@ pass/facts/zero_byte_erased_carrier_through_other_machine_exit checked 3690ms ch
 pass/facts/zero_byte_erased_carrier_through_other_state_exit checked 3485ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/zero_byte_erased_carrier_through_parameter_exit checked 3095ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/zero_byte_erased_carrier_through_target_body_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/filesystem/create_dir_all_existing_file_exit checked 323212ms check-target:macos_arm64 @e1cfe02f1a9b
+pass/filesystem/create_dir_all_existing_file_exit checked 142357ms check-target:macos_arm64 @e40519df616f
 pass/filesystem/create_dir_all_symlink_kind_exit checked 318594ms check-target:macos_arm64 @e1cfe02f1a9b
-pass/filesystem/cross_linux_value_syscalls checked 345819ms @e1cfe02f1a9b
-pass/filesystem/dir_walk_wrappers_exit checked 317974ms check-target:macos_arm64 @e1cfe02f1a9b
+pass/filesystem/cross_linux_value_syscalls checked 140892ms @e40519df616f
+pass/filesystem/dir_walk_wrappers_exit checked 135041ms check-target:macos_arm64 @e40519df616f
 pass/filesystem/native_canonicalize checked 314666ms check-target:macos_arm64 @e1cfe02f1a9b
 pass/filesystem/native_close checked 29257ms check-target:macos_arm64 @ccdb99ca2214
 pass/filesystem/native_crud checked 31509ms check-target:macos_arm64 @ccdb99ca2214

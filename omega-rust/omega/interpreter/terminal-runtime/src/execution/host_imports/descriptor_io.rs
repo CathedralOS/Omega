@@ -167,6 +167,7 @@ impl<'input> DescriptorIoImport<'input> {
             return Err(invalid_operands());
         };
         CapturedStorage::capture(
+            0,
             buffers,
             formal.access,
             layout,
@@ -309,6 +310,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
                 validate_transfer_count(self.contract.abi, count)?;
                 captured = Some(CapturedStorage::capture(
+                    0,
                     storage_buffers,
                     formal.access,
                     layout,
