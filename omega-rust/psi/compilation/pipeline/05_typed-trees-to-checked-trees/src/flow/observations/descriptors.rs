@@ -314,7 +314,7 @@ fn same_retention(
 /// Contextual value observations preserve a same-expression descriptor through
 /// their actual backing edge. A different expression or detached value cannot
 /// be replaced by whichever reference happens to occupy the source slot now.
-pub(super) fn descriptor_capture<'facts>(
+pub(in crate::flow) fn descriptor_capture<'facts>(
     program: &dyn validation::CheckingInput,
     control: &'facts FlowControlFacts,
     mut operand: &'facts FlowOperandFact,

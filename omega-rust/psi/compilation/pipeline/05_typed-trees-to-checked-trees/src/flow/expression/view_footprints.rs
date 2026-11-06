@@ -137,12 +137,7 @@ impl Execution<'_, '_, '_> {
     /// A joined view is projectable only if every retained alternative is.
     /// Missing reference metadata or an enclosure supplies no typed field path.
     pub(super) fn backing_allows_projection(&self, value: &FlowOperandFact) -> bool {
-        if !value.retention.is_valid() {
-            // Owned storage can have independently captured coordinates without
-            // carrying any borrowed lifetime. A reference needs its profile.
-            return !self.is_view_type(value.type_reference);
-        }
-        retained_backing_allows_projection(&self.context.control, value.retention)
+        captured_backing_allows_projection(self.program, &self.context.control, value)
     }
 
     pub(super) fn completed_backing_places(
@@ -255,6 +250,43 @@ impl Execution<'_, '_, '_> {
             }
         }
         (!backing.is_empty()).then_some(backing)
+    }
+}
+
+/// Typed coordinates remain projectable only while every retained branch
+/// keeps its original interpretation. An owned receiver needs no borrowed
+/// lifetime; a recast enclosure never supplies a relative field or index.
+fn captured_backing_allows_projection(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    value: &FlowOperandFact,
+) -> bool {
+    if !value.retention.is_valid() {
+        return !crate::flow::operand_binds_live_view(program, value.type_reference);
+    }
+    retained_backing_allows_projection(control, value.retention)
+}
+
+/// Select the receiver's own storage coordinates before adding a captured
+/// projection. Owned container addresses are not descriptors in their contents.
+pub(crate) fn projectable_storage_places(
+    program: &dyn validation::CheckingInput,
+    control: &checked_trees::FlowControlFacts,
+    operand: Handle<FlowOperandFact>,
+) -> Option<Vec<checked_trees::CapturedPlace>> {
+    if !control.operands.is_valid(operand) {
+        return None;
+    }
+    let value = control.operands.get(operand);
+    if !value.type_reference.is_valid()
+        || !captured_backing_allows_projection(program, control, value)
+    {
+        return None;
+    }
+    if !value.referents.is_empty() {
+        direct_referent_places(control, value.referents)
+    } else {
+        projectable_reference_places(program, control, operand, &[])
     }
 }
 

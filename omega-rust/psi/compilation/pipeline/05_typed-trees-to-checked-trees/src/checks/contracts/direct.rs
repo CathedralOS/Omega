@@ -10,7 +10,9 @@ use crate::published::places::place_at;
 
 mod guard_values;
 mod match_patterns;
-pub(super) use guard_values::denotations::Denotations as GuardDenotations;
+pub(super) use guard_values::denotations::{
+    Denotations as GuardDenotations, SelectedGuardEvidence,
+};
 pub(super) use guard_values::proves_with as guard_value_proves_with;
 
 pub(super) fn direct_context_proves_boolean_expression(
@@ -67,8 +69,8 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     statement_index: usize,
     call_site: &validation::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
-    target_state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
+    guard_queries: Option<&GuardDenotations<'_>>,
 ) -> bool {
     let semantic = &facts.semantic;
     let parameters = target_state.contract_parameters(program);
@@ -128,17 +130,6 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         expression,
     );
 
-    let denotations = guard_values::denotations::Denotations {
-        program,
-        facts,
-        caller_state_symbol,
-        target_state_symbol,
-        statement_index,
-        call_frames,
-        arguments,
-        call: call_flow,
-        copies: std::cell::OnceCell::new(),
-    };
     semantic.context_view(context).facts().any(|fact| {
         let supplied = match fact.payload {
             facts::FactPayload::BooleanValue { expression, value } => Some((expression, value)),
@@ -153,14 +144,16 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
             _ => None,
         };
         if let Some((guard, value)) = supplied {
-            let proven = guard_values::proves_with(
-                program,
-                guard,
-                value,
-                expression,
-                true,
-                &|left, right| denotations.equal(left, right),
-            );
+            let proven = guard_queries.is_some_and(|denotations| {
+                guard_values::proves_with(
+                    program,
+                    guard,
+                    value,
+                    expression,
+                    true,
+                    &|left, right| denotations.equal(left, right),
+                )
+            });
             // A boolean value fact is decided by its guard denotation alone.
             // Expression facts also carry the label route below: a state's own
             // `requires i < view.len` re-established for a call with the same

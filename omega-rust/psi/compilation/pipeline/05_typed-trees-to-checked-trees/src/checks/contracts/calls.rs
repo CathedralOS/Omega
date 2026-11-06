@@ -17,7 +17,7 @@ use transition_guards::{
     guard_conjunct_matches, negated_guard_conjunct_matches, transition_guard_proves_requires,
 };
 pub(super) use transition_guards::{
-    selected_guard_predicate, transition_guard_proves_boolean_requirement,
+    prepare_selected_guard, selected_guard_predicate, transition_guard_proves_boolean_requirement,
 };
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
@@ -106,6 +106,7 @@ pub(super) fn check_call_requires(
             check_lender_domain_restoration(program, facts, state_flow, call_flow, diagnostics);
         },
     );
+    let guard_queries = std::cell::OnceCell::new();
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
     for requires_context in facts
         .flow
@@ -122,6 +123,17 @@ pub(super) fn check_call_requires(
                 },
             );
             let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
+                let guard_queries = guard_queries
+                    .get_or_init(|| {
+                        super::direct::GuardDenotations::for_call(
+                            program,
+                            facts,
+                            state_flow,
+                            call_flow,
+                            call_frames,
+                        )
+                    })
+                    .as_ref();
                 let requirement_contexts =
                     case.map_or(entry_contexts.as_slice(), |case| case.contexts.as_slice());
                 let cache_index = whole_contract_caches
@@ -146,6 +158,7 @@ pub(super) fn check_call_requires(
                             fact,
                             call_frames,
                             &mut whole_contract_caches[cache_index].answers,
+                            guard_queries,
                         )
                     },
                 );
@@ -164,6 +177,7 @@ pub(super) fn check_call_requires(
                                         expression,
                                         incoming_guards,
                                         call_frames,
+                                        guard_queries,
                                     )
                                 }
                                 _ => {
@@ -201,6 +215,7 @@ pub(super) fn check_call_requires(
                                     requirement_contexts,
                                     fact,
                                     call_frames,
+                                    guard_queries,
                                 ))
                                 || (captured_judgment.is_none()
                                     && !super::prover::indexed_membership(program, fact.payload)
@@ -211,6 +226,7 @@ pub(super) fn check_call_requires(
                                         call_flow,
                                         fact,
                                         call_frames,
+                                        guard_queries,
                                     ) || string_literal_grants_domain(
                                         program,
                                         &facts.semantic,
@@ -717,7 +733,7 @@ fn value_call_return_domain_grants(
 /// the callee's declared parameters. The routes used to spell this lookup
 /// chain themselves, one gate at a time, so one resolver keeps them agreeing
 /// about which lookups must succeed before a proof may run.
-fn call_coordinates<'p>(
+pub(in crate::checks::contracts) fn call_coordinates<'p>(
     program: &'p dyn ::validation::CheckingInput,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
@@ -792,6 +808,7 @@ fn proven_predicates_grant_domain(
     entry_contexts: &[facts::FactContextHandle],
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::direct::GuardDenotations<'_>>,
 ) -> bool {
     let facts::FactPayload::ContractDomainMembership {
         value,
@@ -834,6 +851,7 @@ fn proven_predicates_grant_domain(
                 entry_contexts,
                 goal,
                 call_frames,
+                guard_queries,
                 &|observation| {
                     super::call_values::observation_actual(
                         program,

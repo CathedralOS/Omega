@@ -886,6 +886,7 @@ pub(crate) fn proves_entry_predicate(
         contexts,
         &predicate,
         frames,
+        None,
         &|observation| body_observation_actual(program, state, call, target, observation),
     )
 }
@@ -901,10 +902,26 @@ pub(crate) fn proves_bound_predicate<'program>(
     contexts: &[FactContextHandle],
     predicate: &boolean_predicates::BoundPredicate,
     frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::direct::GuardDenotations<'_>>,
     actual: &impl Fn(&boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
 ) -> bool {
+    let owned_queries = if guard_queries.is_none() {
+        super::direct::GuardDenotations::for_call(program, facts, state, call, frames)
+    } else {
+        None
+    };
+    let guard_queries = guard_queries.or(owned_queries.as_ref());
     proves_bound_predicate_mode(
-        program, facts, state, call, contexts, predicate, frames, actual, true,
+        program,
+        facts,
+        state,
+        call,
+        contexts,
+        predicate,
+        frames,
+        guard_queries,
+        actual,
+        true,
     )
 }
 
@@ -916,6 +933,7 @@ fn proves_bound_predicate_mode<'program>(
     contexts: &[FactContextHandle],
     predicate: &boolean_predicates::BoundPredicate,
     frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::direct::GuardDenotations<'_>>,
     actual: &impl Fn(&boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
     fold_observed_values: bool,
 ) -> bool {
@@ -1142,9 +1160,16 @@ fn proves_bound_predicate_mode<'program>(
         // coordinates. An edge implication can be established propositionally
         // from an entry invariant without mixing a selected branch's premise
         // with a closed predecessor value. No scalar premise is added here.
-        return super::calls::selected_guard_predicate(program, facts, state, call, frames)
-            .and_then(|guard| boolean_predicates::guarded_requirement(&guard, &current))
-            .is_some_and(|required| boolean_predicates::proves(&retained, &required, |_| None));
+        return super::calls::selected_guard_predicate(
+            program,
+            facts,
+            state,
+            call,
+            frames,
+            guard_queries,
+        )
+        .and_then(|guard| boolean_predicates::guarded_requirement(&guard, &current))
+        .is_some_and(|required| boolean_predicates::proves(&retained, &required, |_| None));
     }
     let proves = |required: &boolean_predicates::BoundPredicate| {
         super::prover::call_guarantees::proves_captured_predicates(
@@ -1175,14 +1200,24 @@ fn proves_bound_predicate_mode<'program>(
     // known-false branch would create contradictory evidence; the shared
     // algebra deliberately rejects that. No branch assertion or conclusion
     // enters the premise set, and all observations retain exact places.
-    let Some(guard) = super::calls::selected_guard_predicate(program, facts, state, call, frames)
+    let Some(guard) =
+        super::calls::selected_guard_predicate(program, facts, state, call, frames, guard_queries)
     else {
         return false;
     };
     boolean_predicates::guarded_requirement(&guard, &current)
         .is_some_and(|required| proves(&required))
         || proves_bound_predicate_mode(
-            program, facts, state, call, contexts, predicate, frames, actual, false,
+            program,
+            facts,
+            state,
+            call,
+            contexts,
+            predicate,
+            frames,
+            guard_queries,
+            actual,
+            false,
         )
 }
 

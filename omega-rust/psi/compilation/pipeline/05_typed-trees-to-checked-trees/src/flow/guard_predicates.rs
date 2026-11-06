@@ -42,6 +42,16 @@ pub(crate) struct GuardObservation {
     /// The zero handle retains only the decision and its actual read record:
     /// a tag read after initializer effects has its own later write cut.
     pub current_expression: ExpressionHandle,
+    /// Exact saved binding whose definition supplied this observation. An
+    /// immediate expression has no captured binding.
+    pub captured_symbol: SymbolHandle,
+}
+
+/// One prepared guard and its preserved captured definitions. This is local
+/// query output, never new proof authority or durable compiler storage.
+pub(crate) struct PreparedGuardObservations {
+    pub current: Vec<(ExpressionHandle, bool)>,
+    pub captures: Vec<GuardObservation>,
 }
 
 impl GuardObservation {
@@ -57,6 +67,7 @@ impl GuardObservation {
             value,
             statement_index,
             current_expression: expression,
+            captured_symbol: SymbolHandle::invalid(),
         }
     }
 }
@@ -128,6 +139,30 @@ pub(crate) fn guard_observations_after_writes<'program>(
     later_writes: &[String],
     frames: &CallFrameResolver<'program>,
 ) -> Option<Vec<(ExpressionHandle, bool)>> {
+    prepare_guard_observations_after_writes(
+        program,
+        machine,
+        state,
+        statement_index,
+        guard,
+        value,
+        later_writes,
+        frames,
+    )
+    .map(|prepared| prepared.current)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn prepare_guard_observations_after_writes<'program>(
+    program: &dyn validation::CheckingInput,
+    machine: &'program Machine,
+    state: &State,
+    statement_index: usize,
+    guard: ExpressionHandle,
+    value: bool,
+    later_writes: &[String],
+    frames: &CallFrameResolver<'program>,
+) -> Option<PreparedGuardObservations> {
     let mut writes = frames
         .expression_write_frame(machine, guard)
         .into_complete_paths()?;
@@ -146,7 +181,7 @@ pub(crate) fn guard_observations_after_writes<'program>(
                 frames,
             )
     });
-    for observation in saved_guard_observations(
+    let captures = saved_guard_observations(
         program,
         machine,
         state,
@@ -155,7 +190,8 @@ pub(crate) fn guard_observations_after_writes<'program>(
         value,
         later_writes,
         Some(frames),
-    ) {
+    );
+    for observation in &captures {
         let expression = observation.current_expression;
         if !expression.is_valid() {
             continue;
@@ -163,7 +199,10 @@ pub(crate) fn guard_observations_after_writes<'program>(
         let signed = (expression, observation.value);
         crate::shared::collections::push_unique(&mut observations, signed);
     }
-    Some(observations)
+    Some(PreparedGuardObservations {
+        current: observations,
+        captures,
+    })
 }
 
 /// Retain the evaluated decision and its source statement. Repeating its
@@ -265,6 +304,7 @@ pub(crate) fn saved_guard_observations<'program>(
                     value,
                     statement_index: observation_statement_index,
                     current_expression,
+                    captured_symbol: symbol,
                 };
                 if !prepared.contains(&observation) {
                     prepared.push(observation);

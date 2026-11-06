@@ -10,10 +10,10 @@ use crate::checks::contracts::calls::computed_values_have_source_identity;
 use crate::flow::state_statements;
 use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use crate::published::places::place_at;
-use checked_trees::FlowCallFact;
 use checked_trees::{
     CheckFacts, CheckedScalarComputationKind as Computation, CheckedScalarExpressionRole,
 };
+use checked_trees::{FlowCallFact, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
@@ -27,9 +27,15 @@ enum LoanStorage {
     Unknown,
 }
 
+pub(in crate::checks::contracts) struct SelectedGuardEvidence {
+    pub current: Vec<ExpressionHandle>,
+    pub captures: Vec<crate::flow::GuardObservation>,
+}
+
 pub(in crate::checks::contracts) struct Denotations<'a> {
     pub program: &'a dyn ::validation::CheckingInput,
     pub facts: &'a CheckFacts,
+    pub state: &'a FlowStateFact,
     pub caller_state_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
     pub statement_index: usize,
@@ -39,9 +45,56 @@ pub(in crate::checks::contracts) struct Denotations<'a> {
     // Immutable query-local scratch, prepared only when a stored scalar alias
     // is actually needed. Exact observations and Boolean captures need no scan.
     pub copies: std::cell::OnceCell<Vec<(validation::CanonicalPlace, ExpressionHandle)>>,
+    pub operand_writes: std::cell::OnceCell<Option<Vec<String>>>,
+    pub selected_guard: std::cell::OnceCell<Option<SelectedGuardEvidence>>,
 }
 
-impl Denotations<'_> {
+impl<'a> Denotations<'a> {
+    pub fn for_call(
+        program: &'a dyn ::validation::CheckingInput,
+        facts: &'a CheckFacts,
+        state: &'a FlowStateFact,
+        call: &'a FlowCallFact,
+        call_frames: Option<&'a validation::CallFrameResolver<'a>>,
+    ) -> Option<Self> {
+        let (_, _, site, _) =
+            crate::checks::contracts::calls::call_coordinates(program, state, call)?;
+        Some(Self {
+            program,
+            facts,
+            state,
+            caller_state_symbol: state.state_symbol,
+            target_state_symbol: call.target_symbol,
+            statement_index: call.statement_index,
+            call_frames,
+            arguments: validation::call_site_argument_expressions(program, &site),
+            call,
+            copies: std::cell::OnceCell::new(),
+            operand_writes: std::cell::OnceCell::new(),
+            selected_guard: std::cell::OnceCell::new(),
+        })
+    }
+
+    pub fn operand_writes(&self) -> Option<&[String]> {
+        self.operand_writes
+            .get_or_init(|| {
+                crate::flow::captured_call_operand_writes(
+                    self.program,
+                    &self.facts.flow,
+                    self.caller_state_symbol,
+                    self.call,
+                    self.call_frames?,
+                )
+            })
+            .as_deref()
+    }
+
+    pub fn selected_guard(&self) -> Option<&SelectedGuardEvidence> {
+        self.selected_guard
+            .get_or_init(|| crate::checks::contracts::calls::prepare_selected_guard(self))
+            .as_ref()
+    }
+
     pub fn equal(&self, left: ExpressionHandle, right: ExpressionHandle) -> bool {
         self.compare(left, right, true, &mut 4096, 0)
     }
@@ -451,28 +504,15 @@ impl Denotations<'_> {
             binding_ordinal: u32::try_from(binding_ordinal).ok()?,
         };
         let plans = &self.facts.values.scalar_expressions;
-        let mut bindings = plans.source_bindings.iter().filter(|(_, binding)| {
-            binding.state == state.symbol
-                && binding.statement_ordinal == definition as u32
-                && binding.role == role
-        });
-        if let Some((_, binding)) = bindings.next() {
-            if bindings.next().is_some()
-                || binding.expression != local.initial_value
-                || binding.destination != local.symbol
-            {
-                return None;
-            }
-            let mut selected = plans.expressions.iter().filter(|plan| {
-                plan.state == state.symbol
-                    && plan.statement_ordinal == definition as u32
-                    && plan.role == role
-            });
-            selected.next()?;
-            if selected.next().is_some() {
+        let statement = u32::try_from(definition).ok()?;
+        if let Some((binding, _)) = plans.bound_expression_at(state.symbol, statement, role) {
+            if binding.expression != local.initial_value || binding.destination != local.symbol {
                 return None;
             }
         } else {
+            if plans.has_source_binding_at(state.symbol, statement, role) {
+                return None;
+            }
             let plans = &self.facts.values.scalar_computations;
             let root = plans.root_at(state.symbol, u32::try_from(definition).ok()?, role)?;
             if root.machine != machine.symbol
@@ -488,14 +528,25 @@ impl Denotations<'_> {
         // storage. Frame paths name backing origins, not local loan names.
         // Keep argument evaluation in that same epoch judgment: an arm operand
         // can overwrite the observed bytes before its consumer begins.
+        if let Some(prepared) = self.selected_guard()
+            && prepared
+                .captures
+                .iter()
+                .any(|observation| observation.captured_symbol == path.symbol)
+        {
+            // This is definition identity, not an assertion of its truth.
+            // The enclosing Boolean proof retains the selected polarity.
+            return prepared
+                .captures
+                .iter()
+                .any(|observation| {
+                    observation.captured_symbol == path.symbol
+                        && observation.current_expression == local.initial_value
+                })
+                .then_some(local.initial_value);
+        }
         let frames = self.call_frames?;
-        let later_writes = crate::flow::captured_call_operand_writes(
-            self.program,
-            &self.facts.flow,
-            self.caller_state_symbol,
-            self.call,
-            frames,
-        )?;
+        let later_writes = self.operand_writes()?;
         if !crate::flow::saved_guard_observations(
             self.program,
             machine,
@@ -503,7 +554,7 @@ impl Denotations<'_> {
             self.statement_index,
             expression,
             true,
-            &later_writes,
+            later_writes,
             Some(frames),
         )
         .iter()

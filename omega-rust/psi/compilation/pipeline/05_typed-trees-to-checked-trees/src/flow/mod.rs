@@ -50,10 +50,11 @@ pub(crate) use entry_origins::{
 mod exits;
 mod guard_predicates;
 pub(crate) use guard_predicates::{
-    GuardObservation, guard_observations_after_writes, saved_guard_observations,
-    transition_guard_observations,
+    GuardObservation, guard_observations_after_writes, prepare_guard_observations_after_writes,
+    saved_guard_observations, transition_guard_observations,
 };
 mod expression;
+pub(crate) use expression::projectable_storage_places;
 mod observations;
 pub(crate) use observations::{
     CapturedSubjectFacts, captured_case_subject, captured_case_subject_result,

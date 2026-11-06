@@ -7,8 +7,8 @@ use super::FlowBuildContext;
 use super::reference_spans::appended_span_since;
 use arena::Handle;
 use arena::HandleSpan;
-use checked_trees::FlowOperandReferent;
 use checked_trees::FlowValueObservationFact;
+use checked_trees::{FlowOperandFact, FlowOperandReferent};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -25,6 +25,7 @@ mod captured_subject;
 mod current_values;
 mod descriptors;
 pub(super) use current_values::{current_scalar_observation, scalar_observation_at};
+pub(super) use descriptors::descriptor_capture;
 pub(crate) use descriptors::{descriptor_context_agrees, descriptor_observation_namespace};
 mod dispatch_copies;
 pub(crate) use captured_subject::{
@@ -83,14 +84,16 @@ pub(super) struct CaseObservation {
     pub(super) origin_unknown_write: bool,
 }
 
-pub(super) fn case_observation(
-    program: &dyn CheckingInput,
-    build: &mut FlowBuildContext<'_>,
+/// Select the one completed read of this predicate's actual operand. Cases
+/// and byte predicates share the same read identity before their own meaning
+/// and storage checks. Missing or duplicate reads supply no observation.
+pub(super) fn completed_predicate_receiver(
+    build: &FlowBuildContext<'_>,
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
     subject: ExpressionHandle,
-) -> Option<CaseObservation> {
+) -> Option<(Handle<FlowValueObservationFact>, FlowOperandFact)> {
     let statements = appended_span_since(&build.control.statements, build.state_statements_start);
     let mut matching = build
         .control
@@ -117,6 +120,20 @@ pub(super) fn case_observation(
     {
         return None;
     }
+    Some((descriptor, receiver))
+}
+
+pub(super) fn case_observation(
+    program: &dyn CheckingInput,
+    build: &mut FlowBuildContext<'_>,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    subject: ExpressionHandle,
+) -> Option<CaseObservation> {
+    let (descriptor, receiver) =
+        completed_predicate_receiver(build, state, statement_index, expression, subject)?;
+    let observation = build.control.value_observations.get(descriptor);
     let referents = build.control.operand_referents.span(receiver.referents)?;
     let canonical = |referent: &FlowOperandReferent| {
         Some(CanonicalPlace {

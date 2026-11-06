@@ -32,6 +32,7 @@ pub(super) fn judgment(
     requirement: &Fact,
     frames: Option<&validation::CallFrameResolver<'_>>,
     whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
+    guard_queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> Option<bool> {
     let FactPayload::ContractBooleanExpression { expression, .. } = requirement.payload else {
         return None;
@@ -72,6 +73,7 @@ pub(super) fn judgment(
                 expression,
                 frames,
                 whole_contract_cache,
+                guard_queries,
             ) {
                 return Some(false);
             }
@@ -188,6 +190,7 @@ fn captured_contract_proven(
     expression: typed_trees::expression::ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
     whole_contract_cache: &mut Vec<(arena::Handle<checked_trees::ContractProofFact>, bool)>,
+    guard_queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> bool {
     // The exact normal-call prefix owns completed nested operands and their
     // public guarantees. It must run before the source-replay fence: a call
@@ -253,7 +256,16 @@ fn captured_contract_proven(
         "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_expr",
         || {
             captured_expression_proven(
-                program, facts, state, call, contexts, contract, target, expression, frames,
+                program,
+                facts,
+                state,
+                call,
+                contexts,
+                contract,
+                target,
+                expression,
+                frames,
+                guard_queries,
             )
         },
     )
@@ -272,6 +284,7 @@ fn captured_expression_proven(
     target: symbols::SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> bool {
     if call_values::proves_captured_arithmetic_requirement(program, facts, state, call, expression)
     {
@@ -287,6 +300,7 @@ fn captured_expression_proven(
             contexts,
             &predicate,
             frames,
+            guard_queries,
             &|observation| {
                 actual_for_formal_place(
                     program,
@@ -314,7 +328,16 @@ fn captured_expression_proven(
         use typed_trees::expression::BinaryOperator;
         let child = |expression| {
             captured_expression_proven(
-                program, facts, state, call, contexts, contract, target, expression, frames,
+                program,
+                facts,
+                state,
+                call,
+                contexts,
+                contract,
+                target,
+                expression,
+                frames,
+                guard_queries,
             )
         };
         match binary.operator {

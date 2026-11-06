@@ -68,6 +68,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
     target_state: &(impl ContractTargetParameters + ?Sized),
     target_state_symbol: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
+    guard_queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> bool {
     let semantic = &facts.semantic;
     macro_rules! prove_instantiated {
@@ -85,6 +86,7 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
                 target_state,
                 target_state_symbol,
                 $expression,
+                guard_queries,
             )
         };
     }
@@ -99,8 +101,8 @@ pub(super) fn semantic_context_proves_instantiated_boolean_expression(
         statement_index,
         call_site,
         target_state,
-        target_state_symbol,
         expression,
+        guard_queries,
     ) {
         return true;
     }

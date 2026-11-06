@@ -300,6 +300,27 @@ impl CheckedScalarExpressionPlans {
             .with_groups(&self.source_bindings, |binding| binding.state, run)
     }
 
+    /// Presence of source custody is separate from selecting one complete
+    /// plan. Conflicting bindings or a missing plan must not permit fallback
+    /// to a different scalar representation at this source coordinate.
+    pub fn has_source_binding_at(
+        &self,
+        state: SymbolHandle,
+        statement_ordinal: u32,
+        role: CheckedScalarExpressionRole,
+    ) -> bool {
+        self.with_state_index(|bindings_by_state| {
+            bindings_by_state.get(&state).is_some_and(|bindings| {
+                bindings.iter().any(|handle| {
+                    let binding = self.source_bindings.get(*handle);
+                    binding.state == state
+                        && binding.statement_ordinal == statement_ordinal
+                        && binding.role == role
+                })
+            })
+        })
+    }
+
     /// Select one custody row and one plan at the exact source coordinate.
     /// Expected handles and destinations are checked only after uniqueness;
     /// filtering by those values could conceal conflicting custody rows.
@@ -619,6 +640,7 @@ mod index_tests {
         let original = SymbolHandle::from_parts(1, 1);
         let moved = SymbolHandle::from_parts(2, 1);
         let role = CheckedScalarExpressionRole::Return;
+        assert!(!plans.has_source_binding_at(original, 0, role));
         plans.expressions.push(CheckedLocatedScalarExpression {
             state: original,
             statement_ordinal: 0,
@@ -635,12 +657,25 @@ mod index_tests {
             });
         assert!(plans.expression_at(original, 0, role).is_some());
         assert!(plans.bound_expression_at(original, 0, role).is_some());
+        assert!(plans.has_source_binding_at(original, 0, role));
         plans.expressions[0].state = moved;
         // Warm the index before changing the binding arena as well.
         assert!(plans.expression_at(moved, 0, role).is_some());
         plans.source_bindings.get_mut(binding).state = moved;
         assert!(plans.bound_expression_at(moved, 0, role).is_some());
         assert!(plans.expression_at(original, 0, role).is_none());
+        assert!(!plans.has_source_binding_at(original, 0, role));
+        assert!(plans.has_source_binding_at(moved, 0, role));
+        plans
+            .source_bindings
+            .insert(CheckedScalarExpressionBindings {
+                state: moved,
+                ..CheckedScalarExpressionBindings::default()
+            });
+        // Ambiguous custody is present, so it cannot enable another source
+        // representation merely because selecting a unique plan refuses.
+        assert!(plans.has_source_binding_at(moved, 0, role));
+        assert!(plans.bound_expression_at(moved, 0, role).is_none());
     }
 }
 

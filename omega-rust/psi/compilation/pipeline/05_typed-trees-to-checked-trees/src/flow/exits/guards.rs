@@ -30,8 +30,10 @@ fn retain_semantic_context(
 }
 
 use super::super::case_tag_segments_may_overlap;
-use super::super::observations::case_observation;
 use super::super::observations::predicate_case_dependencies;
+use super::super::observations::{
+    case_observation, completed_predicate_receiver, descriptor_capture,
+};
 use super::super::operand_contexts::ContentObservationPoint;
 use super::super::operand_contexts::SourceWriteRelation;
 use super::super::operand_contexts::contents_observation_survives;
@@ -611,6 +613,7 @@ pub(in crate::flow) fn append_predicate_context(
         value,
         statement_index: observation_statement_index,
         current_expression,
+        ..
     } = observation;
 
     if current_expression.is_valid() {
@@ -826,7 +829,7 @@ pub(in crate::flow) fn append_predicate_context(
     // wherever the operand travels. The refused arm mints nothing — a byte
     // carrier failing the class is not a positive class.
     if value && current_expression.is_valid() {
-        append_byte_predicate_context(
+        append_guard_byte_predicate_context(
             program,
             semantic,
             build,
@@ -1150,17 +1153,105 @@ fn match_input_has_builtin_meaning(
     }
 }
 
-/// Mint a `pred(place)` byte-predicate fact at the operand's places: the
-/// operand of a unary byte-predicate probe is a byte carrier, and a positive
-/// probe verdict is whole-carrier evidence (`FactPayload::BytePredicate`'s own
-/// semantics). The one operation every mint site shares — transition guards
-/// carrying the taken arm, and state/machine `requires` clauses materializing
-/// their entry assumptions — so the predicate is consumed identically
-/// wherever it is proved. Arm tests arrive as `pred(..) == true` (peeled by
-/// the same conjunct walk the bounds minter uses); `pred(..) == false`
-/// contributes nothing, a refused probe is not a positive class.
+/// A true byte probe describes the descriptor actually read. Keep that read
+/// attached to the class fact so a later captured operand must rejoin the same
+/// binding, retention and content epoch. Several possible backings invalidate
+/// together; they do not each inherit the selected pointer's predicate.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::flow) fn append_byte_predicate_context(
+fn append_guard_byte_predicate_context(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    point: ProgramPoint,
+    origin: FactOrigin,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let mut conjuncts = Vec::new();
+    append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    for conjunct in conjuncts {
+        let Some((predicate, subject)) =
+            typed_trees::byte_predicates::byte_predicate_call(program, conjunct)
+        else {
+            continue;
+        };
+        let Some((observation, receiver)) =
+            completed_predicate_receiver(build, state_symbol, statement_index, conjunct, subject)
+        else {
+            continue;
+        };
+        if !super::super::operand_binds_live_view(program, receiver.type_reference) {
+            // An owned byte carrier has its own storage. Its preservation was
+            // checked with the complete guard interval before this publication.
+            let occurrences = build.expression_occurrences_at(program, subject);
+            append_observation_context(
+                program,
+                semantic,
+                build,
+                state_symbol,
+                statement_index,
+                &occurrences,
+                &[],
+                FactPayload::BytePredicate { predicate },
+                point,
+                origin,
+                active_contexts,
+                active_constraints,
+            );
+            continue;
+        }
+        let Some((_, namespace)) = descriptor_capture(program, &build.control, &receiver) else {
+            continue;
+        };
+        let Some(referents) = build.control.operand_referents.span(receiver.referents) else {
+            continue;
+        };
+        if referents.is_empty() {
+            continue;
+        }
+        let mut dependencies = Vec::new();
+        let mut complete = true;
+        for referent in referents {
+            let Some(segments) = build
+                .control
+                .operand_referent_segments
+                .span(referent.segments)
+            else {
+                complete = false;
+                break;
+            };
+            let place = validation::CanonicalPlace {
+                root: referent.root,
+                segments: segments.to_vec(),
+            };
+            crate::shared::collections::push_unique(&mut dependencies, place);
+        }
+        if !complete {
+            continue;
+        }
+        let place = append_place(semantic, namespace.root, &namespace.segments);
+        let context = append_place_observation_context(
+            semantic,
+            build,
+            &[place],
+            &dependencies,
+            FactPayload::BytePredicate { predicate },
+            point,
+            origin,
+            active_contexts,
+            active_constraints,
+        );
+        retain_descriptor_observations(build, context, &[observation]);
+    }
+}
+
+/// A declared entry requirement supplies the predicate on its formal place.
+/// There is no runtime read at this boundary; the caller owes this assumption.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow) fn append_declared_byte_predicate_context(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -1238,6 +1329,32 @@ fn append_observation_context(
         let place = append_place(semantic, observed.root, &observed.segments);
         crate::shared::collections::push_unique(&mut places, place);
     }
+    append_place_observation_context(
+        semantic,
+        build,
+        &places,
+        dependencies,
+        payload,
+        point,
+        origin,
+        active_contexts,
+        active_constraints,
+    )
+}
+
+/// Publish one observation with its complete invalidation dependencies.
+#[allow(clippy::too_many_arguments)]
+fn append_place_observation_context(
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    places: &[Handle<facts::Place>],
+    dependencies: &[validation::CanonicalPlace],
+    payload: FactPayload,
+    point: ProgramPoint,
+    origin: FactOrigin,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) -> facts::FactContextHandle {
     let mut refs = HandleSpan::empty();
     let mut dependent = Handle::invalid();
     for place in places

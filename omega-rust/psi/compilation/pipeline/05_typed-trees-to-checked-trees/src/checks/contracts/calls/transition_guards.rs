@@ -14,18 +14,14 @@ use crate::published::labels::semantic_fact_requirement_label;
 /// predicate, not merely its generated truth-test binding. Its reads must
 /// survive both evaluation of the predicate and the arm's operands before any
 /// consumer can use that premise; splitting a conjunction changes no epoch.
-fn selected_transition_premise<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    state_flow: &FlowStateFact,
-    call_flow: &FlowCallFact,
-    call_frames: Option<&validation::CallFrameResolver<'program>>,
-) -> Option<(
-    validation::CallSite<'program>,
-    &'program [typed_trees::signature::StateParameter],
-    Vec<typed_trees::expression::ExpressionHandle>,
-)> {
-    let (machine, caller_state, call_site, target_parameters) =
+pub(in crate::checks::contracts) fn prepare_selected_guard(
+    queries: &super::super::direct::GuardDenotations<'_>,
+) -> Option<super::super::direct::SelectedGuardEvidence> {
+    let program = queries.program;
+    let state_flow = queries.state;
+    let call_flow = queries.call;
+    let call_frames = queries.call_frames;
+    let (machine, caller_state, call_site, _target_parameters) =
         super::call_coordinates(program, state_flow, call_flow)?;
     let Some(StatementNode::Transition(transition)) = program
         .statement_table
@@ -67,27 +63,38 @@ fn selected_transition_premise<'program>(
     // interval. Argument effects precede invocation; the callee's own future
     // writes cannot erase the evidence it needs at entry.
     let frames = call_frames?;
-    let writes = crate::flow::captured_call_operand_writes(
-        program,
-        &facts.flow,
-        state_flow.state_symbol,
-        call_flow,
-        frames,
-    )?;
-    let premises = crate::flow::guard_observations_after_writes(
+    let writes = queries.operand_writes()?;
+    let prepared = crate::flow::prepare_guard_observations_after_writes(
         program,
         machine,
         caller_state,
         call_flow.statement_index,
         guard,
         true,
-        &writes,
+        writes,
         frames,
-    )?
-    .into_iter()
-    .filter_map(|(expression, value)| value.then_some(expression))
-    .collect();
-    Some((call_site, target_parameters, premises))
+    )?;
+    Some(super::super::direct::SelectedGuardEvidence {
+        current: prepared
+            .current
+            .into_iter()
+            .filter_map(|(expression, value)| value.then_some(expression))
+            .collect(),
+        captures: prepared.captures,
+    })
+}
+
+fn selected_transition_premise<'program, 'query>(
+    queries: &'query super::super::direct::GuardDenotations<'program>,
+) -> Option<(
+    validation::CallSite<'program>,
+    &'program [typed_trees::signature::StateParameter],
+    &'query [ExpressionHandle],
+)> {
+    let (_, _, call_site, parameters) =
+        super::call_coordinates(queries.program, queries.state, queries.call)?;
+    let prepared = queries.selected_guard()?;
+    Some((call_site, parameters, &prepared.current))
 }
 
 /// Bind the actual selected edge for a conditional proof goal. Its reads
@@ -99,9 +106,21 @@ pub(in crate::checks::contracts) fn selected_guard_predicate(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> Option<crate::published::facts::boolean_predicates::BoundPredicate> {
-    let (_, _, guards) =
-        selected_transition_premise(program, facts, state_flow, call_flow, call_frames)?;
+    let owned_queries = if guard_queries.is_none() {
+        super::super::direct::GuardDenotations::for_call(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            call_frames,
+        )
+    } else {
+        None
+    };
+    let queries = guard_queries.or(owned_queries.as_ref())?;
+    let (_, _, guards) = selected_transition_premise(queries)?;
     let guard = *guards.first()?;
     let (machine, _, _, _) = super::call_coordinates(program, state_flow, call_flow)?;
     if !guard_preserves_values(machine, guard, call_frames)
@@ -152,10 +171,12 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     entry_contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> bool {
-    let Some((call_site, target_parameters, guards)) =
-        selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
-    else {
+    let Some(queries) = queries else {
+        return false;
+    };
+    let Some((call_site, target_parameters, guards)) = selected_transition_premise(queries) else {
         return false;
     };
     let required_label = super::super::labels::instantiate_call_contract_expression_label(
@@ -168,15 +189,7 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     );
     (guards.iter().any(|guard| {
         guard_conjunct_matches(program, *guard, &required_label)
-            || super::guard_observations::conjunct_matches(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                *guard,
-                expression,
-                call_frames,
-            )
+            || super::guard_observations::conjunct_matches(queries, *guard, expression)
             || super::super::call_bounds::proves(
                 program,
                 facts,
@@ -196,8 +209,9 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
                 expression,
                 &required_label,
                 call_frames,
+                queries,
             )
-    }) || case_requirement_matches(program, state_flow, &guards, &required_label))
+    }) || case_requirement_matches(program, state_flow, guards, &required_label))
         && super::super::guard_operands::requirement_reads_survive_earlier_operand_writes(
             program,
             facts,
@@ -224,9 +238,13 @@ pub(super) fn transition_guard_proves_requires(
     call_flow: &FlowCallFact,
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> bool {
+    let Some(queries) = queries else {
+        return false;
+    };
     let Some((call_site, target_parameters, matching_guards)) =
-        selected_transition_premise(program, facts, state_flow, call_flow, call_frames)
+        selected_transition_premise(queries)
     else {
         return false;
     };
@@ -254,22 +272,14 @@ pub(super) fn transition_guard_proves_requires(
     let copied_guard_establishes = match fact.payload {
         FactPayload::ContractBooleanExpression { expression, .. } => {
             matching_guards.iter().any(|matching_guard| {
-                super::guard_observations::conjunct_matches(
-                    program,
-                    facts,
-                    state_flow,
-                    call_flow,
-                    *matching_guard,
-                    expression,
-                    call_frames,
-                )
+                super::guard_observations::conjunct_matches(queries, *matching_guard, expression)
             })
         }
         _ => false,
     };
     let guard_establishes = matches_guard(&required_label)
         || copied_guard_establishes
-        || case_requirement_matches(program, state_flow, &matching_guards, &required_label)
+        || case_requirement_matches(program, state_flow, matching_guards, &required_label)
         || super::predicate_domains::predicate_only_domain_labels(program, facts, fact).is_some_and(|labels| {
             labels
                 .iter()
@@ -620,6 +630,7 @@ fn decomposed_guard_premise_proves(
     required: ExpressionHandle,
     required_label: &str,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    queries: &super::super::direct::GuardDenotations<'_>,
 ) -> bool {
     let Some((machine, state, _, _)) = super::call_coordinates(program, state_flow, call_flow)
     else {
@@ -628,13 +639,7 @@ fn decomposed_guard_premise_proves(
     let Some(frames) = call_frames else {
         return false;
     };
-    let Some(writes) = crate::flow::captured_call_operand_writes(
-        program,
-        &facts.flow,
-        state_flow.state_symbol,
-        call_flow,
-        frames,
-    ) else {
+    let Some(writes) = queries.operand_writes() else {
         return false;
     };
     let establishes = |premise: ExpressionHandle| {
@@ -645,20 +650,12 @@ fn decomposed_guard_premise_proves(
             call_flow.statement_index,
             premise,
             true,
-            &writes,
+            writes,
             frames,
         )
         .is_some_and(|observations| observations.contains(&(premise, true)))
             && (guard_conjunct_matches(program, premise, required_label)
-                || super::guard_observations::conjunct_matches(
-                    program,
-                    facts,
-                    state_flow,
-                    call_flow,
-                    premise,
-                    required,
-                    call_frames,
-                ))
+                || super::guard_observations::conjunct_matches(queries, premise, required))
     };
     let mut conjuncts = Vec::new();
     premise_conjuncts(program, guard, &mut conjuncts);

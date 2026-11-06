@@ -91,6 +91,7 @@ pub(super) fn proves(
     expression: ExpressionHandle,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::super::direct::GuardDenotations<'_>>,
 ) -> bool {
     let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
         || super::super::call_bounds::proves(
@@ -110,6 +111,7 @@ pub(super) fn proves(
             entry_contexts,
             expression,
             call_frames,
+            guard_queries,
         )
         || proves_in_context(
             program,
@@ -161,6 +163,7 @@ pub(super) fn proves(
             entry_contexts,
             expression,
             call_frames,
+            guard_queries,
         )
         || super::contradictory_edge::proves(
             program,
@@ -194,6 +197,7 @@ pub(super) fn proves(
                 conjunct,
                 incoming_guards,
                 call_frames,
+                guard_queries,
             )
         })
 }

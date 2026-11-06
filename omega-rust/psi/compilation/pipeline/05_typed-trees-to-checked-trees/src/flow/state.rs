@@ -158,7 +158,7 @@ pub(super) fn build_state_flow_fact<'plans>(
             // the caller proves the probe, the state enters carrying the
             // per-byte class at the operand's place — the same whole-carrier
             // fact a validating guard mints.
-            super::exits::append_byte_predicate_context(
+            super::exits::append_declared_byte_predicate_context(
                 program,
                 semantic,
                 build,

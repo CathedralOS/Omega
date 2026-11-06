@@ -51,6 +51,7 @@ mod stored_call_values;
 mod transitions;
 mod value_observations;
 mod view_footprints;
+pub(crate) use view_footprints::projectable_storage_places;
 mod view_referents;
 mod view_retention;
 
@@ -1878,6 +1879,29 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     constraints,
                 );
                 *invocation = completed.call;
+                if let Some((_, observed)) =
+                    typed_trees::byte_predicates::byte_predicate_call(self.program, expression)
+                {
+                    // The primitive reads its completed operand, not the source
+                    // slot at a later guard. Reuse the invocation's actual row;
+                    // inserting a copy here would invent another evaluation.
+                    let receiver = {
+                        let mut matching = completed.operands.handles().filter(|handle| {
+                            self.context.control.operands.get(*handle).expression == observed
+                        });
+                        matching.next().filter(|_| matching.next().is_none())
+                    };
+                    if let Some(receiver) = receiver {
+                        let places = self.context.control.operands.get(receiver).referents;
+                        self.retain_value_observation(
+                            expression,
+                            receiver,
+                            places,
+                            *contexts,
+                            *constraints,
+                        );
+                    }
+                }
                 self.complete_call_reference_formations(
                     completed.call,
                     referents,

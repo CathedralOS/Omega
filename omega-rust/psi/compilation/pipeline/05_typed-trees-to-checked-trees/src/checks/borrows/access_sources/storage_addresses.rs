@@ -109,12 +109,8 @@ fn project_address(
             false,
             ancestors,
         )?;
-        let projectable = validation::completed_storage::projectable_reference_places(
-            program,
-            control,
-            operand.backing,
-            &[],
-        );
+        let projectable =
+            crate::flow::projectable_storage_places(program, control, operand.backing);
         for backing in backings {
             let mut projected = backing.place;
             // An authority footprint can enclose another representation. Only

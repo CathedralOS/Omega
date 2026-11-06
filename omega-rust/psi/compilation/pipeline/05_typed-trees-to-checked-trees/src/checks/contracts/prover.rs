@@ -229,6 +229,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
     entry_contexts: &[facts::FactContextHandle],
     expression: typed_trees::expression::ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    guard_queries: Option<&super::direct::GuardDenotations<'_>>,
 ) -> bool {
     let operators = &facts.operators;
     let semantic = &facts.semantic;
@@ -306,6 +307,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
                 target_parameters,
                 call_flow.target_symbol,
                 expression,
+                guard_queries,
             )
         }))
         || call_site_proves_boolean_contract_expression(
