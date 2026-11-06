@@ -753,12 +753,19 @@ pub(crate) fn validate_structural_root_operations(
                             _ => None,
                         }
                     });
-                    let valid = expected.is_some()
-                        && ancestors_preserved
-                        && crate::unit_validation::references::reference_source_accessible(function, structural_types, source)
-                        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                        && result.qualifications.is_empty()
-                        && (field_compatible || structural_source_contract(
+                    let mut refused = "";
+                    let mut check = |label, value| {
+                        if !value {
+                            refused = label;
+                        }
+                        value
+                    };
+                    let valid = check("declared referent", expected.is_some())
+                        && check("ancestor guarantees", ancestors_preserved)
+                        && check("source accessibility", crate::unit_validation::references::reference_source_accessible(function, structural_types, source))
+                        && check("affine result", result.multiplicity == terminal_psi::StructuralMultiplicity::Affine)
+                        && check("no scalar qualifications", result.qualifications.is_empty())
+                        && check("projected memberships", (field_compatible || structural_source_contract(
                             function,
                             source.place,
                         )
@@ -804,23 +811,27 @@ pub(crate) fn validate_structural_root_operations(
                                     &[StructuralPathSegment::Referent], &mut captured,
                                 );
                             }
-                            result
+                            let matches = result
                                 .projected_qualifications
                                 .iter()
                                 .all(|row| captured.contains(row))
                                 && (source.access == StructuralAccess::SharedBorrow
                                     || captured
                                         .iter()
-                                        .all(|row| result.projected_qualifications.contains(row)))
-                        }))
-                        && result.claims.is_empty()
-                        && place_kinds_operation_result(&place_kinds, result, *psi_operation)
-                        && matches!(
+                                        .all(|row| result.projected_qualifications.contains(row)));
+                            if !matches && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                eprintln!("CHECKSITE reference-formation-memberships machine={:?} psi={psi_operation:?} captured={captured:?} requested={:?}", function.machine, result.projected_qualifications);
+                            }
+                            matches
+                        })))
+                        && check("no claims", result.claims.is_empty())
+                        && check("operation result identity", place_kinds_operation_result(&place_kinds, result, *psi_operation))
+                        && check("source access mode", matches!(
                             source.access,
                             StructuralAccess::MutableBorrow
                                 | StructuralAccess::SharedBorrow
-                        )
-                        && (field_compatible || reference_source_type(
+                        ))
+                        && check("source/result type", (field_compatible || reference_source_type(
                             function,
                             structural_types,
                             source,
@@ -839,14 +850,28 @@ pub(crate) fn validate_structural_root_operations(
                                 actual,
                                 result.structural_type,
                             ),
-                        }))
-                        && leaf_access_within(
+                        })))
+                        && check("leaf access", leaf_access_within(
                             structural_types,
                             result.structural_type,
                             &[],
                             source.access,
-                        );
+                        ));
                     if !valid {
+                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            eprintln!(
+                                "CHECKSITE reference-formation-contract machine={:?} block={:?} node={} psi={psi_operation:?} first_false={refused} source={source:?} result={result:?} storage={storage:?} expected={expected:?} field_compatible={field_compatible} ancestors_preserved={ancestors_preserved} source_type={:?} source_declaration={:?} result_declaration={:?} result_place_kind={:?}",
+                                function.machine,
+                                block.id,
+                                node_index,
+                                reference_source_type(function, structural_types, source),
+                                structural_source_contract(function, source.place).and_then(
+                                    |contract| structural_types.get(&contract.structural_type)
+                                ),
+                                structural_types.get(&result.structural_type),
+                                place_kinds.get(&result.place)
+                            );
+                        }
                         return Err(catalog_mismatch(function));
                     }
                 }
