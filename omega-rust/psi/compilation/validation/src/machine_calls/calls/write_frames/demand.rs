@@ -2023,9 +2023,11 @@ fn provider_selection_statement(
         return selects(call.target.as_str()) && arguments_are_call_free(call.arguments);
     }
     statement.as_expression().is_some_and(|root| {
-        expression_table(program).call_node(*root).is_some_and(|call| {
-            selects(call.target.as_str()) && arguments_are_call_free(call.arguments)
-        })
+        expression_table(program)
+            .call_node(*root)
+            .is_some_and(|call| {
+                selects(call.target.as_str()) && arguments_are_call_free(call.arguments)
+            })
     })
 }
 
