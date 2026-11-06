@@ -1,0 +1,50 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "a2f97c1fb89c62505ec163ca64483744fdeb878e",
+    "tree": "ae9b7efc1fdf1ae12800910059ad26ebcd064c02",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "a2ca0480084ad8d74739ddec326a3ec04d8e1a3d",
+      "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+      "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+      "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": null
+    },
+    "executables": {
+      "cli": {
+        "sha256": "e0f23232c9af113025d948abb58952ed9cc2a7e4495d569799a83bcede2a4f9b",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "bd07331f9a0c49ca4ef81705c406d6544114767088b36c22ff5cf3a4513cc45b",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42199974470,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-a2f97c1fb89c62505ec163ca64483744fdeb878e"
+  },
+  "fixtures": [
+    "pass/slices/saved_byte_predicate_boolean_snapshot_exit",
+    "pass/slices/saved_byte_predicate_operand_disjoint_exit",
+    "pass/traits/finite_family_case_view_result_exit",
+    "pass/types/storage_address_core_name_shadowed_exit",
+    "run/domains/qualified_fixed_byte_array_captured_destination_exit",
+    "run/domains/qualified_fixed_byte_array_utf8_mutation_exit"
+  ],
+  "source_only": false,
+  "samples": [],
+  "cli_fixtures": []
+}
