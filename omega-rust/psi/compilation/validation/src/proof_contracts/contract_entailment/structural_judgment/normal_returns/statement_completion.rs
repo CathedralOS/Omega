@@ -39,8 +39,7 @@ impl<'program> StructuralJudge<'program> {
         statement_index: usize,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
-        values: &[ExpressionHandle],
-        operations: &[ExpressionHandle],
+        request: &StatementObservationRequest,
         advance: bool,
     ) -> Option<CompletedStatement<'program>> {
         let roots = self
@@ -51,17 +50,16 @@ impl<'program> StructuralJudge<'program> {
             .map(|(_, root)| root)
             .filter(|root| root.is_valid())
             .collect::<Vec<_>>();
-        let observed_roots = if values.is_empty() && operations.is_empty() {
+        let observed_roots = if request.values.is_empty() && request.operations.is_empty() {
             &[][..]
         } else {
             roots.as_slice()
         };
-        let requested =
-            OperationObservations::completion(values, operations).with_roots(observed_roots);
+        let requested = OperationObservations::completion(request).with_roots(observed_roots);
         let demand = if advance {
             NormalValueDemand::Value
         } else {
-            NormalValueDemand::ObserveOnly(values)
+            NormalValueDemand::ObserveOnly(&request.values)
         };
         let mut entries = NormalObservationEntries::default();
         let mut successors_available = true;
@@ -79,8 +77,7 @@ impl<'program> StructuralJudge<'program> {
                     environment,
                     scope,
                     demand,
-                    values,
-                    operations,
+                    request,
                 );
                 entries = completed.entries;
                 completed.paths
@@ -95,14 +92,8 @@ impl<'program> StructuralJudge<'program> {
                 }])
             }
             StatementNode::Expression(expression) => {
-                let completed = self.complete_expression(
-                    *expression,
-                    environment,
-                    scope,
-                    demand,
-                    values,
-                    operations,
-                );
+                let completed =
+                    self.complete_expression(*expression, environment, scope, demand, request);
                 entries = completed.entries;
                 completed.paths
             }

@@ -34,6 +34,7 @@ use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
     owner_return_type, owner_symbol, selected_call_contract,
 };
+use super::super::structural_prefix::StatementObservationRequest;
 use crate::CallQualificationContract;
 use crate::CheckingInput;
 use crate::frozen_program::expression_table;
@@ -229,20 +230,21 @@ struct OperationObservations<'query> {
     expressions: &'query [ExpressionHandle],
     operands: OperationOperandDemand<'query>,
     values: &'query [ExpressionHandle],
+    value_identities: &'query [ExpressionHandle],
     roots: &'query [ExpressionHandle],
     delivery: ValueDelivery,
 }
 
 impl<'query> OperationObservations<'query> {
-    fn completion(
-        values: &'query [ExpressionHandle],
-        expressions: &'query [ExpressionHandle],
-    ) -> Self {
+    fn completion(request: &'query StatementObservationRequest) -> Self {
+        let values = request.values.as_slice();
+        let expressions = request.operations.as_slice();
         OperationObservations {
             stop: ObservationStop::None,
             expressions,
             operands: OperationOperandDemand::All,
             values,
+            value_identities: &request.value_identities,
             roots: &[],
             // Without observation outputs, metadata refusal is the primary
             // operation's ordinary refusal; there is no snapshot to preserve.
@@ -265,6 +267,7 @@ impl<'query> OperationObservations<'query> {
             expressions: &[],
             operands: OperationOperandDemand::All,
             values: &[],
+            value_identities: &[],
             roots: &[],
             delivery: ValueDelivery::Required,
         }
@@ -656,6 +659,7 @@ impl<'program> StructuralJudge<'program> {
                     expressions: &[],
                     operands: operand_demand,
                     values: &[],
+                    value_identities: &[],
                     roots: &[],
                     delivery: ValueDelivery::Required,
                 },
@@ -702,6 +706,7 @@ impl<'program> StructuralJudge<'program> {
                 expressions: &[],
                 operands: OperationOperandDemand::Selected(&[]),
                 values: &[],
+                value_identities: &[],
                 roots: &[],
                 delivery: ValueDelivery::Required,
             },
@@ -738,6 +743,7 @@ impl<'program> StructuralJudge<'program> {
                 expressions: &[],
                 operands: OperationOperandDemand::All,
                 values: &[],
+                value_identities: &[],
                 roots: &[],
                 delivery: ValueDelivery::Required,
             },
@@ -775,6 +781,7 @@ impl<'program> StructuralJudge<'program> {
                 expressions: &[],
                 operands: OperationOperandDemand::All,
                 values: &[],
+                value_identities: &[],
                 roots: &[],
                 delivery: ValueDelivery::Required,
             },
@@ -802,14 +809,13 @@ impl<'program> StructuralJudge<'program> {
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
-        observations: &[ExpressionHandle],
-        operations: &[ExpressionHandle],
+        request: &StatementObservationRequest,
     ) -> Option<CompletedNormalObservations<'program>> {
         let operands = self.statement_observation_operands(
             statement_index,
             expression,
             scope,
-            NormalValueDemand::ObserveOnly(observations),
+            NormalValueDemand::ObserveOnly(&request.values),
         )?;
         let roots = operands
             .iter()
@@ -821,7 +827,7 @@ impl<'program> StructuralJudge<'program> {
             environment,
             scope,
             0,
-            OperationObservations::completion(observations, operations).with_roots(&roots),
+            OperationObservations::completion(request).with_roots(&roots),
             &mut entries,
             None,
         );
@@ -1372,7 +1378,7 @@ impl<'program> StructuralJudge<'program> {
         {
             entries.values_unavailable.push(expression);
         }
-        if requested_operations.values.contains(&expression) {
+        if requested_operations.value_identities.contains(&expression) {
             for path in &paths {
                 if path.value_requested
                     && let Some(value) = path.observed_value()
