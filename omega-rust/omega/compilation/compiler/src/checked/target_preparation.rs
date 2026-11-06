@@ -163,9 +163,10 @@ impl PreparedProductTarget {
                 // Find the remaining reference checks while source is available.
                 // Target binding only needs the saved decision about that work.
                 let requires_terminal_checks =
-                    validation::terminal_receiving_machines(&source.program)
-                        .next()
-                        .is_some();
+                    !source.program.facts.proof_applications.has_obligations
+                        && validation::terminal_receiving_machines(&source.program)
+                            .next()
+                            .is_some();
                 std::sync::Arc::new(selected_dispatch::PreparedBindingDeclarations::capture(
                     &source.program,
                     &source.provider_inventory,
