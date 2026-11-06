@@ -115,7 +115,7 @@ reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated[0], 0);
+    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated, 0);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -157,7 +157,7 @@ reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated[0], 512);
+    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated, 512);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -208,7 +208,7 @@ reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::unlinkat(dirfd, &terminated[0], flags);
+    let outcome: i32 = PosixFilesystemLinux::unlinkat(dirfd, &terminated, flags);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -330,7 +330,7 @@ reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated[0], 0);
+    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated, 0);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -347,7 +347,7 @@ reaches FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated[0], 512);
+    let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, &terminated, 512);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)

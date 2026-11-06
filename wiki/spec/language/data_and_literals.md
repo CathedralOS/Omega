@@ -97,10 +97,12 @@ inactive storage/padding. Primitive and payload-free-sum equality is intrinsic;
 records and payload-bearing sums select the declared synthesis/conformance
 required by [Equatable](conformances.md#core-equality-acquisition). Adding a
 payload requires that declaration rather than silently changing tag equality
-into field equality. Separately, `==` between values of one identical
-non-primitive data type in a fact denotes
-[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
-does not structurally compare fields or select `Equatable`.
+into field equality. Value `==` retains that selected comparison in facts.
+Explicit `core::Identity<T>(left, right)` states
+[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) without
+requiring an executable equality algorithm. Structural comparison exposes
+checked component comparisons; conversion to identity requires the applicable
+checked bridge law and cannot silently reinterpret float fields.
 
 ## Case constraints
 

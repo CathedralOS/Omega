@@ -207,6 +207,7 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "package-compilation",
+ "phase-profile",
  "provider-admission",
  "provider-planning",
  "psi-compiler",

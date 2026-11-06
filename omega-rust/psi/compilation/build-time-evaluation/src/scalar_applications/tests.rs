@@ -67,6 +67,8 @@ fn evaluated<'a>(
             profile: targets.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -493,6 +495,8 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
             profile: targets.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -517,6 +521,8 @@ fn canonical_scalar_jobs_do_not_capture_an_unselected_declarations_result() {
             profile: windows.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -682,6 +688,8 @@ fn canonical_scalar_jobs_refuse_replay_to_fill_a_late_capture() {
             profile: targets.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -728,6 +736,8 @@ fn canonical_scalar_jobs_compose_geometry_entries_and_exact_observations() {
                 profile: selections.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )
@@ -791,6 +801,8 @@ fn canonical_scalar_jobs_check_local_prerequisites_before_completion() {
                 profile: targets.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )
@@ -852,6 +864,8 @@ fn canonical_scalar_jobs_refuse_cycles_and_false_conditions() {
                 profile: selections.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )
@@ -909,6 +923,8 @@ fn canonical_scalar_jobs_preserve_nonnegative_signed_extent_carriers() {
             profile: selections.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -940,6 +956,8 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
             profile: windows.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -958,6 +976,8 @@ fn canonical_scalar_jobs_bind_provisional_inputs_to_the_target_and_entry() {
                 profile: selected.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )

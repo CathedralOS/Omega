@@ -1,15 +1,15 @@
 // A later state of a receiverless checked machine calls a one-member
 // boundary-trait requirement that publishes a nonempty service ceiling, and the
-// call's scalar result is the machine's result. `TimedWaitPoll::poll` is realized
-// by libSystem's `_poll`; given no descriptors it waits out its timeout and
-// returns 0. `TimedWait::wait` reaches its `at_once` state before calling it.
+// call's scalar result is the machine's result. `TimedWaitPoll::poll` is bound
+// to libSystem's `_poll` on macOS and libc `poll` on Linux; given no descriptors
+// it waits out its timeout and returns 0. `TimedWait::wait` reaches its
+// `at_once` state before calling it.
 // Main brackets the wait with CLOCK_MONOTONIC reads and exits 70 when poll
 // returned 0 after at least 20,000,000 nanoseconds, 71 when it returned
 // early, and 72 on a nonzero result or a clock that went backwards.
 // Expected exit: 70.
 use omega_language_std::console;
 use omega_language_std::clock;
-use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 
 data TimedWait { }
@@ -19,29 +19,6 @@ boundary trait TimedWaitPoll {
     reaches
     Clock;
 }
-
-data TimedWaitImport { }
-
-macos_arm64 machine timed_wait_poll_binding() -> ForeignBinding<26, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::MachODylibSymbol {
-            install_name: "/usr/lib/libSystem.B.dylib",
-            symbol: "_poll",
-        },
-    }
-}
-
-macos_arm64 machine TimedWaitImport::poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32) -> i32
-    satisfies TimedWaitPoll::poll
-    via timed_wait_poll_binding();
-
-linux_x86_64 machine linux_timed_wait_poll_binding() -> ForeignBinding<9, 4, 11> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "poll", version: "GLIBC_2.2.5"
-    } }
-}
-linux_x86_64 machine TimedWaitImport::poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32) -> i32
-    satisfies TimedWaitPoll::poll via linux_timed_wait_poll_binding();
 
 // poll reads a signed timeout, so a count above `i32::MAX` is refused.
 machine TimedWait::wait(milliseconds: u32) -> i32
@@ -82,32 +59,18 @@ machine Main::main(context: &mut Main) reaches Console + Clock {
     machine failed(context: &mut Main) { Console::exit_process(72); }
 }
 
-// The scalar clock seam is foreign on Darwin and a checked timespec adapter
-// on Linux. Both expose nanoseconds on CLOCK_MONOTONIC to the same callers.
+// The scalar clock seam is a libSystem binding on Darwin and a checked timespec
+// adapter on Linux. Both expose nanoseconds on CLOCK_MONOTONIC to the same callers.
+// The Linux adapter calls `ElapsedClockRead`, so that call is part of the ceiling.
 boundary trait ElapsedClock {
-    machine now(selector: u32) -> u64 reaches Clock;
+    machine now(selector: u32) -> u64 reaches Clock
+    invokes ElapsedClockRead;
 }
 data ElapsedClockImports {}
 data ElapsedInstant { seconds: i64; nanoseconds: i64; }
 boundary trait ElapsedClockRead {
     machine read(selector: u32, instant: &mut ElapsedInstant) -> i32 reaches;
 }
-
-macos_arm64 machine macos_elapsed_binding() -> ForeignBinding<26, 22, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
-    } }
-}
-macos_arm64 machine ElapsedClockImports::now(selector: u32) -> u64
-    satisfies ElapsedClock::now via macos_elapsed_binding();
-
-linux_x86_64 machine linux_elapsed_binding() -> ForeignBinding<9, 13, 10> {
-    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
-        object: "libc.so.6", symbol: "clock_gettime", version: "GLIBC_2.17"
-    } }
-}
-linux_x86_64 machine ElapsedClockImports::read(selector: u32, instant: &mut ElapsedInstant) -> i32
-    satisfies ElapsedClockRead::read via linux_elapsed_binding();
 
 linux_x86_64 machine ElapsedClockImports::now(selector: u32) -> u64
     satisfies ElapsedClock::now reaches Clock {

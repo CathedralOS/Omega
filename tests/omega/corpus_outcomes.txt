@@ -15054,10 +15054,10 @@ fail/generics/qualified_closed_equation_nominal_conflict rejected 934ms expected
 	generic machine `capacity` requires equation on `Payload` does not hold: the supplied `Payload` argument is not `models::Token`
 fail/generics/qualified_closed_equation_open_constructor rejected 1005ms expected @b23365ced206+wt
 	generic machine `recovered` requires type equation requires a complete constructor argument tuple
-fail/generics/qualified_closed_equation_value_operand rejected 685ms unexpected @b23365ced206+wt
-	static type equality cannot mix a type operand with a runtime value
-fail/generics/qualified_closed_equation_value_reconstruction rejected 535ms unexpected @b23365ced206+wt
-	static type equality cannot mix a type operand with a runtime value
+fail/generics/qualified_closed_equation_value_operand rejected 3000ms expected @84eadc5f4749
+	generic machine `capacity` requires type equation operand `models::COUNT` does not name a closed type
+fail/generics/qualified_closed_equation_value_reconstruction rejected 3014ms expected @84eadc5f4749
+	generic machine `recovered` requires type equation operand `models::COUNT` does not name a closed type
 fail/generics/record_const_distinct_completed_calls rejected 3416ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum
 	cannot prove ensures contract for exit from misplaced at statement 1: result >= 7
@@ -15286,8 +15286,8 @@ fail/generics/type_index_distinct_binders rejected 1882ms expected @ccdb99ca2214
 fail/generics/type_index_wrong_telescope rejected 1700ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Pair:wrong::entry:call-0-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Pair:wrong::entry:exit-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/generics/typed_const_probe_false_extent_requires rejected 291ms unexpected @911f6617ba9e
-	cannot prove requires contract for specification call `extent` in closed const argument: establish its selected precondition in an independently formed prior requires fact
+fail/generics/typed_const_probe_false_extent_requires rejected 2605ms expected @69dce27d6ba1
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "cannot prove requires contract for specification call `extent` in closed const argument: the instantiated fact is structurally false", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/generics/typed_const_probe_trapping_extent rejected 398ms expected @c5cc3d874922+wt
 	const-generic application evaluation failed: constant invocation retains unhandled [Trap] routes at its concrete arguments
 fail/generics/typed_const_probe_unused_bad_scalar rejected 310ms expected @911f6617ba9e
@@ -15327,6 +15327,16 @@ fail/host/process_exit_reach_keeps_return_obligations rejected 2609ms expected @
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/host/returning_exit_spelling_keeps_linear_obligations rejected 1963ms expected @ccdb99ca2214
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
+fail/indexes/literal_linked_index_identity_other_literal rejected 8223ms expected @35bf35e5c2cc
+	index compatibility condition `index-equality:Indexed:drop_zero::entry:statement-1:Indexed<N + 1>==Indexed<N>` is not established: actual `Indexed<N + 1>` and expected `Indexed<N>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdditive` licenses no law
+	index compatibility condition `index-equality:Indexed:drop_one::entry:statement-1:Indexed<N * 2>==Indexed<N>` is not established: actual `Indexed<N * 2>` and expected `Indexed<N>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexAdditive` licenses no law
+	index compatibility condition `index-equality:Indexed:drop_zero$specialized$7ce138385ab1611f$0$4982::entry:statement-1:Indexed<8 + 1>==Indexed<8>` is not established: actual `Indexed<8 + 1>` and expected `Indexed<8>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdditive` licenses no law
+	index compatibility condition `index-equality:Indexed:drop_one$specialized$d6a7d9ed9886e943$0$4987::entry:statement-1:Indexed<8 * 2>==Indexed<8>` is not established: actual `Indexed<8 * 2>` and expected `Indexed<8>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexAdditive` licenses no law
+fail/indexes/literal_linked_index_identity_without_connection rejected 6908ms expected @35bf35e5c2cc
+	index compatibility condition `index-equality:Indexed:drop_zero::entry:statement-1:Indexed<N + 0>==Indexed<N>` is not established: actual `Indexed<N + 0>` and expected `Indexed<N>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdditive` licenses no law
+	index compatibility condition `index-equality:Indexed:drop_one::entry:statement-1:Indexed<N * 1>==Indexed<N>` is not established: actual `Indexed<N * 1>` and expected `Indexed<N>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexAdditive` licenses no law
+	index compatibility condition `index-equality:Indexed:drop_zero$specialized$7ce138385ab1611f$0$4966::entry:statement-1:Indexed<8 + 0>==Indexed<8>` is not established: actual `Indexed<8 + 0>` and expected `Indexed<8>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdditive` licenses no law
+	index compatibility condition `index-equality:Indexed:drop_one$specialized$d6a7d9ed9886e943$0$4971::entry:statement-1:Indexed<8 * 1>==Indexed<8>` is not established: actual `Indexed<8 * 1>` and expected `Indexed<8>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexAdditive` licenses no law
 fail/inline_asm/asm_cli_requires_machine_authority rejected 1714ms expected @baac73bc4049
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_deriver_only_exit rejected 3ms expected @ccdb99ca2214
@@ -15517,6 +15527,8 @@ fail/layouts/fixed_layout_policy_borrowed_content rejected 2240ms expected @dc98
 	specification call `policy` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/layouts/fixed_layout_policy_guarantee rejected 2698ms expected @dc9835be2e64
 	cannot prove ensures contract for exit from validate at statement 0: policy(result, storage, expected)
+fail/layouts/fixed_layout_sum_array_undersized rejected 3047ms expected @cdf5f311c10a
+	policy `EnvelopeLayout::plan` produced an invalid plan: field `choices` ends at bit 320, past the fixed size 256 bits
 fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 3199ms expected @d68d95fa82f8
 	recast has no complete exact layout alternative roster
 fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 2019ms expected @d68d95fa82f8
@@ -19838,8 +19850,7 @@ pass/borrows/write_projection_loan checked 3150ms @ccdb99ca2214
 pass/borrows/writeonly_record_field_store checked 89396ms check-target:macos_arm64 @898dd1bf8987
 pass/borrows/writeonly_record_field_store_variants checked 18054ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/interleaved_structural_crash_formal_exit checked 4048ms check-target:macos_arm64 @ccdb99ca2214
-pass/boundary/later_state_requirement_scalar_result_exit rejected 16018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/boundary/later_state_requirement_scalar_result_exit checked 93308ms check-target:macos_arm64 @c989b75f08a9
 pass/boundary/named_target_foreign_provider_exit checked 3648ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/native_provider_unoffered_read checked 3963ms check-target:linux_x86_64 @ccdb99ca2214
 pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check-target:macos_arm64 @ccdb99ca2214
@@ -20015,8 +20026,7 @@ pass/calls/borrowed_float_argument_scalar_result_exit checked 19277ms check-targ
 pass/calls/borrowed_float_result_exit checked 21667ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/borrowed_float_scalar_result_exit checked 19476ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/borrowed_scalar_result_with_binding_exit checked 17242ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/boundary_call_nested_call_argument_exit rejected 18383ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/calls/boundary_call_nested_call_argument_exit checked 93796ms check-target:windows_x86_64 @c989b75f08a9
 pass/calls/builtin_named_machine_call_exit checked 17782ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/by_value_case_param_self_write_exit checked 21790ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/call_local_reassign checked 4318ms @ccdb99ca2214
@@ -26073,9 +26083,7 @@ pass/host/runtime_encoded_record_view_observation_exit rejected 3253ms check-tar
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	cannot establish assignment invariants: source storage interpretation is unavailable
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11523ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 17200ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/host/runtime_foreign_scalar_loan_writeback_exit checked 86236ms check-target:windows_x86_64 @c989b75f08a9
 pass/host/runtime_foreign_zero_argument_import_exit checked 16999ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_foreground_window_exit checked 12325ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_window_lifecycle_exit checked 16186ms check-target:windows_x86_64 @ccdb99ca2214
@@ -26098,6 +26106,7 @@ pass/host/std_clock_sleep_exit checked 11855ms check-target:macos_arm64 @ccdb99c
 pass/host/user32_window_procedure_registration rejected 31989ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ee4dbb4b2d56
 	fixed representation application `LayoutStorage<ClassHeader, ClassLayout>` requires unavailable representation facts for `cross_platform_cli`
 pass/host/wincheck_probe checked 168755ms check-target:windows_x86_64 @761dca3ff6ca+wt
+pass/indexes/literal_linked_index_identity checked 10982ms check-target:macos_arm64 @35bf35e5c2cc
 pass/inline_asm/asm_aarch64_system_registers_compile checked 4578ms check-target:macos_arm64 @0af7c594a1c0
 pass/inline_asm/asm_block_jmp_state checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/inline_asm/asm_exact_clobbers checked 4527ms @0af7c594a1c0
@@ -26158,6 +26167,7 @@ pass/layouts/fixed_layout_forwarded_fragmented_mutation_exit checked 15572ms che
 pass/layouts/fixed_layout_overridden_valid_policy_exit checked 1871ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/fixed_layout_policy_value_exit checked 3643ms check-target:macos_arm64 @dc9835be2e64
 pass/layouts/fixed_layout_semantic_only_policy_exit checked 8828ms check-target:macos_arm64 @d68d95fa82f8
+pass/layouts/fixed_layout_sum_array_exit checked 6573ms check-target:macos_arm64 @cdf5f311c10a
 pass/layouts/fixed_layout_unbounded_invariant_policy_exit checked 9008ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_unmentioned_valid_policy_exit checked 1937ms check-target:macos_arm64 @2ba727eefb59+wt
 pass/layouts/float_member_layout_queries_compile checked 6914ms @ccdb99ca2214
@@ -27116,8 +27126,7 @@ pass/providers/runtime_boundary_primitive_array_argument_exit checked 13816ms ch
 pass/providers/runtime_boundary_qualified_state_exit checked 7306ms check-target:macos_arm64 @b31668d9a31f
 pass/providers/runtime_checked_completion_forwarding_exit checked 5044ms check-target:macos_arm64 @fa76e9a8d5e2
 pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/runtime_foreign_allocation_across_component_exit rejected 7656ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/providers/runtime_foreign_allocation_across_component_exit checked 10338ms check-target:macos_arm64 @c989b75f08a9
 pass/providers/runtime_foreign_allocation_overflow_zero_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit rejected 12569ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:3f2c5661e5d2637d19b14265b39528f1136931314c0fa586389ddd4806de99b4\\\\\\)\\\\\\,path\\\\\\(Words\\\\\\)\\\\\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations

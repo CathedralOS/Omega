@@ -135,7 +135,341 @@ pub(crate) fn declared_index_algebra_laws(
     laws
 }
 
-/// Tier-2 (full polynomial): the PAIRED license -- an add op and a mul op
+/// Literal identities published by one selected conformance.
+///
+/// `left` and `right` are the decimal text of the integer a left or right
+/// identity law may remove. Each is empty unless that side's identity law and
+/// a nullary-to-literal connection (`zero() == 0`) name the same requirement
+/// and the literal's carrier is the operation's operand type. A law written
+/// directly over the literal does not count: the connection is a separate
+/// checked slot.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LiteralIndexIdentities {
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IdentitySide {
+    Left,
+    Right,
+}
+
+enum ConnectionOrientation {
+    CallThenLiteral,
+    LiteralThenCall,
+}
+
+struct LiteralConnection {
+    requirement: SymbolHandle,
+    literal: String,
+    conflict: bool,
+}
+
+/// Collect identity and connection laws from the bound trait and every
+/// inherited application. The operation's declaring trait may be a parent;
+/// the literal connection often lives on the child that fixes the carrier.
+pub(crate) fn literal_index_identities(
+    program: &dyn crate::CheckingInput,
+    bound: &typed_trees::machine::GenericConformanceBound,
+    operation: SymbolHandle,
+    operand_type: TypeReferenceHandle,
+) -> LiteralIndexIdentities {
+    let trees = program.typed_program();
+    let Some(scope) = bound_identity_scope(trees, bound) else {
+        return LiteralIndexIdentities::default();
+    };
+    let operand_identity = trees.normalized_type_identity(operand_type);
+    let mut frames = Vec::new();
+    scope.visit(trees, &mut |scope| {
+        frames.push((
+            scope.declaration.symbol,
+            scope.substitutions.clone(),
+            scope.substitution_scope_starts.clone(),
+        ));
+    });
+    let mut connections = Vec::new();
+    let mut identities = Vec::new();
+    for (trait_symbol, substitutions, scope_starts) in &frames {
+        let Some(declaration) = trees.trait_definition_by_symbol(*trait_symbol) else {
+            continue;
+        };
+        for law in trees.trait_machine_signatures(declaration) {
+            if trees.state_signature_contracts(law).iter().any(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+            }) {
+                continue;
+            }
+            let parameters = trees
+                .state_signature_parameters(law)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_owned())
+                .collect::<Vec<_>>();
+            for expression in crate::proof_contracts::proof_facts::ensures_expression_facts(
+                program,
+                trees.state_signature_contracts(law),
+            ) {
+                let mut conjuncts = Vec::new();
+                collect_equality_conjuncts(program, expression, &mut conjuncts);
+                for conjunct in conjuncts {
+                    let Some(binary) = program.expression_table.binary_node(conjunct) else {
+                        continue;
+                    };
+                    let mut operand_types = [binary.left, binary.right].map(|operand| {
+                        crate::parameter_expression_result_type_reference(
+                            program,
+                            law.symbol,
+                            trees.state_signature_parameters(law),
+                            operand,
+                        )
+                    });
+                    let Some((left, right)) = super::super::structural_term_pair(program, binary)
+                    else {
+                        continue;
+                    };
+                    if !consistent_operation_selections(&left, &right) {
+                        continue;
+                    }
+                    // `zero() == 0` often reaches this pass before the numeral
+                    // has its own carrier. The nullary result types that
+                    // numeral; a resolved literal carrier must still be the
+                    // same type, not a different integer.
+                    if let Some((_, _, orientation)) = literal_connection_shape(&left, &right) {
+                        let (call_index, integer_index) = match orientation {
+                            ConnectionOrientation::CallThenLiteral => (0, 1),
+                            ConnectionOrientation::LiteralThenCall => (1, 0),
+                        };
+                        if operand_types[integer_index].is_none() {
+                            operand_types[integer_index] = operand_types[call_index];
+                        }
+                    }
+                    if operand_types.iter().any(Option::is_none)
+                        || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                            program,
+                            law.symbol,
+                            conjunct,
+                            language_core::OperatorSpelling::Equal,
+                            &operand_types,
+                        )
+                    {
+                        continue;
+                    }
+                    if let Some((requirement, side)) =
+                        identity_law_shape(&left, &right, &parameters, operation)
+                    {
+                        identities.push((requirement, side));
+                    }
+                    if let Some((requirement, literal, orientation)) =
+                        literal_connection_shape(&left, &right)
+                    {
+                        let (call, integer) = match orientation {
+                            ConnectionOrientation::CallThenLiteral => (binary.left, binary.right),
+                            ConnectionOrientation::LiteralThenCall => (binary.right, binary.left),
+                        };
+                        let carries = |expression| {
+                            operands_type(program, law, expression).is_some_and(|reference| {
+                                trees.scoped_type_identity(
+                                    typed_trees::type_identity::TypeIdentityRequest {
+                                        substitutions,
+                                        ..typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                                            reference,
+                                        )
+                                    },
+                                    scope_starts,
+                                ) == operand_identity
+                            })
+                        };
+                        let integer_type = operands_type(program, law, integer);
+                        let integer_matches = match integer_type {
+                            Some(_) => carries(integer),
+                            None => carries(call),
+                        };
+                        if carries(call) && integer_matches {
+                            record_connection(&mut connections, requirement, literal);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    LiteralIndexIdentities {
+        left: licensed_identity_literal(&identities, &connections, IdentitySide::Left),
+        right: licensed_identity_literal(&identities, &connections, IdentitySide::Right),
+    }
+}
+
+fn bound_identity_scope<'program>(
+    program: &'program typed_trees::TypedTrees,
+    bound: &typed_trees::machine::GenericConformanceBound,
+) -> Option<typed_trees::trait_definition::AppliedTraitScope<'program>> {
+    let declaration = program.trait_definition_by_symbol(bound.trait_symbol)?;
+    let parameters = program.trait_type_parameters(declaration);
+    if parameters.len() != bound.arguments.len() {
+        return None;
+    }
+    let mut scope = typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaration);
+    scope.argument_owner = bound.binder;
+    scope.substitutions = parameters
+        .iter()
+        .zip(&bound.arguments)
+        .map(|(parameter, argument)| (parameter.symbol, *argument))
+        .collect();
+    Some(scope)
+}
+
+fn operands_type(
+    program: &dyn crate::CheckingInput,
+    law: &typed_trees::signature::StateSignature,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    crate::parameter_expression_result_type_reference(
+        program,
+        law.symbol,
+        program.state_signature_parameters(law),
+        expression,
+    )
+}
+
+fn record_connection(
+    connections: &mut Vec<LiteralConnection>,
+    requirement: SymbolHandle,
+    literal: String,
+) {
+    if let Some(existing) = connections
+        .iter_mut()
+        .find(|connection| connection.requirement == requirement)
+    {
+        if existing.literal != literal {
+            existing.conflict = true;
+        }
+        return;
+    }
+    connections.push(LiteralConnection {
+        requirement,
+        literal,
+        conflict: false,
+    });
+}
+
+fn licensed_identity_literal(
+    identities: &[(SymbolHandle, IdentitySide)],
+    connections: &[LiteralConnection],
+    side: IdentitySide,
+) -> String {
+    let mut chosen: Option<&str> = None;
+    for (requirement, identity_side) in identities {
+        if *identity_side != side {
+            continue;
+        }
+        let Some(connection) = connections
+            .iter()
+            .find(|connection| connection.requirement == *requirement && !connection.conflict)
+        else {
+            continue;
+        };
+        match chosen {
+            None => chosen = Some(connection.literal.as_str()),
+            Some(existing) if existing == connection.literal => {}
+            Some(_) => return String::new(),
+        }
+    }
+    chosen.unwrap_or("").to_owned()
+}
+
+/// `R(x, Z()) == x` is a right identity and `R(Z(), x) == x` is a left
+/// identity. `Z` is the nullary requirement's symbol, never its spelling.
+fn identity_law_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+    operation: SymbolHandle,
+) -> Option<(SymbolHandle, IdentitySide)> {
+    for (operation_term, value_term) in [(left, right), (right, left)] {
+        let StructuralTerm::Application {
+            target,
+            arguments,
+            selections,
+            ..
+        } = operation_term.semantic_value()
+        else {
+            continue;
+        };
+        if *target != operation || !selections.is_empty() || arguments.len() != 2 {
+            continue;
+        }
+        let Some(value) = parameter_variable(value_term, parameters) else {
+            continue;
+        };
+        if let Some(variable) = parameter_variable(&arguments[0], parameters)
+            && variable == value
+            && let Some(requirement) = nullary_requirement(&arguments[1])
+            && requirement != operation
+        {
+            return Some((requirement, IdentitySide::Right));
+        }
+        if let Some(requirement) = nullary_requirement(&arguments[0])
+            && requirement != operation
+            && let Some(variable) = parameter_variable(&arguments[1], parameters)
+            && variable == value
+        {
+            return Some((requirement, IdentitySide::Left));
+        }
+    }
+    None
+}
+
+/// `Z() == 0`, either orientation. The integer is decimal text. The
+/// orientation says which source operand is the call so its carrier can be
+/// checked against the operation's operand type.
+fn literal_connection_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+) -> Option<(SymbolHandle, String, ConnectionOrientation)> {
+    if let (Some(requirement), Some(literal)) =
+        (nullary_requirement(left), integer_literal_text(right))
+    {
+        return Some((requirement, literal, ConnectionOrientation::CallThenLiteral));
+    }
+    if let (Some(requirement), Some(literal)) =
+        (nullary_requirement(right), integer_literal_text(left))
+    {
+        return Some((requirement, literal, ConnectionOrientation::LiteralThenCall));
+    }
+    None
+}
+
+fn integer_literal_text(term: &StructuralTerm) -> Option<String> {
+    match term.semantic_value() {
+        StructuralTerm::Integer(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn nullary_requirement(term: &StructuralTerm) -> Option<SymbolHandle> {
+    let StructuralTerm::Application {
+        target,
+        arguments,
+        selections,
+        ..
+    } = term.semantic_value()
+    else {
+        return None;
+    };
+    (arguments.is_empty() && selections.is_empty() && target.is_valid()).then_some(*target)
+}
+
+fn parameter_variable<'term>(
+    term: &'term StructuralTerm,
+    parameters: &[String],
+) -> Option<&'term str> {
+    let StructuralTerm::Variable(name) = term.semantic_value() else {
+        return None;
+    };
+    parameters
+        .iter()
+        .any(|parameter| parameter == name)
+        .then_some(name.as_str())
+}
 /// each carrying comm+assoc, connected by a conformed DISTRIBUTIVITY law.
 #[derive(Clone)]
 pub(super) struct SemiringLicense {

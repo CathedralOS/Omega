@@ -1,18 +1,9 @@
-// Expected exit: 0.
-use omega::language::core::external_binding;
+// Expected exit: 0. macOS binds libSystem `_free` for this package's release.
 use producer::main;
 
 public boundary trait NativeRelease {
     machine release(pointer: addr) reaches;
 }
-public data LibSystemRelease {}
-public macos_arm64 machine release_binding() -> ForeignBinding<17, 5, 0> {
-    ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
-        install_name: "libSystem.B.dylib", symbol: "_free",
-    } }
-}
-macos_arm64 boundary machine LibSystemRelease::release(pointer: addr)
-satisfies NativeRelease::release via release_binding();
 
 machine main() reaches RawAllocation, NativeRelease, NativeBytes crashes Trap {
     let pointer: addr = RawAllocation::acquire();
