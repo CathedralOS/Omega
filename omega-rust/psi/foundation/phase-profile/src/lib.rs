@@ -268,7 +268,7 @@ pub fn render_subjects(limit: usize) -> String {
         // Over 100% with no nesting is parallel workers; nesting is double count.
         text.push_str(&format!(", {nested} nested)\n"));
         let mut by_subject: Vec<&SubjectRow> = group.iter().collect();
-        by_subject.sort_by(|left, right| right.nanos.cmp(&left.nanos));
+        by_subject.sort_by_key(|row| std::cmp::Reverse(row.nanos));
         for row in by_subject.iter().take(limit) {
             text.push_str(&format!(
                 "  {:>10.3} ms {:>6} x  {}\n",
@@ -288,7 +288,7 @@ pub fn render_subjects(limit: usize) -> String {
                 None => by_file.push((file, row.nanos, 1)),
             }
         }
-        by_file.sort_by(|left, right| right.1.cmp(&left.1));
+        by_file.sort_by_key(|entry| std::cmp::Reverse(entry.1));
         text.push_str("  by file:\n");
         for (file, nanos, subjects) in by_file.iter().take(limit) {
             text.push_str(&format!(
@@ -343,7 +343,7 @@ pub fn subject_totals(rows: &[SubjectRow]) -> Vec<SubjectTotal> {
         total.per_pass[column] += row.nanos;
         total.nanos += row.nanos;
     }
-    totals.sort_by(|left, right| right.nanos.cmp(&left.nanos));
+    totals.sort_by_key(|total| std::cmp::Reverse(total.nanos));
     totals
 }
 
