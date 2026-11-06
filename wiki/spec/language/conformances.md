@@ -19,9 +19,9 @@ binding and is retired together with receiver `self`. Types needed by a trait
 are ordinary declared parameters; zero, one, or several are allowed, and none
 has special status. An implementation name identifies a map of machines, not a
 type that can be borrowed as state. All state remains explicit value arguments.
-The [captured dynamic form](../terminal-psi/dynamic_dispatch.md#borrowed-captures)
-can bind named borrowed arguments at construction; it neither attaches data to
-a conformance nor privileges a parameter as its receiver.
+[Machine-valued fields](machine_values.md) can name exact implementation
+members. [Some packages](some_packages.md) pair those values with explicit
+borrowed state without attaching data to a conformance or adding a receiver.
 
 The `no-data-code-attachment` decision (2026-10-22) also retires data-owned
 machine declarations even when every parameter is explicit. Put an ordinary
@@ -109,8 +109,8 @@ planning may later realize its boundary rows without changing the selection.
 A package-local [native binding](../build/foreign_bindings.md#build-owned-native-binding)
 supplies one exact boundary requirement's backing without a bodyless
 `machine ... satisfies ... via ...` forwarding declaration. It does not invent
-a named implementation map, discharge laws, or license `dyn`. Complete provider
-schema coverage and exact requirement contracts still apply; checked adapters
+a named implementation map, discharge laws, or establish runtime operation-record
+laws. Complete provider schema coverage and exact requirement contracts still apply; checked adapters
 remain ordinary named implementations with real bodies.
 
 This same selection supplies operation and law requirements for computed static
@@ -213,8 +213,10 @@ descriptor's runtime representation and custody.
 
 `machine ... satisfies Trait<...>::requirement` supplies only that exact
 requirement. It may serve provider selection, a trait/boundary operator
-requirement, an establishment route, or proof citation without satisfying a whole-trait bound or licensing
-`dyn`. An optional `as Name` labels a requirement-local satisfier group; it
+requirement, an establishment route, or proof citation without satisfying a
+whole-trait bound. Runtime selection uses machine values, not `dyn`; the selected
+machine still needs a compatible callable contract. An optional `as Name`
+labels a requirement-local satisfier group; it
 creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
@@ -337,5 +339,5 @@ authors generate ordinary checked member calls; it does not expand this sealed
 synthesis catalog, supply missing law evidence, or permit raw quotient observation.
 
 See the [trait guide](../../language_guide/chapter_14_traits.md) for static bounds,
-inline implementations, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)
+inline implementations, and runtime machine-value examples. [Relations and quotients](../proofs/quotients.md)
 use this same named-map identity for law selection.

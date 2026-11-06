@@ -104,8 +104,9 @@ trait TypedSorter<T, Order satisfies Ordering<T>> {
 }
 ```
 
-`dyn TypedSorter<u32, Ascending>` has a fixed method shape while its implementation
-can vary at runtime. An open requirement-local type or evidence binder cannot
+A machine field with a closed signature over `u32` may hold an explicitly
+selected `TypedSorter<u32, Ascending>` implementation member. Its target can vary
+at runtime; its callable contract remains fixed. An open requirement-local type or evidence binder cannot
 become a dynamic slot merely because current callers happen to use one tuple;
 the attempt rejects during source checking. Explicit finite value families keep
 their existing rules. See [generic requirements](../spec/language/generics.md#generic-machine-requirements)
@@ -188,7 +189,7 @@ automatic fallback or enumeration of the entire u32 range. Each body still owes
 its target, bounds, and effect obligations. A const-only inner kernel receives
 the selected constant; const itself does not become a runtime parameter.
 
-A named dynamic conformance supplies one concrete row per declared width, with
+A callable with a finite family contract supplies one row per declared width, with
 one exact index shared by the scanner, comparator, and prepared state. The row
 can call a specialized loop rather than redispatching on every vector. Escaping
 results need a common representation or an explicit finite sum/eligible owner;
@@ -200,7 +201,9 @@ define the rules.
 The implementation canary
 `tests/omega/pass/traits/dyn_finite_family_dispatch` exercises separate generated
 rows for closed widths 16 and 32. Any remaining receiver or data-subject
-conformance syntax is migration debt under the named-implementation contract. The implemented limit is
+conformance syntax is migration debt under the named-implementation contract.
+Its `dyn` surface also needs the [machine-value migration](../drafts/designs/machine_values_some.md).
+The implemented limit is
 narrower than "no generic virtual calls": the binder tuple must be one complete
 roster tuple of closed static values; runtime width selection is not yet covered.
 
@@ -514,9 +517,13 @@ be inferred when the selected signature and value arguments determine an exact
 application; that is not inference of conformance evidence or callable contracts.
 
 Stateful callbacks take ordinary explicit context parameters; dynamically
-selected interfaces use `dyn` traits. Invocation scratch belongs in local bindings,
-not in persistent callback context merely to make it accessible. A static machine symbol is not a stored or
-returned runtime callback value. `address_of<Selected<u32>>()` may expose the address
+selected operations use [machine values](../spec/language/machine_values.md).
+[Some packages](../spec/language/some_packages.md) relate heterogeneous borrowed
+state and its operations without exposing the state type. Invocation scratch
+belongs in local bindings, not persistent context merely to make it accessible.
+A static machine binder remains a declaration argument. Its closed executable
+selection may construct a runtime machine value under a checked callable type.
+`address_of<Selected<u32>>()` may separately expose the address
 of a fully selected executable application, but the resulting number is not
 call authority; see [address exposure](chapter_20_memory_layout_abi.md#exposing-addresses).
 Registered foreign callbacks still use contextual realization with an exact
@@ -591,8 +598,8 @@ machine Runner::tick<T, Increment satisfies Incrementable<T>>(subject: &mut T) {
 ```
 
 The specialization uses the selected conformance's implementation. Another
-visible `increment` machine cannot replace it. Dynamic dispatch is the separate
-mechanism for runtime-selected interfaces, with its own evidence and custody.
+visible `increment` machine cannot replace it. Runtime machine values provide
+the separate dynamic route, with their own callable evidence and custody.
 
 ## Monomorphization
 

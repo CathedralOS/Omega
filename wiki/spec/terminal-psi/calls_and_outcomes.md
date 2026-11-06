@@ -1,5 +1,11 @@
 # Calls and outcomes
 
+Indirect calls through [machine values](../language/machine_values.md) retain
+these same argument, result, proof and custody rules. [Package openings](../language/some_packages.md#opening-by-stable-subject)
+add exact witness/subject evidence, not another result kind or an implicit
+receiver. A concrete returned borrow keeps its input-relative origin; an
+opened witness cannot escape without a valid enclosing package.
+
 Checking reconstructs call obligations and outcome guards under the
 [fact-validity rules](fact_validity.md).
 [Observations](observations.md) defines which outcomes an execution exposes.

@@ -45,6 +45,8 @@ beside code; completed work belongs in Git, not current reference material.
   [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
   [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
   and [relations and quotients](spec/proofs/quotients.md).
+- Runtime data/code interfaces: [machine values](spec/language/machine_values.md)
+  and [some packages](spec/language/some_packages.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [control flow and ranking](spec/terminal-psi/control_flow.md),
@@ -54,7 +56,7 @@ beside code; completed work belongs in Git, not current reference material.
   [structural predicates](spec/terminal-psi/structural_predicates.md),
   [loan resources and compatibility](spec/terminal-psi/loans.md),
   [structural claims and cleanup](spec/terminal-psi/ownership.md),
-  [dynamic dispatch](spec/terminal-psi/dynamic_dispatch.md),
+  [runtime callable dispatch](spec/terminal-psi/dynamic_dispatch.md),
   [observations](spec/terminal-psi/observations.md), and
   [encoding](spec/terminal-psi/encoding.md),
   [fact validity](spec/terminal-psi/fact_validity.md),

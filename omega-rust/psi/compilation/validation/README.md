@@ -328,7 +328,7 @@ frame separately determines normal-return correspondence. An opaque future
 frame grants no preserved referent or fresh post-state observation.
 
 Unknown effects retire reachable storage observations. Existing immutable,
-non-atomic scalar bindings and code-only `dyn` selectors retain their private
+non-atomic scalar bindings and legacy code-only `dyn` selectors retain their private
 value; mutable bindings, reference payloads, atomic cells and projected storage
 keep their invalidation fences. Retaining a value neither restores an expired
 entry fact nor reconstructs an unknown initializer.

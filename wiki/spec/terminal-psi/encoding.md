@@ -38,19 +38,24 @@ remain independently checked for every ordinary parameter.
 codec and consumer migration. These byte layouts do not claim that
 the remaining consumer migration or end-to-end validation is complete.
 
-The same distinction applies to the legacy conformance subject field. The
-[named-implementation contract](../language/conformances.md#data-and-code-are-independent)
-has no subject. The [dynamic contract](dynamic_dispatch.md) retains an
-implementation selector separately from zero or more ordinary call arguments.
-`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` must remove the legacy subject field
-across producers, codecs, interpreters and consumers together. The retired
-data-attached dynamic operations, catalog sections and suspension targets have
-no wire form: their former operation tags 48, 49, 52, 53 and 54 and suspension
-target tags 3 and 4 are unassigned and reject, and
-`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` adds the selector route's own rows.
-The byte tables record the current implementation during that migration; they
-do not authorize retaining the old semantic model or decoding it as a
-compatibility dialect.
+The same distinction applies to legacy runtime conformance selectors.
+[Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
+replace source `dyn`; static named conformances remain. The current wire table
+still records `SelectImplementation` (109), `CallDynamic` (110), and section 25
+during the coordinated migration. These are legacy implementation forms, not
+authorization to retain source `dyn` or silently decode them as runtime callable
+and package evidence. Earlier instance-bearing tags 48, 49, 52, 53, 54 and
+suspension targets 3 and 4 remain unassigned and reject.
+
+The migration must retain exact callable contracts/applications, construction
+refinement, package witnesses, subject/version openings, dependent projections,
+argument/reborrow mappings and result/custody evidence. Uniform package layout
+requires no global witness/target roster. Source checking produces these plans;
+lowering carries them; independent verification validates them. Update the
+semantic marker, producer, codec, interpreter, verifier and consumers together.
+New numeric tags and their byte payloads must be specified with that
+implementation, not guessed here. The [migration plan](../../drafts/designs/machine_values_some.md)
+owns replacement of the legacy rows and retirement of their decoders.
 
 Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
@@ -722,8 +727,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 106 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id + predicate obligation id |
 | 107 | EstablishStructuralArray | counted structural arguments, the ordered owned elements |
 | 108 | ReleaseReference | place id + structural path; projected form requires a nonempty path (tag 70 spells the root release) |
-| 109 | SelectImplementation | `u32` dynamic-dispatch table index |
-| 110 | CallDynamic | selector value id + `u32` interface + `u32` slot + counted value ids + counted family actual value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 109 | SelectImplementation (legacy; migration above) | `u32` dynamic-dispatch table index |
+| 110 | CallDynamic (legacy; migration above) | selector value id + `u32` interface + `u32` slot + counted value ids + counted family actual value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 111 | EstablishReference | structural argument + byte-offset value id + `u8` stored-scalar flag (1 + scalar type; 0 aggregate view); storage-view form |
 | 112 | ElementViewLength | source place id + structural access + structural path |
 | 113 | ByteSequenceSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
@@ -959,7 +964,7 @@ Older markers are rejected before their payload is read.
 | 22 | unoptimized behavior | counted pre-optimization behavior rows |
 | 23 | external providers | counted external provider conformances |
 | 24 | provider candidates | counted provider candidate rows |
-| 25 | dynamic dispatch | counted interfaces and implementation tables |
+| 25 | legacy dynamic dispatch | counted interfaces and implementation tables |
 | 26 | float-meaning projections | counted projection rows |
 | 27 | float-meaning equalities | counted equality rows |
 | 28 | proposition declarations | counted proposition declaration rows |

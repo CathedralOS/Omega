@@ -234,7 +234,8 @@ check the opcode, operand registers and flag effects; an AND instruction cannot
 stand in for XOR even when both share register constraints.
 
 This stage has no dynamic dispatch lowering. The named-implementation selector
-route is tracked by the dynamic dispatch tasks on [TASKS.md](../../../../../TASKS.md);
+route is legacy; replacement with machine values and `some` packages is tracked
+by the descriptor migration on [TASKS.md](../../../../../TASKS.md);
 a selection is never permission to substitute a direct call or fabricate an
 implementation.
 

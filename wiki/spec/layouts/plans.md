@@ -1,5 +1,12 @@
 # Layout policies and plans
 
+[Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
+have uniform descriptor/reference fields in the borrowed V1 representation.
+A layout cannot inline an unknown witness, vary field offsets by that witness,
+or reinterpret descriptor bits as type authority. New admissible call targets
+or witnesses do not change a semantic global roster or the package layout;
+ordinary code/state dependencies and boundary-layout contracts still apply.
+
 Named decision: `library-authored-representation-families`, settled 2026-10-27.
 
 Data declarations define semantic structure, never an ambient storage layout.

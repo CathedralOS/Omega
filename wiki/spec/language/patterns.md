@@ -6,6 +6,12 @@ subject and program point. Failed alternatives do not execute their bodies.
 An expression `match` produces compatible arm values; a `transition` selects an
 outgoing control edge. Both use the same pattern vocabulary.
 
+Decomposing a `some` package uses one stable subject/version opening for all
+dependent fields. Patterns cannot guess its concrete witness, equate it with
+another package's witness, or let dependent bindings escape their valid scope.
+This is ordinary decomposition under the [package opening rules](some_packages.md#opening-by-stable-subject),
+not a runtime type test.
+
 ## Pattern subjects and bindings
 
 Scalars use value patterns. Records use structural or domain patterns.
