@@ -2387,7 +2387,19 @@ pub(in crate::legalization) fn apply(
             )?;
             let mut leaf = Leaf::formed(
                 (result.place, path.clone()),
-                root,
+                Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::Invocation {
+                        root: result.place,
+                        carrier_type: result.structural_type,
+                    },
+                    path: path
+                        .iter()
+                        .cloned()
+                        .chain(std::iter::once(StructuralPathSegment::Referent))
+                        .map(ReferenceOriginProjection::Exact)
+                        .collect(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                }]),
                 parents,
                 *psi_operation,
                 result,

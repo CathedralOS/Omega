@@ -2736,7 +2736,16 @@ impl TerminalExecution<'_> {
             }
             let mut matched = false;
             for backing in expected.iter().chain(&invocation_backings) {
-                if let Some(mut projected) = self.resolve_return_origin(backing, actual)? {
+                if let Some(mut projected) =
+                    self.resolve_return_origin(backing, actual)
+                        .map_err(|error| TerminalInterpretError::ReferenceFormation {
+                            stage: "resolve returned reference origin",
+                            detail: format!(
+                                "source={:?} path={:?} returned={:?}: {error:?}",
+                                backing.value, backing.suffix, actual.view
+                            ),
+                        })?
+                {
                     self.retain_returned_access_interpretation(
                         &mut projected,
                         actual,

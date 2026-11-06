@@ -129,7 +129,8 @@ impl TerminalExecution<'_> {
             if let Some(destination) = &destination {
                 value.absorb_qualifications(&destination.qualifications);
             }
-            self.validate_reference_return(&signature, &value)?;
+            self.validate_reference_return(&signature, &value)
+                .map_err(|error| error.in_reference_formation("validate returned references"))?;
             // Actual return backing, access and case activation have now been
             // authenticated against the performed call's captured inputs. Add
             // only the caller facts separately proved at this normal-completion
@@ -469,6 +470,7 @@ impl TerminalExecution<'_> {
             cleanup_actions.into_iter(),
             CleanupContinuation::Return(completed),
         )
+        .map_err(|error| error.in_reference_formation("complete structural return"))
     }
 
     /// The embedding API accepts semantic scalar-case contents, not a second
