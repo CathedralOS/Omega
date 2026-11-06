@@ -17,6 +17,25 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
+// Match the extractor's own traversal: only conjunctions, disjunctions and
+// case-membership leaves can publish a case guarantee. This reads declaration
+// metadata only; the caller still proves any sibling used to select a leaf.
+fn contract_contains_case_observation(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return false;
+    };
+    match binary.operator {
+        BinaryOperator::And | BinaryOperator::Or => {
+            contract_contains_case_observation(program, binary.left)
+                || contract_contains_case_observation(program, binary.right)
+        }
+        _ => structural_terms::is_case_observation(program, expression),
+    }
+}
+
 #[derive(Clone)]
 pub(super) struct CaseFact {
     subject: StructuralTerm,
@@ -231,6 +250,9 @@ impl StructuralJudge<'_> {
             let parameters = owner_parameters(self.program, owner);
             for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)]
             {
+                if !contract_contains_case_observation(self.program, alternative) {
+                    continue;
+                }
                 if matches!(
                     self.captured_operand_predicate_judgment(scope, parameters, sibling, map),
                     StructuralJudgment::Refuted
