@@ -46,7 +46,9 @@ pub fn closed_static_call_type_bindings(
     if machine_arguments.len() != requirements.len() {
         return None;
     }
-    let index = machine_state_index(program);
+    // Ordinary and type-only signatures do not query machine/state targets.
+    // Prepare this call's unchanged index only when checking a selected machine.
+    let index = std::cell::OnceCell::new();
     let selected_types =
         super::type_selections::selected_types(program, selected).collect::<Vec<_>>();
     if selected_types.len() > generic_types.len() {
@@ -70,7 +72,8 @@ pub fn closed_static_call_type_bindings(
         {
             return None;
         }
-        let (machine, entry) = machine_and_state(program, &index, selected.symbol)?;
+        let index = index.get_or_init(|| machine_state_index(program));
+        let (machine, entry) = machine_and_state(program, index, selected.symbol)?;
         if !program.machine_type_parameters(machine).is_empty() {
             return None;
         }

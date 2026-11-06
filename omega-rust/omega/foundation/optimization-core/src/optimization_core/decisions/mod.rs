@@ -10,5 +10,5 @@ pub use baseline::{
 pub use external_schema::{
     ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
     ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
-    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
+    external_psi_decision_schema_identity, psi_target_neutral_decision_target_identity,
 };

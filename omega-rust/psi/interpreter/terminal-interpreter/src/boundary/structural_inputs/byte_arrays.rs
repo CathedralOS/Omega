@@ -349,15 +349,21 @@ impl TerminalExecution<'_> {
         identity_cursor: &mut Option<u64>,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
         if !matches!(source.access, terminal_psi::reading_borrow_pair_pattern!()) {
-            return Err(malformed());
+            return Err(malformed().in_reference_formation("byte view source access"));
         }
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed {
             // Fixed and runtime-length descriptors retain the same original
             // backing and selected window, including a descriptor in a field.
             // The fixed form additionally owes its exact declared extent.
-            let value = self.resolve_live_projection(source.place, &source.path, source.access)?;
-            let binding = self.byte_descriptor_binding(source, &value)?;
-            let length = self.byte_descriptor_length(&binding, &value)?;
+            let value = self
+                .resolve_live_projection(source.place, &source.path, source.access)
+                .map_err(|error| error.in_reference_formation("byte view borrowed source"))?;
+            let binding = self
+                .byte_descriptor_binding(source, &value)
+                .map_err(|error| error.in_reference_formation("byte view source binding"))?;
+            let length = self
+                .byte_descriptor_length(&binding, &value)
+                .map_err(|error| error.in_reference_formation("byte view source length"))?;
             if (source.access == StructuralAccess::MutableBorrow
                 && !value.qualifications.is_empty())
                 || match collection.extent {
@@ -366,10 +372,13 @@ impl TerminalExecution<'_> {
                     _ => true,
                 }
             {
-                return Err(malformed());
+                return Err(
+                    malformed().in_reference_formation("byte view source qualifications or extent")
+                );
             }
-            let mut binding =
-                self.reborrow_byte_sequence_binding(&binding, &value, source.access)?;
+            let mut binding = self
+                .reborrow_byte_sequence_binding(&binding, &value, source.access)
+                .map_err(|error| error.in_reference_formation("byte view reborrow"))?;
             // Authenticate the qualified source before creating the new
             // descriptor. Its memberships stay on that source carrier;
             // they are not qualifications of the result's different type.
@@ -393,7 +402,11 @@ impl TerminalExecution<'_> {
                     } else {
                         *referent = value.clone();
                     }
-                    binding.validate_mutable_referent(self, &value)?;
+                    binding
+                        .validate_mutable_referent(self, &value)
+                        .map_err(|error| {
+                            error.in_reference_formation("byte view representation")
+                        })?;
                 }
                 ByteSequenceBinding::Immutable(bytes) => {
                     *bytes = bytes.clone().with_descriptor_home(value.clone());
@@ -407,7 +420,11 @@ impl TerminalExecution<'_> {
                     ..
                 } => {
                     *descriptor_home = Some(value.clone());
-                    binding.validate_mutable_referent(self, &value)?;
+                    binding
+                        .validate_mutable_referent(self, &value)
+                        .map_err(|error| {
+                            error.in_reference_formation("byte view representation")
+                        })?;
                 }
                 ByteSequenceBinding::Representation(_)
                 | ByteSequenceBinding::MutableField { .. }
@@ -433,19 +450,27 @@ impl TerminalExecution<'_> {
             // as mutable descriptors below. Their ordinary reads remain an
             // immutable observation; only the descriptor retains its loan.
         }
-        let (mut referent, array) = self.byte_array_storage_staged(
-            source,
-            identity_cursor,
-            &mut RuntimeRows::new(self.account.as_ref()),
-        )?;
+        let (mut referent, array) = self
+            .byte_array_storage_staged(
+                source,
+                identity_cursor,
+                &mut RuntimeRows::new(self.account.as_ref()),
+            )
+            .map_err(|error| error.in_reference_formation("byte view backing storage"))?;
         let array_type = referent.structural_type;
-        let length =
-            byte_array_length(&self.structural_types(), array_type).ok_or_else(malformed)?;
+        let length = byte_array_length(&self.structural_types(), array_type)
+            .ok_or_else(|| malformed().in_reference_formation("byte view backing array type"))?;
         if (source.access == StructuralAccess::MutableBorrow && !referent.qualifications.is_empty())
             || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
-            || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
+            || self
+                .stored_byte_array_length(&array)
+                .map_err(|error| error.in_reference_formation("byte view backing array length"))?
+                as u128
+                != u128::from(length)
         {
-            return Err(malformed());
+            return Err(
+                malformed().in_reference_formation("byte view backing qualifications or extent")
+            );
         }
         if source.access == StructuralAccess::SharedBorrow {
             let length = usize::try_from(length).map_err(|_| malformed())?;
@@ -469,7 +494,9 @@ impl TerminalExecution<'_> {
             referent: referent.clone(),
             descriptor_home: None,
         };
-        binding.validate_mutable_referent(self, &referent)?;
+        binding
+            .validate_mutable_referent(self, &referent)
+            .map_err(|error| error.in_reference_formation("byte view installed array binding"))?;
         Ok((referent, binding))
     }
 
@@ -706,6 +733,7 @@ impl TerminalExecution<'_> {
                     access: StructuralAccess::Owned,
                     qualifications: result.qualifications.clone(),
                     projected_qualifications: result.projected_qualifications.clone(),
+                    additional_input_qualifications: result.additional_input_qualifications.clone(),
                 })
             })
             .ok_or_else(malformed)?;

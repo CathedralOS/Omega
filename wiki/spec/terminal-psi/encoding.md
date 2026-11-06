@@ -332,8 +332,8 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | value declaration | value id + scalar type + `u64` qualification-set identity |
 | erased proof formal | `u32` source position + type identity string |
 | projected qualification | structural path + domain id |
-| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
-| structural parameter | place id + `u32` position + structural type id + multiplicity + access + counted domain ids + counted projected qualifications |
+| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted additional input qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
+| structural parameter | place id + `u32` position + structural type id + multiplicity + access + counted domain ids + counted projected qualifications + counted additional input qualifications |
 | scalar term list | counted scalar terms |
 | proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
@@ -345,6 +345,19 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | residual discard | place id + structural path + structural type id |
 | affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list; 4 + place id |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
+
+Additional input qualifications distinguish facts supplied for a call from
+requirements owed by the original storage, following
+[lender-domain restoration](../language/dependent_values.md#mutable-receivers-and-declared-field-domains).
+Each row uses the projected-qualification encoding; an empty path names a
+whole-value qualification. The list is strictly ordered, and every row also
+appears in the value's ordinary whole or projected qualification list. It grants
+no new membership evidence. Copies and saved addresses retain the distinction;
+a join retains it only when every incoming path permits the fact to expire.
+Declared storage requirements, intrinsic field constraints, ownership and access
+policies remain independently enforced. These rows participate in canonical
+bytes and identities. Marker 248 combines this distinction with the provider
+application roles introduced by marker 247; both earlier layouts reject.
 
 The closed `u8` spaces behind the scalar field forms:
 
@@ -1727,7 +1740,7 @@ requires a format change; display spelling does not select a provider.
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
 | structural parameter | the machine-row structural parameter encoding |
 | service reach | counted service ids |
-| provider candidate | boundary machine id + requirement identity index + source requirement identity index + receiving application identity index + counted receiving region identity indices + provider identity index + selecting declaration nominal identity index + candidate identity index + source candidate identity index + optional source candidate package identity + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
+| provider candidate | boundary machine id + requirement identity index + source requirement identity index + declaration application identity index + receiving application identity index + counted receiving region identity indices + provider identity index + selecting declaration nominal identity index + candidate identity index + source candidate identity index + optional source candidate package identity + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
 | optional source candidate package identity | `bool` present + 32-byte package digest when present |
 | signature parameter | `u32` position + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
 | projected qualification | structural path + domain id |
@@ -1741,11 +1754,22 @@ Its schema owner introduces no runtime provider demand. Callable signatures
 retain their exact declaring schema owner; provider candidates retain their
 exact selecting declaration independently of display labels and callable bodies.
 
+Marker 247 retains the declaration application immediately before the receiving
+application in both provider candidates and required provider instances. A
+required instance encodes requirement identity, candidate identity, declaration
+application, receiving application and counted receiving region identities.
+The declaration application uses the selecting declaration's own public binders;
+the receiving application retains the complete checked substitution at its use.
+Selection compares the former with the selected schema, while installation keeps
+both applications and the exact region tuple. Neither identity is an erased
+runtime carrier, and one cannot replace the other. Older markers reject.
+
 The receiving application retains the complete checked trait application, not
 its erased runtime carrier. Receiving region identities follow the selecting
 declaration's public binder order, including repeated and unused positions.
-Zero application means no closed trait application; it is never a wildcard and
-requires an empty region tuple. Nonzero application and region indices name
+Zero receiving application means no closed trait application; it is never a
+wildcard and requires a zero declaration application and an empty region tuple.
+Nonzero declaration, receiving and region indices name
 nonempty entries in this artifact's identity table. Only trait requirements may
 carry this association. Installation preserves it beneath the exact admitted
 candidate and artifact; retaining these bytes grants no selection, loan or

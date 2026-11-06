@@ -420,6 +420,7 @@ pub(super) fn encode_provider_candidate(
     bytes.id(candidate.boundary);
     bytes.u32(candidate.requirement_identity.0);
     bytes.u32(candidate.source_requirement_identity.0);
+    bytes.u32(candidate.declaration_application.0);
     bytes.u32(candidate.receiving_application.0);
     bytes.slice(&candidate.receiving_region_arguments, |bytes, region| {
         bytes.u32(region.0);
@@ -493,6 +494,10 @@ pub(super) fn encode_structural_type(
             if let Some(restriction) = &declaration.scalar_restriction {
                 encode_scalar_restriction(bytes, restriction);
             }
+        }
+        StructuralTypeShape::AtomicCell(cell) => {
+            bytes.u8(16);
+            encode_scalar_restriction(bytes, &(*cell).into());
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.u8(1);
@@ -708,6 +713,7 @@ pub(super) fn encode_structural_operation_result(
     encode_multiplicity(bytes, result.multiplicity);
     encode_ids(bytes, &result.qualifications);
     encode_projected_qualification_roster(bytes, &result.projected_qualifications);
+    encode_projected_qualification_roster(bytes, &result.additional_input_qualifications);
     bytes.len(result.claims.len());
     for claim in &result.claims {
         bytes.id(claim.claim);

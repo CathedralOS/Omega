@@ -138,9 +138,9 @@ impl Emission<'_, '_, '_> {
                         path,
                         access,
                     };
-                    let (qualifications, projected) =
+                    let (qualifications, projected, additional) =
                         selected_memberships(&source, &[], self.evaluation, self.operations)?;
-                    let (structural_type, qualifications, projected) =
+                    let (structural_type, qualifications, projected, additional) =
                         crate::emission::completed_place::present_capture(
                             &capture,
                             access,
@@ -148,6 +148,7 @@ impl Emission<'_, '_, '_> {
                             self.domain_declarations,
                             qualifications,
                             projected,
+                            additional,
                         )?;
                     place = crate::emission::completed_address::capture(
                         source.place,
@@ -156,6 +157,7 @@ impl Emission<'_, '_, '_> {
                         access,
                         qualifications,
                         projected,
+                        additional,
                         self.evaluation,
                         self.values,
                         self.next_value,

@@ -23,7 +23,8 @@
 
 # Claude Code local worktrees, settings, and skill link; canonical skills are in .agents
 .claude/*
-# Shared project settings: the cloud-only SessionStart hook in tools/warm_build.py.
+# Shared project settings: pre-approved local build/check commands and the
+# cloud-only SessionStart hook in tools/warm_build.py.
 !.claude/settings.json
 
 # Codex temporary worktrees are repository-local and never versioned

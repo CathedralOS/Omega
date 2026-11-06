@@ -135,19 +135,217 @@ pub(crate) fn checked_call_erased_proof_arguments(
                 call_ordinal: coordinate.call_ordinal,
                 erased_ordinal: u32::try_from(erased_ordinal).ok()?,
             };
-            let term =
-                facts
-                    .values
-                    .proof_terms
-                    .term_at(caller_state, coordinate.statement_index, role)?;
-            proof_term_type_matches(program, caller_state, term, parameter.type_identity)
-                .then(|| term.clone())
+            let term = facts
+                .values
+                .proof_terms
+                .term_at(caller_state, coordinate.statement_index, role)
+                .or_else(|| {
+                    // A transition edge records the same erased actual under
+                    // the authored parameter position. The unit-call key is
+                    // the dense proof ordinal of a direct call; both name one
+                    // formal, and a missing unit-call term is not a second
+                    // actual.
+                    facts.values.proof_terms.term_at(
+                        caller_state,
+                        coordinate.statement_index,
+                        CheckedProofTermRole::TransitionArgument {
+                            argument_ordinal: parameter.source_position,
+                        },
+                    )
+                })?;
+            (proof_term_type_matches(program, caller_state, term, parameter.type_identity)
+                || instantiated_formal_matches(program, caller_state, coordinate, parameter, term))
+            .then(|| term.clone())
         })
         .collect()
 }
 
 /// The construction or forwarded formal carries exactly the formal's declared
 /// proof-only data identity.
+fn formal_proof_identity(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<typed_trees::type_identity::TypeIdentityId> {
+    if validation::mathematical_applications::is_source_evidence_carrier(program, type_reference) {
+        Some(program.normalized_type_identity(type_reference))
+    } else {
+        base_type_identity(program, type_reference, &[], &[])
+    }
+}
+
+/// The callee formal still names its cloned value parameters. The call's
+/// static arguments are those parameters, so the carriers match only after
+/// that instantiation. A different argument stays a different type.
+fn instantiated_formal_matches(
+    program: &dyn ::validation::CheckingInput,
+    caller_state: SymbolHandle,
+    coordinate: CallCoordinate,
+    callee_plan: &CheckedErasedProofParameterPlan,
+    term: &CheckedProofTerm,
+) -> bool {
+    let CheckedProofTerm::Formal { parameter_symbol } = term else {
+        return false;
+    };
+    let Some(caller) = program.machine_holding_state(caller_state) else {
+        return false;
+    };
+    let Some(caller_parameter) = program.state_by_symbol(caller_state).and_then(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == *parameter_symbol)
+    }) else {
+        return false;
+    };
+    let Ok(statement_index) = usize::try_from(coordinate.statement_index) else {
+        return false;
+    };
+    let Ok(call_ordinal) = usize::try_from(coordinate.call_ordinal) else {
+        return false;
+    };
+    let Some(site) = validation::find_call_site(
+        program,
+        caller.symbol,
+        caller_state,
+        statement_index,
+        call_ordinal,
+    ) else {
+        return false;
+    };
+    let direct = match site {
+        validation::CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
+        validation::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+        validation::CallSite::TransitionNamed { .. } => &[][..],
+    };
+    let authored = site.authored_application();
+    let authored_arguments = authored.is_valid().then(|| {
+        program
+            .expression_table
+            .static_machine_application_arguments(authored)
+    });
+    let arguments = if direct.is_empty() {
+        authored_arguments.unwrap_or(direct)
+    } else {
+        direct
+    };
+    let target = site.target_symbol(program);
+    let Some(callee) = program
+        .machine_by_symbol(target)
+        .or_else(|| program.machine_holding_state(target))
+    else {
+        return false;
+    };
+    let Some(callee_parameter) = program.machine_states(callee).iter().find_map(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == callee_plan.parameter_symbol)
+    }) else {
+        return false;
+    };
+    let caller_base = generic_base_symbol(program, caller_parameter.type_reference);
+    let callee_base = generic_base_symbol(program, callee_parameter.type_reference);
+    if caller_base.is_none() || caller_base != callee_base {
+        return false;
+    }
+    let caller_arguments = generic_argument_references(program, caller_parameter.type_reference);
+    let callee_arguments = generic_argument_references(program, callee_parameter.type_reference);
+    let index_symbols = generic_index_symbols(program, callee_parameter.type_reference);
+    if caller_arguments.is_empty()
+        || caller_arguments.len() != callee_arguments.len()
+        || index_symbols.len() != arguments.len()
+        || caller_arguments.len() != arguments.len()
+    {
+        return false;
+    }
+    let substitutions = index_symbols
+        .iter()
+        .zip(arguments)
+        .map(|(symbol, argument)| {
+            (
+                *symbol,
+                typed_trees::type_identity::IndexIdentityArgument::StaticArgument(argument),
+            )
+        })
+        .collect::<Vec<_>>();
+    let trees = program.typed_program();
+    caller_arguments
+        .iter()
+        .zip(callee_arguments)
+        .all(|(caller_argument, callee_argument)| {
+            let actual = typed_trees::type_identity::normalized_index_identity(
+                trees,
+                typed_trees::type_identity::IndexIdentityArgument::TypeReference(*caller_argument),
+                &[],
+            );
+            let expected = typed_trees::type_identity::normalized_index_identity(
+                trees,
+                typed_trees::type_identity::IndexIdentityArgument::TypeReference(callee_argument),
+                &substitutions,
+            );
+            actual.is_some() && actual == expected
+        })
+}
+
+fn generic_base_symbol(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Option<SymbolHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Generic { base_symbol, .. } if base_symbol.is_valid() => {
+            Some(*base_symbol)
+        }
+        _ => None,
+    }
+}
+
+fn generic_argument_references(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Vec<TypeReferenceHandle> {
+    let TypeReferenceNode::Generic { arguments, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return Vec::new();
+    };
+    program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+        .to_vec()
+}
+
+fn generic_index_symbols(
+    program: &dyn ::validation::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> Vec<SymbolHandle> {
+    let TypeReferenceNode::Generic { arguments, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return Vec::new();
+    };
+    program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+        .iter()
+        .filter_map(
+            |argument| match program.type_reference_table.type_reference(*argument) {
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => Some(*symbol),
+                TypeReferenceNode::ConstExpression(expression) => {
+                    match program.expression_table.expression(*expression) {
+                        typed_trees::expression::ExpressionNode::Name(path)
+                            if path.symbol.is_valid() =>
+                        {
+                            Some(path.symbol)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+        )
+        .collect()
+}
+
 fn proof_term_type_matches(
     program: &dyn ::validation::CheckingInput,
     caller_state: SymbolHandle,
@@ -171,11 +369,15 @@ fn proof_term_type_matches(
             type_identity: actual,
             ..
         } => *actual == type_identity,
+        CheckedProofTerm::Projection {
+            type_identity: actual,
+            ..
+        } => *actual == type_identity,
         CheckedProofTerm::Formal { parameter_symbol } => {
             program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
-                        && base_type_identity(program, parameter.type_reference, &[], &[])
+                        && formal_proof_identity(program, parameter.type_reference)
                             == Some(type_identity)
                 })
             })
@@ -387,6 +589,59 @@ pub(crate) fn projected_observed_path(
         storage_type: projected,
         path,
     })
+}
+
+/// A local loan's leading referent crossings are shells of that local.
+/// The type past those shells stays on the source. Lowering reads it from
+/// the plan, including when the local has no established result row.
+pub(crate) fn retain_local_reference_source(
+    program: &dyn ::validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    path: &[PathSegment],
+) -> CheckedUnitStructuralArgumentSourcePlan {
+    let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = source else {
+        return source;
+    };
+    let Some(state) = program.state_by_symbol(state_symbol) else {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    };
+    let Some((_, local)) = program.state_local_declaration(state, symbol) else {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    };
+    // A live local's result row is the source type lowering already reads.
+    // Reclassifying that loan drops the established expression. The dispatch
+    // subject of an erased binding has no result row, so the type past its
+    // reference shells has to travel on the source itself.
+    if !validation::dispatch_subject_of_erased_binding(program, state, local) {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    }
+    let mut reference = local.type_reference;
+    let mut hops = 0u32;
+    for segment in path {
+        if !matches!(segment, PathSegment::Referent) {
+            break;
+        }
+        let Some(shell) = reference_shell(program, reference) else {
+            break;
+        };
+        if shell.access == ReferenceAccess::WriteOnly
+            || !stores_reference_shape(program, reference, &[])
+        {
+            break;
+        }
+        reference = shell.referee;
+        hops += 1;
+    }
+    let root_type_identity = stored_structural_type_identity(program, reference, &[], &[]);
+    if hops == 0 || !root_type_identity.is_valid() {
+        return CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+    }
+    CheckedUnitStructuralArgumentSourcePlan::StructuralLocalBorrow {
+        symbol,
+        root_type_identity,
+        root_reference_hops: hops,
+    }
 }
 
 /// A computation owner supplies executable selectors at the same projected

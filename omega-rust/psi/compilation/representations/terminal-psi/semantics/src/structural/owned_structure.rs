@@ -7,6 +7,9 @@ use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
+mod complete_claims;
+pub use complete_claims::validate_complete_claim_frontier;
+
 /// By-value child declarations, without expanding array cardinality or
 /// following borrowed referents. Repeated occurrences are selected below.
 fn child_types(declaration: &StructuralTypeDeclaration) -> Vec<StructuralTypeId> {

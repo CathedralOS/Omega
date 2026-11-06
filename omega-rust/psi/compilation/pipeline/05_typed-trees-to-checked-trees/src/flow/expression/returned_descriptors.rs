@@ -35,6 +35,19 @@ impl Execution<'_, '_, '_> {
                 .operand_retained_paths
                 .insert_many(path.iter().copied()),
         };
+        let actual = self.context.control.calls.get(invocation);
+        // Each result field is observed after this call returns. Preserve its
+        // active permissions beside the field coordinate, including in every
+        // retained alternative; an empty default cut loses the returned loan.
+        let completed_result = FlowOperandFact {
+            completion,
+            expression: actual.authored_expression,
+            state_symbol: self.state.symbol,
+            statement_index: actual.statement_index,
+            storage_snapshot: self.storage_snapshot,
+            constraints: actual.exit_constraints,
+            ..Default::default()
+        };
         self.returned_descriptor(
             call,
             inputs,
@@ -42,7 +55,7 @@ impl Execution<'_, '_, '_> {
             path,
             retention,
             source_snapshot,
-            completion,
+            completed_result,
         )
         .or_else(|| {
             self.capture_returned_region_descriptor(
@@ -52,7 +65,7 @@ impl Execution<'_, '_, '_> {
                 path,
                 retention,
                 source_snapshot,
-                completion,
+                completed_result,
             )
         })
         .unwrap_or_default()
@@ -66,7 +79,7 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
-        completion: FlowOperandCompletion,
+        completed_result: FlowOperandFact,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
         let state = validation::call_target_state(self.program, target)?;
@@ -80,6 +93,10 @@ impl Execution<'_, '_, '_> {
                     .expression_table
                     .expression_handles(call.arguments),
             )?;
+        // Selector expressions belong to the callee. Erase them the same way
+        // the returned loan does, keeping element versus window shape, so the
+        // descriptor and the loan name one captured place.
+        let sources = erase_callee_selectors(self.program, sources);
         let reference =
             validation::project_type_reference_from_segments(self.program, returned, path)?;
         let expected = validation::reference_shell(self.program, reference)?;
@@ -97,15 +114,24 @@ impl Execution<'_, '_, '_> {
                 candidates.push((Vec::new(), true, None, false));
                 continue;
             }
+            // Unknown elements retain their dimension without a callee-local
+            // selector. Their typed source and borrowing parents remain usable;
+            // they cannot publish an exact descriptor supplier or address.
             // An indexed descriptor home coarsens the may-write footprint,
             // even after its loaded value resolves to an exact supplier. The
             // structural source below owns descriptor identity; the footprint
             // cannot veto it or stand in for its path/type/access checks.
+            // A runtime index is the erased selector the returned loan stores.
+            // It is not an unresolved field, so it must not abandon the
+            // lending descriptor.
             if !source.source.recasts.is_empty()
                 || source.source.representation.is_some()
-                || !source.source.segments.iter().all(|segment| {
-                    super::super::place_segment_has_static_identity(segment)
-                        || matches!(segment, PlaceSegment::OpaqueRange)
+                || source.source.segments.iter().any(|segment| {
+                    !super::super::place_segment_has_static_identity(segment)
+                        && !matches!(
+                            segment,
+                            PlaceSegment::OpaqueRange | PlaceSegment::Index { .. }
+                        )
                 })
             {
                 return None;
@@ -118,7 +144,9 @@ impl Execution<'_, '_, '_> {
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
             inputs.get(position)?;
-            let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
+            let FlowOperandCompletion::InvocationResult { invocation, .. } =
+                completed_result.completion
+            else {
                 return None;
             };
             let actual = self
@@ -286,13 +314,9 @@ impl Execution<'_, '_, '_> {
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {
                 type_reference: reference,
-                completion,
-                state_symbol: self.state.symbol,
-                statement_index: self.statement_index,
-                storage_snapshot: self.storage_snapshot,
                 referents,
                 retention,
-                ..Default::default()
+                ..completed_result
             });
         }
         if alternatives.len() == 1 {
@@ -328,13 +352,9 @@ impl Execution<'_, '_, '_> {
             .alternatives = alternatives;
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
-            completion,
-            state_symbol: self.state.symbol,
-            statement_index: self.statement_index,
-            storage_snapshot: self.storage_snapshot,
             referents,
             retention,
-            ..Default::default()
+            ..completed_result
         }))
     }
 
@@ -379,4 +399,26 @@ impl Execution<'_, '_, '_> {
         }
         Some(paths)
     }
+}
+
+fn erase_callee_selectors(
+    program: &dyn validation::CheckingInput,
+    sources: Vec<validation::ReferenceResultLeafOrigin>,
+) -> Vec<validation::ReferenceResultLeafOrigin> {
+    sources
+        .into_iter()
+        .map(|mut source| {
+            source.source.segments = source
+                .source
+                .segments
+                .into_iter()
+                .map(|segment| {
+                    segment.erase_runtime_selector(|expression| {
+                        program.expression_table.range_node(expression).is_some()
+                    })
+                })
+                .collect();
+            source
+        })
+        .collect()
 }

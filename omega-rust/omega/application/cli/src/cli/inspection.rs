@@ -137,6 +137,9 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                     format!("primitive_scalar({scalar_type:?})")
                 }
+                terminal_psi::StructuralTypeShape::AtomicCell(cell) => {
+                    format!("atomic_cell({cell:?})")
+                }
                 terminal_psi::StructuralTypeShape::ByteSequence(carrier) => match carrier {
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
                         "byte_sequence(borrowed_view)".to_owned()

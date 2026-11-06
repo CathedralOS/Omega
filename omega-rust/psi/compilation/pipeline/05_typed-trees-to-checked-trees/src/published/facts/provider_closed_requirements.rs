@@ -17,6 +17,7 @@ pub(crate) fn record_provider_closed_requirements(
                 selecting_declaration: row.selecting_declaration,
                 template: row.template,
                 closed_requirement: row.closed_requirement,
+                declaration_application: row.declaration_application,
                 receiving_application: row.receiving_application,
                 receiving_regions: arena::HandleSpan::empty(),
             },

@@ -79,12 +79,7 @@ impl StructuralJudge<'_> {
         let Some(subject) = self.declaration_term(binary.left) else {
             return;
         };
-        Arc::make_mut(&mut self.case_facts).push(CaseFact {
-            subject: subject.clone(),
-            data: definition.symbol,
-            case: variant.symbol,
-            holds,
-        });
+        self.intake_observed_case(subject.clone(), definition.symbol, variant.symbol, holds);
         // Only a successful tag test on a carrier without common or payload
         // fields describes a whole value. Exclusion never constructs a value.
         if !holds
@@ -312,12 +307,28 @@ impl StructuralJudge<'_> {
         &mut self,
         guarantee: &CaseGuarantee,
     ) {
+        self.intake_observed_case(
+            guarantee.subject.clone(),
+            guarantee.data,
+            guarantee.case,
+            true,
+        );
+    }
+
+    pub(super) fn intake_observed_case(
+        &mut self,
+        subject: StructuralTerm,
+        data: SymbolHandle,
+        case: SymbolHandle,
+        holds: bool,
+    ) {
         Arc::make_mut(&mut self.case_facts).push(CaseFact {
-            subject: guarantee.subject.clone(),
-            data: guarantee.data,
-            case: guarantee.case,
-            holds: true,
+            subject,
+            data,
+            case,
+            holds,
         });
+        self.activate_conditional_guarantees();
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn judge_case(

@@ -1,5 +1,8 @@
-use super::identity::{encode_action, encode_context};
+use super::identity::encode_context;
 use crate::cursor::Cursor;
+use crate::optimization_core::CountFrame;
+use crate::optimization_core::identities::IDENTITY_WIDTH;
+use std::mem::size_of;
 
 use crate::{
     AnalysisSet, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
@@ -18,8 +21,12 @@ use super::{
 
 const LOG_MAGIC: &[u8; 8] = b"OMGEXD\0\0";
 const POINT_MAGIC: &[u8; 8] = b"OMGEXP\0\0";
-const VERSION: u32 = 2;
-const MINIMUM_CANDIDATE_WIDTH: usize = 32 + 8 + 8 + 4;
+pub(super) const VERSION: u32 = 2;
+/// Smallest encoded candidate feature row: the candidate identity, the signed
+/// structural cost, the analysis set and the consumed-fact count. Every term is
+/// the width the field's own encoder returns.
+pub(super) const MINIMUM_CANDIDATE_WIDTH: usize =
+    IDENTITY_WIDTH + size_of::<i64>() + AnalysisSet::ENCODED_WIDTH + size_of::<u32>();
 
 impl ExternalDecisionPoint {
     pub(super) fn encode(&self) -> Vec<u8> {
@@ -27,13 +34,7 @@ impl ExternalDecisionPoint {
         encoded.extend_from_slice(POINT_MAGIC);
         crate::codec_bytes::push_encoded(&mut encoded, VERSION.to_le_bytes());
         encoded.extend_from_slice(&self.identity.bytes());
-        encoded.extend_from_slice(&self.input.bytes());
-        encoded.extend_from_slice(&self.rule.bytes());
-        crate::codec_bytes::push_count_u32(&mut encoded, self.legal_candidates.len());
-        for candidate in &self.legal_candidates {
-            encode_candidate_features(&mut encoded, candidate);
-        }
-        encode_action(&mut encoded, self.action);
+        self.write_row(&mut encoded, CountFrame::Wire);
         encoded
     }
 
@@ -115,16 +116,6 @@ impl ExternalDecisionLog {
             return Err(ExternalDecisionSchemaError::LogIdentityMismatch);
         }
         Ok(log)
-    }
-}
-
-fn encode_candidate_features(encoded: &mut Vec<u8>, features: &ExternalCandidateFeatures) {
-    encoded.extend_from_slice(&features.summary.candidate.bytes());
-    crate::codec_bytes::push_encoded(encoded, features.summary.predicted_cost_delta.to_le_bytes());
-    encoded.extend_from_slice(&features.consumed_analyses.encode());
-    crate::codec_bytes::push_count_u32(encoded, features.consumed_facts.len());
-    for fact in &features.consumed_facts {
-        encoded.extend_from_slice(&fact.encode());
     }
 }
 

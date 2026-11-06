@@ -21,6 +21,7 @@ pub(crate) struct ReceivingPlace {
     pub(crate) root_type: StructuralTypeId,
     pub(crate) qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    pub(crate) additional_input_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
 }
 
@@ -31,6 +32,7 @@ pub(crate) struct Destination {
     pub(crate) root_type: StructuralTypeId,
     pub(crate) qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    pub(crate) additional_input_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<ProjectionStep>,
     pub(crate) scalar_type: ScalarType,
@@ -59,6 +61,7 @@ pub(crate) fn parameter_destination(
         root_type: parameter.structural_type,
         qualifications: parameter.qualifications.clone(),
         projected_qualifications: parameter.projected_qualifications.clone(),
+        additional_input_qualifications: parameter.additional_input_qualifications.to_vec(),
         place: parameter.place,
         path,
         scalar_type,
@@ -170,6 +173,7 @@ pub(crate) fn emit_assignment(
         root_type: destination.root_type,
         qualifications: destination.qualifications,
         projected_qualifications: destination.projected_qualifications,
+        additional_input_qualifications: destination.additional_input_qualifications,
         path: path.clone(),
     };
     let logical = logical_receiving.as_ref().unwrap_or(&physical);
@@ -211,6 +215,7 @@ pub(crate) fn emit_assignment(
         logical.root_type,
         &logical.qualifications,
         &logical.projected_qualifications,
+        &logical.additional_input_qualifications,
         &logical.path,
     )
     .ok_or(LoweringError::Unsupported(
@@ -245,6 +250,7 @@ pub(crate) fn emit_assignment(
             root_type: physical.root_type,
             qualifications: physical.qualifications,
             projected_qualifications: physical.projected_qualifications,
+            additional_input_qualifications: physical.additional_input_qualifications,
             path,
             logical_receiving,
         },
@@ -265,6 +271,7 @@ pub(crate) struct PhysicalDestination {
     pub(crate) root_type: StructuralTypeId,
     pub(crate) qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    pub(crate) additional_input_qualifications: Vec<terminal_psi::StructuralPathQualification>,
     pub(crate) path: Vec<terminal_psi::StructuralPathSegment>,
     pub(crate) logical_receiving: Option<ReceivingPlace>,
 }
@@ -290,6 +297,7 @@ pub(crate) fn emit_completed_assignment(
         root_type: destination.root_type,
         qualifications: destination.qualifications,
         projected_qualifications: destination.projected_qualifications,
+        additional_input_qualifications: destination.additional_input_qualifications,
         path: destination.path.clone(),
     };
     let actual = receiving_scalar(&physical, structural_types);
@@ -402,6 +410,7 @@ pub(crate) fn receiving_restriction(
         place.root_type,
         &place.qualifications,
         &place.projected_qualifications,
+        &place.additional_input_qualifications,
         &place.path,
     )
     .ok_or(LoweringError::Unsupported(

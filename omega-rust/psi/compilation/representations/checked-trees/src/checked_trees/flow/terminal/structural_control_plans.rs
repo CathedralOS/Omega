@@ -312,6 +312,8 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     /// beside the borrowed referent and retains any parent carrier lifetime.
     ProjectedLoan {
         subject: CheckedUnitStructuralArgumentPlan,
+        backing_type: typed_trees::types::TypeReferenceHandle,
+        source_contract: crate::CheckedReferenceSourceContract,
         /// Independently owned whole backing that may replace this descriptor
         /// on this selected edge after its checked retirement. The complete
         /// captured-operand frontier has no other dependency on that home.

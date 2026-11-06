@@ -149,7 +149,7 @@ fn source_checked_obligation_facts(
                                     | abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { parameter, .. } => (&parameter.qualifications, &parameter.projected_qualifications),
                                     abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => (&result.qualifications, &result.projected_qualifications),
                                 };
-                                terminal_semantics::primitive_store_restriction(unit.structural_types.iter(), unit.structural_domains.iter(), destination.structural_type(), whole, projected, path)??
+                                terminal_semantics::primitive_store_restriction(unit.structural_types.iter(), unit.structural_domains.iter(), destination.structural_type(), whole, projected, destination.additional_input_qualifications(), path)??
                             },
                         ),
                         abstract_operations::AbstractOperation::EstablishPrimitiveLocal {
@@ -170,12 +170,12 @@ fn source_checked_obligation_facts(
                         abstract_operations::AbstractOperation::AtomicEvent { psi_operation, event, resident_obligation, .. } => {
                             let location = event.location()?;
                             let root = optimization_unit::field_evidence(function, location.root)?.root_type?;
-                            let declaration = terminal_semantics::projected_field_declaration(unit.structural_types.iter(), root, &location.path, location.field)?;
+                            let cell = terminal_semantics::atomic_cell_type(unit.structural_types.iter(), root, &location.path)?;
                             let value = event.replacement().or(match event {
                                 abstract_operations::AbstractAtomicEvent::ReadModifyWrite { operand, .. } => Some(*operand),
                                 _ => None,
                             })?;
-                            (*psi_operation, *resident_obligation, value, declaration.field_type.clone())
+                            (*psi_operation, *resident_obligation, value, terminal_psi::StructuralFieldType::from(cell))
                         },
                         _ => return None,
                     };

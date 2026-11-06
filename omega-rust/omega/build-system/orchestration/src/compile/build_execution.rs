@@ -113,8 +113,14 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
-    let mut queries = invocation.product_queries();
-    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
+    let returned = loop {
+        let mut queries = invocation.product_queries();
+        let returned = execute_build(invocation.execution(), Some(&mut queries));
+        match invocation.advance(returned)? {
+            compiler::BuildAdvance::Continue => continue,
+            compiler::BuildAdvance::Complete(returned) => break returned?,
+        }
+    };
     Ok(ReturnedPackageBuild {
         invocation,
         returned,
@@ -123,7 +129,7 @@ pub(crate) fn execute_returned_build(
 
 /// Run one admitted activation to return. This is the shared one-shot policy for
 /// source and package consumers; its retained ledger still requires final join.
-pub(crate) fn execute_build(
+pub fn execute_build(
     execution: Option<&mut build_settings::PreparedBuildExecution>,
     mut queries: Option<&mut compiler::ProductQueries>,
 ) -> Result<Option<build_settings::ReturnedBuild>, CompileFailure> {

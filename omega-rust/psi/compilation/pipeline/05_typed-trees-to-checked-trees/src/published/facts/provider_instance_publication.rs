@@ -12,6 +12,8 @@ use checked_trees::{
 use symbols::SymbolHandle;
 use typed_trees::type_identity::CallableIdentityId;
 
+mod candidates;
+
 pub(crate) fn retain(checked: &mut CheckedTrees) {
     let typed = &checked.typed;
     let mut publication = CheckedProviderInstancePublication::default();
@@ -24,24 +26,27 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
                 description,
             });
         if typed
-            .conformance_by_symbol(association.selecting_declaration)
+            .trait_machine_signature(association.template)
             .is_none()
-            || typed
-                .trait_machine_signature(association.template)
-                .is_none()
             || typed
                 .closed_requirement_application(association.closed_requirement)
                 .is_none()
         {
             continue;
         }
+        let selecting_provider = match candidates::provider_declaration(typed, association) {
+            Ok(provider) if provider.is_valid() => Ok(provider),
+            Ok(_) => continue,
+            Err(reason) => Err(reason),
+        };
         publication
             .requirements
             .insert(CheckedProviderInstanceRequirement {
                 template: association.template,
                 boundary: association.closed_requirement,
                 provider: association.provider,
-                declaration: named(checked, association, receiving),
+                declaration: selecting_provider
+                    .and_then(|provider| named(checked, association, receiving, provider)),
             });
     }
     // Preserve the existing requirement-only obligations while the separate
@@ -87,6 +92,7 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
                 });
         }
     }
+    candidates::retain(checked, &mut publication);
     checked.facts.provider_instance_publication = publication;
 }
 
@@ -94,6 +100,7 @@ fn named(
     checked: &CheckedTrees,
     association: &CheckedProviderClosedRequirement,
     receiving: arena::Handle<CheckedProviderReceivingApplication>,
+    selecting_provider: SymbolHandle,
 ) -> Result<CheckedProviderInstanceDeclaration, String> {
     let typed = &checked.typed;
     let (owner, signature) = typed
@@ -136,7 +143,7 @@ fn named(
     Ok(CheckedProviderInstanceDeclaration {
         template_identity: typed.trait_requirement_callable_identity(owner, signature),
         package: typed.symbols.symbol_package_identity(association.template),
-        selecting_declaration: association.selecting_declaration,
+        selecting_declaration: selecting_provider,
         source_candidate_identity,
         requirement_identity: requirement,
         candidate_identity,
@@ -153,6 +160,7 @@ fn receiving(
     let Some(application) = typed.closed_requirement_application(association.closed_requirement)
     else {
         return Ok(CheckedProviderReceivingDescription {
+            declaration_application: String::new(),
             application: String::new(),
             regions: arena::HandleSpan::empty(),
         });
@@ -186,7 +194,12 @@ fn receiving(
                 })
         })
         .collect::<Result<Vec<_>, String>>()?;
+    let declaration_application = typed
+        .type_identity_text(association.declaration_application)
+        .filter(|text| !text.is_empty())
+        .ok_or("provider declaration application has no portable identity")?;
     Ok(CheckedProviderReceivingDescription {
+        declaration_application,
         application,
         regions: publication.regions.insert_many(regions),
     })

@@ -323,12 +323,7 @@ impl<'program> StructuralJudge<'program> {
         let (Some(graph), Some(at)) = (self.storage_graph(), self.storage_version) else {
             return false;
         };
-        if place.segments.is_empty()
-            && place
-                .root
-                .as_symbol()
-                .is_some_and(|symbol| self.immutable_scalar_binding(symbol))
-        {
+        if self.immutable_scalar_place(place) {
             return false;
         }
         if !at.snapshot.is_valid() {
@@ -493,13 +488,10 @@ impl<'program> StructuralJudge<'program> {
         if stored.current_anchors.is_empty() || stored.anchor_state != at.state {
             return false;
         }
-        // A whole immutable scalar binding has no write authority: no effect,
-        // known or unknown, can replace it after it was established.
-        if coordinate.segments.is_empty()
-            && coordinate
-                .root
-                .as_symbol()
-                .is_some_and(|symbol| self.immutable_scalar_binding(symbol))
+        // An immutable binding's owned scalar fields have no write authority.
+        // This never crosses a stored reference or treats an atomic as stable.
+        if Self::coordinate_place(coordinate)
+            .is_some_and(|place| self.immutable_scalar_place(&place))
         {
             return true;
         }
@@ -603,7 +595,8 @@ impl<'program> StructuralJudge<'program> {
                 stored.current_anchors,
             );
         }
-        let valid = match reaching {
+
+        match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(
                 place.clone(),
             )),
@@ -615,8 +608,7 @@ impl<'program> StructuralJudge<'program> {
                 .iter()
                 .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
             Some(reaching) => reached(&reaching),
-        };
-        valid
+        }
     }
 }
 

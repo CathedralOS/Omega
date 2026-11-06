@@ -129,6 +129,7 @@ pub(super) fn encode_structural_parameter(
             .map(|qualification| qualification.get()),
     );
     encode_projected_qualifications(bytes, &parameter.projected_qualifications);
+    encode_projected_qualifications(bytes, &parameter.additional_input_qualifications);
 }
 
 pub(super) fn encode_target_structural_parameter(
@@ -379,6 +380,10 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
             if let Some(restriction) = &declaration.scalar_restriction {
                 encode_scalar_restriction(bytes, restriction);
             }
+        }
+        StructuralTypeShape::AtomicCell(cell) => {
+            bytes.push(16);
+            encode_scalar_restriction(bytes, &(*cell).into());
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.push(1);

@@ -20,6 +20,38 @@ pub(super) fn select(
     component: &[usize],
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> SelectedComponent {
+    // A source-natural family decreases an immutable binder through nested
+    // helpers. Those calls are not runtime tail transfers, so the family is
+    // judged before the tail classification that executable cycles owe.
+    if let Some(result) = super::source_natural::admit(program, component, frames) {
+        return match result {
+            Ok(source) => SelectedComponent {
+                positions: component.to_vec(),
+                source_natural: Some(source),
+                bodies: Vec::new(),
+                decision: Ok(None),
+                source_outcomes: component
+                    .iter()
+                    .map(|position| (*position, ranking::DecreaseOutcome::Proven(None)))
+                    .collect(),
+            },
+            Err(message) => SelectedComponent {
+                positions: component.to_vec(),
+                source_natural: None,
+                bodies: Vec::new(),
+                decision: Err("a source natural call edge lacks independent strict descent"),
+                source_outcomes: component
+                    .iter()
+                    .map(|position| {
+                        (
+                            *position,
+                            ranking::DecreaseOutcome::Rejected(message.clone()),
+                        )
+                    })
+                    .collect(),
+            },
+        };
+    }
     if let Err(reason) = topology.require_tail_component(program, component) {
         return SelectedComponent {
             positions: component.to_vec(),
@@ -60,35 +92,6 @@ pub(super) fn select(
                     .collect()
             } else {
                 Vec::new()
-            },
-        };
-    }
-    if let Some(result) = super::source_natural::admit(program, component, frames) {
-        return match result {
-            Ok(source) => SelectedComponent {
-                positions: component.to_vec(),
-                source_natural: Some(source),
-                bodies: Vec::new(),
-                decision: Ok(None),
-                source_outcomes: component
-                    .iter()
-                    .map(|position| (*position, ranking::DecreaseOutcome::Proven(None)))
-                    .collect(),
-            },
-            Err(message) => SelectedComponent {
-                positions: component.to_vec(),
-                source_natural: None,
-                bodies: Vec::new(),
-                decision: Err("a source natural call edge lacks independent strict descent"),
-                source_outcomes: component
-                    .iter()
-                    .map(|position| {
-                        (
-                            *position,
-                            ranking::DecreaseOutcome::Rejected(message.clone()),
-                        )
-                    })
-                    .collect(),
             },
         };
     }

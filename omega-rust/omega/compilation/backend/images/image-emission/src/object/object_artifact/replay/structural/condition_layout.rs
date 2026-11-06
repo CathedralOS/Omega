@@ -54,6 +54,9 @@ fn replay_structural_shape(
             };
             ValueShape::integer(if scalar_codec.is_some() { 16 } else { 8 }, 8)
         }
+        terminal_psi::StructuralTypeShape::AtomicCell(cell) => {
+            replay_structural_field_shape(&(*cell).into(), declarations, cache, active)?
+        }
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
             ValueShape::integer(1, 1)
         }

@@ -38,6 +38,9 @@ requires restoration on normal return.
 
 Acceptance for each positive is `omega run --both <place>/main.omg`, exit 0.
 Build binds all four hosted targets; native observations are host-specific.
+The match place calls both selector values and checks distinct nonzero neighbor
+fields after the same write. Choosing one arm twice or overwriting the neighbor
+therefore fails its runtime oracle; the input fact remains `Cell.value == 0`.
 
 ## Evidence and requirements
 
@@ -74,7 +77,9 @@ in a scoped follow-up after this compiler is published.
   separate checks; the controls above exercise their failure boundaries.
 - Checked-to-Terminal Psi: the same normal write and call plans execute in the
   interpreter. The `Before` precondition is checked rather than made into an
-  invented return certificate. No new runtime metadata is introduced.
+  invented return certificate. Lowering carries the lifetime of an additional
+  input observation separately from storage requirements. Copies and joins keep
+  that distinction, and the Terminal and retained native-plan encodings preserve it.
 - Layout/provider/ABI: existing `u32` record geometry and write-only pointer
   arguments; all four hosted `ProgramEntry` bindings. Other hosts are not yet
   execution observations for this change.

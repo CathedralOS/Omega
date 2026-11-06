@@ -154,6 +154,10 @@ pub struct StructuralOperationResult {
     /// Strictly ordered exact qualifications rooted beneath `place`. Calls
     /// copy this roster exactly from the callee result declaration.
     pub projected_qualifications: Vec<StructuralPathQualification>,
+    /// Exact memberships observed on input rather than owed by this storage.
+    /// Empty paths select the root. Writes may invalidate their predicates;
+    /// ownership, access policy and declared field requirements remain separate.
+    pub additional_input_qualifications: Vec<StructuralPathQualification>,
     /// Strictly ordered establishment bindings for this result's
     /// route-authorized memberships. The establishing occurrence is this
     /// operation; replay resolves the callee identity against the domain's
@@ -1207,15 +1211,15 @@ pub enum OperationKind {
     TrappingInteger {
         operation: crate::TrappingIntegerOperation,
     },
-    /// One normalized atomic memory event on one relevant scalar `field` of
-    /// the record `path` selects beneath `place` (see `atomic.rs`). The path
-    /// is the same static carrier path `StructuralScalarFieldStore` walks, so
-    /// the event names one location. Observing events define the
+    /// One normalized atomic memory event at the complete rooted storage
+    /// projection. An empty path names a whole dedicated atomic cell; an
+    /// inline cell retains its actual final field in the same path. The
+    /// endpoint's declared atomic contract never comes from carrier geometry.
+    /// Observing events define the
     /// instruction-observed prior as their scalar result; a store is Unit.
     AtomicAccess {
         place: PlaceId,
         path: Vec<StructuralPathSegment>,
-        field: StructuralFieldId,
         event: crate::AtomicAccessEvent,
         /// Exact atomic resident establishment; no ordinary-store authority.
         resident_obligation: Option<semantic_vocabulary::ObligationId>,

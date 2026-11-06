@@ -1,5 +1,8 @@
 //! Review publishes source-free evidence under the caller's exact byte budget.
 
+#[path = "support/build_sequence.rs"]
+mod build_sequence;
+
 mod external_provider_reload;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
@@ -154,12 +157,7 @@ fn execute_build(
     let mut invocation = session
         .begin_package_build(request)
         .expect("admit package Build");
-    let returned = invocation.execution().map(|execution| {
-        let host = execution.host().expect("Build host");
-        let mut activation = host.start().expect("Build activation");
-        while !activation.advance(1024).expect("Build step").returned {}
-        activation.complete().expect("normal Build return")
-    });
+    let returned = build_sequence::return_package(&mut invocation);
     session
         .complete_package_build(invocation, returned)
         .expect("complete package Build")

@@ -67,7 +67,7 @@ impl CheckedReborrowLoanResourceDraft {
                 parent_loan: self.parent_loan,
                 parent_resource: parent_resource.clone(),
                 child_weakening: self.child_weakening,
-                parent_end: self.parent_end.clone(),
+                parent_end: self.parent_end,
                 status: self.parent_lexical_status,
             },
             restoration: CheckedReborrowRestorationObligation {

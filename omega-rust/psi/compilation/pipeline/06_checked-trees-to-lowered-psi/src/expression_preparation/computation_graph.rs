@@ -94,6 +94,46 @@ pub(crate) fn call_targets(
     collect_call_targets(checked, machine, false)
 }
 
+/// Machines realized by static requirement dispatches in this body.
+///
+/// A completing successor is not a computation-graph call dependency, and a
+/// scalar return is not a unit-closure root. The dispatch still names a
+/// concrete machine the terminal roster must emit. The owner is the checked
+/// flow state of the call target, so discovery does not reopen source.
+pub(crate) fn static_realization_targets(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    let control = &flow_facts(checked).control;
+    let mut targets = Vec::new();
+    for (_, state) in control
+        .states
+        .iter()
+        .filter(|(_, state)| state.machine_symbol == machine)
+    {
+        for call in control.calls.span_or_empty(state.calls) {
+            if call.static_requirement_dispatch.is_none()
+                || control.is_retired(state.state_symbol, call)
+            {
+                continue;
+            }
+            // The target's checked flow state names its machine. A target with
+            // no flow state is not a separate body this roster can emit;
+            // conformance retention still rejects that dispatch.
+            let Some(owner) = control.states.iter().find_map(|(_, target_state)| {
+                (target_state.state_symbol == call.target_symbol)
+                    .then_some(target_state.machine_symbol)
+            }) else {
+                continue;
+            };
+            if owner != machine && !targets.contains(&owner) {
+                targets.push(owner);
+            }
+        }
+    }
+    targets
+}
+
 /// Boundary dependencies of retained computations and their constructed values.
 /// Discovery preserves the declaration identity; it neither selects a provider
 /// nor schedules an invocation.

@@ -75,17 +75,28 @@ pub fn project_provider_instances(
                 _ => continue,
             };
             for application in applications {
-                let receiving = match &application.receiving_application {
+                let _receiving = match &application.receiving_application {
                     Ok(receiving) => receiving,
                     Err(reason) => {
                         diagnostics.push(Diagnostic::error(reason.clone()));
                         continue;
                     }
                 };
-                if !plan.schema.declaration.matches_receiving_application(
+                if application.candidates.is_empty() {
+                    continue;
+                }
+                let declaration = match &application.declaration_application {
+                    Ok(declaration) => declaration,
+                    Err(reason) => {
+                        diagnostics.push(Diagnostic::error(reason.clone()));
+                        continue;
+                    }
+                };
+                let receiving_matches = plan.schema.declaration.matches_receiving_application(
                     plan.identity_text(row.requirement_identity),
-                    Some(receiving),
-                ) {
+                    Some(declaration),
+                );
+                if !receiving_matches {
                     continue;
                 }
                 let instance = match application.candidates.as_slice() {

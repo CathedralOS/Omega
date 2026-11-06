@@ -91,6 +91,7 @@ pub(crate) fn emit(
     let (destination, root_type) = (parameter.place, parameter.structural_type);
     let qualifications = parameter.qualifications.clone();
     let projected_qualifications = parameter.projected_qualifications.clone();
+    let additional_input_qualifications = parameter.additional_input_qualifications.clone();
     let view_scalar = terminal_scalar_type(view)?;
     let Some((leaf, prefix)) = store.destination.path.split_last() else {
         return unsupported("representation view store lost its leaf segment");
@@ -132,6 +133,7 @@ pub(crate) fn emit(
                     root_type,
                     qualifications: qualifications.clone(),
                     projected_qualifications: projected_qualifications.clone(),
+                    additional_input_qualifications: additional_input_qualifications.clone(),
                     path,
                     logical_receiving: None,
                 }
@@ -183,6 +185,9 @@ pub(crate) fn emit(
                     root_type: captured.root_type,
                     qualifications: captured.qualifications.clone(),
                     projected_qualifications: captured.projected_qualifications.clone(),
+                    additional_input_qualifications: captured
+                        .additional_input_qualifications
+                        .to_vec(),
                     path: Vec::new(),
                 };
                 logical_receiving = captured.logical_receiving.take();
@@ -195,6 +200,7 @@ pub(crate) fn emit(
                     root_type,
                     qualifications: qualifications.clone(),
                     projected_qualifications: projected_qualifications.clone(),
+                    additional_input_qualifications: additional_input_qualifications.clone(),
                     path: Vec::new(),
                 };
                 let destination = prepare_byte_destination(
@@ -508,6 +514,7 @@ fn require_unrestricted_byte_region(
         root_type: region.root_type,
         qualifications: region.qualifications.clone(),
         projected_qualifications: region.projected_qualifications.clone(),
+        additional_input_qualifications: region.additional_input_qualifications.to_vec(),
         path: region.path.clone(),
     };
     match index {

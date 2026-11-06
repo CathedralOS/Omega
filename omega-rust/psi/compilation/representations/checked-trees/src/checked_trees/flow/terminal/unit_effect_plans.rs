@@ -302,6 +302,7 @@ pub enum CheckedUnitEffectOperationPlan {
         /// completed address; later crossings never replay this expression.
         formation_expression: typed_trees::expression::ExpressionHandle,
         backing_type: typed_trees::types::TypeReferenceHandle,
+        source_contract: crate::CheckedReferenceSourceContract,
         result: CheckedUnitStructuralResultBindingPlan,
         source: CheckedUnitStructuralArgumentPlan,
         storage: super::CheckedReferenceStorage,

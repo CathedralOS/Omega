@@ -340,6 +340,7 @@ impl Retirement<'_> {
         let mut owners = Vec::new();
         for (_, loan) in self.facts.borrow.statement_resource_loans(state)? {
             if matches!(loan.storage_owner, PlaceRoot::Expression(_))
+                && !crate::borrow::is_descriptor_load_observation(&self.facts.borrow, loan)
                 && self
                     .order
                     .precedes(loan.statement_index, self.statement_index as usize)
@@ -364,6 +365,8 @@ impl Retirement<'_> {
             {
                 continue;
             }
+            self.trace
+                .phase("statement sequence: completion backing source type");
             let reference = canonical_place_type_reference(
                 self.program,
                 self.state.symbol,
@@ -384,7 +387,9 @@ impl Retirement<'_> {
             ) {
                 continue;
             }
-            for (source, loans) in storage_place_loans(
+            self.trace
+                .phase("statement sequence: completion backing descriptor loans");
+            let groups = match storage_place_loans(
                 self.program,
                 self.facts,
                 self.machine,
@@ -393,7 +398,16 @@ impl Retirement<'_> {
                 reference,
                 u32::try_from(formation).ok()?,
                 &[],
-            )? {
+            ) {
+                Ok(groups) => groups,
+                Err(reason) => {
+                    self.trace.phase(reason);
+                    return None;
+                }
+            };
+            for (source, loans) in groups {
+                self.trace
+                    .phase("statement sequence: completion backing descriptor transfers");
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,
@@ -414,6 +428,8 @@ impl Retirement<'_> {
                     continue;
                 }
                 let mut ready = true;
+                self.trace
+                    .phase("statement sequence: completion backing descriptor group");
                 for (handle, _) in self.facts.borrow.loan_group(loans)? {
                     if self.disposed(handle)
                         || !self.children_retired(handle)
@@ -926,6 +942,22 @@ impl Retirement<'_> {
             // alive when selecting that backing's pending owner disposition.
             return self.uncommitted_owner == PlaceRoot::Symbol(Default::default());
         }
+        // A loaded input descriptor has no owned carrier to dispose. Its
+        // permission still ends only at the checked release boundary; callers
+        // separately verify that every retained child has ended as well.
+        if crate::borrow::is_descriptor_load_observation(&self.facts.borrow, loan) {
+            return release_boundary(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                handle,
+            )
+            .is_some_and(|boundary| {
+                self.order
+                    .at_or_before(boundary as usize, self.statement_index as usize)
+            });
+        }
         // Last use at this exit ends a descriptor only when its owner is an
         // established local home. A weakening by itself does not invent that
         // home: lowering still has to resolve the same symbol.
@@ -941,10 +973,9 @@ impl Retirement<'_> {
                 || self
                     .order
                     .at_or_before(statement_index, self.statement_index as usize))
+            && self.owner_home_established(loan.owner_symbol)
         {
-            if self.owner_home_established(loan.owner_symbol) {
-                return true;
-            }
+            return true;
         }
         // A completed call can version a stored occurrence without moving an
         // owned argument or returning a value. Its preserved alternatives name

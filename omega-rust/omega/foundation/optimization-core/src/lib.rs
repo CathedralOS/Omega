@@ -29,8 +29,8 @@ pub use optimization_core::decisions::{
     BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
     BaselineDecisionOutcome, BaselineDecisionRecordError, ExternalCandidateFeatures,
     ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
-    ExternalDecisionSchemaError, ValidatedCandidateSummary,
-    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
+    ExternalDecisionSchemaError, ValidatedCandidateSummary, external_psi_decision_schema_identity,
+    psi_target_neutral_decision_target_identity,
 };
 pub use optimization_core::identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder, FunctionFragmentEmissionIdentity,

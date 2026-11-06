@@ -411,10 +411,9 @@ pub(crate) fn expression_type_reference(
             if let Some(receiver) = expression_type_reference(program, member.receiver)
                 && let Some(data) =
                     crate::value_custody::places::data_definition_for_type(program, receiver)
+                && let Some(field) = program.data_field_named(data, member.member.as_str())
             {
-                return program
-                    .data_field_named(data, member.member.as_str())
-                    .map(|field| field.type_reference);
+                return Some(field.type_reference);
             }
             // Structural `.len` and `.capacity` are compiler-owned measures of
             // an array, slice, or range window. Lowering already retains the

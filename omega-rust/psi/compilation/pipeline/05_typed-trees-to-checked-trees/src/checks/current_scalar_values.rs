@@ -290,6 +290,46 @@ impl<'program> CurrentScalarValues<'program> {
                     })
                 }),
         );
+        // Nested machines read the enclosing machine's immutable value and
+        // const coordinates. Those symbols stay in lexical scope, so a helper
+        // that decreases the enclosing rank can name them.
+        let (declaration_scope, _) =
+            program.machine_declaration_scope(machine, |left, right| left.symbol == right.symbol);
+        for parameter in declaration_scope {
+            if initial
+                .iter()
+                .any(|binding| binding.symbol == parameter.symbol)
+            {
+                continue;
+            }
+            let reference = match parameter.kind {
+                typed_trees::data::TypeParameterKind::Value { type_reference }
+                | typed_trees::data::TypeParameterKind::Const { type_reference } => type_reference,
+                _ => continue,
+            };
+            let Some(primitive) = integer_carrier(program, reference) else {
+                continue;
+            };
+            initial.push(Binding {
+                symbol: parameter.symbol,
+                name: parameter.name.to_string(),
+                value: Some(entry_fields::entry_value(
+                    program,
+                    reference,
+                    None,
+                    ScopedArithmeticValue::Atom {
+                        identity: format!(
+                            "machine:{:?}:value:{:?}",
+                            machine.symbol, parameter.symbol
+                        ),
+                        unsigned: unsigned(primitive),
+                    },
+                )),
+                alternatives: Vec::new(),
+                immutable_coordinate: true,
+                unwritable: true,
+            });
+        }
         let lengths = program
             .state_parameters(state)
             .iter()

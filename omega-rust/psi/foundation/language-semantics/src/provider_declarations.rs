@@ -60,6 +60,7 @@ pub struct ClosedProviderInstance<Identity> {
 /// consuming an individual declaration's refusal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderInstanceApplication<Identity> {
+    pub declaration_application: Result<String, String>,
     pub receiving_application: Result<String, String>,
     pub candidates: Vec<Result<ClosedProviderInstance<Identity>, String>>,
 }

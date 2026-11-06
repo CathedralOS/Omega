@@ -77,7 +77,9 @@ impl AnalysisSet {
             .filter(move |analysis| self.contains(*analysis))
     }
 
-    pub const fn encode(self) -> [u8; 8] {
+    pub const ENCODED_WIDTH: usize = 8;
+
+    pub const fn encode(self) -> [u8; Self::ENCODED_WIDTH] {
         self.0.to_le_bytes()
     }
 

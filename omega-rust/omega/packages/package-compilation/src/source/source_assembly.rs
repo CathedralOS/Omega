@@ -17,6 +17,7 @@
 
 mod build_source;
 pub use build_source::BuildSourceSelection;
+pub(crate) use build_source::is_build_prelude_source;
 
 use crate::PackageCompilationInputs;
 use crate::source::source_imports::{
@@ -390,6 +391,33 @@ impl ImmutableSourceParseCheckpoint {
             package_source_inputs: self.package_source_inputs.clone(),
             product_roots: self.product_roots.clone(),
         }
+    }
+
+    /// Extend pending Product roots from an admitted completed default
+    /// supplier. This is source seeding, not another parser or Build route.
+    pub fn with_toolchain_defaults(
+        mut self,
+        defaults: &crate::CompletedProviderDefaults,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let capture = defaults.toolchain_capture().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "toolchain source defaults have a different supplier kind",
+            )]
+        })?;
+        let seeds =
+            defaults.source_seeds(crate::ProviderDefaultsAdmission::CapturedToolchain(capture))?;
+        Arc::make_mut(&mut self.source_storage).admit_toolchain_capture(capture)?;
+        let roots = self.product_roots.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "default source seeds must precede Product typing",
+            )]
+        })?;
+        let mut roots = roots.to_vec();
+        roots.extend(seeds);
+        roots.sort();
+        roots.dedup();
+        self.product_roots = Some(roots.into());
+        Ok(self)
     }
 
     pub fn root_path(&self) -> &Path {
@@ -1046,7 +1074,7 @@ fn append_build_prelude(
     };
     let admitted = storage.admit_source(
         SourceContents {
-            path: PathBuf::from("<build-prelude>"),
+            path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
             source: Arc::from(prelude.source),
             scope: source::DependencyScope::Build,
         },

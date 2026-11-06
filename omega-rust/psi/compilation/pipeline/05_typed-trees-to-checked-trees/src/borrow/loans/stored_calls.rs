@@ -66,6 +66,8 @@ pub(super) fn roster_at_expression(
         kind: loan.kind,
         lineage: loan.lineage,
         formation: loan.formation,
+        formation_expression: loan.formation_expression,
+        formation_owner_path: loan.formation_owner_path,
         permission_sources: Vec::new(),
         owner_path: loan.owner_path,
         place: loan.place,

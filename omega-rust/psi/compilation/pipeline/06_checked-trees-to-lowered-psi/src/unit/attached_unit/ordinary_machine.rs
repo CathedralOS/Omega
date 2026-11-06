@@ -23,8 +23,6 @@
 //! A selected operand may transfer a parameter on only one branch, so a static
 //! final-return discard cannot also own that parameter's cleanup.
 
-#[path = "ordinary_machine/proof_scope.rs"]
-mod proof_scope;
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
@@ -1171,7 +1169,9 @@ pub(super) fn emit(
             outcome_specific_ensures: Vec::new(),
         },
     };
-    proof_scope::bind(&mut machine)?;
+    for block in &mut machine.blocks {
+        crate::scalar_lowering::contracts::bind_invocation_proof_references(block);
+    }
     crate::emission::continuation_specialization::complete(
         &mut machine,
         &selected_cleanup_groups,
@@ -1360,6 +1360,17 @@ fn establish_call_literals(
             ))?;
     let mut operations = OperationBuffer::new(
         operation_identity_base,
+        *next_place,
+        std::sync::Arc::new(
+            crate::emission::reference_formations::ReferenceFormations::prepare(
+                checked,
+                plan.state,
+                plan.operations
+                    .iter()
+                    .flat_map(|operation| operation.with_value_calls()),
+                std::iter::empty(),
+            )?,
+        ),
         std::sync::Arc::clone(dynamic_dispatch),
     );
     let mut private_places = literal_arguments

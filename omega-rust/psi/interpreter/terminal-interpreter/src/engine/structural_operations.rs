@@ -815,16 +815,12 @@ impl TerminalExecution<'_> {
     ) -> Result<OperationFlow, TerminalInterpretError> {
         dispatched_operation!(operation => EstablishStructuralLocal {});
         let result = operation.result.structural().ok_or_else(malformed)?;
-        // A descriptor home may declare byte qualifications its stores prove.
-        let descriptor_home = matches!(
-            self.structural_types().get(&result.structural_type),
-            Some(declaration) if declaration.shape.is_borrowed_byte_view()
-        );
-        if (!result.qualifications.is_empty() && !descriptor_home)
-            || !result.projected_qualifications.is_empty()
-            || !result.claims.is_empty()
-            || self.result_place_in_use(result.place)
-        {
+        terminal_semantics::validate_vacant_structural_local(
+            self.structural_types().values(),
+            result,
+        )
+        .map_err(|reason| TerminalInterpretError::VerifiedOperationContractInvalid { reason })?;
+        if self.result_place_in_use(result.place) {
             return Err(malformed());
         }
         let home = TerminalStructuralValue::minted(
@@ -1467,14 +1463,31 @@ impl TerminalExecution<'_> {
         // opaque maps. Descriptor-bearing values keep the construction storage
         // transaction, including standalone view descriptors and their custody.
         let destination_path = window.path;
-        let scalar_writes = if reserved.is_none() {
+        // Installing a complete value in a vacant declared home establishes
+        // its storage representation too. Leaf writes would split a byte-array
+        // backing into unrelated scalar cells, so later byte loans could not
+        // find the initialized array. Existing borrowed storage instead keeps
+        // its pinned endpoints and uses the ordinary replacement writes.
+        let initializes_home = disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && path.is_empty()
+            && field.is_none()
+            && machine
+                .producing_operation(destination)
+                .is_some_and(|(producer, ty)| {
+                    matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+                        && producer.result.structural().is_some_and(|result| {
+                            result.place == destination && result.structural_type == ty
+                        })
+                });
+        // Reserved linear storage has no initialized endpoints to overwrite.
+        let writes = if initializes_home || reserved.is_some() {
+            None
+        } else {
             child
                 .replacement_writes(self, value, destination, &destination_path)
                 .map_err(|error| failure("scalar storage preparation", error))?
-        } else {
-            None
         };
-        if let Some(writes) = scalar_writes {
+        if let Some(writes) = writes {
             writes.commit(self)?;
         } else if window.aggregate_view {
             // An empty interpreted array already has its authenticated backing;

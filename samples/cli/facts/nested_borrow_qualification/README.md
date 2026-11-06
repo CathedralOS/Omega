@@ -11,6 +11,19 @@ exit 0. Its `invalid/` twin removes only the `Terminated` qualification from
 the stored words reference. The same consumer must then reject its unproved
 zero requirement.
 
+The consumer, its parameter types and the stored domain are public. Its body
+therefore proves the consuming call from the field's declared qualification.
+[Private helper inference](../../../../wiki/spec/language/state_contracts.md)
+can use facts from every known caller; with only zero-tail callers, removing the
+field qualification from a private helper still leaves a valid program.
+
+Each positive also reads three distinct nonzero neighboring words through the
+same nested reference. The runtime check fails if the consuming call returns a
+nonzero result or a neighbor changes. This makes a wrong pointer or element
+offset observable without adding a caller guard that proves the zero-tail fact.
+The match join selects between two arrays with different first neighbors and
+checks both selector values, so choosing the same arm twice fails at runtime.
+
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the qualified attributes are reached through a local `view: &Attributes` binding |
@@ -39,15 +52,17 @@ stored zero; the target bodies perform the same consuming call.
 Parent: FILESYSTEM-PLATFORM-SERVICES. The immediate customer is Windows
 handle-relative removal's nested borrowed native input contract.
 
-All nine places execute with native/Terminal exit 0 on macOS arm64. Each reject
-twin removes only the stored qualification and rejects the same consuming
-requirement. The state edge retains the actual transitive `Name` backing rather
-than relying on retired stack bytes surviving native execution.
+On source `8c82ca17ac2c`, the unchanged earlier positives all run with native
+and Terminal exit 0 on Linux x86-64; the local project also passes ordinary CLI
+admission and both engines on macOS ARM64. The prior private-consumer twins
+were valid under private helper inference. A nonzero-tail countercheck rejects,
+as does the exported unqualified consumer; exporting its required domain lets
+the qualified consumer check. The current exported-consumer and neighbor-check
+witnesses still need their full fresh execution and rejection record.
 
-This establishes nested qualification transport, not completion of the Windows
-portable filesystem provider. Windows runtime execution is unavailable and
-explicitly deferred by the owner. Foreign image production is not runtime
-acceptance on that target.
+This row establishes nested qualification transport. The parent Windows
+filesystem-provider acceptance remains separate; a foreign image alone does
+not demonstrate execution on that host.
 
 ## Pinned Fixtures
 
@@ -57,11 +72,10 @@ fixtures, each a byte-identical copy of its place program and `build.omg`
 (`ProgramEntry` for all four hosted targets, `Expected exit: 0`), and nine
 `tests/omega/fail/facts/nested_borrow_qualification_through_<place>_rejected`
 twins, each a byte-identical copy of its `invalid/` program pinning the
-diagnostic `cannot prove requires contract`. Recorded rows: 18 `checked` with
-`check-target:macos_arm64` and 18 `rejected` with `expected` in
-[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt), 9
-`built exit:0 interpreter-exit:0 interpreter:agrees` in
-[`corpus_both_macos_arm64.txt`](../../../../tests/omega/corpus_both_macos_arm64.txt).
+diagnostic `cannot prove requires contract`. Refresh their source records in
+[`corpus_outcomes.txt`](../../../../tests/omega/corpus_outcomes.txt) from direct
+runs of those fixture IDs after the current programs are committed. Sample
+observations and pinned-fixture observations retain their own input identities.
 
 ## Requirements witnessed
 

@@ -607,6 +607,30 @@ impl<'program> ShapeCollector<'program> {
         (identity == source_identity).then_some(())
     }
 
+    /// Keep every source-contract carrier and theory through catalog pruning.
+    /// The requirement record survives even when a carrier cannot be shaped;
+    /// an actual Terminal consumer still refuses that missing declaration.
+    pub(in super::super) fn retain_reference_contract_types(
+        &mut self,
+        contract: &checked_trees::CheckedReferenceSourceContract,
+        roots: &mut impl Extend<TypeIdentityId>,
+    ) {
+        let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract
+        else {
+            return;
+        };
+        for (domain, reference) in &contract.domains {
+            if let Some(identity) = self.add_domain(*domain, *reference, &[]) {
+                roots.extend(std::iter::once(identity));
+            }
+        }
+        for reference in &contract.projection_types {
+            if let Some(identity) = self.add_stored_type(*reference, &[], &[]) {
+                roots.extend(std::iter::once(identity));
+            }
+        }
+    }
+
     /// The primitive a registered identity names when its catalog row is a
     /// primitive scalar. A borrowed formal registers its peeled referent, so
     /// this is the primitive a `&u8` or `&mut i64` formal lends.
@@ -940,16 +964,39 @@ impl<'program> ShapeCollector<'program> {
         }
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
             let (copyable, no_code_affine_cleanup, descriptor_cleanup) = storage_properties();
-            let scalar_restriction = match scalar_fields::retain_scalar_field(
+            let (shape, scalar_restriction) = match scalar_fields::retain_scalar_field(
                 self.program,
                 type_reference,
                 substitutions,
                 primitive,
                 None,
             )? {
-                CheckedUnitStructuralFieldType::Scalar(_) => None,
+                CheckedUnitStructuralFieldType::Scalar(_) => (
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    None,
+                ),
                 restriction @ (CheckedUnitStructuralFieldType::BoundedInteger(_)
-                | CheckedUnitStructuralFieldType::RefinedScalar { .. }) => Some(restriction),
+                | CheckedUnitStructuralFieldType::RefinedScalar { .. }) => (
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    Some(restriction),
+                ),
+                CheckedUnitStructuralFieldType::Atomic(primitive) => {
+                    let cell = if primitive == typed_trees::types::PrimitiveType::Bool {
+                        semantic_vocabulary::AtomicCellType::Boolean
+                    } else {
+                        let (sign, bits) = primitive.integer_sign_bits()?;
+                        semantic_vocabulary::AtomicCellType::Integer(
+                            semantic_vocabulary::IntegerType::new(sign, bits).ok()?,
+                        )
+                    };
+                    cell.is_supported().then_some(())?;
+                    (CheckedUnitStructuralTypeShape::AtomicCell(cell), None)
+                }
+                CheckedUnitStructuralFieldType::AtomicBoundedInteger(bounds) => {
+                    let cell = semantic_vocabulary::AtomicCellType::BoundedInteger(bounds);
+                    cell.is_supported().then_some(())?;
+                    (CheckedUnitStructuralTypeShape::AtomicCell(cell), None)
+                }
                 _ => return None,
             };
             self.types.insert(
@@ -967,7 +1014,7 @@ impl<'program> ShapeCollector<'program> {
                     copyable,
                     descriptor_cleanup,
                     identity,
-                    shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    shape,
                 },
             );
             return Some(identity);
@@ -1777,7 +1824,8 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::ByteSequence(_) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }
-                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                    | CheckedUnitStructuralTypeShape::AtomicCell(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                         if let CheckedUnitRecordStorage::TargetLayout {
                             schema_type_identity,

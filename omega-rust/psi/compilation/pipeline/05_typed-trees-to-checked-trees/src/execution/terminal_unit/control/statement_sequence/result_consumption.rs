@@ -1233,6 +1233,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             returned,
             ..statement_retirement
         };
+        trace.phase("statement sequence: completion reference complements");
         let complements = complement_completions(&retirement)?;
         if !complements.is_empty() {
             for (position, complement) in complements {
@@ -1247,6 +1248,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             }
             continue;
         }
+        trace.phase("statement sequence: completion reference carrier dependencies");
         let mut next = None;
         for (index, (_, operation, storage_loans)) in pending.iter().enumerate() {
             let OperationPlan::ReleaseReference { loans, source, .. } = operation else {
@@ -1259,7 +1261,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
             if !retirement.carrier_children_retired(result) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
                         result.binding_ordinal,
@@ -1276,7 +1280,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 retired
             }) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
                         result.binding_ordinal,
@@ -1291,7 +1297,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .loan_group(*loans)?
                 .all(|(loan, _)| retirement.children_retired(loan))
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
                         result.binding_ordinal,
@@ -1313,12 +1321,14 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             scheduled.push(pending.remove(index).1);
             continue;
         }
+        trace.phase("statement sequence: completion reference backing dependencies");
         let mut releases = retirement.backing_releases()?;
         // A final store can establish a new named descriptor after the last
         // ordinary statement boundary. Its RHS transferred into that home;
         // retiring only result carriers would strand the receiving occurrence
         // until after its backing's source-state death. Reuse the same exact
         // formation groups and dependency checks at this selected completion.
+        trace.phase("statement sequence: completion stored reference dependencies");
         for operation in operations
             .iter()
             .rev()
@@ -1331,7 +1341,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     for (_, operation, storage_loans) in &pending {
                         let OperationPlan::ReleaseReference {
                             source: SourcePlan::StructuralResult { binding_ordinal },

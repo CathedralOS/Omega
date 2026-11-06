@@ -61,10 +61,16 @@ impl<'a> Elaborator<'a> {
         {
             return Some(*term);
         }
+        let resolved = self
+            .source_index_aliases
+            .iter()
+            .find(|(parameter, _)| *parameter == symbol)
+            .map(|(_, field)| *field)
+            .unwrap_or(symbol);
         let position = self
             .scope
             .iter()
-            .rposition(|entry| entry.symbol == Some(symbol))?;
+            .rposition(|entry| entry.symbol == Some(resolved))?;
         Some(self.scope_variable(position))
     }
 

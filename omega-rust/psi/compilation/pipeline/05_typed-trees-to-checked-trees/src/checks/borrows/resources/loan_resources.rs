@@ -147,21 +147,31 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
             continue;
         }
 
+        // Preparation may include a branch that never completed. Index the
+        // actual activations once rather than rescan them for every loan.
+        let mut activated = vec![false; state.loans.count() as usize];
+        for activation in flow
+            .borrow_lifetimes
+            .activations
+            .span_or_empty(flow_state.borrow_activations)
+        {
+            if borrow.state_owns_loan(state, activation.loan) {
+                activated[(activation.loan.arena_index() - state.loans.start().arena_index())
+                    as usize] = true;
+            }
+        }
         for (loan_handle, loan) in borrow.state_loans(state) {
-            if borrow.incoming_references.is_valid(loan.incoming_reference)
-                && matches!(
-                    borrow
-                        .incoming_references
-                        .get(loan.incoming_reference)
-                        .origin,
-                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
-                )
-                && !flow
-                    .borrow_lifetimes
-                    .activations
-                    .span_or_empty(flow_state.borrow_activations)
-                    .iter()
-                    .any(|activation| activation.loan == loan_handle)
+            if (borrow.is_call_result_loan(loan)
+                || (borrow.incoming_references.is_valid(loan.incoming_reference)
+                    && matches!(
+                        borrow
+                            .incoming_references
+                            .get(loan.incoming_reference)
+                            .origin,
+                        checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                    )))
+                && !activated
+                    [(loan_handle.arena_index() - state.loans.start().arena_index()) as usize]
             {
                 // Syntactic preparation does not establish a permission on an
                 // unevaluated route. Only actual completions have resources.
@@ -305,18 +315,18 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                             .supplied_output_resources
                             .iter()
                             .filter(|(_, resource)| resource.loan == *parent_loan)
-                            .filter_map(|(_, resource)| {
+                            .filter(|&(_, resource)| {
                                 flow.borrow_lifetimes
                                     .weakenings
                                     .is_valid(resource.holder_weakening)
-                                    .then(|| {
-                                        (
-                                            resource.holder_weakening,
-                                            flow.borrow_lifetimes
-                                                .weakenings
-                                                .get(resource.holder_weakening),
-                                        )
-                                    })
+                            })
+                            .map(|(_, resource)| {
+                                (
+                                    resource.holder_weakening,
+                                    flow.borrow_lifetimes
+                                        .weakenings
+                                        .get(resource.holder_weakening),
+                                )
                             })
                             .collect::<Vec<_>>()
                     } else {

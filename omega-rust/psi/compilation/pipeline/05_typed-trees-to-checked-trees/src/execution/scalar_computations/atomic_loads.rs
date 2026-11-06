@@ -80,7 +80,6 @@ impl Builder<'_, '_> {
             },
         )?;
         if field.primitive_type != expected
-            || !field.field.is_valid()
             || field.path.iter().any(|segment| {
                 !matches!(
                     segment,

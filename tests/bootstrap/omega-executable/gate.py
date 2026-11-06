@@ -128,8 +128,8 @@ def main():
     require_identity("Delta compiler", delta_compiler, 147840,
                      "fbcb9e17b7ce0c75849136086bc5a4b6df4264054be72b5aae6d70325f9d0929")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 571866,
-                     "ad9a78c953bd3ec67c9e0ccc5283cb36f63a8ce1a491f9a97293cce51b836d29")
+    require_identity("D", compiler, 572143,
+                     "99535101fac4473527467d354a4f93db50f1fb8802fd69c1886eee283555b867")
     subject = epsilon + adapter
     support = (directory / "support.bin").read_bytes()
     request = (b"DCREQ\x01\x00\x00" + struct.pack("<II", 1, len(subject))
@@ -237,7 +237,8 @@ def main():
     temporary.write_bytes(tape)
     os.replace(temporary, directory / "program.tape")
     code, output, errors = run(["sh", str(gate / "execute.sh"), str(directory)], b"", 30,
-                               "Emitted Alpha program")
+                               "Emitted Alpha program",
+                               "Alpha execution did not finish")
     if code != expected_exit or output or errors:
         raise SystemExit(f"Program result {code}, stdout {output!r}, stderr {errors!r}; expected {expected_exit}")
     print(f"PASS: {options.source or gate / 'program.omg'} -> {directory / 'program.tape'} -> exit {code}")

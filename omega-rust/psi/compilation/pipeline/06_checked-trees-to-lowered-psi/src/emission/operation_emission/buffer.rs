@@ -179,6 +179,7 @@ pub(crate) fn structural_result_declaration(
         multiplicity,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         claims: Vec::new(),
     })
 }
@@ -267,6 +268,7 @@ struct StructuralMaterialization {
 }
 
 pub(crate) struct OperationBuffer {
+    pub(crate) reference_backings: crate::emission::reference_backings::ReferenceBackings,
     pub(crate) source_returns:
         Vec<crate::expression_preparation::qualifications::SourceScalarReturn>,
     pub(crate) computed_values: Vec<(
@@ -298,6 +300,9 @@ pub(crate) struct OperationBuffer {
     /// Literal operations have Unit results, so their emitting owner retains
     /// the carrier here rather than recovering it from a source-call shape.
     pub(crate) literal_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
+    /// Block-parameter homes established when capturing a completed structural
+    /// address across a private continuation jump.
+    pub(crate) captured_place_types: Vec<(PlaceId, semantic_vocabulary::StructuralTypeId)>,
     /// Value-establishment obligations accompany the exact private arrival.
     pub(crate) scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
     /// Source-proved singleton values keyed by their exact selector occurrence
@@ -321,6 +326,8 @@ pub(crate) struct OperationBuffer {
     /// Source-only associations created by the actual reference emitter.
     /// The source operand belongs to its formation epoch, not current storage.
     pub(crate) loan_captures: Vec<lowered_psi::LoweredSourceLoanCapture>,
+    pub(crate) reference_formations:
+        std::sync::Arc<crate::emission::reference_formations::ReferenceFormations>,
     pub(crate) loan_completions: Vec<terminal_psi::LoanCompletion>,
     /// The module's selector interfaces and tables, by identity.
     pub(crate) dynamic_dispatch:
@@ -445,6 +452,25 @@ impl OperationBuffer {
             );
         }
         if let Some(result) = operation.result.structural() {
+            // Copying or moving a whole descriptor keeps its referent. A
+            // projected child needs its own formation; its parent's backing
+            // cannot identify that child's reference.
+            match &operation.kind {
+                OperationKind::MoveStructuralValue { source } => {
+                    self.reference_backings.forward(source, result.place);
+                }
+                OperationKind::StructuralLeafCopy { source, path } if path.is_empty() => {
+                    self.reference_backings.forward(
+                        &terminal_psi::StructuralArgument {
+                            place: *source,
+                            path: Vec::new(),
+                            access: terminal_psi::StructuralAccess::Owned,
+                        },
+                        result.place,
+                    );
+                }
+                _ => {}
+            }
             self.structural_establishments.push(result.place);
         } else if let OperationKind::EstablishTrivialAffineLocal { destination }
         | OperationKind::EstablishByteSequenceLiteral { destination, .. } =
@@ -626,9 +652,16 @@ impl OperationBuffer {
 
     pub(crate) fn new(
         identity_base: u64,
+        first_place: u64,
+        reference_formations: std::sync::Arc<
+            crate::emission::reference_formations::ReferenceFormations,
+        >,
         dynamic_dispatch: std::sync::Arc<crate::unit::dynamic_dispatch::DynamicDispatchIndex>,
     ) -> Self {
         Self {
+            reference_backings: crate::emission::reference_backings::ReferenceBackings::new(
+                first_place,
+            ),
             source_returns: Vec::new(),
             arrival_claims: Vec::new(),
             block_entry_claims: Vec::new(),
@@ -639,6 +672,7 @@ impl OperationBuffer {
             structural_establishments: Vec::new(),
             structural_materializations: Vec::new(),
             literal_types: Vec::new(),
+            captured_place_types: Vec::new(),
             scalar_block_invariants: Vec::new(),
             scalar_index_coordinates: Vec::new(),
             next_identity: identity_base
@@ -651,6 +685,7 @@ impl OperationBuffer {
             quotient_adaptations: Vec::new(),
             quotient_calls: Vec::new(),
             loan_captures: Vec::new(),
+            reference_formations,
             loan_completions: Vec::new(),
             selected_comparisons: Vec::new(),
             source_checked_obligations: Vec::new(),

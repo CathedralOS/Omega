@@ -361,6 +361,11 @@ pub struct BorrowLoanFact {
     /// its borrowing parent. These descriptor edges are not reborrow events.
     /// The shared graph keeps every supplier without expanding whole histories.
     pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Complete input lifetime debts for a directly returned reference.
+    /// Normal-call publication records Some(empty) when no input is retained;
+    /// None supplies no completed inventory. These keepalive edges cannot act
+    /// as spatial suppliers or confer the returned pointer's permission.
+    pub retained_input_lifetimes: Option<HandleSpan<Handle<BorrowLoanFact>>>,
     /// Checked formation lineage for this loan occurrence.
     ///
     /// An explicit reborrow with one exact prior source occurrence names a
@@ -1065,14 +1070,26 @@ impl BorrowFacts {
             .map(|handle| (handle, self.loans.get(handle)))
     }
 
-    /// Exact state membership and the statement-resource role share one
-    /// constant-time predicate. Invocation associations remain provenance.
+    /// A returned value keeps its own permission and input lifetimes after the
+    /// call completes. Slot-replacement associations have a separate role.
+    pub fn is_call_result_loan(&self, loan: &BorrowLoanFact) -> bool {
+        matches!(loan.storage_owner, Expression(expression)
+            if expression == loan.formation_expression
+                && self.calls.is_valid(loan.established_by_call)
+                && self.calls.get(loan.established_by_call).authored_expression == expression
+                && self.calls.get(loan.established_by_call).statement_index == loan.statement_index)
+    }
+
+    /// Locally formed and returned-value loans both owe a complete lifetime.
+    /// Temporary associations used to replace stored references are excluded.
     pub fn state_owns_statement_resource(
         &self,
         state: &StateBorrowFact,
         loan: Handle<BorrowLoanFact>,
     ) -> bool {
-        self.state_owns_loan(state, loan) && !self.loans.get(loan).established_by_call.is_valid()
+        self.state_owns_loan(state, loan)
+            && (!self.loans.get(loan).established_by_call.is_valid()
+                || self.is_call_result_loan(self.loans.get(loan)))
     }
 
     /// A flow cut can retain only an entry permission published for this
@@ -1322,7 +1339,57 @@ impl BorrowFacts {
 
 #[cfg(test)]
 mod index_tests {
-    use super::{BorrowFacts, StateBorrowFact, SymbolHandle};
+    use super::{
+        BorrowCallFact, BorrowFacts, BorrowLoanFact, Expression, ExpressionHandle, StateBorrowFact,
+        Symbol, SymbolHandle,
+    };
+
+    #[test]
+    fn returned_value_lifetime_is_distinct_from_call_slot_associations() {
+        let mut facts = BorrowFacts::default();
+        let expression = ExpressionHandle::from_parts(7, 1);
+        let invocation = facts.calls.insert(BorrowCallFact {
+            statement_index: 3,
+            authored_expression: expression,
+            ..BorrowCallFact::default()
+        });
+        let returned = BorrowLoanFact {
+            statement_index: 3,
+            formation_expression: expression,
+            storage_owner: Expression(expression),
+            established_by_call: invocation,
+            ..BorrowLoanFact::default()
+        };
+        let mut stored = returned.clone();
+        stored.storage_owner = Symbol(SymbolHandle::from_parts(9, 1));
+        let mut wrong_occurrence = returned.clone();
+        wrong_occurrence.formation_expression = ExpressionHandle::from_parts(8, 1);
+        let mut wrong_statement = returned.clone();
+        wrong_statement.statement_index = 4;
+        let mut missing_call = returned.clone();
+        missing_call.established_by_call = arena::Handle::from_parts(19, 1);
+        let loans = facts.loans.insert_many([
+            BorrowLoanFact::default(),
+            returned,
+            stored,
+            wrong_occurrence,
+            wrong_statement,
+            missing_call,
+        ]);
+        let state = StateBorrowFact {
+            loans,
+            ..StateBorrowFact::default()
+        };
+        let resources = facts
+            .statement_resource_loans(&state)
+            .unwrap()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        assert_eq!(resources, vec![loans.handle_at(0), loans.handle_at(1)]);
+        assert!(
+            !facts.state_owns_statement_resource(&StateBorrowFact::default(), loans.handle_at(1))
+        );
+    }
 
     #[test]
     fn unique_state_borrow_preserves_duplicates_and_mutation_visibility() {

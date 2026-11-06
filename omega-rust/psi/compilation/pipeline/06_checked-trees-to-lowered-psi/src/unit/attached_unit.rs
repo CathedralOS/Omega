@@ -845,6 +845,7 @@ struct CheckedUnitProviderCandidate {
     provider: symbols::SymbolHandle,
     boundary: symbols::SymbolHandle,
     candidate: symbols::SymbolHandle,
+    receiving: arena::Handle<checked_trees::CheckedProviderReceivingApplication>,
     requirement_identity: typed_trees::type_identity::CallableIdentityId,
     provider_identity: String,
     candidate_identity: typed_trees::type_identity::CallableIdentityId,

@@ -566,6 +566,7 @@ pub(crate) fn emit(
             multiplicity: effect.multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             claims: emit_establishment_claims(&effect.claims, &mut calls.claims)?,
         }),
         if fields.is_empty() {

@@ -28,6 +28,7 @@ pub use storage::calling_storage::{
 pub use storage::storage_dependencies::{
     inline_storage_extent_dependencies, storage_operand_dependencies,
 };
+pub use storage::structural_locals::validate_vacant_structural_local;
 pub mod control_graph;
 pub use access::access_lifecycles::{
     AccessResultContract, access_result_contract, access_view_reference_slot,
@@ -63,9 +64,12 @@ mod scalars;
 mod storage;
 mod structural;
 pub use calls::invocation_inputs::validate_empty_erased_invocation_inputs;
-pub use descriptors::membership_presentations::present_structural_memberships;
+pub use descriptors::membership_presentations::{
+    present_structural_membership_contract, present_structural_memberships,
+};
 pub use descriptors::selected_memberships::{
-    reference_carrier_memberships, reference_source_memberships,
+    reference_carrier_membership_contract, reference_carrier_memberships,
+    reference_source_memberships,
 };
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,
@@ -192,6 +196,7 @@ pub use storage::storage_regions::{
     projected_storage_region,
 };
 pub use storage::zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
+pub use structural::atomic_cell::atomic_cell_type;
 pub use structural::partial_affine::partial_affine_residuals;
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,

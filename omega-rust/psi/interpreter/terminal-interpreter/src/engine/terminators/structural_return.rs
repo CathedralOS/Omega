@@ -184,6 +184,7 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+            self.validate_complete_owned_value_claims(*source, value.structural_type, &[])?;
             let actual_claims = self
                 .live_claims
                 .iter()

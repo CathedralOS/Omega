@@ -142,11 +142,11 @@ pub(crate) fn rewrite_cloned_calls(
             };
             // A call selecting a sibling specialization state forwards each
             // runtime-bound `Value` subject as an ordinary argument.
-            let clone_state_arguments = if state_symbols
+            let clone_state_subjects = if state_symbols
                 .iter()
                 .any(|(_, concrete)| *concrete == snapshot.target_symbol)
             {
-                let subjects = runtime_value_operands(
+                runtime_value_operands(
                     program,
                     state.symbol,
                     &snapshot
@@ -155,13 +155,17 @@ pub(crate) fn rewrite_cloned_calls(
                         .cloned()
                         .map(crate::monomorphization::RuntimeValueBinding::Authored)
                         .collect::<Vec<_>>(),
-                );
-                (!subjects.is_empty()).then(|| {
-                    super::insert_arguments_with_subjects(program, snapshot.arguments, &subjects)
-                })
+                )
             } else {
-                None
+                Vec::new()
             };
+            let clone_state_arguments = (!clone_state_subjects.is_empty()).then(|| {
+                super::insert_arguments_with_subjects(
+                    program,
+                    snapshot.arguments,
+                    &clone_state_subjects,
+                )
+            });
             let evidence_dispatch = evidence_target_rewrites
                 .iter()
                 .find(|rewrite| rewrite.placeholder == snapshot.target_symbol);
@@ -220,7 +224,7 @@ pub(crate) fn rewrite_cloned_calls(
                     call.receiver = HandleSpan::empty();
                 },
             );
-            let application = call.authored_machine_application;
+            let mut application = call.authored_machine_application;
             let target = call.target.clone();
             let applications = StaticArgumentCall::Statement(call).applications();
             for application in applications {
@@ -229,7 +233,7 @@ pub(crate) fn rewrite_cloned_calls(
             if !application.is_valid()
                 && let Some((registration_operation, arguments)) = erased_application
             {
-                let application = expressions_of_mut(program).retain_static_machine_application(
+                application = expressions_of_mut(program).retain_static_machine_application(
                     registration_operation,
                     target,
                     &arguments,
@@ -240,6 +244,11 @@ pub(crate) fn rewrite_cloned_calls(
                     unreachable!();
                 };
                 call.authored_machine_application = application;
+            }
+            // Substitution and restoration may replace the application handle.
+            // Record the same operands that this copied call now receives.
+            if !clone_state_subjects.is_empty() {
+                super::record_runtime_call_operands(program, application, &clone_state_subjects);
             }
         }
     }
@@ -256,30 +265,32 @@ pub(crate) fn rewrite_cloned_calls(
             &evidence_rewrites,
             &static_argument_rewrites,
         );
-        let clone_state_arguments = match expressions_of(program).expression(handle).clone() {
-            ExpressionNode::Call(snapshot)
-                if state_symbols
-                    .iter()
-                    .any(|(_, concrete)| *concrete == snapshot.target_symbol) =>
-            {
-                let subjects = runtime_calls
-                    .binary_search_by_key(
-                        &(handle.arena_index(), handle.generation()),
-                        |(expression, _)| (expression.arena_index(), expression.generation()),
-                    )
-                    .ok()
-                    .map(|ordinal| runtime_calls[ordinal].1.as_slice())
-                    .unwrap_or(&[]);
-                (!subjects.is_empty()).then(|| {
-                    let mut arguments = expressions_of(program)
-                        .expression_handles(snapshot.arguments)
-                        .to_vec();
-                    insert_subject_operands(&mut arguments, subjects);
-                    expressions_of_mut(program).insert_expression_handles(arguments)
-                })
-            }
-            _ => None,
-        };
+        let (clone_state_arguments, clone_state_subjects): (_, &[ExpressionHandle]) =
+            match expressions_of(program).expression(handle).clone() {
+                ExpressionNode::Call(snapshot)
+                    if state_symbols
+                        .iter()
+                        .any(|(_, concrete)| *concrete == snapshot.target_symbol) =>
+                {
+                    let subjects = runtime_calls
+                        .binary_search_by_key(
+                            &(handle.arena_index(), handle.generation()),
+                            |(expression, _)| (expression.arena_index(), expression.generation()),
+                        )
+                        .ok()
+                        .map(|ordinal| runtime_calls[ordinal].1.as_slice())
+                        .unwrap_or(&[]);
+                    let arguments = (!subjects.is_empty()).then(|| {
+                        let mut arguments = expressions_of(program)
+                            .expression_handles(snapshot.arguments)
+                            .to_vec();
+                        insert_subject_operands(&mut arguments, subjects);
+                        expressions_of_mut(program).insert_expression_handles(arguments)
+                    });
+                    (arguments, subjects)
+                }
+                _ => (None, &[]),
+            };
         let evidence_dispatch = match expressions_of(program).expression(handle) {
             ExpressionNode::Call(call) => evidence_target_rewrites
                 .iter()
@@ -334,7 +345,7 @@ pub(crate) fn rewrite_cloned_calls(
             clone_state_arguments,
             || call.receiver = ExpressionHandle::invalid(),
         );
-        let application = call.authored_machine_application;
+        let mut application = call.authored_machine_application;
         let target = call.target.clone();
         let applications = StaticArgumentCall::Expression(handle, call).applications();
         for application in applications {
@@ -343,7 +354,7 @@ pub(crate) fn rewrite_cloned_calls(
         if !application.is_valid()
             && let Some((registration_operation, arguments)) = erased_application
         {
-            let application = expressions_of_mut(program).retain_static_machine_application(
+            application = expressions_of_mut(program).retain_static_machine_application(
                 registration_operation,
                 target,
                 &arguments,
@@ -353,6 +364,9 @@ pub(crate) fn rewrite_cloned_calls(
                 unreachable!();
             };
             call.authored_machine_application = application;
+        }
+        if !clone_state_subjects.is_empty() {
+            super::record_runtime_call_operands(program, application, clone_state_subjects);
         }
     }
     Ok(())

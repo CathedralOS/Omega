@@ -121,6 +121,9 @@ pub enum StructuralTypeShape {
         fields: Vec<StructuralFieldDeclaration>,
         cases: Vec<StructuralCaseDeclaration>,
     },
+    /// Dedicated atomic storage, including a whole local or array element.
+    /// Ordinary scalar access cannot read or replace this storage.
+    AtomicCell(semantic_vocabulary::AtomicCellType),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -381,7 +384,28 @@ pub enum StructuralFieldType {
     },
 }
 
+impl From<semantic_vocabulary::AtomicCellType> for StructuralFieldType {
+    fn from(cell: semantic_vocabulary::AtomicCellType) -> Self {
+        match cell {
+            semantic_vocabulary::AtomicCellType::BoundedInteger(bounds) => {
+                Self::AtomicBoundedInteger(bounds)
+            }
+            cell => Self::Atomic(cell.scalar_type()),
+        }
+    }
+}
+
 impl StructuralFieldType {
+    pub fn atomic_cell_type(&self) -> Option<semantic_vocabulary::AtomicCellType> {
+        use semantic_vocabulary::AtomicCellType;
+        let cell = match self {
+            Self::Atomic(scalar) => AtomicCellType::from_scalar(*scalar)?,
+            Self::AtomicBoundedInteger(bounds) => AtomicCellType::BoundedInteger(*bounds),
+            _ => return None,
+        };
+        cell.is_supported().then_some(cell)
+    }
+
     /// The structural type identity, if this field is structural.
     pub fn as_structural(&self) -> Option<StructuralTypeId> {
         let StructuralFieldType::Structural(structural) = self else {
@@ -403,20 +427,7 @@ impl StructuralFieldType {
     /// The admitted fixed-width atomic carrier, never an ordinary scalar of
     /// the same representation. Address and floating carriers are not cells.
     pub fn atomic_scalar_type(&self) -> Option<ScalarType> {
-        match self {
-            Self::AtomicBoundedInteger(bounds) => {
-                let integer = bounds.integer_type();
-                (!integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64))
-                    .then_some(ScalarType::Integer(integer))
-            }
-            Self::Atomic(ScalarType::Boolean) => Some(ScalarType::Boolean),
-            Self::Atomic(ScalarType::Integer(integer))
-                if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
-            {
-                Some(ScalarType::Integer(*integer))
-            }
-            _ => None,
-        }
+        self.atomic_cell_type().map(|cell| cell.scalar_type())
     }
 
     pub const fn byte_sequence_carrier(&self) -> Option<ByteSequenceCarrier> {
@@ -507,6 +518,16 @@ impl StructuralFieldType {
         access: crate::StructuralAccess,
         expected: Option<&StructuralTypeDeclaration>,
     ) -> Option<Self> {
+        if access != crate::StructuralAccess::Owned
+            && let Some(cell) = self.atomic_cell_type()
+            && let Some(expected) = expected
+            && expected.shape == StructuralTypeShape::AtomicCell(cell)
+            && expected.scalar_restriction.is_none()
+        {
+            // A typed atomic loan retains its full resident contract. This
+            // does not admit an ordinary scalar observation or leaf copy.
+            return Some(Self::Structural(expected.id));
+        }
         if access != crate::StructuralAccess::Owned
             && let Some(carrier @ ByteSequenceCarrier::BoundedOwned { .. }) =
                 self.byte_sequence_carrier()
@@ -822,6 +843,7 @@ fn structural_type_contains_by<'types>(
             StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::AtomicCell(_)
             | StructuralTypeShape::ByteSequence(_) => {}
         }
     }

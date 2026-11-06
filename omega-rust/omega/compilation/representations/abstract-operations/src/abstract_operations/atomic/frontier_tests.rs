@@ -7,8 +7,7 @@ fn operation(edge: AtomicResidencyEdge) -> AbstractOperation {
         event: AbstractAtomicEvent::ReadModifyWrite {
             location: AbstractAtomicLocation {
                 root: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                field: StructuralFieldId::new(1).unwrap(),
+                path: vec![PathSegment::Field(terminal_psi::TerminalIdentityIndex(1))],
             },
             operation: AbstractAtomicReadModifyWrite::FetchAnd,
             ordering: MemoryOrdering::Receive,
@@ -63,6 +62,7 @@ fn replay(
             })
         },
         |_, _, _, _| false,
+        |_, _, _| None,
     )
 }
 
@@ -134,8 +134,7 @@ fn alternatives_reject_a_defined_writer_that_cannot_reach_the_loop() {
         event: AbstractAtomicEvent::Store {
             location: AbstractAtomicLocation {
                 root: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                field: StructuralFieldId::new(1).unwrap(),
+                path: vec![PathSegment::Field(terminal_psi::TerminalIdentityIndex(1))],
             },
             ordering: MemoryOrdering::Publish,
             value: ValueId::new(1).unwrap(),
@@ -169,6 +168,7 @@ fn alternatives_reject_a_defined_writer_that_cannot_reach_the_loop() {
             entry,
             |_, _, root| Some((root, Vec::new())),
             |_, _, _, _| false,
+            |_, _, _| None,
         )
     };
     assert_eq!(check(alternatives()), None);

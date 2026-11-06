@@ -35,11 +35,13 @@ pub use declarations::traits::{
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::{compiler_operations, contract_identities};
 pub use proof_contracts::contract_entailment::specification_calls::invocation_is_fact_only;
+pub use proof_contracts::default_domains::case_predicate_expressions;
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
     BoundaryQualificationObligation, CallQualificationContract, CallQualificationSource,
     boundary_provider_qualification_obligations, call_qualification_source,
 };
+pub use proof_contracts::relevance::dispatch_subject_of_erased_binding;
 pub use proof_contracts::{
     contract_argument_root, contract_structure, expression_owners, mathematical_applications,
 };
@@ -69,8 +71,9 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    SelectedCallArgument, SelectedCallArgumentError, call_target_has_checked_body_contract,
-    call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
+    SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters, call_returns_unit,
+    call_target_has_checked_body_contract, call_type_arguments,
+    closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, resolve_requirement_contract,
     result_initializer_call_is_admitted, selected_call_arguments,
@@ -493,7 +496,9 @@ pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenota
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
-pub use proof_contracts::contract_entailment::exit_predicates::normal_exit_proves;
+pub use proof_contracts::contract_entailment::exit_predicates::{
+    NormalExitContract, normal_exit_proves,
+};
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::law_conformance::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,

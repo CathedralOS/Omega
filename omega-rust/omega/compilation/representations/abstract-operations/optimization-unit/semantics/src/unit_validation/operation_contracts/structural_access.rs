@@ -41,6 +41,7 @@ pub(crate) struct StructuralSourceContract<'a> {
     pub(crate) access: StructuralAccess,
     qualifications: &'a [StructuralDomainId],
     projected_qualifications: &'a [StructuralPathQualification],
+    additional_input_qualifications: &'a [StructuralPathQualification],
     operation_result: Option<&'a StructuralOperationResult>,
 }
 
@@ -325,6 +326,7 @@ where
             access: formal.access,
             qualifications: formal.qualifications.to_vec(),
             projected_qualifications: formal.projected_qualifications.to_vec(),
+            additional_input_qualifications: formal.additional_input_qualifications.to_vec(),
         };
         // Case selection is a call-scoped loan over existing backing. It does
         // not permit an owned extraction, boundary escape, or a new reference
@@ -418,6 +420,7 @@ where
                     access: source.access,
                     qualifications: source.qualifications.to_vec(),
                     projected_qualifications: source.projected_qualifications.to_vec(),
+                    additional_input_qualifications: source.additional_input_qualifications.to_vec(),
                 },
                 argument,
                 parameter,
@@ -693,6 +696,7 @@ where
                 access: source.access,
                 qualifications: source.qualifications.to_vec(),
                 projected_qualifications: source.projected_qualifications.to_vec(),
+                additional_input_qualifications: source.additional_input_qualifications.to_vec(),
             })
             && !caller.entry_claim_declared(argument.place)
             && !caller.content_entry_claim_declared(argument.place);
@@ -1009,7 +1013,7 @@ fn is_material_write_only_type(
             return false;
         };
         match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::AtomicCell(_) => {}
             StructuralTypeShape::Record { fields, .. } => {
                 for field in fields {
                     if field.relevance.is_erased() {
@@ -1118,6 +1122,7 @@ pub(crate) fn structural_source_contract(
             access: parameter.access,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
+            additional_input_qualifications: &parameter.additional_input_qualifications,
             operation_result: None,
         })
         .or_else(|| {
@@ -1150,6 +1155,7 @@ pub(crate) fn structural_source_contract(
                     access: StructuralAccess::SharedBorrow,
                     qualifications: qualifications.as_slice(),
                     projected_qualifications: &[],
+                    additional_input_qualifications: &[],
                     operation_result: None,
                 })
             })
@@ -1177,6 +1183,7 @@ fn trivial_affine_local_contract(
             access: StructuralAccess::Owned,
             qualifications: &[],
             projected_qualifications: &[],
+            additional_input_qualifications: &[],
             operation_result: None,
         }),
         _ => None,
@@ -1207,6 +1214,7 @@ pub(crate) fn structural_operation_result_contract<'a>(
         access,
         qualifications: &result.qualifications,
         projected_qualifications: &result.projected_qualifications,
+        additional_input_qualifications: &result.additional_input_qualifications,
         operation_result: Some(result),
     })
 }

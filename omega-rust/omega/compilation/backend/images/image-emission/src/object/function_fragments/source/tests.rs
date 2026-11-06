@@ -6,15 +6,16 @@ use target_operations::TargetUnitOperation;
 fn atomic_storage_requires_retained_graph_replay() {
     use abstract_operations::atomic::AbstractAtomicLocation;
     use abstract_operations::{AbstractAtomicEvent, AtomicResidencyEdge};
-    use semantic_vocabulary::{PlaceId, StructuralFieldId};
+    use semantic_vocabulary::PlaceId;
 
     let operation = AbstractOperation::AtomicEvent {
         psi_operation: OperationId::new(1).unwrap(),
         event: AbstractAtomicEvent::Store {
             location: AbstractAtomicLocation {
                 root: PlaceId::new(1).unwrap(),
-                path: Vec::new(),
-                field: StructuralFieldId::new(1).unwrap(),
+                path: vec![terminal_psi::StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(1),
+                )],
             },
             ordering: terminal_psi::MemoryOrdering::NoOrdering,
             value: ValueId::new(1).unwrap(),
@@ -47,6 +48,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: vec![],
         projected_qualifications: vec![],
+        additional_input_qualifications: Vec::new(),
         claims: vec![],
     };
     let existing = [AbstractOperation::BooleanConstant {
@@ -69,6 +71,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
                     access: StructuralAccess::MutableBorrow,
                     qualifications: vec![],
                     projected_qualifications: vec![],
+                    additional_input_qualifications: Vec::new(),
                 },
             ),
             value: scalar,
@@ -174,6 +177,7 @@ fn concatenation_publication_retains_ordered_sources_result_and_bound() {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         claims: Vec::new(),
     };
     let left = ByteSequenceOperand::Whole {

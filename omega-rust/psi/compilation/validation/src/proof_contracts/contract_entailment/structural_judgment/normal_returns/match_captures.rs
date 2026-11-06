@@ -96,6 +96,14 @@ impl StructuralJudge<'_> {
         // references still retain their separate descriptor/loan semantics.
         let owned = crate::reference_shell(self.program, reference).is_none()
             && crate::field_domains::readable_nominal_definition(self.program, reference).is_some();
+        // A contract's result binder denotes the completed invocation value.
+        // Resolve that exact case binding before admitting the snapshot, not
+        // arbitrary scalar equalities that could impersonate an owned value.
+        let value = if owned {
+            self.resolve_case_subject(value, 0)?
+        } else {
+            value
+        };
         let admitted =
             owned && self.has_admitted_nominal_subject(dispatch.subject, &value, reference);
         let completed = if owned {

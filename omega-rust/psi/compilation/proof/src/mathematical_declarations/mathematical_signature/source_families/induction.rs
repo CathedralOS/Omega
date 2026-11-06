@@ -114,11 +114,37 @@ impl CheckedSourceInduction {
     }
 }
 
+fn term_mentions_variable(arena: &proof_admission::TermArena, term: TermHandle) -> bool {
+    match arena.get(term) {
+        Term::Variable(_) => true,
+        Term::Constant { .. }
+        | Term::Sort(_)
+        | Term::Two
+        | Term::TwoZero
+        | Term::TwoOne
+        | Term::Empty
+        | Term::Dummy => false,
+        Term::Apply { function, argument } => {
+            term_mentions_variable(arena, function) || term_mentions_variable(arena, argument)
+        }
+        Term::Pair { first, second } => {
+            term_mentions_variable(arena, first) || term_mentions_variable(arena, second)
+        }
+        Term::Lambda { domain, body }
+        | Term::Pi {
+            domain,
+            codomain: body,
+        } => term_mentions_variable(arena, domain) || term_mentions_variable(arena, body),
+        _ => true,
+    }
+}
+
 impl Elaborator<'_> {
     pub(in super::super) fn source_family_induction(
         &mut self,
         symbol: SymbolHandle,
         invariant: TermHandle,
+        index_actuals: &[TermHandle],
     ) -> Result<SourceInduction, Vec<Diagnostic>> {
         let family = self.source_family(symbol)?;
         let raw_invariant = invariant;
@@ -151,8 +177,11 @@ impl Elaborator<'_> {
             invariant,
         );
         // A source specialization may erase every index occurrence from its
-        // authored proposition. Prove that closed proposition directly;
-        // generic index-dependent clauses still require genuine W induction.
+        // authored proposition. When an open induction for this family is
+        // already checked, apply it to these index actuals so the specialized
+        // theorem cites the same laws. A closed proposition with no such
+        // induction is proved directly. Generic index-dependent clauses still
+        // require genuine W induction.
         let signature = Signature::from_declarations(self.declarations.clone());
         let index = self.arena.insert(Term::Variable(0));
         let applied = self.arena.insert(Term::Apply {
@@ -179,6 +208,14 @@ impl Elaborator<'_> {
         )
         .is_ok()
         {
+            // A closed specialization is this family's inductive theorem at
+            // those indices. Instantiating it keeps the distributive law the
+            // induction used. A fresh numeral equation would name a different
+            // bodyless assumption and drop that law.
+            if let Some(result) = self.instantiated_open_induction(&family, index_actuals)? {
+                self.record_source_induction(symbol, raw_invariant, &result);
+                return Ok(result);
+            }
             let proof = if let Some(theory) = self.integer_theory.as_mut() {
                 theory
                     .closed_predicate(&mut self.arena, &mut self.declarations, goal)
@@ -372,6 +409,69 @@ impl Elaborator<'_> {
         let result = SourceInduction { theorem, ty };
         self.record_source_induction(symbol, raw_invariant, &result);
         Ok(result)
+    }
+
+    fn instantiated_open_induction(
+        &mut self,
+        family: &super::SourceFamily,
+        index_actuals: &[TermHandle],
+    ) -> Result<Option<SourceInduction>, Vec<Diagnostic>> {
+        if index_actuals.is_empty() || index_actuals.len() != family.parameters.len() {
+            return Ok(None);
+        }
+        let signature = Signature::from_declarations(self.declarations.clone());
+        let context = Context::empty().with_signature(signature.clone());
+        if index_actuals
+            .iter()
+            .any(|actual| term_mentions_variable(&self.arena, *actual))
+        {
+            return Ok(None);
+        }
+        let open = {
+            let Some(matched) = family.checked_inductions.iter().find(|previous| {
+                let index = self.arena.insert(Term::Variable(0));
+                let applied = self.arena.insert(Term::Apply {
+                    function: previous.raw_invariant,
+                    argument: index,
+                });
+                let Ok(goal) = proof_admission::weak_head_normalize(
+                    &mut self.arena,
+                    &signature,
+                    applied,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                ) else {
+                    return false;
+                };
+                proof_admission::infer_sort(
+                    &mut self.arena,
+                    &context,
+                    goal,
+                    &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                )
+                .is_err()
+            }) else {
+                return Ok(None);
+            };
+            matched.result.clone()
+        };
+        let tuple = self.index_tuple(index_actuals.to_vec())?;
+        let theorem = self.arena.insert(Term::Apply {
+            function: open.theorem,
+            argument: tuple,
+        });
+        let ty = proof_admission::infer_type(
+            &mut self.arena,
+            &context,
+            theorem,
+            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| {
+            self.refuse(format!(
+                "instantiated source induction has no type: {error:?}"
+            ))
+        })?;
+        self.check_induction_term(theorem, ty, "instantiated source induction")?;
+        Ok(Some(SourceInduction { theorem, ty }))
     }
 
     fn record_source_induction(

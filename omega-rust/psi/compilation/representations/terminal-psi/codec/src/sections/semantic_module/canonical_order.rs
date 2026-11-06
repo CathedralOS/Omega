@@ -661,6 +661,11 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         r!(machine.blocks.iter().map(|block| block.id) => "blocks by BlockId")?;
         for operation in machine.operations() {
             if let Some(result) = operation.result.as_structural() {
+                validate_input_observation_order(
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                    &result.additional_input_qualifications,
+                )?;
                 require_increasing(
                     result.qualifications.iter().copied(),
                     "structural operation result qualifications by StructuralDomainId",
@@ -834,6 +839,27 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
     Ok(())
 }
 
+fn validate_input_observation_order(
+    whole: &[semantic_vocabulary::StructuralDomainId],
+    projected: &[terminal_psi::StructuralPathQualification],
+    observations: &[terminal_psi::StructuralPathQualification],
+) -> Result<(), CodecError> {
+    if !strictly_increasing(observations.iter())
+        || observations.iter().any(|row| {
+            if row.path.is_empty() {
+                !whole.contains(&row.domain)
+            } else {
+                !projected.contains(row)
+            }
+        })
+    {
+        return Err(noncanonical!(
+            "input observations by exact qualification subject"
+        ));
+    }
+    Ok(())
+}
+
 fn validate_parameter_order(
     parameters: &[StructuralParameterDeclaration],
 ) -> Result<(), CodecError> {
@@ -859,6 +885,13 @@ fn validate_parameter_order(
         return Err(noncanonical!(
             "projected structural qualifications by path and StructuralDomainId"
         ));
+    }
+    for parameter in parameters {
+        validate_input_observation_order(
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+            &parameter.additional_input_qualifications,
+        )?;
     }
     Ok(())
 }

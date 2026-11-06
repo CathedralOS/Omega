@@ -703,6 +703,11 @@ pub struct CheckingMemos {
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
     pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
+    /// Source call coordinates only, in original traversal order. Every
+    /// arrival still evaluates its own guards, arguments and interval join.
+    pub(crate) cross_machine_arrival_sites: OnceLock<
+        Arc<crate::proof_contracts::arithmetic_domains::CrossMachineArrivalSites>,
+    >,
     pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
     /// Concrete body inference consumes exact captured integer intervals, not
     /// caller places. Recipe-bearing arguments use ordinary inference. Retain
@@ -944,6 +949,7 @@ impl CheckingMemos {
             license_candidates: self.license_candidates,
             entry_machines: self.entry_machines,
             caller_sites: self.caller_sites,
+            cross_machine_arrival_sites: self.cross_machine_arrival_sites,
             content_conservation: self.content_conservation,
             case_reference_owners: self.case_reference_owners,
             nominal_cleanup_owners: self.nominal_cleanup_owners,
@@ -969,6 +975,7 @@ impl CheckingMemos {
             license_candidates: self.license_candidates.clone(),
             entry_machines: self.entry_machines.clone(),
             caller_sites: self.caller_sites.clone(),
+            cross_machine_arrival_sites: self.cross_machine_arrival_sites.clone(),
             content_conservation: self.content_conservation.clone(),
             case_reference_owners: Mutex::new(
                 self.case_reference_owners

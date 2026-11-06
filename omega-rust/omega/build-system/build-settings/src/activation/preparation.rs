@@ -10,7 +10,9 @@ use std::sync::Arc;
 /// An independently owned invocation. Preparing dependencies may use the compiler
 /// again while this code, sponsor account and admitted host scope remain alive.
 pub struct PreparedBuildExecution {
+    execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<psi_compiler::ProducedTerminalProgram>,
+    providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
@@ -21,9 +23,13 @@ pub struct PreparedBuildExecution {
 }
 
 impl PreparedBuildExecution {
-    pub(crate) fn prepare(admitted: AdmittedBuildProgram) -> Result<Self, Vec<Diagnostic>> {
+    pub(crate) fn prepare(
+        admitted: AdmittedBuildProgram,
+        execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
+    ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
+            providers,
             machine,
             filesystem_scope,
             evaluation_sponsor,
@@ -48,6 +54,7 @@ impl PreparedBuildExecution {
         let produced = production
             .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
             .map_err(|error| error.diagnostics())?;
+        let providers = providers.admit(produced.view())?;
 
         // These are Terminal units. An existing tree-measured sponsor is never
         // relabeled or silently replaced by a fresh account.
@@ -77,7 +84,9 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_FUEL)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            execution_purpose,
             produced: Arc::new(produced),
+            providers: Arc::new(providers),
             account,
             machine: Arc::new(machine),
             filesystem_scope,
@@ -96,7 +105,9 @@ impl PreparedBuildExecution {
         }
         self.host_issued = true;
         crate::TerminalBuildHost::new(
+            self.execution_purpose,
             Arc::clone(&self.produced),
+            Arc::clone(&self.providers),
             &self.account,
             Arc::clone(&self.machine),
             &self.filesystem_scope,
@@ -189,6 +200,7 @@ impl PreparedBuildExecution {
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
+            toolchain_provider_defaults: None,
             selected_build_machine_symbol: Some(self.machine.symbol),
             generated_sources,
         })

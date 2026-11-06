@@ -15,9 +15,10 @@ use std::collections::BTreeSet;
 use crate::{OptimizationDecisionIdentity, OptimizationRuleIdentity, OptimizationUnitIdentity};
 
 pub use identity::{
-    external_psi_decision_schema_v2_identity, psi_target_neutral_decision_target_v2_identity,
+    external_psi_decision_schema_identity, psi_target_neutral_decision_target_identity,
 };
 
+use crate::optimization_core::CountFrame;
 use crate::{
     AnalysisSet, CoreContractDecodeError, OptimizationCandidateIdentity,
     OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity,
@@ -26,7 +27,7 @@ use crate::{
     OptimizationSelectionIdentity, TargetCostModelIdentity,
 };
 use crate::{BaselineDecisionOutcome, ValidatedCandidateSummary};
-use identity::{log_identity, point_identity};
+use identity::{encode_action, log_identity, versioned_domain};
 
 impl ExternalDecisionPoint {
     pub fn new(
@@ -62,6 +63,59 @@ impl ExternalDecisionPoint {
             action,
         })
     }
+
+    /// The authoritative point row, written once for both encodings. The wire
+    /// point frames the candidate count as u32 and the canonical identity row as
+    /// u64; the feature rows are the same either way.
+    pub(super) fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
+        write_point_row(
+            self.input,
+            self.rule,
+            &self.legal_candidates,
+            self.action,
+            encoded,
+            frame,
+        );
+    }
+}
+
+/// The authoritative point row, written once for both encodings. The wire point
+/// frames the candidate count as u32 and the canonical identity row as u64; the
+/// feature rows are the same either way.
+fn write_point_row(
+    input: OptimizationUnitIdentity,
+    rule: OptimizationRuleIdentity,
+    legal_candidates: &[ExternalCandidateFeatures],
+    action: ExternalDecisionAction,
+    encoded: &mut Vec<u8>,
+    frame: CountFrame,
+) {
+    encoded.extend_from_slice(&input.bytes());
+    encoded.extend_from_slice(&rule.bytes());
+    frame.push(encoded, legal_candidates.len());
+    for candidate in legal_candidates {
+        candidate.write_row(encoded, frame);
+    }
+    encode_action(encoded, action);
+}
+
+fn point_identity(
+    input: OptimizationUnitIdentity,
+    rule: OptimizationRuleIdentity,
+    legal_candidates: &[ExternalCandidateFeatures],
+    action: ExternalDecisionAction,
+) -> OptimizationDecisionIdentity {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(&versioned_domain("omega.external-decision-point", true));
+    write_point_row(
+        input,
+        rule,
+        legal_candidates,
+        action,
+        &mut canonical,
+        CountFrame::Canonical,
+    );
+    OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
 }
 
 impl ExternalDecisionLog {
@@ -158,6 +212,18 @@ impl ExternalCandidateFeatures {
     pub const fn predicted_cost_delta(&self) -> i64 {
         self.summary.predicted_cost_delta
     }
+
+    /// One candidate's authoritative feature row, written once for both
+    /// encodings; only the fact-count frame differs between them.
+    pub(super) fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
+        encoded.extend_from_slice(&self.summary.candidate.bytes());
+        encoded.extend_from_slice(&self.summary.predicted_cost_delta.to_le_bytes());
+        encoded.extend_from_slice(&self.consumed_analyses.encode());
+        frame.push(encoded, self.consumed_facts.len());
+        for fact in &self.consumed_facts {
+            encoded.extend_from_slice(&fact.encode());
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,8 +247,6 @@ crate::record_views! {
         legal_candidates: ExternalCandidateFeatures,
     }
 }
-
-impl ExternalDecisionPoint {}
 
 /// One member of a decision point's finite action set. Every point admits
 /// `Choose` for each listed candidate plus the explicit model-free skip.
@@ -218,8 +282,6 @@ crate::record_views! {
         points: ExternalDecisionPoint,
     }
 }
-
-impl ExternalDecisionLog {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExternalDecisionSchemaError {

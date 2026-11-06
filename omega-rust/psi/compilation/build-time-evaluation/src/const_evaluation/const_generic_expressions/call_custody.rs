@@ -974,10 +974,7 @@ impl<'program> Collector<'program> {
         match symbol.kind {
             SymbolKind::Machine => (),
             SymbolKind::State
-                if self.program.symbols.get(symbol.parent).kind == SymbolKind::Machine =>
-            {
-                ()
-            }
+                if self.program.symbols.get(symbol.parent).kind == SymbolKind::Machine => {}
             _ if logical => (),
             _ => {
                 return Err(

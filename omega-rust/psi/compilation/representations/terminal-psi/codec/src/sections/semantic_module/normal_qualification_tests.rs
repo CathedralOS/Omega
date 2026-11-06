@@ -125,6 +125,7 @@ fn module() -> TerminalModule {
                 access: StructuralAccess::MutableBorrow,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             })
             .collect(),
         result: BoundaryMachineResult::Unit,
@@ -184,6 +185,54 @@ fn normal_qualification_round_trip_retains_root_field_and_all_referent_elements(
     let decoded = decode_module(&bytes).unwrap();
     assert_eq!(decoded, module);
     assert_eq!(encode_module(&decoded).unwrap(), bytes);
+}
+
+#[test]
+fn input_fact_lifetimes_survive_encoding_and_change_the_semantic_identity() {
+    let mut module = module();
+    let domain = module.structural_domains[0].id;
+    let parameters = &mut module.boundary_machines[0].structural_parameters;
+    parameters[0].qualifications.push(domain);
+    parameters[0]
+        .additional_input_qualifications
+        .push(terminal_psi::StructuralPathQualification {
+            path: Vec::new(),
+            domain,
+        });
+    let projected = terminal_psi::StructuralPathQualification {
+        path: vec![field(8)],
+        domain,
+    };
+    parameters[1]
+        .projected_qualifications
+        .push(projected.clone());
+    parameters[1]
+        .additional_input_qualifications
+        .push(projected);
+    let bytes = encode_module(&module).unwrap();
+    assert_eq!(decode_module(&bytes).unwrap(), module);
+    let identity = semantic_fingerprint(&module).unwrap();
+    for parameter in &mut module.boundary_machines[0].structural_parameters {
+        parameter.additional_input_qualifications.clear();
+    }
+    assert_ne!(semantic_fingerprint(&module).unwrap(), identity);
+}
+
+#[test]
+fn an_input_fact_cannot_replace_missing_membership_evidence() {
+    let mut module = module();
+    let domain = module.structural_domains[0].id;
+    module.boundary_machines[0].structural_parameters[0]
+        .additional_input_qualifications
+        .push(terminal_psi::StructuralPathQualification {
+            path: Vec::new(),
+            domain,
+        });
+    let wire = encode_raw(&module).unwrap();
+    assert_eq!(
+        decode_module(&wire).unwrap_err(),
+        CodecError::NonCanonicalOrder("input observations by exact qualification subject",)
+    );
 }
 
 #[test]

@@ -17,6 +17,58 @@ pub(crate) struct AssignmentObservationBatch<'input> {
     observations: Vec<AssignmentObservation>,
 }
 
+/// Read each root's assignments once for the current operand.
+/// The selected contexts belong to this reader, so the next operand prepares
+/// its own observations even when it uses the same place.
+pub(crate) struct RootAssignmentObservations<'input> {
+    program: &'input dyn ::validation::CheckingInput,
+    semantic: &'input FactPlan,
+    contexts: &'input [facts::FactContextHandle],
+    roots: Vec<(facts::PlaceRoot, AssignmentObservationBatch<'input>)>,
+}
+
+impl<'input> RootAssignmentObservations<'input> {
+    pub(crate) fn new(
+        program: &'input dyn ::validation::CheckingInput,
+        semantic: &'input FactPlan,
+        contexts: &'input [facts::FactContextHandle],
+    ) -> Self {
+        Self {
+            program,
+            semantic,
+            contexts,
+            roots: Vec::new(),
+        }
+    }
+
+    fn for_root(&mut self, root: facts::PlaceRoot) -> &AssignmentObservationBatch<'input> {
+        let position = match self.roots.iter().position(|(known, _)| *known == root) {
+            Some(position) => position,
+            None => {
+                let batch = AssignmentObservationBatch::prepare_for_root(
+                    self.program,
+                    self.semantic,
+                    self.contexts
+                        .iter()
+                        .map(|context| self.semantic.contexts.get(*context)),
+                    root,
+                );
+                self.roots.push((root, batch));
+                self.roots.len() - 1
+            }
+        };
+        &self.roots[position].1
+    }
+
+    pub(crate) fn scalar_value(&mut self, place: &CanonicalPlace) -> Option<ScalarValue> {
+        self.for_root(place.root).scalar_value(place)
+    }
+
+    pub(crate) fn integer_bounds(&mut self, place: &CanonicalPlace) -> Option<facts::IntegerRange> {
+        self.for_root(place.root).integer_bounds(place)
+    }
+}
+
 impl<'input> AssignmentObservationBatch<'input> {
     pub(crate) fn prepare<'context>(
         program: &'input dyn ::validation::CheckingInput,
@@ -26,6 +78,33 @@ impl<'input> AssignmentObservationBatch<'input> {
         let observations = contexts
             .into_iter()
             .flat_map(|context| prepare_assignment_observations(program, semantic, context))
+            .collect();
+        Self {
+            program,
+            semantic,
+            observations,
+        }
+    }
+
+    /// Prepare the assignments one source root can supply. The context already
+    /// retains this roster, including its original order within each root.
+    /// Other roots cannot agree with any queried member of that source, so do
+    /// not reconstruct them or scan the context's non-assignment facts.
+    pub(crate) fn prepare_for_root<'context>(
+        program: &'input dyn ::validation::CheckingInput,
+        semantic: &'input FactPlan,
+        contexts: impl IntoIterator<Item = &'context FactContext>,
+        root: facts::PlaceRoot,
+    ) -> Self {
+        let observations = contexts
+            .into_iter()
+            .flat_map(|context| {
+                semantic
+                    .assignments_with_root(context, root)
+                    .filter_map(move |fact| {
+                        assignment_observation(program, semantic, context, fact)
+                    })
+            })
             .collect();
         Self {
             program,
@@ -56,6 +135,10 @@ impl<'input> AssignmentObservationBatch<'input> {
 
     pub(crate) fn scalar_value(&self, subject: &CanonicalPlace) -> Option<ScalarValue> {
         scalar_value_from_payloads(self.program, self.semantic, self.payloads(subject))
+    }
+
+    pub(crate) fn integer_bounds(&self, subject: &CanonicalPlace) -> Option<facts::IntegerRange> {
+        integer_bounds_from_payloads(self.program, self.semantic, self.payloads(subject))
     }
 }
 
@@ -405,27 +488,33 @@ pub(crate) fn prepare_assignment_observations(
     semantic
         .context_view(context)
         .facts()
-        .filter_map(|fact| {
-            if !matches!(
-                fact.payload,
-                FactPayload::AssignedValue { .. }
-                    | FactPayload::AssignedScalarValue { .. }
-                    | FactPayload::AssignedIntegerBounds { .. }
-            ) {
-                return None;
-            }
-            let place = fact.place.as_place()?;
-            let place =
-                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-            if has_completed_call_snapshot(program, semantic, context, fact) {
-                return None;
-            }
-            Some(AssignmentObservation {
-                place,
-                payload: fact.payload,
-            })
-        })
+        .filter_map(|fact| assignment_observation(program, semantic, context, fact))
         .collect()
+}
+
+fn assignment_observation(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &FactPlan,
+    context: &FactContext,
+    fact: &facts::Fact,
+) -> Option<AssignmentObservation> {
+    if !matches!(
+        fact.payload,
+        FactPayload::AssignedValue { .. }
+            | FactPayload::AssignedScalarValue { .. }
+            | FactPayload::AssignedIntegerBounds { .. }
+    ) {
+        return None;
+    }
+    let place = fact.place.as_place()?;
+    let place = canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+    if has_completed_call_snapshot(program, semantic, context, fact) {
+        return None;
+    }
+    Some(AssignmentObservation {
+        place,
+        payload: fact.payload,
+    })
 }
 
 /// The immutable owned storage whose retained scalar observation remains valid

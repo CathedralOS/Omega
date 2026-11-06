@@ -284,9 +284,7 @@ impl From<&terminal_installation::AdmittedProviderSelections> for TerminalRuntim
             provider_selections: Some(selected.clone()),
             x86_flags: None,
             memory_ordering: None,
-            code_identity: terminal_codec::TerminalExecutionIdentity::portable(
-                selected.terminal_psi(),
-            ),
+            code_identity: selected.execution_identity().clone(),
             entry: None,
             supplies: selected
                 .providers()

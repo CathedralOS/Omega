@@ -226,6 +226,7 @@ fn scalar_closure_supplies_resolved_extent_to_ordinary_entry_storage() {
             access: terminal_psi::StructuralAccess::Owned,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         });
     module.machines.push(entry);
     let artifact = canonical(module);

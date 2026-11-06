@@ -82,6 +82,10 @@ pub(super) fn encode_type(
                 encode_scalar_restriction(bytes, restriction)?;
             }
         }
+        StructuralTypeShape::AtomicCell(cell) => {
+            bytes.push(16);
+            encode_scalar_restriction(bytes, &(*cell).into())?;
+        }
         StructuralTypeShape::ByteSequence(carrier) => {
             bytes.push(1);
             encode_byte_sequence_carrier(bytes, *carrier);
@@ -258,6 +262,13 @@ pub(super) fn decode_type(
             }
             scalar_restriction = Some(restriction);
             StructuralTypeShape::PrimitiveScalar(scalar)
+        }
+        16 => {
+            let cell = decode_scalar_restriction(cursor)?
+                .atomic_cell_type()
+                .filter(|cell| cell.is_supported())
+                .ok_or(FixedViewCopyDecodeError::InvalidScalarRefinement)?;
+            StructuralTypeShape::AtomicCell(cell)
         }
         tag => return Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(tag)),
     };
@@ -460,6 +471,7 @@ pub(super) fn encode_semantic_parameter(
         &parameter.projected_qualifications,
         retain_projected_qualifications,
     );
+    encode_projected(bytes, &parameter.additional_input_qualifications, true);
 }
 
 pub(super) fn decode_semantic_parameter(
@@ -474,6 +486,7 @@ pub(super) fn decode_semantic_parameter(
         access: decode_access(cursor)?,
         qualifications: decode_ids(cursor, semantic_vocabulary::StructuralDomainId::new)?,
         projected_qualifications: decode_projected(cursor, retain_projected_qualifications)?,
+        additional_input_qualifications: decode_projected(cursor, true)?,
     })
 }
 

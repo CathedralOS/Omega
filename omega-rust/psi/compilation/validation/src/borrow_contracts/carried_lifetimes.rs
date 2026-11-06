@@ -53,6 +53,66 @@ pub enum DeclarationLifetimeFrontier {
     Incomplete,
 }
 
+#[cfg(test)]
+mod frontier_tests {
+    use super::*;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn symbolic_results_defer_only_their_own_type_binders() {
+        let mut symbols = SymbolTableBuilder::default();
+        let local = symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Local"));
+        let foreign =
+            symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Foreign"));
+        let missing = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Missing"));
+        let mut program = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let mut named = |symbol, name: &str| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: typed_trees::name::Identifier::from(name),
+                })
+        };
+        let local_type = named(local, "Local");
+        let foreign_type = named(foreign, "Foreign");
+        let missing_type = named(missing, "Missing");
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: local_type,
+                access: language_semantics::ReferenceAccess::Shared,
+                lifetime: Some(typed_trees::name::Identifier::from("scope")),
+            });
+        assert_eq!(
+            declaration_lifetime_frontier(&program, local_type, &[local]),
+            DeclarationLifetimeFrontier::TemplateDependent { has_borrows: false }
+        );
+        for (reference, binders) in [
+            (local_type, &[][..]),
+            (foreign_type, &[local][..]),
+            (missing_type, &[local][..]),
+        ] {
+            assert_eq!(
+                declaration_lifetime_frontier(&program, reference, binders),
+                DeclarationLifetimeFrontier::Incomplete
+            );
+        }
+        assert_eq!(
+            declaration_lifetime_frontier(&program, reference, &[local]),
+            DeclarationLifetimeFrontier::Complete { has_borrows: true }
+        );
+        assert_eq!(
+            declaration_lifetime_frontier(&program, unit, &[local]),
+            DeclarationLifetimeFrontier::Complete { has_borrows: false }
+        );
+    }
+}
+
 #[derive(Clone, Copy, Default)]
 struct TemplateFrontier<'a> {
     parameters: &'a [SymbolHandle],

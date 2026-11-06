@@ -52,7 +52,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     // selects inside an aggregate; it does not select a different parameter
     // lookup or permit an undeclared destination.
     let projected = !path.is_empty();
-    let (destination_type, qualifications, projected_qualifications) =
+    let (destination_type, qualifications, projected_qualifications, additional_input) =
         if let Some(parameter) = machine.structural_parameter(*destination) {
             let declaration_matches = machine.structural_places.iter().any(|place| {
                 if place.id != *destination {
@@ -96,6 +96,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 parameter.structural_type,
                 parameter.qualifications.as_slice(),
                 parameter.projected_qualifications.as_slice(),
+                parameter.additional_input_qualifications.as_slice(),
             )
         } else {
             let Some(result) = machine
@@ -133,6 +134,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
                 result.structural_type,
                 result.qualifications.as_slice(),
                 result.projected_qualifications.as_slice(),
+                result.additional_input_qualifications.as_slice(),
             )
         };
     let Some(expected) =
@@ -146,6 +148,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         destination_type,
         qualifications,
         projected_qualifications,
+        additional_input,
         path,
     ) else {
         return malformed("primitive store does not preserve enclosing qualification");
@@ -173,6 +176,7 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         destination_type,
         qualifications,
         projected_qualifications,
+        additional_input,
         path,
         source,
     ) {
@@ -316,32 +320,10 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("structural field store value must be a whole owned place");
     }
-    let declared_home = path
-        .is_empty()
-        .then(|| {
-            let (producer, declared_type) = machine.producing_operation(*destination)?;
-            let result = producer.result.structural()?;
-            (field.is_none()
-                && matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
-                && result.place == *destination
-                && result.structural_type == declared_type
-                && result.claims.is_empty())
-            .then_some(declared_type)
-        })
-        .flatten();
-    // A declared local owns its whole slot. This authority installs the
-    // checked source value; arbitrary completed results remain immutable homes.
-    let Some(root_type) = declared_home.or_else(|| {
-        window_root_type(
-            module,
-            machine,
-            *destination,
-            path,
-            *field,
-            disposition.required_access(),
-        )
-    }) else {
-        return malformed("structural field store requires a mutable-borrowed parameter");
+    let Some(root_type) =
+        store_root_type(module, machine, *destination, path, *field, *disposition)
+    else {
+        return malformed("structural field store has no matching writable storage declaration");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
     if structural_place_type(machine, value.place) != Some(field_type) {
@@ -360,6 +342,39 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         return malformed("structural field store does not restore the selected memberships");
     }
     Ok(())
+}
+
+fn store_root_type(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+    disposition: terminal_psi::StructuralStoreDisposition,
+) -> Option<StructuralTypeId> {
+    if path.is_empty()
+        && field.is_none()
+        && let Some((producer, declared_type)) = machine.producing_operation(place)
+        && matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+    {
+        // Installing an owned value in a declared local home is construction,
+        // not extraction through a borrowed root. Authenticate that exact home
+        // here; ordered custody must still establish vacancy and transfer the
+        // incoming value. MoveStructuralField keeps its borrowed-root rule.
+        let result = producer.result.structural()?;
+        return (disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && result.place == place
+            && result.structural_type == declared_type)
+            .then_some(declared_type);
+    }
+    window_root_type(
+        module,
+        machine,
+        place,
+        path,
+        field,
+        disposition.required_access(),
+    )
 }
 
 /// The declared root type a window operation may name. A field window may

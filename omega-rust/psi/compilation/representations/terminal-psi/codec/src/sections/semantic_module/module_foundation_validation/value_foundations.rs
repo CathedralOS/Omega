@@ -275,24 +275,14 @@ pub(super) fn validate_establish_structural_local(
     let Some(result) = operation.result.structural() else {
         return malformed("structural local establishment has no structural result");
     };
-    // The home reserves storage for its carrier, including a linear one.
-    // Its empty claim roster establishes no value or ownership obligation.
-    // Only a standalone byte-view home may carry primitive byte predicates.
-    let byte_view_home = module.structural_types.iter().any(|declaration| {
-        declaration.id == result.structural_type
-            && declaration.shape.is_borrowed_view_byte_sequence()
-    });
-    if (!result.qualifications.is_empty() && !byte_view_home)
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-        || !result.qualification_establishments.is_empty()
-        || !matches!(
-            machine.structural_place(result.place),
-            Some(StructuralPlaceDeclaration {
-                kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
-            }) if *producer == operation.id && *structural_type == result.structural_type
-        )
-    {
+    terminal_semantics::validate_vacant_structural_local(module.structural_types.iter(), result)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    if !matches!(
+        machine.structural_place(result.place),
+        Some(StructuralPlaceDeclaration {
+            kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
+        }) if *producer == operation.id && *structural_type == result.structural_type
+    ) {
         return malformed("structural local establishment has an invalid result shape");
     }
     Ok(())

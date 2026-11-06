@@ -132,7 +132,7 @@ offline previews and do not establish fresh-main preflight.
 ## Local worktree status
 
 For restartable lane state, bounded commands, verified backups and conservative
-cleanup inventory, use [the recovery procedure](../../.agents/skills/dot-swarm/references/recovery.md)
+cleanup inventory, use [the recovery procedure](../../.agents/skills/swarm/references/recovery.md)
 and `python3 tools/swarm/recovery.py --help`. It consumes explicit current adapter
 observations, complements these helpers, and never executes a proposed recovery
 or cleanup action. Reconcile first; a stale `slots.json` flag is not live-process
@@ -258,11 +258,11 @@ coordinator-side:
   worktrees, release orphaned tickets, and report rather than respawn into a
   canceller. Spawn only through the session's own subagent mechanism — never
   detached shells, tmux, or terminals the user cannot observe.
-- The `local-swarm` skill carries the coordinator procedure end to end —
-  partition, launch, monitor, recover, drain — and defers here for the
-  evidence behind each rule.
+- The `swarm` skill (`.agents/skills/swarm/references/local.md`) carries the
+  coordinator procedure end to end — partition, launch, monitor, recover, drain
+  — and defers here for the evidence behind each rule.
 - Cursor cloud subagents started from a Cursor chat follow
-  `.agents/skills/cursor-swarm/SKILL.md`. `launch.py` remains the Devin
+  `.agents/skills/swarm/references/cursor.md`. `launch.py` remains the Devin
   transport and does not create those sessions.
 
 ### Recovering an interrupted wave

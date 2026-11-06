@@ -48,7 +48,7 @@ machine build(builder: &mut Build) crashes Trap {
     .unwrap();
     let host = target::TargetProfile::host_if_supported().unwrap();
     let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
-        &temporary.path().join("staging"),
+        temporary.path().join("staging"),
         build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
@@ -101,7 +101,10 @@ machine build(builder: &mut Build) crashes Trap {
         // ordinary package compiler continues to supply captured source custody.
         let admitted = build_settings::prepare_build_evaluation(
             build_settings::BuildEvaluationRequest {
+                execution_purpose:
+                    artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
                 pure_build_compilation: None,
+                toolchain_defaults: None,
                 root_path: &entry,
                 typed: input.typed,
                 pre_checks: input.pre_checks,
@@ -136,6 +139,9 @@ machine build(builder: &mut Build) crashes Trap {
                 panic!("standalone live access must stop as structured consent");
             };
             assert_eq!(requests.len(), 1);
+            super::build_sequence::print_execution_counts(
+                "consent refused before source execution",
+            );
             assert_eq!(counters::build_execution_count(), before);
             expected = requests;
             println!("restricted_consent_stopped_before_guest_execution");
@@ -150,6 +156,7 @@ machine build(builder: &mut Build) crashes Trap {
         while !activation.advance(1).unwrap().returned {}
         let returned = activation.complete().unwrap();
         admitted.complete(Some(returned)).unwrap();
+        super::build_sequence::print_execution_counts("source executed with exact consent");
         assert_eq!(counters::build_execution_count(), before + 1);
         println!("restricted_consent_resumed_once_and_read_the_granted_bytes");
     }

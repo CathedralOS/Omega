@@ -28,6 +28,7 @@ wire_record! {
     RequiredInstance: RequiredProviderInstance {
         requirement_identity: Index,
         candidate_identity: Index,
+        declaration_application: Index,
         receiving_application: Index,
         receiving_region_arguments: List<Index>,
     }
@@ -35,6 +36,7 @@ wire_record! {
         boundary: Id,
         requirement_identity: Index,
         source_requirement_identity: Index,
+        declaration_application: Index,
         receiving_application: Index,
         receiving_region_arguments: List<Index>,
         provider_identity: Index,

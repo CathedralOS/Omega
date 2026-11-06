@@ -374,6 +374,7 @@ pub(in crate::legalization) fn block_home_layout(
             multiplicity: parameter.multiplicity,
             qualifications: parameter.qualifications.clone(),
             projected_qualifications: parameter.projected_qualifications.clone(),
+            additional_input_qualifications: parameter.additional_input_qualifications.to_vec(),
             claims: Vec::new(),
         },
         plan,
@@ -651,28 +652,24 @@ pub(in crate::legalization) fn type_home_layout(
     structural_type: semantic_vocabulary::StructuralTypeId,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
-    if plan.structural_types.iter().any(|declaration| {
-        declaration.id == structural_type
-            && matches!(
-                declaration.shape,
-                terminal_psi::record_or_fixed_array_shape_pattern!()
-                    | StructuralTypeShape::Reference { .. }
-                    | StructuralTypeShape::PrimitiveScalar(_)
-                    | StructuralTypeShape::ByteSequence(_)
-                    | StructuralTypeShape::ElementView { .. }
-            )
-    }) {
-        // Claims and qualifications ride the home origin verbatim as custody
-        // evidence; the layout is the carrier's physical shape alone.
-        return Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
-            primitive_array_shape(structural_type, &plan.structural_types)
-                .or_else(|| {
-                    crate::structural_inputs::shape(structural_type, &plan.structural_types)
-                })
-                .ok_or(LegalizationError::custody())?,
+    let declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .ok_or(LegalizationError::custody())?;
+    if matches!(
+        declaration.shape,
+        terminal_psi::sum_or_mixed_shape_pattern!()
+    ) {
+        return Ok(target_operations::TargetStructuralHomeLayout::Sum(
+            sum_type_layout(structural_type, plan)?,
         ));
     }
-    Ok(target_operations::TargetStructuralHomeLayout::Sum(
-        sum_type_layout(structural_type, plan)?,
+    // Claims and qualifications remain independent of physical home layout.
+    // A non-sum must not acquire a tag merely because a carrier is newly added.
+    Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
+        primitive_array_shape(structural_type, &plan.structural_types)
+            .or_else(|| crate::structural_inputs::shape(structural_type, &plan.structural_types))
+            .ok_or(LegalizationError::custody())?,
     ))
 }

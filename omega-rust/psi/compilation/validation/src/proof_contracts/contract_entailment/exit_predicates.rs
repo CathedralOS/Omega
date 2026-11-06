@@ -8,7 +8,22 @@ use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, Structur
 use language_semantics::content::ContentPlaceVersion;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateParameter;
+use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
+
+/// The declaration whose predicate an implementation must prove, with the exact
+/// parameter correspondence retained by its checked signature. These are only
+/// subjects to substitute; the completed return and all-arrival origins must
+/// independently establish the predicate.
+pub struct NormalExitContract<'a> {
+    pub expression: ExpressionHandle,
+    pub callable: SymbolHandle,
+    pub parameters: &'a [StateParameter],
+    pub supplying_parameters: &'a [StateParameter],
+    pub type_bindings: &'a [(SymbolHandle, TypeReferenceHandle)],
+}
 
 /// Judge one value exit with independently checked, all-arrival formal origins.
 /// Mutable/reference parameters need their storage-version contract owner;
@@ -19,11 +34,11 @@ pub fn normal_exit_proves(
     state: &State,
     statement_index: usize,
     returned: ExpressionHandle,
-    expression: ExpressionHandle,
+    contract: NormalExitContract<'_>,
     origins: &[(SymbolHandle, SymbolHandle)],
     ranks: &checked_trees::CheckedRankArrivalPlan,
 ) -> bool {
-    if !returned.is_valid() {
+    if !returned.is_valid() || contract.parameters.len() != contract.supplying_parameters.len() {
         return false;
     }
     let mut query = ExitPredicate {
@@ -38,7 +53,7 @@ pub fn normal_exit_proves(
             ),
         },
         returned,
-        expression,
+        contract,
         origins,
         ranks,
         seen: false,
@@ -53,7 +68,7 @@ pub fn normal_exit_proves(
 struct ExitPredicate<'a> {
     site: StructuralPrefixSite,
     returned: ExpressionHandle,
-    expression: ExpressionHandle,
+    contract: NormalExitContract<'a>,
     origins: &'a [(SymbolHandle, SymbolHandle)],
     ranks: &'a checked_trees::CheckedRankArrivalPlan,
     seen: bool,
@@ -84,11 +99,34 @@ impl ExitPredicate<'_> {
         judge.retain_runtime_induction(self.ranks);
         let entry = program.machine_states(machine).first()?;
         let mut parameters = Vec::new();
-        for parameter in program.state_parameters(entry) {
+        for (formal, parameter) in self
+            .contract
+            .parameters
+            .iter()
+            .zip(self.contract.supplying_parameters)
+        {
+            // A signature supplies its exact entry parameter, even when its
+            // declaration uses a different formal symbol or an adapter prefix.
+            // An arbitrary state-local value cannot fill this correspondence.
+            if program
+                .state_parameter_by_symbol(entry, parameter.symbol)
+                .is_none_or(|entry| entry != parameter)
+                || !formal.type_reference.is_valid()
+                || !parameter.type_reference.is_valid()
+                || formal.is_const != parameter.is_const
+                || formal.is_mutable != parameter.is_mutable
+                || formal.relevance != parameter.relevance
+                || (formal.type_reference != parameter.type_reference
+                    && program.type_identity(TypeIdentityRequest::ordinary(formal.type_reference))
+                        != program
+                            .type_identity(TypeIdentityRequest::ordinary(parameter.type_reference)))
+            {
+                return None;
+            }
             if !crate::value_custody::source_liveness::expression_uses_symbol(
                 program,
-                self.expression,
-                parameter.symbol,
+                self.contract.expression,
+                formal.symbol,
             ) {
                 continue;
             }
@@ -113,7 +151,7 @@ impl ExitPredicate<'_> {
                 &[],
                 ContentPlaceVersion::Current,
             )?;
-            parameters.push((parameter.symbol, value));
+            parameters.push((formal.symbol, value));
         }
         let paths = judge.normal_return_paths(
             self.returned,
@@ -128,12 +166,12 @@ impl ExitPredicate<'_> {
             // source-style reread could replace its captured field equations
             // with a weaker denotational application before judging the exit.
             let predicate = path.judge.bound_contract_term(
-                self.expression,
-                machine.symbol,
-                program.state_parameters(entry),
-                machine.symbol,
+                self.contract.expression,
+                self.contract.callable,
+                self.contract.parameters,
+                self.contract.callable,
                 &parameters,
-                &[],
+                self.contract.type_bindings,
                 Some(&path.value),
                 0,
             )?;

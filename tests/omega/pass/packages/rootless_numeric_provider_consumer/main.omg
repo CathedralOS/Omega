@@ -1,7 +1,8 @@
 // Expected exit: 0
-// A rootless dependency's reviewed numeric declarations remain usable without
-// selecting its unused negate implementation or inventing a library entry.
-use numeric_library::main;
+// The root explicitly chooses its library's negate provider over the competing
+// defaults. The program calls only the classifier; the library has no entry.
+use omega::language::core::float_operations;
+use numeric_library;
 
 machine main() {
     transition is_nan(0.0f32) {

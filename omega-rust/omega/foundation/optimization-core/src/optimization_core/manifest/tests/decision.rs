@@ -195,3 +195,18 @@ fn consumed_fact_references_must_be_canonical_and_known() {
         Ok(mixed_record)
     );
 }
+
+#[test]
+fn decision_fixed_width_is_the_encoded_width_of_an_empty_record() {
+    let record = OptimizationDecisionRecord::new(
+        OptimizationUnitIdentity::from_canonical_bytes(b"width-input"),
+        OptimizationCandidateIdentity::from_canonical_bytes(b"width-candidate"),
+        rule(b"width-rule"),
+        OptimizationCandidateVerdict::Skipped(OptimizationReasonCode::NotProfitable),
+        AnalysisSet::default(),
+        Vec::new(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(record.encode().len(), super::super::DECISION_FIXED_WIDTH);
+}

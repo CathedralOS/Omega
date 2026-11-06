@@ -27,6 +27,7 @@ mod build_session;
 mod compile;
 mod package;
 mod project;
+pub use compile::build_execution::execute_build as execute_build_activation;
 pub use compile::native_completion::complete_product;
 pub use compile::source_compilation::{check_source, compile_sources, produce_source};
 pub use project::publication;

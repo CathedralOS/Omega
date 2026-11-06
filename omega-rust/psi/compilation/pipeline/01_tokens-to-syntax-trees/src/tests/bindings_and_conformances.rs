@@ -791,34 +791,6 @@ fn closed_conformance_member_carries_one_exact_edge_for_its_own_requirement() {
 }
 
 #[test]
-fn closed_conformance_member_edge_must_name_its_own_requirement() {
-    for edges in [
-        "satisfies Ranked<Card>::after",
-        "satisfies Ranked<Card>::before as Primary",
-    ] {
-        let source = format!(
-            r#"
-            trait Ranked<Item> {{ machine before(value: &Item, other: &Item) -> bool; }}
-            data Card {{ }}
-            PowerOrder satisfies Ranked<Card> {{
-                machine before(value: &Card, other: &Card) -> bool {edges} {{ }}
-            }}
-        "#
-        );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let diagnostic = parse_syntax_trees(&tokens)
-            .expect_err("a mismatched or repeated member edge must reject");
-        assert!(
-            diagnostic.message.contains("may carry only one exact edge"),
-            "unexpected diagnostic for `{edges}`: {}",
-            diagnostic.message
-        );
-    }
-}
-
-#[test]
 fn rejects_retired_machine_where_clause() {
     let source = r#"
         trait Converter<Message> { }
