@@ -16498,10 +16498,10 @@ fail/proofs/declaration_call_argument_type rejected 1011ms expected @ccdb99ca221
 	domain `Input::Invalid` predicate constant expression call argument `false` does not form parameter `value` of `accepts`: actual bool, required u64
 fail/proofs/declaration_call_arity rejected 718ms expected @ccdb99ca2214
 	domain `Input::Invalid` predicate constant expression call has incompatible argument arity
-fail/proofs/declaration_call_future_requires rejected 843ms unexpected @911f6617ba9e
+fail/proofs/declaration_call_future_requires rejected 3816ms expected @092aebe9d414
 	cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `guarded` in data `InvalidData` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
-	cannot prove requires contract for specification call `guarded` in data `InvalidCase` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
+	cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/declaration_call_requires rejected 850ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact
