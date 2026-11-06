@@ -223,7 +223,7 @@ impl Retirement<'_> {
 
     fn completion_refusal(&self, reason: &'static str, loan: Handle<BorrowLoanFact>) {
         self.trace.phase(reason);
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+        if !::validation::trace_flags::check_sites() {
             return;
         }
         eprintln!(
@@ -388,14 +388,14 @@ impl Retirement<'_> {
                 &storage,
                 validation::completed_storage::StoredObservation::Binding,
             ) else {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if ::validation::trace_flags::check_sites() {
                     eprintln!(
                         "CHECKSITE completion-cleanup-storage-unavailable loan={handle:?} exit={exit:?} snapshot={snapshot:?} storage={storage:?}"
                     );
                 }
                 return false;
             };
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE completion-cleanup-storage loan={handle:?} exit={exit:?} snapshot={snapshot:?} captures={:?} call_sources={} formations={:?}",
                     stored.clone().captures().map(|values| values.into_iter().map(|value| (value.capture, value.projection)).collect::<Vec<_>>()),
@@ -449,7 +449,7 @@ impl Retirement<'_> {
             },
         );
         if !covered {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE saved-exit-cleanup-uncovered machine={:?} state={:?} loan={handle:?} row={loan:?} path={path:?} exit={exit:?}",
                     self.machine, self.state.symbol

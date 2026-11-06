@@ -151,7 +151,7 @@ pub(crate) fn captured_case_subject_in_state(
         expression,
     );
     if let Err(CapturedCaseSubjectFailure::Correspondence(reason)) = subject.as_ref()
-        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        && ::validation::trace_flags::check_sites()
     {
         trace_captured_subject_refusal(
             program,

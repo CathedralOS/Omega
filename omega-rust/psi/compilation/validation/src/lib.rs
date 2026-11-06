@@ -588,6 +588,7 @@ mod program_validation;
 mod proof_contracts;
 pub use queries::substitutions;
 pub use queries::type_applications::DeclarationScopes;
+pub mod trace_flags;
 mod value_custody;
 
 // The front-end pipeline the tests run, shared with the `suite` integration

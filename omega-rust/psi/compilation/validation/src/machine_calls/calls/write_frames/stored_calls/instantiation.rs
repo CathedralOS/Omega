@@ -21,7 +21,7 @@ pub(super) fn instantiate(
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<InstantiatedSlots> {
     if parameters.len() != arguments.len() {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if crate::trace_flags::check_sites() {
             eprintln!(
                 "CHECKSITE stored-reference-input-context-refusal machine={:?} phase={} parameter_count={} capture_count={} divergent_count={}",
                 machine.symbol,
@@ -143,7 +143,7 @@ fn trace_instantiation_refusal(
     source: Option<&SlotSource>,
     reason: &str,
 ) {
-    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+    if !crate::trace_flags::check_sites() {
         return;
     }
     eprintln!(

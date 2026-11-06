@@ -1155,7 +1155,7 @@ pub(super) fn account<'calls>(
             + reference_releases
             + independent_view_releases;
         if total != 1 && !(total == 0 && !has_normal_caller_completion) {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if ::validation::trace_flags::struct_trace() {
                 eprintln!(
                     "result custody: machine={:?} state={:?} result={result:?} local={result_local:?} construction={construction_transfers} cleanup={cleanup_discards} implicit={implicit_disposition} consumed={consumed} stored={stored} projected={projected_disposition} retired={retired_whole} calls={call_transfers} release={reference_releases} views={independent_view_releases} operations={operations:#?}",
                     machine.symbol, state.symbol

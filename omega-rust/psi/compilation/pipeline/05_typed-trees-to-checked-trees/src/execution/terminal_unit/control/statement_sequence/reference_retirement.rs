@@ -455,7 +455,7 @@ impl Retirement<'_> {
                 Ok(groups) => groups,
                 Err(reason) => {
                     self.trace.phase(reason);
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if ::validation::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE backing-storage-retirement state={:?} current_statement={} formation={formation} owner={owner:?} reference={reference:?} refusal={reason}",
                             self.state.symbol, self.statement_index,

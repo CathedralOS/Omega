@@ -561,7 +561,7 @@ fn summarize_resolved_call(
             )
         });
     inference.active_states.pop();
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if crate::trace_flags::struct_trace() {
         eprintln!(
             "STRUCT resolved-call-write-summary caller={} callee={} state={:?} relative={relative_paths:?} arguments={argument_origins:?}",
             caller_machine.name, callee_machine.name, callee_state.symbol

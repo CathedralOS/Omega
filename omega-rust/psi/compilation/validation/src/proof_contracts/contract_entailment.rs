@@ -222,7 +222,7 @@ use structural_terms::{
 /// body unfolding asks once per application.
 pub(in crate::proof_contracts) fn struct_trace() -> bool {
     static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some())
+    *TRACE.get_or_init(|| crate::trace_flags::struct_trace())
 }
 
 /// The reserved binder naming a machine's return value inside `ensures`

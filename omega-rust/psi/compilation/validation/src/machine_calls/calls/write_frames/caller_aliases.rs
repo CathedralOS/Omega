@@ -599,7 +599,7 @@ pub(super) fn assignment_storage_origins(
         )
     }
     .ok_or_else(|| {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if crate::trace_flags::check_sites() {
             let describe = |origin: &FramePlaceOrigin| (
                 origin.source.root,
                 origin.source.segments.iter().take(16).copied().collect::<Vec<_>>(),

@@ -322,7 +322,7 @@ impl StructuralJudge<'_> {
             // the guard's fresh pattern view does not establish a new value.
             self.intake_admitted_value_predicates(subject_type, admitted_subject.clone());
         }
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT case-domain data={} case={} admitted={} reference={:?} subject={:?}",
                 definition.name, variant.name, admitted, subject_type, admitted_subject
@@ -351,7 +351,7 @@ impl StructuralJudge<'_> {
                         symbol: field.symbol,
                     }],
                 ) else {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT case-domain projection-refused data={} field={} reference={:?}",
                             definition.name, field.name, subject_type

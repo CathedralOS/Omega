@@ -321,7 +321,7 @@ fn cleanup_rows(
             }
             row.actions.extend(actions);
         } else {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE normal-cleanup-unmatched machine={machine:?} state={:?} disposition={disposition:?} exits={:?} outgoing={:?}",
                     state.symbol,

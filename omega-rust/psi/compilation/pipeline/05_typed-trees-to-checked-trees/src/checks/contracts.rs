@@ -147,9 +147,7 @@ pub(super) fn check_flow_call_contracts(
             .is_some_and(|machine| proof_only.is_proof_machine(program, machine))
     };
 
-    static STRUCT_TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    let struct_trace =
-        *STRUCT_TRACE.get_or_init(|| std::env::var_os("OMEGA_STRUCT_TRACE").is_some());
+    let struct_trace = ::validation::trace_flags::struct_trace();
     let has_activation_claim = program
         .data_definitions()
         .iter()

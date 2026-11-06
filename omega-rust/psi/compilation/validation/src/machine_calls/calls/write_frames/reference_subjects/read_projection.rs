@@ -273,7 +273,7 @@ pub(in crate::machine_calls::calls::write_frames) fn contents_invalidation_paths
         {
             return None;
         }
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT captured-reference-coarse-dependency path={} source={:?}",
                 source.origin.path, source.origin.source
@@ -344,7 +344,7 @@ fn complete_spans(
             let next_reads =
                 completed_reference_projection_reads(program, &read, &projected, stored);
             let Some(next_reads) = next_reads else {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT read-projection-refused phase=next-descriptor-suppliers source={:?} suffix={:?} loaded={before}",
                         read.source,
@@ -358,7 +358,7 @@ fn complete_spans(
                 // A repeated zero-width boundary needs independent evidence;
                 // reusing one load cannot authenticate another pointer.
                 if load_required && next.slots.len() == before {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if crate::trace_flags::struct_trace() {
                         eprintln!(
                             "STRUCT read-projection-refused phase=missing-independent-descriptor-load source={:?} suffix={:?} loaded={before} next={next:?}",
                             read.source,
@@ -409,7 +409,7 @@ fn admitted(
         None
     };
     if let Some(reason) = reason {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!("STRUCT read-admission-refused reason={reason} read={read:?}");
         }
         None
@@ -436,7 +436,7 @@ pub(in crate::machine_calls::calls::write_frames) fn resolved_read_coordinate(
         || !source.recasts.is_empty()
         || source.representation.is_some()
     {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT read-coordinate-refused phase=namespace-builtin-or-representation origin={origin:?}"
             );
@@ -444,7 +444,7 @@ pub(in crate::machine_calls::calls::write_frames) fn resolved_read_coordinate(
         return false;
     }
     let Some(reference) = crate::declaration_type_reference(program, source.root) else {
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT read-coordinate-refused phase=source-declaration-type origin={origin:?}"
             );
@@ -455,7 +455,7 @@ pub(in crate::machine_calls::calls::write_frames) fn resolved_read_coordinate(
     for segment in &source.segments {
         while cursor.reference_access().is_some() {
             if cursor.enter_referee().is_none() {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if crate::trace_flags::struct_trace() {
                     eprintln!(
                         "STRUCT read-coordinate-refused phase=reference-or-case-crossing origin={origin:?} segment={segment:?}"
                     );
@@ -464,7 +464,7 @@ pub(in crate::machine_calls::calls::write_frames) fn resolved_read_coordinate(
             }
         }
         if cursor.advance_fixed(segment).is_none() {
-            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            if crate::trace_flags::struct_trace() {
                 eprintln!(
                     "STRUCT read-coordinate-refused phase=declared-field-case-or-fixed-extent origin={origin:?} segment={segment:?}"
                 );

@@ -251,7 +251,7 @@ impl Execution<'_, '_, '_> {
                     let retained = match retained {
                         Ok(retained) => retained,
                         Err(reason) => {
-                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                            if ::validation::trace_flags::struct_trace() {
                                 eprintln!(
                                     "STRUCT supplied-output-retention-refused identity={identity:?} destination={:?} reason={reason}",
                                     effect.destination.local_segments
@@ -325,7 +325,7 @@ impl Execution<'_, '_, '_> {
                         break;
                     };
                     if observed.places.len() != 1 || observed.places != carrier.places {
-                        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        if ::validation::trace_flags::check_sites() {
                             eprintln!(
                                 "CHECKSITE stored-reference-source-correspondence machine={:?} state={:?} statement={} call={:?} observed_count={} carrier_count={} observed={:?} carrier={:?}",
                                 self.machine.symbol,
@@ -397,9 +397,7 @@ impl Execution<'_, '_, '_> {
                 // all suppliers and lifetime debts, withholding joined geometry.
                 known = false;
             }
-            if (!known || origins.is_empty())
-                && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-            {
+            if (!known || origins.is_empty()) && ::validation::trace_flags::check_sites() {
                 eprintln!(
                     "CHECKSITE stored-reference-capture-unavailable machine={:?} state={:?} statement={} call={:?} target={:?} destination={:?}:path_count={}:prefix={:?} known={} origins={} sources={} incoming_identity={} retains_incoming={}",
                     self.machine.symbol,
@@ -504,7 +502,7 @@ impl Execution<'_, '_, '_> {
                     };
                     if supplies_output
                         && !descriptor_loan.is_valid()
-                        && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                        && ::validation::trace_flags::struct_trace()
                     {
                         eprintln!(
                             "STRUCT supplied-descriptor-binding-refused known={known} type={reference:?} origins={origins:?} completed={:?}",
@@ -548,7 +546,7 @@ impl Execution<'_, '_, '_> {
                         retention,
                         ..Default::default()
                     });
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    if ::validation::trace_flags::check_sites() {
                         eprintln!(
                             "CHECKSITE stored-call-value-created state={:?} statement={} target={:?} value={value:?} retention={retention:?} reference={reference:?} suppliers_known={suppliers_known} suppliers={:?} sources={:?}",
                             self.state.symbol,

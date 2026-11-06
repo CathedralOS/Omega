@@ -21,7 +21,7 @@ pub(in crate::machine_calls::calls::write_frames) fn provider_output_relation_re
     target: symbols::SymbolHandle,
     call_expression: ExpressionHandle,
 ) -> bool {
-    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+    let trace = crate::trace_flags::struct_trace();
     let parameters = if let Some(slot) = program.dynamic_slot_by_symbol(target) {
         &slot.parameters
     } else if let Some((_, signature)) = crate::selected_requirement_signature(program, target) {

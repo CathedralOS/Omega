@@ -618,7 +618,7 @@ fn walk_state_write_prefix_body(
         };
         let replaces_local_binding =
             super::reference_subjects::replaces_binding(program, machine, statement)?;
-        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+        if crate::trace_flags::struct_trace()
             && let Some(assignment) = statement.as_assignment()
             && let Some(receiving) = reference_subjects::assignment_stored_value_type(
                 program, machine, state, assignment,

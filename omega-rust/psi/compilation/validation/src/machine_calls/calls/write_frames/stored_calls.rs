@@ -173,7 +173,7 @@ fn invocation_reference_effects(
         return Some(SlotRelationTransfer::complete(Vec::new()));
     }
     let trace_refusal = |phase: &str| {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        if crate::trace_flags::check_sites() {
             eprintln!(
                 "CHECKSITE stored-reference-invocation-refusal machine={:?} state={:?} target={:?} expression={:?} phase={} argument_count={} capture_count={} divergent_count={} machine_arguments_empty={}",
                 machine.symbol,

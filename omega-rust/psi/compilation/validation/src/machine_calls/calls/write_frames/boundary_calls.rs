@@ -707,7 +707,7 @@ fn boundary_written_argument_paths(
                 inference,
             ),
         };
-        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        if crate::trace_flags::call_write_trace() {
             eprintln!(
                 "CALLWRITE boundary-argument caller={} parameter={:?} argument={argument:?} origins={origins:?}",
                 current_machine.name, parameter.symbol
@@ -1046,7 +1046,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
 ) -> Option<Vec<String>> {
     let selected =
         boundary_write_signature_and_receiver(program, current_machine, receiver, target, site);
-    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+    if crate::trace_flags::call_write_trace() {
         eprintln!(
             "CALLWRITE boundary-signature caller={} receiver={receiver:?} target={target} selected={}",
             current_machine.name,
@@ -1072,7 +1072,7 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         arguments,
         bindings,
     );
-    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+    if crate::trace_flags::call_write_trace() {
         eprintln!(
             "CALLWRITE boundary-application caller={} target={target} selected={}",
             current_machine.name,

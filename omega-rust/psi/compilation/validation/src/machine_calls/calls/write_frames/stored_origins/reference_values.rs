@@ -498,7 +498,7 @@ fn resolve_steps(
             remaining_projection_precision(&relative, origin.precision),
         );
         if origin.precision == FramePathPrecision::CollectionCoarse
-            && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+            && crate::trace_flags::struct_trace()
         {
             eprintln!(
                 "FRAME reference-load slot={:?} captured={:?} remaining={:?} builtin={} result={:?}",

@@ -90,7 +90,7 @@ impl CallFrameResolver<'_> {
             return None;
         }
         let sources = completed.reference_sources(self.program);
-        if sources.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if sources.is_none() && crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT captured-reference-address-refused machine={} expression={expression:?} phase=descriptor",
                 self.program.symbols.name(machine.symbol)
@@ -187,7 +187,7 @@ impl CallFrameResolver<'_> {
             let (owner, completed) = self.completed_read_value(machine, expression)?;
             (owner == state.symbol).then_some(completed)
         })();
-        if completed.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        if completed.is_none() && crate::trace_flags::struct_trace() {
             eprintln!(
                 "STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} phase=completion",
                 machine.symbol
@@ -197,7 +197,7 @@ impl CallFrameResolver<'_> {
             .iter()
             .map(|path| {
                 let result = completed.as_ref()?.invalidation_paths(self.program, path);
-                if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                if result.is_none() && crate::trace_flags::struct_trace() {
                     eprintln!("STRUCT captured-reference-dependency-refused machine={:?} expression={expression:?} path={path:?} phase=projection", machine.symbol);
                 }
                 result

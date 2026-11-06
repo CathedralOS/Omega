@@ -149,6 +149,9 @@ struct CapturedReturnPresentation {
 
 impl Captures<'_> {
     fn trace_return_state(&self, state: &State) -> bool {
+        if !crate::trace_flags::trace_completion() {
+            return false;
+        }
         let Ok(selected) = std::env::var("OMEGA_COMPILER_TRACE_COMPLETION") else {
             return false;
         };

@@ -229,9 +229,7 @@ impl Resolver<'_> {
         result
     }
     fn trace_selection(&self, value: Handle<FlowOperandFact>, path: &[PlaceSegment], reason: &str) {
-        if std::env::var_os("OMEGA_STORAGE_QUERY_TRACE").is_none()
-            || !self.control.operands.is_valid(value)
-        {
+        if !crate::trace_flags::storage_query_trace() || !self.control.operands.is_valid(value) {
             return;
         }
         let capture = self.control.operands.get(value);

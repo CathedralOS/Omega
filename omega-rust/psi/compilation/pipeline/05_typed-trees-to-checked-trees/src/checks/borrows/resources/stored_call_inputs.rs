@@ -31,7 +31,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
             }
             match retained_inputs(program, facts, loan_occurrences, state, loan, row) {
                 Ok(inputs) => retained.push((loan, inputs)),
-                Err(reason) if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() => {
+                Err(reason) if ::validation::trace_flags::check_sites() => {
                     eprintln!(
                         "CHECKSITE stored-call-input-unavailable loan={loan:?} reason={reason}"
                     );

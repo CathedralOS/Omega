@@ -205,7 +205,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     // Publish the same complete-or-unknown footprint used to retire facts.
     // Contract consumers must distinguish normal-return storage from copied
     // invocation inputs without rebuilding a wider signature-only write set.
-    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+    if ::validation::trace_flags::struct_trace() {
         eprintln!(
             "FLOW call-storage-writes caller={} state={} target={:?} statement={} ordinal={} complete={} summary={storage_writes:?} observed={:?}",
             machine.name,
@@ -609,7 +609,7 @@ pub(in crate::flow) fn result_identity_is_available(
             ) {
                 Ok(matches) => matches,
                 Err(reason) => {
-                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    if ::validation::trace_flags::struct_trace() {
                         eprintln!("selected result domain correspondence: {reason}");
                     }
                     false

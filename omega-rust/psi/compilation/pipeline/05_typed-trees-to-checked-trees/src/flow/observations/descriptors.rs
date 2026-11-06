@@ -466,7 +466,7 @@ fn rejoin_observation(
 ) -> Result<CanonicalPlace, DescriptorObservationRefusal> {
     let result = observation_agrees(program, control, observation, operand);
     if let Err(reason) = &result
-        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        && ::validation::trace_flags::check_sites()
     {
         eprintln!(
             "[checked descriptor observation] context={context:?} observation={observation:?} consumer={:?} state={:?} statement={} refusal={reason:?}",

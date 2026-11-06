@@ -658,7 +658,7 @@ pub(crate) fn structural_arguments_for_types(
             .retain_projection_evaluations(selectors, &facts.values.scalar_computations.operands)
             .is_none()
         {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if ::validation::trace_flags::check_sites() {
                 let plans = &facts.values.scalar_computations;
                 let children = plans
                     .operands
