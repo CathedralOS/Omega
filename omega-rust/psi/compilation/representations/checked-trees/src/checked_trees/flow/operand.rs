@@ -3,6 +3,31 @@ use typed_trees::expression::ExpressionHandle;
 
 use super::FlowConstraintRef;
 
+/// A performed address projection distinguishes selecting stored contents
+/// from forming a new view of the captured receiver. Neither variant supplies
+/// permission: consumers still resolve that receiver's exact borrowing owner.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowAddressProjection {
+    Storage {
+        path: HandleSpan<facts::PlaceSegment>,
+    },
+    FormedView {
+        path: HandleSpan<facts::PlaceSegment>,
+    },
+}
+
+impl FlowAddressProjection {
+    pub fn path(self) -> HandleSpan<facts::PlaceSegment> {
+        match self {
+            Self::Storage { path } | Self::FormedView { path } => path,
+        }
+    }
+
+    pub fn forms_view(self) -> bool {
+        matches!(self, Self::FormedView { .. })
+    }
+}
+
 /// A payload access at its actual evaluation epoch. Geometry names a case;
 /// these live constraints must separately establish that case before access.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -317,8 +342,8 @@ pub struct FlowOperandFact {
     pub backing: Handle<FlowOperandFact>,
     /// Typed path below the completed address receiver. Present even when its
     /// absolute address is unavailable; None withholds projection evidence,
-    /// while Some(empty) denotes the same complete receiver window.
-    pub address_projection: Option<HandleSpan<facts::PlaceSegment>>,
+    /// while an empty produced path denotes the same complete receiver window.
+    pub address_projection: Option<FlowAddressProjection>,
     /// Captured computation operands in evaluation order, including a selected
     /// short-circuit route. Presence alone does not guarantee execution on every
     /// completion. These are neither stored children nor extra backing loans.

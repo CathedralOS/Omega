@@ -46,6 +46,9 @@ fn address(
     }
     if !replaces_descriptor
         && validation::reference_shell(program, operand.type_reference).is_some()
+        && !operand
+            .address_projection
+            .is_some_and(|projection| projection.forms_view())
     {
         return super::super::completed_backings::resolve(program, facts, state, capture)
             .map(|backings| backings.places);
@@ -86,7 +89,7 @@ fn project_address(
         }
         let projection = control
             .operand_child_paths
-            .span(projection)
+            .span(projection.path())
             .ok_or("the completed address has no captured receiver projection")?;
         let backings = address(program, facts, state, operand.backing, false, ancestors)?;
         let projectable = validation::completed_storage::projectable_reference_places(

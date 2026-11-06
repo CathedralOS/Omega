@@ -960,7 +960,7 @@ impl Resolver<'_> {
                     .flow
                     .control
                     .operand_child_paths
-                    .span(path))
+                    .span(path.path()))
             );
             eprintln!(
                 "CHECKSITE stored-descriptor-source-unavailable state={:?} statement={} capture={capture:?} expression={:?} type={:?} completion={:?} backing={:?} retention={:?} source={source:?} path={path:?}",

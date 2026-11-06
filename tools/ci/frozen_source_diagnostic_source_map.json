@@ -1,8 +1,8 @@
 {
   "schema": "omega-reviewed-compiler-input-map-v1",
-  "compiled_source": "221e4b320fa7a34f24ab8fde9c2efa5105b8a77d",
+  "compiled_source": "b2fd1f24671e4c59d908836e42a00eca88fafe49",
   "compiler_inputs": {
-    "omega-rust": "fadd1457396a90bc7805ef9c23a0ad5db11d1d7c",
+    "omega-rust": "64fdfed33f54a7b372b2e6a75103c51030f93377",
     "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
     "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
     "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -14,13 +14,15 @@
     ".cargo": null
   },
   "provenance": {
-    "owner_source_map_sha256": "b6bc88cc95229cd57c9c57bf03faa51d351bca8c6d899714d0e81912c68dadbc",
-    "owner_source_map_original_path": "build/supplied-output-loan/parent-graph-current-sixteen-source-map.json",
     "role_scope_sha256": "0a523e008cd9a63a893ca56c041c690173206eaf01e4f4d0bf114feb82db33d9",
-    "limits": "Current221e catalog/replay source and failure-only capture diagnostics; prior459 four source refusals retained, no new permission or source positive acceptance claimed. Root-grant lane remains unqualified as program repair.",
+    "limits": "Reviewed Output parent association and performed range/address role repair, including explicit pointer withholding. Current history WIP excluded; source-only four fixed checks, engine0 and no full98 claim. Root-grant path remains unqualified until actually observed.",
     "handle_order_review_sha256": "51a710751f4510bfe2d1651c3cd0b5b067fc68d12f15aa8844af2bd2bc9cfddf",
     "opaque_graph_review_sha256": "91f53ee67c8f9e3caa2c624cedb9ed515a5ebb451ed19dba3557f303a3f0070a",
     "prepared_catalog_scope_sha256": "be9159e01b118aa0d4f9c48f3b4aa84b7000a4020937bc92dd550df20e0302ce",
-    "source05_failure_context_scope_sha256": "be3e6b8acc4650cb3268060e8c3d82c5444aa2213b2810903a01a995a35755f8"
+    "source05_failure_context_scope_sha256": "be3e6b8acc4650cb3268060e8c3d82c5444aa2213b2810903a01a995a35755f8",
+    "parent_normalized_source_map_sha256": "18948ffbee35a8967cd4c904944eef23257a8f0ca511231f2c4365e01dfb43eb",
+    "source05_output_range_scope_sha256": "85b4189c9db1b25eb2d6eb686553dba668813901877700ad879e98b2a6bdab6e",
+    "range_refinement_scope_sha256": "d2e6cbd290e7bf399ccceedb53742a50b3c8ac593429490d9a69db495e7848d7",
+    "output_source_review_diff_sha256": "5ffdd6b34d6b1041ffc51a50a4fef5fc9c1c79d2bddd0c24d04ade577d32b358"
   }
 }

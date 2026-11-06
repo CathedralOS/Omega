@@ -343,6 +343,7 @@ impl Execution<'_, '_, '_> {
         // address as the reference stored inside it.
         let mut value = *self.context.control.operands.get(source);
         value.referents = Default::default();
+        value.address_projection = None;
         value.value_source = source;
         self.context.control.operands.insert(value)
     }
