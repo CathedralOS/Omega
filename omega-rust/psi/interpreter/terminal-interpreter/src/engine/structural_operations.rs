@@ -599,6 +599,7 @@ impl TerminalExecution<'_> {
     /// live claim (the shared tail of every fresh-place admissibility guard).
     pub(crate) fn result_place_in_use(&self, place: semantic_vocabulary::PlaceId) -> bool {
         self.structural_values.contains_key(&place)
+            || self.linear_homes.contains_key(&place)
             || self.scalar_array_values.contains_key(&place)
             || crate::engine::custody::place_is_claimed(&self.live_claims, place)
     }
@@ -822,14 +823,16 @@ impl TerminalExecution<'_> {
         if self.result_place_in_use(result.place) {
             return Err(malformed());
         }
-        self.structural_values.insert(
-            result.place,
-            TerminalStructuralValue::minted(
-                self.local_structural_identities.allocate()?,
-                result.structural_type,
-                result.qualifications.clone(),
-            ),
-        )?;
+        let home = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
+        if result.multiplicity == StructuralMultiplicity::Linear {
+            self.linear_homes.insert(result.place, home)?;
+        } else {
+            self.structural_values.insert(result.place, home)?;
+        }
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
     }
@@ -1265,23 +1268,69 @@ impl TerminalExecution<'_> {
         // cells. Reuse ordinary loan preparation's staged storage identity for
         // geometry and custody; actual writes still resolve the pinned frame.
         let mut identity_cursor = self.local_structural_identities.cursor();
-        let (storage, _) = self
-            .array_storage_root_staged(
-                destination,
-                &mut identity_cursor,
-                &mut RuntimeRows::new(self.account.as_ref()),
-            )
-            .map_err(|error| failure("destination home", error))?;
-        let window = self
-            .structural_window_hole(
-                operation,
-                destination,
-                &storage,
+        let reserved = self.linear_homes.get(&destination).cloned();
+        let (storage, window) = if let Some(home) = &reserved {
+            let (producer, declared_type) = machine
+                .producing_operation(destination)
+                .ok_or_else(malformed)?;
+            let result = producer.result.structural().ok_or_else(malformed)?;
+            if !matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+                || result.place != destination
+                || result.structural_type != declared_type
+                || home.structural_type != declared_type
+                || result.multiplicity != StructuralMultiplicity::Linear
+                || !result.claims.is_empty()
+            {
+                return Err(malformed());
+            }
+            let projection = terminal_semantics::structural_window_projection(
+                self.structural_types().values(),
+                declared_type,
                 path,
                 field,
-                disposition.required_access(),
             )
-            .map_err(|error| failure("destination storage", error))?;
+            .ok_or_else(malformed)?;
+            if !terminal_semantics::projection_stays_in_inline_storage(
+                self.structural_types().values(),
+                declared_type,
+                &projection.path,
+            ) {
+                return Err(malformed());
+            }
+            let selected = crate::engine::custody::project_structural_value(
+                &self.structural_types(),
+                home,
+                &projection.path,
+            )?;
+            (
+                home.clone(),
+                ResolvedStructuralWindow {
+                    backing: selected,
+                    structural_type: projection.structural_type,
+                    path: projection.path,
+                    aggregate_view: false,
+                },
+            )
+        } else {
+            let (storage, _) = self
+                .array_storage_root_staged(
+                    destination,
+                    &mut identity_cursor,
+                    &mut RuntimeRows::new(self.account.as_ref()),
+                )
+                .map_err(|error| failure("destination home", error))?;
+            let window = self
+                .structural_window_hole(
+                    operation,
+                    destination,
+                    &storage,
+                    path,
+                    field,
+                    disposition.required_access(),
+                )
+                .map_err(|error| failure("destination storage", error))?;
+            (storage, window)
+        };
         let field_type = window.structural_type;
         let hole = StructuralRuntimePlace::from(&window.backing);
         if window.aggregate_view
@@ -1293,23 +1342,43 @@ impl TerminalExecution<'_> {
                 "non-copy replacement of an aggregate storage interpretation",
             ));
         }
-        let (required, projected_required) = self
-            .structural_window_requirements(operation, destination, path, field)
-            .map_err(|error| failure("receiving memberships", error))?;
+        let (required, projected_required) = if let Some(home) = &reserved {
+            StructuralPathQualification::select_restorable(
+                &home.qualifications,
+                &home.projected_qualifications,
+                &window.path,
+            )
+            .ok_or_else(malformed)?
+        } else {
+            self.structural_window_requirements(operation, destination, path, field)
+                .map_err(|error| failure("receiving memberships", error))?
+        };
         let mut frontier = self.live_affine_frontier.clone();
         frontier.retain(|entry| entry.place != value.place);
         self.restore_store_frontier(&mut frontier, destination, path, &hole, field_type)
             .map_err(|error| failure("restoration frontier", error))?;
         let claims = self
-            .stage_window_store_claims(
-                destination,
-                &storage,
-                path,
-                &hole,
-                value.place,
-                &mut frontier,
-            )
+            .stage_window_store_claims(destination, &storage, path, &hole, value, &mut frontier)
             .map_err(|error| failure("restored claims", error))?;
+        // Installing a complete value in a vacant declared home establishes
+        // its storage representation too. Leaf writes would split a byte-array
+        // backing into unrelated scalar cells, so later byte loans could not
+        // find the initialized array. Existing borrowed storage instead keeps
+        // its pinned endpoints and uses the ordinary replacement writes.
+        let initializes_home = disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && path.is_empty()
+            && field.is_none()
+            && machine
+                .producing_operation(destination)
+                .is_some_and(|(producer, ty)| {
+                    matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+                        && producer.result.structural().is_some_and(|result| {
+                            result.place == destination && result.structural_type == ty
+                        })
+                });
+        // A complete value comes from the whole establishing store. A claim
+        // already held at this home cannot establish its other fields.
+        let publishes_value = reserved.is_none() || initializes_home;
         // Completed primitive arrays keep their payload outside the opaque
         // structural-place map. Resolve both representations, and stage their
         // exact typed leaves before publishing the same window transaction.
@@ -1351,6 +1420,11 @@ impl TerminalExecution<'_> {
             })
             .chain(
                 self.structural_values
+                    .iter()
+                    .map(|(place, owner)| (self.call_stack.len(), place, owner)),
+            )
+            .chain(
+                self.linear_homes
                     .iter()
                     .map(|(place, owner)| (self.call_stack.len(), place, owner)),
             )
@@ -1403,23 +1477,8 @@ impl TerminalExecution<'_> {
         // opaque maps. Descriptor-bearing values keep the construction storage
         // transaction, including standalone view descriptors and their custody.
         let destination_path = window.path;
-        // Installing a complete value in a vacant declared home establishes
-        // its storage representation too. Leaf writes would split a byte-array
-        // backing into unrelated scalar cells, so later byte loans could not
-        // find the initialized array. Existing borrowed storage instead keeps
-        // its pinned endpoints and uses the ordinary replacement writes.
-        let initializes_home = disposition == terminal_psi::StructuralStoreDisposition::Vacant
-            && path.is_empty()
-            && field.is_none()
-            && machine
-                .producing_operation(destination)
-                .is_some_and(|(producer, ty)| {
-                    matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
-                        && producer.result.structural().is_some_and(|result| {
-                            result.place == destination && result.structural_type == ty
-                        })
-                });
-        let writes = if initializes_home {
+        // Reserved linear storage has no initialized endpoints to overwrite.
+        let writes = if initializes_home || reserved.is_some() {
             None
         } else {
             child
@@ -1459,7 +1518,11 @@ impl TerminalExecution<'_> {
         }
         for (frame_index, place, repaired) in memberships {
             if frame_index == self.call_stack.len() {
-                self.structural_values.insert(place, repaired)?;
+                if place == destination && reserved.is_some() && !publishes_value {
+                    self.linear_homes.insert(place, repaired)?;
+                } else {
+                    self.structural_values.insert(place, repaired)?;
+                }
             } else {
                 self.call_stack
                     .get_mut(frame_index)
@@ -1467,6 +1530,11 @@ impl TerminalExecution<'_> {
                     .structural_values
                     .insert(place, repaired)?;
             }
+        }
+        if reserved.is_some() && publishes_value {
+            self.linear_homes
+                .remove(&destination)
+                .ok_or_else(malformed)?;
         }
         if !copies_storage {
             if let Some(retired) = self.structural_values.remove(&value.place) {

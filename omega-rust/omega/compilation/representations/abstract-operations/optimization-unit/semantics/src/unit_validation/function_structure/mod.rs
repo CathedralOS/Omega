@@ -164,9 +164,7 @@ pub(crate) fn validate_function(
     )?;
     validate_places_and_claims(function)?;
     let requirements = current_ownership::validate_current_ownership_frontier_collecting(
-        unit.psi,
-        &unit.identities,
-        &unit.dynamic_dispatch,
+        unit,
         function,
         &control_flow.blocks,
         &control_flow.predecessors,

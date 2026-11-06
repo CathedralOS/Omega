@@ -7,6 +7,8 @@ use typed_trees::name::Identifier;
 use typed_trees::types::TypeConstraintNode;
 
 mod float_predicate;
+#[cfg(test)]
+mod qualification_tests;
 mod rows;
 pub use float_predicate::FloatPredicate;
 pub use rows::FactTable;
@@ -134,6 +136,36 @@ pub struct QualificationEvidence {
     pub source_symbol: SymbolHandle,
     pub requirement_symbol: SymbolHandle,
     pub issuer: Handle<BoundaryQualificationIssuerRecord>,
+    /// Whether this proof belongs to the current activation or arrived as an
+    /// assumption about one of its inputs. This never changes its issuer.
+    pub provenance: QualificationProvenance,
+}
+
+/// A trust route and an invocation assumption are different properties.
+/// Copies retain this provenance; joins may weaken it, never issue a receipt.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum QualificationProvenance {
+    #[default]
+    Unknown,
+    Independent,
+    InvocationInput {
+        state_symbol: SymbolHandle,
+        parameter_symbol: SymbolHandle,
+    },
+    MixedInputs,
+}
+
+impl QualificationProvenance {
+    fn common(self, other: Self) -> Self {
+        if self == other {
+            return self;
+        }
+        match (self, other) {
+            (Self::Unknown, _) | (_, Self::Unknown) => Self::Unknown,
+            (Self::Independent, other) | (other, Self::Independent) => other,
+            _ => Self::MixedInputs,
+        }
+    }
 }
 
 /// Prepared once with declaration contracts, before flow workers share pages.
@@ -156,6 +188,7 @@ impl QualificationEvidence {
             source_symbol,
             requirement_symbol: SymbolHandle::invalid(),
             issuer: Handle::invalid(),
+            provenance: QualificationProvenance::Unknown,
         }
     }
 
@@ -169,7 +202,63 @@ impl QualificationEvidence {
             source_symbol,
             requirement_symbol,
             issuer,
+            provenance: QualificationProvenance::Independent,
         }
+    }
+
+    /// Capture an existing claim at an authenticated invocation input. The
+    /// caller's receipt remains trustworthy, but is not local establishment.
+    pub fn at_invocation_input(
+        mut self,
+        state_symbol: SymbolHandle,
+        parameter_symbol: SymbolHandle,
+    ) -> Self {
+        self.provenance = if state_symbol.is_valid() && parameter_symbol.is_valid() {
+            QualificationProvenance::InvocationInput {
+                state_symbol,
+                parameter_symbol,
+            }
+        } else {
+            QualificationProvenance::Unknown
+        };
+        self
+    }
+
+    pub fn same_authority(self, other: Self) -> bool {
+        self.origin == other.origin
+            && self.source_symbol == other.source_symbol
+            && self.requirement_symbol == other.requirement_symbol
+            && self.issuer == other.issuer
+    }
+
+    /// Both predecessor paths must supply the same authority. An input-bound
+    /// path keeps its dependency even when the other path established locally.
+    pub fn common_consequence(mut self, other: Self) -> Option<Self> {
+        if !self.same_authority(other) {
+            return None;
+        }
+        self.provenance = self.provenance.common(other.provenance);
+        Some(self)
+    }
+
+    /// These proofs coexist on one path. Keep an independently established
+    /// proof when another proof of the same claim depends on an input.
+    pub fn available_alternative(self, other: Self) -> Option<Self> {
+        if !self.same_authority(other) {
+            return None;
+        }
+        if self.provenance == QualificationProvenance::Independent {
+            Some(self)
+        } else if other.provenance == QualificationProvenance::Independent {
+            Some(other)
+        } else {
+            self.common_consequence(other)
+        }
+    }
+
+    pub fn is_independent_receipt(self) -> bool {
+        self.origin == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+            && self.provenance == QualificationProvenance::Independent
     }
 }
 

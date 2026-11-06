@@ -1,15 +1,15 @@
 //! Independently reconstruct the maximal live structural path complement.
 //! A case step selects active payload debt; inactive alternatives are never
 //! residuals. The caller still authenticates membership and cleanup authority.
+use crate::structural_types::StructuralTypes;
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    find_structural_case,
+    StructuralFieldType, StructuralPathSegment, StructuralTypeShape, find_structural_case,
 };
 
 pub(super) fn partial_affine_residuals(
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     root_type: StructuralTypeId,
     moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
     max_residuals: usize,
@@ -24,7 +24,7 @@ pub(super) fn partial_affine_residuals(
 }
 
 pub(super) fn selected_affine_residuals(
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     root_type: StructuralTypeId,
     moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
     max_residuals: usize,
@@ -64,7 +64,7 @@ pub(super) fn selected_affine_residuals(
 }
 
 fn collect_partial_affine_residuals(
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     structural_type: StructuralTypeId,
     moved_paths: &[&[StructuralPathSegment]],
     prefix: &mut Vec<StructuralPathSegment>,
@@ -72,7 +72,7 @@ fn collect_partial_affine_residuals(
     selected: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
 ) -> Option<()> {
-    match &structural_types.get(&structural_type)?.shape {
+    match &structural_types.declaration(structural_type)?.shape {
         StructuralTypeShape::Record { fields, .. } => {
             if fields.is_empty() {
                 return None;
@@ -125,7 +125,7 @@ fn collect_partial_affine_residuals(
                 })?;
             let selected_case_declaration = find_structural_case(cases, selected_case)?;
             let common = structural_types
-                .get(&structural_type)?
+                .declaration(structural_type)?
                 .shape
                 .direct_fields();
             if moved_paths.iter().any(|path| match path.first() {
@@ -176,7 +176,7 @@ fn collect_partial_affine_residuals(
 }
 
 fn collect_field_residuals(
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     fields: &[terminal_psi::StructuralFieldDeclaration],
     moved_paths: &[&[StructuralPathSegment]],
     prefix: &mut Vec<StructuralPathSegment>,
@@ -197,7 +197,7 @@ fn collect_field_residuals(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
                 _ => Some(
                     terminal_semantics::inline_carrier_declaration(
-                        structural_types.values().copied(),
+                        structural_types.declarations(),
                         field,
                     )?
                     .id,
@@ -221,7 +221,7 @@ fn collect_field_residuals(
 }
 
 fn collect_child_residuals(
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     child_type: StructuralTypeId,
     segment: StructuralPathSegment,
     moved_paths: &[&[StructuralPathSegment]],

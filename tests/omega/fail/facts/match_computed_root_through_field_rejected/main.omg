@@ -8,7 +8,7 @@ machine compute(counter: &mut u64, root: Root) -> u64
 requires counter == 0
 ensures result == root.index
 {
-    counter = 1;
+    counter = counter + 1;
     root.index
 }
 
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     };
     chosen = [7, 7];
     selected = 41;
-    transition selected == 41 && visits == 1 {
+    transition chosen[0] == 41 && chosen[1] == 5 && other[0] == 0 && visits == 1 {
         true -> done()
         false -> wrong()
     }

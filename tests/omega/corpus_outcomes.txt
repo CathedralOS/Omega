@@ -1244,11 +1244,22 @@ fail/borrows/dyn_image_incoming_backing_write rejected 1977ms expected @ccdb99ca
 fail/borrows/dyn_multi_input_result_retains_actual_backing rejected 2780ms expected @ccdb99ca2214
 	state `receive` receives `storage` as both mutable and read-only
 	state `receive` receives `storage` as both mutable and read-only
-fail/borrows/dyn_multi_input_result_retains_other_region rejected 3152ms expected @ccdb99ca2214
+fail/borrows/dyn_multi_input_result_retains_other_region rejected 7681ms expected @e9afae5fccb7
 	state `receive` receives `sibling` as both mutable and read-only
-	state `receive` receives `sibling` as both mutable and read-only
-fail/borrows/dyn_result_retains_actual_backing rejected 3070ms expected @ccdb99ca2214
+	state `mutate` receives `sibling` while local borrow `entry` is still active
+	state `mutate` receives `sibling` while local borrow `entry` is still active
+	statement 2 borrows `sibling` while local borrow `entry` is still active (borrowed at statement 2) in machine `main`, state `entry`, statement 2
+	statement 2 borrows `sibling` while local borrow `entry` is still active (borrowed at statement 2) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `sibling[0]` while local borrow `entry` is still active (borrowed at statement 2)
+	statement 2 mutates `sibling[0]` while local borrow `entry` is still active (borrowed at statement 2)
+fail/borrows/dyn_result_retains_actual_backing rejected 7811ms expected @e9afae5fccb7
+	state `mutate` receives `storage` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 2)
+	state `mutate` receives `storage` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 2)
 	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 2
+	statement 2 borrows `storage` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 2) in machine `main`, state `entry`, statement 2
+	statement 2 borrows `storage` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 2) in machine `main`, state `entry`, statement 2
+	statement 2 mutates `storage[0]` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 2)
+	statement 2 mutates `storage[0]` while local borrow `entry` is still active (borrowed at statement 2; its last use is at statement 2)
 fail/borrows/dyn_result_retains_all_public_regions rejected 3177ms expected @ccdb99ca2214
 	a completed copied argument retains backing storage overlapping a staged exclusive loan in machine `main`, state `entry`, statement 3
 fail/borrows/dynamic_byte_result_retains_first_candidate rejected 1757ms expected @ccdb99ca2214
@@ -1549,9 +1560,9 @@ fail/borrows/opaque_generic_stored_writeonly_input rejected 808ms expected @ccdb
 	machine `forward` state `entry` calls `consume$specialized$af5f7710e906f086$0` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	machine `consume$specialized$af5f7710e906f086$0` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	bodyless boundary symbol `entry` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-fail/borrows/opaque_incoming_nested_projected_array_result_empty_rejected rejected 5126ms expected @b31668d9a31f
+fail/borrows/opaque_incoming_nested_projected_array_result_empty_rejected rejected 7626ms expected @e9afae5fccb7
 	cannot prove requires contract for call observe from main: selected.wrappers[0].bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected rejected 3089ms expected @ccdb99ca2214
+fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected rejected 7779ms expected @e9afae5fccb7
 	cannot prove requires contract for call observe from main: selected.wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/opaque_incoming_nested_stored_byte_view_empty_rejected rejected 2987ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -1911,7 +1922,7 @@ fail/borrows/static_callback_guarantee_needs_entry_premise rejected 2764ms expec
 	cannot prove ensures contract for exit from apply at statement 0: result.sibling.len == source.sibling.len
 fail/borrows/static_callback_requires_public_field_guarantee rejected 3210ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from apply at statement 0: result.sibling.len == source.sibling.len
-fail/borrows/static_callback_result_does_not_restore_entry_contents rejected 732ms expected @5c5c178f82c7
+fail/borrows/static_callback_result_does_not_restore_entry_contents rejected 8128ms expected @e9afae5fccb7
 	cannot prove requires contract for call seven from main: selected.value == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/static_subject_delayed_loan rejected 1897ms expected @ccdb99ca2214
 	state `bump` receives `main` as mutable more than once
@@ -2060,7 +2071,7 @@ fail/borrows/terminal_case_retained_observation rejected 1079ms expected @49e92b
 	state `finish` receives `pool` while local borrow `__transition_subject#11` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/terminal_static_callback_requires_public_field_guarantee rejected 3440ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from apply at statement 0: result.sibling.len == source.sibling.len
-fail/borrows/terminal_static_callback_result_does_not_restore_entry_contents rejected 2506ms expected @ccdb99ca2214
+fail/borrows/terminal_static_callback_result_does_not_restore_entry_contents rejected 8186ms expected @e9afae5fccb7
 	cannot prove requires contract for call seven from main: selected.value == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/unproved_window_index_keeps_backing rejected 3171ms expected @ccdb99ca2214
 	statement 5 mutates `original[0].value` while local borrow `windows` is still active (borrowed at statement 3; its last use is at statement 6)
@@ -3439,6 +3450,17 @@ fail/contracts/overwritten_requirement_cannot_rule_out_branch rejected 2011ms ex
 	exact arithmetic in machine `pick` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/contracts/primitive_float_equality_not_reflexive rejected 6594ms expected @ceec2d4e7d8b
 	cannot prove ensures contract for exit from wrong_reflexivity at statement 0: result == value
+fail/contracts/private_counter_callable_input_alternatives rejected 7939ms expected @edd05427fd02
+	cannot prove requires contract for call require_zero from zero_or_one: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call require_zero from zero_or_any: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_callback_input rejected 7904ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_provider_input rejected 7632ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_public_input rejected 7553ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/private_counter_second_arrival rejected 7576ms expected @edd05427fd02
+	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/projected_result_guarantee_after_overwrite rejected 570ms expected @cdaaea7fffc3
 	cannot prove ensures contract for exit from replace at statement 3: elements[1].child.value == 9 && elements[1].child.ready
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 1634ms expected @ad7c6890a897+wt
@@ -3873,8 +3895,8 @@ fail/core/content_retained_custody_from_borrow rejected 314ms expected @ccdb99ca
 fail/core/content_reunion_anonymous_mutation rejected 17769ms expected @ee4dbb4b2d56
 	cannot prove initializer of `left` in rejoin is in domain `Region::Owned`; an annotation cannot establish routed qualification
 	cannot prove ensures contract for exit from rejoin at statement 11: result in Region::Owned
-fail/core/content_reunion_exchanged_empty rejected 17982ms expected @ee4dbb4b2d56
-	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
+fail/core/content_reunion_exchanged_empty rejected 8108ms expected @e9afae5fccb7
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned; the returned value does not establish this domain
 fail/core/content_reunion_fresh_callee rejected 6589ms expected @ee4dbb4b2d56
 	cannot derive content custody in `rejoin`, state `entry` at statement 7: equal content does not relate a freshly established callee root to an input
 fail/core/content_reunion_mixed_origin rejected 6437ms expected @ee4dbb4b2d56
@@ -3886,14 +3908,10 @@ fail/core/content_reunion_mixed_origin rejected 6437ms expected @ee4dbb4b2d56
 	cannot prove ensures contract for exit from counterfeit at statement 2: result.right.length == whole.length - requested
 	cannot prove ensures contract for exit from counterfeit at statement 2: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 	cannot derive content custody in `rejoin`, state `entry` at statement 7: equal content does not relate a freshly established callee root to an input
-fail/core/content_reunion_mutated_result rejected 7921ms expected @ee4dbb4b2d56
-	cannot prove requires contract for call partition from rejoin: returned.base == 10 && returned.length == 48 && requested <= returned.length (needs fact `whole.base == 10 && whole.length == 48 && requested <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/core/content_reunion_mutated_result rejected 8223ms expected @e9afae5fccb7
 	cannot prove requires contract for call partition from rejoin: returned in Region::Owned (invalidated by prior mutation of returned.base; returned is part of Region::Owned) in state `entry`
-	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned
-	cannot prove ensures contract for exit from rejoin_state at statement 0: result in Region::Owned
-	cannot prove ensures contract for exit from rejoin_state at statement 0: result.base == whole.base
-	cannot prove ensures contract for exit from rejoin_state at statement 0: result.length == whole.length
-	cannot prove ensures contract for exit from rejoin_state at statement 0: Owned.content(old(&whole)) == Owned.content(&result)
+	cannot prove ensures contract for exit from rejoin at statement 10: result in Region::Owned; the returned value does not establish this domain
+	cannot prove ensures contract for exit from rejoin_state at statement 0: result in Region::Owned; the returned value does not establish this domain
 fail/core/content_target_family_unselected_body rejected 1345ms expected @ee4dbb4b2d56
 	machine `exercise` state `entry` value call to `partition` violates required fact `whole.base == 10 && whole.length == 48 && requested == 16`: the instantiated fact is structurally false (`whole.base == 10 && whole.length == 48 && 17 == 16`)
 fail/core/content_transform_active_payload rejected 2237ms expected @ccdb99ca2214
@@ -3914,7 +3932,7 @@ fail/core/content_transform_nested_loss rejected 1922ms expected @ccdb99ca2214
 	linear value `whole` reaches scope exit without being consumed or transferred in machine `discard_nested` state `entry`
 fail/core/content_transform_retagged_parent rejected 7040ms expected @ee4dbb4b2d56
 	linear value `whole` reaches scope exit without being consumed or transferred in machine `renew_empty` state `entry`
-fail/core/extent_root_adapter_direct_call_does_not_grant rejected 3856ms expected @ccdb99ca2214
+fail/core/extent_root_adapter_direct_call_does_not_grant rejected 7818ms expected @e9afae5fccb7
 	cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted in state `entry`
 fail/core/extent_scope_loss rejected 2280ms expected @ccdb99ca2214
 	linear value `extent` reaches scope exit without being consumed or transferred in machine `leak` state `entry`
@@ -4064,7 +4082,7 @@ fail/core/owned_content_partition_parent_reuse rejected 1568ms expected @ccdb99c
 fail/core/owned_content_partition_raw_child_authority rejected 2536ms expected @ccdb99ca2214
 	construction value is not proven in domain `Extent::Granted` in split state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove initializer of `left` in split is in domain `Extent::Granted`; an annotation cannot establish routed qualification
-fail/core/owned_content_partition_raw_child_cast rejected 1855ms expected @ccdb99ca2214
+fail/core/owned_content_partition_raw_child_cast rejected 7834ms expected @e9afae5fccb7
 	`as ... in Extent::Granted` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	linear value `named(name(nominal\\(toolchain-owner\\,path\\(Extent\\)\\)))` reaches scope exit without being consumed or transferred in machine `split` state `entry`
 fail/core/owned_content_partition_without_theorem rejected 1674ms expected @ccdb99ca2214
@@ -4902,7 +4920,7 @@ fail/domains/routed_domain_bare_argument rejected 2091ms expected @ccdb99ca2214
 	cannot prove requires contract for call spend from relay: x in u64::Issued in state `entry`
 fail/domains/routed_primitive_receiver_requires_issuer rejected 11221ms unexpected @ccdb99ca2214
 	cannot prove the value assigned to `row` in replace is in domain `u64::IssuedIndex`; a place declared `in u64::IssuedIndex` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/domains/routed_qualification_cast_after_erasure rejected 7584ms expected @d31209ea0d20+wt
+fail/domains/routed_qualification_cast_after_erasure rejected 7934ms expected @e9afae5fccb7
 	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_cast_computed_operand rejected 9135ms expected @47a2311bffbe
@@ -9701,7 +9719,7 @@ fail/facts/linear_claim_retirement_through_const_name_rejected rejected 7765ms e
 	cannot use `token` in machine `probe` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/facts/linear_claim_retirement_through_field_rejected rejected 8579ms expected @ee4dbb4b2d56
 	cannot use `holder.item` in machine `probe` state `entry` (statement 2) after `holder.item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `holder.item` first
-fail/facts/linear_claim_retirement_through_local_rejected rejected 7203ms expected @ee4dbb4b2d56
+fail/facts/linear_claim_retirement_through_local_rejected rejected 6945ms expected @e9afae5fccb7
 	cannot use `place_token` in machine `probe` state `entry` (statement 3) after `place_token` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `place_token` first
 fail/facts/linear_claim_retirement_through_match_join_rejected rejected 8752ms expected @ee4dbb4b2d56
 	cannot use `token` in machine `probe` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
@@ -9864,35 +9882,24 @@ fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms e
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_call_result_rejected rejected 2254ms expected @ccdb99ca2214
-	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-	cannot prove requires contract for call compute from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_const_name_rejected rejected 1933ms expected @ccdb99ca2214
-	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_computed_root_through_field_rejected rejected 2685ms expected @ccdb99ca2214
-	statement 5 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/match_computed_root_through_local_rejected rejected 1769ms expected @ccdb99ca2214
-	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/match_computed_root_through_match_join_rejected rejected 1728ms expected @ccdb99ca2214
-	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/match_computed_root_through_other_machine_rejected rejected 2304ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_call_result_rejected rejected 7542ms expected @edd05427fd02
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/match_computed_root_through_const_name_rejected rejected 7608ms expected @edd05427fd02
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/match_computed_root_through_field_rejected rejected 7585ms expected @edd05427fd02
+	statement 5 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 4; its last use is at statement 6)
+fail/facts/match_computed_root_through_local_rejected rejected 7562ms expected @edd05427fd02
+	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 5)
+fail/facts/match_computed_root_through_match_join_rejected rejected 7561ms expected @edd05427fd02
+	statement 6 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 5; its last use is at statement 7)
+fail/facts/match_computed_root_through_other_machine_rejected rejected 7638ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_other_state_rejected rejected 2046ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_other_state_rejected rejected 7567ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_parameter_rejected rejected 3824ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_parameter_rejected rejected 7637ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_computed_root_through_target_body_rejected rejected 2484ms expected @ccdb99ca2214
+fail/facts/match_computed_root_through_target_body_rejected rejected 7549ms expected @edd05427fd02
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/match_effectful_subject_custody_through_call_result_rejected rejected 6156ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
 fail/facts/match_effectful_subject_custody_through_const_name_rejected rejected 4545ms expected @17ba37eb5f9c
@@ -10933,27 +10940,27 @@ fail/facts/progress_selector_owned_arrival_through_target_body_rejected rejected
 	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 	machine `select` derives progress premise `package:9364f36c74b1f2df319d56869fe0bb4bd373decea9f89490e5fbb3338fb34795:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_call_result_rejected rejected 3796ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:3116de76c721f04d62b13bc9fddcfb2df264ef0b1b13eea63a893330547b145e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_const_name_rejected rejected 3759ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:6ffb0c477fb369fb7ca57fa8d58aa19ef863fe3a6eefb7dfc72126595422427f:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_field_rejected rejected 3809ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:615168358e31a03ceed3073526c26c9457f3178436454ee996ff068be893a15e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_local_rejected rejected 3864ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:214745d722e4e144bc16415908d0f4515d1811161c79e0764b5269d4964e9c1e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_match_join_rejected rejected 3797ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:de425ac2d651b4750eb1cfd3ebb63c53019320390b5e5d6de85bafae8859f1f2:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_other_machine_rejected rejected 3902ms expected @7c89e967bf75
-	machine `nested` derives progress premise `package:e64e4237e8f73f8d67beac20e3bf8bfa6a43b228b769fe71b11f8650f976d264:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_other_state_rejected rejected 3835ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:437f7f47bf8e75d82fabfd14bddd22dd690abb39e5cb2b25186887a4796fe748:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_parameter_rejected rejected 3813ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:0d2d7ac5e0a2484279498ec78e8818fab6d6a892d6cf01a12e123d7fa6ea002b:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/facts/progress_selector_through_target_body_rejected rejected 3758ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:938f2cf29980f8d5963c613b76e2d2873a3b73c825bd9724e6fbab4f7cad3a89:product::Token::Fair` for `select::linux_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:938f2cf29980f8d5963c613b76e2d2873a3b73c825bd9724e6fbab4f7cad3a89:product::Token::Fair` for `select::linux_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:938f2cf29980f8d5963c613b76e2d2873a3b73c825bd9724e6fbab4f7cad3a89:product::Token::Fair` for `select::macos_arm64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-	machine `select` derives progress premise `package:938f2cf29980f8d5963c613b76e2d2873a3b73c825bd9724e6fbab4f7cad3a89:product::Token::Fair` for `select::windows_x86_64::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_call_result_rejected rejected 9166ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:c4d0c0387c43b40b6405822a7e77f5691650ff4d6c4875365871817f3454db39:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_const_name_rejected rejected 9176ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:cadbb3359e0622e4c4dc526247f8459f579ac3888e57553a2c49ade29331474e:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_field_rejected rejected 9115ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:dbc7b9f02ea20ab859438363b79b0ba2f3a796027ebf1188eac3d8d287307e72:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_local_rejected rejected 9099ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:5d3a7ed536296c6926981d2f52b759f8619356f284c6a47adcbf38ca55b48b83:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_match_join_rejected rejected 9088ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:d7890c15b467c0e3a4a8f8f3348e6ac083d44c1088b17bcca7f6930fdaa41203:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_machine_rejected rejected 9126ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `nested` derives progress premise `package:bdadf9cafc2d8a6507361c33cf8cbed15799bfcc61f1ff13b319d568ccfdfe8f:product::Token::Fair` for `nested::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_other_state_rejected rejected 9078ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:8fd2d3115923bec06e3321c59762084cbcdf029096046e364148944aa6eec759:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_parameter_rejected rejected 9142ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:2ba57e0e9916732150e64553e2c926625d5e2818d9ef3121a76c9b0252f8d8f0:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
+fail/facts/progress_selector_through_target_body_rejected rejected 9213ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `LinuxX86Selector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `LinuxX86Selector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `LinuxArmSelector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `LinuxArmSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `MacosSelector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `MacosSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
+	machine `WindowsSelector::select` derives progress premise `package:f0a48a50524b8e455f69f9d1524f1a5790f71ee5ade1fe7ed307ff853ec6c7df:product::Token::Fair` for `WindowsSelector::select::select::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/facts/projection_call_premise_through_call_result_rejected rejected 2829ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from produced at statement 0: result.kept
 fail/facts/projection_call_premise_through_const_name_rejected rejected 1512ms expected @ccdb99ca2214
@@ -11450,7 +11457,7 @@ fail/facts/resident_backing_parameter_missing_vacancy rejected 5353ms expected @
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
 fail/facts/resident_backing_plain_ram_stale_field_rejected rejected 5188ms expected @c6b8285077a8+wt
 	cannot prove ensures contract for exit from check at statement 1: result == 17
-fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms expected @c6b8285077a8+wt
+fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 15602ms expected @e9afae5fccb7
 	cannot prove requires contract for call split_vacant_extent from exchange: 4 <= prefix.rest.length (needs fact `requested <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call merge_vacant_extents from exchange: embed(cell.length) + embed(element.rest.length) <= 18446744073709551615 (needs fact `embed(left.length) + embed(right.length) <= 18446744073709551615` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call merge_vacant_extents from exchange: cell.length == 0 || element.rest.length == 0 || embed(element.rest.base) == embed(cell.base) + embed(cell.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -11458,7 +11465,7 @@ fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms exp
 	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
-fail/facts/resident_backing_runtime_growth_swapped_source rejected 20024ms expected @b7a1f6a9630c
+fail/facts/resident_backing_runtime_growth_swapped_source rejected 22353ms expected @e9afae5fccb7
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.base == original.base
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.length == original.length
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.replacement.base == replacement.base
@@ -11467,17 +11474,17 @@ fail/facts/resident_backing_runtime_growth_swapped_source rejected 20024ms expec
 	cannot prove ensures contract for exit from step at statement 3: result.original.length == original.length
 	cannot prove ensures contract for exit from step at statement 3: result.replacement.base == replacement.base
 	cannot prove ensures contract for exit from step at statement 3: result.replacement.length == replacement.length
-fail/facts/resident_backing_runtime_helper_loop_duplicate rejected 15333ms expected @4083ce80c932
+fail/facts/resident_backing_runtime_helper_loop_duplicate rejected 12652ms expected @e9afae5fccb7
 	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/resident_backing_runtime_loop_changed_arrival rejected 8586ms expected @e993f43ba966+wt
 	cannot prove ensures contract for exit from carry at statement 1: result.first.base == first.base
 	cannot prove ensures contract for exit from carry at statement 1: result.second.base == second.base
-fail/facts/resident_backing_runtime_loop_wrong_origin rejected 18867ms expected @e993f43ba966+wt
+fail/facts/resident_backing_runtime_loop_wrong_origin rejected 14876ms expected @e9afae5fccb7
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.base == first.base
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.length == first.length
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.base == second.base
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.length == second.length
-fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 18701ms expected @3a4409d34005
+fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 14878ms expected @e9afae5fccb7
 	construction value is not proven in domain `Extent::Granted` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Extent::Vacant` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	cannot prove ensures contract for exit from forward at statement 3: result.length == storage.length
@@ -11486,7 +11493,7 @@ fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 3: Extent requires Extent::Granted
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 3: Extent requires Extent::Vacant
 	linear value `storage` reaches scope exit without being consumed or transferred in machine `forward` state `entry`
-fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 17838ms expected @3a4409d34005
+fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 12770ms expected @e9afae5fccb7
 	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
@@ -15466,17 +15473,17 @@ fail/layouts/extent_descriptor_write_retires_mathematical_qualification rejected
 	cannot prove ensures contract for exit from preserve at statement 2: storage in Extent::Granted
 fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 1430ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 2: storage in Extent::Registered
-fail/layouts/extent_view_exclusive_source_overlap rejected 2161ms expected @ccdb99ca2214
+fail/layouts/extent_view_exclusive_source_overlap rejected 8158ms expected @e9afae5fccb7
 	statement 1 reads `storage.length` while local borrow `outcome` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
-fail/layouts/extent_view_nested_record_predicate rejected 2619ms expected @911f6617ba9e
+fail/layouts/extent_view_nested_record_predicate rejected 7999ms expected @e9afae5fccb7
 	nonresident access View cannot establish record predicates for `Inner`; independent content-validity evidence is required
-fail/layouts/extent_view_shared_cannot_mutate rejected 947ms expected @ccdb99ca2214
+fail/layouts/extent_view_shared_cannot_mutate rejected 4714ms expected @e9afae5fccb7
 	argument `storage` for state `view_extent_mut` is declared `&mut` (`&mut Extent[in Granted]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/layouts/extent_view_unproved_field_domain rejected 2425ms expected @b43a5fa574e6
+fail/layouts/extent_view_unproved_field_domain rejected 7841ms expected @e9afae5fccb7
 	nonresident access View cannot establish field qualifications; independent content-validity evidence is required
-fail/layouts/extent_view_unproved_record_predicate rejected 2976ms expected @911f6617ba9e
+fail/layouts/extent_view_unproved_record_predicate rejected 8749ms expected @e9afae5fccb7
 	nonresident access View cannot establish record predicates for `Word`; independent content-validity evidence is required
-fail/layouts/extent_view_unrelated_result_lifetime rejected 4728ms expected @ccdb99ca2214
+fail/layouts/extent_view_unrelated_result_lifetime rejected 13273ms expected @e9afae5fccb7
 	machine `attempt` returns a view borrowing input `right`, which is not permitted by the declared result lifetime relation
 fail/layouts/false_constant_layout_contract rejected 3746ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call impossible from program: size_of() < align_of()
@@ -16175,7 +16182,7 @@ fail/ownership/linear_temporary_scalar_observation rejected 1764ms expected @ccd
 	linear value `named(name(nominal\\(package-owner\\(32:de8e0742473408e6d43dbffde662d641d51fd4e8e7d6bf87a16f340e35cc8ae7\\)\\,path\\(Receipt\\)\\)))` reaches scope exit without being consumed or transferred in machine `Main::main` state `main`
 fail/ownership/linear_transparent_record_member_scope_loss rejected 5147ms expected @b17a1e9569d9
 	linear value `pair.right` reaches scope exit without being consumed or transferred in machine `Main::main` state `main`
-fail/ownership/linear_zero_storage_not_established rejected 3936ms expected @b17a1e9569d9
+fail/ownership/linear_zero_storage_not_established rejected 7971ms expected @e9afae5fccb7
 	linear value `receipt` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
 fail/ownership/live_registration_cannot_drop rejected 9955ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from drop$specialized$b6468293431345d8$0$2658 state entry after statement 0: value does not establish drop_registration clause `registration.module == 0 && registration.atom == 0`
@@ -17260,7 +17267,7 @@ fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99
 	calling policy rejected the boundary: direct foreign policy refuses
 fail/providers/direct_foreign_wrong_table rejected 7086ms expected @e2e21da6e1d9
 	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
-fail/providers/erased_routed_result_not_recovered rejected 8138ms expected @d31209ea0d20+wt
+fail/providers/erased_routed_result_not_recovered rejected 8067ms expected @e9afae5fccb7
 	cannot prove requires contract for call consume from main: erased in Token::Issued in state `entry`
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure
@@ -17698,7 +17705,7 @@ fail/recast/write_only_read_view rejected 1449ms expected @ccdb99ca2214
 fail/recast/write_only_shared_escalation rejected 1513ms expected @ccdb99ca2214
 	machine `observe` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `observe` state `entry` local `view` may read, but the source supplies only write-only authority
-fail/recast/write_only_source_validity rejected 1131ms expected @ccdb99ca2214
+fail/recast/write_only_source_validity rejected 4690ms expected @e9afae5fccb7
 	machine `overwrite` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Viewed` are not representation-compatible
 fail/recast/write_only_stored_pointer_read rejected 1366ms expected @ccdb99ca2214
 	machine `overwrite` state `entry` reads field `value` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
@@ -17752,6 +17759,8 @@ fail/relevance/static_proof_borrow_requires_storage rejected 871ms expected @ccd
 	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 fail/relevance/static_proof_result_cannot_materialize rejected 1054ms expected @ccdb99ca2214
 	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
+fail/resources/owned_extent_erased_label_rejected rejected 17332ms expected @e9afae5fccb7
+	cannot prove ensures contract for exit from forget_label at statement 0: result in Extent::Marked; the returned value does not establish this domain
 fail/slices/affine_view_arrival_duplicate_mutable rejected 1989ms expected @ccdb99ca2214
 	state `alias` receives `intermediate` as mutable more than once
 fail/slices/alias_replaced_returned_field_lower_bound rejected 1423ms expected @ccdb99ca2214
@@ -18394,14 +18403,14 @@ fail/termination/progress_selector_owned_snapshot_rejected rejected 3887ms expec
 	machine `select` derives progress premise `package:35dd19e37ab066888a40f1a5484fbe064460cf6c302669761b449fde64172672:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/progress_selector_reference_snapshot_rejected rejected 3846ms expected @7c89e967bf75
 	machine `select` derives progress premise `package:38a40564ebfcc0b83223d4edfdfa4e6907afdb11b8e1e63d0aa0e06debd69035:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_replaced_carrier rejected 3605ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:1fc7f67d3a0cbf467f8366bde0e022568f0a39ad1200073ed85225d5dfa4a644:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_replaced_slot rejected 3602ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:d8d9b0149174fb4c59b93526a31aa311f2d7a47df7d0aa7e43e1d8168be49011:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_stale_contents rejected 3583ms expected @7c89e967bf75
+fail/termination/progress_selector_replaced_carrier rejected 9289ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:68124b86110cdc257b2623d44abf74274ca04eceb239785094c544d01d2059f1:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_replaced_slot rejected 9162ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:c6d64aa66d64d1eade9cfc01dac8a299ebe6e7ab849448caf0b2c65c4217222a:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_stale_contents rejected 9240ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/progress_selector_unknown_alternative rejected 3526ms expected @7c89e967bf75
-	machine `select` derives progress premise `package:5c759233d6a54fc5f5d7030539d8f0a7585c5fef08a7162827183ec1a1eada1a:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_unknown_alternative rejected 9262ms expected @dfb79c300aae3917c2681b51c319f58741f2664c
+	machine `select` derives progress premise `package:c0a34cf985550bf4e7eccceb629ebb13b5e0879a265cca4ef466102bb22aa221:product::Token::Fair` for `select::entry::unknown` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/proof_joint_machine_cycle_nondecreasing rejected 743ms unexpected @ccdb99ca2214
 	proof-only machine call cycle: `left`, `right` -- no complete structural ranking establishes strict descent on every cycle; exact arguments must preserve or descend from the ranking subject, and preserving edges must be acyclic; computed ranking: a computed closing argument is not proved smaller on every incoming path
 fail/termination/proof_joint_machine_cycle_unmeasured rejected 923ms unexpected @ccdb99ca2214
@@ -19481,8 +19490,8 @@ pass/borrows/nested_reference_write_disjoint_facts_exit checked 3447ms check-tar
 pass/borrows/opaque_generic_owned_input_declaration checked 2892ms @ccdb99ca2214
 pass/borrows/opaque_generic_reference_readers checked 2930ms @ccdb99ca2214
 pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 2794ms @ccdb99ca2214
-pass/borrows/opaque_incoming_nested_projected_array_result_exit checked 3955ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/opaque_incoming_nested_projected_record_result_exit checked 3360ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/opaque_incoming_nested_projected_array_result_exit checked 10397ms check-target:macos_arm64 @e9afae5fccb7
+pass/borrows/opaque_incoming_nested_projected_record_result_exit checked 10022ms check-target:macos_arm64 @e9afae5fccb7
 pass/borrows/opaque_incoming_nested_stored_byte_view_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/opaque_incoming_nested_stored_byte_view_relay_exit checked 14366ms check-target:macos_arm64 @7a2c1562808d
 pass/borrows/opaque_incoming_stored_byte_view_exit checked 3856ms check-target:macos_arm64 @ccdb99ca2214
@@ -19593,8 +19602,8 @@ pass/borrows/runtime_disjoint_child_loans_restore_parent_exit checked 3709ms che
 pass/borrows/runtime_dropped_reference_qualification_exit rejected 3032ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from refresh at statement 0: ticket in Ticket::Issued
 pass/borrows/runtime_dyn_image_result_snapshot_exit checked 7009ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/borrows/runtime_dyn_multi_input_window_snapshot_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_dyn_result_region_snapshot_exit checked 3894ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_dyn_multi_input_window_snapshot_exit checked 10005ms check-target:macos_arm64 @e9afae5fccb7
+pass/borrows/runtime_dyn_result_region_snapshot_exit checked 10288ms check-target:macos_arm64 @e9afae5fccb7
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit checked 16364ms check-target:macos_arm64 @60b8f1171d45
 pass/borrows/runtime_expired_call_carrier_selection_exit checked 3756ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit checked 3369ms check-target:macos_arm64 @ccdb99ca2214
@@ -19742,7 +19751,7 @@ pass/borrows/runtime_state_arrival_recast_footprint_exit checked 3665ms check-ta
 pass/borrows/runtime_state_boolean_reference_exit checked 18197ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_fixed_element_reference_exit checked 15170ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 18286ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_static_callback_snapshot_exit checked 3670ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_static_callback_snapshot_exit checked 10437ms check-target:macos_arm64 @edd05427fd02
 pass/borrows/runtime_stored_boolean_reference_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_stored_carrier_exchange_exit rejected 3323ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	state `unchanged` receives `second_retired.values` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 12)
@@ -19765,7 +19774,7 @@ pass/borrows/runtime_tail_expression_views_exit checked 16643ms check-target:mac
 pass/borrows/runtime_tail_recursive_disjoint_field_fact_exit checked 6281ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_tail_recursive_nested_field_frame_exit checked 5929ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_tail_recursive_numeric_disjoint_field_fact_exit checked 6500ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_terminal_static_callback_snapshot_exit checked 3530ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_terminal_static_callback_snapshot_exit checked 10451ms check-target:macos_arm64 @e9afae5fccb7
 pass/borrows/runtime_transitive_mixed_result_backing_exit checked 4782ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_uniform_projected_reference_selection_exit checked 3179ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_unit_call_mutable_view_local_exit checked 16292ms check-target:macos_arm64 @ccdb99ca2214
@@ -20547,7 +20556,7 @@ pass/collections/runtime_stored_reference_array_owned_record_contract_exit check
 pass/collections/runtime_stored_reference_array_replacement_contract_exit rejected 3988ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "value storage local is not established", gap: None })
 pass/collections/runtime_three_indexed_record_float_read_exit checked 17197ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/runtime_vec_u32_growth_exit checked 37271ms check-target:macos_arm64 @66ee9999011e+wt
+pass/collections/runtime_vec_u32_growth_exit checked 28335ms check-target:macos_arm64 @e9afae5fccb7
 pass/collections/runtime_view_element_structural_replacement_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target:macos_arm64 @27c558b731f4
 pass/collections/shared_slice_view_dropped_receiver checked 86576ms check-target:macos_arm64 @898dd1bf8987
@@ -22756,8 +22765,7 @@ pass/facts/erased_reference_contract_through_other_state_exit rejected 3054ms ch
 	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	state `ready` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
-pass/facts/erased_reference_contract_through_parameter_exit rejected 3255ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	state `keep` receives `witness` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
+pass/facts/erased_reference_contract_through_parameter_exit checked 9765ms check-target:macos_arm64 @edd05427fd02
 pass/facts/erased_reference_contract_through_target_body_exit checked 3169ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_call_result_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exact_integer_narrowing_through_const_name_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
@@ -23447,23 +23455,15 @@ pass/facts/machine_tuple_dispatch_through_other_machine_exit checked 2843ms chec
 pass/facts/machine_tuple_dispatch_through_other_state_exit checked 2467ms check-target:macos_arm64 @dacae466db1d+wt
 pass/facts/machine_tuple_dispatch_through_parameter_exit checked 2593ms check-target:macos_arm64 @dacae466db1d+wt
 pass/facts/machine_tuple_dispatch_through_target_body_exit checked 2670ms check-target:macos_arm64 @dacae466db1d+wt
-pass/facts/match_computed_root_through_call_result_exit rejected 2686ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from select: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_const_name_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_field_exit checked 3715ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_local_exit checked 3581ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_match_join_exit checked 3760ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_computed_root_through_other_machine_exit rejected 3047ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_other_state_exit rejected 3101ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from write: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_parameter_exit rejected 2793ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_computed_root_through_target_body_exit rejected 3120ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_computed_root_through_call_result_exit checked 9788ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_const_name_exit checked 9818ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_field_exit checked 9838ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_local_exit checked 9824ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_match_join_exit checked 9771ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_other_machine_exit checked 9833ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_other_state_exit checked 9865ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_parameter_exit checked 9872ms check-target:macos_arm64 @edd05427fd02
+pass/facts/match_computed_root_through_target_body_exit checked 20133ms check-target:macos_arm64 terminal-inspections:match @edd05427fd02
 pass/facts/match_effectful_subject_custody_through_call_result_exit checked 13140ms check-target:macos_arm64 @17ba37eb5f9c
 pass/facts/match_effectful_subject_custody_through_const_name_exit checked 13206ms check-target:macos_arm64 @17ba37eb5f9c
 pass/facts/match_effectful_subject_custody_through_field_exit checked 10959ms check-target:macos_arm64 @17ba37eb5f9c
@@ -24102,15 +24102,15 @@ pass/facts/progress_selector_owned_arrival_through_other_machine_exit checked 50
 pass/facts/progress_selector_owned_arrival_through_other_state_exit checked 5000ms check-target:macos_arm64 @7c89e967bf75
 pass/facts/progress_selector_owned_arrival_through_parameter_exit checked 4820ms check-target:macos_arm64 @7c89e967bf75
 pass/facts/progress_selector_owned_arrival_through_target_body_exit checked 4793ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_call_result_exit checked 4849ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_const_name_exit checked 4868ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_field_exit checked 5003ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_local_exit checked 4908ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_match_join_exit checked 4932ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_other_machine_exit checked 4907ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_other_state_exit checked 4803ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_parameter_exit checked 5097ms check-target:macos_arm64 @7c89e967bf75
-pass/facts/progress_selector_through_target_body_exit checked 5001ms check-target:macos_arm64 @7c89e967bf75
+pass/facts/progress_selector_through_call_result_exit checked 12789ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_const_name_exit checked 13019ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_field_exit checked 12804ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_local_exit checked 12666ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_match_join_exit checked 12710ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_other_machine_exit checked 12664ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_other_state_exit checked 12731ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_parameter_exit checked 12722ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
+pass/facts/progress_selector_through_target_body_exit checked 12796ms check-target:macos_arm64 @dfb79c300aae3917c2681b51c319f58741f2664c
 pass/facts/projection_call_premise_through_call_result_exit checked 3273ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/projection_call_premise_through_const_name_exit checked 3475ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/projection_call_premise_through_field_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
@@ -24352,11 +24352,11 @@ pass/facts/resident_backing_other_machine_exit checked 9156ms check-target:macos
 pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
-pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
-pass/facts/resident_backing_runtime_growth_exit checked 22253ms check-target:macos_arm64 @b7a1f6a9630c
-pass/facts/resident_backing_runtime_helper_loop_exit checked 19198ms check-target:macos_arm64 @4083ce80c932
-pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
-pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 24170ms check-target:macos_arm64 @3a4409d34005
+pass/facts/resident_backing_runtime_cells_exit checked 17807ms check-target:macos_arm64 @e9afae5fccb7
+pass/facts/resident_backing_runtime_growth_exit checked 26269ms check-target:macos_arm64 @e9afae5fccb7
+pass/facts/resident_backing_runtime_helper_loop_exit checked 18211ms check-target:macos_arm64 @e9afae5fccb7
+pass/facts/resident_backing_runtime_loop_exit checked 18508ms check-target:macos_arm64 @e9afae5fccb7
+pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 18157ms check-target:macos_arm64 @e9afae5fccb7
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 17591ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 18125ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26148,7 +26148,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content checked 12345ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/extent_view_external_write checked 14953ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
-pass/layouts/extent_view_preserves_grant_exit checked 9107ms check-target:macos_arm64 @54cd60288b4c
+pass/layouts/extent_view_preserves_grant_exit checked 19864ms check-target:macos_arm64 @e9afae5fccb7
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_computed_const_policy_exit rejected 523ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d68d95fa82f8
@@ -26355,7 +26355,7 @@ pass/machines/write_state_forward checked 3066ms @ccdb99ca2214
 pass/math/extent_no_wrap_requires_denotation checked 2419ms @ccdb99ca2214
 pass/memory/address_translation_canary rejected 14ms regressed-from:checked @ccdb99ca2214
 	tests/omega/pass/memory/address_translation_canary/cathedral/provider.omg:46:35: expected identifier, found punctuation `::`
-pass/memory/bump_allocator_canary checked 29616ms check-target:macos_arm64 @2cfbda3635e2+wt
+pass/memory/bump_allocator_canary checked 25992ms check-target:macos_arm64 @e9afae5fccb7
 pass/memory/indexed_resident_bodyless_handback checked 2786ms @ccdb99ca2214
 pass/memory/interrupt_table_canary incomplete 87735ms regressed-from:checked @d352d5e8e77e
 	`InterruptMaskControl::save_and_mask` has no executable body: this compiler does not lower its declaration of it yet (boundary requirement: result shape or domain authorization)
@@ -27336,6 +27336,7 @@ pass/relevance/erased_signature_param checked 3361ms @ccdb99ca2214
 pass/relevance/erased_state_param checked 3470ms @ccdb99ca2214
 pass/relevance/erased_subject_call checked 3583ms @ccdb99ca2214
 pass/relevance/runtime_static_proof_namespace_exit checked 3481ms check-target:macos_arm64 @ccdb99ca2214
+pass/resources/owned_extent_label_erasure_exit checked 22229ms check-target:macos_arm64 @e9afae5fccb7
 pass/slices/bounded_byte_parameter_range_exit checked 3766ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/byte_sequence_literal_tail_return_compile checked 3719ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/callee_non_byte_view_len_index_subslice checked 12549ms check-target:macos_arm64 @ccdb99ca2214
@@ -28420,7 +28421,7 @@ run/nested_mut_alias_assignment_return checked 10439ms check-target:macos_arm64 
 run/ownership/claim_correspondence_all_returns checked 11326ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/content_transform_case_alias checked 27245ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/content_transform_case_parent checked 10650ms check-target:macos_arm64 @ee4dbb4b2d56
-run/ownership/content_transform_empty_array checked 25113ms check-target:macos_arm64 @ee4dbb4b2d56
+run/ownership/content_transform_empty_array checked 10827ms check-target:macos_arm64 @e9afae5fccb7
 run/ownership/content_transform_ended_parent_loan checked 26204ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/content_transform_inactive_content checked 8120ms check-target:macos_arm64 @ee4dbb4b2d56
 run/ownership/content_transform_inactive_payload checked 8122ms check-target:macos_arm64 @ee4dbb4b2d56

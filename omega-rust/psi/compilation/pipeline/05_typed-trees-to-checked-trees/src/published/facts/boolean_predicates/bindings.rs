@@ -55,7 +55,10 @@ fn scalar_parameter(
                     .find(|parameter| parameter.symbol == *symbol)?;
                 (
                     canonical_place_from_symbol(*symbol)?,
-                    parameter.type_reference,
+                    validation::field_domains::readable_type_reference(
+                        program,
+                        parameter.type_reference,
+                    )?,
                 )
             }
             Scalar::StructuralParameterField { .. }

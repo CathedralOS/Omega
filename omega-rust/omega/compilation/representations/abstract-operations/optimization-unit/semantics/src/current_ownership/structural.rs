@@ -1,13 +1,12 @@
 use crate::current_ownership::CurrentOwnership;
 use crate::current_ownership::residuals::partial_affine_residuals;
+use crate::structural_types::StructuralTypes;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use std::collections::BTreeSet;
+use terminal_psi::{StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape};
 
 pub(super) fn place_structural_type(
     function: &PsiOptimizationFunction,
@@ -109,7 +108,7 @@ pub(crate) fn partial_affine_root_type(
 /// partial-affine root, leaving no residual complement for cleanup.
 pub(crate) fn partial_affine_root_is_drained(
     function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     place: PlaceId,
     moved: &BTreeSet<Vec<StructuralPathSegment>>,
 ) -> bool {
@@ -121,7 +120,7 @@ pub(crate) fn partial_affine_root_is_drained(
 
 pub(super) fn projected_root_is_fully_consumed(
     function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     frontier: &CurrentOwnership,
     place: PlaceId,
 ) -> bool {
@@ -143,7 +142,7 @@ pub(super) fn projected_root_is_fully_consumed(
 /// claim and carrier absence is checked by the consuming frontier join.
 pub(crate) fn projected_paths_are_fully_consumed(
     function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    structural_types: &(impl StructuralTypes + ?Sized),
     place: PlaceId,
     moved: &BTreeSet<Vec<StructuralPathSegment>>,
 ) -> bool {
@@ -163,7 +162,7 @@ pub(crate) fn projected_paths_are_fully_consumed(
         length: terminal_psi::ArrayExtent::Literal(length),
         ..
     }) = structural_types
-        .get(&parameter.structural_type)
+        .declaration(parameter.structural_type)
         .map(|declaration| &declaration.shape)
     else {
         return false;

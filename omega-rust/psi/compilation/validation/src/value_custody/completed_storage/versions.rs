@@ -1,7 +1,8 @@
 //! Positions in a program's storage graph and preservation between them.
 //!
-//! A state's history starts at incoming storage: the invalid snapshot. Each
-//! statement and each completed operand names the snapshot its effects reached.
+//! A state's history starts at its own empty entry cut over abstract incoming
+//! storage, the invalid predecessor. Each statement and each completed operand
+//! names the snapshot its effects reached.
 //! Observations of a place stay current from the snapshot that established
 //! them while no later event on every reaching path writes that place.
 

@@ -123,14 +123,12 @@
 14 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/cleanup.rs
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/continuation.rs
 10 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/mod.rs
-22 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/references.rs
+21 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/references.rs
 3 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/references/access_paths.rs
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/references/call_effects.rs
 1 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/references/windows.rs
 10 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/replay.rs
-5 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/residuals.rs
-7 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/storage_regions.rs
-3 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/structural.rs
+5 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/storage_regions.rs
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/descriptor_results.rs
 7 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/descriptor_results/scalar_expressions.rs
 3 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/activation_storage.rs
@@ -171,8 +169,8 @@
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/operation_contracts/structural_access.rs
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/operation_contracts/structural_cases.rs
 7 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/operation_contracts/values.rs
-20 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/references.rs
-4 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/references/access_paths.rs
+18 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/references.rs
+1 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/references/access_paths.rs
 17 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/services.rs
 3 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/structural_catalog/catalog.rs
 3 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/structural_catalog/content_projection.rs

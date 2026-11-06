@@ -191,15 +191,21 @@ impl Captures<'_> {
                         || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
                             if expression == call.authored_expression
                                 && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
-                        || self.program.normalized_type_identity(incoming.carrier_type)
-                            != *carrier_type
                         || leaf.source.access.borrow_access_kind()? != loan.kind
+                    {
+                        continue;
+                    }
+                    let (invocation_carrier, descriptor_path) =
+                        self.invocation_carrier(state, incoming)?;
+                    let prefix = descriptor_path;
+                    if self.program.normalized_type_identity(invocation_carrier) != *carrier_type
+                        || !candidate.source.path.starts_with(&prefix)
                     {
                         continue;
                     }
                     let mut projection = super::super::origin_place_projection(
                         self.program,
-                        incoming.carrier_type,
+                        invocation_carrier,
                         candidate.source.path.iter().cloned(),
                     )?;
                     if projection.type_identity(self.program) != candidate.source.type_identity {
@@ -233,11 +239,62 @@ impl Captures<'_> {
                 }
                 captured = true;
             }
-            for origin in origins
+            let leaf_origins = origins
                 .iter()
-                .filter(|origin| origin.result_path == result_path)
-            {
-                let mut covered = false;
+                .filter(|origin| origin.result_path == result_path);
+            let mut invocation_input = false;
+            if leaf_origins.clone().next().is_some() {
+                for loan in site_loans.iter().filter(|loan| {
+                    self.returned_loan_owner_path(state, loan).as_deref()
+                        == Some(owner_path.as_slice())
+                        && self
+                            .facts
+                            .borrow
+                            .incoming_references
+                            .is_valid(loan.incoming_reference)
+                }) {
+                    let incoming = self
+                        .facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference);
+                    if incoming.state_symbol != state.symbol
+                        || loan.root != facts::PlaceRoot::Expression(call.authored_expression)
+                        || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
+                            if expression == call.authored_expression
+                                && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
+                        || leaf.source.access.borrow_access_kind()? != loan.kind
+                    {
+                        continue;
+                    }
+                    let (carrier, descriptor) = self.invocation_carrier(state, incoming)?;
+                    if self.program.normalized_type_identity(carrier)
+                        != self.program.normalized_type_identity(return_type)
+                        || descriptor
+                            != leaf
+                                .path
+                                .iter()
+                                .cloned()
+                                .map(CheckedReferenceOriginProjection::Exact)
+                                .collect::<Vec<_>>()
+                    {
+                        return None;
+                    }
+                    invocation_input = true;
+                }
+            }
+            for origin in leaf_origins {
+                let mut covered = invocation_input;
+                if invocation_input {
+                    let source = self.captured_parameter_origin(state, &leaf, origin)?;
+                    let returned = CheckedReturnedReferencePlan {
+                        path: leaf.path.clone(),
+                        source,
+                    };
+                    if !output.contains(&returned) {
+                        output.push(returned);
+                    }
+                }
                 for loan in site_loans.iter().filter(|loan| {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
                         && self.returned_loan_owner_path(state, loan).as_deref()
