@@ -12,14 +12,14 @@ requires zero == 0;
 requires machine One(one: &mut u64) -> u64
 requires one == 1;
 requires first == 0, second == 1
-{ Zero(first); One(second); }
+{ _ = Zero(first); _ = One(second); }
 
 public machine open_inputs<machine Zero, machine Any>(first: &mut u64, second: &mut u64)
 requires machine Zero(zero: &mut u64) -> u64
 requires zero == 0;
 requires machine Any(value: &mut u64) -> u64;
 requires first == 0
-{ Zero(first); Any(second); }
+{ _ = Zero(first); _ = Any(second); }
 
 machine main() {
     let mut zero: u64 = 0;
