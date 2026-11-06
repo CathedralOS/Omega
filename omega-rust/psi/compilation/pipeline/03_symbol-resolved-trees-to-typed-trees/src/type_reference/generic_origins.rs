@@ -9,7 +9,6 @@
 use super::{Diagnostic, resolved, typed};
 use crate::expressions::expression::lower_expression_handle_from_table;
 use arena::{Handle, HandleSpan};
-use numerics::bignum::BigInt;
 use resolved::name::DiagnosticName;
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
@@ -711,26 +710,6 @@ impl Equality<'_, '_> {
                 None
             }
         }
-    }
-
-    // Recompute from each retained application, not from syntax synthesis's
-    // observation or expression-handle equality. Equivalent exclusive/inclusive
-    // spellings must agree, while an invalid landed endpoint cannot be erased
-    // by sharing a previously generated carrier.
-    fn closed_range(
-        &mut self,
-        minimum: resolved::expression::ExpressionHandle,
-        maximum: resolved::expression::ExpressionHandle,
-        end_inclusive: bool,
-    ) -> Option<(BigInt, BigInt)> {
-        let expressions = &self.source.tables.bodies.expressions;
-        let typed = self.typed.as_mut()?.get_mut();
-        let minimum = lower_expression_handle_from_table(expressions, typed, minimum).ok()?;
-        let maximum = lower_expression_handle_from_table(expressions, typed, maximum).ok()?;
-        Some((
-            typed.closed_integer_expression_value(minimum)?,
-            typed.closed_integer_range_endpoint(maximum, end_inclusive)?,
-        ))
     }
 
     // The shared carrier binds regions positionally; the use retains the
