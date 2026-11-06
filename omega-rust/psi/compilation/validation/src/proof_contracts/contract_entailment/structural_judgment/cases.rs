@@ -10,7 +10,6 @@ use super::{CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm, 
 use crate::proof_contracts::contract_entailment::{
     observed_projections, specification_calls, structural_terms,
 };
-use std::collections::HashMap;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
@@ -18,30 +17,93 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
-// Match the extractor's connective traversal. Shared expression children
-// retain one metadata result per complete handle within this query.
-fn prepare_case_observation_expressions(
-    program: &dyn crate::CheckingInput,
+#[derive(Clone, Copy, Default)]
+enum CaseEligibilityState {
+    #[default]
+    Unvisited,
+    Visiting,
+    Absent,
+    Present,
+}
+
+#[derive(Clone, Copy, Default)]
+struct CaseEligibilityRow {
     expression: ExpressionHandle,
-    expressions: &mut HashMap<ExpressionHandle, bool>,
-) -> bool {
-    if let Some(contains_case) = expressions.get(&expression) {
-        return *contains_case;
+    state: CaseEligibilityState,
+}
+
+/// Pure extraction eligibility for one immutable checking input. Rows retain
+/// complete handles; their arena positions only select the flat storage slot.
+/// Selection-sensitive context resets discard this table with the other memos.
+pub(crate) struct CaseGuaranteeEligibility {
+    rows: Vec<CaseEligibilityRow>,
+}
+
+impl CaseGuaranteeEligibility {
+    fn prepare(program: &dyn crate::CheckingInput) -> Self {
+        let mut table = Self {
+            rows: vec![
+                CaseEligibilityRow::default();
+                program.expression_table.expression_count() + 1
+            ],
+        };
+        for (expression, _) in program.expression_table.iter_backing_expressions() {
+            table.rows[expression.arena_index() as usize].expression = expression;
+        }
+        for (expression, _) in program.expression_table.iter_backing_expressions() {
+            table.prepare_expression(program, expression);
+        }
+        table
     }
-    let contains_case = program
-        .expression_table
-        .binary_node(expression)
-        .is_some_and(|binary| match binary.operator {
-            BinaryOperator::And | BinaryOperator::Or => {
-                let left = prepare_case_observation_expressions(program, binary.left, expressions);
-                let right =
-                    prepare_case_observation_expressions(program, binary.right, expressions);
-                left || right
-            }
-            _ => structural_terms::is_case_observation(program, expression),
-        });
-    expressions.insert(expression, contains_case);
-    contains_case
+
+    fn prepare_expression(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let position = expression.arena_index() as usize;
+        let Some(row) = self.rows.get(position) else {
+            return true;
+        };
+        if row.expression != expression {
+            return true;
+        }
+        match row.state {
+            CaseEligibilityState::Present | CaseEligibilityState::Visiting => return true,
+            CaseEligibilityState::Absent => return false,
+            CaseEligibilityState::Unvisited => {}
+        }
+        self.rows[position].state = CaseEligibilityState::Visiting;
+        let contains_case = program
+            .expression_table
+            .binary_node(expression)
+            .is_some_and(|binary| match binary.operator {
+                BinaryOperator::And | BinaryOperator::Or => {
+                    let left = self.prepare_expression(program, binary.left);
+                    let right = self.prepare_expression(program, binary.right);
+                    left || right
+                }
+                _ => structural_terms::is_case_observation(program, expression),
+            });
+        self.rows[position].state = if contains_case {
+            CaseEligibilityState::Present
+        } else {
+            CaseEligibilityState::Absent
+        };
+        contains_case
+    }
+
+    fn contains_case(&self, expression: ExpressionHandle) -> Option<bool> {
+        let row = self.rows.get(expression.arena_index() as usize)?;
+        if row.expression != expression {
+            return None;
+        }
+        match row.state {
+            CaseEligibilityState::Present => Some(true),
+            CaseEligibilityState::Absent => Some(false),
+            CaseEligibilityState::Unvisited | CaseEligibilityState::Visiting => None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -235,11 +297,16 @@ impl StructuralJudge<'_> {
         if !self.has_exact_case_subjects() {
             return;
         }
-        let mut expressions = HashMap::new();
-        if !prepare_case_observation_expressions(self.program, fact, &mut expressions) {
+        let eligibility = crate::frozen_program::frozen_program_memos(self.program).map(|memos| {
+            memos
+                .case_guarantee_eligibility
+                .get_or_init(|| Arc::new(CaseGuaranteeEligibility::prepare(self.program)))
+                .as_ref()
+        });
+        if eligibility.is_some_and(|table| table.contains_case(fact) == Some(false)) {
             return;
         }
-        self.extend_contract_case_guarantees(owner, fact, map, guarantees, &expressions);
+        self.extend_contract_case_guarantees(owner, fact, map, guarantees, eligibility);
     }
 
     fn extend_contract_case_guarantees(
@@ -248,7 +315,7 @@ impl StructuralJudge<'_> {
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
         guarantees: &mut Vec<CaseGuarantee>,
-        case_expressions: &HashMap<ExpressionHandle, bool>,
+        eligibility: Option<&CaseGuaranteeEligibility>,
     ) {
         use specification_calls::{SelectedCallContract, owner_parameters};
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
@@ -257,20 +324,8 @@ impl StructuralJudge<'_> {
         // Logical conjunction has fixed compiler meaning. Its children retain
         // their own selected meanings: a case classifier is not scalar equality.
         if binary.operator == BinaryOperator::And {
-            self.extend_contract_case_guarantees(
-                owner,
-                binary.left,
-                map,
-                guarantees,
-                case_expressions,
-            );
-            self.extend_contract_case_guarantees(
-                owner,
-                binary.right,
-                map,
-                guarantees,
-                case_expressions,
-            );
+            self.extend_contract_case_guarantees(owner, binary.left, map, guarantees, eligibility);
+            self.extend_contract_case_guarantees(owner, binary.right, map, guarantees, eligibility);
             return;
         }
         if binary.operator == BinaryOperator::Or {
@@ -285,7 +340,8 @@ impl StructuralJudge<'_> {
             let parameters = owner_parameters(self.program, owner);
             for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)]
             {
-                if case_expressions.get(&alternative) != Some(&true) {
+                if eligibility.is_some_and(|table| table.contains_case(alternative) == Some(false))
+                {
                     continue;
                 }
                 if matches!(
@@ -297,7 +353,7 @@ impl StructuralJudge<'_> {
                         alternative,
                         map,
                         guarantees,
-                        case_expressions,
+                        eligibility,
                     );
                 }
             }

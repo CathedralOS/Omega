@@ -10,7 +10,7 @@ use crate::declarations::symbols::CallerSiteCaches;
 use crate::machine_calls::calls::CallFrameCaches;
 use crate::machine_calls::effect_inference::PreparedEffectPlans;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
-    EntryMachines, LicenseCandidates,
+    CaseGuaranteeEligibility, EntryMachines, LicenseCandidates,
 };
 use crate::value_custody::content_conservation::ContentConservationInputs;
 use language_semantics::declaration_selection::AuthoredDeclarationSelections;
@@ -628,6 +628,9 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    /// Case extraction depends on the exact finalized selection table as well
+    /// as expression rows. It is not retained by typed-tree-only resets.
+    pub(crate) case_guarantee_eligibility: OnceLock<Arc<CaseGuaranteeEligibility>>,
     // Raw application association; reset with all context-sensitive inputs.
     pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
