@@ -326,6 +326,33 @@ fn invocation_reference_effects(
     // keeps the requirement's declared outputs (dynamic_dispatch.md, source
     // eligibility: an unknown selection retains the requirement ceiling).
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
+        // A caller that already proved this selector uses that realization's
+        // checked stores. The requirement ceiling remains for every selector
+        // this walk has not narrowed.
+        if let Some(selector) = arguments
+            .first()
+            .copied()
+            .filter(|expression| expression.is_valid())
+            && let Some((parameter, path)) =
+                parameter_selector_place(program, caller_state, selector)
+            && crate::value_custody::places::binding_observations::binding_is_unchanged_value(
+                program,
+                caller_state,
+                parameter,
+            )
+            && let Some(implementation) = inference.known_dynamic_implementation(parameter, &path)
+            && let Some(realization) =
+                dynamic_outputs::selected_realization_state(program, slot, implementation)
+            && let Some(relative) = checked_alternatives::relative_effects(
+                program,
+                &[realization],
+                slot.data_parameters(),
+                symbols,
+                inference,
+            )
+        {
+            return transfer(parameters, relative);
+        }
         if !dynamic_outputs::caller_may_receive_selector(program, caller_state, slot)
             && let Some(relative) =
                 dynamic_outputs::relative_effects(program, slot, symbols, inference)
@@ -653,6 +680,42 @@ fn complete_applied_output_transfer(
     } else {
         Some(SlotRelationTransfer::complete(effects))
     }
+}
+
+/// A selector spelled as a parameter, or as fields of a parameter. Anything
+/// else is not an entry path the caller can narrow.
+fn parameter_selector_place(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<PlaceSegment>)> {
+    fn walk(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        segments: &mut Vec<PlaceSegment>,
+    ) -> Option<SymbolHandle> {
+        match program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Name(name) => Some(name.symbol),
+            typed_trees::expression::ExpressionNode::Member(member) => {
+                segments.push(PlaceSegment::Field {
+                    symbol: member.member_symbol,
+                });
+                walk(program, member.receiver, segments)
+            }
+            _ => None,
+        }
+    }
+    let mut segments = Vec::new();
+    let symbol = walk(program, expression, &mut segments)?;
+    let parameters = program.state_parameters(state);
+    if !parameters
+        .iter()
+        .any(|parameter| parameter.symbol == symbol)
+    {
+        return None;
+    }
+    segments.reverse();
+    Some((symbol, segments))
 }
 
 fn path(program: &dyn crate::CheckingInput, source: &FrameSourcePlace) -> String {
