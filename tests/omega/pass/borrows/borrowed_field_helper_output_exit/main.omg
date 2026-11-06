@@ -32,7 +32,7 @@ reaches Discovery invokes Discovery crashes Trap {
     }
     machine bad() -> u64 crashes Trap { crash Trap; }
 }
-machine main() -> u32 reaches Discovery invokes Discovery crashes Trap {
+machine main() reaches Discovery invokes Discovery crashes Trap {
     let first: Source = Source { value: 41u64 };
     let second: Source = Source { value: 73u64 };
     let left: Table = Table { before: 13u64, services: &first, sibling: &second, after: 19u64 };
@@ -42,10 +42,11 @@ machine main() -> u32 reaches Discovery invokes Discovery crashes Trap {
     let mut third: Source = Source { value: 91u64 };
     let c: u64 = attenuate(&mut third);
     transition a == 41u64 && b == 73u64 && c == 91u64 {
-        true -> (0u32)
+        true -> done()
         false -> bad()
     }
-    machine bad() -> u32 crashes Trap { crash Trap; }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
 }
 // A mutable input may supply the helper's shared reference without increasing access.
 machine attenuate(source: &mut Source) -> u64
