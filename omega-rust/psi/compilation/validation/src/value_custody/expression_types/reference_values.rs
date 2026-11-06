@@ -372,15 +372,6 @@ fn literal_satisfies_declared_const(
     {
         return false;
     }
-    let exact = BigInt::from_i128(value);
-    let Some(bounds) = crate::constrained_range_bounds(program, declared, false) else {
-        return false;
-    };
-    for (minimum, maximum) in bounds {
-        if exact < minimum || exact > maximum {
-            return false;
-        }
-    }
     true
 }
 

@@ -257,15 +257,9 @@ fn callee_parameter_interval(
         .parameters
         .iter()
         .find(|parameter| parameter.name.as_str() == path)?;
-    let declared = other_type
-        .or(Some(parameter.type_reference))
-        .and_then(|reference| {
-            super::float_arithmetic::float_range_constraint_interval(program, reference)
-        })
-        .unwrap_or(FloatInterval::UNBOUNDED);
     let interval = program
         .contract_expressions(callee.contracts.iter(), SignatureContractKind::Requires)
-        .fold(declared, |interval, expression| {
+        .fold(FloatInterval::UNBOUNDED, |interval, expression| {
             interval.intersect(project_parameter(
                 program,
                 callee,

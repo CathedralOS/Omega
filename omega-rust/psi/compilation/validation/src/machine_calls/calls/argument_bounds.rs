@@ -61,21 +61,7 @@ pub(super) fn report_argument_bounds(
         &owner,
         diagnostics,
     ) {
-        if diagnostics.len() == before {
-            arithmetic_domains::check_range_containment(
-                program,
-                parameter.type_reference,
-                arithmetic_domains::IntegerValueObservation {
-                    machine: current_machine,
-                    state: current_state,
-                    expression: argument,
-                    environment: value_environment,
-                    interval,
-                },
-                &owner,
-                diagnostics,
-            );
-        }
+        if diagnostics.len() == before {}
         return;
     }
     let parameter_domain = program.arithmetic_domain_for_type_reference(parameter.type_reference);
@@ -114,37 +100,6 @@ pub(super) fn report_argument_bounds(
     );
     // Parameter delivery is a store too. Width compatibility alone does not
     // establish the narrower declared range that the callee's reads assume.
-    if arithmetic_domains::enforced_declared_range_interval(program, parameter.type_reference)
-        .is_some()
-    {
-        let mut arithmetic_diagnostics = Vec::new();
-        let (interval, _, _) = arithmetic_domains::validate_value_range(
-            program,
-            current_machine,
-            current_state,
-            argument,
-            value_environment,
-            Some(parameter_primitive),
-            ArithmeticDomain::Exact,
-            &owner,
-            &mut arithmetic_diagnostics,
-        );
-        if arithmetic_diagnostics.is_empty() {
-            arithmetic_domains::check_range_containment(
-                program,
-                parameter.type_reference,
-                arithmetic_domains::IntegerValueObservation {
-                    machine: current_machine,
-                    state: current_state,
-                    expression: argument,
-                    environment: value_environment,
-                    interval,
-                },
-                &owner,
-                diagnostics,
-            );
-        }
-    }
 }
 
 fn report_accessor_scalar_write_predicate(

@@ -451,15 +451,7 @@ pub(super) fn validate<'a, 'p>(
         // the local arm's twin note; literal stores refuse through
         // the proof plan).
         if let Some(handle) = assignment_target_type_raw {}
-        if let Some(handle) = assignment_target_type {
-            arithmetic_domains::check_range_containment(
-                program,
-                handle,
-                observation,
-                &owner,
-                diagnostics,
-            );
-        }
+        if let Some(handle) = assignment_target_type {}
         // Ordinary record writes may open a restoration window; the whole
         // predicate is proved before the next consumption. An atomic update
         // publishes its resident immediately and must preserve it at this event.

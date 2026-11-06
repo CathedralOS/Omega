@@ -91,7 +91,7 @@ impl TypeReferenceNode {
                     "{}[{}]",
                     table.display_name_with_constraints(*base_type, expressions),
                     comma_join_display(table.constraints(*constraints), |constraint| {
-                        constraint.display_name(expressions)
+                        constraint.display_name()
                     })
                 )
             }
@@ -141,7 +141,7 @@ impl TypeReferenceNode {
 }
 
 impl TypeConstraintNode {
-    pub fn display_name(&self, expressions: &ExpressionTable) -> String {
+    pub fn display_name(&self) -> String {
         match self {
             TypeConstraintNode::Named(name) => name.to_string(),
             TypeConstraintNode::Domain(name) => format!("in {name}"),

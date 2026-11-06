@@ -69,11 +69,6 @@ pub(super) fn entry_expressions(
     root: &State,
 ) -> Vec<ExpressionHandle> {
     let mut expressions = super::required_contract_expressions(program, machine);
-    crate::proof_contracts::contract_entailment::ranking_range::constrained_parameter_bound_expressions(
-        program,
-        root,
-        &mut expressions,
-        None,
-    );
+
     expressions
 }

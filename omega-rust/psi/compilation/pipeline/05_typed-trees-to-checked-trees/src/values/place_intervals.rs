@@ -78,12 +78,7 @@ impl LivePlaceIntervals<'_> {
         symbol: SymbolHandle,
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
-        let mut bounds = self
-            .declared_type(symbol)
-            .and_then(|reference| {
-                validation::frozen_declared_integer_range(self.program, reference, primitive_type)
-            })
-            .or_else(|| validation::carrier_integer_range(primitive_type))?;
+        let mut bounds = validation::carrier_integer_range(primitive_type)?;
         // An immutable owned formal retains its arrival contract throughout
         // this state. Mutable or borrowed storage must use live evidence, not
         // an assumption about the value that arrived before intervening writes.
@@ -189,12 +184,7 @@ impl SelectedScalarIntervalSource for LivePlaceIntervals<'_> {
             // carrier remains. This is not a declaration-derived domain
             // membership or initialization proof.
             let primitive_type = self.program.primitive_type_reference(reference)?;
-            if frozen {
-                validation::frozen_declared_integer_range(self.program, reference, primitive_type)
-            } else {
-                None
-            }
-            .or_else(|| validation::carrier_integer_range(primitive_type))
+            validation::carrier_integer_range(primitive_type)
         })();
         let primitive = self.program.primitive_type_reference(reference)?;
         let current = self.contents.at_place(&place, primitive);
@@ -360,16 +350,6 @@ impl LivePlaceIntervals<'_> {
         // through a pointee type that drops declared constraints. Past that,
         // the element's own primitive carrier still bounds any successful
         // read; this proves nothing about the index or the access returning.
-        literal_bounds
-            .or_else(|| {
-                frozen.then(|| {
-                    validation::frozen_declared_integer_range(
-                        self.program,
-                        element_reference,
-                        PrimitiveType::U8,
-                    )
-                })?
-            })
-            .or_else(|| validation::carrier_integer_range(PrimitiveType::U8))
+        literal_bounds.or_else(|| validation::carrier_integer_range(PrimitiveType::U8))
     }
 }

@@ -250,6 +250,160 @@ pub(super) fn append_state_parameter_domain_facts(
     facts: &mut FactPlan,
 ) {
     let mut field_domain_walks: Vec<(TypeReferenceHandle, Vec<FieldDomainRow>)> = Vec::new();
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            let mut refs = arena::HandleSpan::empty();
+            for parameter in program.state_parameters(state) {
+                let obligation_origin = FactOrigin::StateParameterDomain {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                };
+                // A `&write` parameter keeps its declared field domains as
+                // entry premises: they are invariants the caller maintained
+                // and every write through the view must re-establish, not
+                // observations of incoming contents (which remain impossible).
+                // Without these rows a `requires <place> in D` on a nested
+                // `&write` subloan could never discharge, even though the
+                // lent place's own declaration already carries the atom.
+                let lent = declared_field_domain_carrier(program, parameter.type_reference);
+                if let Some(lent) = lent {
+                    let row_index = field_domain_walks
+                        .iter()
+                        .position(|(reference, _)| *reference == lent)
+                        .unwrap_or_else(|| {
+                            let index = field_domain_walks.len();
+                            field_domain_walks.push((
+                                lent,
+                                validation::field_domains::declared_type_domain_rows(program, lent),
+                            ));
+                            index
+                        });
+                    let rows = &field_domain_walks[row_index].1;
+                    append_state_parameter_data_field_domain_facts(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        obligation_origin,
+                        &[],
+                        rows,
+                        &mut refs,
+                    );
+                }
+                // Declared IEEE field bounds are live entry predicates, just as
+                // field domains are. Ordinary capture/copy/join and mutation
+                // invalidation retain their exact observed value and lifetime.
+                for bound in
+                    validation::declared_float_field_bounds(program, parameter.type_reference)
+                {
+                    let Some(predicate) = bound.predicate() else {
+                        continue;
+                    };
+                    let place = facts.append_symbol_place(parameter.symbol);
+                    for symbol in bound.path {
+                        facts.push_place_segment(place, PlaceSegment::Field { symbol });
+                    }
+                    let fact = facts.append_fact(Fact {
+                        place: FactPlace::Place(place),
+                        point: state_point(machine.symbol, state.symbol),
+                        origin: obligation_origin,
+                        evidence: propagated_evidence(state.symbol),
+                        payload: FactPayload::FloatPredicate { predicate },
+                    });
+                    facts.append_ref(&mut refs, fact);
+                }
+                // Keep the existing root qualification/resource permission
+                // rule separate from default-domain fields of nominal values.
+                if parameter.is_mutable {
+                    // An exclusive referent may retire an input predicate, but
+                    // it must return routed membership that its caller lent.
+                    // Seed the same exact root obligation as declared fields;
+                    // ordinary writes retire it and an authorized completed
+                    // producer must establish any replacement occurrence.
+                    if validation::reference_shell(program, parameter.type_reference)
+                        .is_some_and(|shell| shell.access.is_exclusive())
+                    {
+                        for (domain_symbol, semantic_domain) in
+                            validation::field_domains::domain_constraint_identities(
+                                program,
+                                parameter.type_reference,
+                            )
+                        {
+                            if validation::field_domains::domain_requires_provenance(
+                                program,
+                                domain_symbol,
+                            ) {
+                                append_state_parameter_domain_fact(
+                                    facts,
+                                    machine.symbol,
+                                    state.symbol,
+                                    parameter.symbol,
+                                    obligation_origin,
+                                    &[],
+                                    domain_symbol,
+                                    semantic_domain,
+                                    &mut refs,
+                                );
+                            }
+                        }
+                    }
+                    continue;
+                }
+                let mut has_resource_claim = false;
+                for (domain_symbol, semantic_domain) in
+                    validation::field_domains::domain_constraint_identities(
+                        program,
+                        parameter.type_reference,
+                    )
+                {
+                    has_resource_claim |= state_parameter_domain_is_resource_claim(
+                        program,
+                        parameter.type_reference,
+                        domain_symbol,
+                    );
+                    append_state_parameter_domain_fact(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        obligation_origin,
+                        &[],
+                        domain_symbol,
+                        semantic_domain,
+                        &mut refs,
+                    );
+                }
+                if has_resource_claim {
+                    append_state_parameter_carry_origin(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        &mut refs,
+                    );
+                }
+                for permission in carry_constraint_permissions(program, parameter.type_reference) {
+                    append_state_parameter_carry_fact(
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        parameter.symbol,
+                        permission,
+                        &mut refs,
+                    );
+                }
+            }
+
+            if refs.is_empty() {
+                continue;
+            }
+            append_independent_place_contexts(
+                facts,
+                state_point(machine.symbol, state.symbol),
+                refs,
+            );
+        }
+    }
 }
 
 fn append_independent_place_contexts(

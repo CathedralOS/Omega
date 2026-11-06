@@ -52,15 +52,6 @@ pub enum StateContractRow {
     /// An exact nominal source requirement. No runtime predicate is invented;
     /// checked planning must authenticate its Requires owner and every arrival.
     SourceFact(arena::Handle<typed_trees::domain::ProofFact>),
-    /// A bracketed integer range retains its authored endpoint observations.
-    /// The state telescope supplies their exact subjects on every arrival;
-    /// dependent endpoints are not closed constants or invocation snapshots.
-    DeclaredRange {
-        parameter: SymbolHandle,
-        minimum: typed_trees::expression::ExpressionHandle,
-        maximum: typed_trees::expression::ExpressionHandle,
-        end_inclusive: bool,
-    },
     /// A complete declared scalar domain, projected onto the destination
     /// parameter only after its exact membership identity has been matched.
     Domain {
@@ -126,7 +117,49 @@ pub fn structural_state_contract_predicates(
 ) -> Option<Vec<StateContractRow>> {
     let mut expected = Vec::new();
     let mut predicates = Vec::new();
-
+    for parameter in program.state_parameters(state) {
+        if finite_arrival_parameter(program, state, parameter) {
+            predicates.push(StateContractRow::Finite {
+                parameter: parameter.symbol,
+            });
+        }
+        // Classify the formal before looking through its loan. An exclusive
+        // scalar referee is mutable storage, not an owned scalar binding whose
+        // entry snapshot can be discarded. Its receiving restriction remains
+        // on the structural type and its exact qualification must still match.
+        if program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
+        {
+            // An owned scalar's declared qualification is its caller's arrival
+            // obligation whether or not the body may rebind it: `mut` lets the
+            // body write the binding, assignments must preserve the domain,
+            // and other writes invalidate the membership. The synthesized
+            // membership restatement therefore matches for both bindings.
+            expected.extend(
+                crate::scalar_predicate_domains(program, parameter.type_reference)
+                    .into_iter()
+                    .chain(crate::scalar_type_tags(program, parameter.type_reference))
+                    .chain(crate::scalar_type_routed_domains(
+                        program,
+                        parameter.type_reference,
+                    ))
+                    .map(|(_, domain)| (parameter.symbol, domain.0)),
+            );
+            continue;
+        }
+        let reference = program
+            .type_reference_table
+            .dereferenced_type_reference(parameter.type_reference);
+        let Ok(domains) = structural_result_qualifications(program, reference) else {
+            return None;
+        };
+        expected.extend(
+            domains
+                .into_iter()
+                .map(|domain| (parameter.symbol, domain.0)),
+        );
+    }
     let mut actual = Vec::new();
     for contract in program.state_contracts(state) {
         // Authored rows carry their clause token span; only the synthesized

@@ -61,8 +61,6 @@ mod cited_element_bounds;
 mod copied_values;
 pub(crate) use copied_values::CopiedIntegerValue;
 mod declaration_values;
-mod dependent_products;
-mod dependent_relations;
 pub(super) mod division_definedness;
 mod domain_exclusions;
 pub(crate) mod domain_intervals;
@@ -112,8 +110,7 @@ pub use return_ranges::normal_return_integer_bounds;
 pub(crate) use selected_scalar_intervals::binary as selected_integer_binary_interval;
 pub use selected_scalar_intervals::{
     SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
-    frozen_declared_integer_range, integer_range_contains, selected_boolean_decision,
-    selected_scalar_interval,
+    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
 };
 pub(crate) use slice_lengths::{carried_slice_length, publish_slice_length};
 mod stored_integer_writes;
@@ -173,8 +170,7 @@ pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;
 pub(crate) use range_constraints::{
-    IntegerValueObservation, check_range_containment, check_where_interval_containment,
-    enforced_declared_range_interval, range_constraint_interval,
+    IntegerValueObservation, check_where_interval_containment, range_constraint_interval,
 };
 pub(crate) use return_ranges::{call_return_type, validate_return_value_range};
 pub use stored_integer_writes::{

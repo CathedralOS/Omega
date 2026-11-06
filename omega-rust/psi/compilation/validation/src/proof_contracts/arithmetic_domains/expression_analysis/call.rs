@@ -34,7 +34,6 @@ pub(super) fn analyze(
     let analysis = named_operator_result(walk, call).unwrap_or_else(|| {
         let mut cached_actuals = None;
         [
-            selected_const_call_result(walk, expression),
             declared_return_range(walk, expression, call, child_values, &mut cached_actuals),
             inferred_return_range(walk, call, child_values, &mut cached_actuals),
             returned_referent_range(walk, expression, call),

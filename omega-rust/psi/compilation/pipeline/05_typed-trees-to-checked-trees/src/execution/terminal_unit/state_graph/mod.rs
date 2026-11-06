@@ -218,21 +218,7 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
-                validation::StateContractRow::DeclaredRange {
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => lower_state_declared_range_predicate(
-                    program,
-                    &facts.operators,
-                    owner,
-                    state,
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                ),
+
                 validation::StateContractRow::Domain {
                     parameter,
                     constraint,

@@ -217,20 +217,9 @@ pub(super) fn infer_hoist_temp_type(
         return declared_projection_type(lowerer, attached_data, state, initial_value);
     }
 
-    // A COMPUTED-INDEX temp (`let __hoist = self.k + 1`, hoisted by the
-    // syntax->resolved index hoist so `arr[k + 1]` indexes a slotted plain
-    // place): the temp's type is the BASE SCALAR of the first typeable place
-    // operand -- the operand's OWN range does not hold for the computed value
-    // (`k in [0..=3]` but `k + 1` reaches 4) -- carrying a SYNTHESIZED range
-    // computed by interval arithmetic over the operands' Exact declared
-    // ranges. The range is what lets the index prover discharge the bound
-    // (`expression_enforced_declared_range`), and it is SOUND because a
-    // declared range is store-enforced: the temp's one store (the
-    // initializer) is range-proved, which accepts `k + 1` outright and
-    // rejects an unguarded `k - 1` (underflow at k=0) unless a dominating
-    // guard narrows k -- exactly the manual let-temp idiom's behavior. An
-    // operand with no Exact range yields a bare scalar temp (the index prover
-    // then reports its clean cannot-prove error).
+    // A computed index keeps its scalar carrier and arithmetic policy. The
+    // initializer's ordinary arithmetic and index checks prove its bounds;
+    // copying the operand's qualification would constrain the wrong value.
     if let Some(binary) = expressions.binary_node(initial_value) {
         // A Boolean-valued operator's result carrier is the primitive Boolean
         // whatever its operands' carriers are: the operator decides the result

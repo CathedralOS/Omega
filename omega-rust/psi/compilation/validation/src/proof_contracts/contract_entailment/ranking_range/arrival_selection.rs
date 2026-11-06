@@ -318,12 +318,7 @@ pub fn ranking_range_required_coordinates(
     if matches!(premises, RankingRangePremises::EntryInvariant) {
         expressions.extend(super::required_contract_expressions(program, machine));
         let mut constrained = Vec::new();
-        super::constrained_parameter_bound_expressions(
-            program,
-            root,
-            &mut expressions,
-            Some(&mut constrained),
-        );
+
         coordinates.extend(
             constrained
                 .into_iter()

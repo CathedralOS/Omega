@@ -615,12 +615,7 @@ pub fn ranking_range_state_premise_coordinates(
 ) -> Option<Vec<RankPremiseCoordinate>> {
     let mut expressions = Vec::new();
     let mut parameters = Vec::new();
-    constrained_parameter_bound_expressions(
-        program,
-        state,
-        &mut expressions,
-        Some(&mut parameters),
-    );
+
     let root = program.machine_states(machine).first()?;
     let contracts = if state.symbol == root.symbol {
         program.machine_contracts(machine)
@@ -783,31 +778,6 @@ pub(super) fn dependency_binary(operator: BinaryOperator) -> bool {
             | BinaryOperator::ShiftRight
             | BinaryOperator::BitwiseAnd
     )
-}
-/// Push every `[minimum, maximum]` bound expression the root's exact-integer
-/// parameters carry in their `Constrained` shells into `expressions`;
-/// `recorded` also collects each contributing parameter's symbol.
-pub(super) fn constrained_parameter_bound_expressions(
-    program: &dyn crate::CheckingInput,
-    root: &State,
-    expressions: &mut Vec<ExpressionHandle>,
-    mut recorded: Option<&mut Vec<SymbolHandle>>,
-) {
-    for parameter in program
-        .state_parameters(root)
-        .iter()
-        .filter(|parameter| integer_parameter(program, parameter.type_reference).is_some())
-    {
-        let mut reference = parameter.type_reference;
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        {
-            for constraint in program.type_reference_table.constraints(*constraints) {}
-            reference = *base_type;
-        }
-    }
 }
 
 fn subject_field_coordinates<'program>(
@@ -1222,7 +1192,7 @@ fn prove_edge(
         guards,
         evaluated_prefix,
     );
-    constrained_parameter_bound_expressions(program, state, &mut expressions, None);
+
     lengths::install(
         program,
         machine,

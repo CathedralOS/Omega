@@ -225,13 +225,6 @@ impl NormalizedConstraint {
             Self::Named(name) => {
                 compound(ConstraintForm::NamedConstraint, [atom(Label::Name, &name)])
             }
-            Self::Range { minimum, maximum } => compound(
-                ConstraintForm::Range,
-                [
-                    atom(Label::Minimum, &minimum),
-                    atom(Label::Maximum, &maximum),
-                ],
-            ),
         }
     }
 }

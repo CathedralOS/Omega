@@ -33,27 +33,11 @@ pub(crate) fn retain_deferred_constant_recipes(
         });
     }
     let integers = range_endpoints::integer_root_plan(typed, domain)?;
-    for endpoint in integers
-        .calls
-        .iter()
-        .filter(|call| !call.contract_expression)
-    {
-        recipes.push(RetainedConstantRecipe {
-            position: RetainedConstantPosition::RangeEndpoint(endpoint.expression),
-            contexts: Default::default(),
-            invocations: Default::default(),
-            machine: endpoint.machine,
-            name: Identifier::generated(typed.symbols.name(endpoint.machine)),
-            source_span: typed.expression_table.source_span(endpoint.root),
-        });
-    }
     // A constant root exists independently of its helper-call roster. Layout
     // observations have no authored callee, but the same target closure owns
     // their value and the contracts that depend on it.
     for root in &integers.roots {
-        let range_endpoints::IntegerRootPosition::Contract(context) = root.position else {
-            continue;
-        };
+        let context = root.context;
         let position = RetainedConstantPosition::ContractExpression(root.expression);
         if typed.constant_recipes.iter().any(|(_, recipe)| {
             recipe.position == position

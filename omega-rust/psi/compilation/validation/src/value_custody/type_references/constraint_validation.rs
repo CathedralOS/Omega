@@ -3,7 +3,6 @@ use super::{StateSignatureOwner, TypeParameterScope, TypeReferenceOwner, type_re
 use crate::value_custody::places::collection_operations::type_reference_is_collection;
 use diagnostics::Diagnostic;
 use language_semantics::value_domain::ValueDomain;
-use typed_trees::dependent_ranges::DependentBoundClass;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,

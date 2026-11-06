@@ -10,9 +10,7 @@ use symbols::SymbolHandle;
 use typed_trees::data::DataDefinition;
 use typed_trees::data::TypeParameter;
 use typed_trees::data::TypeParameterKind;
-use typed_trees::dependent_ranges::{
-    DependentBoundClass, SymbolicMaxBound, dependent_range_maximum,
-};
+
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -195,10 +193,6 @@ pub(in crate::checks) fn expression_enforced_declared_range(
     }?;
     (minimum <= maximum).then_some((minimum, maximum))
 }
-
-// A Range constraint whose minimum literal-folds and whose maximum is the
-// R1a-admissible symbolic shape, under Exact shells only (mirrors
-// `enforced_range_of_type_reference`'s domain kill).
 
 /// Use the same receiver-substituted extent as ordered collection checking.
 /// A closed lower bound is only a fast proof; alternative entry contracts are

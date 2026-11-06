@@ -1,26 +1,10 @@
-//! Shared structural `where Binder == <type>` equation matching.
+//! Recover static arguments from declared structural type equations.
 //!
-//! A declaration template's `where` clause may equate a declared type binder with
-//! known type structure (`Length == u64[0..=Capacity]`). Applying the
-//! template with fewer arguments than binders recovers the omitted trailing
-//! binders by matching each equation's structure against the supplied
-//! argument; a complete tuple must still satisfy every equation exactly, and
-//! a verified equation is an instantiation obligation the instance no longer
-//! carries. A supplied range shell is identified only by its retained
-//! canonical `IntegerRangeNormalization`: no rendered spelling and no
-//! compatibility interval stands in for it, so `u64[0..257]` and
-//! `u64[0..=256]` bind the same capacity, and a larger containing interval
-//! does not satisfy the equation.
-//!
-//! Recovery runs in both directions of one equation. An omitted value binder
-//! reads its endpoint out of a supplied shell; an omitted *type* binder is
-//! built from the shell once the equation's own endpoints are closed
-//! integers, so `Bytes<const Capacity: u64, Length> where Length ==
-//! u64[0..=Capacity]` applied as `Bytes<256>` binds Length to `u64[0..=256]`.
-//! The constructed argument is an ordinary constrained type reference
-//! carrying the same canonical normalization the authored spelling would
-//! carry, so every later equation, repeat occurrence and closed identity
-//! compares one shape.
+//! A `requires` equation such as `Backing == [Element; Count]` relates exact
+//! type structure. A partial argument tuple can recover omitted binders from
+//! that structure; every complete tuple still proves the entire equation.
+//! Predicates on runtime scalar values are ordinary contract obligations and
+//! do not define structural type arguments.
 //!
 //! Fixed arrays, slices, anonymous references and declared generic applications
 //! retain ordinary type trees.
@@ -366,7 +350,7 @@ enum EquationShape {
         structure: Structure,
         span: SourceSpan,
     },
-    /// One side names a range shell or a type binder, but the other side is
+    /// One side names a type constructor or binder, but the other side is
     /// a value, a const binder, or a value binder: the sides cannot be
     /// equated as types, and nothing converts a type to a value.
     KindMismatch {
@@ -442,7 +426,7 @@ fn binder_index<'parameters>(
 }
 
 /// Classify every declaration-level `where` fact that equates a type binder or a
-/// range shell. Facts over const binders and values alone (`Capacity > 0`)
+/// type constructor. Facts over const binders and values alone (`Capacity > 0`)
 /// stay ordinary instantiation obligations for the const evaluator.
 /// A machine's structural equations among its `requires` facts; see
 /// [`TypeEquation::defines_structure`].
@@ -942,8 +926,7 @@ enum Outcome {
 }
 
 struct Solver<'a, 's> {
-    /// Constructing an omitted type binder's range shell appends its carrier,
-    /// endpoints and canonical normalization to these tables while solving.
+    /// Constructing an omitted type argument appends its ordinary type tree.
     syntax: &'a mut SyntaxTrees,
     base_info: EquationTemplate<'a>,
     base_name: &'a Identifier,
@@ -1170,7 +1153,7 @@ impl<'a, 's> Solver<'a, 's> {
                         else {
                             return Err(self
                                 .reject(format!(
-                                    "cannot construct type binder `{}` from its range-shell equation; supply the argument explicitly",
+                                    "cannot construct type binder `{}` from its requires equation; supply the argument explicitly",
                                     self.binder_name(*binder)
                                 ))
                                 .with_source_span(*span));
@@ -1272,7 +1255,7 @@ impl<'a, 's> Solver<'a, 's> {
     }
 
     /// The binder side is unbound: a closed name, an already bound type
-    /// binder, or the equation's own range shell defines it.
+    /// binder, or the equation's own type structure defines it.
     fn recover_binder(
         &mut self,
         binder: usize,

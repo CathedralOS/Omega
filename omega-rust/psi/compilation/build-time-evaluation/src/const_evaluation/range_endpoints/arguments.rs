@@ -205,7 +205,6 @@ impl Invocation<'_> {
             machine.name.as_str(),
             entry.return_type,
             snapshots,
-            &crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins(self.execution),
         )?;
         Ok(true)
     }

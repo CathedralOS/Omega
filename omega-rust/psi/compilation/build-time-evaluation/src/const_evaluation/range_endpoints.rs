@@ -1,92 +1,15 @@
-//! Shared evaluation of declared range bounds and closed contract integers.
+//! Evaluate closed integer expressions retained by source contracts.
 //!
-//! Both work positions retain their authored invocation until exact provider
-//! settlement. Contract clauses retain the surrounding symbolic comparison;
-//! only its closed integer call is a constant root. Discovery, admission,
-//! transactional fold publication and target receipts are one route for both.
-//! The legacy range-facing entrypoints below also serve the pre-check lifecycle.
+//! A contract keeps its symbolic comparison and exact lexical context. Only
+//! its closed integer expression becomes an evaluation root. Calls retain
+//! their selected declarations, argument custody and provider dependencies;
+//! the shared admission owner checks them before interpretation. Completed
+//! folds publish transactionally so all later proof and layout readers agree.
 //!
-//! `u64[0..=limit(256)]` puts a build-time-admissible machine call
-//! in a declared integer range endpoint. The endpoint is a constant position
-//! exactly as a fixed-array length is, so it takes the same route as
-//! `const_lengths`: admit the callee through the shared
-//! [`BuildTimeAdmissionPlan`], execute it with the checked interpreter under
-//! the callee's declared integer return type, and substitute the resulting
-//! decimal literal into the endpoint expression before checking.
-//!
-//! Folding here, in the typed trees, is what lets every later reader agree on
-//! one value: declaration validation, structural generic inference in
-//! `05_typed-trees-to-checked-trees/src/monomorphization/range_arguments.rs`,
-//! proof, and layout all read an ordinary literal endpoint. The
-//! context-free `i64` interval evaluator in `validation` never sees the call,
-//! so it cannot become the identity of a named computation.
-//!
-//! An endpoint callee whose reachable closure holds a resolved
-//! boundary-operator use cannot run before provider selection: it defers with
-//! the owning pre-check continuation, then evaluates under the same selected
-//! rows the deferred fixed-array lengths use -- sealed primitive-float
-//! meanings plus each selected provider's ordinary checked body, rebound on a
-//! private execution copy so the caller's tree keeps its authored selection.
-//!
-//! A type qualifier is not a runtime receiver. Reuse the typed call's resolved
-//! entry and receiver classification, then evaluate that exact machine symbol;
-//! rebuilding a name could select an unrelated same-spelled machine. Calls with
-//! runtime receivers or unresolved arguments remain outside this closed route.
-//! A type/const application is admitted only when its tuple closes.
-//! Ordinary static specialization (its all-expression scan covers calls in
-//! type positions) rewrites the call to a concrete instance, and the endpoint
-//! then resolves that instance from the prepared tree. Its signature types
-//! live in the prepared tree, so their positions and original argument
-//! expressions read that same tree. Declaration-type calls in a machine retain
-//! the same caller context as its body calls, so ordinary argument inference
-//! can close a tuple. Pending discovery does not grant execution: missing or
-//! conflicting binders still reject unless specialization produces a concrete
-//! instance. Data-field calls still need explicit static arguments because
-//! their owner has no machine argument-evaluation context.
-//! Closed integer arguments share the type system's exact numeric evaluation,
-//! with argument carrier and declaration-selection checks before interpreter
-//! snapshots erase their authored types. No runtime flow bound supplies a value.
-//! Closed range refinements use the same exact bound queries: input values must
-//! satisfy every range before invocation, and returned values before folding.
-//! A declared, argument-free integer domain on a parameter or result is proved
-//! for the same concrete value through the shared domain-fact evaluator, so
-//! `bounded(value: u64 in Positive)` admits `bounded(256)` and rejects
-//! `bounded(0)` before the callee runs. Neither concrete check replaces
-//! ordinary body checking. Wrapping/Saturating positions accept exact initial
-//! anonymous landings or already-landed values with the same carrier and policy.
-//! Calls, surrounding arithmetic and Match retain that policy through the shared
-//! scalar evaluator; explicit conversion alone changes it. Published endpoint
-//! literals preserve the completed landing, including its arithmetic policy.
-//! Parameterized domains remain outside this route. Calls computing signature bounds are invocation
-//! dependencies, independent of declaration order.
-//!
-//! Evaluation runs in rounds. Each round prepares the execution program from
-//! the current working tree and folds every endpoint that closes; the driver
-//! publishes those folds and prepares again when an invocation
-//! failed while progress was made, because an instance's cloned signature
-//! bounds are read from the prepared tree and a template bound that folded
-//! this round (`bounded<const N>(value: u64[0..=limit()])`) is only visible
-//! there after re-preparation. A round with no progress reports its
-//! failures and every published fold is restored, so a rejected program
-//! keeps its authored calls.
-//! Type-argument bounds follow the same rounds: private preparation retains
-//! their pending marks, and specialization leaves the enclosing call untouched
-//! until those arguments validate. Even an unused binder cannot disappear
-//! before its bound is evaluated. No pending application is executable.
-//!
-//! Each complete endpoint runs through the shared closed scalar evaluator.
-//! Discovery collects roots independently of calls: removing a helper cannot
-//! prevent a closed composition from reaching evaluation. Unclosed optional
-//! roots remain authored for ordinary dependent/runtime range validation.
-//! Its shape pass checks all calls and operators before selective execution;
-//! the separate exhaustive custody walk preserves every original selection,
-//! including skipped branches. Call results retain their declared carriers,
-//! while an anonymous root remains an exact proof integer (including an
-//! exclusive bound one beyond the subject carrier). No callee activation is
-//! borrowed to interpret the caller's expression.
-//! The evaluator reads an immutable prepared tree. Whole endpoint literals
-//! and their deferral marks publish transactionally; the working tree supplies
-//! previously folded signature bounds between rounds.
+//! Provider-dependent calls defer to the owning pre-check continuation. Their
+//! exact selected bodies execute on a private prepared program without
+//! replacing the caller's selected operation or borrowing a callee activation
+//! to interpret the caller's expression.
 
 use crate::build_time_evaluation::{EvaluationDomain, type_reference_table};
 use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
@@ -139,15 +62,8 @@ pub(crate) struct PendingEndpoint {
 }
 
 pub(crate) struct IntegerRoot {
-    pub(crate) position: IntegerRootPosition,
+    pub(crate) context: typed_trees::constant_recipes::ConstantExpressionContext,
     pub(crate) expression: ExpressionHandle,
-}
-
-/// Range endpoints are exact mathematical integers; contract expressions have
-/// the scalar carrier derived in their lexical scope. Do not manufacture that
-/// carrier from the range's constrained type.
-pub(crate) enum IntegerRootPosition {
-    Contract(typed_trees::constant_recipes::ConstantExpressionContext),
 }
 
 /// Every nonliteral bound is a candidate for the shared evaluator. Calls
@@ -182,11 +98,11 @@ mod root_plan_tests {
             roots: [23, 29]
                 .map(|owner| IntegerRoot {
                     expression,
-                    position: IntegerRootPosition::Contract(ConstantExpressionContext {
+                    context: ConstantExpressionContext {
                         owner: symbols::SymbolHandle::from_parts(owner, 1),
                         result_type: TypeReferenceHandle::from_parts(31, 1),
                         ..Default::default()
-                    }),
+                    },
                 })
                 .into(),
             calls: Vec::new(),
@@ -485,12 +401,11 @@ fn evaluate_round(
                 if !required {
                     continue;
                 }
-                let position = match endpoint.position {
-                    IntegerRootPosition::Contract(_) => "contract integer expression".to_owned(),
-                };
                 round.diagnostics.push(
-                    Diagnostic::error(format!("{position}: const evaluation failed: {reason}",))
-                        .with_source_span(typed.expression_table.source_span(endpoint.expression)),
+                    Diagnostic::error(format!(
+                        "contract integer expression: const evaluation failed: {reason}"
+                    ))
+                    .with_source_span(typed.expression_table.source_span(endpoint.expression)),
                 );
             }
         }
@@ -543,7 +458,7 @@ pub(crate) fn integer_root_plan(
     let mut roots = Vec::new();
     for root in super::contract_expressions::roots(typed, domain) {
         roots.push(IntegerRoot {
-            position: IntegerRootPosition::Contract(root.context),
+            context: root.context,
             expression: root.expression,
         });
         extend_unique(&mut pending, root.invocations);

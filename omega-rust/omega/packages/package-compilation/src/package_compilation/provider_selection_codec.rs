@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use symbols::{RetainedDeclaration, SymbolKind};
 
+// Removing a product-operand variant changes its private record tags. Refuse
+// earlier payloads before decoding their embedded operand graphs.
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
@@ -248,7 +250,7 @@ pub fn package_provider_selections_digest(
 ) -> [u8; 32] {
     let pool = SelectionSources::collect(rows);
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v2\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v3\0");
     digest_sources(&pool.sources, &mut digest);
     digest.bytes(&pool.rows(rows, observation));
     digest.finish()
@@ -463,6 +465,25 @@ fn source_owner(source: &SourceFile, output: &mut Vec<u8>) {
         SourceResolutionStratum::CurrentActivationExtension => 1,
         SourceResolutionStratum::DependencyActivationExtension => 2,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_selection_envelope_roundtrip_and_retired_version_refusal() {
+        let observation = Some([0x73; 32]);
+        let bytes = encode_package_provider_selections(&[], observation);
+        let (rows, decoded) = decode_package_provider_selections(&bytes)
+            .expect("the current provider envelope must roundtrip");
+        assert!(rows.is_empty());
+        assert_eq!(decoded, observation);
+
+        let mut previous = bytes;
+        previous[MAGIC.len() - 1] = 2;
+        assert!(decode_package_provider_selections(&previous).is_none());
+    }
 }
 
 #[cfg(unix)]

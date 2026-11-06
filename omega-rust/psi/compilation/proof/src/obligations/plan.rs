@@ -10,8 +10,6 @@ use language_semantics::value_domain::ValueDomain;
 use numerics::bignum::BigInt;
 use std::fmt;
 use symbols::SymbolHandle;
-use typed_trees::dependent_ranges::DependentBoundClass;
-use typed_trees::dependent_ranges::dependent_range_maximum;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, FloatLiteral};
 use typed_trees::name::Identifier;
 use typed_trees::statement::TransitionGuardNode;
@@ -107,52 +105,12 @@ impl<'program> ProofPlan<'program> {
     }
 }
 
-/// One endpoint of a declared integer range whose other endpoint, or itself,
-/// is a retained constant recipe: closed where the shared judgment can read
-/// it, otherwise the recipe plus the inclusive offset its spelling implies.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RecipeRangeBound {
-    Closed(BigInt),
-    Recipe {
-        recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
-        offset: i64,
-    },
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofConstraint {
     Named(Identifier),
     IntegerRange {
         minimum: numerics::bignum::BigInt,
         maximum: numerics::bignum::BigInt,
-    },
-    /// A declared range with a retained constant recipe at an endpoint
-    /// (`u64[0..=limit()]`). The bounded checks prove the value's own range
-    /// and record the comparison against the recipe for the target closure.
-    IntegerRangeRecipe {
-        minimum: RecipeRangeBound,
-        maximum: RecipeRangeBound,
-    },
-    /// R1 dependent range (`[0..=self.count]`): the maximum names a `self`
-    /// FIELD's entry value plus a literal offset. Minted only for the
-    /// recognizer's admissible class (`typed-trees::dependent_ranges`);
-    /// consumed by the bounded-argument checks, which must DISCHARGE it --
-    /// an unrecognized carrier refuses at the validation fence long before
-    /// proofs run, so this variant never silently widens.
-    IntegerRangeSymbolicMax {
-        minimum: i64,
-        max_field: Identifier,
-        max_offset: i64,
-    },
-    /// R1 sibling-length range (`[0..items.len]`, Buffer::get): the maximum
-    /// names a SIBLING PARAMETER's slice length plus a literal offset. The
-    /// obligation builders resolve the sibling's ARGUMENT at build time
-    /// (`sibling_argument` on the obligation); discharge is the co-located
-    /// guard route only -- slice lengths have no static floor.
-    IntegerRangeSiblingLenMax {
-        minimum: i64,
-        sibling: Identifier,
-        max_offset: i64,
     },
     /// A floating range with an inclusive minimum and an authored maximum.
     /// `maximum_inclusive = false` means the value must be less than the
@@ -228,91 +186,6 @@ impl ProofConstraint {
                 Some(Self::IntegerRange { minimum, maximum })
             }
             _ => None,
-        })
-    }
-
-    fn range_from_expression_handles(
-        program: &dyn ::validation::CheckingInput,
-        base_type: TypeReferenceHandle,
-        minimum: ExpressionHandle,
-        maximum: ExpressionHandle,
-        end_inclusive: bool,
-    ) -> Option<Self> {
-        // A floating carrier's authored endpoints are float bounds even when
-        // both spellings read as exact integers: anonymous `0.0`/`100.0`
-        // literals evaluate integrally, so the integer read alone would mint
-        // an integer window no float value could satisfy. The float bound
-        // reader already converts integer-spelled endpoints at the declared
-        // carrier, so no integer constraint is ever honest evidence here.
-        if !matches!(
-            program.primitive_type_reference(base_type),
-            Some(PrimitiveType::F32 | PrimitiveType::F64)
-        ) {
-            // Endpoint evaluation keeps its selected arithmetic. Only the
-            // completed upper value is converted to an inclusive
-            // proof-integer bound.
-            let integer_bound = validation::closed_integer_range_bound(program, minimum);
-            if let (Some(minimum), Some(maximum)) = (
-                integer_bound.as_ref(),
-                validation::closed_integer_range_maximum(program, maximum, end_inclusive),
-            ) {
-                return Some(Self::IntegerRange {
-                    minimum: minimum.clone(),
-                    maximum,
-                });
-            }
-            // A rostered recipe endpoint stays symbolic; its closure fixes it.
-            let recipe_bound = |endpoint: ExpressionHandle, offset: i64| {
-                let recipe = program.constant_recipe_for_range_endpoint(endpoint);
-                recipe
-                    .is_valid()
-                    .then_some(RecipeRangeBound::Recipe { recipe, offset })
-            };
-            let minimum_bound = integer_bound
-                .clone()
-                .map(RecipeRangeBound::Closed)
-                .or_else(|| recipe_bound(minimum, 0));
-            let maximum_bound =
-                validation::closed_integer_range_maximum(program, maximum, end_inclusive)
-                    .map(RecipeRangeBound::Closed)
-                    .or_else(|| recipe_bound(maximum, if end_inclusive { 0 } else { -1 }));
-            if let (Some(minimum), Some(maximum)) = (minimum_bound, maximum_bound)
-                && (matches!(minimum, RecipeRangeBound::Recipe { .. })
-                    || matches!(maximum, RecipeRangeBound::Recipe { .. }))
-            {
-                return Some(Self::IntegerRangeRecipe { minimum, maximum });
-            }
-            // Symbolic proof atoms retain inclusive offsets, not executable
-            // subtraction. Validation fences an unrepresentable offset first.
-            // One classification decides the atom: the same class value the
-            // validation fence and the index prover read, so the plan cannot
-            // order its class checks differently from the gate.
-            if let Some(minimum) = integer_bound.as_ref().and_then(BigInt::to_i64) {
-                match dependent_range_maximum(program, maximum, end_inclusive) {
-                    Some(DependentBoundClass::SelfField(symbolic)) => {
-                        return Some(Self::IntegerRangeSymbolicMax {
-                            minimum,
-                            max_field: symbolic.field,
-                            max_offset: symbolic.offset,
-                        });
-                    }
-                    // R1 sibling-length maximum (`[0..items.len]` -> len - 1).
-                    Some(DependentBoundClass::SiblingLen(sibling)) => {
-                        return Some(Self::IntegerRangeSiblingLenMax {
-                            minimum,
-                            sibling: sibling.sibling,
-                            max_offset: sibling.offset,
-                        });
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        Some(Self::FloatRange {
-            minimum: FloatLiteral::new(float_range_bound(program, base_type, minimum)?),
-            maximum: FloatLiteral::new(float_range_bound(program, base_type, maximum)?),
-            maximum_inclusive: end_inclusive,
         })
     }
 }
@@ -647,8 +520,6 @@ pub struct BoundedCallArgumentObligation {
     pub argument_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
-    /// See BoundedTransitionArgumentObligation::sibling_argument.
-    pub sibling_argument: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -705,11 +576,6 @@ pub struct BoundedTransitionArgumentObligation {
     /// rewritten loop-back's `n - 1`). Only collected when the arguments are
     /// call-free (same stability rule as `guard`).
     pub refuted_exit_guards: Vec<ExpressionHandle>,
-    /// The caller's ARGUMENT for the sibling a sibling-length atom names
-    /// (invalid when the parameter has no such atom or the sibling is
-    /// absent) -- resolved at build time, where the full parameter and
-    /// argument lists are in hand.
-    pub sibling_argument: ExpressionHandle,
 }
 
 /// A top-level BINARY assignment value's operands with their DECLARED ranges,

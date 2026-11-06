@@ -548,51 +548,6 @@ fn quotient(dividend: &IntegerRange, divisor: &IntegerRange) -> Option<IntegerRa
         .into_closed()
 }
 
-/// Read the declared `Range` constraints on an exact integer reference. Those
-/// constraints are storage invariants: construction and every write must
-/// satisfy them, so a read can use them even when no value snapshot is live.
-/// A non-Exact arithmetic domain does not range-check its stores, so such a
-/// reference supplies no declared bound and the caller keeps the raw carrier.
-/// An exclusive borrow can be reborrowed through a pointee type that drops
-/// declared constraints, so only a frozen reference chain keeps them.
-/// `None` also means "no tightening available"; it is never an error.
-pub fn frozen_declared_integer_range(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-    primitive_type: PrimitiveType,
-) -> Option<IntegerRange> {
-    let mut walked = reference;
-    loop {
-        match program.type_reference_table.type_reference(walked) {
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                if access.is_exclusive() {
-                    return None;
-                }
-                walked = *referee;
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => walked = *base_type,
-            _ => break,
-        }
-    }
-    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, reference)?;
-    let declared = shells
-        .iter()
-        .flat_map(|constraints| constraints.iter())
-        .filter_map(|constraint| match constraint {
-            _ => None,
-        })
-        .reduce(|previous, next| IntegerRange {
-            minimum: previous.minimum.max(next.minimum),
-            maximum: previous.maximum.min(next.maximum),
-        })?;
-    let carrier = carrier_integer_range(primitive_type)?;
-    let minimum = declared.minimum.max(carrier.minimum);
-    let maximum = declared.maximum.min(carrier.maximum);
-    (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
-}
-
 /// Whether `inner` is a nonempty interval inside `outer`.
 pub fn integer_range_contains(outer: &IntegerRange, inner: &IntegerRange) -> bool {
     outer.minimum <= inner.minimum

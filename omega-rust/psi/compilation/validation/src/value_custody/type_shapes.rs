@@ -177,20 +177,3 @@ pub fn exact_constrained_shells(
         }
     }
 }
-
-/// The symbolic Range maximum `(field, offset)` of a type reference's
-/// `Constrained` shells, outermost first, under an Exact arithmetic domain
-/// only. `None` when a shell demands a non-Exact domain or no Range names a
-/// symbolic bound.
-pub fn exact_shells_symbolic_range_maximum(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<(typed_trees::name::Identifier, i64)> {
-    use typed_trees::types::TypeConstraintNode;
-    exact_constrained_shells(program, handle)?
-        .iter()
-        .flat_map(|constraints| constraints.iter())
-        .find_map(|constraint| match constraint {
-            _ => None,
-        })
-}

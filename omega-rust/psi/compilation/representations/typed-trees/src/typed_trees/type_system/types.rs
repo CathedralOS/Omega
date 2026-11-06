@@ -1454,20 +1454,7 @@ impl fmt::Display for DomainConstraint {
     }
 }
 
-impl TypeConstraintNode {
-    fn copy_from(
-        &self,
-        source_expressions: &crate::expression::ExpressionTable,
-        target_expressions: &mut crate::expression::ExpressionTable,
-    ) -> Self {
-        match self {
-            TypeConstraintNode::Named(name) => Self::Named(name.clone()),
-            TypeConstraintNode::Domain(domain) => Self::Domain(domain.clone()),
-
-            TypeConstraintNode::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
-        }
-    }
-}
+impl TypeConstraintNode {}
 
 impl Default for TypeConstraintNode {
     fn default() -> Self {

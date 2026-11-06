@@ -43,20 +43,6 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &dyn CheckingInput) ->
             );
         }
     });
-    // Integer range endpoints land in proof-integer arithmetic. Keeping the
-    // authored roots lets cancellation preserve its fractional-origin warning.
-    for (_, base, constraints) in program
-        .type_reference_table
-        .constrained_type_reference_sites()
-    {
-        if !program
-            .primitive_type_reference(base)
-            .is_some_and(|primitive| primitive.accepts_integer_literal())
-        {
-            continue;
-        }
-        for constraint in program.type_reference_table.constraints(constraints) {}
-    }
     for (expression, node) in expression_table(program).iter_expressions() {
         let ExpressionNode::Binary(binary) = node else {
             continue;

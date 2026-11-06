@@ -81,12 +81,6 @@ pub(super) fn premise_symbols(
     }
     if entry_facts {
         expressions.extend(super::required_contract_expressions(program, machine));
-        super::constrained_parameter_bound_expressions(
-            program,
-            root,
-            &mut expressions,
-            Some(&mut constrained),
-        );
     }
     for parameter in constrained {
         record(

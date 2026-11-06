@@ -435,7 +435,7 @@ impl TypeReferenceTable {
                         .collect();
                     TypeConstraintNode::Domain(domain)
                 }
-                _ => constraint.copy_from(source_expressions, target_expressions),
+                _ => constraint.clone(),
             };
             self.set_constraint_at_offset(
                 copied,

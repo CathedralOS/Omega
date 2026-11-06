@@ -61,10 +61,3 @@ fn type_reference_table_stores_nested_typed_references_as_handles() {
 
     assert_eq!(arguments.count(), 2);
 }
-
-#[test]
-fn type_reference_table_stores_typed_constraints_as_expression_handles() {
-    for end_inclusive in [false, true] {
-        check_range_tree_to_table(end_inclusive);
-    }
-}

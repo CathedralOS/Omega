@@ -129,92 +129,6 @@ pub(crate) fn range_constraint_interval(
     }
 }
 
-fn closed_range_interval(
-    program: &dyn CheckingInput,
-    minimum: ExpressionHandle,
-    maximum: ExpressionHandle,
-    end_inclusive: bool,
-) -> Option<Interval> {
-    let minimum = crate::closed_integer_range_bound(program, minimum)?;
-    let maximum = crate::closed_integer_range_maximum(program, maximum, end_inclusive)?;
-    // A proof-integer predecessor can fall below i64::MIN. Preserve bottom
-    // before projecting into bounded storage: None also means no constraint
-    // to several store-checking callers and must not erase an empty range.
-    if minimum > maximum {
-        return Some(Interval {
-            low: Some(1),
-            high: Some(0),
-        });
-    }
-    Some(Interval {
-        low: Some(minimum.to_i64()?),
-        high: Some(maximum.to_i64()?),
-    })
-}
-
-/// R1a dependent maximum in interval position: `[0..=self.count]` reads as
-/// the named field's own enforced literal HIGH plus the offset -- sound
-/// because the field's range is store-enforced at every write, so the
-/// dependent bound can never exceed it. The field is resolved by NAME
-/// across all data definitions and must be UNIQUE (or agree everywhere);
-/// an ambiguous name with disagreeing ranges bails rather than guesses
-/// (this helper has no machine context; the declaration gate has already
-/// verified the binding machine's own field is ranged).
-fn dependent_maximum_substituted(
-    program: &dyn CheckingInput,
-    maximum: typed_trees::expression::ExpressionHandle,
-    end_inclusive: bool,
-) -> Option<i64> {
-    let typed_trees::dependent_ranges::DependentBoundClass::SelfField(symbolic) =
-        typed_trees::dependent_ranges::dependent_range_maximum(program, maximum, end_inclusive)?
-    else {
-        return None;
-    };
-    let mut resolved: Option<i64> = None;
-    for data in program.data_definitions() {
-        for member in program.data_members(data) {
-            let Some(field) = member.as_field() else {
-                continue;
-            };
-            if field.name.as_str() != symbolic.field.as_str() || !field.type_reference.is_valid() {
-                continue;
-            }
-            let high = range_constraint_interval(program, field.type_reference)
-                .and_then(|interval| interval.high)?;
-            match resolved {
-                None => resolved = Some(high),
-                Some(existing) if existing == high => {}
-                Some(_) => return None,
-            }
-        }
-    }
-    resolved?.checked_add(symbolic.offset)
-}
-
-/// Containment of a cleanly-analyzed store interval in the target's declared
-/// Exact `[a..=b]` range. Both ends must be proven: later reads trust this
-/// range as an invariant, so an unknown store cannot establish it. Non-Exact
-/// shells and unranged targets remain deliberately permissive.
-pub(crate) fn check_range_containment(
-    program: &dyn CheckingInput,
-    target_type: TypeReferenceHandle,
-    value: IntegerValueObservation<'_>,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(declared) = enforced_declared_range_interval(program, target_type) else {
-        return;
-    };
-    if !value.fits(program, declared) {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} stores a value not provably within its declared range: the range is a \
-             store-enforced invariant every read trusts (indexes, exact arithmetic), so the \
-             stored value must be proven to honor it. Narrow the value with a dominating \
-             guard, a dependent bound, or a requires coupling -- or widen/remove the range",
-        )));
-    }
-}
-
 /// An atomic resident update must preserve its declaration's interval at the
 /// event. Ordinary record predicates use restoration windows instead. An
 /// unstated end constrains nothing; a stated end needs the matching proven end.
@@ -234,27 +148,6 @@ pub(crate) fn check_where_interval_containment(
         return false;
     }
     true
-}
-
-/// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact
-/// Constrained shells (non-Exact ranges are deliberately permissive).
-pub(crate) fn enforced_declared_range_interval(
-    program: &dyn CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<Interval> {
-    if floating_range_carrier(program, handle) {
-        return None;
-    }
-    let shells = crate::value_custody::type_shapes::exact_constrained_shells(program, handle)?;
-    // Every shell contributes conjunctively. Taking only the first
-    // range could hide a later empty interval and authorize a store.
-    shells
-        .iter()
-        .flat_map(|constraints| constraints.iter())
-        .filter_map(|constraint| match constraint {
-            _ => None,
-        })
-        .reduce(Interval::intersect)
 }
 
 fn floating_range_carrier(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> bool {

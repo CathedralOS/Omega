@@ -23,7 +23,6 @@ mod arrival_stability;
 mod assignment_stability;
 mod bounded_checks;
 mod certificate;
-mod dependent_bounds;
 mod derivation_cache;
 mod diagnostics;
 mod float_ranges;

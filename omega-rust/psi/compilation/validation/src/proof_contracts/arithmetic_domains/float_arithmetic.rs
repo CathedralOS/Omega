@@ -202,18 +202,12 @@ pub(crate) fn float_source_bounds(
             }
         }
     }
-    let declared =
-        reference.and_then(|reference| float_range_constraint_interval(program, reference));
-    let guaranteed = expression_table(program)
+    let declared = expression_table(program)
         .call_node(value)
         .filter(|call| call.selects_only_nominal_route())
         .and_then(|call| {
             super::float_contracts::normal_return_interval(program, caller, value, call)
         });
-    let declared = match (declared, guaranteed) {
-        (Some(left), Some(right)) => Some(left.intersect(right)),
-        (left, right) => left.or(right),
-    };
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .or_else(|| {
@@ -347,27 +341,6 @@ pub(crate) fn float_interval_fits_integer(low: f64, high: f64, target: Primitive
     }
 }
 
-pub(crate) fn float_range_constraint_interval(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<FloatInterval> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            float_range_constraint_interval(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let primitive = program.primitive_type_reference(handle)?;
-            let mut range = float_range_constraint_interval(program, *base_type);
-            for constraint in program.type_reference_table.constraints(*constraints) {}
-            range
-        }
-        _ => None,
-    }
-}
-
 pub(crate) fn float_bound_from(
     operator: BinaryOperator,
     literal: f64,
@@ -489,9 +462,6 @@ pub(super) fn record_float_comparison_bounds(
         && let Some(mut interval) =
             float_bound_from(comparison.operator, literal, name_on_left, primitive)
     {
-        if let Some(declared) = float_range_constraint_interval(program, handle) {
-            interval = interval.intersect(declared);
-        }
         environment.narrow_float(name.clone(), interval);
         environment.mark_non_nan(name);
         return true;
@@ -505,9 +475,6 @@ pub(super) fn record_float_comparison_bounds(
         && let Some(mut interval) =
             float_bound_from(comparison.operator, literal, element_on_left, primitive)
     {
-        if let Some(declared) = float_range_constraint_interval(program, handle) {
-            interval = interval.intersect(declared);
-        }
         environment.narrow_float_element(element.clone(), interval);
         environment.mark_non_nan_element(element);
         return true;
