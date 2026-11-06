@@ -4,8 +4,9 @@
 
 use checked_trees::{CheckedTrees, CheckedValueOrigin};
 use lowered_psi::LoweredPsi;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use symbols::SymbolHandle;
-use terminal_psi::{BoundaryMachineId, MachineId, Operation, OperationId, OperationKind};
+use terminal_psi::{Operation, OperationKind};
 
 pub(super) fn matching_requests<Key: Copy + Ord>(
     requests: &[(Key, usize)],
