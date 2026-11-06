@@ -56,24 +56,28 @@ pub(super) fn prepare(
         false
     };
     let execution = checked.execution();
-    let program = checked.source_inspection().program();
-    let typed = &program.typed;
+    let product = checked.source_inspection().program();
+    let product_typed = &product.typed;
     let mut headers = Vec::new();
     let mut unavailable_bodies = Vec::new();
     // Headers describe every admitted declaration, including bodies that are
     // ineligible for Product execution. Callback selection below uses Product.
     let checked_declarations = checked.source_inspection().checked_declarations();
+    let declaration_types = &checked_declarations.typed;
     for machine in checked_declarations.machines() {
-        let typed = &checked_declarations.typed;
-        let callable = typed.machine_callable_identity(machine);
+        let callable = declaration_types.machine_callable_identity(machine);
         let header = Header {
             callable: callable
                 .is_valid()
-                .then(|| typed.callable_identity_text(callable)),
-            package: typed.symbols.symbol_package_identity(machine.symbol),
-            target: typed.source_target_context(machine).map(str::to_owned),
+                .then(|| declaration_types.callable_identity_text(callable)),
+            package: declaration_types
+                .symbols
+                .symbol_package_identity(machine.symbol),
+            target: declaration_types
+                .source_target_context(machine)
+                .map(str::to_owned),
             eligible: !machine.target_family_interface
-                && typed.symbols.symbol_is_in_dependency_scope(
+                && declaration_types.symbols.symbol_is_in_dependency_scope(
                     machine.symbol,
                     source::DependencyScope::Product,
                 ),
@@ -121,7 +125,7 @@ pub(super) fn prepare(
                     row,
                     checked_adapter_body: provider_planning::exact_checked_adapter(
                         provider_planning::ProviderPlanningContext::new(
-                            typed,
+                            product_typed,
                             source::DependencyScope::Product,
                         ),
                         plan,
