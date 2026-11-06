@@ -255,6 +255,14 @@ impl AdmittedProviderSelections {
         })
     }
 
+    /// Reuse the body already admitted for this exact boundary.
+    /// Observation provides no way to forge or modify the sealed selection.
+    pub fn provider(&self, boundary: BoundaryMachineId) -> Option<MachineId> {
+        self.providers
+            .get(&boundary)
+            .map(|selection| selection.candidate)
+    }
+
     /// Borrow admitted rows while constructing a consumer's execution state.
     /// Observation provides no way to forge or modify this sealed selection.
     pub fn providers(&self) -> impl Iterator<Item = (BoundaryMachineId, MachineId)> + '_ {

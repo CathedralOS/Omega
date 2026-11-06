@@ -80,6 +80,7 @@ struct ScopeBoundaryIndex<'a> {
         Vec<(usize, &'a terminal_psi::ProviderCandidateConformance)>,
     >,
     selected_by_req: std::collections::BTreeMap<&'a str, Vec<&'a SelectedProviderAdapter>>,
+    assumptions: BoundarySupplies<BoundaryMachineId>,
 }
 
 impl NativeExecutionScope {
@@ -138,6 +139,7 @@ impl NativeExecutionScope {
             boundary_set,
             candidates_by_boundary,
             selected_by_req,
+            assumptions: assumed_boundary_supplies(assumptions),
         };
         let mut visited = vec![false; module.machines.len()];
         let mut pending = vec![entry];
@@ -155,6 +157,7 @@ impl NativeExecutionScope {
             boundaries_set: std::collections::BTreeSet::new(),
             selected_candidate_positions: Vec::new(),
         };
+        let mut boundary_supplies = Vec::new();
         while let Some(machine) = pending.pop() {
             let position = function_positions
                 .binary_search_by_key(&machine, |(identity, _)| *identity)
@@ -191,7 +194,7 @@ impl NativeExecutionScope {
                                 targets,
                                 entry_call,
                                 &index,
-                                assumptions,
+                                &mut boundary_supplies,
                                 &function_positions,
                                 *boundary,
                                 &mut pending,
@@ -219,7 +222,7 @@ impl NativeExecutionScope {
                         targets,
                         entry_call,
                         &index,
-                        assumptions,
+                        &mut boundary_supplies,
                         &function_positions,
                         boundary,
                         &mut pending,
@@ -230,43 +233,36 @@ impl NativeExecutionScope {
         scope.machines.sort_unstable();
         scope.boundaries.sort_unstable();
         scope.selected_candidate_positions.sort_unstable();
-        for &boundary in &scope.boundaries {
-            let mut selected = boundary;
-            let mut visited = std::collections::BTreeSet::new();
-            while let Some((_, supplied)) = assumptions
-                .iter()
-                .find(|(required, _)| *required == selected)
-            {
-                if !visited.insert(selected) {
-                    return Err(NativeExecutionScopeError::LenderPreservationUnavailable {
-                        boundary,
-                        reason: "the assumed provider selection is cyclic",
-                    });
+        if !scope.boundaries.is_empty() {
+            let supplies = BoundarySupplies::new(boundary_supplies);
+            let preservation =
+                terminal_semantics::descriptor_results::BoundaryLenderPreservation::new(module);
+            for &boundary in &scope.boundaries {
+                // Keep the original cycle refusal, even when an explicit entry
+                // supplies the call before its assumption would be followed.
+                if matches!(
+                    index.assumptions.supply(boundary),
+                    Some(BoundarySupply::Alias(_))
+                ) {
+                    index
+                        .assumptions
+                        .resolution(boundary)
+                        .map_err(|reason| boundary_resolution_error(boundary, reason))?;
                 }
-                selected = *supplied;
+                // Check the body chosen by the reachability walk. Re-selecting
+                // here could check a different helper from the one that runs.
+                let implementation = supplies
+                    .resolution(boundary)
+                    .map_err(|reason| boundary_resolution_error(boundary, reason))?;
+                preservation
+                    .require(boundary, implementation)
+                    .map_err(
+                        |reason| NativeExecutionScopeError::LenderPreservationUnavailable {
+                            boundary,
+                            reason,
+                        },
+                    )?;
             }
-            let target = crate::optimization::target_family_member(module, Some(targets), selected)
-                .map_err(NativeExecutionScopeError::TargetFamily)?;
-            let implementation = entry_call
-                .filter(|entry| entry.boundary() == selected)
-                .map(crate::SelectedProgramEntryCall::entry)
-                .or_else(|| match target {
-                    Some(terminal_psi::TargetMachineCallable::Machine(body)) => Some(body),
-                    _ => scope
-                        .selected_candidate_positions
-                        .iter()
-                        .map(|position| &module.provider_candidates[*position])
-                        .find(|candidate| candidate.boundary == selected)
-                        .map(|candidate| candidate.candidate),
-                });
-            terminal_semantics::descriptor_results::require_boundary_lender_preservation(
-                module,
-                boundary,
-                implementation,
-            )
-            .map_err(|reason| {
-                NativeExecutionScopeError::LenderPreservationUnavailable { boundary, reason }
-            })?;
         }
         Ok(scope)
     }
@@ -279,7 +275,7 @@ impl NativeExecutionScope {
         targets: &terminal_installation::AdmittedTargetMachineSelections,
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         index: &ScopeBoundaryIndex<'_>,
-        assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
+        supplies: &mut Vec<(BoundaryMachineId, BoundarySupply<Option<MachineId>>)>,
         function_positions: &[(MachineId, usize)],
         boundary: BoundaryMachineId,
         pending: &mut Vec<MachineId>,
@@ -296,20 +292,19 @@ impl NativeExecutionScope {
             // The selected continuation's complete ordinary call/provider and
             // cleanup closure participates before native demand and stack work.
             pending.push(entry.entry());
+            supplies.push((boundary, BoundarySupply::Final(Some(entry.entry()))));
             return Ok(());
         }
-        if let Some((_, supplied)) = assumptions
-            .iter()
-            .find(|(required, _)| *required == boundary)
-        {
+        if let Some(BoundarySupply::Alias(supplied)) = index.assumptions.supply(boundary) {
+            supplies.push((boundary, BoundarySupply::Alias(supplied)));
             return self.retain_boundary(
                 module,
                 targets,
                 entry_call,
                 index,
-                assumptions,
+                supplies,
                 function_positions,
-                *supplied,
+                supplied,
                 pending,
             );
         }
@@ -318,9 +313,11 @@ impl NativeExecutionScope {
                 .map_err(NativeExecutionScopeError::TargetFamily)?
         {
             pending.push(member);
+            supplies.push((boundary, BoundarySupply::Final(Some(member))));
             return Ok(());
         }
         let Some(candidates) = index.candidates_by_boundary.get(&boundary) else {
+            supplies.push((boundary, BoundarySupply::Final(None)));
             return Ok(());
         };
         if !candidates.iter().any(|(_, candidate)| {
@@ -331,6 +328,7 @@ impl NativeExecutionScope {
         }) {
             // Retained alternatives do not select an invocation's binding.
             // Imports and builtins remain independently admitted external leaves.
+            supplies.push((boundary, BoundarySupply::Final(None)));
             return Ok(());
         }
         let mut matches = candidates.iter().filter(|(_, candidate)| {
@@ -365,6 +363,7 @@ impl NativeExecutionScope {
             return Err(NativeExecutionScopeError::CompetingSelectedCheckedProviders(boundary));
         }
         self.selected_candidate_positions.push(candidate.0);
+        supplies.push((boundary, BoundarySupply::Final(Some(candidate.1.candidate))));
         pending.push(candidate.1.candidate);
         Ok(())
     }
@@ -452,5 +451,175 @@ impl NativeExecutionScope {
         self.selected_candidate_positions
             .binary_search(&position)
             .is_ok()
+    }
+}
+
+#[derive(Clone, Copy)]
+enum BoundarySupply<T> {
+    Alias(BoundaryMachineId),
+    Final(T),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BoundaryResolutionError {
+    Cycle,
+    Missing(BoundaryMachineId),
+}
+
+/// Resolve a chosen supply once, then share it with every caller that uses it.
+/// Sparse boundary identities index sorted rows, never an ID-sized allocation.
+struct BoundarySupplies<T> {
+    rows: Vec<(BoundaryMachineId, BoundarySupply<T>)>,
+    resolved: Vec<Result<T, BoundaryResolutionError>>,
+}
+
+impl<T: Copy> BoundarySupplies<T> {
+    fn new(mut rows: Vec<(BoundaryMachineId, BoundarySupply<T>)>) -> Self {
+        // The original slice lookup used its first matching row.
+        rows.sort_by_key(|(boundary, _)| *boundary);
+        rows.dedup_by_key(|(boundary, _)| *boundary);
+        let mut resolved = vec![None; rows.len()];
+        let mut active = vec![false; rows.len()];
+        let mut path = Vec::new();
+        for start in 0..rows.len() {
+            if resolved[start].is_some() {
+                continue;
+            }
+            let mut position = start;
+            let result = loop {
+                if let Some(result) = resolved[position] {
+                    break result;
+                }
+                if active[position] {
+                    break Err(BoundaryResolutionError::Cycle);
+                }
+                active[position] = true;
+                path.push(position);
+                match rows[position].1 {
+                    BoundarySupply::Final(body) => break Ok(body),
+                    BoundarySupply::Alias(boundary) => {
+                        position = match rows.binary_search_by_key(&boundary, |(id, _)| *id) {
+                            Ok(position) => position,
+                            Err(_) => break Err(BoundaryResolutionError::Missing(boundary)),
+                        };
+                    }
+                }
+            };
+            for position in path.drain(..) {
+                resolved[position] = Some(result);
+                active[position] = false;
+            }
+        }
+        let resolved = rows
+            .iter()
+            .zip(resolved)
+            .map(|((boundary, _), result)| {
+                result.unwrap_or(Err(BoundaryResolutionError::Missing(*boundary)))
+            })
+            .collect();
+        Self { rows, resolved }
+    }
+
+    fn supply(&self, boundary: BoundaryMachineId) -> Option<BoundarySupply<T>> {
+        self.rows
+            .binary_search_by_key(&boundary, |(id, _)| *id)
+            .ok()
+            .map(|position| self.rows[position].1)
+    }
+
+    fn resolution(&self, boundary: BoundaryMachineId) -> Result<T, BoundaryResolutionError> {
+        let position = self
+            .rows
+            .binary_search_by_key(&boundary, |(id, _)| *id)
+            .map_err(|_| BoundaryResolutionError::Missing(boundary))?;
+        self.resolved[position]
+    }
+}
+
+fn assumed_boundary_supplies(
+    assumptions: &[(BoundaryMachineId, BoundaryMachineId)],
+) -> BoundarySupplies<BoundaryMachineId> {
+    let rows = assumptions
+        .iter()
+        .map(|&(required, supplied)| (required, BoundarySupply::Alias(supplied)))
+        // An endpoint with no further assumption denotes itself. Required rows
+        // come first so a repeated ID retains the original slice's first match.
+        .chain(
+            assumptions
+                .iter()
+                .map(|&(_, supplied)| (supplied, BoundarySupply::Final(supplied))),
+        )
+        .collect();
+    BoundarySupplies::new(rows)
+}
+
+fn boundary_resolution_error(
+    boundary: BoundaryMachineId,
+    reason: BoundaryResolutionError,
+) -> NativeExecutionScopeError {
+    match reason {
+        BoundaryResolutionError::Missing(missing) => {
+            NativeExecutionScopeError::MissingBoundary(missing)
+        }
+        BoundaryResolutionError::Cycle => {
+            NativeExecutionScopeError::LenderPreservationUnavailable {
+                boundary,
+                reason: "the assumed provider selection is cyclic",
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod boundary_resolution_tests {
+    use super::*;
+
+    fn boundary(id: u64) -> BoundaryMachineId {
+        BoundaryMachineId::new(id).expect("nonzero boundary")
+    }
+
+    #[test]
+    fn assumed_sources_keep_the_first_row_and_sparse_chain_endpoint() {
+        let first = boundary(1);
+        let middle = boundary(u64::MAX - 1);
+        let last = boundary(u64::MAX);
+        let supplies =
+            assumed_boundary_supplies(&[(first, middle), (first, first), (middle, last)]);
+        assert_eq!(supplies.resolution(first), Ok(last));
+        assert_eq!(supplies.resolution(middle), Ok(last));
+        assert_eq!(supplies.resolution(last), Ok(last));
+        assert!(matches!(supplies.supply(first), Some(BoundarySupply::Alias(id)) if id == middle));
+    }
+
+    #[test]
+    fn missing_and_cyclic_supplies_cannot_become_checked_bodies() {
+        let body = MachineId::new(7).expect("nonzero machine");
+        let supplies = BoundarySupplies::new(vec![
+            (boundary(1), BoundarySupply::Alias(boundary(2))),
+            (boundary(2), BoundarySupply::Alias(boundary(1))),
+            (boundary(3), BoundarySupply::Alias(boundary(u64::MAX))),
+            (boundary(4), BoundarySupply::Final(None)),
+            (boundary(5), BoundarySupply::Final(Some(body))),
+            (boundary(6), BoundarySupply::Alias(boundary(5))),
+        ]);
+        assert_eq!(
+            supplies.resolution(boundary(1)),
+            Err(BoundaryResolutionError::Cycle)
+        );
+        assert_eq!(
+            supplies.resolution(boundary(2)),
+            Err(BoundaryResolutionError::Cycle)
+        );
+        assert_eq!(
+            supplies.resolution(boundary(3)),
+            Err(BoundaryResolutionError::Missing(boundary(u64::MAX)))
+        );
+        assert_eq!(supplies.resolution(boundary(4)), Ok(None));
+        assert_eq!(supplies.resolution(boundary(5)), Ok(Some(body)));
+        assert_eq!(supplies.resolution(boundary(6)), Ok(Some(body)));
+        assert_eq!(
+            supplies.resolution(boundary(9)),
+            Err(BoundaryResolutionError::Missing(boundary(9)))
+        );
     }
 }

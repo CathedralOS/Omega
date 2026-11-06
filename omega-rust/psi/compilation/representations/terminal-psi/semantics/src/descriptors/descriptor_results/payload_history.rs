@@ -9,7 +9,7 @@ mod premise_table;
 mod reference_formations;
 
 use normal_calls::NormalPayloadContext;
-pub use normal_calls::require_boundary_lender_preservation;
+pub use normal_calls::{BoundaryLenderPreservation, require_boundary_lender_preservation};
 use premise_table::{PremiseTable, SharedPremise};
 
 use super::PayloadScalarObservation;

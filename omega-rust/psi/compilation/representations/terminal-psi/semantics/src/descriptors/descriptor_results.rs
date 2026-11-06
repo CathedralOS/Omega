@@ -49,8 +49,8 @@ pub use contents::{
     reference_backing_memberships, terminal_payload_contract,
 };
 pub use payload_history::{
-    PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
-    require_boundary_lender_preservation,
+    BoundaryLenderPreservation, PayloadMembershipHistory, current_payload_contract,
+    current_selected_payload_contract, require_boundary_lender_preservation,
 };
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{

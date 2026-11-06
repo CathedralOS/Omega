@@ -22,57 +22,25 @@ struct ForwardingMemberships<'input> {
     normal: NormalPayloadContext<'input>,
 }
 
-pub(super) fn require(
+#[cfg(test)]
+fn require(
     module: &TerminalModule,
     boundary: semantic_vocabulary::BoundaryMachineId,
     implementation: Option<MachineId>,
 ) -> Result<(), &'static str> {
-    let mut requests = Vec::new();
-    for demand in &module.boundary_reference_forwarding {
-        let mut callers = module
-            .machines
-            .iter()
-            .filter(|body| body.id == demand.machine);
-        let caller = callers.next().ok_or("reference forwarding has no caller")?;
-        if callers.next().is_some() {
-            return Err("reference forwarding has ambiguous callers");
-        }
-        let mut operations = caller
-            .operations()
-            .filter(|operation| operation.id == demand.operation);
-        let operation = operations
-            .next()
-            .ok_or("reference forwarding has no operation")?;
-        if operations.next().is_some() {
-            return Err("reference forwarding has ambiguous operations");
-        }
-        let OperationKind::BoundaryCall {
-            boundary: selected, ..
-        } = operation.kind
-        else {
-            return Err("reference forwarding does not name a boundary call");
-        };
-        if selected == boundary {
-            requests.push(demand);
-        }
-    }
-    if requests.is_empty() {
-        return Ok(());
-    }
-    let implementation = implementation
-        .ok_or("reference forwarding requires an independently checked execution body")?;
-    let declaration = terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
-        .ok_or("reference forwarding has no boundary declaration")?;
-    let mut bodies = module
-        .machines
-        .iter()
-        .filter(|body| body.id == implementation);
-    let body = bodies
-        .next()
-        .ok_or("reference forwarding has no execution body")?;
-    if bodies.next().is_some() {
-        return Err("reference forwarding has ambiguous execution bodies");
-    }
+    super::boundary_preservation::BoundaryLenderPreservation::new(module)
+        .require_forwarding(boundary, implementation)
+}
+
+pub(super) fn require_selected(
+    module: &TerminalModule,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    declaration: &BoundaryMachineDeclaration,
+    body: &TerminalMachine,
+    requests: &[super::boundary_preservation::ForwardingRequest<'_>],
+    call_contracts: Arc<super::call_contracts::CallContracts<'_>>,
+) -> Result<(), &'static str> {
+    let implementation = body.id;
     require_signature(declaration, body)?;
     entry_requirements::require(module, declaration, body)?;
     // The selected mapping authenticates graph coordinates, not the choice of
@@ -119,7 +87,7 @@ pub(super) fn require(
     history.replay.memberships = PayloadMembershipKind::Preserved;
     let mut memberships = ForwardingMemberships {
         history,
-        normal: NormalPayloadContext::new(module, &graph),
+        normal: NormalPayloadContext::with_call_contracts(&graph, call_contracts),
     };
     memberships.normal.executable_body(implementation)?;
     let selected = descriptor_machine(&graph, implementation)
@@ -138,7 +106,8 @@ pub(super) fn require(
     if exits.is_empty() {
         return Err("reference forwarding has no demonstrated normal return");
     }
-    for demand in requests {
+    for request in requests {
+        let demand = request.demand;
         require_output(
             module,
             declaration,

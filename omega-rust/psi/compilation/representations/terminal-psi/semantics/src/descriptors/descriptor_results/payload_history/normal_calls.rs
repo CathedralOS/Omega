@@ -3,14 +3,17 @@
 //! conserve a fact on its exact captured original subject. Neither route treats
 //! entry annotations or a replacement pointer as proof about an older pointee.
 
+mod boundary_preservation;
+mod call_contracts;
 mod completed_outputs;
 mod primitive_writes;
 mod provider_observations;
 mod reference_forwarding;
-pub use provider_observations::require_boundary_lender_preservation;
+pub use boundary_preservation::{BoundaryLenderPreservation, require_boundary_lender_preservation};
 mod write_conservation;
 
 use super::*;
+use std::sync::Arc;
 use terminal_psi::find_structural_type;
 
 #[derive(Clone)]
@@ -103,6 +106,7 @@ pub(super) struct NormalPayloadContext<'module> {
     module: &'module TerminalModule,
     graph: &'module [DescriptorMachine],
     machine_payloads: Vec<NormalMachinePayload<'module>>,
+    call_contracts: Arc<call_contracts::CallContracts<'module>>,
 }
 
 impl<'module> NormalPayloadContext<'module> {
@@ -110,11 +114,19 @@ impl<'module> NormalPayloadContext<'module> {
         module: &'module TerminalModule,
         graph: &'module [DescriptorMachine],
     ) -> Self {
-        let mut machine_payloads = module
+        Self::with_call_contracts(graph, Arc::new(call_contracts::CallContracts::new(module)))
+    }
+
+    fn with_call_contracts(
+        graph: &'module [DescriptorMachine],
+        call_contracts: Arc<call_contracts::CallContracts<'module>>,
+    ) -> Self {
+        let module = call_contracts.module;
+        let machine_payloads = call_contracts
             .machines
             .iter()
-            .map(|body| NormalMachinePayload {
-                body,
+            .map(|(_, ordinal)| NormalMachinePayload {
+                body: &module.machines[*ordinal],
                 writes: None,
                 writing: false,
                 posts: Vec::new(),
@@ -122,17 +134,12 @@ impl<'module> NormalPayloadContext<'module> {
                 completing: false,
                 entry_complete: false,
             })
-            .collect::<Vec<_>>();
-        if !machine_payloads
-            .windows(2)
-            .all(|pair| pair[0].body.id <= pair[1].body.id)
-        {
-            machine_payloads.sort_unstable_by_key(|row| row.body.id);
-        }
+            .collect();
         Self {
             module,
             graph,
             machine_payloads,
+            call_contracts,
         }
     }
 
@@ -182,7 +189,7 @@ impl<'module> NormalPayloadContext<'module> {
     /// A call gets fresh entry proofs and summaries. Only its active recursion
     /// chain survives, so another call's actual facts cannot leak into it.
     fn for_complete_entry(&self, identity: MachineId) -> Result<Self, &'static str> {
-        let mut context = Self::new(self.module, self.graph);
+        let mut context = Self::with_call_contracts(self.graph, Arc::clone(&self.call_contracts));
         for (row, inherited) in context
             .machine_payloads
             .iter_mut()

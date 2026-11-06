@@ -1,6 +1,7 @@
-//! A public helper may replace a stored pointer while saved users still need
-//! the original data and its guarantees. Capture those guarantees before the
-//! call and keep them on that original data after a normal return.
+//! Changing a stored pointer must not make the checker forget a guarantee
+//! promised for the original data. Retain only guarantees requested for this
+//! call and already proved before it; the selected implementation must fulfill
+//! them independently.
 //! These are Observed facts on exact captured subjects. They identify no new
 //! pointer target, clear no unavailable exclusive roster and retain no old
 //! scalar value or equation.
@@ -50,16 +51,15 @@ impl NormalPayloadContext<'_> {
         position: DescriptorPosition,
         before: &State,
     ) -> Result<Vec<CapturedNormalFact>, &'static str> {
-        let mut bodies = self.module.machines.iter().filter(|body| body.id == caller);
-        let body = bodies.next().ok_or("a public normal fact has no caller")?;
-        if bodies.next().is_some() {
+        let bodies = self.call_contracts.machines(caller);
+        let (_, ordinal) = bodies.first().ok_or("a public normal fact has no caller")?;
+        if bodies.len() != 1 {
             return Err("a public normal fact has ambiguous callers");
         }
-        let operation = body
-            .blocks
-            .iter()
-            .find(|block| block.id == position.0)
-            .and_then(|block| block.operations.get(position.1 as usize))
+        let body = &self.module.machines[*ordinal];
+        let operation = self
+            .call_contracts
+            .operation(caller, position)
             .ok_or("a public normal fact has no performed operation")?;
         let OperationKind::BoundaryCall {
             boundary,
@@ -70,15 +70,12 @@ impl NormalPayloadContext<'_> {
         else {
             return Ok(Vec::new());
         };
-        let mut declarations = self
-            .module
-            .boundary_machines
-            .iter()
-            .filter(|row| row.id == *boundary);
+        let declarations = self.call_contracts.declarations(*boundary);
         let declaration = declarations
-            .next()
+            .first()
+            .copied()
             .ok_or("the public normal contract is absent")?;
-        if declarations.next().is_some()
+        if declarations.len() != 1
             || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
             || declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn
         {
@@ -134,12 +131,7 @@ impl NormalPayloadContext<'_> {
             return Err("the public normal signature and captured actual coordinates disagree");
         }
         let mut facts = Vec::new();
-        for demand in self
-            .module
-            .boundary_lender_preservation
-            .iter()
-            .filter(|demand| demand.machine == caller && demand.operation == operation.id)
-        {
+        for demand in self.call_contracts.lenders(caller, operation.id) {
             let row = &demand.requirement;
             if !declaration.normal_qualifications.contains(row)
                 || !row.path.contains(&StructuralPathSegment::Referent)
@@ -275,12 +267,10 @@ impl NormalPayloadContext<'_> {
             .get(&position)
             .ok_or("captured lender preservation has no performed invocation")?;
         let body = self.executable_body(implementation)?;
+        self.executable_body(caller)?;
         let operation = self
-            .executable_body(caller)?
-            .blocks
-            .iter()
-            .find(|block| block.id == position.0)
-            .and_then(|block| block.operations.get(position.1 as usize))
+            .call_contracts
+            .operation(caller, position)
             .ok_or("the provider preservation call has no operation")?;
         let OperationKind::BoundaryCall {
             boundary,
@@ -290,9 +280,10 @@ impl NormalPayloadContext<'_> {
         else {
             return Err("provider preservation requires a boundary call");
         };
-        let declaration =
-            terminal_psi::find_boundary_machine(&self.module.boundary_machines, *boundary)
-                .ok_or("provider preservation has no public declaration")?;
+        let declaration = self
+            .call_contracts
+            .first_declaration(*boundary)
+            .ok_or("provider preservation has no public declaration")?;
         if body.structural_parameters.len() != call.argument_contents.len()
             || body.parameters.len() != arguments.len()
             || !body
@@ -410,92 +401,78 @@ impl NormalPayloadContext<'_> {
     }
 }
 
-/// A boundary may replace a stored pointer while the old lender still has a
-/// standing domain duty. Check the selected body's complete writes against
-/// the subjects captured at each call. An absent body supplies no such proof.
-/// This establishes no new domain and returns no serialized proof receipt.
-pub fn require_boundary_lender_preservation(
+/// Replay each requested caller with its original call cuts. The prepared
+/// roster includes other calls to the same boundary in that caller, preserving
+/// their existing reachability and argument checks.
+pub(super) fn require_callers(
     module: &TerminalModule,
-    boundary: semantic_vocabulary::BoundaryMachineId,
     implementation: Option<MachineId>,
+    calls: &[super::boundary_preservation::LenderCall<'_>],
+    call_contracts: Arc<super::call_contracts::CallContracts<'_>>,
 ) -> Result<(), &'static str> {
-    terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
-        .ok_or("lender preservation has no boundary declaration")?;
-    super::reference_forwarding::require(module, boundary, implementation)?;
-    if module.boundary_lender_preservation.is_empty() {
-        return Ok(());
-    }
-    let callers = module
-        .machines
-        .iter()
-        .filter(|machine| {
-            machine.operations().any(|operation| {
-                matches!(operation.kind, OperationKind::BoundaryCall { boundary: selected, .. }
-                    if selected == boundary)
-                    && module.boundary_lender_preservation.iter().any(|demand| {
-                        demand.machine == machine.id && demand.operation == operation.id
-                    })
-            })
-        })
+    let callers = calls
+        .chunk_by(|left, right| left.caller_ordinal == right.caller_ordinal)
         .collect::<Vec<_>>();
     if callers.is_empty() {
         return Ok(());
     }
     let graph = super::super::super::terminal_graph_closure(
         module,
-        callers.iter().map(|body| body.id).chain(implementation),
+        callers
+            .iter()
+            .map(|calls| module.machines[calls[0].caller_ordinal].id)
+            .chain(implementation),
         DescriptorSlotKind::BorrowedStorage,
     )
     .ok_or("lender preservation has no complete borrowed-storage invocation graph")?;
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-    let mut normal = NormalPayloadContext::new(module, &graph);
-    for caller in callers {
-        let mut history = PayloadMembershipHistory::for_module(module, &graph, caller);
+    let mut normal = NormalPayloadContext::with_call_contracts(&graph, Arc::clone(&call_contracts));
+    for calls in callers {
+        let caller = &module.machines[calls[0].caller_ordinal];
+        let mut history = PayloadMembershipHistory::new(
+            &module.structural_types,
+            &module.structural_domains,
+            &graph,
+            caller,
+        );
+        history.normal = Some(NormalPayloadContext::with_call_contracts(
+            &graph,
+            Arc::clone(&call_contracts),
+        ));
         let feasible = analysis.flow_feasibility(caller.id);
-        for block in &caller.blocks {
-            for (ordinal, operation) in block.operations.iter().enumerate() {
-                let OperationKind::BoundaryCall {
-                    boundary: selected,
-                    structural_arguments,
-                    ..
-                } = &operation.kind
-                else {
-                    continue;
-                };
-                if *selected != boundary {
-                    continue;
-                }
-                let position = (
-                    block.id,
-                    u32::try_from(ordinal).map_err(|_| "the lender call position exceeds u32")?,
-                );
-                match feasible.get(&position) {
-                    Some(FlowFeasibility::ProvedImpossible) => continue,
-                    Some(FlowFeasibility::Possible) => {}
-                    _ => return Err("the lender call has unknown reachability"),
-                }
-                let first = structural_arguments
-                    .first()
-                    .ok_or("the lender call has no structural argument")?;
-                // The replay can reach this cut even when the queried carrier
-                // itself has no surviving contract. Consume the actual state,
-                // never a declaration or a later descriptor generation.
-                let _ = history.current_payload_contract_in(&mut analysis, position, first.place);
-                let before = history
-                    .replay
-                    .cached
-                    .as_ref()
-                    .and_then(|cached| cached.snapshots.get(&position))
-                    .ok_or("the lender call has no reached pre-call payload state")?;
-                normal.require_provider_preservation(
-                    &mut analysis,
-                    caller.id,
-                    position,
-                    before,
-                    implementation,
-                )?;
+        for call in calls {
+            let position = (
+                call.block,
+                u32::try_from(call.operation_ordinal)
+                    .map_err(|_| "the lender call position exceeds u32")?,
+            );
+            match feasible.get(&position) {
+                Some(FlowFeasibility::ProvedImpossible) => continue,
+                Some(FlowFeasibility::Possible) => {}
+                _ => return Err("the lender call has unknown reachability"),
             }
+            let first = call
+                .structural_arguments
+                .first()
+                .ok_or("the lender call has no structural argument")?;
+            // The replay can reach this cut even when the queried carrier
+            // itself has no surviving contract. Consume the actual state,
+            // never a declaration or a later descriptor generation.
+            let _ = history.current_payload_contract_in(&mut analysis, position, first.place);
+            let before = history
+                .replay
+                .cached
+                .as_ref()
+                .and_then(|cached| cached.snapshots.get(&position))
+                .ok_or("the lender call has no reached pre-call payload state")?;
+            normal.require_provider_preservation(
+                &mut analysis,
+                caller.id,
+                position,
+                before,
+                implementation,
+            )?;
         }
     }
     Ok(())

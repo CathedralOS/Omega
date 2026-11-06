@@ -1,9 +1,11 @@
-//! A helper may install a new pointer whose complete duties are known.
-//! The public guarantees are only a lower bound. A conditional unchanged-value
-//! proof supplies an upper bound only when every actual captured source has
-//! exactly the public source roster. The two bounds must agree. Ordinary
-//! helpers replay with this invocation's actual entries, never a body-only
-//! cached postcondition or a private empty annotation.
+//! A helper's new pointer can carry more rules than its public signature lists.
+//! Recover the full list only when unchanged forwarding and captured inputs
+//! prove it; ordinary helpers use this call's actual input rules.
+//!
+//! Public guarantees are a lower bound. Unchanged forwarding supplies an upper
+//! bound only when every captured source has exactly the public source roster.
+//! The bounds must agree. Replay never uses another call's cached postcondition
+//! or treats a private empty annotation as complete actual input evidence.
 
 use super::*;
 use terminal_psi::{BoundaryReferenceDestination, BoundaryReferenceSource};
@@ -39,11 +41,9 @@ impl NormalPayloadContext<'_> {
         if !body.structural_parameters.is_empty() && !self.entry_is_complete(caller) {
             return Err("the completed output has no complete actual entry roster");
         }
-        let operation = body
-            .blocks
-            .iter()
-            .find(|block| block.id == position.0)
-            .and_then(|block| block.operations.get(position.1 as usize))
+        let operation = self
+            .call_contracts
+            .operation(caller, position)
             .ok_or("the completed output has no exact call operation")?;
         if let OperationKind::BoundaryCall {
             boundary,
@@ -255,8 +255,8 @@ impl NormalPayloadContext<'_> {
         arguments: &[StructuralArgument],
     ) -> Result<Vec<CompletedOutput>, &'static str> {
         let declaration = self
-            .module
-            .boundary_machine(boundary)
+            .call_contracts
+            .first_declaration(boundary)
             .ok_or("the output has no public declaration")?;
         if declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
             || declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn
@@ -279,13 +279,10 @@ impl NormalPayloadContext<'_> {
         {
             return Err("the completed output has competing possible writers");
         }
-        let mut demands = self
-            .module
-            .boundary_reference_forwarding
-            .iter()
-            .filter(|demand| {
-                demand.machine == body.id && demand.operation == operation.id && demand.output == 0
-            });
+        let call_contracts = Arc::clone(&self.call_contracts);
+        let mut demands = call_contracts
+            .forwarding(body.id, operation.id)
+            .filter(|demand| demand.output == 0);
         let demand = demands
             .next()
             .ok_or("the new output lacks its conditional unchanged-value requirement")?;
