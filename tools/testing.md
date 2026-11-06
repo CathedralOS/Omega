@@ -271,6 +271,13 @@ verified binary, source export and preparation receipts, then saves the Cargo
 cache before program consumers begin. Later consumer failures stay red without
 hiding the already prepared producer. The final observations and compact records
 use separate artifact names; the original producer upload is not overwritten.
+Fresh pilot cache keys end in `prepared-v1-cli` or `prepared-v1-with-runner`,
+matching the executable roster prepared for the selected consumers. Only a
+successful authenticated preparation publishes these keys; failed preparation
+and check-only jobs cannot reserve them with partial Cargo objects. Ordinary
+Cargo caches remain restore fallbacks. Replay plans retain the exact original
+cache key, including this suffix for new producers; older keys and observations
+keep their original identities.
 
 For an ordinary CLI runtime failure, `compiler_diagnostics: true` also records
 the interpreter's operation, block and scalar values in that fixture's
