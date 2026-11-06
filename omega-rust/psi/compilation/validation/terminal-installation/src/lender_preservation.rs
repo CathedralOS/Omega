@@ -23,19 +23,23 @@ pub fn require_selected_lender_preservation(
         return Err("lender preservation choices belong to another artifact".into());
     }
     let module = artifact.module();
-    for boundary in requested_boundaries(module)? {
-        let assumption = providers
-            .assumed_bindings()
-            .iter()
-            .find(|binding| binding.required == boundary);
-        let installed = |required| {
-            providers
-                .providers()
-                .find_map(|(found, body)| (found == required).then_some(body))
-        };
-        let installed = assumption
-            .map(|binding| binding.implementation)
-            .or_else(|| installed(boundary));
+    let boundaries = requested_boundaries(module)?;
+    if boundaries.is_empty() {
+        return Ok(());
+    }
+    let mut assumed = providers.assumed_bindings().iter().collect::<Vec<_>>();
+    // Keep the first admitted row for the same boundary, as the old slice
+    // search did. The proof still consumes the exact sealed installation.
+    assumed.sort_by_key(|binding| binding.required);
+    assumed.dedup_by_key(|binding| binding.required);
+    let preservation =
+        terminal_semantics::descriptor_results::BoundaryLenderPreservation::new(module);
+    for boundary in boundaries {
+        let assumption = assumed
+            .binary_search_by_key(&boundary, |binding| binding.required)
+            .ok()
+            .map(|position| assumed[position].implementation);
+        let installed = assumption.or_else(|| providers.provider(boundary));
         let member = admitted_boundary_member(module, Some(targets), boundary)?;
         // Final native call selection refuses competing installed and family
         // supplies. Retain that refusal here instead of proving one body's
@@ -49,12 +53,9 @@ pub fn require_selected_lender_preservation(
             Some(TargetMachineCallable::Machine(body)) => Some(body),
             _ => installed,
         };
-        terminal_semantics::descriptor_results::require_boundary_lender_preservation(
-            module,
-            boundary,
-            implementation,
-        )
-        .map_err(|reason| format!("lender preservation at {boundary:?}: {reason}"))?;
+        preservation
+            .require(boundary, implementation)
+            .map_err(|reason| format!("lender preservation at {boundary:?}: {reason}"))?;
     }
     Ok(())
 }

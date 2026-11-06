@@ -106,18 +106,20 @@ pub(crate) fn check_with_private_entry_ram(
     let mut access_candidates = Vec::new();
     let mut selected_calls = Vec::new();
     let mut lender_preservation_checked = BTreeSet::new();
+    let lender_preservation =
+        terminal_semantics::descriptor_results::BoundaryLenderPreservation::new(&program.catalogs);
     let mut require_lender_preservation = |boundary, implementation| {
         if !lender_preservation_checked.insert(boundary) {
             return Ok(());
         }
-        terminal_semantics::descriptor_results::require_boundary_lender_preservation(
-            &program.catalogs,
-            boundary,
-            implementation,
-        )
-        .map_err(
-            |reason| TerminalInterpretError::RuntimeSupplySelectionRejected { boundary, reason },
-        )
+        lender_preservation
+            .require(boundary, implementation)
+            .map_err(
+                |reason| TerminalInterpretError::RuntimeSupplySelectionRejected {
+                    boundary,
+                    reason,
+                },
+            )
     };
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
