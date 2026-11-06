@@ -23,6 +23,7 @@ pub(in crate::checks::borrows) fn prepare_completed_input_debt<'facts>(
     state: &FlowStateFact,
     loan_handle: Handle<BorrowLoanFact>,
     call: &FlowCallFact,
+    arguments: &[typed_trees::expression::ExpressionHandle],
 ) -> Option<CompletedInputDebt<'facts>> {
     let borrow = &facts.borrow;
     if !borrow.loans.is_valid(loan_handle) {
@@ -47,26 +48,28 @@ pub(in crate::checks::borrows) fn prepare_completed_input_debt<'facts>(
     {
         return None;
     }
-    let argument = facts
-        .flow
-        .control
-        .call_arguments
-        .span(call.authored_arguments)?
-        .get(parameter)?;
+    // Source-custody publication fills call.authored_arguments after checking.
+    // The checking caller supplies this same ordinal's typed invocation inputs.
+    let argument = arguments.get(parameter)?;
     let position = parameter.checked_add(usize::from(completion.has_receiver))?;
     let input_handle = call.operands.handles().nth(position)?;
     if !facts.flow.control.operands.is_valid(input_handle) {
         return None;
     }
     let input = facts.flow.control.operands.get(input_handle);
-    if input.expression != *argument
-        || input.state_symbol != state.state_symbol
-        || input.statement_index != completion.statement_index
-        || !facts
+    // completed_storage::versions defines canonical zero as incoming storage.
+    // A stale or malformed nonzero handle is not that entry version. This
+    // check follows capture validation above; missing operands supply nothing.
+    let storage_version_exists = input.storage_snapshot == Handle::invalid()
+        || facts
             .flow
             .control
             .storage_snapshots
-            .is_valid(input.storage_snapshot)
+            .is_valid(input.storage_snapshot);
+    if input.expression != *argument
+        || input.state_symbol != state.state_symbol
+        || input.statement_index != completion.statement_index
+        || !storage_version_exists
     {
         return None;
     }
@@ -138,11 +141,8 @@ mod tests {
         let expression = ExpressionHandle::from_parts(1, 1);
         let argument = ExpressionHandle::from_parts(2, 1);
         let other_argument = ExpressionHandle::from_parts(3, 1);
-        let storage_snapshot = facts
-            .flow
-            .control
-            .storage_snapshots
-            .insert(Default::default());
+        // The storage graph starts at the canonical incoming-storage version.
+        let storage_snapshot = Handle::invalid();
         let operands = facts
             .flow
             .control
@@ -155,15 +155,9 @@ mod tests {
                     ..Default::default()
                 }),
             );
-        let arguments = facts
-            .flow
-            .control
-            .call_arguments
-            .insert_many([argument, other_argument]);
         let calls = facts.flow.control.calls.insert_many([FlowCallFact {
             target_symbol: target,
             authored_expression: expression,
-            authored_arguments: arguments,
             operands,
             ..Default::default()
         }]);
@@ -207,7 +201,12 @@ mod tests {
         right: Handle<BorrowLoanFact>,
     ) -> bool {
         let call = facts.flow.control.calls.get(state.calls.handle_at(0));
-        let prepared = prepare_completed_input_debt(facts, state, left, call);
+        let arguments = [
+            ExpressionHandle::from_parts(2, 1),
+            ExpressionHandle::from_parts(3, 1),
+        ];
+        assert!(call.authored_arguments.is_empty());
+        let prepared = prepare_completed_input_debt(facts, state, left, call, &arguments);
         same_completed_input_debt(&facts.borrow, prepared.as_ref(), right)
     }
 
@@ -242,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unavailable_storage_version_cannot_identify_a_completed_input() {
+    fn stale_or_malformed_versions_cannot_identify_a_completed_input() {
         let (mut facts, state, [left, right]) = completed_inputs();
         let operand = facts
             .flow
@@ -251,12 +250,26 @@ mod tests {
             .get(state.calls.handle_at(0))
             .operands
             .handle_at(0);
+        for version in [Handle::from_parts(99, 2), Handle::from_parts(99, 0)] {
+            facts
+                .flow
+                .control
+                .operands
+                .get_mut(operand)
+                .storage_snapshot = version;
+            assert!(!same_input(&facts, &state, left, right));
+        }
+    }
+
+    #[test]
+    fn an_absent_capture_cannot_become_entry_storage() {
+        let (mut facts, state, [left, right]) = completed_inputs();
         facts
             .flow
             .control
-            .operands
-            .get_mut(operand)
-            .storage_snapshot = Handle::invalid();
+            .calls
+            .get_mut(state.calls.handle_at(0))
+            .operands = Default::default();
         assert!(!same_input(&facts, &state, left, right));
     }
 
