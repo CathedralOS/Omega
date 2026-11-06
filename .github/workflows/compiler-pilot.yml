@@ -1,28 +1,14 @@
-name: Qualify exact-extent installed-entry copy repair on Linux ARM64
+name: Attribute empty-owned checking against published c417
 on:
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 jobs:
-  installed-entry:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - host: linux_arm64
-            runner: ubuntu-24.04-arm
-            minutes: 90
-            target_dir: /tmp/ot
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.minutes }}
+  empty-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
     env:
-      INSTALLED_ENTRY_HOST: ${{ matrix.host }}
-      CARGO_TARGET_DIR: ${{ matrix.target_dir }}
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '1'
       OMEGA_CORPUS_FIXTURE_SECS: '120'
       RUST_MIN_STACK: '67108864'
@@ -34,72 +20,57 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Authenticate unchanged source inputs and complete existing scope
-        run: python .github/run_installed_entry_missing_hosts.py preflight
-      - name: Retain the fixed published source boundary for source export
-        run: git fetch --no-tags --depth=1 origin c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30:refs/remotes/origin/main
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        id: build-cache
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Record actual cache disposition before the declared build
+      - name: Stage the exact observer before selecting its compiled source
         shell: python
         run: |
+          import hashlib, json, os, shutil, subprocess
           from pathlib import Path
-          import json,os
-          output=Path('build')/('installed-entry-'+os.environ['INSTALLED_ENTRY_HOST'])
-          (output/'cache.json').write_text(json.dumps({
-              'primary_key':'${{ steps.build-cache.outputs.cache-primary-key }}',
-              'matched_key':'${{ steps.build-cache.outputs.cache-matched-key }}',
-              'exact_hit':'${{ steps.build-cache.outputs.cache-hit }}',
-              'policy':'Normal current-ref/default-main lookup only. A miss permits the explicitly declared fresh hosted build; no retained binary is relabeled.'},indent=2)+chr(10))
-      - name: Build one optimized producer and run six selected structural tests
-        id: producer-preparation
-        run: python .github/run_installed_entry_missing_hosts.py prepare
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == os.environ['GITHUB_SHA']
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == 'ee357443d61244a8a5f27b29383f912e97fc6cbd'
+          stage = Path(os.environ['RUNNER_TEMP']) / 'installed-entry-empty-baseline-observer'
+          stage.mkdir(exist_ok=False)
+          files = {}
+          for name in ['run_installed_entry_empty_baseline.py', 'installed_entry_empty_baseline_recipe.json', 'installed_entry_empty_baseline_inputs.json']:
+              data = (Path('.github') / name).read_bytes()
+              (stage / name).write_bytes(data)
+              files[name] = hashlib.sha256(data).hexdigest()
+          (stage / 'staged-observer.json').write_text(json.dumps({'observer':os.environ['GITHUB_SHA'], 'files':files}, indent=2) + '\n')
+      - name: Select the exact published compiler and program source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Authenticate the complete immutable producer remotely without compiling
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python "$RUNNER_TEMP/installed-entry-empty-baseline-observer/run_installed_entry_empty_baseline.py" materialize --recipe "$RUNNER_TEMP/installed-entry-empty-baseline-observer/installed_entry_empty_baseline_recipe.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-preparation-${{ matrix.host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/installed-entry-${{ matrix.host }}/
+          name: installed-entry-c417-attribution-preparation-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/installed-entry-c417-attribution/preparation.json
+            build/installed-entry-c417-attribution/producer.json
+            build/installed-entry-c417-attribution/retained/compiler-pilot/summary.json
+            build/installed-entry-c417-attribution/retained/compiler-pilot/source/manifest.json
+            build/installed-entry-c417-attribution/retained/compiler-pilot/producer-*/*.json
           include-hidden-files: true
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
-        if: ${{ !cancelled() && steps.producer-preparation.outputs.compiler_prepared == 'true' && steps.build-cache.outputs.cache-hit != 'true' }}
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe all twenty-four source checks and sixteen real engine pairs
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        run: python .github/run_installed_entry_missing_hosts.py corpus
-      - name: Grade the original limit for every source and execution observation
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        run: python .github/run_installed_entry_missing_hosts.py budgets
-      - name: Observe ten ordinary sample programs and nine unchanged reject controls
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
-        run: python .github/run_installed_entry_missing_hosts.py samples
+      - name: Check exactly the empty-owned positive and scalar-alias negative
+        run: python "$RUNNER_TEMP/installed-entry-empty-baseline-observer/run_installed_entry_empty_baseline.py" check --recipe "$RUNNER_TEMP/installed-entry-empty-baseline-observer/installed_entry_empty_baseline_recipe.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-observations-${{ matrix.host }}-${{ github.sha }}-${{ github.run_attempt }}
+          name: installed-entry-c417-attribution-observations-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            build/installed-entry-${{ matrix.host }}/*.json
-            build/installed-entry-${{ matrix.host }}/*.stdout
-            build/installed-entry-${{ matrix.host }}/*.stderr
-            build/installed-entry-${{ matrix.host }}/source/
-            build/installed-entry-${{ matrix.host }}/artifacts-*/
-            build/installed-entry-${{ matrix.host }}/samples/
+            build/installed-entry-c417-attribution/*.json
+            build/installed-entry-c417-attribution/*.stdout
+            build/installed-entry-c417-attribution/*.stderr
+            build/installed-entry-c417-attribution/source/
+            build/installed-entry-c417-attribution/artifacts-*/
           include-hidden-files: true
           if-no-files-found: warn
           compression-level: 0
