@@ -109,6 +109,15 @@ def main():
     assert preparation['passed'] is True and preparation['candidate'] == revision
     producer = preparation['producer']
     assert producer['revision'] == revision
+    # A shallow CI checkout lacks the earlier source commit used by both
+    # input checks. Fetch that exact commit without changing the checkout.
+    source_fetch = ['fetch', '--no-tags', '--depth=1', 'origin', COMPILER_SOURCE]
+    receipt['compiler_source_fetch'] = {'command': ['git', *source_fetch], 'passed': False}
+    retain()
+    git(*source_fetch)
+    assert git('rev-parse', COMPILER_SOURCE + '^{commit}') == COMPILER_SOURCE
+    receipt['compiler_source_fetch']['passed'] = True
+    retain()
     compiler_inputs = {name: git('rev-parse', COMPILER_SOURCE + ':' + name, optional=True)
                        for name in consumer.INPUT_PATHS}
     assert all(value is not None for name, value in compiler_inputs.items() if name != '.cargo')
