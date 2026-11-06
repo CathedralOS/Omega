@@ -7,6 +7,8 @@ use typed_trees::name::Identifier;
 use typed_trees::types::TypeConstraintNode;
 
 mod float_predicate;
+#[cfg(test)]
+mod qualification_tests;
 mod rows;
 pub use float_predicate::FloatPredicate;
 pub use rows::FactTable;

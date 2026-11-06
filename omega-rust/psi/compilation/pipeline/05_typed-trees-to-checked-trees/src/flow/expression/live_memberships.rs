@@ -179,30 +179,6 @@ mod tests {
     }
 
     #[test]
-    fn branch_membership_preserves_input_dependency_and_available_local_proof() {
-        let mut local = membership(0);
-        local.evidence = QualificationEvidence::from_admitted_requirement(
-            symbols::SymbolHandle::from_parts(10, 1),
-            symbols::SymbolHandle::from_parts(11, 1),
-            arena::Handle::from_parts(12, 1),
-        );
-        let mut input = local.clone();
-        input.evidence = input.evidence.at_invocation_input(
-            symbols::SymbolHandle::from_parts(20, 1),
-            symbols::SymbolHandle::from_parts(21, 1),
-        );
-        let mut joined = vec![local.clone()];
-        retain_common(&mut joined, &[input.clone()]);
-        assert_eq!(joined, vec![input.clone()]);
-        assert!(!joined[0].evidence.is_independent_receipt());
-
-        let mut joined = vec![local.clone()];
-        retain_common(&mut joined, &[input, local.clone()]);
-        assert_eq!(joined, vec![local]);
-        assert!(joined[0].evidence.is_independent_receipt());
-    }
-
-    #[test]
     fn membership_batches_preserve_order_instances_and_evidence() {
         let originals: Vec<_> = (0..128).rev().map(membership).collect();
         let mut values = originals.clone();
