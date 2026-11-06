@@ -587,6 +587,10 @@ pub struct SourceFrontends {
     entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
 }
 impl SourceFrontends {
+    /// Retained frontend inputs so far; retention only appends.
+    pub fn retained_count(&self) -> Result<usize, Vec<Diagnostic>> {
+        self.snapshots().map(|entries| entries.len())
+    }
     fn snapshots(&self) -> Result<Vec<Arc<SourceCompletionInput>>, Vec<Diagnostic>> {
         self.entries
             .lock()

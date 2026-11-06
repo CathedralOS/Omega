@@ -66,13 +66,15 @@ impl SourceBuild {
         // The supplier is an independent source invocation. Its coordinates and
         // retained frontends must not include the requesting application's
         // earlier declarations; completed choices rejoin by captured anchors.
-        let core_source = prepare_checked_source(
-            &core_root,
-            None,
-            Some(&capture),
-            false,
-            compilation_products::SourcePreparation::default(),
-        )?;
+        let core_source = phase_profile::scope("omega.build.core_source", || {
+            prepare_checked_source(
+                &core_root,
+                None,
+                Some(&capture),
+                false,
+                compilation_products::SourcePreparation::default(),
+            )
+        })?;
         let core_child = CheckedExecutionRequest {
             selected_target_profile: None,
             package_inputs: None,
@@ -149,7 +151,9 @@ impl SourceBuild {
                 "core Build has no original source capture",
             )]
         })?;
-        let completed = invocation.complete(returned?, None, None)?;
+        let completed = phase_profile::scope("omega.build.core_complete", || {
+            invocation.complete(returned?, None, None)
+        })?;
         let product_sources = completed.built.anonymous_source.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "core Product declarations have no source capture",

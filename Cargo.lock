@@ -207,6 +207,7 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "package-compilation",
+ "phase-profile",
  "provider-admission",
  "provider-planning",
  "psi-compiler",
@@ -1863,6 +1864,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
+ "rayon",
  "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1879,6 +1881,7 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
+ "validation",
 ]
 
 [[package]]

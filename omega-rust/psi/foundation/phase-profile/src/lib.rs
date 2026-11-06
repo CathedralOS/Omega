@@ -23,6 +23,10 @@
 //! Keep rows sorted as names first appear: frequent updates then search only
 //! logarithmically. A linear name scan charged profiler bookkeeping to parent
 //! scopes, obscuring the cost of small, frequently observed compiler operations.
+//!
+//! `OMEGA_PHASE_PROFILE_TIMELINE=<file>` also writes each scope occurrence of
+//! half a millisecond or more with its thread and start/end, so a run shows
+//! which stages wait on which and which overlap.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -71,7 +75,90 @@ pub fn scope<T>(name: &'static str, work: impl FnOnce() -> T) -> T {
     let started = Instant::now();
     let result = work();
     add(name, 1, elapsed_nanos(started));
+    record_span(name, started);
     result
+}
+
+/// One scope occurrence of at least [`SPAN_FLOOR_NANOS`], for the timeline.
+struct Span {
+    name: &'static str,
+    thread: String,
+    start: u64,
+    end: u64,
+}
+
+// Shorter occurrences are per-node work; the timeline is for stage order and
+// overlap, so it keeps only what can be seen at millisecond resolution.
+const SPAN_FLOOR_NANOS: u64 = 500_000;
+static SPANS: Mutex<Vec<Span>> = Mutex::new(Vec::new());
+static EPOCH: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+static TIMELINE: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
+
+fn timeline_path() -> Option<&'static std::path::Path> {
+    TIMELINE
+        .get_or_init(|| std::env::var_os("OMEGA_PHASE_PROFILE_TIMELINE").map(Into::into))
+        .as_deref()
+}
+
+/// Mark the timeline's zero. The CLI calls this first so spans read as
+/// milliseconds since the process began compiling.
+pub fn start_timeline() {
+    if enabled() {
+        EPOCH.get_or_init(Instant::now);
+    }
+}
+
+fn record_span(name: &'static str, started: Instant) {
+    if timeline_path().is_none() {
+        return;
+    }
+    let ended = Instant::now();
+    let nanos = |at: Instant| {
+        u64::try_from(at.duration_since(*EPOCH.get_or_init(|| started)).as_nanos())
+            .unwrap_or(u64::MAX)
+    };
+    let (start, end) = (nanos(started), nanos(ended));
+    if end - start < SPAN_FLOOR_NANOS {
+        return;
+    }
+    let current = std::thread::current();
+    let thread = format!("{}:{:?}", current.name().unwrap_or("unnamed"), current.id());
+    SPANS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(Span {
+            name,
+            thread,
+            start,
+            end,
+        });
+}
+
+/// Write every recorded span as `thread\tstart_ms\tend_ms\tname`, sorted by
+/// start, when `OMEGA_PHASE_PROFILE_TIMELINE` names a file.
+fn write_timeline() -> Option<String> {
+    let path = timeline_path()?;
+    let mut spans = std::mem::take(
+        &mut *SPANS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+    );
+    spans.sort_by_key(|span| (span.start, std::cmp::Reverse(span.end)));
+    let ms = |nanos: u64| nanos as f64 / 1_000_000.0;
+    let mut text = String::from("thread\tstart_ms\tend_ms\tname\n");
+    for span in &spans {
+        text.push_str(&format!(
+            "{}\t{:.3}\t{:.3}\t{}\n",
+            span.thread,
+            ms(span.start),
+            ms(span.end),
+            span.name
+        ));
+    }
+    Some(match std::fs::write(path, text) {
+        Ok(()) => format!("TIMELINE: {} span(s) in {}\n", spans.len(), path.display()),
+        Err(error) => format!("TIMELINE: could not write {}: {error}\n", path.display()),
+    })
 }
 
 /// A guard form for regions that are awkward to wrap in a closure.
@@ -93,6 +180,7 @@ impl Drop for Guard {
     fn drop(&mut self) {
         if let Some(started) = self.started {
             add(self.name, 1, elapsed_nanos(started));
+            record_span(self.name, started);
         }
     }
 }
@@ -436,6 +524,9 @@ pub fn write_subject_csvs(path: &std::path::Path) -> std::io::Result<()> {
 pub fn render_subject_report() -> String {
     let mut text = render_subjects(15);
     text.push_str(&render_subject_totals(30));
+    if let Some(line) = write_timeline() {
+        text.push_str(&line);
+    }
     if let Some(path) = std::env::var_os("OMEGA_PHASE_PROFILE_SUBJECTS") {
         let path = std::path::PathBuf::from(path);
         match write_subject_csvs(&path) {

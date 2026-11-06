@@ -39,6 +39,8 @@ layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 numerics = { path = "../../../../psi/foundation/numerics" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
+validation = { path = "../../../../psi/compilation/validation" }
+rayon = "1.10"
 
 [dev-dependencies]
 # Layout builder tests type small source fixtures.

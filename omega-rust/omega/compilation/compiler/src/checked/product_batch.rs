@@ -53,14 +53,19 @@ impl CompilationSession {
                 .built
                 .computed_build_config
                 .independent_components();
-            let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
-                check_product_source(
-                    source,
-                    Some(&inputs),
-                    &rollback,
-                    self.reuse(),
-                    &mut self.selections,
-                )
+            let checked = phase_profile::scope("omega.product.frontend", || {
+                complete_prepared_build(prepared, Some(&inputs))
+            })
+            .and_then(|source| {
+                phase_profile::scope("omega.product.check", || {
+                    check_product_source(
+                        source,
+                        Some(&inputs),
+                        &rollback,
+                        self.reuse(),
+                        &mut self.selections,
+                    )
+                })
             });
             match checked {
                 Ok(mut source) => {
@@ -75,7 +80,9 @@ impl CompilationSession {
                     source.timings.extend(&completion_timings);
                     self.retain(&source.retained_checks);
                     let target_source =
-                        PreparedProductTarget::capture(&source, Some(target), Some(&inputs));
+                        phase_profile::scope("omega.product.capture_target", || {
+                            PreparedProductTarget::capture(&source, Some(target), Some(&inputs))
+                        });
                     applications.push((first_position, first_owner, source.clone(), target_source));
                     for (position, owner, member) in members {
                         let (_, target, inputs, _, prepared) = member.into_continuation();
@@ -146,7 +153,9 @@ impl CompilationSession {
             outcomes.push((
                 position,
                 owner,
-                crate::execution_settlement::select_product_target(&source, prepared),
+                phase_profile::scope("omega.product.select_target", || {
+                    crate::execution_settlement::select_product_target(&source, prepared)
+                }),
             ));
         }
         // Cohorts finish together; restore the authored request order before

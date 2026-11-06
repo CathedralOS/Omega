@@ -276,25 +276,37 @@ impl PreparedBoundaryCallingPlans {
         self,
         code: &super::CallingProgram,
     ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
+        // Each policy runs in its own sponsor and invocation account over the
+        // same immutable code, so the activations are independent of each
+        // other and of their order. They run together; their results are then
+        // consumed in request order, so the first refusal in that order is
+        // still the one reported.
+        use rayon::prelude::*;
+        let activations: Vec<_> = validation::checking_thread_pool().install(|| {
+            self.pending
+                .par_iter()
+                .map(|policy| {
+                    code.require_owner(&self.source_owner)?;
+                    let instance = policy.canonical_instance(code)?;
+                    let evaluated = code.evaluate(
+                        instance,
+                        self.target,
+                        policy.signature,
+                        &self.providers,
+                        policy.requester,
+                        self.authority.as_deref(),
+                    )?;
+                    Ok::<_, String>((instance, evaluated))
+                })
+                .collect()
+        });
         let mut evaluated = Vec::with_capacity(self.pending.len());
-        for policy in self.pending {
+        for (policy, activation) in self.pending.into_iter().zip(activations) {
             let diagnostic = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
             };
-            code.require_owner(&self.source_owner)
-                .map_err(&diagnostic)?;
             let module = code.artifact.semantic_module();
-            let instance = policy.canonical_instance(code).map_err(&diagnostic)?;
-            let (canonical, validated) = code
-                .evaluate(
-                    instance,
-                    self.target,
-                    policy.signature,
-                    &self.providers,
-                    policy.requester,
-                    self.authority.as_deref(),
-                )
-                .map_err(&diagnostic)?;
+            let (instance, (canonical, validated)) = activation.map_err(&diagnostic)?;
             let callback_context_closed = !canonical.policy.callbacks.binders.is_empty()
                 || !canonical.policy.callbacks.demands.is_empty();
             let review = policy

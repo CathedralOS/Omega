@@ -25,6 +25,62 @@ pub(super) struct BuildSourceInvocation {
     build_execution_profile: Option<target::TargetProfile>,
     timings: CompileTimings,
     started: std::time::Instant,
+    speculative_product: Option<SpeculativeProduct>,
+}
+
+/// The core Build's Product frontend, typed while that Build is checked.
+///
+/// Completing the core Build always types its Product sources next, with no
+/// package inputs and the same execution profile, and nothing the check or
+/// the Build run produces feeds that typing. So the typing runs beside the
+/// check instead of after the Build returns. It is offered to the ordinary
+/// Product retention only if no source or frontend was admitted to this
+/// preparation since it finished, so source coordinates and frontend reuse
+/// are exactly those of typing it after the return. A failed or refused
+/// speculation is dropped and completion types the sources as before.
+struct SpeculativeProduct {
+    pending: compilation_products::DeferredProductCompilation,
+    frontier: TypedCompilationFrontier,
+    watermark: (usize, usize),
+}
+
+fn preparation_watermark(
+    preparation: &compilation_products::SourcePreparation,
+) -> Result<(usize, usize), Vec<Diagnostic>> {
+    Ok((
+        preparation.catalogue()?.len(),
+        preparation.frontends.retained_count()?,
+    ))
+}
+
+fn type_core_product(
+    pending: compilation_products::DeferredProductCompilation,
+    preparation: compilation_products::SourcePreparation,
+    build_execution_profile: Option<target::TargetProfile>,
+) -> Result<SpeculativeProduct, Vec<Diagnostic>> {
+    // Core timings are never collected (its source is prepared without them).
+    let mut timings = CompileTimings::default();
+    let (count, syntax) = phase_profile::scope("omega.source.product_assembly", || {
+        pending
+            .sources()
+            .assemble(None, &mut timings, &mut *preparation.catalogue()?)
+    })?;
+    let frontier = phase_profile::scope("omega.source.product_frontier", || {
+        lower_typed_frontier(
+            preparation.clone(),
+            count,
+            syntax,
+            build_execution_profile,
+            None,
+            &mut timings,
+        )
+    })?;
+    let watermark = preparation_watermark(&preparation)?;
+    Ok(SpeculativeProduct {
+        pending,
+        frontier,
+        watermark,
+    })
 }
 
 /// Consume a prepared typed program. Source preparation owns any reuse;
@@ -39,6 +95,7 @@ pub(super) fn prepare_build_invocation(
     purpose: super::source_build::BuildSourcePurpose<'_>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
+    let core_defaults = matches!(purpose, super::source_build::BuildSourcePurpose::Defaults);
     let (execution_purpose, toolchain_defaults) = match purpose {
         super::source_build::BuildSourcePurpose::Defaults => (
             artifacts::compile_timings::counters::BuildExecutionPurpose::ProviderDefaults,
@@ -69,32 +126,51 @@ pub(super) fn prepare_build_invocation(
         base_sources,
     } = frontier;
     let build_input = source.build_input();
-    let evaluation = build_settings::prepare_build_evaluation(
-        build_settings::BuildEvaluationRequest {
-            execution_purpose,
-            pure_build_compilation,
-            toolchain_defaults,
-            root_path,
-            typed: build_input.typed,
-            pre_checks: build_input.pre_checks,
-            build_source,
-            sources: &base_sources,
-            package_inputs,
-            anonymous_source: anonymous_source.as_ref(),
-            generated_source_custody: &generated_source_custody,
-            execution: build,
-            artifact_only: false,
-            prior_checks: settled_check_reuse
-                .prior
-                .build
-                .as_ref()
-                .into_iter()
-                .chain(settled_check_reuse.prior.sibling_build_checks.iter())
-                .collect(),
-            retain_check: settled_check_reuse.retain,
-        },
-        &mut timings,
-    )?;
+    let speculation = product_sources
+        .as_ref()
+        .filter(|_| core_defaults && package_inputs.is_none())
+        .map(|pending| (pending.clone(), preparation.clone()));
+    let (evaluation, speculative_product) = std::thread::scope(|scope| {
+        let speculation = speculation.and_then(|(pending, preparation)| {
+            super::compile_thread::spawn_compile_worker(scope, move || {
+                type_core_product(pending, preparation, build_execution_profile)
+            })
+            .ok()
+        });
+        let evaluation = build_settings::prepare_build_evaluation(
+            build_settings::BuildEvaluationRequest {
+                execution_purpose,
+                pure_build_compilation,
+                toolchain_defaults,
+                root_path,
+                typed: build_input.typed,
+                pre_checks: build_input.pre_checks,
+                build_source,
+                sources: &base_sources,
+                package_inputs,
+                anonymous_source: anonymous_source.as_ref(),
+                generated_source_custody: &generated_source_custody,
+                execution: build,
+                artifact_only: false,
+                prior_checks: settled_check_reuse
+                    .prior
+                    .build
+                    .as_ref()
+                    .into_iter()
+                    .chain(settled_check_reuse.prior.sibling_build_checks.iter())
+                    .collect(),
+                retain_check: settled_check_reuse.retain,
+            },
+            &mut timings,
+        );
+        // A panicked or failed speculation leaves completion to type the
+        // sources itself, reporting whatever that ordinary path reports.
+        let speculative_product = speculation
+            .and_then(|worker| worker.join().ok())
+            .and_then(Result::ok);
+        (evaluation, speculative_product)
+    });
+    let evaluation = evaluation?;
     Ok(BuildSourceInvocation {
         execution_contract,
         parsed,
@@ -114,6 +190,7 @@ pub(super) fn prepare_build_invocation(
         build_execution_profile,
         timings,
         started,
+        speculative_product,
     })
 }
 
@@ -145,8 +222,22 @@ impl BuildSourceInvocation {
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
-        let settled = self.settle(returned, joined_inputs, product_target)?;
+        let mut invocation = self;
+        let speculative = invocation.speculative_product.take();
+        let settled = invocation.settle(returned, joined_inputs, product_target)?;
         let inputs = settled.package_inputs.clone();
+        if let Some(speculative) = speculative
+            && inputs.is_none()
+            && preparation_watermark(&settled.frontier.preparation)? == speculative.watermark
+        {
+            speculative.pending.retain(
+                package_compilation::ProductSourceInputs::new(
+                    None,
+                    settled.build_execution_profile,
+                ),
+                &speculative.frontier,
+            )?;
+        }
         prepare_settled_product(settled, inputs.as_ref())
     }
 
@@ -166,6 +257,7 @@ impl BuildSourceInvocation {
             build_execution_profile,
             timings,
             started,
+            speculative_product: _,
         } = self;
         let original_assembly = package_compilation::SourceAssemblyInputs::new(
             package_inputs.as_ref(),
@@ -335,20 +427,25 @@ fn complete_build_source(
         let product = match pending.retained(&inputs, package_inputs)? {
             Some(product) => product,
             None => {
-                let (count, syntax) = pending.sources().assemble(
-                    package_inputs,
-                    timings,
-                    &mut *preparation.catalogue()?,
-                )?;
+                let (count, syntax) =
+                    phase_profile::scope("omega.source.product_assembly", || {
+                        pending.sources().assemble(
+                            package_inputs,
+                            timings,
+                            &mut *preparation.catalogue()?,
+                        )
+                    })?;
                 let diagnostic_sources = syntax.sources.clone();
-                let product = lower_typed_frontier(
-                    preparation.clone(),
-                    count,
-                    syntax,
-                    build_execution_profile,
-                    package_inputs,
-                    timings,
-                )
+                let product = phase_profile::scope("omega.source.product_frontier", || {
+                    lower_typed_frontier(
+                        preparation.clone(),
+                        count,
+                        syntax,
+                        build_execution_profile,
+                        package_inputs,
+                        timings,
+                    )
+                })
                 .map_err(|mut diagnostics| {
                     super::attribute_diagnostics(
                         &mut diagnostics,
@@ -390,11 +487,13 @@ fn complete_build_source(
     }
     Arc::make_mut(&mut computed_build_config).toolchain_provider_defaults =
         toolchain_provider_defaults;
-    super::product_selections::admit(
-        &mut source,
-        Arc::make_mut(&mut computed_build_config),
-        package_inputs,
-    )?;
+    phase_profile::scope("omega.build.product_selections", || {
+        super::product_selections::admit(
+            &mut source,
+            Arc::make_mut(&mut computed_build_config),
+            package_inputs,
+        )
+    })?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,
