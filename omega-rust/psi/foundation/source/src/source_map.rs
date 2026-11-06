@@ -58,6 +58,13 @@ impl SourceCatalogue {
         self.backing.is_empty()
     }
 
+    /// An independent copy: admissions to either are invisible to the other.
+    pub fn fork(&self) -> Self {
+        Self {
+            backing: self.backing.clone(),
+        }
+    }
+
     pub fn begin_selection(&self) -> SourceMap {
         SourceMap {
             files: self.backing.files.clone(),

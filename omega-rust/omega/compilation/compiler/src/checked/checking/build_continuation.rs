@@ -33,33 +33,53 @@ pub(super) struct BuildSourceInvocation {
 /// Completing the core Build always types its Product sources next, with no
 /// package inputs and the same execution profile, and nothing the check or
 /// the Build run produces feeds that typing. So the typing runs beside the
-/// check instead of after the Build returns. It is offered to the ordinary
-/// Product retention only if no source or frontend was admitted to this
-/// preparation since it finished, so source coordinates and frontend reuse
-/// are exactly those of typing it after the return. A failed or refused
-/// speculation is dropped and completion types the sources as before.
+/// check instead of after the Build returns.
+///
+/// It runs against a fork of the core preparation, never the preparation
+/// itself, so nothing it admits is visible until completion adopts it. The
+/// fork is taken and adopted on the compile thread at fixed points in the
+/// serial order: before the check starts and when the core Build completes.
+/// Adoption succeeds exactly when no source or frontend was admitted to the
+/// preparation between those points, which depends only on what the program
+/// does there (a Product query issued by the core Build), never on thread
+/// timing. Adopted, the preparation holds what typing after the return would
+/// have produced; refused or failed, the preparation is untouched and
+/// completion types the sources as before. Either way the output is the same.
 struct SpeculativeProduct {
     pending: compilation_products::DeferredProductCompilation,
+    fork: compilation_products::PreparationFork,
     frontier: TypedCompilationFrontier,
-    watermark: (usize, usize),
 }
 
-fn preparation_watermark(
-    preparation: &compilation_products::SourcePreparation,
-) -> Result<(usize, usize), Vec<Diagnostic>> {
-    Ok((
-        preparation.catalogue()?.len(),
-        preparation.frontends.retained_count()?,
-    ))
+/// Test seam: refuse every speculation, so tests can compare the refused path
+/// with the adopted one in a single process.
+static REFUSE_SPECULATION: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static SPECULATIONS: [std::sync::atomic::AtomicU64; 2] = [
+    std::sync::atomic::AtomicU64::new(0),
+    std::sync::atomic::AtomicU64::new(0),
+];
+
+#[doc(hidden)]
+pub fn refuse_core_product_speculation(refuse: bool) {
+    REFUSE_SPECULATION.store(refuse, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Speculative core Product frontends (adopted, refused) in this process.
+#[doc(hidden)]
+pub fn core_product_speculations() -> (u64, u64) {
+    let load = |index: usize| SPECULATIONS[index].load(std::sync::atomic::Ordering::Relaxed);
+    (load(0), load(1))
 }
 
 fn type_core_product(
     pending: compilation_products::DeferredProductCompilation,
-    preparation: compilation_products::SourcePreparation,
+    fork: compilation_products::PreparationFork,
     build_execution_profile: Option<target::TargetProfile>,
 ) -> Result<SpeculativeProduct, Vec<Diagnostic>> {
     // Core timings are never collected (its source is prepared without them).
     let mut timings = CompileTimings::default();
+    let preparation = &fork.preparation;
     let (count, syntax) = phase_profile::scope("omega.source.product_assembly", || {
         pending
             .sources()
@@ -75,11 +95,10 @@ fn type_core_product(
             &mut timings,
         )
     })?;
-    let watermark = preparation_watermark(&preparation)?;
     Ok(SpeculativeProduct {
         pending,
+        fork,
         frontier,
-        watermark,
     })
 }
 
@@ -129,11 +148,11 @@ pub(super) fn prepare_build_invocation(
     let speculation = product_sources
         .as_ref()
         .filter(|_| core_defaults && package_inputs.is_none())
-        .map(|pending| (pending.clone(), preparation.clone()));
+        .and_then(|pending| Some((pending.clone(), preparation.fork().ok()?)));
     let (evaluation, speculative_product) = std::thread::scope(|scope| {
-        let speculation = speculation.and_then(|(pending, preparation)| {
+        let speculation = speculation.and_then(|(pending, fork)| {
             super::compile_thread::spawn_compile_worker(scope, move || {
-                type_core_product(pending, preparation, build_execution_profile)
+                type_core_product(pending, fork, build_execution_profile)
             })
             .ok()
         });
@@ -228,15 +247,23 @@ impl BuildSourceInvocation {
         let inputs = settled.package_inputs.clone();
         if let Some(speculative) = speculative
             && inputs.is_none()
-            && preparation_watermark(&settled.frontier.preparation)? == speculative.watermark
         {
-            speculative.pending.retain(
-                package_compilation::ProductSourceInputs::new(
-                    None,
-                    settled.build_execution_profile,
-                ),
-                &speculative.frontier,
-            )?;
+            let preparation = &settled.frontier.preparation;
+            let adopted = !REFUSE_SPECULATION.load(std::sync::atomic::Ordering::Relaxed)
+                && preparation.adopt(&speculative.fork)?;
+            SPECULATIONS[usize::from(!adopted)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if adopted {
+                // The frontier now names the preparation that holds its admissions.
+                let mut frontier = speculative.frontier;
+                frontier.preparation = preparation.clone();
+                speculative.pending.retain(
+                    package_compilation::ProductSourceInputs::new(
+                        None,
+                        settled.build_execution_profile,
+                    ),
+                    &frontier,
+                )?;
+            }
         }
         prepare_settled_product(settled, inputs.as_ref())
     }

@@ -591,6 +591,24 @@ impl SourceFrontends {
     pub fn retained_count(&self) -> Result<usize, Vec<Diagnostic>> {
         self.snapshots().map(|entries| entries.len())
     }
+
+    /// An independent container holding the same retained inputs.
+    pub fn fork(&self) -> Result<Self, Vec<Diagnostic>> {
+        Ok(Self {
+            entries: Arc::new(std::sync::Mutex::new(self.snapshots()?)),
+        })
+    }
+
+    /// Make this container hold exactly `other`'s retained inputs.
+    pub fn replace_with(&self, other: &Self) -> Result<(), Vec<Diagnostic>> {
+        let entries = other.snapshots()?;
+        *self.entries.lock().map_err(|_| {
+            vec![Diagnostic::error(
+                "source frontend retention owner is poisoned",
+            )]
+        })? = entries;
+        Ok(())
+    }
     fn snapshots(&self) -> Result<Vec<Arc<SourceCompletionInput>>, Vec<Diagnostic>> {
         self.entries
             .lock()
