@@ -47,10 +47,12 @@ fn windows_canonicalize_receiver() {
     let profile = target::TargetProfile::WindowsX64;
     let mut session = orchestration::BuildSession::create(&project.join("build/package-manager"))
         .expect("ordinary project session");
+    eprintln!("Windows receiver: starting ordinary project review");
     accept_project(&project, profile, &mut session);
     session
         .close()
         .expect("complete ordinary review invocation");
+    eprintln!("Windows receiver: ordinary project review completed");
     // The receiver selects its trusted source identity independently: this
     // private std path, expected authored package name and explicit local
     // context version. A foreign owner receives no fallback grant by name.
@@ -69,6 +71,7 @@ fn windows_canonicalize_receiver() {
     // Reuse the public application owner of source discovery, accepted
     // package admission, Product compilation and completion. In particular,
     // there is no fixture-injected Console provider or second scheduler here.
+    eprintln!("Windows receiver: producing the Windows Terminal program");
     let mut outcomes = orchestration::build(orchestration::BuildRequest {
         root_path: project.join("main.omg"),
         build_directory: Some(project.join("build/terminal")),
@@ -94,6 +97,7 @@ fn windows_canonicalize_receiver() {
     let retained = report
         .into_retained_terminal_artifact()
         .expect("source-produced native proposal");
+    eprintln!("Windows receiver: Terminal program retained");
     let proposal = retained
         .native_realization_proposal()
         .expect("native proposal");
@@ -189,6 +193,7 @@ fn windows_canonicalize_receiver() {
     let receiver_identity = receiver.identity();
     eprintln!("windows filesystem receiver policy: {receiver_identity:?}");
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
+    eprintln!("Windows receiver: preparing restricted native admission");
     let mut prepared_native = native_production::prepare(
         &retained,
         native_production::NativeCompileRequest {
@@ -255,6 +260,7 @@ fn windows_canonicalize_receiver() {
         .expect("scalar completion");
         completion.complete(completed).expect("one completion");
     }
+    eprintln!("Windows receiver: checking the restricted receiver policy");
     let product = native_production::compile(prepared_native)
         .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
 
