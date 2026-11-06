@@ -165,10 +165,14 @@ pub(in crate::borrow) fn append_reference_custody(
                         incoming,
                         frames,
                     )
-                    .map_err(|reason| diagnostics::Diagnostic::error(format!(
-                        "normal call {expression:?} in machine `{}` state `{}` statement {statement_index}: {reason}",
-                        machine.name, state.name,
-                    )))?,
+                    .map_err(|reason| {
+                        let target = program.expression_table.call_node(expression)
+                            .map_or("<unknown>", |call| call.target.as_str());
+                        diagnostics::Diagnostic::error(format!(
+                            "normal call `{target}` ({expression:?}) in machine `{}` state `{}` statement {statement_index}: {reason}",
+                            machine.name, state.name,
+                        ))
+                    })?,
                 );
                 for loan in &mut produced {
                     loan.formation_expression = expression;

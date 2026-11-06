@@ -113,6 +113,15 @@ pub(in crate::borrow) fn complete(
     {
         return Ok(Vec::new());
     }
+    // Mathematical results have no runtime reference storage. Their computed
+    // proof-only classification is distinct from an unresolved runtime loan
+    // inventory, which still owes the complete return contract below.
+    if validation::proof_only_classification(program)
+        .proof_only_mention(program.typed_program(), result)
+        .is_some()
+    {
+        return Ok(Vec::new());
+    }
     let value = checked_trees::statement::TableLocalData {
         role: language_core::LocalBindingRole::Value,
         symbol: state.symbol,
