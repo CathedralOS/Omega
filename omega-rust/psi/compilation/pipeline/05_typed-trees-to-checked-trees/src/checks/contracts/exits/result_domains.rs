@@ -21,7 +21,9 @@ pub(in crate::checks::contracts) use field_domains::{
 pub(crate) use field_domains::{
     exclusive_referent_type, is_readable_mutable_reference, value_provable_domain,
 };
-pub(in crate::checks::contracts::exits) use proofs::proves_result_domain;
+pub(in crate::checks::contracts::exits) use proofs::{
+    completed_result_domain_diagnostic, proves_result_domain,
+};
 pub(crate) use scalar_exits::exact_scalar_membership;
 pub(in crate::checks::contracts) use scalar_exits::{
     check_scalar_result_domains, check_state_transfer_result_domains,

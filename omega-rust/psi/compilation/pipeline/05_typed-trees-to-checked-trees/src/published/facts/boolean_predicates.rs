@@ -155,6 +155,7 @@ pub(crate) fn entry_scalar(
     if !path.is_empty() {
         let (_, _, reference, _) =
             crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+        let reference = validation::field_domains::readable_type_reference(program, reference)?;
         if program.primitive_type_reference(reference) != Some(primitive) {
             return None;
         }
@@ -166,6 +167,14 @@ pub(crate) fn entry_scalar(
         });
     }
     let position = usize::try_from(position).ok()?;
+    let parameter = parameters.get(position)?;
+    if let Some((observation, _)) = crate::values::scalar::primitive_reference_read::parameter(
+        program,
+        parameters,
+        parameter.symbol,
+    ) {
+        return (observation.primitive_type() == Some(primitive)).then_some(observation);
+    }
     if program.primitive_type_reference(parameters.get(position)?.type_reference) != Some(primitive)
     {
         return None;

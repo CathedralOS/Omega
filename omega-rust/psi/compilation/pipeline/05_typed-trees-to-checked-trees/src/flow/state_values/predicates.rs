@@ -54,6 +54,7 @@ pub(super) fn capture(
                 segments: source.segments[argument.segments.len()..].to_vec(),
             };
             let reference = canonical_place_type_reference(program, destination.symbol, 0, &place)?;
+            let reference = validation::field_domains::readable_type_reference(program, reference)?;
             if program.normalized_type_identity(reference)
                 != program.normalized_type_identity(binding.type_reference)
             {

@@ -27,6 +27,10 @@ pub struct StaticConformanceSelection {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct StaticMachineApplication {
+    /// The original application whose callable contracts this retained tuple
+    /// describes. Queries compare the complete tuple before following it.
+    /// Zero means this application owns its own contracts; copies start fresh.
+    pub callable_contract_source: StaticMachineApplicationHandle,
     /// The authored operation, possibly a trait requirement, never its private
     /// executable realization or instance.
     pub registration_operation: SymbolHandle,

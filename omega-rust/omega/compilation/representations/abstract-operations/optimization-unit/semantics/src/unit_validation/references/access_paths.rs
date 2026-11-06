@@ -5,6 +5,7 @@ use super::{
     PsiOptimizationFunction, StructuralTypeId, access_covers, leaf_type, reference_source_type,
     structural_source_contract,
 };
+use crate::structural_types::StructuralTypes;
 use std::collections::BTreeMap;
 
 /// Type and attenuated access of one nonescaping static reference path.
@@ -48,7 +49,7 @@ pub(crate) fn call_source_type(
 /// separately requires every possible stored descriptor selected at run time.
 pub(crate) fn access_referent_tail(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     source: &terminal_psi::StructuralArgument,
 ) -> Option<(StructuralTypeId, usize)> {
     if source.access == terminal_psi::StructuralAccess::Owned {
@@ -63,7 +64,7 @@ pub(crate) fn access_referent_tail(
     project_referent_tail(
         types,
         signature.structural_type,
-        signature.backing_access(types.values().copied())?,
+        signature.backing_access(types.declarations())?,
         source,
     )
 }
@@ -72,7 +73,7 @@ pub(crate) fn access_referent_tail(
 /// Callers retain responsibility for qualifications and result evidence; this
 /// shared walk only attenuates permission at each explicit reference crossing.
 pub(crate) fn project_referent_tail(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     mut current: StructuralTypeId,
     mut authority: terminal_psi::StructuralAccess,
     source: &terminal_psi::StructuralArgument,
@@ -90,7 +91,7 @@ pub(crate) fn project_referent_tail(
                 current = access_path_type(types, current, &source.path[prefix_start..position])?;
                 let (referent, access) =
                     types
-                        .get(&current)
+                        .declaration(current)
                         .and_then(|declaration| match declaration.shape {
                             terminal_psi::StructuralTypeShape::Reference { referent, access } => {
                                 Some((referent, access))
@@ -125,14 +126,14 @@ pub(crate) fn project_referent_tail(
 /// selected at run time. Static field resolution retains its existing identity
 /// checks; this query supplies no live custody or selector-bound evidence.
 pub(crate) fn access_path_type(
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     mut current: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in path {
         current = match segment {
             terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
-                match types.get(&current)?.shape {
+                match types.declaration(current)?.shape {
                     terminal_psi::StructuralTypeShape::FixedArray { element, .. }
                     | terminal_psi::StructuralTypeShape::ElementView { element, .. } => element,
                     _ => return None,

@@ -6,7 +6,7 @@
 //! machine Requires apply here only when this is the machine's entry state.
 
 mod private_arrivals;
-pub use private_arrivals::private_invocation_entry_is_closed;
+pub use private_arrivals::{private_invocation_entry_is_closed, with_private_invocation_inputs};
 
 pub(crate) use private_arrivals::{
     ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,

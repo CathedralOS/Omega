@@ -2,6 +2,7 @@
 //! contract. A carrier owns loan permission, never its referent's storage;
 //! every origin and parent is reconstructed from operations and signatures.
 use crate::OptimizationUnitValidationError;
+use crate::structural_types::StructuralTypes;
 use crate::unit_validation::catalog_mismatch;
 use crate::unit_validation::operation_contracts::{constructible, structural_source_contract};
 use abstract_operations::AbstractOperation as O;
@@ -190,7 +191,7 @@ pub fn reference_projection(
 /// ordered replay authenticates each descriptor and transfers its leaf roster.
 pub(crate) fn record_field_destination<'path>(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     destination: PlaceId,
     path: &'path [StructuralPathSegment],
     required_access: StructuralAccess,
@@ -235,7 +236,7 @@ pub(crate) fn leaf_referent(
 /// `[fields.., Referent]` projection dereferences. Scalar members name the
 /// catalog's matching primitive storage declaration.
 pub(crate) fn leaf_type(
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
@@ -245,7 +246,7 @@ pub(crate) fn leaf_type(
             if payload_fields.is_some() {
                 return None;
             }
-            let cases = types.get(&current)?.shape.sum_cases()?;
+            let cases = types.declaration(current)?.shape.sum_cases()?;
             let mut matching = cases.iter().filter(|candidate| candidate.id == *case);
             payload_fields = Some(matching.next()?.fields.as_slice());
             if matching.next().is_some() {
@@ -262,13 +263,13 @@ pub(crate) fn leaf_type(
         } = segment
         {
             if matches!(
-                types.get(&current)?.shape,
+                types.declaration(current)?.shape,
                 terminal_psi::StructuralTypeShape::Reference { .. }
             ) {
                 return None;
             }
             current = terminal_semantics::representation_view_declaration(
-                types.values().copied(),
+                types.declarations(),
                 *structural_type,
                 *stored_scalar,
             )?
@@ -276,7 +277,7 @@ pub(crate) fn leaf_type(
             continue;
         }
         if let StructuralPathSegment::FixedIndex(index) = segment {
-            let declaration = types.get(&current)?;
+            let declaration = types.declaration(current)?;
             let terminal_psi::StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -293,7 +294,7 @@ pub(crate) fn leaf_type(
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
-        let declaration = types.get(&current)?;
+        let declaration = types.declaration(current)?;
         // Case selection establishes the payload namespace. An unguarded
         // field belongs only to the record's unconditional fields; scanning
         // all cases would merge distinct leaves that reuse a field identity.
@@ -307,15 +308,15 @@ pub(crate) fn leaf_type(
             // storage declaration; borrowing it carries that leaf type,
             // not a reference formed at the member.
             terminal_psi::StructuralFieldType::Scalar(scalar) => types
-                .iter()
-                .find(|(_, declaration)| {
+                .declarations()
+                .find(|declaration| {
                     matches!(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(shape)
                             if shape == *scalar
                     )
                 })
-                .map(|(id, _)| *id)?,
+                .map(|declaration| declaration.id)?,
             _ => return None,
         };
     }

@@ -11,8 +11,19 @@ windows, and transports both windows. Each window initializes a 24-byte record
 with values `101, 17, 103`, writes the middle field to 29, and extracts it. Exit
 0 requires the original value 17, new value 29, unchanged neighbors 101/103,
 and both returned lengths 32. The match place exercises both branches with
-different marker values. The const place names the allocation bound; it does
-not pretend a runtime-owned allocation can be a compile-time constant.
+different marker values. In `const_name`, only `CAPACITY = 64` is constant;
+the qualified extents and their lifecycle still run at runtime. The existing
+program and oracle remain runtime coverage. Transport of this same backing fact
+through a constant initializer remains open, so the row is unfinished.
+
+Completing the constant place needs admitted local backing for the same
+initialization, write and extraction, exporting only owned observations.
+[Semantic evaluation](../../../../wiki/spec/language/evaluation.md#invocation-admission)
+permits local allocation and temporary borrowing under the complete invocation
+contract; [constant results](../../../../wiki/spec/language/constants.md) cannot
+export references, storage identity or owned claims.
+[Ownership](../../../../wiki/spec/language/ownership.md) still requires exact
+claim provenance.
 
 The nearest rows are `placed_stable_write` and `content_reunion`. The former
 uses program-local structural storage rather than actual provider allocation
@@ -59,9 +70,12 @@ reject the attempted annotation, rather than merely denying a field operation.
 
 Run each place with `omega run --both samples/cli/facts/resident_backing/<place>/main.omg`.
 Check each corresponding `invalid/main.omg`; its diagnostic must identify
-missing `Extent::Vacant` establishment. The nine positives execute with exit 0
-on both engines on Windows x86-64, and all nine missing-vacancy twins reject.
-The corpus retains those same programs under `facts/resident_backing_*`.
+missing `Extent::Vacant` establishment. Historical Windows x86-64 corpus
+records retain all nine runtime programs at native/Terminal exit 0 with
+agreement under producer `9f1ea2b3a8e1`. Missing-vacancy rejection records retain
+`b3876048c0a2`, except the field twin at `e7c12b127bc8+wt`. These observations keep
+their original producer identities; they do not establish constant transport or
+current-source acceptance. The programs remain under `facts/resident_backing_*`.
 
 The [coexisting-allocation control](coexisting/main.omg) initializes both
 residents before extracting either. It writes the first, observes that the

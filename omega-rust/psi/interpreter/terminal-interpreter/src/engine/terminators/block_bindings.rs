@@ -227,6 +227,13 @@ impl BlockBindings {
         }
         let mut discarded = BTreeSet::new();
         let mut values = execution.structural_values.try_clone()?;
+        // Only the retirement preflight sees reserved storage. Ordinary
+        // operand capture above still reads the installed-value namespace.
+        for (place, home) in execution.linear_homes.iter() {
+            if values.insert(*place, home.clone())?.is_some() {
+                return Err(malformed());
+            }
+        }
         let mut scalar_arrays: BTreeSet<_> =
             execution.scalar_array_values.keys().copied().collect();
         let mut frontier = execution.live_affine_frontier.clone();
@@ -398,6 +405,7 @@ impl TerminalExecution<'_> {
             .zip(structural_arguments)
             .enumerate()
         {
+            self.require_owned_value_claims(argument)?;
             if usize::try_from(parameter.position).ok() != Some(position)
                 || argument.access != parameter.access
             {

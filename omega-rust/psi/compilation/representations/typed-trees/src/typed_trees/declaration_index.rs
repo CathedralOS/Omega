@@ -518,15 +518,25 @@ impl super::TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Option<&data::TypeParameter> {
+        let handle = self.data_type_parameter_handle_by_symbol(symbol)?;
+        Some(self.data_type_parameters.get(handle))
+    }
+
+    /// The retained parameter row selected by the ordinary symbol lookup.
+    /// Consumers carrying an obligation keep this handle rather than search
+    /// the whole arena again to recover the same row.
+    pub fn data_type_parameter_handle_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<arena::Handle<data::TypeParameter>> {
         if !symbol.is_valid() {
             return None;
         }
-        let handle = self.with_type_parameter_index(|index| {
+        self.with_type_parameter_index(|index| {
             relationships::symbol_rows(&index.rows, symbol)
                 .last()
                 .map(|(_, handle)| *handle)
-        })?;
-        Some(self.data_type_parameters.get(handle))
+        })
     }
 
     /// Resolve the first live arena occurrence before a consumer tests its kind.
