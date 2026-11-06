@@ -432,7 +432,7 @@ fn argument_term(
         })
         .collect::<Option<Vec<_>>>()?;
     let machine = structural_call_machine_name(call.target.as_str(), &call.machine_arguments, &[]);
-    let fields = program
+    let mut fields = program
         .data_members(data)
         .iter()
         .filter_map(|member| {

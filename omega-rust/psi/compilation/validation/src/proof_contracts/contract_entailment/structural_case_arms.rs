@@ -2979,7 +2979,8 @@ fn guard_case_value(
 ) -> Option<StructuralTerm> {
     let (definition, variant) =
         super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
-
+    let data = definition.name.as_str().to_owned();
+    let case = variant.name.as_str().to_owned();
     let variant_fields: Vec<String> = program
         .data_payload_fields(variant)
         .iter()
@@ -2996,7 +2997,7 @@ fn guard_case_value(
             typed_trees::data::DataMember::Field(field) => Some(field.name.as_str().to_owned()),
             _ => None,
         });
-    let fields: Vec<(String, StructuralTerm)> = variant_fields
+    let mut fields: Vec<(String, StructuralTerm)> = variant_fields
         .into_iter()
         .chain(common_fields)
         .map(|field| {
