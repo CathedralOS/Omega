@@ -17,9 +17,9 @@ import build_slot
 import compiler_profile
 
 SELECTORS = ROOT / 'tools/ci/f1_unchanged_ingress_selector.json'
-SELECTOR_SHA256 = 'b25b22b52be8617e74544f77c79fe6d6e02ac3de575f4274ede2ec0d795a227c'
-COMPILER_SOURCE = 'a7d187bc0cd24ea41c6967770a5dbd0099dbc0f3'
-EXPECTED_INPUT_OBJECTS = {'omega-rust': 'f413ca94829b39fd6f9068c6e0e4a239ff4728ed',
+SELECTOR_SHA256 = '8c95c2d8aa643f096e1adbde517169f2758dd41d0226b6aa82ad8e9aba176832'
+COMPILER_SOURCE = 'ebf0a375acec0fe2723c69f78736150ec01b8d1c'
+EXPECTED_INPUT_OBJECTS = {'omega-rust': '2d55def99a93ad955a90243e78181e367f31d750',
  'source/library': '0d8f76e96537348f44a8e168d83f4d1cc46f7548',
  'source/psi': '400feb4e6c0c556f0fd5d6b44043e92f93d7f30c',
  'source/omega': '96169168741fcd8265771a647ba3bfadd2bc7e8c',
