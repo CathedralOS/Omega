@@ -193,26 +193,16 @@ pub(super) fn fold_completed_values<FoldState: Clone>(
     succeeds: impl Fn(&FoldState) -> bool,
     fold: impl Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
 ) -> Option<CompletedValueFold<FoldState>> {
-    let mut visitor = CompletedObservation {
-        site: StructuralPrefixSite {
-            state: state.symbol,
-            statement_index,
-            in_transition_target: super::structural_prefix::expression_is_transition_target(
-                program,
-                state,
-                statement_index,
-                expression,
-            ),
-        },
+    let mut visitor = CompletedObservation::new(
+        program,
+        state,
+        statement_index,
         expression,
         reference,
-        fold: &fold,
-        succeeds: &succeeds,
-        state: initial.clone(),
-        complete: true,
-        observed: false,
-        halted: false,
-    };
+        initial.clone(),
+        &succeeds,
+        &fold,
+    );
     let recognized = observe_runtime_state_prefix(program, machine, state, &mut visitor).is_some();
     let universal = recognized.then_some(CompletedValueFold {
         state: std::mem::replace(&mut visitor.state, initial),
@@ -240,8 +230,24 @@ pub(super) fn fold_completed_values<FoldState: Clone>(
     universal
 }
 
+/// Several folds over the same completed value share one universal prefix
+/// walk. All of them sit at the same site, so the walker visits, prunes and
+/// stops for each exactly as its solo walk would, except that it keeps going
+/// while any member is still live; a member's own events are unchanged. Only
+/// the positive answer of a recognized walk is shared: every other member must
+/// still ask `fold_completed_values` alone, which may try private arrivals.
+pub(super) fn observe_completed_values_batched(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    members: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) -> bool {
+    super::structural_prefix::observe_runtime_state_prefix_batched(program, machine, state, members)
+        .is_some()
+}
+
 #[derive(Clone)]
-struct CompletedObservation<FoldState, Fold, Succeeds> {
+pub(super) struct CompletedObservation<FoldState, Fold, Succeeds> {
     site: StructuralPrefixSite,
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
@@ -256,7 +262,50 @@ struct CompletedObservation<FoldState, Fold, Succeeds> {
 impl<FoldState, Fold, Succeeds> CompletedObservation<FoldState, Fold, Succeeds>
 where
     Fold: Fn(&mut FoldState, Option<(&StructuralJudge<'_>, StructuralTerm)>) -> ControlFlow<()>,
+    Succeeds: Fn(&FoldState) -> bool,
 {
+    /// A fold over the value `expression` completes at `statement_index`.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new(
+        program: &dyn crate::CheckingInput,
+        state: &State,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        initial: FoldState,
+        succeeds: Succeeds,
+        fold: Fold,
+    ) -> Self {
+        Self {
+            site: StructuralPrefixSite {
+                state: state.symbol,
+                statement_index,
+                in_transition_target: super::structural_prefix::expression_is_transition_target(
+                    program,
+                    state,
+                    statement_index,
+                    expression,
+                ),
+            },
+            expression,
+            reference,
+            fold,
+            succeeds,
+            state: initial,
+            complete: true,
+            observed: false,
+            halted: false,
+        }
+    }
+
+    /// The fold's result when a shared walk that `recognized` the prefix gave
+    /// it complete coverage and the fold succeeds: exactly the universal
+    /// result `fold_completed_values` returns without trying private arrivals.
+    pub(super) fn shared_success(self, recognized: bool) -> Option<FoldState> {
+        (recognized && self.complete && self.observed && (self.succeeds)(&self.state))
+            .then_some(self.state)
+    }
+
     fn unavailable(&mut self) {
         self.complete = false;
         if (self.fold)(&mut self.state, None).is_break() {

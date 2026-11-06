@@ -918,10 +918,10 @@ fn prepare_state_walks(
                     .map(move |steps| (state, steps))
             })
             .collect::<Vec<_>>();
-        let sites = queries
+        let groups = queries
             .iter()
             .flatten()
-            .flat_map(|state| (0..state.conservation.len()).map(move |site| (state, site)))
+            .flat_map(|state| (0..state.conservation.groups()).map(move |group| (state, group)))
             .collect::<Vec<_>>();
         let (case_exclusions, conservation_candidates) = rayon::join(
             || {
@@ -954,17 +954,21 @@ fn prepare_state_walks(
                     .collect::<Vec<_>>()
             },
             || {
-                sites
+                groups
                     .par_iter()
-                    .map(|&(query, site)| {
+                    .map(|&(query, group)| {
                         let _subject = phase_profile::subject(PASS, || {
                             program
                                 .symbols
                                 .profile_label(query.state_flow.machine_symbol)
                         });
-                        query
-                            .conservation
-                            .answer(program, facts, query.machine, query.state, site)
+                        query.conservation.answer_group(
+                            program,
+                            facts,
+                            query.machine,
+                            query.state,
+                            group,
+                        )
                     })
                     .collect::<Vec<_>>()
             },
@@ -977,10 +981,16 @@ fn prepare_state_walks(
                 None => PreparedStateWalk::skipped(),
                 Some(query) => PreparedStateWalk {
                     case_exclusions: case_exclusions.by_ref().take(query.steps.len()).collect(),
-                    conservation_candidates: conservation_candidates
-                        .by_ref()
-                        .take(query.conservation.len())
-                        .collect(),
+                    conservation_candidates: {
+                        // Groups answer their sites out of order; restore site order.
+                        let mut answers = conservation_candidates
+                            .by_ref()
+                            .take(query.conservation.groups())
+                            .flatten()
+                            .collect::<Vec<_>>();
+                        answers.sort_unstable_by_key(|(site, _)| *site);
+                        answers.into_iter().map(|(_, answer)| answer).collect()
+                    },
                     call_writes: query.call_writes,
                     temporary_owners: query.temporary_owners,
                     temporary_occurrences: query.temporary_occurrences,
