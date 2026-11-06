@@ -390,14 +390,25 @@ impl StructuralJudge<'_> {
             .primitive_type_reference(result_type)
             .filter(|primitive| *primitive == geometry.primitive_type)
             .ok_or("entry scalar carrier disagrees with its stored interpretation")?;
-        self.capture_sequence += 1;
-        let value = StructuralTerm::CapturedValue {
-            statement: arena::Handle::invalid(),
-            expression: arena::Handle::invalid(),
-            callable: symbols::SymbolHandle::invalid(),
-            occurrence: self.capture_sequence,
-            result_type,
-            integer_range: None,
+        // The same entry coordinate already names one value. Reuse it before
+        // creating a fresh unknown; relating a discarded unknown back to that
+        // value adds proof work without supplying another fact.
+        let retained = self
+            .capture_entry_storage_place(place.clone())
+            .and_then(|coordinate| self.stored_values.value_at(&coordinate)?.entry.clone());
+        let value = match retained {
+            Some(value) => value,
+            None => {
+                self.capture_sequence += 1;
+                StructuralTerm::CapturedValue {
+                    statement: arena::Handle::invalid(),
+                    expression: arena::Handle::invalid(),
+                    callable: symbols::SymbolHandle::invalid(),
+                    occurrence: self.capture_sequence,
+                    result_type,
+                    integer_range: None,
+                }
+            }
         };
         self.retain_entry_scalar_snapshot(machine, state, place, value)
     }
