@@ -397,9 +397,39 @@ fn measure(
         .map(|argument| argument.replace("{build}", &build.display().to_string()))
         .collect();
     let environment = BTreeMap::from([("OMEGA_PHASE_PROFILE".to_owned(), "1".to_owned())]);
+    // Wall and CPU time swing with other work on a shared VM; user-space
+    // instruction counts barely move, so Linux runs go through `perf stat`
+    // when it is installed. perf itself then sits in the timed process tree.
+    let counters = build.with_extension("perf.csv");
+    let perf = cfg!(target_os = "linux")
+        .then(crate::profiling::find_perf)
+        .flatten();
+    let (program, arguments) = match &perf {
+        Some(perf) => {
+            let mut wrapped = vec![
+                "stat".to_owned(),
+                "-e".to_owned(),
+                "instructions:u".to_owned(),
+                "-x,".to_owned(),
+                "-o".to_owned(),
+                counters.display().to_string(),
+                "--".to_owned(),
+                omega.display().to_string(),
+            ];
+            wrapped.extend(arguments);
+            (perf.as_path(), wrapped)
+        }
+        None => (omega, arguments),
+    };
+    let load_average_start = load_average();
     // Empty stdin is the null device: omega must never wait on an open console.
     let (observation, output) =
-        capture(omega, &arguments, &environment, root, b"", 30 * 60 * 1000)?;
+        capture(program, &arguments, &environment, root, b"", 30 * 60 * 1000)?;
+    let load_average_end = load_average();
+    let instructions_u = fs::read_to_string(&counters)
+        .ok()
+        .and_then(|text| parse_perf_instructions(&text));
+    let _ = fs::remove_file(&counters);
     let _ = fs::remove_dir_all(&build);
     let resource = |name: &str| observation.resources[name]["value"].as_u64();
     let seconds = |nanos: Option<u64>| nanos.map(|nanos| nanos as f64 / 1e9);
@@ -414,12 +444,48 @@ fn measure(
         "user_cpu_s": seconds(resource("user_cpu_ns")),
         "sys_cpu_s": seconds(resource("system_cpu_ns")),
         "peak_rss_bytes": resource("peak_resident_bytes"),
+        "instructions_u": instructions_u,
+        "load_average_start": load_average_start,
+        "load_average_end": load_average_end,
         "phases_ms": parse_phase_profile(&String::from_utf8_lossy(&output.stderr)),
         "stderr_tail": (observation.exit_code != Some(0)).then(|| {
             let text = String::from_utf8_lossy(&output.stderr);
             text.lines().filter(|line| !is_phase_line(line)).rev().take(5).collect::<Vec<_>>().join("\n")
         }),
     }))
+}
+
+/// `perf stat -x,` writes `<count>,<unit>,instructions:u,...`; an unsupported
+/// or uncounted event writes `<not supported>` or `<not counted>` instead.
+fn parse_perf_instructions(text: &str) -> Option<u64> {
+    text.lines()
+        .map(|line| line.split(',').collect::<Vec<_>>())
+        .find(|fields| {
+            fields
+                .get(2)
+                .is_some_and(|event| event.starts_with("instructions"))
+        })
+        .and_then(|fields| fields[0].trim().parse().ok())
+}
+
+/// The 1, 5 and 15 minute load averages, so a run on a busy host can be
+/// flagged; `null` on Windows, which has no load average.
+fn load_average() -> Option<[f64; 3]> {
+    let text = fs::read_to_string("/proc/loadavg").ok().or_else(|| {
+        let output = Command::new("sysctl")
+            .args(["-n", "vm.loadavg"])
+            .stdin(Stdio::null())
+            .output()
+            .ok()?;
+        output
+            .status
+            .success()
+            .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+    })?;
+    let mut values = text
+        .split_whitespace()
+        .filter_map(|field| field.parse::<f64>().ok());
+    Some([values.next()?, values.next()?, values.next()?])
 }
 
 fn is_phase_line(line: &str) -> bool {
@@ -474,6 +540,7 @@ fn summarize(rows: &[Value]) -> Value {
     let wall = |row: &Value| row["wall_s"].as_f64();
     let cpu = |row: &Value| Some(row["user_cpu_s"].as_f64()? + row["sys_cpu_s"].as_f64()?);
     let rss = |row: &Value| row["peak_rss_bytes"].as_f64();
+    let instructions = |row: &Value| row["instructions_u"].as_f64();
     let spread = |values: &mut Vec<f64>| {
         let center = median(values)?;
         Some((values.last()? - values.first()?) / center * 100.0)
@@ -483,9 +550,13 @@ fn summarize(rows: &[Value]) -> Value {
             .into_iter()
             .map(|name| {
                 let mut measured = collect(name, "measured", &wall);
-                let aa_a = median(&mut collect(name, "aa_a", &wall));
-                let aa_b = median(&mut collect(name, "aa_b", &wall));
-                let aa_spread_pct = aa_a.zip(aa_b).map(|(a, b)| (a - b).abs() / ((a + b) / 2.0) * 100.0);
+                let aa_spread = |field: &dyn Fn(&Value) -> Option<f64>| {
+                    let a = median(&mut collect(name, "aa_a", field))?;
+                    let b = median(&mut collect(name, "aa_b", field))?;
+                    Some((a - b).abs() / ((a + b) / 2.0) * 100.0)
+                };
+                let workload_rows: Vec<&Value> =
+                    rows.iter().filter(|row| row["workload"] == name).collect();
                 json!({
                     "workload": name,
                     "all_ok": rows.iter().filter(|row| row["workload"] == name).all(|row| row["ok"] == true),
@@ -494,7 +565,11 @@ fn summarize(rows: &[Value]) -> Value {
                     "measured_range_pct": spread(&mut measured),
                     "median_cpu_s": median(&mut collect(name, "measured", &cpu)),
                     "median_peak_rss_bytes": median(&mut collect(name, "measured", &rss)),
-                    "aa_spread_pct": aa_spread_pct,
+                    "aa_spread_pct": aa_spread(&wall),
+                    "median_instructions_u": median(&mut collect(name, "measured", &instructions)),
+                    "aa_instructions_spread_pct": aa_spread(&instructions),
+                    "load_average_start": workload_rows.first().map(|row| &row["load_average_start"]),
+                    "load_average_end": workload_rows.last().map(|row| &row["load_average_end"]),
                 })
             })
             .collect(),
@@ -601,9 +676,23 @@ pub fn validate_record(record: &Value) -> Result<(), String> {
         if !row["wall_s"].is_f64() || !row["ok"].is_boolean() || !row["phases_ms"].is_object() {
             return Err("row needs wall_s, ok and phases_ms".into());
         }
-        for field in ["user_cpu_s", "sys_cpu_s", "peak_rss_bytes", "exit_code"] {
+        for field in [
+            "user_cpu_s",
+            "sys_cpu_s",
+            "peak_rss_bytes",
+            "instructions_u",
+            "exit_code",
+        ] {
             if !(row[field].is_number() || row[field].is_null()) {
                 return Err(format!("row.{field} must be a number or null"));
+            }
+        }
+        for field in ["load_average_start", "load_average_end"] {
+            let three_numbers = row[field]
+                .as_array()
+                .is_some_and(|values| values.len() == 3 && values.iter().all(Value::is_number));
+            if !(three_numbers || row[field].is_null()) {
+                return Err(format!("row.{field} must be three numbers or null"));
             }
         }
     }
@@ -677,13 +766,30 @@ mod tests {
         assert_eq!(phases["omega.emit image"], 2.0);
         assert!(is_phase_line("CHECKPOINT x"));
         assert!(!is_phase_line("error: something unrelated"));
+        assert_eq!(
+            parse_perf_instructions(
+                "
+# started
+123456789,,instructions:u,1000,100.00,,
+"
+            ),
+            Some(123_456_789)
+        );
+        assert_eq!(
+            parse_perf_instructions(
+                "<not supported>,,instructions:u,0,100.00,,
+"
+            ),
+            None
+        );
     }
 
     #[test]
     fn record_schema_accepts_rows_and_refuses_drift() {
         let row = json!({"workload": "one_line_check", "phase": "measured", "index": 0,
             "exit_code": 0, "ok": true, "wall_s": 0.5, "user_cpu_s": 0.4, "sys_cpu_s": 0.1,
-            "peak_rss_bytes": 1024, "phases_ms": {"psi.check": 1.0}});
+            "peak_rss_bytes": 1024, "instructions_u": 1000, "load_average_start": [1.0, 2.0, 3.0],
+            "load_average_end": null, "phases_ms": {"psi.check": 1.0}});
         let mut record = json!({"schema": SCHEMA, "benchmark_set": BENCHMARK_SET,
             "key": {"commit": "abc", "host": "h", "target": "linux_x86_64", "build_profile": "release",
                 "compiler_version": "omega 0", "recorded_utc": utc_timestamp(0)},
@@ -694,6 +800,10 @@ mod tests {
         let summary = summarize(record["rows"].as_array().unwrap());
         assert_eq!(summary[0]["median_wall_s"], 0.5);
         assert_eq!(summary[0]["median_cpu_s"], 0.5);
+        assert_eq!(summary[0]["median_instructions_u"], 1000.0);
+        record["rows"][0]["load_average_end"] = json!([1.0]);
+        assert!(validate_record(&record).is_err());
+        record["rows"][0]["load_average_end"] = json!(null);
         record["rows"][0]["wall_s"] = json!("fast");
         assert!(validate_record(&record).is_err());
     }

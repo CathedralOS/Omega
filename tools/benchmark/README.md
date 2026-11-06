@@ -51,12 +51,14 @@ One JSON file per run, `<commit12>__<target>__<utc>.json`, schema
 | --- | --- |
 | `key` | `commit`, `dirty`, `source_trees` (`omega-rust`, `source` tree hashes, the compiler's real identity when the commit only touches tools), `host` (hostname), `target`, `build_profile` (`release`), `compiler_version` (`omega --version`), `recorded_utc`. |
 | `host_detail`, `compiler`, `settings` | OS/arch/logical CPUs; binary path, SHA-256 and release-build wall time; warmup, A/A and run counts. |
-| `rows[]` | One per process: `workload`, `phase` (`warmup`, `aa_a`, `aa_b`, `measured`), `index`, `arguments`, `exit_code`, `ok`, `wall_s`, `user_cpu_s`, `sys_cpu_s`, `peak_rss_bytes` (job/process-tree peak; `null` where the platform gives none), `phases_ms` (last cumulative inclusive wall ms per profile scope), `stderr_tail` on failure. |
-| `summary[]` | Per workload over measured rows: `median_wall_s`, `median_cpu_s` (user+sys), `median_peak_rss_bytes`, `measured_range_pct` ((max-min)/median), `aa_spread_pct` (\|median A − median B\| / mean), `all_ok`. |
+| `rows[]` | One per process: `workload`, `phase` (`warmup`, `aa_a`, `aa_b`, `measured`), `index`, `arguments`, `exit_code`, `ok`, `wall_s`, `user_cpu_s`, `sys_cpu_s`, `peak_rss_bytes` (job/process-tree peak; `null` where the platform gives none), `instructions_u` (user-space instructions from `perf stat -e instructions:u` on Linux when `/usr/bin/perf` or `/bin/perf` exists, otherwise `null`; perf then sits in the timed process tree), `load_average_start` and `load_average_end` (1/5/15-minute load averages around the run; `null` on Windows), `phases_ms` (last cumulative inclusive wall ms per profile scope), `stderr_tail` on failure. |
+| `summary[]` | Per workload over measured rows: `median_wall_s`, `median_cpu_s` (user+sys), `median_peak_rss_bytes`, `measured_range_pct` ((max-min)/median), `aa_spread_pct` (|median A − median B| / mean), `median_instructions_u`, `aa_instructions_spread_pct`, the workload's first `load_average_start` and last `load_average_end`, `all_ok`.\|median A − median B\| / mean), `all_ok`. |
 | `completion` | `null`, or the gate's `exit_code`, `wall_s`, `verdict`, `fixtures`, `by_status`, `by_verdict`, `categories` (status counts per `tier/category`), and `release_gates`: `RC-SOURCE-SEMANTICS` and `RC-DIAGNOSTICS` derived from off-target and wrong-reason fixtures; the native and sample gates stay `not_recorded`. |
 
 An A/A spread larger than the change you are charting means the host was too
-noisy to see it. The command exits 1 after writing the record when any run fails.
+noisy to see it. When other workers share the VM, wall and CPU time swing by
+seconds while user-space instruction counts stay within a fraction of a
+percent, so chart `instructions_u` on Linux and use load averages to flag runs. The command exits 1 after writing the record when any run fails.
 
 The Python workflow below retains the existing optimizer-selection records and
 host matrix. Its record schema is separate from the Rust comparison journal;
