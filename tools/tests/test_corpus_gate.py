@@ -317,7 +317,11 @@ class RunnerInputSelection(unittest.TestCase):
                    "  1234.567 ms         2 x  psi.05.build_check_facts\n"
                    "          17 n  omega.native.calls\n"
                    "    12.345 ms         1 x  timing label with spaces\n"
-                   "           2 n  counter label with spaces\n")
+                   "           2 n  counter label with spaces\n"
+                   "SUBJECTS psi.05.returned_fields.recognize: 2 subject(s), "
+                   "1200.000 ms attributed of 1000.000 ms pass (120% coverage, 1 nested)\n"
+                   "  by file:\n"
+                   "    1200.000 ms      2 subj  library:core/example.omg\n")
         chatter = "unrelated compiler output\nCHECKPOINT unrelated\n"
         for setting in (None, "0", "", "1"):
             environment = {} if setting is None else {"OMEGA_PHASE_PROFILE": setting}

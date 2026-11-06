@@ -729,13 +729,15 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
     # runner exits normally after reporting a fixture failure. Its lines stay
     # separate from the actual records file.
     structural_trace = "OMEGA_STRUCT_TRACE" in env
-    # These are the existing profiler's checkpoint, timing and counter rows.
+    # Retain subject headings too: they identify each table's pass and explain
+    # nested timings, which cannot be added as independent wall-clock costs.
     # A timeout is an ordinary runner record with exit 0, so its requested
     # completed timings must not disappear with buffered compiler chatter.
     profile_output = re.compile(
         r"^(?:CHECKPOINT [^\r\n]+ pid=\d+ thread=ThreadId\(\d+\) "
         r"process-cumulative completed inclusive-wall|"
-        r"\s*(?:\d+\.\d{3} ms\s+\d+ x|\d+ n)[ \t]+[^\r\n]+)\s*$")
+        r"SUBJECTS [^\r\n]+|  by file:|"
+        r"\s*(?:\d+\.\d{3} ms\s+\d+ (?:x|subj)|\d+ n)[ \t]+[^\r\n]+)\s*$")
 
     def stream_progress():
         for line in proc.stderr:
