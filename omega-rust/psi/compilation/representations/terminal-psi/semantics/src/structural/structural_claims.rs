@@ -27,7 +27,6 @@ pub fn structural_claim_paths_may_overlap<'types>(
     Some(left.starts_with(right) || right.starts_with(left))
 }
 
-
 /// Join machine-local return identities to the caller's possible path roster.
 /// Every unguarded path occurs on every successful exit. Guarded paths occur
 /// on the exits that own them, and their union is exactly the caller catalogue.

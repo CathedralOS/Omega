@@ -454,7 +454,6 @@ fn validate_constructor_claims(
     Ok(())
 }
 
-
 pub(super) fn validate_establish_primitive_local(
     module: &TerminalModule,
     machine: &TerminalMachine,
