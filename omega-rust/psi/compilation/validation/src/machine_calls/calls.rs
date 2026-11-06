@@ -838,6 +838,7 @@ fn validate_value_call_arguments(
     callee_state: &State,
     executes: bool,
     terminal_transfer: bool,
+    entry_judge: &crate::proof_contracts::contract_entailment::CallerEntryJudge<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     expression: ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
@@ -927,6 +928,7 @@ fn validate_value_call_arguments(
             callee_state,
             arguments,
             terminal_transfer,
+            entry_judge,
             diagnostics,
         );
     }

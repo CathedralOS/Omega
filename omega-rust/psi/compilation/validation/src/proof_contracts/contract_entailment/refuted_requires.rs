@@ -12,6 +12,36 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
+/// The closed-operand judge of one caller machine, shared by its value calls.
+///
+/// `reject_refuted_value_call_requires` judges every value call against the
+/// caller's runtime entry with no requires and no executed prefix, so that
+/// judge depends only on the caller machine. The machine pass that scans the
+/// calls builds it on first use instead of once per call site.
+pub(crate) struct CallerEntryJudge<'program> {
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    judge: std::cell::OnceCell<StructuralJudge<'program>>,
+}
+
+impl<'program> CallerEntryJudge<'program> {
+    pub(crate) fn new(
+        program: &'program dyn crate::CheckingInput,
+        machine: &'program Machine,
+    ) -> Self {
+        Self {
+            program,
+            machine,
+            judge: std::cell::OnceCell::new(),
+        }
+    }
+
+    fn judge(&self) -> &StructuralJudge<'program> {
+        self.judge
+            .get_or_init(|| StructuralJudge::from_runtime_requires(self.program, self.machine, &[]))
+    }
+}
+
 /// Reject a value-position call when one of the callee's equality-style
 /// `requires` facts is structurally FALSE at the concrete operands. This is
 /// the fail-safe first rung of general value-call precondition discharge: a
@@ -25,8 +55,10 @@ pub(crate) fn reject_refuted_value_call_requires(
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
     terminal_transfer: bool,
+    entry_judge: &CallerEntryJudge<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    debug_assert_eq!(entry_judge.machine.symbol, caller_machine.symbol);
     let Some(map) = argument_term_map(
         program,
         caller_machine,
@@ -40,7 +72,7 @@ pub(crate) fn reject_refuted_value_call_requires(
     // This judgment has no executed-prefix custody. Entry preconditions may
     // already have been invalidated by a store or an earlier call. Only the
     // prefix-aware route may use them; this route decides closed operands.
-    let judge = StructuralJudge::from_runtime_requires(program, caller_machine, &[]);
+    let judge = entry_judge.judge();
     if judge.hypotheses_contradictory {
         return;
     }

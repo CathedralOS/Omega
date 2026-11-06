@@ -13,6 +13,7 @@ use super::{
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
+use crate::proof_contracts::contract_entailment::CallerEntryJudge;
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
 use numerics::float_semantics_catalog::FloatSemanticKernel;
@@ -138,8 +139,9 @@ impl<'program> ValueCallee<'program> {
 
 /// One VALUE-position call occurrence and the caller facts its resolved
 /// callee is checked against.
-struct ValueCallSite<'a> {
+struct ValueCallSite<'a, 'judge> {
     program: &'a dyn crate::CheckingInput,
+    entry_judge: &'a CallerEntryJudge<'judge>,
     current_machine: &'a Machine,
     current_state: &'a State,
     prior_statements: &'a [typed_trees::statement::StatementNode],
@@ -152,7 +154,7 @@ struct ValueCallSite<'a> {
     unit_completion: bool,
 }
 
-impl ValueCallSite<'_> {
+impl ValueCallSite<'_, '_> {
     /// Every resolved callee owes the same checks, whichever route found it:
     /// a value-producing result, a concrete specialization, its type-parameter
     /// bounds, and argument arity and classes.
@@ -201,6 +203,7 @@ impl ValueCallSite<'_> {
             callee.state,
             self.executes,
             self.terminal_transfer,
+            self.entry_judge,
             diagnostics,
             self.expression,
             self.call,
@@ -229,6 +232,7 @@ fn validate_expression_call_bounds(
     call: &TableCallExpression,
     expression_use: CallExpressionUse,
     executes: bool,
+    entry_judge: &CallerEntryJudge<'_>,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
@@ -553,6 +557,7 @@ fn validate_expression_call_bounds(
     let arguments = expression_table(program).expression_handles(call.arguments);
     let site = ValueCallSite {
         program,
+        entry_judge,
         current_machine,
         current_state,
         prior_statements: writable_roots.statements,
