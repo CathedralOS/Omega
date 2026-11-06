@@ -763,15 +763,6 @@ pass/facts/match_effectful_subject_custody_through_other_state_exit built 31978m
 pass/facts/match_effectful_subject_custody_through_parameter_exit built 26599ms exit:0 interpreter-exit:0 interpreter:agrees @5445b5af611f+wt
 pass/facts/match_effectful_subject_custody_through_target_body_exit built 37171ms exit:0 interpreter-exit:0 interpreter:agrees @5445b5af611f+wt
 pass/facts/match_projected_product_custody_through_controls_two_sources_exit built 3422ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
-pass/facts/match_reference_referent_through_call_result_exit built 10837ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_const_name_exit built 10716ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_field_exit built 11584ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_local_exit built 10583ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_match_join_exit built 10370ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_other_machine_exit built 10658ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_other_state_exit built 10330ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_parameter_exit built 10601ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
-pass/facts/match_reference_referent_through_target_body_exit built 11346ms exit:0 interpreter-exit:0 interpreter:agrees @47307200e736
 pass/facts/match_runtime_view_extent_through_call_result_exit built 5836ms exit:0 interpreter-exit:0 interpreter:agrees @fc74098f66b9+wt
 pass/facts/match_runtime_view_extent_through_const_name_exit built 5014ms exit:0 interpreter-exit:0 interpreter:agrees @fc74098f66b9+wt
 pass/facts/match_runtime_view_extent_through_field_exit built 5198ms exit:0 interpreter-exit:0 interpreter:agrees @fc74098f66b9+wt

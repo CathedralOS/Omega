@@ -44,9 +44,8 @@ mod sealed {
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
 
-    /// Complete entries callable from outside the program, supplied by source
-    /// admission. Without this list, ordinary top-level calls cannot establish
-    /// private input requirements.
+    /// Complete independently invocable entries supplied by source admission.
+    /// Without that roster, ordinary top-level uses cannot prove private inputs.
     fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
         None
     }
@@ -166,7 +165,7 @@ impl Deref for dyn CheckingInput + '_ {
     }
 }
 
-// Proof-plan equality includes externally callable entries, never query scratch.
+// Proof-plan equality includes the independent entry roster, never query scratch.
 impl PartialEq for dyn CheckingInput + '_ {
     fn eq(&self, other: &Self) -> bool {
         self.external_invocation_roots() == other.external_invocation_roots()
@@ -313,7 +312,7 @@ impl<'program> CheckingContext<'program> {
     }
 
     /// Bind caller inference to every source-admitted external entry, across
-    /// all targets. Changing that list invalidates the complete query state.
+    /// all targets. Changing that roster invalidates the complete query state.
     pub fn with_external_invocation_roots(
         mut self,
         roots: &'program [symbols::SymbolHandle],
@@ -964,7 +963,7 @@ impl CheckingMemos {
                 })
     }
 
-    /// Retain memos over the immutable trees and unchanged external entries,
+    /// Retain memos over the immutable trees and unchanged entry roster,
     /// resetting memos that may observe prepared effects,
     /// finalized selections, prepared mathematics, or opaque representations.
     /// Call-frame caches also retain prepared operational/service plans, so

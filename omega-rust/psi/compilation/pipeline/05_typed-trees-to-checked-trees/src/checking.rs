@@ -8,8 +8,8 @@
 //! input's checkpoint. Every production request enforces crash admission.
 //!
 //! Whole-program reuse has one gate: the source facade compares the original
-//! program, complete preparation admission and entries callable from outside the
-//! program against a [`RetainedCheck`] from
+//! program, complete preparation admission and independent entry roster against
+//! a [`RetainedCheck`] from
 //! this invocation. A miss prepares and checks afresh. Equal prepared trees
 //! and Copy receipts do not establish equal checking inputs: selected opaque
 //! carriers travel separately and determine structural plans. A second partial

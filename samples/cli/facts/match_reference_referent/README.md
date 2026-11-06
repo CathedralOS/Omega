@@ -7,26 +7,10 @@ The baseline compiler rejects this row's root and all nine positive places at
 `read_through`'s `place == 17` requirement. These refusals were observed on
 2026-11-05 with optimized macOS ARM64 producer
 `64376af6ae978b4ddb2d2d50874724226ccb0646`; the sources still use 17 and 5.
-Repaired producers run the root and all nine places with native and Terminal
-Psi exit 0 on every hosted target. Each run also observes all 15 corpus
-positives and the ordinary target-provider project at exit 0 on both engines.
-All 29 focused negative controls reject in every run, and 28 match their pins.
-
-| Target | Actual producer | Run |
-| --- | --- | --- |
-| Linux x86-64 | `195774d028943e0adfc06e7bee331a9a187da740` | [42138842550](https://github.com/CathedralOS/Omega/actions/runs/42138842550) |
-| Linux ARM64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145265423](https://github.com/CathedralOS/Omega/actions/runs/42145265423) |
-| macOS ARM64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145219092](https://github.com/CathedralOS/Omega/actions/runs/42145219092) |
-| Windows x86-64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145268258](https://github.com/CathedralOS/Omega/actions/runs/42145268258) |
-
-Both producer revisions use the reviewed compiler source `bb51de149e26`; their
-workflow cache settings differ. The compiler files in this PR differ from the
-tested source only in explanatory comments.
-The nested-machine twin retains an older expectation naming `main`/`pick`;
-the compiler reports `pick`/`entry` for the same missing 17 requirement.
-That expectation is unchanged, the twin does not count as passing, and the row
-remains open. Each run remains failed because of this expectation. Final review
-and normal landing are still required.
+The compiler change and the Build-selection migration remain under validation.
+The nested-machine twin also retains an older diagnostic expectation naming
+`main`/`pick`; this producer reports `pick`/`entry`. That mismatch remains open,
+and the twin does not count as passing.
 
 `choose()` is declared `ensures result == true`, so the join is taken on its true arm, and the
 consumer `read_through` requires `place == 17`. Exit 0 therefore holds exactly when the join
@@ -44,7 +28,7 @@ behavior remains outside this row's evidence.
 
 ## Places
 
-| Place | Positive | Reject twin | How the references arrive |
+| Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness running the same join and consumer |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the two candidate references are local bindings (`chosen_ref`, `spare_ref`) |
@@ -86,7 +70,7 @@ Each place has an `invalid/` reject twin with an authored
 `tests/omega/fail/facts/match_reference_referent_through_<place>_rejected` fixture. The twin changes only the
 construct's own input or selection, and checking fails closed during compile-time verification:
 
-| Place | Twin | What it changes | Pinned diagnostic fragment |
+| Place | Twin | What it changes | Pinned Diagnostic Fragment |
 | --- | --- | --- | --- |
 | local | [`local/invalid/main.omg`](local/invalid/main.omg) | the join selects `spare_ref` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 | field | [`field/invalid/main.omg`](field/invalid/main.omg) | the join selects `pair.spare` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => pair.spare, false => pair.chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
@@ -132,15 +116,6 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
    results, match joins, constants, a nested helper, a forwarding helper and four Build-selected
    providers; `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the construct's own
    selection (which candidate the true arm names).
-   Private helpers may use caller facts only when every actual incoming call proves
-   the requirement after substituting its arguments, as required by
-   [invocation contracts](../../../../wiki/spec/language/state_contracts.md).
-   Public entries, escaped callables and Build-selected members must satisfy their
-   declared contracts for independent inputs. The focused controls
-   [`second arrival`](../../../../tests/omega/fail/contracts/match_reference_private_second_arrival/main.omg),
-   [`public input`](../../../../tests/omega/fail/contracts/match_reference_public_input/main.omg),
-   and [`selected provider input`](../../../../tests/omega/fail/contracts/match_reference_selected_provider_input/main.omg)
-   reject when another caller or an independent input can supply 5.
 4. **Soundness boundaries:** every twin rejects during proof checking with
    ``cannot prove requires contract for call read_through …``; the recorded referent is not
    widened to "either candidate", and ownership/access of the borrowed referents is preserved.
@@ -156,9 +131,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
 8. **Form encoding, branch relaxation, relocations, native image emission (`Omega 07–09` +
    emission):** acceptance requires actual PE/ELF/Mach-O execution with exit 0 and agreement with
    Terminal Psi. The existing `tests/omega/pass/facts/match_reference_referent_through_*_exit`
-   fixtures retain `expected_native_exit.txt` `0`. The four matching-host runs
-   above observe native/Terminal agreement for all places. Their failed nested
-   expectation remains unresolved, so these runtime results do not close the row.
+   fixtures retain `expected_native_exit.txt` `0`; current execution records remain pending.
 
 ## Open items
 
@@ -201,7 +174,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
   Copying the join result first (`let joined: &i64 = chosen_ref;`) accepts. The `match_join` place
   transports the referent values through joins and keeps the join over local borrows, which is the
   same transport the landed sibling row `facts/match_join_place_read` uses.
-- This row remains open while its nested twin expectation is unresolved. The parent task also
-  retains write-only joins, runtime-sized element-view selections, computed roots and the
-  borrowed-result successor lifecycle on the board.
+- No requirement above is claimed closed beyond the nine places and nine twins of this row; the
+  parent task's remaining acceptance (write-only joins, runtime-sized element-view selections,
+  computed roots, borrowed-result successor lifecycle) stays open on the board.
 

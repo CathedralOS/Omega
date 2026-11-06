@@ -697,7 +697,7 @@ impl StructuralJudge<'_> {
         )?;
         // A live shared copy already records the selected referent's contents.
         // Reopening its conservative supplier list would add values from arms
-        // that did not execute. The current storage version checks that this exact
+        // that did not execute. The current storage cut checks that this exact
         // saved binding survives; its shared loan keeps the observed scalar
         // unchanged. Descriptor-only values still need every supplier below.
         if let Some(coordinate) =
