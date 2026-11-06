@@ -1416,21 +1416,22 @@ fn recognize_structural_state_leaves_from<'a>(
             if is_arm_pattern_marker(statement) {
                 continue;
             }
+            let mut arm = super::structural_prefix::SiteArm::new(
+                program,
+                invocation,
+                judge,
+                &environment,
+                &case_hypotheses,
+                &case_equations,
+                &established_guarantees,
+            );
             for visitor in visitors.iter_mut() {
                 if visitor.site().state == state.symbol
                     && visitor.site().statement_index == statement_index
                     && !matches!(statement, StatementNode::Transition(_))
                     && !visitor.is_complete()
                 {
-                    visitor.visit(
-                        program,
-                        invocation,
-                        judge,
-                        &environment,
-                        &case_hypotheses,
-                        &case_equations,
-                        &established_guarantees,
-                    );
+                    arm.deliver(&mut **visitor);
                 }
             }
             // Nothing after this call can establish its entry premises.
@@ -1820,21 +1821,22 @@ fn recognize_structural_state_leaves_from<'a>(
             // whether another statement follows or the body returns Unit.
             // Explicit transitions own their paths below and never use this
             // synthetic end coordinate.
+            let mut arm = super::structural_prefix::SiteArm::new(
+                program,
+                invocation,
+                judge,
+                &environment,
+                &case_hypotheses,
+                &case_equations,
+                &established_guarantees,
+            );
             for visitor in visitors.iter_mut() {
                 if visitor.site().state == state.symbol
                     && visitor.site().statement_index == state.statement_nodes.count() as usize
                     && !visitor.site().in_transition_target
                     && !visitor.is_complete()
                 {
-                    visitor.visit(
-                        program,
-                        invocation,
-                        judge,
-                        &environment,
-                        &case_hypotheses,
-                        &case_equations,
-                        &established_guarantees,
-                    );
+                    arm.deliver(&mut **visitor);
                 }
             }
             if !visitors.is_empty() {
@@ -1906,6 +1908,15 @@ fn recognize_structural_state_leaves_from<'a>(
             let mut next_remaining = Vec::new();
             let mut selected_paths = Vec::new();
             for (incoming, remaining_equations) in remaining_paths {
+                let mut arm = super::structural_prefix::SiteArm::new(
+                    program,
+                    invocation,
+                    &incoming,
+                    &environment,
+                    &case_hypotheses,
+                    &remaining_equations,
+                    &established_guarantees,
+                );
                 for visitor in visitors.iter_mut() {
                     if visitor.site().state == state.symbol
                         && visitor.site().statement_index == statement_index
@@ -1914,17 +1925,10 @@ fn recognize_structural_state_leaves_from<'a>(
                     {
                         // The requested guard call has not returned. Only earlier
                         // guards and preceding operands can establish its premises.
-                        visitor.visit(
-                            program,
-                            invocation,
-                            &incoming,
-                            &environment,
-                            &case_hypotheses,
-                            &remaining_equations,
-                            &established_guarantees,
-                        );
+                        arm.deliver(&mut **visitor);
                     }
                 }
+                drop(arm);
                 if !visitors.is_empty()
                     && !visitors.iter().any(|visitor| {
                         member_live_in_transitions(visitor, transition_position, true, path)
@@ -2104,23 +2108,25 @@ fn recognize_structural_state_leaves_from<'a>(
             {
                 let judge = &captured;
 
+                let mut arm = super::structural_prefix::SiteArm::new(
+                    program,
+                    invocation,
+                    judge,
+                    &branch_environment,
+                    &branch_hypotheses,
+                    &branch_equations,
+                    &established_guarantees,
+                );
                 for visitor in visitors.iter_mut() {
                     if visitor.site().state == state.symbol
                         && visitor.site().statement_index == statement_index
                         && visitor.site().in_transition_target
                         && !visitor.is_complete()
                     {
-                        visitor.visit(
-                            program,
-                            invocation,
-                            judge,
-                            &branch_environment,
-                            &branch_hypotheses,
-                            &branch_equations,
-                            &established_guarantees,
-                        );
+                        arm.deliver(&mut **visitor);
                     }
                 }
+                drop(arm);
                 if !visitors.is_empty()
                     && !visitors.iter().any(|visitor| {
                         member_live_in_transitions(visitor, transition_position, false, path)
