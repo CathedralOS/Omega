@@ -181,7 +181,31 @@ pub(in crate::borrow) fn complete(
         &incoming,
         &sources,
     )?
-    .ok_or("completed call result has no complete reference set")?;
+    .ok_or_else(|| {
+        // Only this required completion turns an unavailable result into an
+        // error. Optional declaration queries above may still contain Type
+        // parameters; they cannot create a reference or decide admission.
+        let Some(contract) = super::call_view_return_contract(program, state.symbol, call) else {
+            return "the call has no resolved public signature for its returned references";
+        };
+        use crate::borrow::view_link::ViewReturnSource;
+        use validation::borrow_contracts::ViewReturnAmbiguity;
+        match contract.source(program) {
+            ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure { .. }) => {
+                "the call's public signature does not identify every returned reference"
+            }
+            ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompatibleSourceAccess {
+                ..
+            }) => "an input does not grant the access promised for a returned reference",
+            ViewReturnSource::Ambiguous(ViewReturnAmbiguity::ElidedMultipleInputs { .. }) => {
+                "the returned reference could come from more than one input"
+            }
+            ViewReturnSource::Ambiguous(ViewReturnAmbiguity::LifetimeMatchesNoInput { .. }) => {
+                "the returned reference's lifetime does not match any input"
+            }
+            _ => "completed call result has no complete reference set",
+        }
+    })?;
     for loan in &mut loans {
         loan.storage_owner = PlaceRoot::Expression(expression);
         loan.formation_expression = expression;

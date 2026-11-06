@@ -797,8 +797,7 @@ pub(super) fn relative_result_loans(
             }
             _ => return Ok(None),
         };
-        let contract = call_view_return_contract(program, state_symbol, call)
-            .ok_or("the call has no resolved public signature for its returned references")?;
+        let contract = available!(call_view_return_contract(program, state_symbol, call));
         let completed = TableLocalData {
             initial_value: expression,
             type_reference: contract.return_type_reference(program),
@@ -809,21 +808,12 @@ pub(super) fn relative_result_loans(
             return Ok(Some(limit_access(loans, &access_limits)));
         }
         let source = contract.source(program);
-        if let ViewReturnSource::Ambiguous(reason) = source {
-            return Err(match reason {
-                validation::borrow_contracts::ViewReturnAmbiguity::IncompleteStructure {
-                    ..
-                } => "the call's public signature does not identify every returned reference",
-                validation::borrow_contracts::ViewReturnAmbiguity::IncompatibleSourceAccess {
-                    ..
-                } => "an input does not grant the access promised for a returned reference",
-                validation::borrow_contracts::ViewReturnAmbiguity::ElidedMultipleInputs {
-                    ..
-                } => "the returned reference could come from more than one input",
-                validation::borrow_contracts::ViewReturnAmbiguity::LifetimeMatchesNoInput {
-                    ..
-                } => "the returned reference's lifetime does not match any input",
-            });
+        if matches!(source, ViewReturnSource::Ambiguous(_)) {
+            // This optional lookup cannot inventory a still-generic value.
+            // Its caller decides whether the declaration may remain open or a
+            // concrete completion must supply every reference. No loan is
+            // introduced by an unavailable result here.
+            return Ok(None);
         }
         if matches!(source, ViewReturnSource::NotApplicable) {
             return Ok(super::invocation_results::form(
