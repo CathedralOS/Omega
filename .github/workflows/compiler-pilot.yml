@@ -13,7 +13,6 @@ jobs:
       RUST_MIN_STACK: '67108864'
       OMEGA_CORPUS_JOBS: '1'
       OMEGA_CORPUS_FIXTURE_SECS: '120'
-      INSTALLED_OBSERVER_DIR: ${{ runner.temp }}/installed-entry-observer
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -24,7 +23,7 @@ jobs:
         run: |
           from pathlib import Path
           import hashlib,json,os,subprocess
-          root=Path.cwd();stage=Path(os.environ['INSTALLED_OBSERVER_DIR'])
+          root=Path.cwd();stage=(Path(os.environ['RUNNER_TEMP']) / 'installed-entry-observer')
           assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==os.environ['GITHUB_SHA']
           assert not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
           stage.mkdir(parents=True,exist_ok=False)
@@ -51,7 +50,7 @@ jobs:
         run: |
           from pathlib import Path
           import os,subprocess,sys
-          stage=Path(os.environ['INSTALLED_OBSERVER_DIR']);output=Path('build');output.mkdir(exist_ok=True)
+          stage=(Path(os.environ['RUNNER_TEMP']) / 'installed-entry-observer');output=Path('build');output.mkdir(exist_ok=True)
           command=[sys.executable,str(stage/'run_installed_entry_mac_retained.py'),'--recipe',str(stage/'installed_entry_mac_recipe.json')]
           with (output/'installed-entry-macos-062.stdout').open('wb') as out,(output/'installed-entry-macos-062.stderr').open('wb') as err:
               result=subprocess.run(command,stdin=subprocess.DEVNULL,stdout=out,stderr=err)
