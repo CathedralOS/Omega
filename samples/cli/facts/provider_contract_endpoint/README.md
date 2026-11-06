@@ -25,8 +25,8 @@ so its result is 3. Each `main()` checks both results, the admitted call's resul
 calculation before choosing the provider endpoint; this is not a caller guard
 used to justify an earlier partial operation.
 
-The existing Endpoint declarations, provider 7/6 twins, input 7, and subtraction
-`7u64 - value` remain. The field program checks neighbors 31 and 47. The match
+Every place still checks input 7 against provider limit 7 and evaluates
+`7u64 - value`; its twin changes only the provider limit to 6. The field program checks neighbors 31 and 47. The match
 program retains its original two bound-7 cases and adds bound-7/bound-3 cases
 whose differences are 0 and 4. The selected-target tags remain 17 and 29.
 These extended sources still need fresh qualification; the earlier separate
@@ -75,33 +75,13 @@ Each reject changes only the selected provider's integer from 7 to 6. The
 consuming value and subtraction stay identical. The missing obligation must
 identify that the captured input 7 exceeds the selected closed endpoint 6.
 
-## Requirement evidence
+## What the row must establish
 
-- **Establishment:** the exact selected ordinary checked provider computes the
-  endpoint. Call admission records the captured input's relation to that recipe;
-  neither the requirement nor an `asm requires` goal establishes itself.
-- **Identity and lifetime:** the integer comparison names an immutable captured
-  scalar. The recipe retains its exact call expression and selected target/
-  provider receipt; another target's scalar is not interchangeable evidence.
-- **Composition:** formal/actual substitution uses captured scalar operands.
-  Result upper-bound recipes travel with the produced value across calls and
-  joins into exact subtraction, without a caller guard recreating the fact.
-- **Soundness:** calls used in the bound owe formation and invocation admission.
-  Anonymous 255 must fit the initial `u8` argument before typed Wrapping addition
-  runs. The required comparison cannot establish its own prerequisite. Runtime
-  calls retain their declared effects and ordinary checking route.
-- **Psi 06–08:** contract comparisons remain proof facts, integer root folds
-  retain their producing dependencies, and the checked result reaches canonical
-  Terminal Psi. Actual interpreter/native agreement is required for each place.
-- **Omega 00–02:** all four hosted `ProgramEntry` bindings and the exact provider
-  defaults join the same value closure. Scalar calling plans retain normal u64
-  argument/result placement; proof recipes contribute no runtime parameter.
-- **Omega 03–06:** exact u64 subtraction consumes the transported integer-range
-  recipe. Ordinary call activation storage and callee-saved preservation remain
-  on the standard backend route.
-- **Omega 07–09 and emission:** the fresh Linux x86-64 native result must agree
-  with Terminal execution at exit 0. The other three hosted targets retain their
-  authored bindings; this qualification does not claim execution on those hosts.
+- **Establishment:** the selected checked provider computes the limit. Each call must prove its input bound before using the call result. The bound cannot prove its own prerequisite.
+- **Identity and lifetime:** the comparison concerns the input value captured for that call and the provider selected for its target. A later write or another provider cannot replace either one.
+- **Composition:** helpers, fields and joins carry the same bound to `7u64 - value`. A caller must not add a guard after the call to recreate it.
+- **Soundness:** anonymous 255 must fit `u8` before Wrapping addition begins. Calls used inside a contract must satisfy their own requirements and effects.
+- **Lowering and execution:** every positive must run with native/Terminal agreement at exit 0. All four hosted entry bindings remain authored; current qualification targets Linux x86_64 and claims no execution on the other hosts. Proof-only bounds add no runtime arguments.
 
 The nine places and their twins are pinned under `tests/omega/{pass,fail}/facts`.
 [Existing soundness controls](controls/README.md) pin formation, target ownership,
@@ -124,10 +104,9 @@ are migrated. This row alone does not close that parent outcome.
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.
-`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
-implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
-by explicit target-keyed Build rows. The operation, inputs, contracts and exit
-oracle are unchanged. The entry wrapper and each implementation check a tag
+Build selects an ordinary named implementation for each target. This follows
+**BUILD-OWNED-TARGET-SELECTION**. The programs keep the same operation, inputs,
+contracts and expected exit. The entry wrapper and each implementation check a tag
 (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The extended target-body program and twin need the same fresh qualification as
 the other eight places. The other hosted targets keep their authored Build rows;
 no new execution on those hosts is claimed here.
