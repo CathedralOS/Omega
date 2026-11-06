@@ -14741,9 +14741,9 @@ fail/generics/extraction_inactive_case rejected 2151ms expected @ccdb99ca2214
 	machine `unpack$specialized$969b19dd495faa28$0` state `entry` statement 1: cannot prove selected case for payload access `result.value`: captured source `result::Moved.value` has no live case evidence
 fail/generics/extraction_linear_payload_reuse rejected 9851ms expected @ee4dbb4b2d56
 	cannot use `result` in machine `reuse` state `entry` (statement 2) after `result` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
-fail/generics/extraction_retagged_payload rejected 1042ms unexpected @ccdb99ca2214
-	constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking
-	constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking
+fail/generics/extraction_retagged_payload rejected 8907ms expected @31087983ba35
+	machine `replaced` state `entry` statement 1: cannot prove selected case for payload access `result.stamp`: captured source `result::Moved.stamp` has no live case evidence: the current source does not select its required case
+	machine `replaced$specialized$fc806fa04d7e3fae$0$4815` state `entry` statement 1: cannot prove selected case for payload access `result.stamp`: captured source `result::Moved.stamp` has no live case evidence: the current source does not select its required case
 fail/generics/extraction_wrong_application rejected 915ms expected @ccdb99ca2214
 	argument `result` for state `entry` expects `Extraction<Second>`, got `named value`
 fail/generics/field_store_generic_result_parameter_mismatch rejected 1098ms expected @ccdb99ca2214
@@ -15012,6 +15012,10 @@ fail/generics/owned_member_const_operand_is_not_type rejected 677ms expected @cc
 	machine `identity` static argument 1 requires its declared binder kind, not a const value
 fail/generics/parameter_value_concrete_local_mismatch rejected 712ms expected @ccdb99ca2214
 	machine `wrong` state `entry` local `count` expects `u8`, but the value is delivered as `Input`
+fail/generics/phantom_owned_constructor_unproved rejected 5523ms expected @31087983ba35
+	data `Owner` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Owner` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
+	data `Owner` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/generics/property_bound_violated_at_instantiation rejected 1049ms expected @ccdb99ca2214
 	type parameter `T [copy]` of `Box` was instantiated with `Heavy`, which does not satisfy `[copy]`
 	data `Box<Heavy>` declares `[copy]` but field `value` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
@@ -25943,6 +25947,7 @@ pass/generics/runtime_mixed_generic_erased_sum_exit rejected 8349ms check-target
 	construction of erased generic data `Mixed` is unsupported in this context; use a closed generic record in an explicitly typed local initializer
 pass/generics/runtime_nested_array_extent_binder_exit checked 9732ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_nested_generic_instantiations_exit checked 11978ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_phantom_owned_constructor_exit checked 11484ms check-target:macos_arm64 @31087983ba35
 pass/generics/runtime_qualified_closed_equation_exit checked 7733ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_result_destination_inference_exit checked 3637ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_selected_map_capture_invocation_scopes rejected 2864ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
