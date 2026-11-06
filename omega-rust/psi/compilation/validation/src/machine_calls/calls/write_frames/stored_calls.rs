@@ -356,6 +356,19 @@ fn invocation_reference_effects(
         trace_refusal("checked-callee-application");
         return None;
     }
+    // A refused installation returns the original reference descriptors. Its
+    // writer changes only admitted private address bits; Validate receives a
+    // shared table view, and Work has no normal return. The exact operation
+    // still owes table geometry, retained backing and native admission before
+    // execution. This relation says nothing about scalar contents or authority.
+    if crate::compiler_operations::static_interrupt_declaration(program, callee)
+        .ok()?
+        .is_some_and(|declaration| {
+            declaration.preserves_parameter_descriptors() && declaration.entry == state.symbol
+        })
+    {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
     // Preserve main's template deferral without refusing a generic owner whose
     // runtime destination inventory is already complete and concrete.
     if inventory.template_dependent {

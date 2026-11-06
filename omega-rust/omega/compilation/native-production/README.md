@@ -40,9 +40,12 @@ execution or package orchestration through an indirect dependency. Run
 `python tools/check_native_boundary.py` from the repository root to check all
 declared configurations. Optional and target-specific dependencies count.
 
-The source coordinator still produces one retained proposal per target. This
-facade does not finish the separate work of moving provider selection after a
-single target-neutral Psi check and Terminal publication.
+Compiling one program for several targets shares its checked Terminal program.
+The source and package entry points check each distinct set of source inputs
+once and finish gathering every target's declarations before selecting its
+providers and planning its layout and calls. Calling policies run from retained
+Terminal code. Native compilation uses that shared program with each target's
+own permissions and output, without reopening source.
 
 ## Reviewing a bootstrap environment assumption
 
