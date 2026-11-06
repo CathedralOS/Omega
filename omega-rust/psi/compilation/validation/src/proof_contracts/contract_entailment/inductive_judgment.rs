@@ -283,7 +283,7 @@ fn prepare_arm<'program>(
             .join(" && "),
     };
 
-    let mut engine = Engine::with_result_atom(program, machine, root);
+    let mut engine = Engine::with_result_atom(program, machine, root)?;
     if preceding.iter().any(|arm| arm.guard.is_none()) {
         return Some(JudgedArm {
             engine,
