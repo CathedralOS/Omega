@@ -156,6 +156,7 @@ pub struct StaticMachineContractObligation {
     /// Exact substituted binder row, not its source symbol shared by other
     /// closed requirement applications with different outer contracts.
     parameter: arena::Handle<TypeParameter>,
+    applied: typed_trees::typed_trees::AppliedMachineCallableId,
     selected: SymbolHandle,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     ordinal: usize,
@@ -184,6 +185,7 @@ impl StaticMachineContractObligation {
         }
         let obligation = Self {
             parameter: handle,
+            applied: applied.identity,
             selected: crate::call_target_state(program, applied.selected_entry)?.symbol,
             application: applied.invocation,
             ordinal: applied.ordinal,
@@ -199,10 +201,16 @@ impl StaticMachineContractObligation {
 
     pub(crate) fn supplies(
         &self,
+        program: &dyn crate::CheckingInput,
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        ordinal: usize,
+        demand: SymbolHandle,
         selected: SymbolHandle,
     ) -> bool {
-        self.application == application && self.original_selected == selected
+        self.application == application
+            && self.ordinal == ordinal
+            && self.original_selected == selected
+            && program.data_type_parameters.get(self.parameter).symbol == demand
     }
 
     /// The rewritten call retains its original binder. Its independent input
@@ -245,6 +253,22 @@ impl StaticMachineContractObligation {
             return Err("the selected callable lost its machine binder");
         };
         let required = machine_parameter_signature(program, contract);
+        if self.applied.is_valid() {
+            let applied = program
+                .applied_machine_callable_at(self.applied)
+                .ok_or("the selected callable lost its retained applied input row")?;
+            if applied.invocation != self.application
+                || applied.ordinal != self.ordinal
+                || applied.selected_entry != self.original_selected
+                || applied.demand != parameter.symbol
+                || applied.source_required != required
+            {
+                return Err(
+                    "the selected callable input row belongs to another application or binder",
+                );
+            }
+            return Ok(applied.required);
+        }
         if let Some(applied) = program.applied_machine_callable(
             self.application,
             self.ordinal,
@@ -849,6 +873,16 @@ fn form_call_selection(
                             std::ptr::eq(candidate, parameter).then_some(handle)
                         })
                         .expect("formed contract binder belongs to the typed parameter arena"),
+                    applied: program
+                        .applied_machine_callable(
+                            application,
+                            static_machine_ordinal,
+                            selected.symbol,
+                            parameter.symbol,
+                            requirement,
+                        )
+                        .map(|view| view.identity)
+                        .unwrap_or_default(),
                     selected: selection_symbol,
                     application,
                     ordinal: static_machine_ordinal,
@@ -1151,6 +1185,21 @@ fn machine_state_index(program: &dyn crate::CheckingInput) -> MachineStateIndex 
         }
     }
     index
+}
+
+pub(crate) fn static_machine_input_parameters(
+    program: &dyn crate::CheckingInput,
+    target_symbol: SymbolHandle,
+) -> &[TypeParameter] {
+    if let Some(machine) = program.machine_by_own_or_state_symbol(target_symbol) {
+        return program.machine_type_parameters(machine);
+    }
+    if let Some((_, signature)) = program.machine_parameter_signature(target_symbol) {
+        return program.state_signature_type_parameters(signature);
+    }
+    crate::selected_requirement_signature(program, target_symbol)
+        .map(|(_, signature)| program.requirement_invocation_contract_parameters(signature))
+        .unwrap_or(&[])
 }
 
 fn declared_type_parameters<'a>(

@@ -5,7 +5,9 @@
 
 use super::{Arrival, ExpressionHandle, Machine, SymbolHandle};
 use crate::CheckingInput;
-use crate::machine_calls::machine_parameters::StaticMachineContractObligation;
+use crate::machine_calls::machine_parameters::{
+    StaticMachineContractObligation, machine_selection_arguments, static_machine_input_parameters,
+};
 use symbols::SymbolKeyMap;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::references::TypedReferences;
@@ -230,6 +232,7 @@ impl ProgramPrivateArrivalIndex {
     }
 
     fn build(program: &dyn CheckingInput) -> Self {
+        program.prepare_applied_machine_callable_queries();
         let machines = program.machines();
         let mut members_by_root: SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
         let mut target_roots: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();
@@ -784,12 +787,13 @@ impl ProgramPrivateUses<'_> {
         &mut self,
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
         inputs: &[StaticMachineContractObligation],
+        ordinal: usize,
+        demand: SymbolHandle,
         argument: &typed_trees::expression::StaticMachineArgument,
     ) {
-        if inputs
-            .iter()
-            .any(|input| input.supplies(application, argument.symbol))
-        {
+        if inputs.iter().any(|input| {
+            input.supplies(self.program, application, ordinal, demand, argument.symbol)
+        }) {
             self.direct(argument.symbol);
         }
     }
@@ -844,8 +848,21 @@ impl TypedReferences for ProgramPrivateUses<'_> {
     ) -> bool {
         let application = call.application();
         let inputs = self.callable_inputs(application);
-        for argument in call.arguments(program) {
-            self.supplied_argument(application, &inputs, argument);
+        let parameters =
+            static_machine_input_parameters(self.program, call.registration_operation(program));
+        let mut demands = parameters.iter().filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Machine { .. }
+            )
+        });
+        for (ordinal, argument) in
+            machine_selection_arguments(self.program, call.arguments(program)).enumerate()
+        {
+            let Some(demand) = demands.next() else {
+                break;
+            };
+            self.supplied_argument(application, &inputs, ordinal, demand.symbol, argument);
         }
         true
     }
@@ -855,17 +872,36 @@ impl TypedReferences for ProgramPrivateUses<'_> {
     ) {
         let inputs = self.callable_inputs(application);
         let program = self.program;
-        for argument in program
+        let declaration = program
+            .static_machine_application(application)
+            .registration_operation;
+        let demands = static_machine_input_parameters(program, declaration)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        for (ordinal, argument) in program
             .expression_table
             .static_machine_application_selected_machines(application)
+            .iter()
+            .enumerate()
         {
-            self.supplied_argument(application, &inputs, argument);
+            if let Some(demand) = demands.get(ordinal) {
+                self.supplied_argument(application, &inputs, ordinal, demand.symbol, argument);
+            }
         }
         for binding in program.static_machine_application_bindings(application) {
             if let typed_trees::static_applications::StaticMachineBindingValue::Machine(argument) =
                 &binding.value
+                && let Some(ordinal) = demands
+                    .iter()
+                    .position(|parameter| parameter.symbol == binding.parameter)
             {
-                self.supplied_argument(application, &inputs, argument);
+                self.supplied_argument(application, &inputs, ordinal, binding.parameter, argument);
             }
         }
     }

@@ -21,7 +21,9 @@ mod realization_scopes;
 mod requirement_instances;
 mod selected_operands;
 mod signatures;
+mod table;
 mod trait_scopes;
+pub(super) use table::AppliedCallableTable;
 
 pub use requirement_instances::{ClosedRequirementApplication, RequirementLocalArgument};
 
@@ -244,7 +246,18 @@ pub struct CallableSubstitution {
 }
 
 /// A symbolic application is a checking view, not an executable instance.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct AppliedMachineCallableId(arena::Handle<AppliedCallableSignature>);
+
+impl AppliedMachineCallableId {
+    pub fn is_valid(self) -> bool {
+        self.0.is_valid()
+    }
+}
+
 pub struct AppliedMachineCallable<'a> {
+    /// Exact row emitted by the applied-callable owner, including its generation.
+    pub identity: AppliedMachineCallableId,
     /// Exact receiving call; its declaration owns the caller-lifetime formals
     /// and its lexical owner supplies their actuals. Provider custody is separate.
     pub invocation: crate::static_applications::StaticMachineApplicationHandle,
