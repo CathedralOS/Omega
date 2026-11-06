@@ -380,7 +380,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         prepared = Err(crate::storage::provider_storage::initialization::InitializationRejection::IncompatibleSupply);
                     }
                     match prepared {
-                        Err(rejection) => self.reject_access_initialization(
+                        Err(rejection) => self.reject_access_transfer(
                             operation,
                             boundary_declaration,
                             plan,
@@ -397,6 +397,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 }
                 terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
                     self.extract_access_resident(operation, boundary_declaration, plan)?;
+                    return Ok(OperationFlow::Advance);
+                }
+                terminal_psi::TerminalAccessLifecycleOperation::Relocate => {
+                    self.relocate_access_run(operation, boundary_declaration, plan)?;
                     return Ok(OperationFlow::Advance);
                 }
             }

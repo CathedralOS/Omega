@@ -7,3 +7,4 @@ pub(crate) mod resource_compatibility;
 pub(crate) mod resource_profile;
 pub(crate) mod resource_profile_admission;
 pub(crate) mod resource_profile_validation;
+pub(crate) mod run_relocation;

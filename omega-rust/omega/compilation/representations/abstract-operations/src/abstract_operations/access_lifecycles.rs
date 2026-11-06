@@ -12,6 +12,12 @@ use terminal_psi::{
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AccessLifecycleOperands {
+    Relocate {
+        source: StructuralArgument,
+        destination: StructuralArgument,
+        source_profile: StructuralArgument,
+        destination_profile: StructuralArgument,
+    },
     Initialize {
         storage: StructuralArgument,
         value: StructuralArgument,
@@ -33,6 +39,21 @@ impl AccessLifecycleOperands {
         arguments: &[StructuralArgument],
     ) -> Result<Self, &'static str> {
         match (operation, arguments) {
+            (
+                LifecycleOperation::Relocate,
+                [source, destination, source_profile, destination_profile],
+            ) if source.access == StructuralAccess::Owned
+                && destination.access == StructuralAccess::Owned
+                && source_profile.access == StructuralAccess::SharedBorrow
+                && destination_profile.access == StructuralAccess::SharedBorrow =>
+            {
+                Ok(Self::Relocate {
+                    source: source.clone(),
+                    destination: destination.clone(),
+                    source_profile: source_profile.clone(),
+                    destination_profile: destination_profile.clone(),
+                })
+            }
             (LifecycleOperation::View, [storage, profile])
                 if matches!(storage.access, terminal_psi::reading_borrow_pair_pattern!())
                     && profile.access == StructuralAccess::SharedBorrow =>
@@ -68,13 +89,24 @@ impl AccessLifecycleOperands {
 
     pub fn arguments(&self) -> impl Iterator<Item = &StructuralArgument> {
         match self {
+            Self::Relocate {
+                source,
+                destination,
+                source_profile,
+                destination_profile,
+            } => [
+                Some(source),
+                Some(destination),
+                Some(source_profile),
+                Some(destination_profile),
+            ],
             Self::Initialize {
                 storage,
                 value,
                 profile,
-            } => [Some(storage), Some(value), Some(profile)],
+            } => [Some(storage), Some(value), Some(profile), None],
             Self::MoveOut { storage, profile } | Self::View { storage, profile } => {
-                [Some(storage), Some(profile), None]
+                [Some(storage), Some(profile), None, None]
             }
         }
         .into_iter()
@@ -83,6 +115,7 @@ impl AccessLifecycleOperands {
 
     pub const fn operation(&self) -> LifecycleOperation {
         match self {
+            Self::Relocate { .. } => LifecycleOperation::Relocate,
             Self::Initialize { .. } => LifecycleOperation::Initialize,
             Self::MoveOut { .. } => LifecycleOperation::MoveOut,
             Self::View { .. } => LifecycleOperation::View,
@@ -104,6 +137,33 @@ mod tests {
             access,
             path: Vec::new(),
         }
+    }
+
+    #[test]
+    fn relocation_retains_two_owned_inputs_and_two_distinct_profile_positions() {
+        let inputs = vec![
+            argument(1, StructuralAccess::Owned),
+            argument(2, StructuralAccess::Owned),
+            argument(3, StructuralAccess::SharedBorrow),
+            argument(4, StructuralAccess::SharedBorrow),
+        ];
+        let operands =
+            AccessLifecycleOperands::from_arguments(LifecycleOperation::Relocate, &inputs)
+                .expect("run and destination with separate profiles");
+        assert_eq!(operands.operation(), LifecycleOperation::Relocate);
+        assert_eq!(operands.arguments().cloned().collect::<Vec<_>>(), inputs);
+        for position in 0..inputs.len() {
+            let mut changed = inputs.clone();
+            changed[position].access = StructuralAccess::MutableBorrow;
+            assert!(
+                AccessLifecycleOperands::from_arguments(LifecycleOperation::Relocate, &changed)
+                    .is_err()
+            );
+        }
+        assert!(
+            AccessLifecycleOperands::from_arguments(LifecycleOperation::Relocate, &inputs[..3])
+                .is_err()
+        );
     }
 
     #[test]

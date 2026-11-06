@@ -44,6 +44,7 @@ pub(crate) use normalized_identity::normalized_identity;
 mod plan_policy;
 mod primitive_access;
 mod resources;
+pub use resources::run_relocation::validate_run_relocation_resources;
 #[cfg(test)]
 mod tests;
 
