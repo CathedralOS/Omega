@@ -281,25 +281,20 @@ impl PreparedBoundaryCallingPlans {
         // other and of their order. They run together; their results are then
         // consumed in request order, so the first refusal in that order is
         // still the one reported.
-        use rayon::prelude::*;
-        let activations: Vec<_> = validation::checking_thread_pool().install(|| {
-            self.pending
-                .par_iter()
-                .map(|policy| {
-                    code.require_owner(&self.source_owner)?;
-                    let instance = policy.canonical_instance(code)?;
-                    let evaluated = code.evaluate(
-                        instance,
-                        self.target,
-                        policy.signature,
-                        &self.providers,
-                        policy.requester,
-                        self.authority.as_deref(),
-                    )?;
-                    Ok::<_, String>((instance, evaluated))
-                })
-                .collect()
-        });
+        let activate = |policy: &PreparedCallingPolicy| {
+            code.require_owner(&self.source_owner)?;
+            let instance = policy.canonical_instance(code)?;
+            let evaluated = code.evaluate(
+                instance,
+                self.target,
+                policy.signature,
+                &self.providers,
+                policy.requester,
+                self.authority.as_deref(),
+            )?;
+            Ok::<_, String>((instance, evaluated))
+        };
+        let activations = activate_in_parallel(&self.pending, activate);
         let mut evaluated = Vec::with_capacity(self.pending.len());
         for (policy, activation) in self.pending.into_iter().zip(activations) {
             let diagnostic = |reason: String| {
@@ -388,4 +383,66 @@ fn publish_materialized_application(
         &[&application.commitment],
     );
     Ok(application)
+}
+
+/// The interpreter recurses as deeply as a compile does, so policy workers
+/// carry the compile thread's stack budget rather than the host default.
+const POLICY_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+/// Run `activate` over `items` on up to one worker per CPU, returning results
+/// in `items` order. A worker that cannot start leaves its share to the caller.
+fn activate_in_parallel<Item: Sync, Output: Send>(
+    items: &[Item],
+    activate: impl Fn(&Item) -> Output + Sync,
+) -> Vec<Output> {
+    let workers = std::thread::available_parallelism()
+        .map_or(1, std::num::NonZeroUsize::get)
+        .min(items.len());
+    if workers <= 1 {
+        return items.iter().map(&activate).collect();
+    }
+    let activate = &activate;
+    // Worker `w` takes items w, w + workers, ...; slots are then read back in order.
+    let mut slots: Vec<Option<Output>> =
+        std::iter::repeat_with(|| None).take(items.len()).collect();
+    std::thread::scope(|scope| {
+        let handles: Vec<_> = (1..workers)
+            .map(|worker| {
+                std::thread::Builder::new()
+                    .name(format!("omega-calling-{worker}"))
+                    .stack_size(POLICY_STACK_SIZE)
+                    .spawn_scoped(scope, move || {
+                        (worker..items.len())
+                            .step_by(workers)
+                            .map(|index| (index, activate(&items[index])))
+                            .collect::<Vec<_>>()
+                    })
+                    .map_err(|_| worker)
+            })
+            .collect();
+        for index in (0..items.len()).step_by(workers) {
+            slots[index] = Some(activate(&items[index]));
+        }
+        for handle in handles {
+            match handle {
+                Ok(handle) => {
+                    for (index, output) in handle
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                    {
+                        slots[index] = Some(output);
+                    }
+                }
+                Err(worker) => {
+                    for index in (worker..items.len()).step_by(workers) {
+                        slots[index] = Some(activate(&items[index]));
+                    }
+                }
+            }
+        }
+    });
+    slots
+        .into_iter()
+        .map(|slot| slot.expect("every policy slot is filled"))
+        .collect()
 }

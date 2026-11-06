@@ -1864,7 +1864,6 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
- "rayon",
  "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1881,7 +1880,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
- "validation",
 ]
 
 [[package]]
