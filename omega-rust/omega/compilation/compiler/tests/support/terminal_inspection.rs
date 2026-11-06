@@ -216,16 +216,22 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
         let selected_target = crate::check_leg_realization_target(&discovered.targets);
         let profile = target::TargetProfile::from_omega_target_name(selected_target.as_deref())
             .map_err(|error| error.message)?;
+        let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
+            .map_err(|errors| format!("inspection {machine} admission: {errors:?}"))?;
         let provider_choices = if matches!(
             conformance_controls,
             Some(InspectionControls::ProviderChoices)
         ) {
-            Some(provider_choice_controls::prepare(root, profile)?)
+            let checked = fixture_package_inputs::check_fixture(
+                &mut prepared,
+                profile.target_name(),
+                Default::default(),
+            )
+            .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
+            Some(provider_choice_controls::prepare(&checked, root, profile)?)
         } else {
             None
         };
-        let mut prepared = fixture_package_inputs::review_fixture(discovered, &[profile], product)
-            .map_err(|errors| format!("inspection {machine} admission: {errors:?}"))?;
         if source_controls {
             let checked = fixture_package_inputs::check_fixture(
                 &mut prepared,

@@ -20,31 +20,10 @@ pub(super) struct PreparedProviderChoices {
 }
 
 pub(super) fn prepare(
+    checked: &compiler::CheckedCompilation,
     root: &Path,
     profile: target::TargetProfile,
 ) -> Result<PreparedProviderChoices, String> {
-    let snapshot = crate::fixture_package_inputs::fixture_build_snapshot(root)
-        .map_err(|errors| format!("provider choices build inputs: {errors:?}"))?;
-    let discovered = crate::fixture_package_inputs::discover_fixture(
-        root,
-        package_compilation::BuildExecutionInputs {
-            snapshot,
-            ..Default::default()
-        },
-    )
-    .map_err(|errors| format!("provider choices discovery: {errors:?}"))?;
-    let mut prepared = crate::fixture_package_inputs::review_fixture(
-        discovered,
-        &[profile],
-        compiler::CompilationProduct::Check,
-    )
-    .map_err(|errors| format!("provider choices admission: {errors:?}"))?;
-    let checked = crate::fixture_package_inputs::check_fixture(
-        &mut prepared,
-        profile.target_name(),
-        Default::default(),
-    )
-    .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
     let selected_plans = checked.execution().plans().plans().to_vec();
     let publication = checked.providers().provider_publication.prepare(
         &[profile.target_name().to_owned()],
@@ -52,10 +31,8 @@ pub(super) fn prepare(
         checked.execution().plans().assumed_bindings(),
         &checked.providers().verified_independent_components,
     );
-    let expected_instances = provider_instance_controls::prepare(&checked, root)?;
-    let callback_bodies = callback_body_controls::prepare(&checked, root)?;
-    drop(checked);
-    drop(prepared);
+    let expected_instances = provider_instance_controls::prepare(checked, root)?;
+    let callback_bodies = callback_body_controls::prepare(checked, root)?;
     Ok(PreparedProviderChoices {
         publication,
         selected_plans,
