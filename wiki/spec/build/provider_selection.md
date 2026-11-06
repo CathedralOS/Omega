@@ -134,7 +134,7 @@ the caller's evidence as a side effect of platform selection.
 
 Specialization retains the caller's exact static selections and the selected
 provider identity. Runtime-capable value binders keep their ordinary argument
-semantics. This is not a `dyn Trait` method lookup and introduces no unrestricted
+semantics. This is not a runtime machine-value lookup and introduces no unrestricted
 generic vtable, runtime generic engine, or generic foreign ABI. A realized call
 may still use the selected boundary's import, indirect-entry or transport
 mechanism; absence of local trait dispatch is not a promise of direct native

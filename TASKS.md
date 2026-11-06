@@ -31,9 +31,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Move Build facet calls to `Build::*`, retire `machine Data::operation` and attached helpers, and finish suspension loans.
   Acceptance: 9-place `dropped by` rows, `generic_counters`, clock/GUI samples, and `traits/,layouts/,progress/` pass `--both`.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Complete `dyn` dispatch ([dynamic_dispatch.md](wiki/spec/terminal-psi/dynamic_dispatch.md)).
-  - Complete [captured values, envelope refinement and table custody](wiki/drafts/designs/captured_dyn.md) across all hosts.
-  Acceptance: `traits/` and captured-value controls pass `--both` on Windows, macOS and Linux; replacement edges are checked.
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Replace `dyn` with [machine values and some](wiki/drafts/designs/machine_values_some.md).
+  - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.
+  Acceptance: migrated `traits/` and package controls pass `--both` on all hosts; replacement edges are checked.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.

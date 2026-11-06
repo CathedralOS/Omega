@@ -1,5 +1,12 @@
 # Loan resources and compatibility
 
+[Some packages](../language/some_packages.md) retain ordinary loans on their
+explicit reference fields. Openings are tied to canonical subject/version and
+captured-index evidence; separate projections share a witness only through a
+valid stable opening. Moves, copies and joins retain their checked correlation.
+Reassignment, relocation and overlapping writes cannot preserve stale openings
+or extend loan lifetimes; lowering consumes the checked opening/reborrow plans.
+
 Borrow admission joins resource authority with relational evidence. Neither
 substitutes for the other.
 

@@ -310,7 +310,9 @@ Policy code, static inputs, selections, target dependencies actually consulted,
 and schema revision participate in retained derivation dependencies. Live runtime
 context values cannot influence compile-time selection. No general facility for
 returning runtime machine symbols or treating conformance evidence as ordinary
-generic value atoms is introduced.
+generic value atoms is introduced by reflection. Runtime [machine values](machine_values.md)
+require ordinary closed selection and callable-contract refinement; metadata
+alone is not an executable descriptor.
 
 ## Contracts, recursion, and resources
 
@@ -338,6 +340,12 @@ No hidden recursive stack is generated. Cyclic/shared object traversal separatel
 chooses whether to follow, identify, or omit references; a recursive schema alone
 does not establish that policy.
 
+A `some` declaration exposes its abstract binder and ordinary field schema.
+Opening one value does not reveal a concrete witness to generic reflection or
+create a downcast. Dependent projections obey the same stable-subject and scope
+rules as ordinary package access; available operations/evidence must justify
+inspection of the abstract referent. See [some packages](some_packages.md).
+
 ## Runtime descriptions and access views
 
 An explicit `reflect::metadata<T>()` request materializes owned copy-eligible
@@ -350,9 +358,9 @@ library/build products with ordinary storage and lifecycle contracts.
 
 Selected runtime interfaces separately expose descriptions, getters, setters,
 factories, serialization, or invocation. Availability of one does not imply all.
-Dynamic values retain the selected named implementation independently from the
-data passed to its machines. Explicit data arguments retain their ordinary
-borrowed lifetimes; there is no accidental static-lifetime requirement on all
+Runtime machine values retain their selected code independently from explicit
+state arguments; `some` packages preserve checked relations between those fields.
+Explicit data arguments retain their ordinary borrowed lifetimes; there is no accidental static-lifetime requirement on all
 inspectable values. Recursive adapter retention follows exact dependencies, not a global
 inventory of every known type.
 

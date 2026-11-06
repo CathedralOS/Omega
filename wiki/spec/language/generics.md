@@ -1,5 +1,9 @@
 # Generic declarations and static machine parameters
 
+Data declarations additionally admit [`some` binders](some_packages.md): their
+witness is chosen per value and omitted from the external type application.
+This is not a machine generic binder and does not replace `machine F`.
+
 Generic declarations bind types, values, machine declarations, or explicit
 conformance evidence. Value binders distinguish runtime-capable `Count: u32`
 from static `const Count: u32`. Bodies are checked against their declared
@@ -53,17 +57,16 @@ retain their ordinary value-argument meaning. Executable applications follow
 ordinary demand and realization rather than a new runtime generic engine.
 This introduces neither a generic foreign ABI nor implicit native adapters.
 
-Static generic eligibility does not confer dynamic eligibility. Unrestricted
-requirement-local type, machine or implementation binders cannot become open
-virtual-method slots. Generic trait arguments closed before forming a `dyn`
-interface and the existing explicit finite value families retain their distinct
-rules under [dynamic dispatch](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+Static generic eligibility does not confer unrestricted runtime polymorphism.
+[Machine values](machine_values.md) require closed callable signatures; bind
+ordinary type, machine and evidence arguments before constructing them. Explicit
+finite value families retain their declared tuple contracts under
+[callable dispatch](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 
-[Borrowed dynamic captures](../terminal-psi/dynamic_dispatch.md#borrowed-captures)
-check a concrete trait argument at construction before erasing it with `_`.
-Each admitted generic capture instantiation contributes its exact entry to the
-artifact's finite roster. Erasure does not admit an open requirement-local
-generic method or infer a different roster for each container or helper.
+[Some data binders](some_packages.md) choose a type per packaged value rather
+than per external type instantiation. A generic helper may construct a package
+using its concrete argument. No global roster of helper instantiations or hidden
+types is needed for the package's uniform borrowed representation.
 
 ## Applications and specialization
 
@@ -489,11 +492,13 @@ per-region scan methods make that boundary explicit. Repeated public invocations
 may still dispatch, and unknown plugin implementations remain dynamic. A finite
 width set does not prove a particular machine instruction or performance result.
 
-[Finite dynamic families](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-retain canonical requirement-and-tuple rows in one named conformance. A result
+[Finite callable families](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+retain canonical contract-and-tuple rows independently of target discovery.
+Static conformances retain their own complete requirement maps. A result
 may remain inside a statically selected branch or use a common representation.
 If different specialized results must escape together, author an ordinary finite
-sum with exact case payloads or an already specified owner/descriptor contract.
+sum with exact case payloads, a uniform borrowed [some package](some_packages.md),
+or an already specified owner/descriptor contract.
 Index and result custody stay joined. No implicit boxing, arbitrary existential
 type, or unspecified variable-layout result ABI is introduced.
 
@@ -582,10 +587,12 @@ explicit parameters with their normal ownership and access contracts. Authors
 construct that data and explicitly select
 the named callback declaration. No anonymous body/environment association or
 free-variable capture inference is provided. Dynamic selection still uses
-ordinary sums/wrappers or eligible dynamic conformances.
+[runtime machine values](machine_values.md), operations records and
+[some packages](some_packages.md). The static binder remains a separate choice.
 
-A static parameter cannot be stored as a field type or returned as a runtime
-callback reference. A fully selected executable machine application may instead
+A static machine binder is a declaration argument, not itself a field type.
+Once its executable application is closed, it may construct or return a
+machine value through ordinary callable-contract refinement. It may also
 be observed with `address_of<Selected<Arguments>>()` under
 [address exposure](counts_and_addresses.md#address-exposure). That query
 creates an entry demand, not a callable value or an implicit callback selection.

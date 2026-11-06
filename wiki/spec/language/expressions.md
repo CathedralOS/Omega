@@ -81,7 +81,9 @@ A qualified machine name does not capture a data instance. See
 [address exposure](counts_and_addresses.md#address-exposure). `size_of<T>()`
 and `align_of<T>()` query a data layout; `code_layout<Selected<Arguments>>()`
 queries late native code regions. Static arguments select types or exact machine
-applications without introducing runtime type objects or first-class machines.
+applications without introducing runtime type objects. These address/layout
+queries do not construct [runtime machine values](machine_values.md): a callable
+value is established separately by exact named selection and contract refinement.
 
 Assignment requires writable storage, compatible value type, and the applicable
 [invariant-window obligations](dependent_values.md#invariant-windows). It first
