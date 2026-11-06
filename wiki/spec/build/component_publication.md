@@ -80,6 +80,16 @@ proves the requested cut, reports an enlarged cohort for explicit owner acceptan
 or rejects; it cannot silently label a smaller cut independent. The cohort may
 be the whole program.
 
+[Captured local dynamic values](../terminal-psi/dynamic_dispatch.md#borrowed-captures)
+publish their selected code/conformance, roster/representation and captured
+borrow custody edges into this closure. Within a Fused artifact, a new admitted
+roster entry changes the shared roster identity, even when byte size is unchanged;
+every dependent representation and dispatch site must be regenerated consistently.
+A new capture site using an existing entry does not enlarge the roster. Referent
+layout changes need not resize its stored borrow, but retain their concrete code
+and custody dependencies. Independent components outside that artifact join only
+when their actual closure edges require it.
+
 Artifacts retain attributable closure edges. Source diagnostics identify the
 occurrence/span; a source-free manifest still names consuming artifact and
 declaration, selected conformance/implementation, and the edge enlarging the cut.
@@ -328,6 +338,16 @@ Stable indirect descriptors can retain varying provider-owned backing while
 outstanding non-copy handles pin the interpreting era. Local `dyn` tables do not
 cross an independently reclaimable boundary; a local proxy may call the service,
 and the boundary returns detached data or an explicit era-pinning handle instead.
+
+This applies to captured `dyn` environments as well as selector-only tables.
+A paused container may still hold old borrows and dispatch tags. Quiescence
+alone cannot reinterpret those entries under a new roster or referent layout.
+Drain them, retain their interpreting era, or consume their captures, explicitly
+migrate or recreate the underlying state, and construct new captures under the
+new roster. Removing an entry only transfers its custody until the removed
+value and any dependent loans are disposed of. A local proxy remains the route
+to an independently replaceable component; captured tables do not cross that
+boundary themselves.
 
 ## Replacement and coexistence
 

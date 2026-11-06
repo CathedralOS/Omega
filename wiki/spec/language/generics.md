@@ -59,6 +59,12 @@ virtual-method slots. Generic trait arguments closed before forming a `dyn`
 interface and the existing explicit finite value families retain their distinct
 rules under [dynamic dispatch](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
 
+[Borrowed dynamic captures](../terminal-psi/dynamic_dispatch.md#borrowed-captures)
+check a concrete trait argument at construction before erasing it with `_`.
+Each admitted generic capture instantiation contributes its exact entry to the
+artifact's finite roster. Erasure does not admit an open requirement-local
+generic method or infer a different roster for each container or helper.
+
 ## Applications and specialization
 
 An `asm machine` uses these same binders and machine-satisfaction rules; its

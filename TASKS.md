@@ -32,8 +32,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: 9-place `dropped by` rows, `generic_counters`, clock/GUI samples, and `traits/,layouts/,progress/` pass `--both`.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Complete `dyn` dispatch ([dynamic_dispatch.md](wiki/spec/terminal-psi/dynamic_dispatch.md)).
-  - Complete envelope refinement under [known-selection narrowing](wiki/spec/language/effects.md#known-dynamic-selections) and preserve 8-byte dispatch tables across all hosts.
-  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (`runtime_dyn_*_exit`) passes on Windows, macOS, and Linux.
+  - Complete [captured values, envelope refinement and table custody](wiki/drafts/designs/captured_dyn.md) across all hosts.
+  Acceptance: `traits/` and captured-value controls pass `--both` on Windows, macOS and Linux; replacement edges are checked.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.

@@ -603,7 +603,67 @@ Implementation names and table addresses are not data type identities.
 
 `dyn Convert<Image, Text>` selects an Image-to-Text implementation. Its type
 arguments remain known; neither one is a privileged subject. Hiding input or
-output types is a separate packaging question and is not implied by `dyn`.
+output types is not implied by this selector-only form.
+
+### Capturing borrowed state
+
+When different implementations need different state types, explicitly bind
+their borrowed arguments and erase the varying type with `_`. The compiler
+maintains the sum and dispatch that you would otherwise write yourself.
+This is ratified syntax with implementation tracked by the
+[captured dynamic values plan](../drafts/designs/captured_dyn.md).
+
+```omega
+trait Metric<S> { machine value(state: &S) -> u64; }
+data Queue { pending: u64; }
+data Cache { hits: u64; }
+
+QueueDepth satisfies Metric<Queue> {
+    machine value(state: &Queue) -> u64 { state.pending }
+}
+CacheHits satisfies Metric<Cache> {
+    machine value(state: &Cache) -> u64 { state.hits }
+}
+```
+
+The two entries below borrow different state types. Each keeps the named
+implementation paired with the correct state:
+
+```omega
+let queue = Queue { pending: 7 };
+let cache = Cache { hits: 42 };
+let metrics: [dyn Metric<_>; 2] = [
+    QueueDepth as dyn Metric<_> { state: &queue },
+    CacheHits as dyn Metric<_> { state: &cache },
+];
+let depth: u64 = Metric::value(metrics[0]);
+```
+
+`state` names the captured parameter. There is no receiver: a call supplies
+any remaining parameters normally. Every parameter involving the hidden type
+must be captured as a borrow, and no result may expose that type. Ambiguous
+parameter names require qualification; unrelated same-spelled slots are not
+silently bound together. Each call still has to prove its current `requires`.
+
+A growable container can receive more entries at runtime, including from a
+branch or a helper taking the container by mutable reference. The compiler
+knows the possible implementation/type combinations, not how many entries
+will exist or which branches execute. A new runtime state value can use an
+existing combination without creating a new dispatch case.
+
+The captured state must outlive its uses. A helper cannot append a reference
+to its own local and leave that reference behind. Mutable captures reserve
+exclusive access while their loans remain live. Removing an entry moves its
+borrow with it; consuming it can release the loan under ordinary rules even
+while the container remains alive.
+
+V1 keeps these values inside one Fused artifact and captures borrows only.
+Adding a new admitted implementation/type combination changes the artifact's
+shared roster and can rebuild every dependent holder and dispatch site. An
+additional capture using an existing combination does not enlarge that roster.
+Component calls still use boundary plans and local proxies. Hot swapping must
+account for captured borrows and old dispatch selections; pausing execution
+does not convert old state into a new layout.
 
 ### Dynamic surface
 
@@ -620,8 +680,9 @@ whole family. The [dynamic surface contract](../spec/terminal-psi/dynamic_dispat
 owns call shapes, envelopes and [finite families](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 Boundary-trait requirements retain their separate boundary calling plan.
 
-These rules replace the former borrowed-instance/table model. Current compiler
-limitations belong to `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and
+Explicit captures do not restore the former implicit borrowed-instance/table
+model. Current compiler limitations belong to
+`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and
 `RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY` on the execution board.
 
 <a id="proof-projection-and-carrierless-evidence"></a>
