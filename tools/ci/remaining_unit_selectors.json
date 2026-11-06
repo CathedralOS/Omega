@@ -1,0 +1,130 @@
+{
+  "kind": "finite affected unexecuted Rust unit selectors; preparation only",
+  "source": "2e9a696a90f329dccb6e0cc40b5cb610e7ed98b6",
+  "groups": [
+    {
+      "package": "terminal-installation",
+      "filter": "lender_preservation::tests",
+      "expected_nonignored_passes": 3,
+      "test_names": [
+        "requested_calls_keep_all_duties_and_sparse_identities",
+        "requested_calls_still_refuse_missing_ambiguous_and_noncall_operations",
+        "requested_calls_keep_the_original_refusal_order"
+      ],
+      "source_path": "omega-rust/psi/compilation/validation/terminal-installation/src/lender_preservation.rs",
+      "source_sha256": "45dc2d203478d69459415c8303f303a303305c9f53512dd4079df977cd47d598",
+      "cargo_fallback_command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "-p",
+        "terminal-installation",
+        "lender_preservation::tests",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "package": "terminal-psi-to-abstract-operations",
+      "filter": "native_execution_scope::boundary_resolution_tests",
+      "expected_nonignored_passes": 2,
+      "test_names": [
+        "assumed_sources_keep_the_first_row_and_sparse_chain_endpoint",
+        "missing_and_cyclic_supplies_cannot_become_checked_bodies"
+      ],
+      "source_path": "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs",
+      "source_sha256": "c2c7258ef5800d0e60bff337c2c32b7bb5c3a831a7e33b2a7b2c2aa13c26e721",
+      "cargo_fallback_command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "-p",
+        "terminal-psi-to-abstract-operations",
+        "native_execution_scope::boundary_resolution_tests",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "package": "checked-trees-to-lowered-psi",
+      "filter": "machine_lowering::call_requests::tests",
+      "expected_nonignored_passes": 3,
+      "test_names": [
+        "one_operation_walk_serves_repeated_sparse_call_lookups",
+        "missing_duplicate_and_noncall_operations_cannot_supply_a_call",
+        "checked_call_keys_keep_state_generation_and_require_resolved_origins"
+      ],
+      "source_path": "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/call_requests.rs",
+      "source_sha256": "23b168994be3bce0a83abab7294d7d82ffba4db9fc779496b0f8f197ea1411ac",
+      "cargo_fallback_command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "-p",
+        "checked-trees-to-lowered-psi",
+        "machine_lowering::call_requests::tests",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "package": "validation",
+      "filter": "queries::terminal_receiving::tests",
+      "expected_nonignored_passes": 2,
+      "test_names": [
+        "unavailable_required_value_children_keep_their_checking_owner",
+        "a_complete_empty_value_does_not_create_a_receiving_requirement"
+      ],
+      "source_path": "omega-rust/psi/compilation/validation/src/queries/terminal_receiving.rs",
+      "source_sha256": "7b5e6e04be8b5186c9b998c93897c2e74081513db09a8078b557a380605dadc0",
+      "cargo_fallback_command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "-p",
+        "validation",
+        "queries::terminal_receiving::tests",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    },
+    {
+      "package": "typed-trees-to-checked-trees",
+      "filter": "retained_loan_closure_keeps_the_captured_cohort_without_reviving_sibling_holders",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "retained_loan_closure_keeps_the_captured_cohort_without_reviving_sibling_holders"
+      ],
+      "source_path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/retained_loans.rs",
+      "source_sha256": "66329a80dc6cedee9c99a474b815c9c7be2b1a64c40f1e437b2f3f15af5784e1",
+      "cargo_fallback_command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--lib",
+        "-p",
+        "typed-trees-to-checked-trees",
+        "retained_loan_closure_keeps_the_captured_cohort_without_reviving_sibling_holders",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ]
+    }
+  ],
+  "expected_total_passes": 11,
+  "execution": null,
+  "limits": [
+    "Use mbx nextest when installed; Cargo fallback only where unavailable.",
+    "A successful command with zero tests is not qualification; bind actual executable/profile/source/raw and require each declared nonzero count.",
+    "These do not replace already observed116 semantics units or the full source/engine/artifact60+38/native custody obligations.",
+    "No new workflow, compiler execution, source/cache/profile mutation or host/profile substitution occurred."
+  ]
+}

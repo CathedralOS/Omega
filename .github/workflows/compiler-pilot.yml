@@ -36,6 +36,10 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
+      remaining_units:
+        description: Run the pinned eleven affected Rust units in NORMAL mode on macOS
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -136,6 +140,29 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Run the eleven pinned remaining Rust units in NORMAL mode
+        if: github.event_name == 'workflow_dispatch' && inputs.remaining_units && inputs.native_host == 'macos_arm64'
+        run: python tools/ci/remaining_units.py
+      - name: Retain focused unit images, profiles and raw results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.remaining_units && inputs.native_host == 'macos_arm64'
+        with:
+          name: compiler-pilot-remaining-units-macos_arm64-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/compiler-pilot/remaining-units/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Retain bounded focused unit records separately from test images
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.remaining_units && inputs.native_host == 'macos_arm64'
+        with:
+          name: compiler-pilot-remaining-unit-records-macos_arm64-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/remaining-units/
+            !build/compiler-pilot/remaining-units/**/test-image
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
       - name: Prepare and retain the optimized producer
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
