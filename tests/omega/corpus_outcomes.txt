@@ -10324,8 +10324,6 @@ fail/facts/nested_borrow_qualification_through_parameter_rejected rejected 2465m
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_borrow_qualification_through_target_body_rejected rejected 2788ms expected @ccdb99ca2214
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_machine_declared_repeated_reads_local rejected 4550ms expected @d0dc0a825502+wt
-	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_invocation/call_result rejected 1468ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
 	machine `keep$specialized$24e20771f1b96f6b$0` state `entry` terminal expression expects `u64`, got `bool`
@@ -18191,6 +18189,8 @@ fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expect
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
 	machine call cycle: `walk_flat` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/declared_selector_repeated_reads_no_descent rejected 4550ms expected @d0dc0a825502
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/default_order_ambiguous rejected 3383ms expected @898dd1bf8987
 	cannot infer a ranking for `terminates by remaining` in machine Main::countdown: signed values have no default well-founded order -- select one with `terminates by remaining -> View` (builtin views: Nat::Descending, Nat::BoundedDistance, Slice::Length)
 	machine call cycle: `Main::countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -23799,7 +23799,6 @@ pass/facts/nested_borrow_qualification_through_other_machine_exit checked 3790ms
 pass/facts/nested_borrow_qualification_through_other_state_exit checked 3755ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_borrow_qualification_through_parameter_exit checked 3670ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_borrow_qualification_through_target_body_exit checked 3309ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_machine_declared_repeated_reads_local checked 6396ms check-target:macos_arm64 @d0dc0a825502+wt
 pass/facts/nested_machine_invocation/call_result checked 3796ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/const_name checked 4014ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/copied_payload checked 3545ms check-target:macos_arm64 @ccdb99ca2214
@@ -27664,6 +27663,7 @@ pass/termination/computed_rank_endpoint checked 8241ms @d352d5e8e77e
 pass/termination/const_call_range_endpoint checked 3875ms @ccdb99ca2214
 pass/termination/custom_measure_rank checked 3482ms @ccdb99ca2214
 pass/termination/custom_ranking_order_compile checked 2938ms @ccdb99ca2214
+pass/termination/declared_selector_repeated_reads checked 6396ms check-target:macos_arm64 @d0dc0a825502
 pass/termination/default_order_nat_countdown_compile checked 2487ms @ccdb99ca2214
 pass/termination/default_order_slice_length_compile checked 7702ms @7b4244a67630
 pass/termination/distance_conjunction_guard_exit checked 13452ms check-target:macos_arm64 @ccdb99ca2214
