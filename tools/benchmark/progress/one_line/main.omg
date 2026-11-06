@@ -1,0 +1,1 @@
+data Main { marker: u64; } machine Main::main(main: &mut Main) { main.marker = 0; }
