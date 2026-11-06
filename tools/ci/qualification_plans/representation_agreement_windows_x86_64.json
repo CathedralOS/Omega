@@ -37,11 +37,29 @@
     "cache_key": "compiler-pilot-Windows-X64-007cfa9f9b9c5d5e53ace1acb6a69af709124dce0e0b01a2858a95408d3db9ac-bc53b23707f6d8db0843cf7e4d65f8bae61fecc0"
   },
   "fixtures": [
-    "pass/layouts/fixed_layout_reference_descriptor_exit",
-    "fail/layouts/fixed_layout_reference_descriptor_rejected",
-    "fail/layouts/fixed_layout_reference_descriptor_wrong_actual_rejected"
+    "fail/facts/representation_agreement_through_call_result_rejected",
+    "fail/facts/representation_agreement_through_const_name_rejected",
+    "fail/facts/representation_agreement_through_field_rejected",
+    "fail/facts/representation_agreement_through_local_rejected",
+    "fail/facts/representation_agreement_through_match_join_rejected",
+    "fail/facts/representation_agreement_through_other_machine_rejected",
+    "fail/facts/representation_agreement_through_other_state_rejected",
+    "fail/facts/representation_agreement_through_parameter_rejected",
+    "fail/facts/representation_agreement_through_target_body_rejected",
+    "pass/facts/representation_agreement_through_call_result_exit",
+    "pass/facts/representation_agreement_through_const_name_exit",
+    "pass/facts/representation_agreement_through_field_exit",
+    "pass/facts/representation_agreement_through_local_exit",
+    "pass/facts/representation_agreement_through_match_join_exit",
+    "pass/facts/representation_agreement_through_other_machine_exit",
+    "pass/facts/representation_agreement_through_other_state_exit",
+    "pass/facts/representation_agreement_through_parameter_exit",
+    "pass/facts/representation_agreement_through_target_body_exit"
   ],
   "source_only": false,
   "samples": [],
-  "cli_fixtures": []
+  "cli_fixtures": [
+    "samples/cli/facts/representation_agreement/other_machine",
+    "samples/cli/facts/representation_agreement/target_body"
+  ]
 }
