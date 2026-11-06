@@ -62,7 +62,11 @@ pub fn capture(
         command,
         BoundedProcessLimits::new(
             timeout_ms.div_ceil(1000) + 10,
-            16 * gibibyte,
+            // RLIMIT_AS counts reserved virtual memory, not use: at 16 GiB a
+            // release compiler checking a std project on Linux cannot reserve
+            // its worker-thread stacks and panics. Resident memory stays
+            // bounded by the 8 GiB limits below.
+            1024 * gibibyte,
             gibibyte,
             1024,
             64,
