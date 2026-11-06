@@ -784,7 +784,11 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
     # A caught compiler panic is a valid crash record even though its runner
     # exits zero. Keep its bounded diagnostic tail so the panic location does
     # not disappear behind the short payload stored in that record.
-    if any(record["status"] == "crashed" for record in parsed):
+    # Requested check-site details can accompany an ordinary refusal too.
+    # Keep the same bounded tail without changing the recorded outcome.
+    if (any(record["status"] == "crashed" for record in parsed)
+            or "OMEGA_COMPILER_CHECK_SITES" in env
+            and any(record["status"] == "rejected" for record in parsed)):
         sys.stderr.writelines(list(buffered_stderr)[-200:])
     return parsed
 
