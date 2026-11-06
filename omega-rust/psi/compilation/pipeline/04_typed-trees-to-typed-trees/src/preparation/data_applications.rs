@@ -27,7 +27,6 @@
 //! `Nest<[T; 2]>` in a growing recursive family.
 
 use crate::expression_roots::{append_statement_roots, visit_post_order};
-use crate::tables::expressions_of;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use symbols::SymbolKind;
@@ -467,12 +466,8 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
             } => {
                 pending.push(*base_type);
                 for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) => {
-                            pending.extend(domain.arguments.iter().copied())
-                        }
-
-                        _ => {}
+                    if let TypeConstraintNode::Domain(domain) = constraint {
+                        pending.extend(domain.arguments.iter().copied())
                     }
                 }
             }
