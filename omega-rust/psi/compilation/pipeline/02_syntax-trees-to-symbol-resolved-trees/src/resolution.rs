@@ -93,7 +93,9 @@ impl ResolutionRequest {
 
 /// A later-stratum forest appended to an exact retained base.
 pub struct ExtensionRequest {
-    pub base: SymbolResolvedTrees,
+    /// Shared with the typed base that owns it; the extension reads it and
+    /// never needs a private copy of the whole predecessor.
+    pub base: Arc<SymbolResolvedTrees>,
     pub syntax: SyntaxTrees,
     /// Must retain the base's exact source frontier.
     pub sources: Arc<SourceMap>,
@@ -117,7 +119,7 @@ pub fn resolve_deferred_extension(
         sources,
         top_level_bindings,
     } = request;
-    let predecessor = Arc::new(base);
+    let predecessor = base;
     let successor = resolve_deferred(ResolutionRequest {
         syntax,
         sources: Some(sources),
@@ -187,9 +189,11 @@ impl DeferredResolvedExtension {
         selections: &symbol_resolved_trees::AuthoredDeclarationSelections,
     ) -> Result<(RebasedSeededSymbolResolvedTrees, DeferredResolvedFrontier), Vec<Diagnostic>> {
         let source = SeededSymbolResolvedTrees {
-            trees: self.successor.trees.as_ref().clone(),
+            // The successor frontier is replaced by the rebased trees below, so
+            // its own copy moves here instead of being cloned.
+            trees: Arc::unwrap_or_clone(std::mem::take(&mut self.successor.trees)),
             authored_selection_frontier: self.predecessor.authored_selection_extension_frontier(),
-            retained_base: Box::new(Arc::unwrap_or_clone(self.predecessor)),
+            retained_base: self.predecessor,
         }
         .rebase_authored_selections_for_typed_continuation(selections)
         .map_err(|(_, reason)| {
@@ -487,19 +491,19 @@ pub fn resolve_extension(
         top_level_bindings,
     } = request;
     let authored_selection_frontier = base.authored_selection_extension_frontier();
-    let retained_base = base.clone();
+    let retained_base = Arc::clone(&base);
     let request = ResolutionRequest {
         syntax,
         sources: Some(sources),
         top_level_bindings,
-        retained_base: Some(Arc::new(base)),
+        retained_base: Some(base),
     };
     let (syntax, lowerer) = begin_complete(request)?;
     let (trees, _) = drive(lowerer, &syntax)?;
     Ok(SeededSymbolResolvedTrees {
         trees,
         authored_selection_frontier,
-        retained_base: Box::new(retained_base),
+        retained_base,
     })
 }
 

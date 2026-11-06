@@ -125,8 +125,7 @@ impl SourceCompilationRequest {
         let resolved_base = retained
             .as_mut()
             .map(|typing| typing.resolved_base_for_extension())
-            .transpose()?
-            .map(Arc::new);
+            .transpose()?;
         let evaluated = build_time_evaluation::evaluate_pre_resolution(
             build_time_evaluation::BuildTimeEvaluationRequest {
                 syntax_trees: self.syntax,
@@ -148,7 +147,7 @@ impl SourceCompilationRequest {
             let extension = observer.record_result(PsiCompilationStage::Resolution, || {
                 syntax_trees_to_symbol_resolved_trees::resolve_deferred_extension(
                     syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
-                        base: Arc::unwrap_or_clone(base),
+                        base,
                         syntax,
                         sources: self.sources,
                         top_level_bindings: self.top_level_bindings,

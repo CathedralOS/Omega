@@ -173,6 +173,21 @@ impl NamespaceDeclarations {
     }
 }
 
+/// Run reference passes against the program's own table, lent out beside it.
+/// These passes read identities only through the table they are handed and
+/// write only the trees, so lending the table replaces a whole-table copy per
+/// assignment batch. Anything that reads or writes `program.symbols` directly
+/// (static module calls, private nested-call rejection) must run outside.
+fn with_lent_symbols<T>(
+    program: &mut SymbolResolvedTrees,
+    passes: impl FnOnce(&mut SymbolResolvedTrees, &SymbolTable) -> T,
+) -> T {
+    let symbols = std::mem::take(&mut program.symbols);
+    let result = passes(program, &symbols);
+    program.symbols = symbols;
+    result
+}
+
 /// The full symbol-assignment orchestration over a ready table: top-level
 /// identity first, then generic origins, then the typed reference,
 /// proposition, mathematical, measure, contract, domain-fact and signature
@@ -225,8 +240,9 @@ pub(crate) fn assign_symbols(
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
     crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
-    let symbols = program.symbols.clone();
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    let diagnostics = with_lent_symbols(program, |program, symbols| {
+        assign_program_symbols(program, symbols, generic_origin_frontier)
+    });
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -257,14 +273,14 @@ pub(crate) fn assign_symbols_against_resolved_base(
     );
     namespace_declarations.install(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
-    program.symbols =
+    let mut symbols =
         insert_selected_machine_children(program, table, Some(sources), roots.machines, true);
-    let mut symbols = program.symbols.clone();
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
     crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
-    let symbols = program.symbols.clone();
-    let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
+    let diagnostics = with_lent_symbols(program, |program, symbols| {
+        assign_program_symbols(program, symbols, generic_origin_frontier)
+    });
     namespace_declarations.record_import_selections(program)?;
     if diagnostics.is_empty() {
         Ok(())
@@ -410,26 +426,15 @@ pub(crate) fn assign_body_symbols(
     selected_machines: &[symbols::SymbolHandle],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::append_body_symbols(&mut lowerer.symbol_resolved_trees, selected_machines)?;
-    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
-    assign_generic_application_origin_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        lowerer.bound_generic_application_origins,
-    );
-    lowerer.bound_generic_application_origins = lowerer
-        .symbol_resolved_trees
-        .tables
-        .types
-        .generic_application_origins
-        .len();
-    assign_statement_reference_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        selected_machines,
-    )?;
-    // Synthesized states may introduce contracts after declaration indexing.
-    // This resolves references, not declaration identities or child allocation.
-    assign_contract_reference_symbols(&mut lowerer.symbol_resolved_trees, &symbols)?;
+    let bound_origins = &mut lowerer.bound_generic_application_origins;
+    with_lent_symbols(&mut lowerer.symbol_resolved_trees, |program, symbols| {
+        assign_generic_application_origin_symbols(program, symbols, *bound_origins);
+        *bound_origins = program.tables.types.generic_application_origins.len();
+        assign_statement_reference_symbols(program, symbols, selected_machines)?;
+        // Synthesized states may introduce contracts after declaration indexing.
+        // This resolves references, not declaration identities or child allocation.
+        assign_contract_reference_symbols(program, symbols)
+    })?;
     normalize_static_module_calls(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_static_module_calls,
@@ -462,12 +467,9 @@ pub(crate) fn assign_lexical_inputs(
             &mut input.locals,
         );
     }
-    let symbols = lowerer.symbol_resolved_trees.symbols.clone();
-    statements::assign_lexical_input_reference_symbols(
-        &mut lowerer.symbol_resolved_trees,
-        &symbols,
-        &mut inputs,
-    )?;
+    with_lent_symbols(&mut lowerer.symbol_resolved_trees, |program, symbols| {
+        statements::assign_lexical_input_reference_symbols(program, symbols, &mut inputs)
+    })?;
     normalize_static_module_calls(
         &mut lowerer.symbol_resolved_trees,
         &lowerer.pending_static_module_calls,

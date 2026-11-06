@@ -70,7 +70,7 @@ impl SeededTypingBase {
     ) -> Result<(Self, DeferredResolvedFrontier), Vec<Diagnostic>> {
         let (source, frontier) = extension
             .rebase_for_typed_continuation(self.typed.authored_declaration_selections())?;
-        let typed = lower_seeded_extension(source, self).map_err(|(_, reason)| {
+        let typed = lower_seeded_extension(source, self).map_err(|reason| {
             vec![Diagnostic::error(format!(
                 "authored declaration typing could not extend its retained source: {reason:?}"
             ))]
@@ -88,7 +88,7 @@ impl SeededTypingBase {
         current_sources: Arc<SourceMap>,
         bindings: Vec<SourceScopedTopLevelBinding>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut resolved = self.resolved_base_for_extension()?;
+        let mut resolved = Arc::unwrap_or_clone(self.resolved_base_for_extension()?);
         if resolved
             .symbols
             .source_map()
@@ -206,7 +206,7 @@ impl SeededTypingBase {
                     "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
                 ))]
             })?;
-        lower_seeded_extension(rebased, self).map_err(|(_, error)| match error {
+        lower_seeded_extension(rebased, self).map_err(|error| match error {
             SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
             SeededContinuationError::RetainedResolvedRootsChanged => vec![Diagnostic::error(
                 "source continuation changed a retained declaration root",
@@ -220,7 +220,9 @@ impl SeededTypingBase {
     /// Reserve typing's prepared allocation suffix for a generated stratum.
     /// Domain instances and abstract service rows must not compete with later
     /// resolver allocations or be reconstructed from their display payloads.
-    pub fn resolved_base_for_extension(&mut self) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
+    pub fn resolved_base_for_extension(
+        &mut self,
+    ) -> Result<Arc<SymbolResolvedTrees>, Vec<Diagnostic>> {
         if !self
             .typed
             .symbols
@@ -251,7 +253,7 @@ impl SeededTypingBase {
             prepared.semantic_domains = self.typed.semantic_domains.clone();
             prepared.service_reach_rows = self.typed.service_reach_rows.clone();
         }
-        Ok((*self.resolved).clone())
+        Ok(Arc::clone(&self.resolved))
     }
 
     pub fn typed(&self) -> &TypedTrees {
@@ -284,26 +286,25 @@ pub fn lower_symbol_resolved_trees_to_seeded_base(
 }
 
 /// Append an ordinarily resolved declaration cohort to an exact retained typed
-/// base. Mutation occurs on a clone, so every error returns the input base
-/// byte-for-byte. The result keeps the extended resolver and typed arenas
-/// together; no caller is licensed to reconstruct a second frontend.
+/// base. Both callers drop the base on any error, so typing mutates the
+/// retained typed arenas in place (copying only while another owner still
+/// shares them) instead of keeping a rollback copy. The result keeps the
+/// extended resolver and typed arenas together; no caller is licensed to
+/// reconstruct a second frontend.
 pub fn lower_seeded_extension(
     source: syntax_trees_to_symbol_resolved_trees::RebasedSeededSymbolResolvedTrees,
     retained: SeededTypingBase,
-) -> Result<SeededTypingBase, (SeededTypingBase, SeededContinuationError)> {
+) -> Result<SeededTypingBase, SeededContinuationError> {
     let (source, resolved_base) = source.into_typing_continuation_parts();
-    if resolved_base != *retained.resolved {
-        return Err((retained, SeededContinuationError::CrossPairedResolvedBase));
+    if resolved_base != retained.resolved {
+        return Err(SeededContinuationError::CrossPairedResolvedBase);
     }
     // This owned pair is the output of typing, not an independently supplied
     // trust claim. Typing elaborates selections and service combinations;
     // requiring equality with resolution revalidates the stage's own output
     // and incorrectly forbids those ordinary elaborations.
     if !resolved_root_prefix_is_retained(&source, &resolved_base) {
-        return Err((
-            retained,
-            SeededContinuationError::RetainedResolvedRootsChanged,
-        ));
+        return Err(SeededContinuationError::RetainedResolvedRootsChanged);
     }
     let destination_ledger = retained.typed.authored_declaration_selections();
     if !source
@@ -311,19 +312,16 @@ pub fn lower_seeded_extension(
         .as_slice()
         .starts_with(destination_ledger.as_slice())
     {
-        return Err((
-            retained,
-            SeededContinuationError::AuthoredSelectionPrefixChanged,
-        ));
+        return Err(SeededContinuationError::AuthoredSelectionPrefixChanged);
     }
 
     let cohort = TypingCohort::continuing(&resolved_base, &retained.typed);
     if let Err(error) = super::validate_resolved_semantics_in(&source, &cohort) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
+        return Err(SeededContinuationError::Lowering(error));
     }
-    let mut candidate = retained.typed.as_ref().clone();
+    let mut candidate = Arc::unwrap_or_clone(retained.typed);
     if let Err(error) = join_resolved_semantics(&source, &resolved_base, &mut candidate) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
+        return Err(SeededContinuationError::Lowering(error));
     }
     let mut lowerer = Lowerer {
         typed_trees: candidate,
@@ -332,7 +330,7 @@ pub fn lower_seeded_extension(
         type_reference_exposure: Some(AuthoredDeclarationSelectionExposure::PrivateImplementation),
     };
     if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
+        return Err(SeededContinuationError::Lowering(error));
     }
     for forwarding in source
         .evidence_forwardings
@@ -348,7 +346,7 @@ pub fn lower_seeded_extension(
             ));
     }
     if let Err(error) = close_typed_cohort(&mut lowerer, &cohort) {
-        return Err((retained, SeededContinuationError::Lowering(error)));
+        return Err(SeededContinuationError::Lowering(error));
     }
     // The exact predecessor and retained input selections were admitted above.
     // Ordinary typing finalizes this cohort's late-bound selections through
