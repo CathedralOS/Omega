@@ -84,9 +84,12 @@ impl TargetRun {
         held: &'access [HeldAccesses<Access>],
         loan: Option<&'access CanonicalPlace>,
     ) -> impl Iterator<Item = &'access Access> {
-        self.new_accesses(program, whole, 0, held, &[], loan)
+        self.new_accesses(program, whole, 0, held, &[], &[], loan)
     }
 
+    /// `held_end` bounds each held entry's accesses, for a reader that sees
+    /// an earlier stage of the held runs; an entry without a bound is read whole.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new_accesses<'access, Access>(
         &'access self,
         program: &'access dyn ::validation::CheckingInput,
@@ -94,6 +97,7 @@ impl TargetRun {
         seen_whole: usize,
         held: &'access [HeldAccesses<Access>],
         seen_held: &'access [usize],
+        held_end: &'access [usize],
         loan: Option<&'access CanonicalPlace>,
     ) -> impl Iterator<Item = &'access Access> {
         let whole_run = matches!(self, Self::Whole) || loan.is_none();
@@ -110,12 +114,13 @@ impl TargetRun {
                         && loan.is_some_and(|loan| self.forwards(program, entry.parameter, loan))
                 })
                 .flat_map(move |(idx, entry)| {
-                    let start = seen_held
+                    let end = held_end
                         .get(idx)
                         .copied()
-                        .unwrap_or(0)
+                        .unwrap_or(entry.accesses.len())
                         .min(entry.accesses.len());
-                    &entry.accesses[start..]
+                    let start = seen_held.get(idx).copied().unwrap_or(0).min(end);
+                    &entry.accesses[start..end]
                 }),
         )
     }

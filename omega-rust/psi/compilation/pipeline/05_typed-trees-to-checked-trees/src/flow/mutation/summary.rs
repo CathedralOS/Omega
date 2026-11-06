@@ -34,6 +34,7 @@ use crate::flow::indexed_statements;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
 use crate::published::places::place_at;
+use crate::shared::machine_waves::MachineCallComponents;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
@@ -348,7 +349,7 @@ fn propagate_state_mutation_summaries(
         .collect();
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
-    let mut calls: Vec<_> =
+    let calls: Vec<_> =
         phase_profile::scope("psi.05.build_check_facts.flow.summaries.calls", || {
             (0..states.len())
                 .into_par_iter()
@@ -408,328 +409,532 @@ fn propagate_state_mutation_summaries(
                 })
                 .collect()
         });
-    let mut callers = vec![Vec::new(); states.len()];
-    for (caller_index, dependencies) in calls.iter().enumerate() {
-        for (_, target_index, _, _, _, _, _, _) in dependencies {
-            if let Some(target_index) = target_index
-                && !callers[*target_index].contains(&caller_index)
-            {
-                callers[*target_index].push(caller_index);
+    // A summary's writes come only from its calls' targets, so the summaries
+    // settle callee component by callee component (`shared::machine_waves`).
+    // Each component replays the serial propagation rounds on its own: round
+    // `r` reads every target as it stood after round `r - 1`, and every write
+    // keeps the round that appended it, so a caller reads exactly what the
+    // whole-program rounds would have shown it and appends in the same order.
+    let reads: Vec<Vec<usize>> = calls
+        .iter()
+        .map(|dependencies| {
+            dependencies
+                .iter()
+                .filter_map(|dependency| dependency.1)
+                .collect()
+        })
+        .collect();
+    let calls: Vec<std::sync::Mutex<Vec<PropagationCall<'_>>>> =
+        calls.into_iter().map(std::sync::Mutex::new).collect();
+    let mut grown: Vec<GrownSummary> = states
+        .iter()
+        .map(|summary| GrownSummary::initial(summary.clone()))
+        .collect();
+    let schedule = MachineCallComponents::new(&reads);
+    phase_profile::count(
+        "psi.05.build_check_facts.flow.summaries.components",
+        schedule.component_count() as u64,
+    );
+    phase_profile::count(
+        "psi.05.build_check_facts.flow.summaries.waves",
+        schedule.callee_first_wave_count() as u64,
+    );
+    let _loop_guard = phase_profile::guard("psi.05.build_check_facts.flow.summaries.loop");
+    schedule.run_callee_first(&mut grown, |members, settled| {
+        let mut component: Vec<GrownSummary> = members
+            .iter()
+            .map(|&member| settled[member].clone())
+            .collect();
+        let mut member_calls: Vec<_> = members
+            .iter()
+            .map(|&member| {
+                calls[member]
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+            })
+            .collect();
+        let mut round = 1u32;
+        loop {
+            let view = ComponentView {
+                members,
+                component: &component,
+                settled,
+            };
+            let dirty: Vec<usize> = (0..members.len())
+                .filter(|&position| {
+                    round == 1
+                        || reads[members[position]]
+                            .iter()
+                            .any(|&target| view.get(target).changed_in(round - 1))
+                })
+                .collect();
+            if dirty.is_empty() {
+                // Nothing inside the component changed last round. The next
+                // round that does anything follows the next change of a
+                // target outside the component.
+                let next = members
+                    .iter()
+                    .flat_map(|&member| &reads[member])
+                    .filter(|&&target| members.binary_search(&target).is_err())
+                    .filter_map(|&target| settled[target].first_change_from(round))
+                    .min();
+                match next {
+                    Some(changed) => {
+                        round = changed + 1;
+                        continue;
+                    }
+                    None => break,
+                }
             }
+            phase_profile::count("psi.05.build_check_facts.flow.summaries.rounds", 1);
+            let updates: Vec<_> = dirty
+                .iter()
+                .filter_map(|&position| {
+                    derive_round(
+                        program,
+                        borrow,
+                        call_frames,
+                        &owners,
+                        &exposed_parameters,
+                        members[position],
+                        &mut member_calls[position],
+                        round - 1,
+                        &view,
+                    )
+                    .map(|update| (position, update))
+                })
+                .collect();
+            for (position, (complete, additions, held_additions)) in updates {
+                component[position].publish(round, complete, additions, held_additions);
+            }
+            round += 1;
+        }
+        component
+    });
+    for (summary, grown) in states.iter_mut().zip(grown) {
+        *summary = grown.into_summary();
+    }
+}
+
+/// One state's calls in call order, with the progress the rounds keep for
+/// each: the target's summary position, how far its writes were read, and
+/// the instantiation cache.
+type PropagationCall<'facts> = (
+    &'facts BorrowCallFact,
+    Option<usize>,
+    TargetRun,
+    Option<CallSite<'facts>>,
+    bool,
+    Vec<(
+        (StorageRegion, WriteDestination),
+        Option<Vec<MutationWrite>>,
+    )>,
+    usize,
+    Vec<usize>,
+);
+
+/// A summary as the propagation rounds grew it. Every write and held access
+/// keeps the round that appended it (0 for direct writes), and an incomplete
+/// summary the round it became incomplete (0 when it began so), so a reader
+/// can see the summary as it stood after any earlier round.
+#[derive(Clone)]
+struct GrownSummary {
+    summary: StateMutationSummary,
+    write_rounds: Vec<u32>,
+    held_rounds: Vec<Vec<u32>>,
+    incomplete_round: Option<u32>,
+    /// The rounds that changed this summary, ascending.
+    changed_rounds: Vec<u32>,
+}
+
+impl GrownSummary {
+    fn initial(summary: StateMutationSummary) -> Self {
+        Self {
+            write_rounds: vec![0; summary.writes.len()],
+            held_rounds: summary
+                .held_writes
+                .iter()
+                .map(|held| vec![0; held.accesses.len()])
+                .collect(),
+            incomplete_round: (!summary.complete).then_some(0),
+            changed_rounds: Vec::new(),
+            summary,
         }
     }
-    let _loop_guard = phase_profile::guard("psi.05.build_check_facts.flow.summaries.loop");
-    let mut dirty_mask = vec![true; states.len()];
-    let mut has_dirty = !states.is_empty();
-    while has_dirty {
-        phase_profile::count("psi.05.build_check_facts.flow.summaries.rounds", 1);
-        // Publish after the round: later callers must not observe this round's
-        // additions early, which would change first-discovery write ordering.
-        let updates: Vec<_> = calls
-            .par_iter_mut()
-            .enumerate()
-            .filter_map(|(caller_index, caller_calls)| {
-                if !dirty_mask[caller_index] || !states[caller_index].complete {
+
+    fn complete_after(&self, round: u32) -> bool {
+        self.incomplete_round
+            .is_none_or(|incomplete| incomplete > round)
+    }
+
+    fn writes_after(&self, round: u32) -> &[MutationWrite] {
+        &self.summary.writes[..self.write_rounds.partition_point(|&added| added <= round)]
+    }
+
+    fn held_ends_after(&self, round: u32) -> Vec<usize> {
+        self.held_rounds
+            .iter()
+            .map(|rounds| rounds.partition_point(|&added| added <= round))
+            .collect()
+    }
+
+    fn changed_in(&self, round: u32) -> bool {
+        self.changed_rounds.binary_search(&round).is_ok()
+    }
+
+    fn first_change_from(&self, round: u32) -> Option<u32> {
+        let at = self
+            .changed_rounds
+            .partition_point(|&changed| changed < round);
+        self.changed_rounds.get(at).copied()
+    }
+
+    /// Apply one round's result as the serial rounds published it.
+    fn publish(
+        &mut self,
+        round: u32,
+        complete: bool,
+        additions: Vec<MutationWrite>,
+        held_additions: Vec<Vec<MutationWrite>>,
+    ) {
+        if complete {
+            self.write_rounds
+                .extend(std::iter::repeat_n(round, additions.len()));
+            self.summary.writes.extend(additions);
+            for ((held, rounds), additions) in self
+                .summary
+                .held_writes
+                .iter_mut()
+                .zip(&mut self.held_rounds)
+                .zip(held_additions)
+            {
+                rounds.extend(std::iter::repeat_n(round, additions.len()));
+                held.accesses.extend(additions);
+            }
+        } else {
+            // Readers of later rounds see an incomplete summary and stop
+            // before its writes; earlier rounds' readers still see them.
+            self.incomplete_round = Some(round);
+        }
+        self.changed_rounds.push(round);
+    }
+
+    /// The summary after the last round. One that became incomplete during
+    /// propagation keeps no writes; one incomplete from the start was never
+    /// propagated and keeps its direct writes.
+    fn into_summary(mut self) -> StateMutationSummary {
+        if self.incomplete_round.is_some_and(|round| round > 0) {
+            self.summary.complete = false;
+            self.summary.writes.clear();
+            self.summary.held_writes.clear();
+        }
+        self.summary
+    }
+}
+
+/// The summaries one component's step reads: its own members as its rounds
+/// grow them, and every other summary as earlier waves settled it.
+struct ComponentView<'a> {
+    members: &'a [usize],
+    component: &'a [GrownSummary],
+    settled: &'a [GrownSummary],
+}
+
+impl ComponentView<'_> {
+    fn get(&self, state: usize) -> &GrownSummary {
+        match self.members.binary_search(&state) {
+            Ok(position) => &self.component[position],
+            Err(_) => &self.settled[state],
+        }
+    }
+}
+
+/// One propagation round for one caller summary: the writes its calls'
+/// targets added since the caller last read them, as each target stood after
+/// round `seen_round`, exposed in caller coordinates. `None` when the round
+/// changes nothing.
+#[allow(clippy::too_many_arguments)]
+fn derive_round(
+    program: &dyn ::validation::CheckingInput,
+    borrow: &BorrowFacts,
+    call_frames: Option<&CallFrameResolver<'_>>,
+    owners: &[Option<(&State, SymbolHandle)>],
+    exposed_parameters: &[Vec<SymbolHandle>],
+    caller_index: usize,
+    caller_calls: &mut [PropagationCall<'_>],
+    seen_round: u32,
+    view: &ComponentView<'_>,
+) -> Option<(bool, Vec<MutationWrite>, Vec<Vec<MutationWrite>>)> {
+    if !view.get(caller_index).complete_after(seen_round) {
+        return None;
+    }
+    let grown = view.get(caller_index);
+    let caller_symbol = grown.summary.state_symbol;
+    let (caller_state, caller_machine) = owners[caller_index]?;
+    let caller_exposed_params = &exposed_parameters[caller_index];
+    let caller = &grown.summary;
+    let mut additions = Vec::new();
+    let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
+    let mut expose = |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
+        let retain = |existing: &[MutationWrite],
+                      pending: &mut Vec<MutationWrite>,
+                      writes: Vec<MutationWrite>| {
+            for write in writes {
+                let exposed = {
+                    let declared = matches!(write.region, StorageRegion::Declared(_));
+                    match write.region.anchor().root.as_symbol() {
+                        None => {
+                            if !declared {
+                                return None;
+                            }
+                            false
+                        }
+                        Some(root) if root == caller_machine => true,
+                        Some(root)
+                            if program
+                                .state_parameters(caller_state)
+                                .iter()
+                                .any(|parameter| parameter.symbol == root) =>
+                        {
+                            !declared || caller_exposed_params.contains(&root)
+                        }
+                        Some(_) => {
+                            if !declared {
+                                return None;
+                            }
+                            false
+                        }
+                    }
+                };
+                if exposed && !existing.contains(&write) && !pending.contains(&write) {
+                    pending.push(write);
+                }
+            }
+            Some(())
+        };
+        retain(&caller.writes, &mut additions, writes)?;
+        for ((held, pending), writes) in caller
+            .held_writes
+            .iter()
+            .zip(&mut held_additions)
+            .zip(held_writes)
+        {
+            retain(&held.accesses, pending, writes)?;
+        }
+        Some(())
+    };
+    let mut complete = true;
+    for (
+        call,
+        target_index,
+        run,
+        call_site,
+        has_builtin_coordinates,
+        inst_cache,
+        seen_writes,
+        seen_held,
+    ) in caller_calls.iter_mut()
+    {
+        // Propagate the target's writes, not its unused authority.
+        // Signature ceilings remain the fallback for opaque calls.
+        let Some(target_index) = *target_index else {
+            if *seen_writes > 0 {
+                continue;
+            }
+            // Signature-only calls are already admitted by the shared
+            // frame law. Import that frame in caller coordinates; an
+            // unresolved frame/origin must not become an empty summary.
+            // The held run includes all of it, like any call's.
+            let Some(writes) = super::shared_call_storage_regions(
+                program,
+                caller_machine,
+                caller_symbol,
+                borrow,
+                call,
+                call_frames,
+            ) else {
+                complete = false;
+                break;
+            };
+            let writes: Vec<_> = writes
+                .into_iter()
+                .map(|region| MutationWrite {
+                    region,
+                    requires_exclusive_access: true,
+                    destination: WriteDestination::Referent,
+                    checked_write_type: Default::default(),
+                })
+                .collect();
+            let held = vec![writes.clone(); caller.held_writes.len()];
+            if expose(writes, held).is_none() {
+                complete = false;
+                break;
+            }
+            *seen_writes = 1;
+            continue;
+        };
+        let target_record = view.get(target_index);
+        if !target_record.complete_after(seen_round) {
+            complete = false;
+            break;
+        }
+        let Some(call_site) = call_site.as_ref() else {
+            complete = false;
+            break;
+        };
+        let Some((target_state, _)) = owners[target_index] else {
+            complete = false;
+            break;
+        };
+        let target = &target_record.summary;
+
+        let target_writes = target_record.writes_after(seen_round);
+
+        let held_end = target_record.held_ends_after(seen_round);
+
+        let prev_writes = *seen_writes;
+        let new_writes = &target_writes[prev_writes.min(target_writes.len())..];
+        let is_whole_run = matches!(run, TargetRun::Whole);
+        if !is_whole_run && seen_held.len() < target.held_writes.len() {
+            seen_held.resize(target.held_writes.len(), 0);
+        }
+        if new_writes.is_empty()
+            && (is_whole_run || seen_held.iter().zip(&held_end).all(|(&s, &end)| s >= end))
+        {
+            continue;
+        }
+        let has_builtin_coords = *has_builtin_coordinates;
+        let call_ref = *call;
+        let mut instantiate =
+            |writes: &[MutationWrite], use_cache: bool| -> Option<Vec<MutationWrite>> {
+                if !writes.is_empty() && !has_builtin_coords {
                     return None;
                 }
-                let caller_symbol = states[caller_index].state_symbol;
-                let (caller_state, caller_machine) = owners[caller_index]?;
-                let caller_exposed_params = &exposed_parameters[caller_index];
-                let caller = &states[caller_index];
-                let mut additions = Vec::new();
-                let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
-                let mut expose =
-                    |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
-                        let retain =
-                            |existing: &[MutationWrite],
-                             pending: &mut Vec<MutationWrite>,
-                             writes: Vec<MutationWrite>| {
-                                for write in writes {
-                                    let exposed = {
-                                        let declared =
-                                            matches!(write.region, StorageRegion::Declared(_));
-                                        match write.region.anchor().root.as_symbol() {
-                                            None => {
-                                                if !declared {
-                                                    return None;
-                                                }
-                                                false
-                                            }
-                                            Some(root) if root == caller_machine => true,
-                                            Some(root)
-                                                if program
-                                                    .state_parameters(caller_state)
-                                                    .iter()
-                                                    .any(|parameter| parameter.symbol == root) =>
-                                            {
-                                                !declared || caller_exposed_params.contains(&root)
-                                            }
-                                            Some(_) => {
-                                                if !declared {
-                                                    return None;
-                                                }
-                                                false
-                                            }
-                                        }
-                                    };
-                                    if exposed
-                                        && !existing.contains(&write)
-                                        && !pending.contains(&write)
-                                    {
-                                        pending.push(write);
-                                    }
-                                }
-                                Some(())
-                            };
-                        retain(&caller.writes, &mut additions, writes)?;
-                        for ((held, pending), writes) in caller
-                            .held_writes
-                            .iter()
-                            .zip(&mut held_additions)
-                            .zip(held_writes)
-                        {
-                            retain(&held.accesses, pending, writes)?;
-                        }
-                        Some(())
-                    };
-                let mut complete = true;
-                for (
-                    call,
-                    target_index,
-                    run,
-                    call_site,
-                    has_builtin_coordinates,
-                    inst_cache,
-                    seen_writes,
-                    seen_held,
-                ) in caller_calls.iter_mut()
-                {
-                    // Propagate the target's writes, not its unused authority.
-                    // Signature ceilings remain the fallback for opaque calls.
-                    let Some(target_index) = *target_index else {
-                        if *seen_writes > 0 {
-                            continue;
-                        }
-                        // Signature-only calls are already admitted by the shared
-                        // frame law. Import that frame in caller coordinates; an
-                        // unresolved frame/origin must not become an empty summary.
-                        // The held run includes all of it, like any call's.
-                        let Some(writes) = super::shared_call_storage_regions(
+                let mut instantiated = Vec::new();
+                for write in writes {
+                    if !use_cache {
+                        let contributions = instantiate_call_relative_writes_pre_resolved(
                             program,
                             caller_machine,
                             caller_symbol,
-                            borrow,
-                            call,
+                            call_ref,
+                            call_site,
+                            has_builtin_coords,
+                            target_state,
+                            &write.region,
+                            write.destination,
+                            WritePlaceNamespace::Storage,
                             call_frames,
-                        ) else {
-                            complete = false;
-                            break;
-                        };
-                        let writes: Vec<_> = writes
-                            .into_iter()
-                            .map(|region| MutationWrite {
-                                region,
-                                requires_exclusive_access: true,
-                                destination: WriteDestination::Referent,
-                                checked_write_type: Default::default(),
-                            })
-                            .collect();
-                        let held = vec![writes.clone(); caller.held_writes.len()];
-                        if expose(writes, held).is_none() {
-                            complete = false;
-                            break;
+                        )?;
+                        for contribution in contributions {
+                            instantiated.push(MutationWrite {
+                                region: contribution.region,
+                                requires_exclusive_access: write.requires_exclusive_access,
+                                destination: write.destination,
+                                checked_write_type: write.checked_write_type,
+                            });
                         }
-                        *seen_writes = 1;
-                        continue;
-                    };
-                    let target = &states[target_index];
-                    if !target.complete {
-                        complete = false;
-                        break;
-                    }
-                    let Some(call_site) = call_site.as_ref() else {
-                        complete = false;
-                        break;
-                    };
-                    let Some((target_state, _)) = owners[target_index] else {
-                        complete = false;
-                        break;
-                    };
-                    let prev_writes = *seen_writes;
-                    let new_writes = &target.writes[prev_writes.min(target.writes.len())..];
-                    let is_whole_run = matches!(run, TargetRun::Whole);
-                    if !is_whole_run && seen_held.len() < target.held_writes.len() {
-                        seen_held.resize(target.held_writes.len(), 0);
-                    }
-                    if new_writes.is_empty()
-                        && (is_whole_run
-                            || seen_held
-                                .iter()
-                                .zip(&target.held_writes)
-                                .all(|(&s, h)| s >= h.accesses.len()))
-                    {
                         continue;
                     }
-                    let has_builtin_coords = *has_builtin_coordinates;
-                    let call_ref = *call;
-                    let mut instantiate = |writes: &[MutationWrite],
-                                           use_cache: bool|
-                     -> Option<Vec<MutationWrite>> {
-                        if !writes.is_empty() && !has_builtin_coords {
-                            return None;
-                        }
-                        let mut instantiated = Vec::new();
-                        for write in writes {
-                            if !use_cache {
-                                let contributions = instantiate_call_relative_writes_pre_resolved(
-                                    program,
-                                    caller_machine,
-                                    caller_symbol,
-                                    call_ref,
-                                    call_site,
-                                    has_builtin_coords,
-                                    target_state,
-                                    &write.region,
-                                    write.destination,
-                                    WritePlaceNamespace::Storage,
-                                    call_frames,
-                                )?;
-                                for contribution in contributions {
-                                    instantiated.push(MutationWrite {
+                    let cached_index = inst_cache
+                        .iter()
+                        .position(|((r, d), _)| r == &write.region && *d == write.destination);
+                    let contributions = match cached_index {
+                        Some(idx) => inst_cache[idx].1.as_ref()?,
+                        None => {
+                            let computed = instantiate_call_relative_writes_pre_resolved(
+                                program,
+                                caller_machine,
+                                caller_symbol,
+                                call_ref,
+                                call_site,
+                                has_builtin_coords,
+                                target_state,
+                                &write.region,
+                                write.destination,
+                                WritePlaceNamespace::Storage,
+                                call_frames,
+                            )
+                            .map(|contributions| {
+                                contributions
+                                    .into_iter()
+                                    .map(|contribution| MutationWrite {
                                         region: contribution.region,
                                         requires_exclusive_access: write.requires_exclusive_access,
                                         destination: write.destination,
                                         checked_write_type: write.checked_write_type,
-                                    });
-                                }
-                                continue;
-                            }
-                            let cached_index = inst_cache.iter().position(|((r, d), _)| {
-                                r == &write.region && *d == write.destination
+                                    })
+                                    .collect::<Vec<_>>()
                             });
-                            let contributions = match cached_index {
-                                Some(idx) => inst_cache[idx].1.as_ref()?,
-                                None => {
-                                    let computed = instantiate_call_relative_writes_pre_resolved(
-                                        program,
-                                        caller_machine,
-                                        caller_symbol,
-                                        call_ref,
-                                        call_site,
-                                        has_builtin_coords,
-                                        target_state,
-                                        &write.region,
-                                        write.destination,
-                                        WritePlaceNamespace::Storage,
-                                        call_frames,
-                                    )
-                                    .map(|contributions| {
-                                        contributions
-                                            .into_iter()
-                                            .map(|contribution| MutationWrite {
-                                                region: contribution.region,
-                                                requires_exclusive_access: write
-                                                    .requires_exclusive_access,
-                                                destination: write.destination,
-                                                checked_write_type: write.checked_write_type,
-                                            })
-                                            .collect::<Vec<_>>()
-                                    });
-                                    inst_cache.push((
-                                        (write.region.clone(), write.destination),
-                                        computed,
-                                    ));
-                                    inst_cache.last().unwrap().1.as_ref()?
-                                }
-                            };
-                            for item in contributions {
-                                instantiated.push(MutationWrite {
-                                    region: item.region.clone(),
-                                    requires_exclusive_access: write.requires_exclusive_access,
-                                    destination: write.destination,
-                                    checked_write_type: write.checked_write_type,
-                                });
-                            }
+                            inst_cache.push(((write.region.clone(), write.destination), computed));
+                            inst_cache.last().unwrap().1.as_ref()?
                         }
-                        Some(instantiated)
                     };
-                    let Some(whole) = instantiate(new_writes, !is_whole_run) else {
-                        complete = false;
-                        break;
-                    };
-                    let held = if is_whole_run {
-                        vec![whole.clone(); caller.held_writes.len()]
-                    } else {
-                        let Some(held) = caller
-                            .held_writes
-                            .iter()
-                            .map(|incoming| {
-                                let loan = CanonicalPlace {
-                                    root: PlaceRoot::Symbol(incoming.parameter),
-                                    segments: Vec::new(),
-                                };
-                                let selected: Vec<_> = run
-                                    .new_accesses(
-                                        program,
-                                        &target.writes,
-                                        prev_writes,
-                                        &target.held_writes,
-                                        seen_held,
-                                        Some(&loan),
-                                    )
-                                    .cloned()
-                                    .collect();
-                                instantiate(&selected, true)
-                            })
-                            .collect::<Option<Vec<_>>>()
-                        else {
-                            complete = false;
-                            break;
-                        };
-                        held
-                    };
-                    if expose(whole, held).is_none() {
-                        complete = false;
-                        break;
-                    }
-                    *seen_writes = target.writes.len();
-                    if !is_whole_run {
-                        for (s, h) in seen_held.iter_mut().zip(&target.held_writes) {
-                            *s = h.accesses.len();
-                        }
+                    for item in contributions {
+                        instantiated.push(MutationWrite {
+                            region: item.region.clone(),
+                            requires_exclusive_access: write.requires_exclusive_access,
+                            destination: write.destination,
+                            checked_write_type: write.checked_write_type,
+                        });
                     }
                 }
-                if !complete
-                    || !additions.is_empty()
-                    || held_additions.iter().any(|pending| !pending.is_empty())
-                {
-                    Some((caller_index, complete, additions, held_additions))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        dirty_mask.fill(false);
-        has_dirty = false;
-        for (caller_index, complete, additions, held_additions) in updates {
-            let summary = &mut states[caller_index];
-            summary.complete = complete;
-            if complete {
-                summary.writes.extend(additions);
-                for (held, additions) in summary.held_writes.iter_mut().zip(held_additions) {
-                    held.accesses.extend(additions);
-                }
-            } else {
-                summary.writes.clear();
-                summary.held_writes.clear();
-            }
-            for &dependent in &callers[caller_index] {
-                if !dirty_mask[dependent] {
-                    dirty_mask[dependent] = true;
-                    has_dirty = true;
-                }
+                Some(instantiated)
+            };
+        let Some(whole) = instantiate(new_writes, !is_whole_run) else {
+            complete = false;
+            break;
+        };
+        let held = if is_whole_run {
+            vec![whole.clone(); caller.held_writes.len()]
+        } else {
+            let Some(held) = caller
+                .held_writes
+                .iter()
+                .map(|incoming| {
+                    let loan = CanonicalPlace {
+                        root: PlaceRoot::Symbol(incoming.parameter),
+                        segments: Vec::new(),
+                    };
+                    let selected: Vec<_> = run
+                        .new_accesses(
+                            program,
+                            target_writes,
+                            prev_writes,
+                            &target.held_writes,
+                            seen_held,
+                            &held_end,
+                            Some(&loan),
+                        )
+                        .cloned()
+                        .collect();
+                    instantiate(&selected, true)
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                complete = false;
+                break;
+            };
+            held
+        };
+        if expose(whole, held).is_none() {
+            complete = false;
+            break;
+        }
+        *seen_writes = target_writes.len();
+        if !is_whole_run {
+            for (s, end) in seen_held.iter_mut().zip(&held_end) {
+                *s = *end;
             }
         }
+    }
+    if !complete
+        || !additions.is_empty()
+        || held_additions.iter().any(|pending| !pending.is_empty())
+    {
+        Some((complete, additions, held_additions))
+    } else {
+        None
     }
 }
 
