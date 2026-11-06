@@ -298,7 +298,7 @@ pub(super) fn consume_owner_cleanup(
         machine: function.machine,
         block,
     };
-    if super::value_custody::uninstalled_home(function, frontier, place) {
+    if super::value_custody::uninstalled_home(frontier, place) {
         if !matches!(actions, [TerminalAffineCleanupAction::RetireHome(retired)] if *retired == place)
             || frontier
                 .claims

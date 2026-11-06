@@ -280,11 +280,7 @@ pub(super) fn validate_current_ownership_cfg(
                         // unavailable to restoration stores.
                         (absent.is_empty()
                             && matches!(&node.operation, O::StoreStructuralField { .. })
-                            && super::value_custody::uninstalled_home(
-                                function,
-                                &frontier,
-                                root.place(),
-                            ))
+                            && super::value_custody::uninstalled_home(&frontier, root.place()))
                             || !structural_paths_may_overlap(absent, &selected)
                     })
                 });

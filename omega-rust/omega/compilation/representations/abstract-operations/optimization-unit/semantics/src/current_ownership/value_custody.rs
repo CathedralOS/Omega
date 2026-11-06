@@ -22,20 +22,15 @@ pub(super) struct ValueUse<'a> {
     pub admitted_case: &'a dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
 }
 
-pub(super) fn uninstalled_home(
-    function: &PsiOptimizationFunction,
-    current: &CurrentOwnership,
-    place: PlaceId,
-) -> bool {
+/// Replay marks an unestablished linear home with one missing whole value.
+/// Projected moves record nonempty paths; whole moves remove the owned place.
+/// Read that current state instead of searching the producer again at each use.
+pub(super) fn uninstalled_home(current: &CurrentOwnership, place: PlaceId) -> bool {
     current.owned_places.get(&place) == Some(&StructuralMultiplicity::Linear)
         && current
             .partial_custody_paths
             .get(&place)
             .is_some_and(|missing| missing.len() == 1 && missing.first().is_some_and(Vec::is_empty))
-        && function.block_nodes().any(|producer| {
-            matches!(&producer.operation,
-            O::EstablishStructuralLocal { result, .. } if result.place == place)
-        })
 }
 
 impl ValueUse<'_> {
