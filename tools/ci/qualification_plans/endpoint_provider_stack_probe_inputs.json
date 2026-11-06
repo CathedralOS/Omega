@@ -1,0 +1,12 @@
+{
+  "artifact": 13516720007,
+  "origin_run": 42239657293,
+  "source": "737fc4ecdee9586146115353b0ccecb7348209de",
+  "archive_sha256": "11e239ff0a693c9c7aaa6c6bc4fe5da4f6caf6c88138da624802de1fa230f4c2",
+  "frozen_input_source": "d8206a95f5bed9ebc277c60b694af40dd317f119",
+  "frozen_input_sha256": {
+    "tests/omega/pass/facts/provider_contract_endpoint_through_match_join_exit/build.omg": "480aba17b13be9cc509278d19afabb2bec5e1753ca22c8855ff5cfaeb83faf04",
+    "tests/omega/pass/facts/provider_contract_endpoint_through_match_join_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "tests/omega/pass/facts/provider_contract_endpoint_through_match_join_exit/main.omg": "f31d49fe05fa6b476d4ab6d16b49913f744eaf5f3c7d28c11d2ce9a35c50ca16"
+  }
+}
