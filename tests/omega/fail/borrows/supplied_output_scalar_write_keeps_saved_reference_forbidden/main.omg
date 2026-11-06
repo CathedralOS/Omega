@@ -1,0 +1,28 @@
+// Expected rejection: zero does not preserve the old ticket's positive-number guarantee.
+public data Ticket [copy] { number: u64; }
+public domain Ticket::Issued requires self.number > 0;
+public data Output<T> { body: T; }
+public boundary trait Installer {
+    machine install<'storage>(output: &mut Output<&'storage mut Ticket in Issued>) reaches;
+}
+public CheckedInstaller satisfies Installer {
+    machine install<'storage>(output: &mut Output<&'storage mut Ticket in Issued>) {
+        output.body.number = 0;
+    }
+}
+machine read_issued(ticket: &Ticket in Issued) -> u64 { ticket.number }
+machine exercise() -> bool reaches Installer {
+    let mut old_output: Ticket in Issued = Ticket { number: 7 };
+    let mut spare: Ticket in Issued = Ticket { number: 9 };
+    let mut output: Output<&mut Ticket in Issued> = Output { body: &mut old_output };
+    Installer::install(&mut output);
+    output = Output { body: &mut spare };
+    let old_value: u64 = read_issued(&old_output);
+    old_value == 5 && output.body.number == 9
+}
+machine main() crashes Trap reaches Installer {
+    let okay: bool = exercise();
+    transition okay { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
