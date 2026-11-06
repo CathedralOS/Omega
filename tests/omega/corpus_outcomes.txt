@@ -834,7 +834,7 @@ fail/borrow/opaque_write_only_satisfier rejected 656ms expected @ccdb99ca2214
 	machine `main` state `entry` calls `write` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 fail/borrow/persistent_borrow_storage_requires_outlives rejected 1876ms expected @ccdb99ca2214
 	assignment stores a borrow-carrying value in persistent field `stored` of machine `Cell::set$specialized$dcbb8209abdb6016$0`; persistent loans must be propagated through graph-state transitions before this write can be admitted
-fail/borrow/qualified_return_does_not_restore_other_writer rejected 3733ms expected @ccdb99ca2214
+fail/borrow/qualified_return_does_not_restore_other_writer rejected 11256ms expected @ee4db530ba1e
 	cannot prove default-domain field requirement for return from corrupt at statement 1: entries[1] requires [u8; N]::Utf8
 	cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Ascii
 	cannot prove default-domain field requirement for return from corrupt_through_stored_reference at statement 2: entries[1] requires [u8; N]::Utf8
@@ -4784,6 +4784,8 @@ fail/domains/qualified_fixed_byte_array_write_only_split rejected 2299ms expecte
 	cannot prove default-domain field requirement for return from fill at statement 2: buffer.bytes requires [u8; N]::Utf8
 fail/domains/qualified_fixed_vec_byte_view_overflow rejected 14511ms expected @ccdb99ca2214
 	cannot prove requires contract for call live from main: vector.length <= 8 (needs fact `vector.length <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/domains/qualified_input_domain_is_not_a_return_promise rejected 11328ms expected @ee4db530ba1e
+	cannot prove ensures contract for exit from corrupt at statement 1: value in [u16; N]::Terminated
 fail/domains/qualified_mutable_invalid_field rejected 795ms expected @ccdb99ca2214
 	machine `main` state `entry` statement 1: reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established: the zeroed representation is not yet a `Packet` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/domains/qualified_record_authored_arithmetic rejected 2187ms expected @ccdb99ca2214
@@ -5575,7 +5577,7 @@ fail/facts/additional_input_domain_mutation_through_field_rejected rejected 3344
 	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
 fail/facts/additional_input_domain_mutation_through_local_rejected rejected 3171ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
-fail/facts/additional_input_domain_mutation_through_match_join_rejected rejected 2746ms expected @ccdb99ca2214
+fail/facts/additional_input_domain_mutation_through_match_join_rejected rejected 11286ms expected @ee4db530ba1e
 	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
 fail/facts/additional_input_domain_mutation_through_other_machine_rejected rejected 2746ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from overwrite at statement 1: cell in Cell::Before
@@ -10306,23 +10308,23 @@ fail/facts/nested_array_element_projection_through_target_body_rejected rejected
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `read_and_sub` state `entry` local `spare` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_borrow_qualification_through_call_result_rejected rejected 2988ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_call_result_rejected rejected 11313ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_const_name_rejected rejected 2604ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_const_name_rejected rejected 11266ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_field_rejected rejected 2982ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_field_rejected rejected 11346ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_local_rejected rejected 2844ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_local_rejected rejected 11304ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_match_join_rejected rejected 3031ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_match_join_rejected rejected 11320ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_other_machine_rejected rejected 2870ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_other_machine_rejected rejected 11240ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_other_state_rejected rejected 2545ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_other_state_rejected rejected 11259ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_parameter_rejected rejected 2465ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_parameter_rejected rejected 11282ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/nested_borrow_qualification_through_target_body_rejected rejected 2788ms expected @ccdb99ca2214
+fail/facts/nested_borrow_qualification_through_target_body_rejected rejected 11811ms expected @ee4db530ba1e
 	cannot prove requires contract for call final_word from consume: attributes.name.words[3] == 0 (needs fact `word == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/nested_machine_invocation/call_result rejected 1468ms expected @959aa53558d2
 	machine `keep` state `entry` terminal expression expects `T`, got `bool`
@@ -19307,7 +19309,7 @@ pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3088ms
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 4202ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_indexed_record_copy_exit checked 3695ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 3128ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_write_only_qualified_array_element_exit checked 15904ms check-target:macos_arm64 @3139db74cf0d
+pass/borrow/runtime_write_only_qualified_array_element_exit checked 16089ms check-target:macos_arm64 @ee4db530ba1e
 pass/borrow/runtime_write_only_record_array_argument_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 16047ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 16752ms check-target:macos_arm64 @ccdb99ca2214
@@ -21206,7 +21208,7 @@ pass/domains/qualified_fixed_byte_array_ensured_mutation_exit checked 9763ms che
 pass/domains/qualified_fixed_byte_array_ensured_no_nul_store_exit checked 9366ms check-target:macos_arm64 @c0f1dbfc2dfd
 pass/domains/qualified_fixed_byte_field_loan_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_mutable_field_exit checked 3221ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/qualified_mutable_scalar_input_domain_expires checked 2490ms @ccdb99ca2214
+pass/domains/qualified_mutable_scalar_input_domain_expires checked 15689ms check-target:macos_arm64 @ee4db530ba1e
 pass/domains/qualified_owned_array_scalar_control_exit checked 3635ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_record_capture_after_mutation checked 2597ms @ccdb99ca2214
 pass/domains/qualified_record_capture_before_mutation checked 2404ms @ccdb99ca2214
@@ -21657,7 +21659,7 @@ pass/facts/additional_input_domain_mutation_through_call_result_exit checked 395
 pass/facts/additional_input_domain_mutation_through_const_name_exit checked 3706ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/additional_input_domain_mutation_through_field_exit checked 3846ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/additional_input_domain_mutation_through_local_exit checked 2768ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/additional_input_domain_mutation_through_match_join_exit checked 3142ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/additional_input_domain_mutation_through_match_join_exit checked 15671ms check-target:macos_arm64 @ee4db530ba1e
 pass/facts/additional_input_domain_mutation_through_other_machine_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/additional_input_domain_mutation_through_other_state_exit checked 3177ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/additional_input_domain_mutation_through_parameter_exit checked 3612ms check-target:macos_arm64 @ccdb99ca2214
@@ -23789,15 +23791,15 @@ pass/facts/nested_array_element_projection_through_other_machine_exit checked 39
 pass/facts/nested_array_element_projection_through_other_state_exit checked 4670ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_array_element_projection_through_parameter_exit checked 3579ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_array_element_projection_through_target_body_exit checked 3222ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_call_result_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_const_name_exit checked 3420ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_field_exit checked 3743ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_local_exit checked 4118ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_match_join_exit checked 3536ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_other_machine_exit checked 3790ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_other_state_exit checked 3755ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_parameter_exit checked 3670ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_borrow_qualification_through_target_body_exit checked 3309ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_borrow_qualification_through_call_result_exit checked 16172ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_const_name_exit checked 16059ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_field_exit checked 15801ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_local_exit checked 15772ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_match_join_exit checked 16172ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_other_machine_exit checked 15784ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_other_state_exit checked 15849ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_parameter_exit checked 15783ms check-target:macos_arm64 @ee4db530ba1e
+pass/facts/nested_borrow_qualification_through_target_body_exit checked 16237ms check-target:macos_arm64 @ee4db530ba1e
 pass/facts/nested_machine_invocation/call_result checked 3796ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/const_name checked 4014ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/copied_payload checked 3545ms check-target:macos_arm64 @ccdb99ca2214

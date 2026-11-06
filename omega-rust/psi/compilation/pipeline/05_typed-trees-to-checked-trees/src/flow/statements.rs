@@ -405,6 +405,11 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                         operand.expression == loan.formation_expression
                             && operand.state_symbol == state.symbol
                             && operand.statement_index == statement_index
+                            // Returned-field provenance names the performed call,
+                            // but it is not another evaluation of that expression.
+                            // A saved loan activates from its evaluated value.
+                            && !matches!(operand.completion,
+                                checked_trees::FlowOperandCompletion::InvocationResult { .. })
                     });
                 let first = captures
                     .next()
