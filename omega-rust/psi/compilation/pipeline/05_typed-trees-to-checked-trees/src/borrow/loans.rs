@@ -82,6 +82,8 @@ use reference_borrows::*;
 
 mod aggregate_loans;
 mod call_views;
+#[cfg(test)]
+mod grant_tests;
 
 /// Construction scratch for one supplied descriptor namespace. Its path is
 /// allocated by the receiving resource owner, after alternatives are complete.
