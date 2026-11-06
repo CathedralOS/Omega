@@ -131,6 +131,7 @@ wire_enum! {
         1 => AccessInitialize,
         2 => AccessMoveOut,
         3 => AccessView,
+        4 => EmptyRunRelease,
     }
     Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
     RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

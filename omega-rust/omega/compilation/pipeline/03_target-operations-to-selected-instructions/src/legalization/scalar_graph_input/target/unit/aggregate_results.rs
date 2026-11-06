@@ -313,7 +313,8 @@ pub(super) fn validate(
             },
             abstracted @ (AbstractOperation::StructuralLeafCopy { .. }
             | AbstractOperation::MoveStructuralValue { .. }
-            | AbstractOperation::TransformContent { .. }),
+            | AbstractOperation::TransformContent { .. }
+            | AbstractOperation::BoundaryCall { .. }),
         ) => {
             let owned_path;
             let (expected_operation, result, expected_source, expected_path) = match abstracted {
@@ -335,6 +336,38 @@ pub(super) fn validate(
                     ..
                 } => {
                     owned_path = source.path.clone().into();
+                    (psi_operation, result, &source.place, &owned_path)
+                }
+                AbstractOperation::BoundaryCall {
+                    psi_operation,
+                    boundary,
+                    arguments,
+                    structural_arguments,
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => {
+                    let declaration = plan
+                        .boundary_machines
+                        .iter()
+                        .find(|row| row.id == *boundary)
+                        .ok_or(LegalizationError::custody())?;
+                    let contract = terminal_semantics::empty_run_release_contract(
+                        plan.structural_types.as_slice(),
+                        declaration,
+                    )
+                    .map_err(|_| LegalizationError::custody())?;
+                    let [source] = structural_arguments.as_slice() else {
+                        return Err(LegalizationError::custody());
+                    };
+                    if !arguments.is_empty()
+                        || source.access != terminal_psi::StructuralAccess::Owned
+                        || result.structural_type != contract.result.structural_type
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    let mut projection = source.path.clone();
+                    projection.push(terminal_psi::StructuralPathSegment::Field(contract.storage));
+                    owned_path = projection.into();
                     (psi_operation, result, &source.place, &owned_path)
                 }
                 _ => return Err(LegalizationError::custody()),

@@ -530,6 +530,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || program_image_retained(psi_operation, boundary, targeted, selected)
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || access_lifecycle_retained(operation, targeted)
+                    || empty_run_release_retained(operation, targeted, abstract_plan)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
@@ -1178,6 +1179,55 @@ pub(super) fn call_target_matches(
 /// The target audit checks the canonical lifecycle kind and operand roles;
 /// downstream replay checks instruction encoding, layout and frames. Runtime
 /// falsifiers separately exercise the selected lifecycle's behavior.
+fn empty_run_release_retained(
+    operation: &AbstractOperation,
+    targeted: &target_operations::TargetFunction,
+    plan: &abstract_operations::AbstractOperationPlan,
+) -> bool {
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        arguments,
+        structural_arguments,
+        result: abstract_operations::AbstractBoundaryResult::Structural(result),
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(declaration) = plan
+        .boundary_machines
+        .iter()
+        .find(|row| row.id == *boundary)
+    else {
+        return false;
+    };
+    let Ok(contract) = terminal_semantics::empty_run_release_contract(
+        plan.structural_types.as_slice(),
+        declaration,
+    ) else {
+        return false;
+    };
+    let [source] = structural_arguments.as_slice() else {
+        return false;
+    };
+    if !arguments.is_empty()
+        || source.access != terminal_psi::StructuralAccess::Owned
+        || result.structural_type != contract.result.structural_type
+    {
+        return false;
+    }
+    let mut expected_path = source.path.clone();
+    expected_path.push(terminal_psi::StructuralPathSegment::Field(contract.storage));
+    targeted.graph.operations().filter(|row| matches!(row,
+        target_operations::TargetUnitOperation::StructuralLeafCopy {
+            psi_operation: actual, result_home, source: actual_source,
+            path: abstract_operations::StructuralCopyPath::Ordinary(path), ..
+        } if actual == psi_operation && *actual_source == source.place && *path == expected_path
+            && result_home.operation_result() == Some((*psi_operation, result))
+    )).count() == 1
+}
+
 fn access_lifecycle_retained(
     operation: &AbstractOperation,
     targeted: &target_operations::TargetFunction,

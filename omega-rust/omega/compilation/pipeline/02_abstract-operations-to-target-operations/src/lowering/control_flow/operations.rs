@@ -687,6 +687,9 @@ pub(super) fn lower_operation(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             match realization {
+                BoundarySettlementRealization::Builtin(BoundaryRealization::EmptyRunRelease) => {
+                    super::run_custody::lower(operation, site, boundary_machines, settlements)
+                }
                 BoundarySettlementRealization::Builtin(BoundaryRealization::AccessLifecycle {
                     ..
                 }) => {

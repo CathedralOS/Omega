@@ -201,7 +201,20 @@ pub(crate) fn lower_declarations(
                                 "placement primitive declaration is malformed",
                             )
                         })? {
-                            None => terminal_psi::CheckedBoundaryExecution::Provider,
+                            None => {
+                                if typed_trees::typed_trees::EmptyRunReleaseDeclaration::authenticate(
+                                    &checked.typed, plan.machine,
+                                )
+                                .map_err(|_| LoweringError::Unsupported(
+                                    "empty-run release declaration is malformed",
+                                ))?
+                                .is_some()
+                                {
+                                    terminal_psi::CheckedBoundaryExecution::EmptyRunRelease
+                                } else {
+                                    terminal_psi::CheckedBoundaryExecution::Provider
+                                }
+                            },
                             Some(declaration) => match declaration.operation() {
                                 typed_trees::typed_trees::AccessLifecycleOperation::Initialize => {
                                     terminal_psi::CheckedBoundaryExecution::AccessInitialize

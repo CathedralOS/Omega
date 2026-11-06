@@ -1028,10 +1028,9 @@ impl TerminalProgram<'_> {
 /// Execution ownership comes from the authenticated callable, not from an
 /// optional plan or a host's willingness to return the expected result shape.
 pub(crate) fn compiler_owns_boundary_execution(declaration: &BoundaryMachineDeclaration) -> bool {
-    declaration
-        .declaration
-        .as_ref()
-        .is_some_and(|callable| callable.execution.placement_operation().is_some())
+    declaration.declaration.as_ref().is_some_and(|callable| {
+        callable.execution != terminal_psi::CheckedBoundaryExecution::Provider
+    })
 }
 
 #[cfg(test)]
