@@ -117,7 +117,7 @@ fn unchanged_borrowed_holder_returns_when_reachable_pointer_array_exceeds_invent
             place: holder,
             position: 0,
             structural_type: ty(5),
-            multiplicity: StructuralMultiplicity::Affine,
+            multiplicity: StructuralMultiplicity::Unrestricted,
             access: StructuralAccess::MutableBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
