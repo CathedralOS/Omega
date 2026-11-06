@@ -128,21 +128,21 @@ pub fn publish_fragment_object(
             let physical = entry.physical_calling_plan().ok_or_else(|| {
                 native_artifact_error("physical program entry", "missing physical calling plan")
             })?;
-            let guarantee = entry
+            let contract = entry
                 .storage_entry()
                 .and_then(|storage| storage.physical_contract())
-                .and_then(|contract| contract.guaranteed_entry_stack())
                 .ok_or_else(|| {
                     native_artifact_error(
                         "physical program entry",
-                        "missing target entry stack guarantee",
+                        "missing selected physical entry contract",
                     )
                 })?;
             image_emission::bind_physical_entry(
                 &mut object,
+                entry.checked_entry().terminal_entry(),
                 physical.plan(),
                 adapter.parameter_formals(),
-                guarantee,
+                contract,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         } else {
@@ -170,6 +170,8 @@ pub fn publish_fragment_object(
             .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
+    image_emission::require_installed_root_provision(&object)
+        .map_err(|error| native_artifact_error("installed physical stack", error))?;
     validate_emitted_receiver_binding(&object, request.program_entry)?;
     Ok(PublishedFragmentObject {
         object,
@@ -234,7 +236,13 @@ fn validate_emitted_receiver_binding(
         // the retained private stack, not firmware policy or root authority.
         return if binding.is_none()
             && object.physical_entry_binding().is_some_and(|binding| {
-                settlement.physical_calling_plan().map(|plan| plan.plan()) == Some(binding.plan())
+                binding.semantic_entry() == settlement.checked_entry().terminal_entry()
+                    && settlement
+                        .storage_entry()
+                        .and_then(|storage| storage.physical_contract())
+                        == Some(binding.requirements().contract())
+                    && settlement.physical_calling_plan().map(|plan| plan.plan())
+                        == Some(binding.plan())
                     && settlement
                         .storage_entry()
                         .and_then(|storage| storage.physical_contract())

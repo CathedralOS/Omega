@@ -455,11 +455,19 @@ impl TableCallExpression {
             .private_layout_operation
             .as_ref()
             .map(|operation| &operation.selected_slot);
-        if !self.machine_arguments.is_empty() || private_slot.is_some() {
+        let installed_operands = self
+            .installed_interrupt_operation
+            .as_ref()
+            .map(|request| [&request.registrar, &request.timer_slot]);
+        if !self.machine_arguments.is_empty()
+            || private_slot.is_some()
+            || installed_operands.is_some()
+        {
             out.push('<');
-            for (index, argument) in self
-                .machine_arguments
-                .iter()
+            for (index, argument) in installed_operands
+                .into_iter()
+                .flatten()
+                .chain(self.machine_arguments.iter())
                 .chain(private_slot)
                 .enumerate()
             {

@@ -1289,8 +1289,8 @@ fn collect_binding_observation(
     output.len() > before
 }
 
-/// A returned reference with no borrowed input owns its invocation's permission,
-/// rather than forwarding an earlier caller loan. Require that exact checked
+/// An invocation-supplied descriptor carries its own checked permission.
+/// Its separate lifetime debts cannot supply a pointer. Require the exact
 /// incoming identity and performed call; an empty lifetime roster proves neither.
 fn is_independent_return(
     program: &dyn validation::CheckingInput,

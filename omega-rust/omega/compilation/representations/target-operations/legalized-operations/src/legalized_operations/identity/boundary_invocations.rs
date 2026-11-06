@@ -12,6 +12,14 @@ pub fn encode_boundary_execution_identity(
         BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::EmptyRunRelease) => {
             bytes.push(9)
         }
+        BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::StaticInterrupt {
+            boundary,
+            operation,
+        }) => {
+            bytes.push(10);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            bytes.push(operation.code());
+        }
         BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::AccessLifecycle {
             boundary,
             operation,
@@ -81,6 +89,14 @@ pub(super) fn encode_binding(bytes: &mut Vec<u8>, binding: &BoundarySettlementBi
         }
         BoundarySettlementRealization::Builtin(realization) => match realization {
             BoundaryRealization::EmptyRunRelease => bytes.push(12),
+            BoundaryRealization::StaticInterrupt {
+                boundary,
+                operation,
+            } => {
+                bytes.push(13);
+                bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                bytes.push(operation.code());
+            }
             BoundaryRealization::AccessLifecycle { boundary } => {
                 bytes.push(11);
                 bytes.extend_from_slice(&boundary.get().to_le_bytes());

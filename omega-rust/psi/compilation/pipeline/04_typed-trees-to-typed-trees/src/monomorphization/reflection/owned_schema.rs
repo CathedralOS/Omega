@@ -150,6 +150,7 @@ fn authored_query(
                     machine_arguments: call.machine_arguments,
                     quotient_operation: None,
                     private_layout_operation: None,
+                    installed_interrupt_operation: None,
                     layout_query: None,
                     native_code_layout: None,
                     arguments,

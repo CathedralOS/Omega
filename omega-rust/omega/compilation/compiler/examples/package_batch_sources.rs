@@ -279,6 +279,8 @@ fn work_counts() -> (u64, u64, u64, u64) {
 
 fn native_product() -> CompilationProduct {
     CompilationProduct::Native(NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy: current_terminal_authority_policy(),

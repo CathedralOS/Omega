@@ -161,7 +161,10 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
 // Provider instances distinguish declaration views from receiving applications.
-pub(crate) const FORMAT_MARKER: u16 = 247;
+// Marker 247 adds exact installed-interrupt registrations and their four
+// checked boundary execution kinds. Prior modules have no registration table.
+// Marker 248 combines provider roles with installed-entry execution.
+pub(crate) const FORMAT_MARKER: u16 = 248;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

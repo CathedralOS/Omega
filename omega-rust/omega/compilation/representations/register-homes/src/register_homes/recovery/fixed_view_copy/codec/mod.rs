@@ -42,7 +42,9 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 90 retains typed descriptor-table instructions.
 // Version 91 separates the occupied owner from its granted backing.
 // Installed providers retain declaration and receiving application roles.
-const VERSION: u32 = 95;
+// Version 94 retains the separately admitted privileged termination instruction.
+// Version 96 includes both retained provider roles and installed-entry forms.
+const VERSION: u32 = 96;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

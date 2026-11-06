@@ -248,6 +248,7 @@ pub enum RelocationFreeObjectDecodeError {
     UnknownImageFieldEncoding(u8),
     UnknownImageAddressReference(u8),
     InvalidPlace,
+    InvalidPrivateFunction,
     InvalidCallbackDestination,
     LengthOverflow,
     InvalidObject(RelocationFreeObjectError),
@@ -627,6 +628,10 @@ fn decode_image_address(
     let block = SelectedBlockId(cursor.u32()?);
     let instruction = SelectedInstructionId(cursor.u32()?);
     let reference = match cursor.byte()? {
+        4 => selected_instructions::SelectedImageAddressReference::PrivateFunction {
+            identity: function_identity::MachineFunctionIdentity::from_bytes(cursor.array()?)
+                .ok_or(RelocationFreeObjectDecodeError::InvalidPrivateFunction)?,
+        },
         3 => selected_instructions::SelectedImageAddressReference::RetainedEntryStorageStart,
         0 => selected_instructions::SelectedImageAddressReference::ByteLiteral {
             operation: OperationId::new(cursor.u64()?)
@@ -1266,6 +1271,39 @@ mod tests {
         object.unresolved_image_addresses[1].reference =
             object.unresolved_image_addresses[0].reference;
         assert_ne!(object.recomputed_identity().unwrap(), original_identity);
+    }
+
+    #[test]
+    fn private_image_reference_retains_caller_and_placement() {
+        let mut object = literal_plan();
+        let identity =
+            function_identity::MachineFunctionIdentity::callback_thunk(object.psi, 17).unwrap();
+        object.unresolved_image_addresses[0].reference =
+            selected_instructions::SelectedImageAddressReference::PrivateFunction { identity };
+        object.identity = object.recomputed_identity().unwrap();
+        let original = object.identity;
+        let container = encode_relocation_free_object(&object).unwrap();
+        assert_eq!(
+            decode_relocation_free_object(&container.bytes),
+            Ok(object.clone())
+        );
+        for changed in [
+            function_identity::MachineFunctionIdentity::callback_thunk(object.psi, 18).unwrap(),
+            function_identity::MachineFunctionIdentity::callback_thunk(
+                TerminalPsiIdentity {
+                    program_fingerprint: SemanticFingerprint::from_bytes([93; 32]),
+                    ..object.psi
+                },
+                17,
+            )
+            .unwrap(),
+        ] {
+            object.unresolved_image_addresses[0].reference =
+                selected_instructions::SelectedImageAddressReference::PrivateFunction {
+                    identity: changed,
+                };
+            assert_ne!(object.recomputed_identity().unwrap(), original);
+        }
     }
 
     #[test]

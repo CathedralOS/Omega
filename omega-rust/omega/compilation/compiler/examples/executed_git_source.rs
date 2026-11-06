@@ -157,6 +157,7 @@ fn execute_workspace_fixture() {
         build_directory: Some(directory.join("output")),
         targets: orchestration::BuildTargets::Single(profile),
         product: orchestration::ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: orchestration::NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },

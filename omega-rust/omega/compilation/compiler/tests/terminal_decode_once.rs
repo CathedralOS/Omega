@@ -138,6 +138,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let mut prepared_native = native_production::prepare(
         &retained,
         native_production::NativeCompileRequest {
+            installation_assumptions: &[],
             private_entry_ram: &[],
             optimization_selections: &optimizations,
             terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(

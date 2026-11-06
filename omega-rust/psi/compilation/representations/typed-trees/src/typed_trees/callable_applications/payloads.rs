@@ -652,6 +652,11 @@ impl CallableApplication {
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),
                 expression::ExpressionNode::Call(mut call) => {
+                    if let Some(request) = &mut call.installed_interrupt_operation {
+                        request.invalidate_preparation();
+                        self.static_arguments(program, std::slice::from_mut(&mut request.registrar))?;
+                        self.static_arguments(program, std::slice::from_mut(&mut request.timer_slot))?;
+                    }
                     self.static_arguments(program, &mut call.machine_arguments)?;
                     let application = call.authored_machine_application;
                     if application.is_valid() {
@@ -818,6 +823,19 @@ impl CallableApplication {
                     *lifetime = self.lifetime(lifetime);
                 }
                 self.static_arguments(program, &mut application.arguments)?;
+                if application.member.is_valid() {
+                    let mut member = program
+                        .expression_table
+                        .static_member(application.member)
+                        .ok_or("qualified static member has no owning expression record")?
+                        .clone();
+                    self.static_arguments(program, std::slice::from_mut(&mut member))?;
+                    *program
+                        .expression_table
+                        .static_member_mut(application.member)
+                        .ok_or("qualified static member lost its owning expression record")? =
+                        member;
+                }
             }
         }
         Ok(())

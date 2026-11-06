@@ -29,6 +29,7 @@ pub(super) struct ReviewContext<'a> {
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
     components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
+    pub(super) installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
 }
 
 impl<'a> ReviewContext<'a> {
@@ -41,9 +42,11 @@ impl<'a> ReviewContext<'a> {
         mechanisms: &[AdmittedTerminalMechanism],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
         components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
+        installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
     ) -> Result<Self, String> {
         let plan = input.plan();
-        let graph = AuthorityGraph::new(input, target_profile)?;
+        let graph = AuthorityGraph::new(input, target_profile)?
+            .with_installed_interrupts(installed_interrupts)?;
         let mut boundaries = BTreeMap::new();
         let mut boundary_identities = BTreeSet::new();
         for boundary in &plan.boundary_machines {
@@ -79,6 +82,7 @@ impl<'a> ReviewContext<'a> {
             installed_candidates,
             target_profile,
             components,
+            installed_interrupts,
         })
     }
 

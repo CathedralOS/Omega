@@ -37,13 +37,16 @@ mod entries;
 mod image;
 mod object;
 pub use entries::callable_entry_transport::{
-    create_callable_entry_transport, create_private_function_object,
+    create_callable_entry_transport, create_installed_private_function_object,
+    create_private_function_object,
 };
 pub use entries::foreign_adapter::{
     NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,
 };
 pub use entries::physical_entry::{
-    PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry,
+    InstalledPhysicalCpuRequirement, PhysicalEntryBinding, PhysicalEntryPartitions,
+    PhysicalEntryRequirements, PhysicalEntryStackRequirement, PhysicalIncomingStackRequirement,
+    bind_physical_entry,
 };
 pub use object::component_object::{
     ComponentFunctionImage, component_export_symbol, prepare_component_function_image,
@@ -98,3 +101,8 @@ pub use image::image_output::{
 
 pub use installation_record::InstallationError;
 pub use machine_code::BoundaryExecutionRecord;
+
+pub use object::object_artifact::installed_stack::{
+    compose_installed_arrival_demands, installed_interrupt_stack_requirement,
+    require_installed_root_provision,
+};

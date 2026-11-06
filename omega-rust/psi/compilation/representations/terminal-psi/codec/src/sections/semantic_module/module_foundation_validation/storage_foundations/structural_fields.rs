@@ -4,9 +4,9 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralPathQualification, StructuralPathSegment, StructuralTypeShape,
-    element_view_establish_pair_pattern, mutating_access_pair_pattern,
-    nonlinear_multiplicity_pair_pattern,
+    StructuralAccess, StructuralPathQualification, StructuralPathSegment,
+    StructuralStoreDisposition, StructuralTypeShape, element_view_establish_pair_pattern,
+    mutating_access_pair_pattern, nonlinear_multiplicity_pair_pattern,
 };
 use terminal_semantics::{
     observed_field_backing_access, observed_field_declaration, primitive_projection_type,
@@ -316,10 +316,26 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) =
-        store_root_type(module, machine, *destination, path, *field, *disposition)
-    else {
-        return malformed("structural field store has no matching writable storage declaration");
+    // Filling a whole owned home uses its own storage declaration. It is not
+    // a borrow of that home. Vacancy comes from checked construction or
+    // cleanup; ordered ownership still checks live loans and claim transfer.
+    let owned_root =
+        (*disposition == StructuralStoreDisposition::Vacant && path.is_empty() && field.is_none())
+            .then(|| owned_store_root_type(machine, *destination))
+            .flatten();
+    let Some(root_type) = owned_root.or_else(|| {
+        window_root_type(
+            module,
+            machine,
+            *destination,
+            path,
+            *field,
+            disposition.required_access(),
+        )
+    }) else {
+        return malformed(
+            "structural field store requires declared owned vacant storage or an accessible borrowed window",
+        );
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
     if structural_place_type(machine, value.place) != Some(field_type) {
@@ -340,37 +356,49 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
     Ok(())
 }
 
-fn store_root_type(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    place: PlaceId,
-    path: &[StructuralPathSegment],
-    field: Option<StructuralFieldId>,
-    disposition: terminal_psi::StructuralStoreDisposition,
-) -> Option<StructuralTypeId> {
-    if path.is_empty()
-        && field.is_none()
-        && let Some((producer, declared_type)) = machine.producing_operation(place)
-        && matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
-    {
-        // Installing an owned value in a declared local home is construction,
-        // not extraction through a borrowed root. Authenticate that exact home
-        // here; ordered custody must still establish vacancy and transfer the
-        // incoming value. MoveStructuralField keeps its borrowed-root rule.
-        let result = producer.result.structural()?;
-        return (disposition == terminal_psi::StructuralStoreDisposition::Vacant
-            && result.place == place
-            && result.structural_type == declared_type)
-            .then_some(declared_type);
+/// Whole owned storage is identified by its parameter binding or exact
+/// producing operation, regardless of how that operation constructs the value.
+/// Content-entry custody requires its separate transfer protocol.
+fn owned_store_root_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
+    let declaration = machine.structural_place(place)?;
+    match declaration.kind {
+        StructuralPlaceKind::Parameter { position } => {
+            let parameter = machine.structural_parameters.get(position as usize)?;
+            (parameter.place == place
+                && parameter.position == position
+                && parameter.access == StructuralAccess::Owned)
+                .then_some(parameter.structural_type)
+        }
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            let parameter = machine
+                .block(&block)?
+                .structural_parameters
+                .get(position as usize)?;
+            (block != machine.entry
+                && parameter.place == place
+                && parameter.position == position
+                && parameter.access == StructuralAccess::Owned
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == place))
+            .then_some(parameter.structural_type)
+        }
+        StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } => {
+            let result = machine.operation(producer)?.result.structural()?;
+            (result.place == place
+                && result.structural_type == structural_type
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == place))
+            .then_some(structural_type)
+        }
+        _ => None,
     }
-    window_root_type(
-        module,
-        machine,
-        place,
-        path,
-        field,
-        disposition.required_access(),
-    )
 }
 
 /// The declared root type a window operation may name. A field window may

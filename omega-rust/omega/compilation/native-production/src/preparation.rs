@@ -42,6 +42,11 @@ pub fn prepare<'input>(
     let recovery = request.image_request.clone();
     let result = (|| {
         let (artifact, proposal) = request.prepare_terminal(retained)?;
+        crate::installation_environment::validate_inputs(
+            artifact,
+            proposal,
+            request.installation_assumptions,
+        )?;
         let components =
             crate::components::prepare_components(request.components, artifact.view())?;
         let selections = terminal_installation::admit_target_machine_selections(

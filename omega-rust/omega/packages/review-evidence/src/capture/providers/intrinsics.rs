@@ -79,6 +79,9 @@ const fn project_execution_identity(
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             PackageReviewCompilerIntrinsicExecution::AccessLifecycle(operation)
         }
+        CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
+            PackageReviewCompilerIntrinsicExecution::StaticInterrupt(operation)
+        }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => {
             PackageReviewCompilerIntrinsicExecution::ProgramStorageEntry
         }
@@ -150,6 +153,11 @@ fn execution_identity_label(identity: CompilerIntrinsicExecutionIdentity) -> Str
         }
         CompilerIntrinsicExecutionIdentity::TaskRegisterRead => {
             "Read the current task-register selector".to_owned()
+        }
+        CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
+            format!(
+                "Installed interrupt operation {operation:?}; exact root and arrival admission required"
+            )
         }
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             format!(

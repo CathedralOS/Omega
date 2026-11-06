@@ -30,6 +30,11 @@ use register_model::validate_physical_register_model;
 use target::{Architecture, NativeTarget};
 
 mod entry_protocol;
+mod installed_fatal;
+mod installed_interrupt;
+
+pub use installed_interrupt::emit_installed_interrupt_entry_bridge;
+pub use runtime_abi::static_interrupts::{InstalledInterruptEntryPlan, InstalledInterruptFrame};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NativeEntryParameter {
@@ -56,9 +61,13 @@ pub struct NativeEntryBridge {
     bytes: Vec<u8>,
     frame_bytes: u32,
     call_field_offset: usize,
+    installed_interrupt: Option<InstalledInterruptEntryPlan>,
 }
 
 impl NativeEntryBridge {
+    pub fn installed_interrupt(&self) -> Option<InstalledInterruptEntryPlan> {
+        self.installed_interrupt
+    }
     pub fn request(&self) -> &NativeEntryBridgeRequest {
         &self.request
     }
@@ -80,6 +89,9 @@ impl NativeEntryBridge {
 pub enum NativeEntryBridgeError {
     IncompatiblePlan,
     UnsupportedEntryControl,
+    UnsupportedInstalledInterruptSignature,
+    UnsupportedFatalInterruptSignature,
+    InvalidInstalledInterruptGeometry,
     UnsupportedInterruptState,
     MissingInterruptBodyFootprint,
     InterruptBodyStateExceedsPlan,
@@ -94,6 +106,15 @@ pub enum NativeEntryBridgeError {
 impl std::fmt::Display for NativeEntryBridgeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let reason = match self {
+            Self::UnsupportedInstalledInterruptSignature => {
+                "installed timer arrival requires exactly one owned 40-byte acknowledgement and no result"
+            }
+            Self::UnsupportedFatalInterruptSignature => {
+                "installed fatal arrival requires exactly one shared context reference and no result"
+            }
+            Self::InvalidInstalledInterruptGeometry => {
+                "installed interrupt entry changed its root, gate or hardware-frame geometry"
+            }
             Self::UnsupportedEntryControl => "this target cannot emit the requested entry return",
             Self::UnsupportedInterruptState => {
                 "interrupt entry requires the supported x86-64 integer-register save/restore plan and 16-byte stack alignment"
@@ -679,12 +700,17 @@ pub fn emit_native_entry_bridge(
         bytes,
         frame_bytes,
         call_field_offset,
+        installed_interrupt: None,
     })
 }
 
 /// Replay physical bytes and frame geometry at an independent artifact boundary.
 pub fn validate_native_entry_bridge(bridge: &NativeEntryBridge) -> Result<(), Error> {
-    if emit_native_entry_bridge(bridge.request.clone())? != *bridge {
+    let replay = match bridge.installed_interrupt {
+        Some(plan) => emit_installed_interrupt_entry_bridge(bridge.request.clone(), plan)?,
+        None => emit_native_entry_bridge(bridge.request.clone())?,
+    };
+    if replay != *bridge {
         return Err(Error::ReplayMismatch);
     }
     Ok(())
@@ -783,6 +809,121 @@ mod tests {
             ]),
         ));
         request
+    }
+
+    #[test]
+    fn installed_interrupt_saves_before_minting_and_restores_both_cpu_frames() {
+        use iced_x86::{Decoder, DecoderOptions, Mnemonic, Register};
+        for frame in [
+            InstalledInterruptFrame::NoErrorCode,
+            InstalledInterruptFrame::ErrorCode,
+        ] {
+            let plan = InstalledInterruptEntryPlan::new(frame);
+            let mut request = interrupt_request(vec![ValueShape::integer(40, 8)]);
+            // A stack class names a resource domain, not a hardware IST index.
+            request.inbound.state.stack = calling_conventions::EntryStack::Dedicated { class: 42 };
+            let bridge = emit_installed_interrupt_entry_bridge(request, plan).unwrap();
+            let instructions = Decoder::new(64, bridge.bytes(), DecoderOptions::NONE)
+                .into_iter()
+                .collect::<Vec<_>>();
+            assert!(
+                instructions
+                    .iter()
+                    .all(|instruction| !instruction.is_invalid())
+            );
+            assert_eq!(instructions[0].mnemonic(), Mnemonic::Sub);
+            assert_eq!(instructions[0].op0_register(), Register::RSP);
+            assert_eq!(
+                instructions[0].immediate8(),
+                if frame == InstalledInterruptFrame::NoErrorCode {
+                    16
+                } else {
+                    8
+                }
+            );
+            // No scratch write or stack probe precedes saving the complete GPR set.
+            assert!(
+                instructions[1..16]
+                    .iter()
+                    .all(|instruction| instruction.mnemonic() == Mnemonic::Push)
+            );
+            assert_eq!(instructions[16].mnemonic(), Mnemonic::Cld);
+            let saved = instructions[1..16]
+                .iter()
+                .map(|instruction| instruction.op0_register())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                saved,
+                [
+                    Register::RAX,
+                    Register::RCX,
+                    Register::RDX,
+                    Register::RBX,
+                    Register::RBP,
+                    Register::RSI,
+                    Register::RDI,
+                    Register::R8,
+                    Register::R9,
+                    Register::R10,
+                    Register::R11,
+                    Register::R12,
+                    Register::R13,
+                    Register::R14,
+                    Register::R15
+                ]
+            );
+            let calls = instructions
+                .iter()
+                .filter(|instruction| instruction.mnemonic() == Mnemonic::Call)
+                .collect::<Vec<_>>();
+            assert_eq!(calls.len(), 1);
+            assert_eq!(calls[0].ip() as usize + 1, bridge.call_field_offset());
+            let restored = instructions
+                .iter()
+                .filter(|instruction| instruction.mnemonic() == Mnemonic::Pop)
+                .map(|instruction| instruction.op0_register())
+                .collect::<Vec<_>>();
+            assert_eq!(restored, saved.into_iter().rev().collect::<Vec<_>>());
+            assert_eq!(instructions.last().unwrap().mnemonic(), Mnemonic::Iretq);
+            let discard = &instructions[instructions.len() - 2];
+            assert_eq!(discard.mnemonic(), Mnemonic::Add);
+            assert_eq!(discard.op0_register(), Register::RSP);
+            assert_eq!(discard.immediate8(), 16);
+            // Active root, zero prior debt, increment overflow and returned debt.
+            assert_eq!(
+                instructions
+                    .iter()
+                    .filter(|instruction| instruction.mnemonic() == Mnemonic::Ud2)
+                    .count(),
+                4
+            );
+            assert_eq!(bridge.installed_interrupt(), Some(plan));
+            assert_eq!(bridge.frame_bytes() % 16, 0);
+            assert!(bridge.frame_bytes() >= 56 + 120 + 40 + 8);
+        }
+    }
+
+    #[test]
+    fn installed_interrupt_refuses_ordinary_signatures_and_unleased_stacks() {
+        use calling_conventions::EntryStack;
+        let plan = InstalledInterruptEntryPlan::new(InstalledInterruptFrame::NoErrorCode);
+        // Existing exception entries remain ordinary; they cannot mint an Ack.
+        assert_eq!(
+            emit_installed_interrupt_entry_bridge(interrupt_request(vec![]), plan),
+            Err(Error::UnsupportedInstalledInterruptSignature)
+        );
+        let mut request = interrupt_request(vec![ValueShape::integer(40, 8)]);
+        request.inbound.state.stack = EntryStack::Interrupted;
+        assert_eq!(
+            emit_installed_interrupt_entry_bridge(request, plan),
+            Err(Error::UnsupportedInterruptState)
+        );
+        let mut request = interrupt_request(vec![ValueShape::integer(40, 8)]);
+        request.inbound.call.entry_control = EntryControl::CallReturn;
+        assert_eq!(
+            emit_installed_interrupt_entry_bridge(request, plan),
+            Err(Error::UnsupportedInterruptState)
+        );
     }
 
     #[test]

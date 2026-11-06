@@ -9,6 +9,13 @@ pub struct TerminalPsiProvenance {
     pub edges: Vec<EdgeId>,
 }
 
+/// Which helper a source installation operation invokes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InstallationCallRole {
+    Validate,
+    Work,
+}
+
 /// Semantic owner of one native call site.
 ///
 /// Ordinary calls are owned by terminal-Psi operations. An executable nominal
@@ -16,18 +23,30 @@ pub struct TerminalPsiProvenance {
 /// exact ordered action on the selected ownership edge, so it must retain both
 /// identities rather than fabricating an [`OperationId`]. An admitted external
 /// completion owns its exact terminal edge and no normal result or successor.
+/// Installation helpers retain the source Scope operation and their distinct
+/// roles; neither helper is an ordinary call authored at that operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CallSiteOwner {
     Operation(OperationId),
     InvokeNoNormal(EdgeId),
     ExternalCompletion(EdgeId),
-    CleanupAction { edge: EdgeId, action_ordinal: u32 },
+    CleanupAction {
+        edge: EdgeId,
+        action_ordinal: u32,
+    },
+    Installation {
+        operation: OperationId,
+        role: InstallationCallRole,
+    },
 }
 
 impl CallSiteOwner {
+    /// The source operation for attribution, including installation helpers.
+    /// This does not identify an ordinary source call; those consumers must
+    /// match `Operation` explicitly.
     pub const fn operation(self) -> Option<OperationId> {
         match self {
-            Self::Operation(operation) => Some(operation),
+            Self::Operation(operation) | Self::Installation { operation, .. } => Some(operation),
             Self::InvokeNoNormal(_) | Self::ExternalCompletion(_) | Self::CleanupAction { .. } => {
                 None
             }
@@ -36,7 +55,7 @@ impl CallSiteOwner {
 
     pub const fn edge(self) -> Option<EdgeId> {
         match self {
-            Self::Operation(_) => None,
+            Self::Operation(_) | Self::Installation { .. } => None,
             Self::InvokeNoNormal(edge)
             | Self::ExternalCompletion(edge)
             | Self::CleanupAction { edge, .. } => Some(edge),
@@ -45,7 +64,10 @@ impl CallSiteOwner {
 
     pub const fn cleanup_action_ordinal(self) -> Option<u32> {
         match self {
-            Self::Operation(_) | Self::InvokeNoNormal(_) | Self::ExternalCompletion(_) => None,
+            Self::Operation(_)
+            | Self::Installation { .. }
+            | Self::InvokeNoNormal(_)
+            | Self::ExternalCompletion(_) => None,
             Self::CleanupAction { action_ordinal, .. } => Some(action_ordinal),
         }
     }

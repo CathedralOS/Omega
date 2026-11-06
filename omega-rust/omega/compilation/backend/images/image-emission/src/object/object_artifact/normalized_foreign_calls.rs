@@ -443,7 +443,7 @@ pub fn durable_home_offsets(
     let mut producers = Vec::new();
     for contract in &function.calls {
         if let Some(placement) = &contract.call.result_placement
-            && let Some(operation) = contract.owner.operation()
+            && let target_operations::CallSiteOwner::Operation(operation) = contract.owner
         {
             producers.push((contract.instruction, operation, placement.shape.byte_size));
         }
@@ -1612,10 +1612,9 @@ pub fn scalar_call_result_producer(
     function: &selected_instructions::SelectedFunction,
     home: &target_operations::TargetUnitScalarHomeRequirement,
 ) -> bool {
-    let mut internal = function
-        .calls
-        .iter()
-        .filter(|contract| contract.owner.operation() == Some(home.defining_operation));
+    let mut internal = function.calls.iter().filter(|contract| {
+        contract.owner == target_operations::CallSiteOwner::Operation(home.defining_operation)
+    });
     let mut foreign = function
         .normalized_foreign_calls
         .iter()

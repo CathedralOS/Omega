@@ -371,6 +371,12 @@ pub fn prepare_typed_trees(
         "psi.04.post_specialization.requirement_applications",
         || crate::monomorphization::instantiate_requirement_applications(&mut program),
     )?;
+    // Rebuild copied request applications only after the final requirement
+    // instances exist. Any new provider body follows ordinary specialization.
+    while crate::monomorphization::prepare_installed_interrupts(&mut program)? {
+        specialize_machine_calls(&mut program, !request.admits_pending_inputs)?;
+        crate::monomorphization::instantiate_requirement_applications(&mut program)?;
+    }
     // The public signatures above own newly instantiated carrier occurrences.
     // Complete their field views just as for source types, without revisiting
     // the unchanged source roster or electing a private realization's fields.

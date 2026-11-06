@@ -79,6 +79,49 @@ pub struct ObjectByteLiteralAddress {
 }
 
 impl ObjectArtifact {
+    pub(crate) fn installed_entry_execution(
+        &self,
+    ) -> Option<&provider_admission::AdmittedInstalledEntryExecution> {
+        self.fragment_replay
+            .as_ref()?
+            .0
+            .source()
+            .source()
+            .source()
+            .source()
+            .optimized_target()
+            .installed_entry_execution()
+    }
+
+    /// Exact caller assumptions retained by the original installed scopes.
+    /// These remain requirements on execution, not observations of the machine.
+    pub fn installation_environment_assumptions(
+        &self,
+    ) -> Vec<&installation_evidence::InstallationEnvironmentAssumption> {
+        fn collect<'a>(
+            object: &'a ObjectArtifact,
+            rows: &mut Vec<&'a installation_evidence::InstallationEnvironmentAssumption>,
+        ) {
+            let source = object.composition_source.as_deref().unwrap_or(object);
+            if let Some(replay) = &source.fragment_replay {
+                for scope in replay.0.lowering_facts().installed_interrupts().scopes() {
+                    for assumption in scope.installation_assumptions() {
+                        if !rows.contains(&assumption) {
+                            rows.push(assumption);
+                        }
+                    }
+                }
+            }
+            for private in &object.private_functions {
+                collect(&private.body, rows);
+            }
+        }
+        let mut rows = Vec::new();
+        collect(self, &mut rows);
+        rows.sort_unstable_by_key(|row| (row.entry(), row.installation(), row.condition_tag()));
+        rows
+    }
+
     pub const fn physical_entry_binding(&self) -> Option<&crate::PhysicalEntryBinding> {
         self.physical_entry.as_ref()
     }
@@ -100,6 +143,16 @@ impl ObjectArtifact {
 
     pub const fn x86_feature_profile(&self) -> Option<target::TargetProfile> {
         self.x86_feature_profile
+    }
+
+    /// Audit one entry against this object's original admitted callback recipe.
+    /// This checks source correspondence; transport and final placement have
+    /// their own artifact checks. A candidate clone receives no authority.
+    pub fn verify_private_entry_origin(
+        &self,
+        candidate: &ObjectCompilerPrivateFunction,
+    ) -> Result<(), crate::FunctionFragmentObjectArtifactError> {
+        crate::entries::private_entry_origin::EntryOrigins::new(self)?.verify(candidate)
     }
 
     pub const fn entry(&self) -> MachineId {
@@ -169,8 +222,31 @@ impl ObjectArtifact {
             .find(|function| function.machine == machine)
     }
 
+    /// Read the selected byte layout of borrowed storage from this object's
+    /// target plan, rather than inferring it from source types or pointer size.
+    pub fn borrowed_storage_layouts(&self) -> Option<&[runtime_abi::NativeBorrowedStorageLayout]> {
+        self.fragment_replay.as_ref().map(|replay| {
+            replay
+                .0
+                .source()
+                .source()
+                .source()
+                .source()
+                .optimized_target()
+                .borrowed_storage_layouts()
+        })
+    }
+
     pub fn private_functions(&self) -> &[ObjectCompilerPrivateFunction] {
         &self.private_functions
+    }
+
+    /// Inspect declarations in this object's own Terminal namespace. Consumers
+    /// must resolve its machine IDs here, including those of private bodies.
+    pub fn terminal_module(&self) -> Option<&terminal_psi::TerminalModule> {
+        self.fragment_replay
+            .as_ref()
+            .map(|replay| replay.terminal_module())
     }
 
     pub(crate) fn entry_function(&self) -> &ObjectFunction {
@@ -311,6 +387,10 @@ pub struct ObjectCompilerPrivateFunction {
     pub body: std::sync::Arc<ObjectArtifact>,
     /// Physical native entry; absent only for identity transport to the body.
     pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    /// Keep the external calling recipe even when no adapter code is needed.
+    pub inbound: calling_conventions::BoundaryEntryPlan,
+    /// Native parameter ordinals in the ordinary body's formal order.
+    pub inbound_ordinals: Vec<u32>,
     pub text_offset: usize,
     pub data_offset: usize,
     pub symbol_bindings: arena::Arena<PrivateObjectSymbolBinding>,
@@ -356,9 +436,20 @@ pub struct PrivateFunctionObject {
     pub identity: function_identity::MachineFunctionIdentity,
     pub body: std::sync::Arc<ObjectArtifact>,
     pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    /// Keep the external calling recipe even when no adapter code is needed.
+    pub inbound: calling_conventions::BoundaryEntryPlan,
+    /// Native parameter ordinals in the ordinary body's formal order.
+    pub inbound_ordinals: Vec<u32>,
 }
 
 impl ObjectCompilerPrivateFunction {
+    /// Check that the retained calling recipe still produces the same adapter,
+    /// including an entry that needs no adapter instructions. The enclosing
+    /// artifact audit separately checks final image bytes and placement.
+    pub fn verify_entry_transport(&self) -> Result<(), crate::FunctionFragmentObjectArtifactError> {
+        crate::entries::callable_entry_transport::validate_entry_transport(self)
+    }
+
     pub fn bytes<'artifact>(&self, artifact: &'artifact ObjectArtifact) -> &'artifact [u8] {
         self.function.bytes(artifact)
     }

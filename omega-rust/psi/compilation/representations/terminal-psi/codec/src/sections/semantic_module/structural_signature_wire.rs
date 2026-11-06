@@ -132,6 +132,10 @@ wire_enum! {
         2 => AccessMoveOut,
         3 => AccessView,
         4 => EmptyRunRelease,
+        5 => StaticInterruptInstall,
+        6 => StaticInterruptContext,
+        7 => StaticInterruptBeginCompletion,
+        8 => StaticInterruptFinishCompletion,
     }
     Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
     RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {
@@ -158,6 +162,32 @@ wire_enum! {
         0 => Unit,
         1 => Scalar(result: QualifiedScalar),
         2 => Structural(result: StructuralResult),
+    }
+}
+
+#[cfg(test)]
+mod execution_tag_tests {
+    use super::*;
+
+    #[test]
+    fn release_and_interrupt_terminal_tags_do_not_alias() {
+        for (value, tag) in [
+            (CheckedBoundaryExecution::EmptyRunRelease, 4),
+            (CheckedBoundaryExecution::StaticInterruptInstall, 5),
+            (CheckedBoundaryExecution::StaticInterruptContext, 6),
+            (CheckedBoundaryExecution::StaticInterruptBeginCompletion, 7),
+            (CheckedBoundaryExecution::StaticInterruptFinishCompletion, 8),
+        ] {
+            let mut writer = Writer::default();
+            Execution::write(&mut writer, &value).unwrap();
+            let bytes = writer.finish();
+            assert_eq!(bytes, [tag]);
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(Execution::read(&mut reader).unwrap(), value);
+            assert_eq!(reader.remaining(), 0);
+        }
+        assert!(Execution::read(&mut Reader::new(&[])).is_err());
+        assert!(Execution::read(&mut Reader::new(&[255])).is_err());
     }
 }
 

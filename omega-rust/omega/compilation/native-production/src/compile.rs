@@ -116,6 +116,7 @@ fn produce(
             &native_settlements,
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
+            request.installation_assumptions,
         );
         let realization = crate::request::NativeRealizationRequest {
             observation: &observation,

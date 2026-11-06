@@ -10,6 +10,10 @@ use orchestration::{
 pub(crate) fn compile_project_command(arguments: CompileArguments) {
     let started = arguments.timings.then(std::time::Instant::now);
     let report_file = arguments.report_file.clone();
+    let installation_assumptions = arguments.installation_assumptions.clone();
+    for row in &installation_assumptions {
+        println!("{}", assumption_text(row));
+    }
     let target_names = arguments.target_names;
     let targets = match target_names.as_slice() {
         [] => Ok(BuildTargets::Host),
@@ -34,6 +38,7 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
             ProjectProduct::Check
         } else {
             ProjectProduct::Native {
+                installation_assumptions: arguments.installation_assumptions,
                 destination: NativeDestination::Published,
                 private_entry_ram: Vec::new(),
             }
@@ -48,7 +53,12 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
             .map(|capture| compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
     };
     if target_names.len() > 1 {
-        compile_several_targets(request, started, report_file.as_deref());
+        compile_several_targets(
+            request,
+            started,
+            report_file.as_deref(),
+            &installation_assumptions,
+        );
         return;
     }
     let report_target_name = target_names.first();
@@ -76,7 +86,11 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
     if let Some(path) = &report_file {
         write_report_or_exit(
             path,
-            &report_text(report_target_name.map(String::as_str), &outcome),
+            &report_text(
+                report_target_name.map(String::as_str),
+                &outcome,
+                &installation_assumptions,
+            ),
         );
     }
     print_outcome(&outcome);
@@ -88,6 +102,7 @@ fn compile_several_targets(
     request: BuildRequest,
     started: Option<std::time::Instant>,
     report_file: Option<&std::path::Path>,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
 ) {
     let outcomes = match build(request) {
         Ok(outcomes) => outcomes,
@@ -109,7 +124,11 @@ fn compile_several_targets(
                     print_timings(&outcome);
                 }
                 print_outcome(&outcome);
-                report_contents.push_str(&report_text(Some(name), &outcome));
+                report_contents.push_str(&report_text(
+                    Some(name),
+                    &outcome,
+                    installation_assumptions,
+                ));
             }
             Err(error) => {
                 eprintln!("{error}");
@@ -212,7 +231,28 @@ fn print_outcome(outcome: &orchestration::BuildReport) {
 /// Render the produced outcome as the plain-text observation `--report-file`
 /// requests: the requested product, the named target, the report summary,
 /// and every publication line the console reports.
-fn report_text(target_name: Option<&str>, outcome: &orchestration::BuildReport) -> String {
+fn assumption_text(row: &compilation_products::InstallationEnvironmentAssumption) -> String {
+    format!(
+        "Caller assumption (not proof or observation): {}; entry {:?}; installation {:?}; target {}; Terminal {}; environment SHA-256 {}; source {}; caller {}",
+        row.description(),
+        row.entry(),
+        row.installation(),
+        row.profile().target_name(),
+        row.psi().program_fingerprint,
+        row.environment_description_sha256()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+        row.source_provenance(),
+        row.caller_provenance()
+    )
+}
+
+fn report_text(
+    target_name: Option<&str>,
+    outcome: &orchestration::BuildReport,
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
+) -> String {
     let mut contents = String::new();
     contents.push_str(match outcome.executable_path.is_some() {
         true => "product: native artifact\n",
@@ -221,6 +261,13 @@ fn report_text(target_name: Option<&str>, outcome: &orchestration::BuildReport) 
     match target_name {
         Some(target) => contents.push_str(&format!("target: {target}\n")),
         None => contents.push_str("target: host default\n"),
+    }
+    for row in installation_assumptions
+        .iter()
+        .filter(|row| target_name.is_none_or(|target| row.profile().target_name() == target))
+    {
+        contents.push_str(&assumption_text(row));
+        contents.push('\n');
     }
     contents.push_str(&outcome.report.summary());
     contents.push('\n');

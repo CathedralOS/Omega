@@ -121,13 +121,13 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
 }
 
 #[test]
-fn current_encoding_binds_the_version_24_u16_alternative_schema() {
+fn current_encoding_binds_the_version_29_alternative_schema() {
     let mut program = deferred_program();
-    // V24 widens the alternative-family tag, while every other byte of this
-    // deferred branch retains its existing meaning and order.
+    // V29 adds privileged termination; this deferred branch keeps the same
+    // field meanings and ordering under the new schema.
     // Assemble the canonical bytes independently of the production encoder.
     use sha2::{Digest, Sha256};
-    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v24".to_vec();
+    let mut canonical = b"omega.terminal.layout-independent-selected-form-encoding.v29".to_vec();
     canonical.extend_from_slice(&[1; 32]); // Selected identity.
     canonical.extend_from_slice(&[2; 32]); // Physical identity.
     canonical.push(0); // No post-allocation rewrite custody.
@@ -141,8 +141,8 @@ fn current_encoding_binds_the_version_24_u16_alternative_schema() {
     }
     assert_eq!(canonical.len(), 196);
     let expected = [
-        81, 171, 141, 48, 227, 205, 1, 153, 185, 189, 240, 78, 222, 100, 245, 24, 22, 26, 182, 26,
-        223, 131, 238, 222, 131, 160, 230, 184, 17, 129, 29, 197,
+        44, 91, 90, 161, 163, 47, 47, 182, 138, 34, 129, 64, 159, 109, 26, 57, 72, 239, 107, 6,
+        211, 209, 42, 41, 59, 224, 127, 145, 92, 148, 94, 32,
     ];
     assert_eq!(<[u8; 32]>::from(Sha256::digest(&canonical)), expected);
     assert_eq!(program.recomputed_identity().bytes(), expected);

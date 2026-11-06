@@ -1,7 +1,7 @@
 //! Establish the descriptor permissions supplied by one independent invocation.
-//! A complete public return relation with no input lifetime source permits this
-//! invocation namespace; it does not lend caller storage or identify image
-//! backing. Bodies still owe return-escape checking and opaque providers still
+//! A public return relation or authenticated operation supplies this descriptor
+//! independently of caller storage. Separate lifetime debts remain on the same
+//! result; this identity does not identify image backing or prove disjointness. Bodies still owe return-escape checking and opaque providers still
 //! owe admission. Bare references, aggregate fields and projected call results
 //! use this same formation; owner paths retain conditional case slots.
 

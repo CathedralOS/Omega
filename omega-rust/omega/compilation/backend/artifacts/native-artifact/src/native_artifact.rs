@@ -198,6 +198,11 @@ impl<Image> NativeArtifactParts<Image> {
             compiler_entry_footprint_binding,
         ) = compiler_identity_evidence(output);
         NativeArtifactIdentityFields {
+            installation_assumptions: self.object.installation_environment_assumptions(),
+            physical_entry_requirements: self
+                .object
+                .physical_entry_binding()
+                .map(|binding| binding.requirements()),
             terminal_artifact_identity: *self.psi_artifact.manifest().identity().as_bytes(),
             target: self.target,
             object_text_bytes: self.object.text_bytes(),

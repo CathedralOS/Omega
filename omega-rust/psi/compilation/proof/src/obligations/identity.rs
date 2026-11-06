@@ -787,6 +787,19 @@ fn expression_identity(program: &IdentityContext<'_>, expression: ExpressionHand
 }
 
 fn call_identity(program: &IdentityContext<'_>, call: &TableCallExpression) -> String {
+    let installed = call.installed_interrupt_operation.as_ref().map(|request| {
+        compound(
+            "installed-interrupt",
+            [
+                atom(
+                    "registrar-trait",
+                    symbol_identity(program, request.registrar_trait),
+                ),
+                static_argument_identity(program, &request.registrar),
+                static_argument_identity(program, &request.timer_slot),
+            ],
+        )
+    });
     compound(
         "call",
         [
@@ -824,7 +837,9 @@ fn call_identity(program: &IdentityContext<'_>, call: &TableCallExpression) -> S
                     .map(|name| atom("evidence", name.as_str())),
             ),
             format!("{:?}", call.operational_acknowledgement),
-        ],
+        ]
+        .into_iter()
+        .chain(installed),
     )
 }
 

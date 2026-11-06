@@ -19,6 +19,7 @@ pub use adapters::retain_selected_provider_adapters;
 pub use callable_authority::AdmittedNativeCallableAuthority;
 mod access_lifecycles;
 mod callback_arguments;
+mod callback_entries;
 mod compiler_builtins;
 mod diagnostics;
 mod installation;
@@ -27,11 +28,13 @@ mod request;
 mod run_custody;
 mod settlements;
 mod source_evaluated_bindings;
+mod static_interrupts;
 mod terminal_authority_permission_policy;
 pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
 
+pub use crate::AdmittedInstalledInterruptCohort;
 pub use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
     AdmittedTerminalIntrinsics, CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin,
@@ -67,7 +70,10 @@ use crate::AdmittedProviderInstallation;
 use ::diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 pub use model::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedCallbackEntry,
+    AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptHelper,
+    AdmittedInstalledInterruptScope, AdmittedInterruptContextAnchor,
+    AdmittedNativeCallbackArgument, InstalledInterruptNativeEntryProposal,
     NativeCallbackArgumentProposal,
 };
 
@@ -76,6 +82,7 @@ pub struct AdmittedNativeProviders<'execution> {
     /// Callback arguments for the same executable occurrence scope as the
     /// settlements and checked installation, never the full retained catalog.
     pub(crate) native_callbacks: crate::AdmittedNativeCallbackCohort,
+    pub(crate) installed_interrupts: crate::AdmittedInstalledInterruptCohort,
     pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
     pub terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
     /// `Some` only when a receiving permission policy was explicitly supplied;
@@ -95,6 +102,14 @@ impl AdmittedNativeProviders<'_> {
         std::mem::replace(
             &mut self.native_callbacks,
             crate::AdmittedNativeCallbackCohort::empty(psi),
+        )
+    }
+
+    pub fn take_installed_interrupts(&mut self) -> crate::AdmittedInstalledInterruptCohort {
+        let psi = self.installed_interrupts.psi();
+        std::mem::replace(
+            &mut self.installed_interrupts,
+            crate::AdmittedInstalledInterruptCohort::empty(psi),
         )
     }
 
@@ -120,10 +135,27 @@ pub fn admit_native_providers<'request>(
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
+    let entry_custody = callback_entries::PreparedEntries::new(input, request)
+        .map_err(|reason| diagnostics::realization_error("callback entry admission", reason))?;
+    let helper_associations = static_interrupts::require_helper_associations(input, request)?;
+    let installed_interrupts = static_interrupts::admit(
+        input,
+        artifact,
+        request,
+        helper_associations,
+        &entry_custody,
+    )?;
+    let (interrupt_settlements, interrupt_mechanisms) = static_interrupts::settle(
+        input,
+        &installed_interrupts,
+        request.terminal_authority_policy,
+    )?;
     provider_supply::require_reached_providers(
         input,
         request.profile,
         request.selected_provider_plans,
+        &installed_interrupts,
+        &interrupt_mechanisms,
     )?;
     let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
     let (lifecycle_settlements, lifecycle_mechanisms) =
@@ -135,6 +167,8 @@ pub fn admit_native_providers<'request>(
     let (settlements, executions, mut mechanisms, cohort_rows) =
         settlements::settle_provider_executions(input, request, artifact.view().identity())?;
     let mut settlements = settlements;
+    settlements.extend(interrupt_settlements);
+    mechanisms.extend(interrupt_mechanisms);
     let (builtin_settlements, builtin_mechanisms) =
         compiler_builtins::settle_compiler_builtins(input, request)?;
     settlements.extend(builtin_settlements);
@@ -237,20 +271,19 @@ pub fn admit_native_providers<'request>(
                 .map(AdmittedProviderInstallation::installed_candidates)
                 .unwrap_or_default(),
             request.settlements,
+            &installed_interrupts,
         )
         .map_err(|error| {
             diagnostics::realization_error("terminal-authority closure review", error)
         })?;
     Ok(AdmittedNativeProviders {
+        installed_interrupts,
         settlements,
         native_callbacks: crate::AdmittedNativeCallbackCohort {
             psi: input.plan().psi,
-            callbacks: request
-                .native_callbacks
-                .iter()
-                .cloned()
-                .map(AdmittedNativeCallbackArgument::admit)
-                .collect(),
+            callbacks: callback_arguments::admit_entries(input, request, &entry_custody).map_err(
+                |reason| diagnostics::realization_error("callback entry admission", reason),
+            )?,
         },
         executions,
         terminal_authority_policy_identity: effective_policy.identity(),

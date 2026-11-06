@@ -16,6 +16,8 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
         .join("tests/omega/pass/build/explicit_provider_readiness_exit/backing/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("backing source");
     let product = CompilationProduct::Native(compilation_products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:

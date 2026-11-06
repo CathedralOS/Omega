@@ -12,6 +12,9 @@
 //! descriptor's type. The physical formation check still proves that the pointer
 //! loads the original owner's base field through its retained source loan.
 
+mod activation_residence;
+pub(in crate::object::function_fragments::source) use activation_residence::validate as validate_activation_residence;
+
 use abstract_operations::AbstractOperationPlan;
 use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::{MachineId, PlaceId};
@@ -23,6 +26,14 @@ use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorCallOrigin, DescriptorDefinition, DescriptorMachine,
     DescriptorSourceOrigin, descriptor_machine,
 };
+
+/// Both questions use the same exact source/caller transport. The final leaf
+/// supplies geometry for a placed interpretation or an actual activation home.
+#[derive(Clone, Copy)]
+enum BackingRequirement<'a> {
+    Placed(&'a AccessRamCorrespondence),
+    Activation,
+}
 
 pub(in crate::object::function_fragments::source) struct BackingGeometry<'a> {
     abstracted: &'a AbstractOperationPlan,
@@ -283,7 +294,12 @@ impl<'a> BackingGeometry<'a> {
                 return Err("formation source has no backing alternatives");
             }
             for origin in alternatives {
-                self.origin(machine, origin, required, &mut Vec::new())?;
+                self.origin(
+                    machine,
+                    origin,
+                    BackingRequirement::Placed(required),
+                    &mut Vec::new(),
+                )?;
             }
         }
         Ok(())
@@ -293,7 +309,7 @@ impl<'a> BackingGeometry<'a> {
         &mut self,
         machine: MachineId,
         origin: DescriptorSourceOrigin,
-        required: &AccessRamCorrespondence,
+        required: BackingRequirement<'_>,
         pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
     ) -> Result<(), &'static str> {
         if pending
@@ -388,6 +404,32 @@ impl<'a> BackingGeometry<'a> {
             &origin
         else {
             return Err("incoming contents did not resolve to an actual backing");
+        };
+        let required = match required {
+            BackingRequirement::Activation => {
+                if !projection.exact || projection.indirect {
+                    return Err("activation backing has unresolved pointer traversal");
+                }
+                let target = self
+                    .targeted
+                    .functions
+                    .iter()
+                    .find(|row| row.machine == machine)
+                    .ok_or("activation origin has no selected target body")?;
+                let selected = self
+                    .selected
+                    .function(machine)
+                    .ok_or("activation origin has no physical allocation")?;
+                let (_, home) = super::super::structural_homes::resolve(target, selected, source)?;
+                return match home {
+                    super::super::structural_homes::SourceHome::Allocation {
+                        indirect: false,
+                        ..
+                    } => Ok(()),
+                    _ => Err("activation origin names a pointer carrier rather than owned backing"),
+                };
+            }
+            BackingRequirement::Placed(required) => required,
         };
         if !projection.exact
             || projection.indirect

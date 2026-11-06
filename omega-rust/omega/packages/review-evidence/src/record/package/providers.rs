@@ -7,6 +7,7 @@ use crate::record::accessors::field_projection_accessors;
 pub enum PackageReviewCompilerIntrinsicExecution {
     AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
     EmptyRunRelease,
+    StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,

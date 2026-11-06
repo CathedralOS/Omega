@@ -169,6 +169,7 @@ pub fn emit_component_exports<'input>(
             &settlements,
             request.terminal_authority_policy,
             request.receiving_permissions,
+            &[],
         );
         admission.entry = entry;
         let admitted = admit_prepared_native_realization(input, artifact, &admission)?;

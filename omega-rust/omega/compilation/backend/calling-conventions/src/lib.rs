@@ -21,6 +21,8 @@ mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
 mod host_operations;
+mod interrupt_gate;
+pub use interrupt_gate::{InterruptGateAddress, interrupt_gate_address};
 mod hosts;
 mod plans;
 mod structural_shapes;
@@ -37,7 +39,8 @@ pub use boundary_application::{
     BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
     CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry, NativeCallProjection,
     NativeParameterTelescope, PrivateCallbackPlacements, TerminalCallingTelescope,
-    encode_private_callback_placements, validate_fresh_native_parameter_identity,
+    callback_destination_slot, encode_private_callback_placements,
+    validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{
     BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,

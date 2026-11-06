@@ -42,7 +42,7 @@ fn raw_bit_classification_catalog_admits_real_flag_clobbers() {
     let constraints = constraints();
     let catalog = x86_64_machine_effect_catalog(NativeTarget::linux_x64(), &constraints).unwrap();
     let physical = x86_64_physical_register_model();
-    let flags = &physical.view_named("rflags").unwrap().units;
+    let flags = &physical.view_named("condition_flags").unwrap().units;
     for format in [
         selected_instructions::IeeeFloatFormat::Binary32,
         selected_instructions::IeeeFloatFormat::Binary64,
@@ -79,7 +79,11 @@ fn saturating_catalog_binds_key_size_and_effects_for_every_carrier() {
     use SaturatingOperation::{Add, Divide, Multiply, Remainder, Subtract};
     let constraints = constraints();
     let physical = x86_64_physical_register_model();
-    let rflags = physical.view_named("rflags").unwrap().units.clone();
+    let rflags = physical
+        .view_named("condition_flags")
+        .unwrap()
+        .units
+        .clone();
     let rdx = physical.view_named("rdx").unwrap().units.clone();
     for target in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
         let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
@@ -267,7 +271,7 @@ const TRAPPING_SIZES: [[u16; 8]; 9] = [
 fn trapping_catalog_binds_row_size_and_trap_effects_for_every_form() {
     let constraints = constraints();
     let rflags = x86_64_physical_register_model()
-        .view_named("rflags")
+        .view_named("condition_flags")
         .unwrap()
         .units
         .clone();
@@ -375,7 +379,7 @@ fn wrapping_remainder_catalog_defines_scratch_and_clobbers_flags() {
         assert_eq!(
             alternative.encoded.implicit_unit_clobbers,
             x86_64_physical_register_model()
-                .view_named("rflags")
+                .view_named("condition_flags")
                 .unwrap()
                 .units
         );
@@ -518,7 +522,8 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | Semantic::ReturnAggregate
             | Semantic::Jump
             | Semantic::ReturnUnit
-            | Semantic::Crash => MachineBarrier::ControlFlow,
+            | Semantic::Crash
+            | Semantic::PrivilegedCrash => MachineBarrier::ControlFlow,
             Semantic::CallScalar
             | Semantic::InvokeNoNormal
             | Semantic::CallUnit
@@ -535,6 +540,16 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | Semantic::SystemRegisterWrite
             | Semantic::ControlRegisterRead
             | Semantic::ControlRegisterWrite
+            | Semantic::GlobalDescriptorTableLoad
+            | Semantic::GlobalDescriptorTableStore
+            | Semantic::TaskRegisterActivate
+            | Semantic::TaskRegisterRead
+            | Semantic::CodeSegmentReload
+            | Semantic::DataSegmentReload
+            | Semantic::SegmentSelectorRead
+            | Semantic::InstalledInterruptCpuCheck
+            | Semantic::InstalledInterruptTaskCommit
+            | Semantic::InstalledInterruptTablePublication
             | Semantic::PortRegisterRead
             | Semantic::PortRegisterWrite
             | Semantic::ModelSpecificRead

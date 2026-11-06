@@ -166,6 +166,11 @@ impl Captures<'_> {
         target: SymbolHandle,
         _active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
+        if let Some(sources) =
+            super::declared_returns::installed_context_sources(self.program, target).ok()?
+        {
+            return Some(sources);
+        }
         if !crate::call_target_has_checked_body_contract(self.program, target) {
             // An abstract invocation owns its public lifetime relation. Its
             // result descriptor is present even though there is no private

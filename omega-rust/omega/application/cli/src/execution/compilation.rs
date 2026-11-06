@@ -44,6 +44,7 @@ pub(super) fn compile(
         build_directory: options.build_dir,
         targets,
         product: ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination,
             private_entry_ram,
         },

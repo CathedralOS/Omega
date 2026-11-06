@@ -11,6 +11,22 @@ pub(crate) fn encode_compiler_intrinsic_execution(
         PackageReviewCompilerIntrinsicExecution::EmptyRunRelease => {
             encoder.tag("empty_run_release", 16);
         }
+        PackageReviewCompilerIntrinsicExecution::StaticInterrupt(operation) => {
+            encoder.tag("static_interrupt", 17);
+            encoder.field("operation", |encoder| {
+                use language_core::static_interrupts::StaticInterruptOperation;
+                encoder.tag(
+                    match operation {
+                        StaticInterruptOperation::Install => "install",
+                        StaticInterruptOperation::Context => "context",
+                        StaticInterruptOperation::BeginCompletion => "begin_completion",
+                        StaticInterruptOperation::FinishCompletion => "finish_completion",
+                    },
+                    operation.code(),
+                );
+                Ok(())
+            })?;
+        }
         PackageReviewCompilerIntrinsicExecution::SegmentReload(kind) => {
             encoder.tag("segment_reload", 14);
             encoder.field("kind", |encoder| {

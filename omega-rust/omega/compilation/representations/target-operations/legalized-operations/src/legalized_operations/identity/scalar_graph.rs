@@ -75,6 +75,43 @@ pub(super) fn encode(
                 encode_value_definition_site_identity(bytes, result.definition_site);
             });
             match &instruction.kind {
+                LegalizedScalarInstructionKind::InstallStaticInterrupt {
+                    boundary,
+                    arguments,
+                    indices,
+                    calls,
+                } => {
+                    bytes.push(250);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    for (argument, indices) in arguments.iter().zip(indices) {
+                        super::structural_types::encode_structural_argument(bytes, argument);
+                        encode_runtime_indices(bytes, indices);
+                    }
+                    for call in calls {
+                        super::ordinary_calls::encode_call(bytes, call);
+                    }
+                }
+                LegalizedScalarInstructionKind::StaticInterrupt {
+                    boundary,
+                    operation,
+                    token,
+                    indices,
+                    result,
+                } => {
+                    bytes.push(255);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    bytes.push(match operation {
+                        language_core::static_interrupts::StaticInterruptOperation::Install => 0,
+                        language_core::static_interrupts::StaticInterruptOperation::Context => 1,
+                        language_core::static_interrupts::StaticInterruptOperation::BeginCompletion => 2,
+                        language_core::static_interrupts::StaticInterruptOperation::FinishCompletion => 3,
+                    });
+                    super::structural_types::encode_structural_argument(bytes, token);
+                    encode_runtime_indices(bytes, indices);
+                    encode_option(bytes, result.as_ref(), |bytes, result| {
+                        super::structural_result::encode_operation_result(bytes, result);
+                    });
+                }
                 LegalizedScalarInstructionKind::AccessLifecycle {
                     boundary,
                     operands,
@@ -1410,6 +1447,14 @@ fn encode_cleanup_calls(
             target_operations::CallSiteOwner::Operation(operation) => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+            }
+            target_operations::CallSiteOwner::Installation { operation, role } => {
+                bytes.push(4);
+                crate::codec_bytes::push_encoded(bytes, operation.get().to_le_bytes());
+                bytes.push(match role {
+                    target_operations::InstallationCallRole::Validate => 0,
+                    target_operations::InstallationCallRole::Work => 1,
+                });
             }
             target_operations::CallSiteOwner::CleanupAction {
                 edge,

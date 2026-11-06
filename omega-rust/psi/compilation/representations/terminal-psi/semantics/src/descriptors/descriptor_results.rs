@@ -39,6 +39,8 @@ pub(crate) use payload_history::completed_payload_contract;
 mod payload_predicates;
 mod payload_reachability;
 mod payload_versions;
+mod value_identity;
+pub use value_identity::{ValueIdentityAnalysis, ValueIdentitySeed, require_unchanged_value};
 mod scalar_contracts;
 pub use contents::{
     DescriptorContentsOperand, DescriptorContentsQuery, DescriptorContentsStep,
@@ -743,21 +745,33 @@ pub fn terminal_graph_from(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
 ) -> Vec<DescriptorMachine> {
-    terminal_graph_closure(module, roots).unwrap_or_default()
+    terminal_graph_closure(module, roots, DescriptorSlotKind::Views).unwrap_or_default()
+}
+
+/// A required body could not supply a complete descriptor graph. Keep its
+/// identity so callers can report the actual failed dependency, rather than
+/// mistaking an empty graph for a missing query root.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DescriptorGraphError {
+    MissingOrAmbiguousMachine(MachineId),
+    IncompleteMachine(MachineId),
 }
 
 fn terminal_graph_closure(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
-) -> Option<Vec<DescriptorMachine>> {
+    kind: DescriptorSlotKind,
+) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut reached = BTreeMap::new();
     while let Some(identity) = pending.pop() {
         if reached.contains_key(&identity) {
             continue;
         }
-        let body = exactly_one(module.machines.iter(), |body| body.id == identity)?;
-        let graph = terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], None)?;
+        let body = exactly_one(module.machines.iter(), |body| body.id == identity)
+            .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+        let graph = terminal_flow::adapt(module, body, kind, &[], None)
+            .ok_or(DescriptorGraphError::IncompleteMachine(identity))?;
         for call in graph.calls.values() {
             match &call.target {
                 DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -787,14 +801,26 @@ fn terminal_graph_closure(
         body.operations()
             .any(|operation| matches!(operation.kind, OperationKind::CallDynamic { .. }))
     }) {
-        return Some(initial);
+        return Ok(initial);
     }
     bodies
         .into_iter()
         .map(|body| {
-            terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], Some(&initial))
+            terminal_flow::adapt(module, body, kind, &[], Some(&initial))
+                .ok_or(DescriptorGraphError::IncompleteMachine(body.id))
         })
         .collect()
+}
+
+/// Reference-slot replay for the complete invocation closure of the supplied
+/// roots. Unrelated retained bodies cannot erase this closure, and a missing
+/// reached dependency remains an explicit error. Pair with
+/// `DescriptorAnalysis::with_reference_slots`.
+pub fn terminal_reference_graph_from(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = MachineId>,
+) -> Result<Vec<DescriptorMachine>, DescriptorGraphError> {
+    terminal_graph_closure(module, roots, DescriptorSlotKind::References)
 }
 
 /// Current Terminal reference-slot graph; pair with `with_reference_slots`.

@@ -152,6 +152,9 @@ pub(super) fn collect(
                 | MachineAlternativeFamily::GlobalDescriptorTableLoad
                 | MachineAlternativeFamily::GlobalDescriptorTableStore
                 | MachineAlternativeFamily::TaskRegisterActivate
+                | MachineAlternativeFamily::InstalledInterruptCpuCheck
+                | MachineAlternativeFamily::InstalledInterruptTaskCommit
+                | MachineAlternativeFamily::InstalledInterruptTablePublication
                 | MachineAlternativeFamily::TaskRegisterRead
                 | MachineAlternativeFamily::CodeSegmentReload
                 | MachineAlternativeFamily::DataSegmentReload

@@ -48,6 +48,7 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "installation-evidence",
+ "language-core",
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
@@ -283,6 +284,7 @@ name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "language-semantics",
  "layout-plans",
  "optimization-core",
  "runtime-abi",
@@ -845,6 +847,7 @@ dependencies = [
  "installation-evidence",
  "isa-aarch64",
  "isa-x86_64",
+ "language-core",
  "layout-plans",
  "legalized-operations",
  "lowered-psi-to-terminal-psi",
@@ -945,6 +948,7 @@ dependencies = [
 name = "installation-evidence"
 version = "0.1.0"
 dependencies = [
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
  "terminal-psi",
@@ -1562,6 +1566,7 @@ dependencies = [
  "phase-profile",
  "platform-custody",
  "semantic-vocabulary",
+ "sha2",
  "target",
  "terminal-codec",
  "terminal-runtime",
@@ -1821,6 +1826,7 @@ dependencies = [
  "effects",
  "function-identity",
  "installation-evidence",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "numerics",
@@ -2197,8 +2203,10 @@ name = "selected-instruction-analyses"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "calling-conventions",
  "isa-aarch64",
  "isa-x86_64",
+ "legalized-operations",
  "optimization-core",
  "optimization-unit",
  "phase-profile",
@@ -2219,6 +2227,7 @@ dependencies = [
  "abstract-operations",
  "arena",
  "calling-conventions",
+ "function-identity",
  "legalized-operations",
  "optimization-core",
  "optimization-unit",
@@ -2536,6 +2545,7 @@ dependencies = [
  "abstract-operations",
  "access-plans",
  "calling-conventions",
+ "installation-evidence",
  "language-core",
  "layout-plans",
  "legalized-operations",
@@ -2543,6 +2553,7 @@ dependencies = [
  "optimization-unit",
  "optimization-unit-semantics",
  "proof-admission",
+ "provider-admission",
  "register-environment",
  "register-model",
  "runtime-abi",
@@ -2665,6 +2676,7 @@ dependencies = [
  "effects",
  "function-identity",
  "installation-evidence",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "numerics",

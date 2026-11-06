@@ -13,6 +13,17 @@ use target::TargetProfile;
 /// continue. A check uses a private workspace and publishes no product files.
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
+    if let ProjectProduct::Native {
+        installation_assumptions,
+        ..
+    } = &request.product
+    {
+        compilation_products::compile_request::validate_installation_assumption_targets(
+            installation_assumptions,
+            &profiles,
+        )
+        .map_err(|reason| BuildError::Diagnostics(vec![Diagnostic::error(reason)]))?;
+    }
     if matches!(request.product, ProjectProduct::Check) {
         compiler::RequestedCompileProduct::Check
             .validate_optimization_rollback(&request.optimization_rollback)

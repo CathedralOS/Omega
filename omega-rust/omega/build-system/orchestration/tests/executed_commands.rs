@@ -181,6 +181,7 @@ fn compile_accepted_project(project: &Path, executions: u64) {
     for product in [
         ProjectProduct::Check,
         ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },

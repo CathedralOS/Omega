@@ -12,7 +12,7 @@ use calling_conventions::{CallPlan, EntryControl, IndirectPointerLocation, Value
 use diagnostics::Diagnostic;
 use machine_emission::native_entry_bridge::NativeEntryBridge;
 
-use super::invalid;
+use super::{PhysicalIncomingStackRequirement, invalid};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(super) enum Destination {
@@ -35,6 +35,7 @@ pub(super) struct StackSwitch {
     pub bytes: Vec<u8>,
     pub fixups: Arena<Fixup>,
     pub outgoing_frame_bytes: u32,
+    pub incoming: PhysicalIncomingStackRequirement,
 }
 
 impl StackSwitch {
@@ -89,11 +90,18 @@ pub(super) fn emit(bridge: &NativeEntryBridge) -> Result<StackSwitch, Diagnostic
         .filter_map(incoming_stack_piece)
         .collect::<Vec<_>>();
     let mut frame_end = u32::from(inbound.shadow_bytes);
+    // RET reads the saved incoming return slot. Stack input copies below read
+    // from that same incoming domain after RSP has switched to private BSS.
+    let mut incoming_readable_bytes = 8u32;
     for &(offset, byte_count) in &stack_pieces {
-        frame_end = frame_end.max(
-            offset
-                .checked_add(byte_count)
-                .ok_or_else(|| invalid("incoming stack argument extent overflows"))?,
+        let argument_end = offset
+            .checked_add(byte_count)
+            .ok_or_else(|| invalid("incoming stack argument extent overflows"))?;
+        frame_end = frame_end.max(argument_end);
+        incoming_readable_bytes = incoming_readable_bytes.max(
+            argument_end
+                .checked_add(8)
+                .ok_or_else(|| invalid("incoming stack argument return bias overflows"))?,
         );
     }
     let outgoing_frame_bytes = frame_end
@@ -180,5 +188,13 @@ pub(super) fn emit(bridge: &NativeEntryBridge) -> Result<StackSwitch, Diagnostic
         bytes,
         fixups,
         outgoing_frame_bytes,
+        incoming: PhysicalIncomingStackRequirement {
+            // This exact prefix saves registers into BSS, then switches RSP
+            // before allocating a frame or issuing its first CALL.
+            bytes_below_entry_rsp: 0,
+            readable_bytes_from_entry_rsp: u64::from(incoming_readable_bytes),
+            caller_alignment: u64::from(alignment),
+            caller_rsp_bias: 8,
+        },
     })
 }

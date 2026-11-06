@@ -10,9 +10,10 @@ path = "src/lib.rs"
 
 [features]
 test-support = []
-installed-artifact = ["dep:executable-installation", "dep:layout-plans"]
+installed-artifact = ["dep:executable-installation"]
 
 [dependencies]
+language-core = { path = "../../../../../psi/foundation/language-core" }
 provider-admission = { path = "../../../realization/provider-admission" }
 register-model = { path = "../../register-model" }
 machine-emission = { path = "../../machine-emission" }
@@ -27,7 +28,7 @@ abstract-operations = { path = "../../../representations/abstract-operations" }
 optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit/semantics" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-layout-plans = { path = "../../../../../psi/foundation/layout-plans", optional = true }
+layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 image = { path = "../image" }
 image-elf = { path = "../image-elf" }
 image-macho = { path = "../image-macho" }

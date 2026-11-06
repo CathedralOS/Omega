@@ -36,6 +36,11 @@ pub(crate) fn validate_terminal_image(
     entry_shim: Option<EntryShim>,
     output: &EmittedImageOutput,
 ) -> Result<CompilerTextValidationEvidence, Diagnostic> {
+    if artifact.installed_entry_execution().is_some() {
+        return Err(Diagnostic::error(
+            "an installed private body cannot be emitted as an ordinary image root",
+        ));
+    }
     let expected_imports = object
         .layout
         .symbols
@@ -432,6 +437,7 @@ fn validate_callback_relocation_targets(
                 let operation = match call.owner {
                     target_operations::CallSiteOwner::Operation(operation) => operation,
                     target_operations::CallSiteOwner::InvokeNoNormal(_)
+                    | target_operations::CallSiteOwner::Installation { .. }
                     | target_operations::CallSiteOwner::CleanupAction { .. }
                     | target_operations::CallSiteOwner::ExternalCompletion(_) => {
                         return Err(Diagnostic::error(
