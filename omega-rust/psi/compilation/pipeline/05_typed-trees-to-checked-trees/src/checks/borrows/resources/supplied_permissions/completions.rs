@@ -27,12 +27,37 @@ pub(in crate::checks::borrows::resources) fn install(
         };
         let incoming = facts.borrow.incoming_references.get(row.incoming_reference);
         let diagnostic = |reason: &'static str| {
-            vec![Diagnostic::error(format!(
-                "{reason}; completed output in state {:?}, statement {}, call {}, loan {loan:?}",
+            let invocation = facts.flow.control.calls.get(call);
+            let message = format!(
+                "{reason}; completed output from `{}` in machine `{}`, state `{}` ({:?}), statement {}, call {}, loan {loan:?}",
+                crate::published::labels::call_target_label(program, invocation.target_symbol),
+                crate::published::labels::symbol_name(program, incoming.machine_symbol),
+                crate::published::labels::symbol_name(program, incoming.state_symbol),
                 incoming.state_symbol,
                 row.statement_index,
-                facts.flow.control.calls.get(call).call_ordinal,
-            ))]
+                invocation.call_ordinal,
+            );
+            let mut diagnostic = Diagnostic::error(message);
+            let span = invocation
+                .authored_expression
+                .is_valid()
+                .then(|| {
+                    program
+                        .expression_table
+                        .source_span(invocation.authored_expression)
+                })
+                .filter(|span| span.span.end > span.span.start)
+                .or_else(|| {
+                    let machine = program.machine_by_symbol(incoming.machine_symbol)?;
+                    let state = program.state_in_machine(machine, incoming.state_symbol)?;
+                    crate::flow::state_statements(program, state.statement_nodes)
+                        .get(invocation.statement_index)
+                        .and_then(|statement| validation::statement_source_span(program, statement))
+                });
+            if let Some(span) = span {
+                diagnostic = diagnostic.with_source_span(span);
+            }
+            vec![diagnostic]
         };
         let IncomingReferenceOrigin::Output { identity } = incoming.origin else {
             return refuse("completed output lost its output identity");

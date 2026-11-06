@@ -61,7 +61,9 @@ pub(crate) use write_frames::provider_completion_covers_writable_slots;
 
 pub use unit_returns::machine_has_unit_result;
 pub(crate) use unit_returns::unit_type;
-pub use unit_returns::{unit_return_call_is_admitted, unit_statement_call_is_admitted};
+pub use unit_returns::{
+    call_returns_unit, unit_return_call_is_admitted, unit_statement_call_is_admitted,
+};
 
 use argument_bounds::report_argument_bounds;
 use expression_scanning::receiver_member_chain;

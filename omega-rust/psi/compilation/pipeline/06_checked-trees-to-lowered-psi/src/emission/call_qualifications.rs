@@ -2,6 +2,7 @@
 //! byte-field invariants belong to their exact receiving declaration; additional
 //! nominal memberships require a catalog entry and an occurrence publication.
 
+use crate::emission::reference_formations::ReferenceFormations;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 
@@ -168,4 +169,106 @@ pub(crate) fn declaration_represents(
     Ok(terminal_semantics::scalar_field_entails(
         &declared, &required,
     ))
+}
+
+/// The storage duties of this call's actual references. Select the exact
+/// formation records once per invocation, before examining its returned facts.
+pub(crate) struct CallSourceRequirements<'checked> {
+    sources: Vec<(facts::PlaceRoot, &'checked [facts::PlaceSegment], usize)>,
+}
+
+impl<'checked> CallSourceRequirements<'checked> {
+    pub(crate) fn prepare(
+        checked: &'checked CheckedTrees,
+        machine: SymbolHandle,
+        coordinate: SourceCallCoordinate,
+        formations: &ReferenceFormations,
+    ) -> Self {
+        let borrow = &checked.facts.borrow;
+        let mut sources = Vec::new();
+        if let Some(call) = borrow.call_at(
+            machine,
+            coordinate.state,
+            coordinate.statement_index,
+            coordinate.call_ordinal,
+        ) {
+            let call = borrow.calls.get(call);
+            let retained = call
+                .input_reference_loans
+                .map_or(&[][..], |span| borrow.loan_suppliers.span_or_empty(span));
+            for access in borrow.argument_accesses.span_or_empty(call.accesses) {
+                if let Some(index) = formations.find(coordinate.statement_index, access.expression)
+                {
+                    sources.push((
+                        access.root,
+                        borrow.access_segments.span_or_empty(access.segments),
+                        index,
+                    ));
+                }
+            }
+            for loan in retained {
+                let loan = borrow.loans.get(*loan);
+                if let Some(index) =
+                    formations.find(loan.statement_index, loan.formation_expression)
+                {
+                    sources.push((
+                        loan.root,
+                        borrow.access_segments.span_or_empty(loan.segments),
+                        index,
+                    ));
+                }
+            }
+        }
+        Self { sources }
+    }
+
+    /// A fact already owed at the supplying endpoint needs no new qualification
+    /// on its enclosing owner. Only recorded standing duties qualify here;
+    /// additional input observations never become return promises.
+    pub(crate) fn represents(
+        &self,
+        checked: &CheckedTrees,
+        formations: &ReferenceFormations,
+        fact: &facts::Fact,
+    ) -> bool {
+        let Some((_, _, _, domain)) = fact.payload.domain_membership() else {
+            return false;
+        };
+        let Some(place) = fact.place.as_place() else {
+            return false;
+        };
+        let place = checked.facts.semantic.places.get(place);
+        let segments = checked
+            .facts
+            .semantic
+            .place_segments
+            .span_or_empty(place.segments);
+        self.sources.iter().any(|(root, prefix, formation)| {
+            if *root != place.root || !segments.starts_with(prefix) {
+                return false;
+            }
+            let selected = &segments[prefix.len()..];
+            formations
+                .requirements(*formation)
+                .iter()
+                .any(|requirement| {
+                    requirement.semantic_domain == domain
+                        && requirement.path.len() == selected.len()
+                        && requirement
+                            .path
+                            .iter()
+                            .zip(selected)
+                            .all(|(required, actual)| {
+                                required == actual
+                                    || (*required
+                                        == validation::field_domains::WHOLE_ELEMENT_EXTENT
+                                        && matches!(
+                                            actual,
+                                            facts::PlaceSegment::FixedIndex { .. }
+                                                | facts::PlaceSegment::Index { .. }
+                                        ))
+                            })
+                })
+        })
+    }
 }

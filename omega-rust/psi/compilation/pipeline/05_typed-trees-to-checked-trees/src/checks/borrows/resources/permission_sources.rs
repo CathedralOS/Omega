@@ -122,9 +122,10 @@ pub(super) fn lending_sources(
     Ok((suppliers, parents))
 }
 
-/// An unchanged entry descriptor has a borrowing owner at its captured cut.
-/// The storage query excludes overwritten slots; the incoming identity excludes
-/// type-only parameter guesses and lifetime debts of reference-bearing contents.
+/// A helper can retain either a borrowed input or a reference field read from
+/// it. The unchanged storage snapshot and current entry roster identify that
+/// descriptor. Its complete owner path selects the pointer's own permission;
+/// an enclosing record's borrow cannot stand in for an interior reference.
 fn has_captured_entry_reference(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -133,9 +134,10 @@ fn has_captured_entry_reference(
     source: Handle<FlowOperandFact>,
 ) -> bool {
     let capture = facts.flow.control.operands.get(source);
-    if capture.state_symbol != state.state_symbol
-        || validation::reference_shell(program, capture.type_reference).is_none()
-    {
+    let Some(actual) = validation::reference_shell(program, capture.type_reference) else {
+        return false;
+    };
+    if capture.state_symbol != state.state_symbol {
         return false;
     }
     let Some(place) = place_at(
@@ -172,19 +174,48 @@ fn has_captured_entry_reference(
     .is_some_and(|sources| {
         !sources.is_empty()
             && sources.iter().all(|source| {
-                !source.local_loan.is_valid()
-                    && facts
+                if source.local_loan.is_valid()
+                    || !source.place.segments.is_empty()
+                    || !facts
                         .borrow
                         .incoming_references
                         .is_valid(source.place.incoming_reference)
-                    && matches!(
-                        facts
-                            .borrow
-                            .incoming_references
-                            .get(source.place.incoming_reference)
-                            .origin,
-                        checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
-                    )
+                {
+                    return false;
+                }
+                let incoming = facts
+                    .borrow
+                    .incoming_references
+                    .get(source.place.incoming_reference);
+                if !matches!(
+                    incoming.origin,
+                    checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                        | checked_trees::IncomingReferenceOrigin::Parameter { .. }
+                ) {
+                    return false;
+                }
+                let Some(owner) = facts.borrow.owner_segments.span(incoming.owner_path) else {
+                    return false;
+                };
+                let Some(selected) = validation::owned_projection_type_reference(
+                    program,
+                    incoming.carrier_type,
+                    &owner_place_segments(owner),
+                ) else {
+                    return false;
+                };
+                validation::reference_shell(program, selected).is_some_and(|declared| {
+                    checked_trees::BorrowAccessKind::from(declared.access)
+                        .direct_reborrow_effect(&checked_trees::BorrowAccessKind::from(
+                            actual.access,
+                        ))
+                        .is_some()
+                        && validation::storage_origin_types_match(
+                            program,
+                            actual.referee,
+                            declared.referee,
+                        )
+                })
             })
     })
 }
@@ -269,7 +300,17 @@ pub(super) fn collect(
         FrozenReferenceSelection::ThroughReference => "through-reference",
         FrozenReferenceSelection::Unavailable => "unavailable",
     };
-    let mut resolved = if let Some(complete) = collect_completed_output(
+    let mut resolved = if let Some(complete) = collect_completed_invocation(
+        program,
+        facts,
+        state,
+        capture,
+        projection,
+        output_access,
+        output,
+    ) {
+        complete
+    } else if let Some(complete) = collect_completed_output(
         program,
         facts,
         state,
@@ -1158,8 +1199,7 @@ fn collect_formed_projection(
             row.lineage,
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
-        ) || (row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
-            && !is_independent_return(program, facts, state, loan, row, capture))
+        ) || row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
             || row.kind.direct_reborrow_effect(output_access).is_none()
             || row.formation_expression != capture.expression
             || row.statement_index != capture.statement_index
@@ -1258,54 +1298,80 @@ fn collect_binding_observation(
     output.len() > before
 }
 
-/// A returned reference with no borrowed input owns its invocation's permission,
-/// rather than forwarding an earlier caller loan. Require that exact checked
-/// incoming identity and performed call; an empty lifetime roster proves neither.
-fn is_independent_return(
+/// An evaluated provider result supplies its own reference permission. The
+/// invocation's input lifetime debts cannot replace that exact result field.
+fn collect_completed_invocation(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    loan: Handle<BorrowLoanFact>,
-    row: &BorrowLoanFact,
     capture: &FlowOperandFact,
-) -> bool {
-    let Some((_, borrow_state)) = facts
-        .borrow
-        .first_state_borrow(state.machine_symbol, state.state_symbol)
-    else {
-        return false;
+    projection: &[facts::PlaceSegment],
+    output_access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<PermissionSupplier>,
+) -> Option<bool> {
+    let control = &facts.flow.control;
+    let (invocation, result_type, path) = match capture.completion {
+        checked_trees::FlowOperandCompletion::InvocationResult {
+            invocation,
+            result_type,
+            path,
+        } => {
+            if !projection.is_empty() {
+                return Some(false);
+            }
+            let path = control.operand_retained_paths.span(path)?;
+            (invocation, result_type, path)
+        }
+        _ if matches!(
+            program.expression_table.expression(capture.expression),
+            typed_trees::expression::ExpressionNode::Call(_)
+        ) =>
+        {
+            let mut calls = state.calls.handles().filter(|handle| {
+                let call = control.calls.get(*handle);
+                call.authored_expression == capture.expression
+                    && call.statement_index == capture.statement_index
+            });
+            let invocation = calls.next()?;
+            if calls.next().is_some() {
+                return Some(false);
+            }
+            (invocation, capture.type_reference, projection)
+        }
+        _ => return None,
     };
-    if row.lineage != checked_trees::BorrowLoanLineage::DirectRoot
-        || !facts.borrow.state_owns_loan(borrow_state, loan)
-        || !facts
-            .borrow
-            .incoming_references
-            .is_valid(row.incoming_reference)
-    {
-        return false;
+    if !control.calls.is_valid(invocation) {
+        return Some(false);
     }
-    let identity = facts.borrow.incoming_references.get(row.incoming_reference);
-    let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } = identity.origin
-    else {
-        return false;
+    let permission = super::invocation_permissions::resolve(
+        program,
+        facts,
+        state,
+        control.calls.get(invocation),
+        capture,
+        result_type,
+        path,
+    )?;
+    let Ok(loan) = permission else {
+        return Some(false);
     };
-    identity.machine_symbol == state.machine_symbol
-        && identity.state_symbol == state.state_symbol
-        && target.is_valid()
-        && row.formation_owner_path.is_some_and(|path| {
-            facts
+    let row = facts.borrow.loans.get(loan);
+    if row.kind.direct_reborrow_effect(output_access).is_none() {
+        return Some(false);
+    }
+    output.push(PermissionSupplier {
+        source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+        actual: Handle::invalid(),
+        backing: checked_trees::CapturedPlace {
+            incoming_reference: row.incoming_reference,
+            incoming_owner_path: facts
                 .borrow
-                .owner_segments
-                .span_or_empty(identity.owner_path)
-                == facts.borrow.owner_segments.span_or_empty(path)
-        })
-        && expression == capture.expression
-        && row.root == facts::PlaceRoot::Expression(expression)
-        && state.calls.handles().any(|invocation| {
-            let call = facts.flow.control.calls.get(invocation);
-            call.authored_expression == expression
-                && call.statement_index == capture.statement_index
-                && validation::call_target_entry_symbol(program, call.target_symbol)
-                    == validation::call_target_entry_symbol(program, target)
-        })
+                .access_segments
+                .span_or_empty(row.incoming_owner_path)
+                .to_vec(),
+            root: row.root,
+            segments: facts.borrow.loan_segments(row).to_vec(),
+        },
+    });
+    Some(true)
 }

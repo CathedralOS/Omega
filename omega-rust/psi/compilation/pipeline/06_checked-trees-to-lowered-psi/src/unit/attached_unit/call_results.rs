@@ -125,6 +125,7 @@ pub(crate) fn prepare(
             ),
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             claims: Vec::new(),
         },
         claims: claim_bindings::prepare_call_result_claims(

@@ -43,6 +43,7 @@ pub(super) fn encode_result(bytes: &mut Vec<u8>, result: &StructuralOperationRes
         result.qualifications.iter().map(|domain| domain.get()),
     );
     encode_projected(bytes, &result.projected_qualifications, true);
+    encode_projected(bytes, &result.additional_input_qualifications, true);
     length(bytes, result.claims.len());
     for claim in &result.claims {
         crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
@@ -58,6 +59,7 @@ pub(super) fn decode_result(
     let multiplicity = decode_multiplicity(cursor)?;
     let qualifications = decode_ids(cursor, StructuralDomainId::new)?;
     let projected_qualifications = decode_projected(cursor, true)?;
+    let additional_input_qualifications = decode_projected(cursor, true)?;
     let claims = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         Ok(StructuralResultClaimBinding {
             claim: decode_id(cursor, ClaimId::new)?,
@@ -71,6 +73,7 @@ pub(super) fn decode_result(
         multiplicity,
         qualifications,
         projected_qualifications,
+        additional_input_qualifications,
         claims,
     })
 }
@@ -142,6 +145,10 @@ mod tests {
             projected_qualifications: vec![terminal_psi::StructuralPathQualification {
                 path: Vec::new(),
                 domain: StructuralDomainId::new(4).unwrap(),
+            }],
+            additional_input_qualifications: vec![terminal_psi::StructuralPathQualification {
+                path: Vec::new(),
+                domain: StructuralDomainId::new(3).unwrap(),
             }],
             claims: vec![StructuralResultClaimBinding {
                 claim: ClaimId::new(5).unwrap(),

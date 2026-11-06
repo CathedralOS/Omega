@@ -496,7 +496,7 @@ fn call_contract_storage_regions(
         borrow_call.call_ordinal,
     )?;
     let resolver = call_frames?;
-    let frame = resolver.boundary_invocation_write_frame(machine, &site);
+    let frame = resolver.signature_invocation_write_frame(machine, &site);
     let trace = std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some();
     if trace {
         eprintln!(

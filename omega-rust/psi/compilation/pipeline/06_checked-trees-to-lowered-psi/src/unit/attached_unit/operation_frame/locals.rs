@@ -864,6 +864,7 @@ impl OperationFrame<'_, '_> {
                     (
                         parameter.qualifications.clone(),
                         parameter.projected_qualifications.clone(),
+                        parameter.additional_input_qualifications.clone(),
                     )
                 })
                 .or_else(|| {
@@ -876,6 +877,7 @@ impl OperationFrame<'_, '_> {
                                 (
                                     result.qualifications.clone(),
                                     result.projected_qualifications.clone(),
+                                    result.additional_input_qualifications.clone(),
                                 )
                             })
                     })
@@ -889,6 +891,8 @@ impl OperationFrame<'_, '_> {
                     &source_contract.1,
                     &path,
                 );
+            let additional_input_qualifications =
+                terminal_psi::StructuralPathQualification::select_rows(&source_contract.2, &path);
             if multiplicity == language_semantics::Multiplicity::Unrestricted {
                 // Copy permission belongs to the selected child, not its
                 // enclosing owner. Passing this path as an owned argument
@@ -903,6 +907,7 @@ impl OperationFrame<'_, '_> {
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         qualifications,
                         projected_qualifications,
+                        additional_input_qualifications,
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
@@ -926,6 +931,7 @@ impl OperationFrame<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications,
                     projected_qualifications,
+                    additional_input_qualifications,
                 };
                 let mut arguments = vec![terminal_psi::StructuralArgument {
                     place: repair.place,
@@ -1209,7 +1215,11 @@ impl OperationFrame<'_, '_> {
                             // Referent memberships stay on the referent. Moving
                             // them onto the descriptor root would invent a new
                             // qualified carrier and lose projected identities.
-                            for row in &mut parameter.projected_qualifications {
+                            for row in parameter
+                                .projected_qualifications
+                                .iter_mut()
+                                .chain(&mut parameter.additional_input_qualifications)
+                            {
                                 row.path
                                     .insert(0, terminal_psi::StructuralPathSegment::Referent);
                             }

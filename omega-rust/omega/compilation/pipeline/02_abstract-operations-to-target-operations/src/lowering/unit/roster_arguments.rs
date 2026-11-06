@@ -417,6 +417,7 @@ pub(in crate::lowering) fn local_array_loan(
         access: StructuralAccess::Owned,
         qualifications: result.qualifications.clone(),
         projected_qualifications: result.projected_qualifications.clone(),
+        additional_input_qualifications: result.additional_input_qualifications.clone(),
     };
     fixed_array_view_argument(
         argument,

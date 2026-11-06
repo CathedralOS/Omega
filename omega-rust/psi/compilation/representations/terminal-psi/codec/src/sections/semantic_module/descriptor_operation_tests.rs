@@ -74,6 +74,7 @@ fn task_module() -> TerminalModule {
                 access,
                 qualifications: vec![],
                 projected_qualifications: vec![],
+                additional_input_qualifications: Vec::new(),
             });
         machine.structural_places.push(StructuralPlaceDeclaration {
             id: place,

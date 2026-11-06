@@ -41,7 +41,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     domains: &DomainFacts,
     writes: Option<&[ObservedCallMutation]>,
 ) {
-    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some();
+    let trace = std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+        || std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
+            .is_ok_and(|selected| selected == "1" || selected == machine.name.as_str());
     let key = (
         machine.symbol,
         state.symbol,
@@ -61,6 +63,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, borrow_call.target_symbol))
     else {
+        if trace {
+            eprintln!(
+                "returned-field-contracts target={:?} parameters=unavailable",
+                borrow_call.target_symbol
+            );
+        }
         return;
     };
     let mut rows = Vec::new();
@@ -112,20 +120,28 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
+            // An explicit postcondition restores the captured referent whether
+            // the domain needs provenance or only a predicate. Include it in
+            // the same all-writers judgment as declared child obligations;
+            // an entry qualification alone still supplies no return promise.
             for (position, domain, identity) in
                 parameter_claims.iter().flat_map(|claims| claims.iter())
             {
-                if *position == argument_position
-                    && validation::field_domains::domain_requires_provenance(program, *domain)
-                {
+                if *position == argument_position {
                     let row = (Vec::new(), *domain, *identity);
                     crate::shared::collections::push_unique(&mut paths, row);
                 }
             }
         }
-        let Some(targets) =
-            argument_sources.and_then(|sources| sources.referent_places(argument_position))
-        else {
+        let targets =
+            argument_sources.and_then(|sources| sources.referent_places(argument_position));
+        if trace {
+            eprintln!(
+                "returned-field-contracts target={:?} argument={argument_position} parameter={:?} declared={paths:?} captured={targets:?}",
+                borrow_call.target_symbol, parameter.symbol
+            );
+        }
+        let Some(targets) = targets else {
             if trace {
                 eprintln!(
                     "FLOW field-restoration caller={} statement={} formal={:?} reason=no-completed-referents",
@@ -330,6 +346,21 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 );
             }
         }
+        let captured_writes: Vec<_> = writes
+            .iter()
+            .zip(&confined_writes)
+            .map(|(write, confined)| {
+                if !*confined {
+                    return None;
+                }
+                let crate::flow::mutation::StorageRegion::Declared(source) =
+                    write.write.source.as_ref()?
+                else {
+                    return None;
+                };
+                argument_sources?.inline_write_places(source)
+            })
+            .collect();
         if confined_writes.iter().any(|&confined| confined) {
             let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
             let contexts = build
@@ -362,21 +393,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 let is_subslice_byte_domain =
                     validation::field_domains::domain_byte_predicate(program, domain_symbol)
                         .is_some_and(|restriction| restriction.is_subslice_preserving());
-                if !is_subslice_byte_domain
-                    && !guarantees.has_domain(domain_symbol, semantic_domain)
-                {
-                    if trace {
-                        let subject = semantic.places.get(handle);
-                        eprintln!(
-                            "FLOW field-restoration-refused caller={} statement={} root={:?} path={:?} domain={domain_symbol:?} identity={semantic_domain:?} reason=no-guarantee-for-domain",
-                            machine.name,
-                            borrow_call.statement_index,
-                            subject.root,
-                            semantic.place_segments.span_or_empty(subject.segments),
-                        );
-                    }
-                    continue;
-                }
                 let semantic_place = semantic.places.get(handle);
                 if !semantic
                     .place_segments
@@ -410,25 +426,9 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 {
                     continue;
                 }
-                if !is_subslice_byte_domain
-                    && !guarantees.can_restore_place(
-                        program,
-                        &place,
-                        domain_symbol,
-                        semantic_domain,
-                    )
-                {
-                    if trace {
-                        eprintln!(
-                            "FLOW field-restoration-refused caller={} statement={} place={place:?} domain={domain_symbol:?} identity={semantic_domain:?} reason=no-matching-captured-place",
-                            machine.name, borrow_call.statement_index,
-                        );
-                    }
-                    continue;
-                }
                 let mut affected = false;
-                let mut prepared_writes = writes.iter().zip(&confined_writes);
-                let restored = prepared_writes.all(|(contribution, confined)| {
+                let mut prepared_writes = writes.iter().zip(&confined_writes).zip(&captured_writes);
+                let restored = prepared_writes.all(|((contribution, confined), captured)| {
                     if contribution
                         .write
                         .region
@@ -459,6 +459,23 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                         // there. Its own observation frontier must be proved.
                         return false;
                     }
+                    // Invalidation may keep an unknown source selector even
+                    // after evaluation captured one exact element. A disjoint
+                    // captured write leaves this fact unchanged. Other alias
+                    // namespaces keep the original conservative judgment.
+                    let mutated = if let Some(captured) = captured
+                        .as_ref()
+                        .filter(|places| places.iter().all(|place| place.root == mutated.root))
+                    {
+                        match crate::flow::domain::matching_mutation_for_fact_place(
+                            program, semantic, domains, fact, handle, captured,
+                        ) {
+                            Some((mutated, _)) => mutated,
+                            None => return true,
+                        }
+                    } else {
+                        mutated
+                    };
                     // A per-byte class is a property of every element. An indexed
                     // store does not retire it when the callee's normal exits
                     // still prove that class on the formal that was written.
@@ -512,6 +529,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts = preserved;
+    if trace {
+        eprintln!(
+            "returned-field-contracts target={:?} republished={rows:?}",
+            borrow_call.target_symbol
+        );
+    }
     for (storage, path, domain_symbol, semantic_domain) in rows {
         let Some(place) = crate::flow::project_captured_view_place(storage, &path) else {
             continue;

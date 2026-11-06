@@ -106,6 +106,18 @@ impl CompletedValueSource<'_> {
     }
 }
 
+/// A finite logical node suspends traversal, not the observed execution.
+/// Its children return through the same observation and effect owners.
+enum NormalEvaluation<'program, 'query> {
+    Complete(Vec<NormalReturnPath<'program>>),
+    Logical {
+        judge: StructuralJudge<'program>,
+        expression: ExpressionHandle,
+        binary: &'program typed_trees::expression::TableBinaryExpression,
+        demand: NormalValueDemand<'query>,
+    },
+}
+
 /// Fresh normal-exit storage is installed only after the invocation retires
 /// incoming observations. Backing selectors freeze in that resulting epoch.
 #[derive(Clone)]
@@ -1343,7 +1355,7 @@ impl<'program> StructuralJudge<'program> {
     /// A completion observation retains both result and proof context at the
     /// same semantic cut, including match/short-circuit recursive returns.
     /// Later siblings cannot donate facts to this completed value.
-    fn evaluate_normal_paths(
+    fn evaluate_normal_paths<'query>(
         self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
@@ -1351,25 +1363,74 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
         requested_operations: OperationObservations<'_>,
         entries: &mut NormalObservationEntries<'program>,
-        demand: NormalValueDemand<'_>,
+        demand: NormalValueDemand<'query>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
-        if requested_operations.stop == ObservationStop::BeforeExpression(expression) {
-            entries.operations.push(NormalOperationEntry {
-                expression,
-                arguments: Vec::new(),
-                judge: self,
-            });
-            return Some(Vec::new());
+        let mut frames: Vec<logical_paths::LogicalFrame<'program, 'query>> = Vec::new();
+        let mut operand = (self, expression, demand);
+        loop {
+            let (judge, expression, demand) = operand;
+            let mut paths = if requested_operations.stop
+                == ObservationStop::BeforeExpression(expression)
+            {
+                entries.operations.push(NormalOperationEntry {
+                    expression,
+                    arguments: Vec::new(),
+                    judge,
+                });
+                Vec::new()
+            } else {
+                match judge.evaluate_normal_value_paths(
+                    expression,
+                    environment,
+                    scope,
+                    depth,
+                    requested_operations,
+                    entries,
+                    demand,
+                )? {
+                    NormalEvaluation::Complete(paths) => {
+                        Self::finish_normal_paths(expression, requested_operations, entries, paths)?
+                    }
+                    NormalEvaluation::Logical {
+                        judge,
+                        expression,
+                        binary,
+                        demand,
+                    } => {
+                        let (frame, next) =
+                            logical_paths::LogicalFrame::new(judge, expression, binary, demand);
+                        frames.push(frame);
+                        operand = next;
+                        continue;
+                    }
+                }
+            };
+            loop {
+                let Some(frame) = frames.last_mut() else {
+                    return Some(paths);
+                };
+                if let Some(next) = frame.resume(paths)? {
+                    operand = next;
+                    break;
+                }
+                let frame = frames.pop()?;
+                let expression = frame.expression;
+                paths = Self::finish_normal_paths(
+                    expression,
+                    requested_operations,
+                    entries,
+                    frame.finish(),
+                )?;
+            }
         }
-        let paths = self.evaluate_normal_value_paths(
-            expression,
-            environment,
-            scope,
-            depth,
-            requested_operations,
-            entries,
-            demand,
-        )?;
+    }
+
+    fn finish_normal_paths(
+        expression: ExpressionHandle,
+        requested_operations: OperationObservations<'_>,
+        entries: &mut NormalObservationEntries<'program>,
+        paths: Vec<NormalReturnPath<'program>>,
+    ) -> Option<Vec<NormalReturnPath<'program>>> {
         if requested_operations.values.contains(&expression)
             && paths
                 .iter()
@@ -1404,7 +1465,7 @@ impl<'program> StructuralJudge<'program> {
         Some(paths)
     }
 
-    fn evaluate_normal_value_paths(
+    fn evaluate_normal_value_paths<'query>(
         mut self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],
@@ -1412,8 +1473,8 @@ impl<'program> StructuralJudge<'program> {
         depth: usize,
         requested_operations: OperationObservations<'_>,
         entries: &mut NormalObservationEntries<'program>,
-        demand: NormalValueDemand<'_>,
-    ) -> Option<Vec<NormalReturnPath<'program>>> {
+        demand: NormalValueDemand<'query>,
+    ) -> Option<NormalEvaluation<'program, 'query>> {
         if depth >= 64 || !program_expression_is_live(self.program, expression) {
             return None;
         }
@@ -1436,7 +1497,8 @@ impl<'program> StructuralJudge<'program> {
             return Some(vec![
                 NormalReturnPath::observed(boolean_term(value), self)
                     .at_expression(expression, demand),
-            ]);
+            ])
+            .map(NormalEvaluation::Complete);
         }
         if program.static_type_predicate_operands(expression).is_some() {
             // Type operands have no runtime read/effect schedule. Their Boolean
@@ -1445,7 +1507,8 @@ impl<'program> StructuralJudge<'program> {
             let value = self.declaration_term(expression)?;
             return Some(vec![
                 NormalReturnPath::observed(value, self).at_expression(expression, demand),
-            ]);
+            ])
+            .map(NormalEvaluation::Complete);
         }
         if let ExpressionNode::SavedSubject(saved) = node
             && expression_table(program).contains_value_capture(saved.capture)
@@ -1457,7 +1520,8 @@ impl<'program> StructuralJudge<'program> {
             let value = self.completed_match_subject(saved)?;
             return Some(vec![
                 NormalReturnPath::observed(value, self).at_expression(expression, demand),
-            ]);
+            ])
+            .map(NormalEvaluation::Complete);
         }
         if program.saved_argument_source(expression).is_some() {
             // The argument scheduler has completed this exact predecessor.
@@ -1471,7 +1535,8 @@ impl<'program> StructuralJudge<'program> {
                 .clone();
             return Some(vec![
                 NormalReturnPath::observed(value, self).at_expression(expression, demand),
-            ]);
+            ])
+            .map(NormalEvaluation::Complete);
         }
         let before_operation =
             requested_operations.stop == ObservationStop::BeforeOperation(expression);
@@ -1544,7 +1609,8 @@ impl<'program> StructuralJudge<'program> {
             let value = self.capture_unknown_value(expression, scope)?;
             return Some(vec![
                 NormalReturnPath::observed(value, self).at_expression(expression, demand),
-            ]);
+            ])
+            .map(NormalEvaluation::Complete);
         }
 
         // A wholly anonymous calculation has exact rational meaning before
@@ -1591,7 +1657,8 @@ impl<'program> StructuralJudge<'program> {
             return Some(vec![
                 NormalReturnPath::observed(StructuralTerm::Integer(value), self)
                     .at_expression(expression, demand),
-            ]);
+            ])
+            .map(NormalEvaluation::Complete);
         }
 
         // A classifier observes a tag and returns Bool; its case head is not
@@ -1605,16 +1672,18 @@ impl<'program> StructuralJudge<'program> {
                     expression,
                 )
         {
-            return self.evaluate_case_paths(
-                expression,
-                binary.left,
-                source_definition.symbol,
-                source_variant.symbol,
-                environment,
-                scope,
-                demand,
-                |judge, operand| normal_paths!(judge, operand, NormalValueDemand::Value),
-            );
+            return self
+                .evaluate_case_paths(
+                    expression,
+                    binary.left,
+                    source_definition.symbol,
+                    source_variant.symbol,
+                    environment,
+                    scope,
+                    demand,
+                    |judge, operand| normal_paths!(judge, operand, NormalValueDemand::Value),
+                )
+                .map(NormalEvaluation::Complete);
         }
 
         if let ExpressionNode::Binary(binary) = node
@@ -1626,22 +1695,24 @@ impl<'program> StructuralJudge<'program> {
                 expression,
             )
         {
-            return self.evaluate_logical_paths(
+            return Some(NormalEvaluation::Logical {
+                judge: self,
                 expression,
                 binary,
                 demand,
-                |judge, operand, demand| normal_paths!(judge, operand, demand),
-            );
+            });
         }
         if let ExpressionNode::Match(dispatch) = node {
-            return self.evaluate_match_paths(
-                expression,
-                dispatch,
-                environment,
-                scope,
-                demand,
-                |judge, operand, demand| normal_paths!(judge, operand, demand),
-            );
+            return self
+                .evaluate_match_paths(
+                    expression,
+                    dispatch,
+                    environment,
+                    scope,
+                    demand,
+                    |judge, operand, demand| normal_paths!(judge, operand, demand),
+                )
+                .map(NormalEvaluation::Complete);
         }
         let has_own_effect = match node {
             ExpressionNode::Call(call) => {
@@ -2042,7 +2113,8 @@ impl<'program> StructuralJudge<'program> {
                 let rejoined = pre_call_judge.rejoin_pure_outcomes(&judge_refs, Some(expression));
                 return Some(vec![
                     NormalReturnPath::unobserved(rejoined).at_expression(expression, demand),
-                ]);
+                ])
+                .map(NormalEvaluation::Complete);
             }
             if let StructuralTerm::CapturedValue {
                 expression: expr,
@@ -2085,10 +2157,11 @@ impl<'program> StructuralJudge<'program> {
                 return Some(vec![
                     NormalReturnPath::observed(captured, rejoined)
                         .at_expression(expression, demand),
-                ]);
+                ])
+                .map(NormalEvaluation::Complete);
             }
         }
-        Some(outcomes)
+        Some(NormalEvaluation::Complete(outcomes))
     }
 
     /// Operand completion retains the actual contextual carrier. Receiving

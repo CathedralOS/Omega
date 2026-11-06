@@ -67,13 +67,14 @@ pub(super) fn emit(
     // path. Relocate those exact source rows onto the new copy. The receiving
     // parameter cannot supply them, and an empty result roster would erase
     // them before the ordinary state-argument binder checks its contract.
-    let (whole, projected) = if let Some(parameter) = parameters
+    let (whole, projected, additional) = if let Some(parameter) = parameters
         .iter()
         .find(|parameter| parameter.place == source)
     {
         (
             &parameter.qualifications,
             &parameter.projected_qualifications,
+            &parameter.additional_input_qualifications,
         )
     } else {
         let result =
@@ -82,7 +83,11 @@ pub(super) fn emit(
                 .ok_or(LoweringError::Unsupported(
                     "case leaf copy lost its source membership contract",
                 ))?;
-        (&result.qualifications, &result.projected_qualifications)
+        (
+            &result.qualifications,
+            &result.projected_qualifications,
+            &result.additional_input_qualifications,
+        )
     };
     let storage_path =
         terminal_semantics::canonical_structural_storage_path(types.iter(), root_type, &canonical)
@@ -91,6 +96,8 @@ pub(super) fn emit(
             ))?;
     let (qualifications, projected_qualifications) =
         terminal_psi::StructuralPathQualification::select(whole, projected, &storage_path);
+    let additional_input_qualifications =
+        terminal_psi::StructuralPathQualification::select_rows(additional, &storage_path);
     let producer = operations.allocate();
     operations.push(Operation::unsuspended(
         producer,
@@ -101,6 +108,7 @@ pub(super) fn emit(
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications,
             claims: Vec::new(),
         }),
         OperationKind::StructuralCaseLeafCopy {

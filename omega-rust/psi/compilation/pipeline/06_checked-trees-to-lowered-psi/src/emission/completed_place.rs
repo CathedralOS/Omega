@@ -245,16 +245,18 @@ pub(crate) fn present_capture(
     domains: &[terminal_psi::StructuralDomainDeclaration],
     whole: Vec<semantic_vocabulary::StructuralDomainId>,
     projected: Vec<terminal_psi::StructuralPathQualification>,
+    additional: Vec<terminal_psi::StructuralPathQualification>,
 ) -> Result<
     (
         StructuralTypeId,
         Vec<semantic_vocabulary::StructuralDomainId>,
         Vec<terminal_psi::StructuralPathQualification>,
+        Vec<terminal_psi::StructuralPathQualification>,
     ),
     LoweringError,
 > {
     let (shape, preferred) = match capture {
-        Capture::Address(identity) => return Ok((*identity, whole, projected)),
+        Capture::Address(identity) => return Ok((*identity, whole, projected, additional)),
         Capture::DescriptorValue { shape, preferred } => (shape, preferred),
     };
     if !matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
@@ -270,16 +272,17 @@ pub(crate) fn present_capture(
                 access,
             )
     };
-    let present = |identity, mut whole: Vec<_>, mut projected: Vec<_>| {
-        terminal_semantics::present_structural_memberships(
+    let present = |identity, mut whole: Vec<_>, mut projected: Vec<_>, mut additional: Vec<_>| {
+        terminal_semantics::present_structural_membership_contract(
             types.iter(),
             domains.iter(),
             identity,
             &mut whole,
             &mut projected,
+            &mut additional,
         )
         .map_err(LoweringError::Unsupported)?;
-        Ok((identity, whole, projected))
+        Ok((identity, whole, projected, additional))
     };
     if let Some(identity) = preferred {
         let mut matches = types.iter().filter(|row| row.id == *identity);
@@ -289,7 +292,7 @@ pub(crate) fn present_capture(
         if matches.next().is_some() || !eligible(&row) {
             return unsupported("descriptor completion changes its formal geometry or access");
         }
-        return present(*identity, whole, projected);
+        return present(*identity, whole, projected, additional);
     }
     let mut candidates = types.iter().filter(eligible).collect::<Vec<_>>();
     candidates.sort_by_key(|row| row.id);
@@ -298,7 +301,12 @@ pub(crate) fn present_capture(
     }
     let mut failure = None;
     for candidate in candidates {
-        match present(candidate.id, whole.clone(), projected.clone()) {
+        match present(
+            candidate.id,
+            whole.clone(),
+            projected.clone(),
+            additional.clone(),
+        ) {
             Ok(presentation) => return Ok(presentation),
             Err(error) => failure = Some(error),
         }

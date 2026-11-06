@@ -170,7 +170,9 @@ pub use provider_outputs::{
 };
 
 pub(crate) use callable_refinement::lexical_region_owner;
-pub use callable_refinement::{CallableBorrowContract, validate_callable_borrow_refinement};
+pub use callable_refinement::{
+    CallableBorrowContract, captured_type_parameters, validate_callable_borrow_refinement,
+};
 pub use owned_carriers::{OwnedCarrierLoanRelation, owned_carrier_loan_relation};
 
 pub(crate) use callable_refinement::PreparedCallableBorrowRefinement;

@@ -43,6 +43,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
                 access: StructuralAccess::Owned,
                 qualifications: vec![granted],
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             },
             target: target_operations::TargetStructuralParameter {
                 place,

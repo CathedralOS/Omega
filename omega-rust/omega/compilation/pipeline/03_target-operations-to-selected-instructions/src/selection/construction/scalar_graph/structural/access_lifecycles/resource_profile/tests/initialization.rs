@@ -202,6 +202,7 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
                         multiplicity: StructuralMultiplicity::Linear,
                         qualifications: vec![],
                         projected_qualifications: vec![],
+                        additional_input_qualifications: Vec::new(),
                         qualification_establishments: vec![],
                         claims: vec![],
                     },
@@ -238,6 +239,7 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
                             access: StructuralAccess::Owned,
                             qualifications: vec![],
                             projected_qualifications: vec![],
+                            additional_input_qualifications: Vec::new(),
                         };
                         LegalizedCallUnitParameter {
                             target: target_operations::TargetStructuralParameter {

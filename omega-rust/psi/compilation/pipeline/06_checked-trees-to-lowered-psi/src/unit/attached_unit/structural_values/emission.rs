@@ -715,12 +715,11 @@ fn emit_source<'source>(
         // producers already published one. Use the same allocation frontier
         // as constructor capture, independent of the source expression shape.
         let binding = emission.value_binding_parameter(identities, &source, source.place, 0)?;
-        let (source_whole, source_projected) =
-            emission
-                .completed_memberships(source.place)
-                .ok_or(LoweringError::Unsupported(
-                    "binding source has no exact membership declaration",
-                ))?;
+        let (source_whole, source_projected, _) = emission
+            .completed_memberships(source.place)
+            .ok_or(LoweringError::Unsupported(
+                "binding source has no exact membership declaration",
+            ))?;
         let (source_whole, source_projected) = terminal_psi::StructuralPathQualification::select(
             source_whole,
             source_projected,
@@ -1132,6 +1131,9 @@ fn prepare_owners(
                     multiplicity: declaration.multiplicity,
                     qualifications: declaration.qualifications.clone(),
                     projected_qualifications: declaration.projected_qualifications.clone(),
+                    additional_input_qualifications: declaration
+                        .additional_input_qualifications
+                        .clone(),
                     claims: Vec::new(),
                 },
             });
@@ -2057,14 +2059,15 @@ impl Emission<'_, '_, '_> {
                 source_value,
                 storage,
                 backing_type,
+                source_contract,
             } => match self.reference_value(
                 identities,
                 super::super::reference_results::Formation {
                     checked: self.checked,
-                    state: node.state,
                     statement_index: node.statement_index as usize,
                     expression: node.expression,
                     backing_type,
+                    source_contract: &source_contract,
                     qualification_decisions: node.qualification_decisions,
                     domain_ids: self.domain_ids,
                 },
@@ -2258,7 +2261,7 @@ impl Emission<'_, '_, '_> {
                     node.expression,
                     completion.first_new_place,
                 )?;
-                let (whole, projected_memberships) =
+                let (whole, projected_memberships, _) =
                     self.completed_memberships(captured.argument.place).ok_or(
                         LoweringError::Unsupported("projected move lost its source memberships"),
                     )?;
@@ -2801,6 +2804,11 @@ impl Emission<'_, '_, '_> {
         projected_qualifications.sort();
         projected_qualifications.dedup();
         let place = place_id(allocate_dense(self.environment.next_place)?);
+        let additional_input_qualifications = self.selected_input_qualifications(
+            argument,
+            &qualifications,
+            &projected_qualifications,
+        )?;
         let first_operation = self.operations.operations.len();
         let operation = self.operations.allocate();
         self.operations.push(terminal_psi::Operation::unsuspended(
@@ -2812,6 +2820,7 @@ impl Emission<'_, '_, '_> {
                 multiplicity: self.multiplicity,
                 qualifications,
                 projected_qualifications,
+                additional_input_qualifications,
                 claims: Vec::new(),
             }),
             OperationKind::StructuralLeafCopy {
