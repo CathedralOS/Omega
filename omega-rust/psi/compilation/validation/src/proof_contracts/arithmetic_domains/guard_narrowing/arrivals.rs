@@ -563,6 +563,7 @@ pub(super) fn apply_cross_machine_reference_arrivals(
                     program,
                     caller,
                     state,
+                    site.statement,
                     &transition.guard,
                     true,
                     transition.target,
@@ -576,6 +577,7 @@ pub(super) fn apply_cross_machine_reference_arrivals(
                     program,
                     caller,
                     state,
+                    site.statement,
                     &transition.guard,
                     false,
                     transition.continuation,
@@ -589,6 +591,7 @@ pub(super) fn apply_cross_machine_reference_arrivals(
                     program,
                     caller,
                     state,
+                    site.statement,
                     &TransitionGuardNode::Always,
                     true,
                     call.target_symbol,
@@ -612,6 +615,7 @@ fn consider_cross_machine_target(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: &State,
+    statement_index: usize,
     guard: &TransitionGuardNode,
     positive: bool,
     target: typed_trees::statement::TransitionTargetHandle,
@@ -629,6 +633,7 @@ fn consider_cross_machine_target(
             program,
             caller,
             state,
+            statement_index,
             guard,
             positive,
             path.symbol,
@@ -646,6 +651,7 @@ fn consider_cross_machine_target(
                 program,
                 caller,
                 state,
+                statement_index,
                 guard,
                 positive,
                 call.target_symbol,
@@ -659,10 +665,24 @@ fn consider_cross_machine_target(
     }
 }
 
+/// The caller's place an argument denotes, including through one borrow.
+/// A reference parameter is that place, so `operands.count` survives as
+/// `parameter.count`.
+fn argument_place_path(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    match expression_table(program).expression(expression) {
+        ExpressionNode::Borrow(borrow) => argument_place_path(program, borrow.target),
+        _ => place_path(program, expression),
+    }
+}
+
 fn consider_cross_machine_call(
     program: &dyn crate::CheckingInput,
     caller: &Machine,
     state: &State,
+    statement_index: usize,
     guard: &TransitionGuardNode,
     positive: bool,
     symbol: SymbolHandle,
@@ -685,7 +705,22 @@ fn consider_cross_machine_call(
     if target_machine.symbol != callee.symbol {
         return;
     }
-    let base = ValueEnvironment::new();
+    // Assignments and saved booleans before the call describe the values
+    // being passed. A call in that prefix can change storage this scan does
+    // not model, so the prefix contributes nothing rather than a stale literal.
+    let mut base = prefix_value_facts(program, caller, state, statement_index);
+    if let TransitionGuardNode::When(condition) = guard {
+        let (leaf, _) = comparison_leaf(program, state, *condition, positive);
+        // A guard that names a parameter (`outside` after `decide(saved, count)`)
+        // means the boolean or bound delivered with that parameter. One direct
+        // hop recovers it; a second hop would re-enter this same scan.
+        if seed_depth() == 0
+            && state_is_entry(program, caller, state)
+            && parameter_symbol(program, state, leaf).is_some()
+        {
+            merge_value_facts(&mut base, direct_parameter_facts(program, caller, state));
+        }
+    }
     let narrowed = match guard {
         TransitionGuardNode::When(condition) => {
             let (condition, positive) = comparison_leaf(program, state, *condition, positive);
@@ -710,11 +745,32 @@ fn consider_cross_machine_call(
     }
     let mut bindings = Vec::new();
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        if let Some(path) = place_path(program, *argument) {
+        // `&mut operands` denotes the caller's `operands` storage. Field
+        // facts such as `operands.count < 32` rebind onto that parameter
+        // only when the borrow is unwrapped; the place path of the borrow
+        // expression itself is empty.
+        if let Some(path) = argument_place_path(program, *argument) {
             bindings.push((path, parameter.name.as_str().to_owned()));
         }
     }
     let mut rebound = narrowed.rebind(&bindings);
+    let mut exact_bindings = Vec::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let place = match expression_table(program).expression(*argument) {
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            _ => *argument,
+        };
+        if let Some(value) = ordered_values::operand(program, caller, state, place, None) {
+            exact_bindings.push((value, ordered_values::Operand::parameter(parameter)));
+        }
+    }
+    for value in &narrowed.boolean_values {
+        rebound
+            .boolean_values
+            .extend(value.rebound(&bindings, &exact_bindings));
+    }
+    rebound.ordered_values =
+        ordered_values::rebind_relations(&narrowed.ordered_values, &exact_bindings);
     narrow_closed_value_arguments(program, caller, state, parameters, arguments, &mut rebound);
     // An empty by-value call records no path. Joining it would drop a sibling
     // caller's closed interval, because a missing path is not evidence.
@@ -725,6 +781,226 @@ fn consider_cross_machine_call(
         Some(previous) => previous.join(&rebound),
         None => rebound,
     });
+}
+
+fn seed_depth() -> u32 {
+    SEED_DEPTH.with(std::cell::Cell::get)
+}
+
+std::thread_local! {
+    static SEED_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+fn state_is_entry(program: &dyn crate::CheckingInput, machine: &Machine, state: &State) -> bool {
+    program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| entry.symbol == state.symbol)
+}
+
+fn parameter_symbol(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
+        return None;
+    };
+    program
+        .state_parameter_by_symbol(state, path.head_symbol)
+        .map(|parameter| parameter.symbol)
+}
+
+fn merge_value_facts(base: &mut ValueEnvironment, extra: ValueEnvironment) {
+    for (path, interval) in extra.intervals {
+        base.narrow(path, interval);
+    }
+    for value in extra.boolean_values {
+        if !base
+            .boolean_values
+            .iter()
+            .any(|existing| existing.binding == value.binding)
+        {
+            base.boolean_values.push(value);
+        }
+    }
+    for relation in extra.ordered_values {
+        if !base.ordered_values.contains(&relation) {
+            base.ordered_values.push(relation);
+        }
+    }
+}
+
+/// Facts delivered to `entry` by its direct callers, without looking through
+/// those callers' own parameters. The caller that asks for this is already
+/// one hop deep; another hop would walk the same edge again.
+fn direct_parameter_facts(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    entry: &State,
+) -> ValueEnvironment {
+    let mut joined = None;
+    let sites = call_sites::prepared(program);
+    SEED_DEPTH.with(|depth| depth.set(depth.get().saturating_add(1)));
+    for site in sites.for_entry(machine.symbol, entry.symbol) {
+        let Some(caller) = program.machines().get(site.caller) else {
+            continue;
+        };
+        if caller.symbol == machine.symbol {
+            continue;
+        }
+        let Some(state) = program.machine_states(caller).get(site.state) else {
+            continue;
+        };
+        let Some(statement) = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(site.statement)
+        else {
+            continue;
+        };
+        match (site.kind, statement) {
+            (call_sites::ArrivalSiteKind::Primary, StatementNode::Transition(transition)) => {
+                consider_cross_machine_target(
+                    program,
+                    caller,
+                    state,
+                    site.statement,
+                    &transition.guard,
+                    true,
+                    transition.target,
+                    machine,
+                    entry,
+                    &mut joined,
+                );
+            }
+            (call_sites::ArrivalSiteKind::Continuation, StatementNode::Transition(transition)) => {
+                consider_cross_machine_target(
+                    program,
+                    caller,
+                    state,
+                    site.statement,
+                    &transition.guard,
+                    false,
+                    transition.continuation,
+                    machine,
+                    entry,
+                    &mut joined,
+                );
+            }
+            (call_sites::ArrivalSiteKind::StatementCall, StatementNode::Call(call)) => {
+                consider_cross_machine_call(
+                    program,
+                    caller,
+                    state,
+                    site.statement,
+                    &TransitionGuardNode::Always,
+                    true,
+                    call.target_symbol,
+                    program.statement_table.expression_handles(call.arguments),
+                    machine,
+                    entry,
+                    &mut joined,
+                );
+            }
+            _ => {}
+        }
+    }
+    SEED_DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+    joined.unwrap_or_default()
+}
+
+fn prefix_value_facts(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+) -> ValueEnvironment {
+    let mut environment = ValueEnvironment::new();
+    for (index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        if index >= statement_index {
+            break;
+        }
+        if prefix_statement_has_call(program, statement) {
+            return ValueEnvironment::new();
+        }
+        match statement {
+            StatementNode::LocalData(local) => {
+                super::record_boolean_local(program, machine, Some(state), &mut environment, local);
+                if !local.is_mutable
+                    && let Some(interval) = closed_immutable_argument_interval(
+                        program,
+                        machine,
+                        state,
+                        local.initial_value,
+                    )
+                {
+                    environment.narrow(local.name.as_str().to_owned(), interval);
+                }
+            }
+            StatementNode::Assignment(assignment) => {
+                super::record_boolean_assignment(
+                    program,
+                    machine,
+                    Some(state),
+                    &mut environment,
+                    assignment.target,
+                    assignment.value,
+                );
+                if let Some(path) = place_path(program, assignment.target) {
+                    if let Some(interval) = closed_immutable_argument_interval(
+                        program,
+                        machine,
+                        state,
+                        assignment.value,
+                    ) {
+                        environment.intervals.remove(&path);
+                        environment.narrow(path, interval);
+                    } else {
+                        let dotted = format!("{path}.");
+                        environment
+                            .intervals
+                            .retain(|key, _| key != &path && !key.starts_with(&dotted));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    environment
+}
+
+fn prefix_statement_has_call(
+    program: &dyn crate::CheckingInput,
+    statement: &StatementNode,
+) -> bool {
+    let calls = |expression| crate::machine_calls::calls::expression_has_calls(program, expression);
+    match statement {
+        StatementNode::Call(_) => true,
+        StatementNode::Assignment(assignment) => {
+            calls(assignment.target) || calls(assignment.value)
+        }
+        StatementNode::LocalData(local) => calls(local.initial_value),
+        StatementNode::Expression(expression) => calls(*expression),
+        StatementNode::Transition(transition) => {
+            // The target itself runs, even when every argument is a name.
+            // A terminal arm does not.
+            let invokes = |target: typed_trees::statement::TransitionTargetHandle| {
+                target.is_valid()
+                    && !matches!(
+                        program.statement_table.transition_target(target),
+                        TransitionTargetNode::Terminal
+                    )
+            };
+            invokes(transition.target) || invokes(transition.continuation)
+        }
+        StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => false,
+    }
 }
 
 /// A by-value parameter is the argument's value. Immutable locals fold through
