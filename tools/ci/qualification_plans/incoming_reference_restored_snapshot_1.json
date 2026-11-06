@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "f2aa222651bc0a6a5c89531e2aafed535c06005d",
-    "tree": "7746dcb88f3795bea2001fe14f692d9579344f33",
+    "revision": "7c20ac4567b45e2bb11f49c11c0ea5f8c938520c",
+    "tree": "569da568c8caf68abd81e8efad9c8536e096f776",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "556892416d4e8b52687b023727d66550f6110ad7",
+      "omega-rust": "64ad13b3f974583c371375e686a06de4580b48ff",
       "source/library": "d8f5fade211c574016dc76a4dbc44bbfc2d10817",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,27 +19,32 @@
     },
     "executables": {
       "cli": {
-        "sha256": "5509cd84e8cd5b89020ecce422b280de8eddf3a6e5a992dc377a3104e78be37e",
+        "sha256": "edecd24de427652da41217fff655ce9aec68081caefb20e9e95913eb69724886",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "a6aa47c9c0ec2fa4cd2a5cc74231ca7a7e007058405416406fa1e2925b209414",
+        "sha256": "92d2b40a33d569a64e3ff25c5f4ba98bfff81fd6a5419c56c7fc70a34e41c074",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42160337374,
-    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-f2aa222651bc0a6a5c89531e2aafed535c06005d"
+    "origin_run": 42165988723,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-7c20ac4567b45e2bb11f49c11c0ea5f8c938520c"
   },
   "fixtures": [
-    "pass/facts/captured_storage_bounds_through_local_exit"
+    "fail/facts/invariant_window_snapshot_through_field_rejected",
+    "fail/facts/invariant_window_snapshot_through_local_rejected",
+    "fail/facts/invariant_window_snapshot_through_parameter_rejected",
+    "pass/facts/invariant_window_snapshot_through_field_exit",
+    "pass/facts/invariant_window_snapshot_through_local_exit",
+    "pass/facts/invariant_window_snapshot_through_parameter_exit"
   ],
-  "source_only": true,
+  "source_only": false,
   "samples": [],
   "cli_fixtures": []
 }
