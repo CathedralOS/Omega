@@ -374,7 +374,7 @@ pub(crate) fn prepare_permission_events(
                 let excluded = &prepared.case_exclusions[visit];
                 visit += 1;
                 if state_needs_case_exclusions && let Some(excluded) = excluded {
-                    for case in excluded {
+                    for case in excluded.iter() {
                         exclude_case(case, places, Some(&mut *remaining));
                     }
                 }
@@ -797,8 +797,9 @@ struct PreparedStateWalk {
     /// Owned temporaries completed and observed in each statement.
     temporary_occurrences: Vec<crate::checks::ownership_occurrences::OwnedTemporaryOccurrences>,
     /// Inactive owned case namespaces at each step `walk` visits, by visit
-    /// ordinal; `None` where the step selects no case evidence.
-    case_exclusions: Vec<Option<Vec<validation::CanonicalPlace>>>,
+    /// ordinal; `None` where the step selects no case evidence. Consecutive
+    /// steps with the same exclusions share one list.
+    case_exclusions: Vec<Option<std::sync::Arc<[validation::CanonicalPlace]>>>,
     conservation_candidates: Vec<crate::checks::content::ConservationCandidate>,
 }
 
@@ -830,6 +831,11 @@ struct StateQueries<'program> {
     temporary_owners: Result<Vec<temporary_results::TemporaryOwner>, Diagnostic>,
     temporary_occurrences: Vec<crate::checks::ownership_occurrences::OwnedTemporaryOccurrences>,
 }
+
+/// Steps per parallel run of case-exclusion preparation. A run computes its
+/// steps in order and shares an unchanged exclusion list with the previous
+/// step; shorter runs keep a large state's steps spread across threads.
+const CASE_EXCLUSION_RUN: usize = 8;
 
 /// One prepared walk per state, in roster order. A bodyless or unknown state
 /// has no walk and gets an empty preparation.
@@ -900,11 +906,17 @@ fn prepare_state_walks(
             })
             .collect::<Vec<_>>();
         // A few large states hold most queries, so answer every query of
-        // every state as one flat list rather than one task per state.
-        let steps = queries
+        // every state as one flat list of short step runs rather than one task
+        // per state. Each run carries its exclusion list from step to step.
+        let step_runs = queries
             .iter()
             .flatten()
-            .flat_map(|state| state.steps.iter().map(move |&step| (state, step)))
+            .flat_map(|state| {
+                state
+                    .steps
+                    .chunks(CASE_EXCLUSION_RUN)
+                    .map(move |steps| (state, steps))
+            })
             .collect::<Vec<_>>();
         let sites = queries
             .iter()
@@ -913,23 +925,31 @@ fn prepare_state_walks(
             .collect::<Vec<_>>();
         let (case_exclusions, conservation_candidates) = rayon::join(
             || {
-                steps
+                step_runs
                     .par_iter()
-                    .map(|&(query, step)| {
+                    .flat_map_iter(|&(query, steps)| {
                         let _subject = phase_profile::subject(PASS, || {
                             program
                                 .symbols
                                 .profile_label(query.state_flow.machine_symbol)
                         });
-                        SelectedCases::at_step(
-                            program,
-                            facts,
-                            query.state_flow,
-                            query.machine,
-                            query.state,
-                            step,
-                        )
-                        .map(SelectedCases::into_inactive_owned_cases)
+                        let mut carried = None;
+                        steps
+                            .iter()
+                            .map(|&step| {
+                                let excluded = SelectedCases::at_step(
+                                    program,
+                                    facts,
+                                    query.state_flow,
+                                    query.machine,
+                                    query.state,
+                                    step,
+                                )?
+                                .inactive_owned_cases_after(carried.as_ref());
+                                carried = Some(std::sync::Arc::clone(&excluded));
+                                Some(excluded)
+                            })
+                            .collect::<Vec<_>>()
                     })
                     .collect::<Vec<_>>()
             },

@@ -21,10 +21,21 @@ pub(crate) struct CurrentIntegerBounds<'a> {
     /// The retained rows each queried root consults, built on its first query:
     /// a collection's per-element membership rows are not rebuilt for a query
     /// about an unrelated scalar, nor for a bounds object that is never asked.
-    predicates: Vec<(facts::PlaceRoot, Vec<BoundPredicate>)>,
+    predicates: Vec<RootPredicates>,
     /// Repeated element and predicate reads share the exact selected root's
     /// assignments. The borrowed fact plan cannot change within this read.
     assignments: RootAssignmentObservations<'a>,
+}
+
+/// One root's retained predicates, indexed by the places they bind. A
+/// predicate with no binding at a queried place yields that place's carrier or
+/// nothing, so neither narrows its bounds; an element read of a large
+/// collection consults only the predicates naming that element.
+struct RootPredicates {
+    root: facts::PlaceRoot,
+    rows: Vec<BoundPredicate>,
+    /// `(predicate, binding)` positions ordered by the binding's place.
+    by_place: Vec<(usize, usize)>,
 }
 
 pub(crate) enum IntegerReadStep {
@@ -183,7 +194,7 @@ impl<'a> CurrentIntegerBounds<'a> {
 
     /// Where `root`'s rows sit in `predicates`, building them on first use.
     fn rows_position(&mut self, root: facts::PlaceRoot) -> usize {
-        if let Some(position) = self.predicates.iter().position(|(known, _)| *known == root) {
+        if let Some(position) = self.predicates.iter().position(|known| known.root == root) {
             return position;
         }
         let rows = boolean_predicates::retained_at_root(
@@ -194,7 +205,24 @@ impl<'a> CurrentIntegerBounds<'a> {
             self.point,
             root,
         );
-        self.predicates.push((root, rows));
+        let mut by_place = rows
+            .iter()
+            .enumerate()
+            .flat_map(|(predicate, row)| {
+                (0..row.bindings.len()).map(move |binding| (predicate, binding))
+            })
+            .collect::<Vec<_>>();
+        by_place.sort_by(|&(left, left_binding), &(right, right_binding)| {
+            rows[left].bindings[left_binding]
+                .place
+                .compare_identity(&rows[right].bindings[right_binding].place)
+                .then(left.cmp(&right))
+        });
+        self.predicates.push(RootPredicates {
+            root,
+            rows,
+            by_place,
+        });
         self.predicates.len() - 1
     }
 
@@ -273,7 +301,32 @@ impl<'a> CurrentIntegerBounds<'a> {
             bounds.minimum = bounds.minimum.max(snapshot.minimum);
             bounds.maximum = bounds.maximum.min(snapshot.maximum);
         }
-        for predicate in &self.predicates[rows].1 {
+        let indexed = &self.predicates[rows];
+        let first = indexed.by_place.partition_point(|&(predicate, binding)| {
+            indexed.rows[predicate].bindings[binding]
+                .place
+                .compare_identity(place)
+                .is_lt()
+        });
+        // Identity order can group distinct invocation outputs, so keep only
+        // exact bindings, then visit each predicate once in roster order.
+        let mut binding_predicates = indexed.by_place[first..]
+            .iter()
+            .take_while(|&&(predicate, binding)| {
+                indexed.rows[predicate].bindings[binding]
+                    .place
+                    .compare_identity(place)
+                    .is_eq()
+            })
+            .filter(|&&(predicate, binding)| {
+                indexed.rows[predicate].bindings[binding].place == *place
+            })
+            .map(|&(predicate, _)| predicate)
+            .collect::<Vec<_>>();
+        binding_predicates.sort_unstable();
+        binding_predicates.dedup();
+        for predicate in binding_predicates {
+            let predicate = &self.predicates[rows].rows[predicate];
             if let Some(consequence) =
                 predicate.integer_interval_at_place(place, primitive, |subject| {
                     self.assignments.scalar_value(subject)
