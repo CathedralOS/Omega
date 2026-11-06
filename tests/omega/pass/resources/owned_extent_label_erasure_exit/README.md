@@ -7,7 +7,15 @@ partitioning, record initialization, mutation and extraction.
 
 Both windows check the original value 17, updated value 29, neighboring values
 101/103 and returned length 32. The program binds all four hosted targets and
-requires native and Terminal exit 0. Execution acceptance is pending.
+requires native and Terminal exit 0. Both engines return 0 at compiler source
+`e9afae5fccb734c20c4a84ea4431368cb9c3a790` on each hosted target:
+
+| Host | Execution record |
+| --- | --- |
+| Linux x64 | [Passed](https://github.com/CathedralOS/Omega/actions/runs/42238416266) |
+| Linux ARM64 | [Passed](https://github.com/CathedralOS/Omega/actions/runs/42238426089) |
+| Windows x64 | [Passed](https://github.com/CathedralOS/Omega/actions/runs/42238430957) |
+| macOS ARM64 | [Passed](https://github.com/CathedralOS/Omega/actions/runs/42238421280) |
 
 The [reject control](../../../fail/resources/owned_extent_erased_label_rejected/main.omg)
 changes only the cast's return promise to include the removed `Marked` label.
