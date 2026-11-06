@@ -504,14 +504,14 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
                 eprintln!(
-                    "CHECKSITE call-live-loan-conflict state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
+                    "call-live-loan-conflict target={target_name} state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
                     state_flow.state_symbol, borrow_call.statement_index, borrow_call.call_ordinal
                 );
                 for backing in &operand_backings[index].places {
                     eprintln!(
-                        "CHECKSITE call-live-loan-backing place={:?} lineage={:?}",
+                        "call-live-loan-backing place={:?} lineage={:?}",
                         backing.place, backing.lineage
                     );
                 }

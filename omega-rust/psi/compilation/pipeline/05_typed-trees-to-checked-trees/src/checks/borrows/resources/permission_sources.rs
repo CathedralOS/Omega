@@ -256,7 +256,17 @@ pub(super) fn collect(
         FrozenReferenceSelection::ThroughReference => "through-reference",
         FrozenReferenceSelection::Unavailable => "unavailable",
     };
-    let mut resolved = if let Some(complete) = collect_completed_output(
+    let mut resolved = if let Some(complete) = collect_completed_invocation(
+        program,
+        facts,
+        state,
+        capture,
+        projection,
+        output_access,
+        output,
+    ) {
+        complete
+    } else if let Some(complete) = collect_completed_output(
         program,
         facts,
         state,
@@ -1121,8 +1131,7 @@ fn collect_formed_projection(
             row.lineage,
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
-        ) || (row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
-            && !is_completed_return(program, facts, state, loan, row, capture))
+        ) || row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
             || row.kind.direct_reborrow_effect(output_access).is_none()
             || row.formation_expression != capture.expression
             || row.statement_index != capture.statement_index
@@ -1221,59 +1230,80 @@ fn collect_binding_observation(
     output.len() > before
 }
 
-/// The completed invocation supplies the returned descriptor's permission.
-/// Match its exact incoming identity and performed call; the input lifetime
-/// frontier remains separate and cannot supply that permission itself.
-fn is_completed_return(
+/// An evaluated provider result supplies its own reference permission. The
+/// invocation's input lifetime debts cannot replace that exact result field.
+fn collect_completed_invocation(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    loan: Handle<BorrowLoanFact>,
-    row: &BorrowLoanFact,
     capture: &FlowOperandFact,
-) -> bool {
-    let Some((_, borrow_state)) = facts
-        .borrow
-        .first_state_borrow(state.machine_symbol, state.state_symbol)
-    else {
-        return false;
+    projection: &[facts::PlaceSegment],
+    output_access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<PermissionSupplier>,
+) -> Option<bool> {
+    let control = &facts.flow.control;
+    let (invocation, result_type, path) = match capture.completion {
+        checked_trees::FlowOperandCompletion::InvocationResult {
+            invocation,
+            result_type,
+            path,
+        } => {
+            if !projection.is_empty() {
+                return Some(false);
+            }
+            let path = control.operand_retained_paths.span(path)?;
+            (invocation, result_type, path)
+        }
+        _ if matches!(
+            program.expression_table.expression(capture.expression),
+            typed_trees::expression::ExpressionNode::Call(_)
+        ) =>
+        {
+            let mut calls = state.calls.handles().filter(|handle| {
+                let call = control.calls.get(*handle);
+                call.authored_expression == capture.expression
+                    && call.statement_index == capture.statement_index
+            });
+            let invocation = calls.next()?;
+            if calls.next().is_some() {
+                return Some(false);
+            }
+            (invocation, capture.type_reference, projection)
+        }
+        _ => return None,
     };
-    if row.lineage != checked_trees::BorrowLoanLineage::DirectRoot
-        || !facts.borrow.state_owns_loan(borrow_state, loan)
-        || !facts
-            .borrow
-            .incoming_references
-            .is_valid(row.incoming_reference)
-    {
-        return false;
+    if !control.calls.is_valid(invocation) {
+        return Some(false);
     }
-    let identity = facts.borrow.incoming_references.get(row.incoming_reference);
-    let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } = identity.origin
-    else {
-        return false;
+    let permission = super::invocation_permissions::resolve(
+        program,
+        facts,
+        state,
+        control.calls.get(invocation),
+        capture,
+        result_type,
+        path,
+    )?;
+    let Ok(loan) = permission else {
+        return Some(false);
     };
-    identity.machine_symbol == state.machine_symbol
-        && identity.state_symbol == state.state_symbol
-        && target.is_valid()
-        && row.formation_owner_path.is_some_and(|path| {
-            facts
+    let row = facts.borrow.loans.get(loan);
+    if row.kind.direct_reborrow_effect(output_access).is_none() {
+        return Some(false);
+    }
+    output.push(PermissionSupplier {
+        source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+        actual: Handle::invalid(),
+        backing: checked_trees::CapturedPlace {
+            incoming_reference: row.incoming_reference,
+            incoming_owner_path: facts
                 .borrow
-                .owner_segments
-                .span_or_empty(identity.owner_path)
-                == facts.borrow.owner_segments.span_or_empty(path)
-        })
-        && expression == capture.expression
-        && (!row.established_by_call.is_valid()
-            || facts
-                .flow
-                .borrow_loan_constraints(capture.constraints)
-                .any(|active| active == loan))
-        && row.root == facts::PlaceRoot::Expression(expression)
-        && state.calls.handles().any(|invocation| {
-            let call = facts.flow.control.calls.get(invocation);
-            call.authored_expression == expression
-                && call.statement_index == capture.statement_index
-                && validation::call_target_entry_symbol(program, call.target_symbol)
-                    == validation::call_target_entry_symbol(program, target)
-        })
+                .access_segments
+                .span_or_empty(row.incoming_owner_path)
+                .to_vec(),
+            root: row.root,
+            segments: facts.borrow.loan_segments(row).to_vec(),
+        },
+    });
+    Some(true)
 }

@@ -698,6 +698,32 @@ impl Resolver<'_> {
         {
             return Err("the completed result disagrees with its checked invocation");
         }
+        if let Some(permission) = super::resources::invocation_permissions::resolve(
+            self.program,
+            self.facts,
+            self.state,
+            invocation,
+            operand,
+            result_type,
+            path,
+        ) {
+            let handle = permission?;
+            let loan = self.facts.borrow.loans.get(handle);
+            return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path)
+                        .to_vec(),
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                },
+                lineage: vec![handle],
+            }]));
+        }
         let sources = crate::borrow::completed_call_reference_sources(
             self.program,
             self.state.state_symbol,
