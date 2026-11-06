@@ -22,6 +22,7 @@ impl PreparedBindingDeclarations {
         program: &Arc<checked_trees::CheckedTrees>,
         inventory: &Arc<psi_terminal_production::PreparedProviderInventory>,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        requires_terminal_checks: bool,
     ) -> Self {
         let owner = if Arc::ptr_eq(inventory.program(), program) {
             Ok(())
@@ -62,9 +63,7 @@ impl PreparedBindingDeclarations {
                 .map(|issuers| issuers.into_iter().cloned().collect()),
             services: inventory.retained_service_catalog(),
             has_proof_obligations: program.facts.proof_applications.has_obligations
-                || validation::terminal_receiving_machines(program)
-                    .next()
-                    .is_some(),
+                || requires_terminal_checks,
         }
     }
 }
