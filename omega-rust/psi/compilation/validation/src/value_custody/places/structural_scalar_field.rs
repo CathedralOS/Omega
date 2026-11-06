@@ -254,6 +254,24 @@ fn structural_field_observation(
             _ => break source(receiver)?,
         }
     };
+    if steps.is_empty() && access == ScalarObservationAccess::Atomic {
+        let mut path = Vec::new();
+        let carrier = readable_projection_carrier(program, local.type_reference, &mut path)?;
+        let primitive_type = atomic_scalar_carrier(program, carrier)?;
+        return Some(StructuralScalarField {
+            root: local.root,
+            receiver_value: local.receiver_value,
+            statement_ordinal: local.statement_ordinal,
+            type_reference: local.type_reference,
+            carrier_type_reference: carrier,
+            result_type_reference: carrier,
+            path,
+            field: SymbolHandle::invalid(),
+            field_identity: CheckedMemberIdentity::default(),
+            primitive_type,
+            domain: program.arithmetic_domain_for_type_reference(carrier),
+        });
+    }
     let leaf = steps.first().copied()?;
     // A literal element selection is a coordinate only when `[]` keeps its
     // builtin meaning along the whole place spine. A fresh receiver's spine
@@ -330,9 +348,6 @@ fn structural_field_observation(
         // same constant selection an intermediate step takes, ending at its
         // element's declared scalar carrier.
         Step::Element { occurrence, index } => {
-            if access == ScalarObservationAccess::Atomic {
-                return None;
-            }
             let TypeReferenceNode::FixedArray {
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(length),
@@ -349,8 +364,12 @@ fn structural_field_observation(
             if usize::try_from(index).ok()? >= *length {
                 return None;
             }
-            let primitive_type =
-                observable_scalar(realized_scalar_carrier(program, *element_type)?)?;
+            let primitive_type = match access {
+                ScalarObservationAccess::Ordinary => {
+                    observable_scalar(realized_scalar_carrier(program, *element_type)?)?
+                }
+                ScalarObservationAccess::Atomic => atomic_scalar_carrier(program, *element_type)?,
+            };
             path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
             return Some(StructuralScalarField {
                 root: local.root,
@@ -378,23 +397,7 @@ fn structural_field_observation(
         ScalarObservationAccess::Ordinary => {
             observable_scalar(realized_scalar_carrier(program, field.type_reference)?)?
         }
-        ScalarObservationAccess::Atomic => {
-            let TypeReferenceNode::Named { symbol, .. } = program
-                .type_reference_table
-                .type_reference(field.type_reference)
-            else {
-                return None;
-            };
-            if !program.symbols.builtin_type_atom(*symbol)?.is_atomic() {
-                return None;
-            }
-            observable_scalar(
-                crate::value_custody::recasts::exact_scalar_representation_type(
-                    program,
-                    field.type_reference,
-                )?,
-            )?
-        }
+        ScalarObservationAccess::Atomic => atomic_scalar_carrier(program, field.type_reference)?,
     };
     Some(StructuralScalarField {
         root: local.root,
@@ -413,6 +416,21 @@ fn structural_field_observation(
                 .dereferenced_type_reference(field.type_reference),
         ),
     })
+}
+
+/// An atomic observation requires the dedicated declaration, not just a scalar
+/// with the same bits. Whole cells, fields and literal elements share this
+/// final-leaf rule; projection and read-access checks remain with the walk.
+fn atomic_scalar_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    if !crate::is_atomic_type(program, reference) {
+        return None;
+    }
+    observable_scalar(
+        crate::value_custody::recasts::exact_scalar_representation_type(program, reference)?,
+    )
 }
 
 /// Observable scalar data retains its declared carrier. Reading an address

@@ -36,7 +36,8 @@ pub use private_entry_ram::{
 pub use provider_installation::{
     AdmittedAssumedBinding, AdmittedProviderSelections, AssumedBindingRejection,
     AssumedBindingSelection, ProviderInstallationError, ProviderInstallationSelection,
-    admit_provider_installation, admit_provider_installation_from_artifact,
+    admit_provider_execution_installation, admit_provider_installation,
+    admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use scalar_applications::{

@@ -875,7 +875,7 @@ fn validate_encoded_effects(
     let expected_barrier = match encoded.control {
         MachineEncodedControlEffect::AtomicRetryUntilCommitV1
             if matches!(declaration.semantic, MachineSemanticKind::AtomicAccess(form)
-                    if form.operation.is_bitwise_fetch()) =>
+                    if form.operation.retries_until_commit(architecture)) =>
         {
             MachineBarrier::ExternalEffect
         }
@@ -1374,7 +1374,7 @@ fn validate_encoded_effects(
         ) if declaration.semantic == MachineSemanticKind::AtomicAccess(form)
             && declaration.memory == crate::MachineMemoryEffect::AtomicPointerV1
             && encoded.control
-                == if form.operation.is_bitwise_fetch() {
+                == if form.operation.retries_until_commit(architecture) {
                     MachineEncodedControlEffect::AtomicRetryUntilCommitV1
                 } else {
                     MachineEncodedControlEffect::FallThroughV1

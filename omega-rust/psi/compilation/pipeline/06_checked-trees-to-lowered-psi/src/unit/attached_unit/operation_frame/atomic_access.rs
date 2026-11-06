@@ -69,20 +69,33 @@ impl OperationFrame<'_, '_> {
             .cloned()
             .map(checked_trees::CheckedUnitStructuralPathSegment::Case)
             .collect::<Vec<_>>();
-        let (suffix, field) =
-            crate::emission::structural_scalar_store::lower_structural_field_path(
-                identities,
-                carrier,
-                &field_path,
-                &access.field_identity,
-                self.structural_types.declarations(),
-            )?;
-        path.extend(suffix);
-        let resident_bounds = match field.field_type {
-            terminal_psi::StructuralFieldType::AtomicBoundedInteger(bounds) => Some(bounds),
-            _ => None,
+        let mut endpoint = if access.field_identity.is_valid() {
+            let (mut suffix, field) =
+                crate::emission::structural_scalar_store::lower_structural_field_path(
+                    identities,
+                    carrier,
+                    &field_path,
+                    &access.field_identity,
+                    self.structural_types.declarations(),
+                )?;
+            suffix.push(terminal_psi::StructuralPathSegment::Field(field.identity));
+            suffix
+        } else {
+            // The checked place producer supplies a case namespace only
+            // with a real member. A whole cell needs no appended coordinate.
+            Vec::new()
         };
-        let field = field.id;
+        let resident = terminal_semantics::atomic_cell_type(
+            self.structural_types.declarations().iter(),
+            carrier,
+            &endpoint,
+        )
+        .filter(|resident| resident.scalar_type() == scalar_type)
+        .ok_or(LoweringError::Unsupported(
+            "atomic event lost its declared cell endpoint",
+        ))?;
+        path.append(&mut endpoint);
+        let resident_bounds = resident.bounds();
         let mut operands = Vec::new();
         for (ordinal, operand) in access.event.operands().into_iter().enumerate() {
             let role = CheckedScalarExpressionRole::AtomicOperand {
@@ -149,9 +162,9 @@ impl OperationFrame<'_, '_> {
                 failure: *failure,
             },
         };
-        if !event.ordering_is_legal() {
-            return unsupported("atomic event orderings are not source-legal");
-        }
+        // Checked event planning consumes the source decoder's admitted
+        // orderings. The independent Terminal verifier checks the emitted
+        // event; lowering does not repeat source admission here.
         let resident_obligation = if event.modifies_resident() && resident_bounds.is_some() {
             if !crate::emission::structural_scalar_store::atomic_source_range_decided(
                 self.checked,
@@ -194,7 +207,6 @@ impl OperationFrame<'_, '_> {
                 OperationKind::AtomicAccess {
                     place,
                     path,
-                    field,
                     event,
                     resident_obligation,
                 },
@@ -241,7 +253,6 @@ impl OperationFrame<'_, '_> {
             OperationKind::AtomicAccess {
                 place,
                 path,
-                field,
                 event,
                 resident_obligation,
             },

@@ -186,6 +186,7 @@ impl StructuralJudge<'_> {
                         callable,
                         parameters,
                         entry_bindings,
+                        type_bindings,
                     ),
                     ProofFact::Proposition(_) => StructuralJudgment::Unknown,
                 };

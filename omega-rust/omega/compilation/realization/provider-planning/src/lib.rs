@@ -30,6 +30,7 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 mod intrinsic_requirements;
 mod native_provider_sources;
+pub mod provider_declarations;
 mod sealed_accessors;
 pub use sealed_accessors::{SealedAccessor, SealedAccessorScalarOperation};
 pub mod program_entry;

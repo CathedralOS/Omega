@@ -239,7 +239,6 @@ pub(super) fn encode(
                 }
                 LegalizedScalarInstructionKind::AtomicAccess {
                     location,
-                    field,
                     scalar_type,
                     field_byte_offset,
                     event,
@@ -248,7 +247,6 @@ pub(super) fn encode(
                     // 95..166 are the existing trapping forms.
                     bytes.push(167);
                     super::structural_types::encode_structural_argument(bytes, location);
-                    crate::codec_bytes::push_encoded(bytes, field.get().to_le_bytes());
                     encode_integer_type(bytes, *scalar_type);
                     crate::codec_bytes::push_encoded(bytes, field_byte_offset.to_le_bytes());
                     encode_atomic_event(bytes, *event);

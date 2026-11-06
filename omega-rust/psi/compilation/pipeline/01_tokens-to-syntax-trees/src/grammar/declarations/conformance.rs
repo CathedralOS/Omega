@@ -1,5 +1,5 @@
 use crate::grammar::contracts::conformance::parse_conformance::parse_conformance_trait_application;
-use crate::grammar::declarations::machines::parse_machine;
+use crate::grammar::declarations::parse_declaration::{ParsedDeclaration, parse_item};
 use crate::grammar::parameters::contracts::parse_machine_parameter_contracts;
 use crate::grammar::parameters::contracts::validate_machine_parameter_contracts;
 use crate::grammar::parameters::parse_generic_parameters::GenericParameterSyntax;
@@ -61,20 +61,30 @@ fn parse_conformance_members<'tokens, 'source>(
     let mut members = crate::storage::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let is_public = input.at_keyword(KeywordKind::Public);
-        if is_public {
-            input = input.take_keyword(KeywordKind::Public, "public")?;
-        }
-        if !input.at_keyword(KeywordKind::Machine) {
+        // Reuse ordinary machine parsing, including public/boundary modifiers.
+        // This lookahead distinguishes a member from a retired reference row;
+        // it does not decide supply or the meaning of a satisfaction edge.
+        let head = if input.at_keyword(KeywordKind::Public) {
+            input.restarted(input.tokens.get(1..).unwrap_or_default())
+        } else {
+            input
+        };
+        let head = if head.at_contextual("boundary") {
+            head.restarted(head.tokens.get(1..).unwrap_or_default())
+        } else {
+            head
+        };
+        if !head.at_keyword(KeywordKind::Machine) {
             return Err(input.error_here(
                 "a named implementation declares each requirement as an inline `machine` member; \
                  a reference row (`Trait::member = Existing::machine;`) is retired, so call the \
                  existing machine from the member's body",
             ));
         }
-        let after_machine = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut machine, rest) = parse_machine(syntax_trees, after_machine)?;
-        machine.is_public = is_public;
+        let (declaration, rest) = parse_item(syntax_trees, input)?;
+        let ParsedDeclaration::Item(Item::Machine(mut machine)) = declaration else {
+            return Err(input.error_here("a named implementation member must be a machine"));
+        };
         if machine.service_reach_is_installation_bound {
             return Err(rest.error_here(
                 "`reaches <= Bound` is legal only on a top-level bodyless `boundary machine` requirement",
@@ -91,30 +101,18 @@ fn parse_conformance_members<'tokens, 'source>(
                 "a conformance-block machine names only its requirement slot; declare its data parameters explicitly",
             ));
         }
-        if machine.bodyless {
-            return Err(input.error_here(
-                "a conformance-block machine requires a checked body; call the existing machine from an inline member to share its realization",
-            ));
-        }
-        // The enclosing conformance already binds the member to its trait. The
-        // one clause a member may carry is the exact edge `satisfies
-        // Declaring<..>::name`, which selects the slot when inherited traits
-        // declare requirements of the same name.
-        let exact_edge = match syntax_trees.items.satisfies_clauses(machine.satisfies) {
-            [] => true,
-            [edge] => {
-                edge.requirement.as_ref().is_some_and(|requirement| {
-                    requirement.as_str(syntax_trees) == machine.name.as_str(syntax_trees)
-                }) && edge.alias.is_none()
-                    && edge.via.is_none()
-                    && !edge.via_expression.is_valid()
-            }
-            _ => false,
-        };
-        if !exact_edge {
-            return Err(input.error_here(
-                "a conformance-block machine may carry only one exact edge, `satisfies Trait<..>::name`, naming its own requirement",
-            ));
+        // The inherited map row and any independent exact satisfactions have
+        // separate identities. Resolution disambiguates inherited slots;
+        // ordinary checking proves every additional contract. A bodyless
+        // member still needs admitted external supply at semantic checking.
+        if syntax_trees
+            .items
+            .satisfies_clauses(machine.satisfies)
+            .iter()
+            .any(|edge| edge.requirement.is_none())
+        {
+            return Err(input
+                .error_here("an inline member's satisfies clauses must name exact requirements"));
         }
         normalize_conformance_machine_entry(syntax_trees, &mut machine);
         let handle = syntax_trees

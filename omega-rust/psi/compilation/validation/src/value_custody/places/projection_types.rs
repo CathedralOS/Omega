@@ -156,8 +156,12 @@ pub fn observed_storage_type_references(
                 "atomic observation ends at an ordinary scalar leaf",
             ));
         }
-        // Atomic fields use their owner's scalar representation.
-        references.pop();
+        // An inline atomic field keeps its contract in the owner's field
+        // declaration. A whole cell or array element instead needs its own
+        // declared atomic storage shape retained by this very observation.
+        if field.is_valid() {
+            references.pop();
+        }
     }
     Ok(StorageObservationTypePath {
         entries: references,

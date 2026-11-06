@@ -10,6 +10,22 @@ initialize:
       export PATH="$HOME/.cargo/bin:$PATH"
       curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C "$HOME/.cargo/bin"
       cargo nextest --version
+  - name: mbx
+    run: |
+      # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
+      # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
+      # Same pinned, checksum-checked release as tools/agent_setup.sh.
+      export PATH="$HOME/.cargo/bin:$PATH"
+      version=1.29.2
+      archive=mbx-$(uname -m)-unknown-linux-gnu.tar.gz
+      release=https://github.com/jdx/mr-boxington/releases/download/v$version
+      work=$(mktemp -d)
+      (cd "$work" &&
+        curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
+        grep " $archive\$" SHA256SUMS | sha256sum --check --strict - &&
+        tar -xzf "$archive" -C "$HOME/.cargo/bin" mbx)
+      rm -rf "$work"
+      mbx --version
 maintenance:
   - name: submodules (best effort; Squalr is in the CathedralOS org)
     run: git submodule update --init --recursive || echo "submodule init skipped"
@@ -21,18 +37,18 @@ maintenance:
   - name: prefetch and warm
     run: |
       export PATH="$HOME/.cargo/bin:$PATH"
-      cargo fetch
-      # Build the compiler binary itself: `cargo check` writes only metadata,
+      mbx fetch
+      # Build the compiler binary itself: `mbx check` writes only metadata,
       # so a session that warmed with it still compiled omega from scratch.
-      cargo build -p omega
-      cargo nextest run --workspace --lib --no-run
+      mbx build -p omega
+      mbx nextest run --workspace --lib --no-run
 knowledge:
   - name: rules
-    contents: Read AGENTS.md in full before any change. mbx is absent here; use cargo for every mbx command.
+    contents: Read AGENTS.md in full before any change. Build and test with mbx (Mr Boxington, https://mr-boxington.jdx.dev/), as AGENTS.md's commands do; `mbx doctor` checks it.
   - name: test
     contents: |
       Scoped: python3 tools/test_affected.py --base <verified-commit> --plan, then without --plan.
-      One crate test: cargo nextest run -p <crate> <filter>. Compiler behavior: add a tests/omega fixture and run python3 tools/corpus_gate.py --filter <fragment>
+      One crate test: mbx nextest run -p <crate> <filter>. Compiler behavior: add a tests/omega fixture and run python3 tools/corpus_gate.py --filter <fragment>
       Bootstrap gates: sh tools/bootstrap/check-chain-hygiene.sh ; sh tests/bootstrap/alpha-beta-edge.sh --edge
   - name: landing
     contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/landing.md. Never push main directly.

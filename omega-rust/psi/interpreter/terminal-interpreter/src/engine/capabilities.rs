@@ -700,6 +700,7 @@ mod tests {
                 boundary,
                 requirement_identity,
                 source_requirement_identity: requirement_identity,
+                declaration_application: terminal_psi::TerminalIdentityIndex::default(),
                 receiving_application: terminal_psi::TerminalIdentityIndex::default(),
                 receiving_region_arguments: Vec::new(),
                 provider_identity,

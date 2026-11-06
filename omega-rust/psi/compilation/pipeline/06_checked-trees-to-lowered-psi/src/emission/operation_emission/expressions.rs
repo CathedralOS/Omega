@@ -109,7 +109,6 @@ pub(crate) enum LoweredDirectExpression {
     AtomicLoad {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
-        field: StructuralFieldId,
         ordering: terminal_psi::MemoryOrdering,
         scalar_type: ScalarType,
     },
@@ -728,14 +727,12 @@ pub(crate) fn emit_direct_expression(
         LoweredDirectExpression::AtomicLoad {
             source,
             path,
-            field,
             ordering,
             scalar_type,
         } => emit_leaf!(
             OperationKind::AtomicAccess {
                 place: *source,
                 path: path.clone(),
-                field: *field,
                 event: terminal_psi::AtomicAccessEvent::Load {
                     ordering: *ordering,
                 },

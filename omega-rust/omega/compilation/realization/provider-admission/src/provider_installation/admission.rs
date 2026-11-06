@@ -16,13 +16,67 @@ pub(crate) fn admit_provider_installation_with_projection(
         return Err(ProviderInstallationError::TerminalIdentityMismatch);
     }
     let module = artifact.module();
+    let (selections, installed_candidates) =
+        select_provider_candidates(&plan.provider_candidates, &plan.identities, selected)?;
+    let installation =
+        terminal_installation::admit_provider_installation(artifact, &selections, assumptions)
+            .map_err(ProviderInstallationError::PsiAdmission)?;
+    let installed_calls = replay_installed_provider_calls(
+        plan,
+        module,
+        &installed_candidates,
+        installation.assumed_bindings(),
+    )?;
+    Ok(AdmittedProviderInstallation {
+        psi: installation.terminal_psi(),
+        terminal_selection: installation,
+        installed_candidates,
+        installed_calls,
+    })
+}
+
+/// Admit checked bodies explicitly selected by the receiving executor.
+/// Unselected catalog rows remain unavailable. Native realization uses the
+/// same matcher; Terminal admission independently checks its selected rows.
+pub fn admit_terminal_provider_installation(
+    artifact: terminal_codec::TerminalExecutionView<'_>,
+    selected: &[SelectedProviderAdapter],
+) -> Result<terminal_installation::AdmittedProviderSelections, ProviderInstallationError> {
+    let module = artifact.module();
+    let candidates = module
+        .provider_candidates
+        .iter()
+        .filter(|candidate| {
+            selected.iter().any(|row| {
+                module.identities.text(candidate.requirement_identity)
+                    == Some(row.requirement_identity.as_str())
+            })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let (selections, _) = select_provider_candidates(&candidates, &module.identities, selected)?;
+    terminal_installation::admit_provider_execution_installation(artifact, &selections, &[])
+        .map_err(ProviderInstallationError::PsiAdmission)
+}
+
+fn select_provider_candidates(
+    candidates: &[terminal_psi::ProviderCandidateConformance],
+    identities: &terminal_psi::TerminalIdentityTable,
+    selected: &[SelectedProviderAdapter],
+) -> Result<
+    (
+        Vec<terminal_installation::ProviderInstallationSelection>,
+        Vec<terminal_psi::ProviderCandidateConformance>,
+    ),
+    ProviderInstallationError,
+> {
     let mut selections = Vec::new();
     let mut installed_candidates = Vec::new();
     let mut candidates_by_boundary = std::collections::BTreeMap::<
         semantic_vocabulary::BoundaryMachineId,
         Vec<&terminal_psi::ProviderCandidateConformance>,
     >::new();
-    for candidate in &plan.provider_candidates {
+    for candidate in candidates {
         candidates_by_boundary
             .entry(candidate.boundary)
             .or_default()
@@ -40,10 +94,10 @@ pub(crate) fn admit_provider_installation_with_projection(
             ));
     }
     for (boundary, candidates) in candidates_by_boundary {
-        let requirement_identity = plan.identities.text(candidates[0].requirement_identity);
+        let requirement_identity = identities.text(candidates[0].requirement_identity);
         if requirement_identity.unwrap_or_default().is_empty()
             || candidates.iter().any(|candidate| {
-                plan.identities.text(candidate.requirement_identity) != requirement_identity
+                identities.text(candidate.requirement_identity) != requirement_identity
             })
         {
             return Err(ProviderInstallationError::InvalidLoweredCatalog);
@@ -58,11 +112,10 @@ pub(crate) fn admit_provider_installation_with_projection(
                 selected_rows
                     .iter()
                     .any(|(declaration, provider, machine)| {
-                        plan.identities
-                            .text(candidate.provider_declaration.identity())
+                        identities.text(candidate.provider_declaration.identity())
                             == Some(*declaration)
-                            && plan.identities.text(candidate.provider_identity) == Some(*provider)
-                            && plan.identities.text(candidate.candidate_identity) == Some(*machine)
+                            && identities.text(candidate.provider_identity) == Some(*provider)
+                            && identities.text(candidate.candidate_identity) == Some(*machine)
                     })
             })
             .collect::<Vec<_>>();
@@ -75,33 +128,17 @@ pub(crate) fn admit_provider_installation_with_projection(
         };
         selections.push(terminal_installation::ProviderInstallationSelection {
             boundary,
-            provider_identity: plan
-                .identities
+            provider_identity: identities
                 .text(candidate.provider_identity)
                 .unwrap_or_default()
                 .to_string(),
             candidate: candidate.candidate,
-            provider_declaration: plan
-                .identities
+            provider_declaration: identities
                 .text(candidate.provider_declaration.identity())
                 .ok_or(ProviderInstallationError::InvalidLoweredCatalog)?
                 .to_owned(),
         });
         installed_candidates.push((**candidate).clone());
     }
-    let installation =
-        terminal_installation::admit_provider_installation(artifact, &selections, assumptions)
-            .map_err(ProviderInstallationError::PsiAdmission)?;
-    let installed_calls = replay_installed_provider_calls(
-        plan,
-        module,
-        &installed_candidates,
-        installation.assumed_bindings(),
-    )?;
-    Ok(AdmittedProviderInstallation {
-        psi: installation.terminal_psi(),
-        terminal_selection: installation,
-        installed_candidates,
-        installed_calls,
-    })
+    Ok((selections, installed_candidates))
 }

@@ -43,6 +43,17 @@ impl SourceStorage {
         let Some(capture) = self.retain_anonymous_owner(&[])? else {
             return Ok(None);
         };
+        // A toolchain-owned root already has declaration custody. Imported
+        // package sources do not create an anonymous User owner for that root.
+        // Retaining the capture above still checks unbound source containment.
+        // retain_anonymous_owner transfers this map into the capture. Inspect
+        // that map and restore it when no User owner needs to be established.
+        if !capture.sources().selected_files().any(|file| {
+            file.origin == SourceOrigin::User && file.package_root == self.default_package_root
+        }) {
+            self.sources = std::sync::Arc::unwrap_or_clone(capture.sources);
+            return Ok(None);
+        }
         let sealed = capture.complete_without_dependencies()?;
         let identity = sealed
             .selected_files()
@@ -63,6 +74,68 @@ impl SourceStorage {
             }
         }
         self.reselect_current_sources(catalogue).map(Some)
+    }
+
+    /// Admit one completed default supplier's immutable core into this source
+    /// namespace before Product typing. Existing parsed bytes and a previously
+    /// captured core must agree; the join never reopens physical source.
+    pub(crate) fn admit_toolchain_capture(
+        &mut self,
+        capture: &crate::CapturedLocalSource,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let root = super::bundled_core_root()?;
+        if capture.canonical_live_root() != root {
+            return Err(vec![Diagnostic::error(
+                "default supplier is not the admitted core capture",
+            )]);
+        }
+        if self
+            .anonymous_core_capture
+            .as_ref()
+            .is_some_and(|(original_root, tree)| original_root != &root || tree != capture.tree())
+        {
+            return Err(vec![Diagnostic::error(
+                "default supplier differs from the receiving captured core",
+            )]);
+        }
+        for file in self
+            .sources
+            .selected_files()
+            .filter(|file| file.path.starts_with(&root))
+        {
+            let relative = file
+                .path
+                .strip_prefix(&root)
+                .map_err(|_| vec![Diagnostic::error("core source escaped its admitted root")])?;
+            if file.origin != SourceOrigin::Toolchain
+                || file.package_identity.is_some()
+                || capture.tree().read_to_string(relative).ok().as_deref()
+                    != Some(file.source.as_ref())
+            {
+                return Err(vec![Diagnostic::error(
+                    "already parsed core source differs from the completed default supplier",
+                )]);
+            }
+        }
+        let mut supplier_filesystem = source::SourceFileSystem::new();
+        supplier_filesystem
+            .add_capture(root.clone(), capture.tree().clone())
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot retain default supplier capture: {error}"
+                ))]
+            })?;
+        // Initial source capture may already include this core. Join the full
+        // snapshots, including missing entries, rather than replace or skip it.
+        self.filesystem
+            .join_captures(&supplier_filesystem)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "default supplier conflicts with the receiving source capture: {error}"
+                ))]
+            })?;
+        self.anonymous_core_capture = Some((root, capture.tree().clone()));
+        Ok(())
     }
 
     pub(crate) fn root_sources(&self) -> Vec<source::SourceId> {
@@ -374,6 +447,7 @@ impl SourceStorage {
                 .chain(contracts.into_iter().map(|(_, identity)| identity))
                 .collect(),
             sources: std::sync::Arc::new(std::mem::take(&mut self.sources)),
+            toolchain_contract_custody: self.toolchain_contract_custody.clone(),
         }))
     }
 

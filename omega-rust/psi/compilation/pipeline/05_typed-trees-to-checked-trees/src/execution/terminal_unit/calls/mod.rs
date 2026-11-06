@@ -92,16 +92,14 @@ pub(crate) use affine_locals::build_affine_array_construction_prefix;
 pub(crate) use argument_paths::{
     ProjectedArgumentPath, borrowed_argument_endpoint, borrowed_index_segment,
     byte_sequence_literal_argument, projected_argument_path, projected_borrowed_path,
-    projected_observed_path, projected_selected_path,
+    projected_observed_path, projected_selected_path, retain_local_reference_source,
 };
 pub(crate) use boundary_admission::{
     boundary_authority_refusal, boundary_trait_receiver_is_namespace,
 };
 pub(in super::super) use call_operations::ExpectedCallValueResult;
 pub(in super::super) use call_operations::build_call_operation;
-pub(crate) use computation_arguments::{
-    storage_argument, structural_computation_argument, subslice_computation_argument,
-};
+pub(crate) use computation_arguments::{ComputationCallArguments, storage_argument};
 pub(crate) use signatures::{
     entry_claims, free_structural_scalar_entry_signature_traced, free_structural_scalar_signature,
     free_structural_scalar_signature_traced, parameter_signatures,

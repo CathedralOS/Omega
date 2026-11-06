@@ -107,10 +107,19 @@ class OutcomeOwnershipTests(unittest.TestCase):
         agents = (repository / 'AGENTS.md').read_text(encoding='utf-8')
         self.assertIn('## Law of completion', agents)
         self.assertIn('uncompilable sample through every necessary compiler', agents)
-        for name in ('advance', 'devin-swarm', 'local-swarm', 'codex-swarm',
-                     'dot-swarm', 'cursor-swarm'):
-            with self.subTest(skill=name):
-                skill = repository / '.agents' / 'skills' / name / 'SKILL.md'
+        for rel in (
+            Path('advance/SKILL.md'),
+            Path('swarm/SKILL.md'),
+            Path('swarm/references/local.md'),
+            Path('swarm/references/antigravity.md'),
+            Path('swarm/references/claude.md'),
+            Path('swarm/references/codex.md'),
+            Path('swarm/references/cursor.md'),
+            Path('swarm/references/devin.md'),
+            Path('swarm/references/dot.md'),
+        ):
+            with self.subTest(skill=str(rel)):
+                skill = repository / '.agents' / 'skills' / rel
                 self.assertIn('AGENTS.md#law-of-completion',
                               skill.read_text(encoding='utf-8'))
 
@@ -924,7 +933,7 @@ class SwarmTests(unittest.TestCase):
                     state)
                 self.assertNotIn("{host_block}", prompt)
                 self.assertNotIn("{build_tool}", prompt)
-                self.assertIn("local-swarm/host-setup.md", prompt)
+                self.assertIn("swarm/references/host-setup.md", prompt)
                 self.assertIn("CARGO_TARGET_DIR", prompt)
                 self.assertIn("stdin=subprocess.DEVNULL", prompt)
 

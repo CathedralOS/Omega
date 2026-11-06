@@ -175,11 +175,6 @@ impl StructuralJudge<'_> {
                 {
                     return Some(measure);
                 }
-                // The applied contract's fields belong to its selected data
-                // application, not a same-named field on the generic base.
-                let field = crate::value_custody::places::applied_data_member_field(
-                    program, reference, member,
-                )?;
                 let value = self.bound_contract_term(
                     member.receiver,
                     scope,
@@ -189,6 +184,27 @@ impl StructuralJudge<'_> {
                     type_bindings,
                     result,
                     depth + 1,
+                )?;
+                // The snapshot belongs to the caller, while the contract
+                // names the callee's type parameters. Authenticate that exact
+                // substitution before projecting the snapshot's own fields.
+                // A matching generic head alone cannot authorize a crossing.
+                let reference = if let Some(observed) =
+                    structural_terms::owned_observation_type(program, &value)
+                    && crate::reference_shell(program, reference).is_none()
+                {
+                    crate::value_custody::places::declared_carriers_match_under_application(
+                        program,
+                        observed,
+                        reference,
+                        type_bindings,
+                    )
+                    .then_some(observed)?
+                } else {
+                    reference
+                };
+                let field = crate::value_custody::places::applied_data_member_field(
+                    program, reference, member,
                 )?;
                 let mut path = Vec::new();
                 crate::value_custody::places::push_field_place_segments(

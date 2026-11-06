@@ -33,7 +33,7 @@ use abstract_operations::atomic::AbstractAtomicLocation;
 use abstract_operations::{
     AbstractAtomicEvent, AbstractOperation, AtomicResidencyEdge, AtomicResidencySource,
 };
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralFieldId};
+use semantic_vocabulary::{OperationId, PlaceId, ScalarType};
 use terminal_psi::{
     AtomicAccessEvent, Operation, OperationKind, StructuralPathSegment, StructuralTypeDeclaration,
     TerminalMachine,
@@ -49,7 +49,6 @@ pub(super) fn lower(
     let OperationKind::AtomicAccess {
         place,
         path,
-        field,
         event,
         resident_obligation,
     } = &operation.kind
@@ -65,11 +64,10 @@ pub(super) fn lower(
                 .map(|(_, structural_type)| structural_type)
         })
         .ok_or(LoweringError::UnsupportedAtomicAccess(operation.id))?;
-    let leaf = field_type(structural_types, root, path, *field).ok_or_else(malformed)?;
+    let leaf = field_type(structural_types, root, path).ok_or_else(malformed)?;
     let location = AbstractAtomicLocation {
         root: *place,
         path: path.clone(),
-        field: *field,
     };
     let prior = || {
         operation
@@ -214,11 +212,9 @@ fn field_type(
     structural_types: &[StructuralTypeDeclaration],
     root: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ScalarType> {
-    terminal_semantics::projected_field_declaration(structural_types.iter(), root, path, field)?
-        .field_type
-        .atomic_scalar_type()
+    terminal_semantics::atomic_cell_type(structural_types.iter(), root, path)
+        .map(|cell| cell.scalar_type())
 }
 
 /// One fact about the latest write to a location on some execution path.
@@ -252,15 +248,12 @@ fn reaching_fact(
                 .enumerate()
                 .find_map(|(index, operation)| {
                     (operation.id == target).then(|| match &operation.kind {
-                        OperationKind::AtomicAccess {
-                            place, path, field, ..
-                        } => Some((
+                        OperationKind::AtomicAccess { place, path, .. } => Some((
                             block.id,
                             index,
                             AbstractAtomicLocation {
                                 root: *place,
                                 path: path.clone(),
-                                field: *field,
                             },
                         )),
                         _ => None,
@@ -290,7 +283,7 @@ fn reaching_fact(
         }
         ancestry.push(coordinate);
         let declaration = blocks.get(&block).ok_or_else(unsupported)?;
-        let local = (location.root, location.path.clone(), location.field);
+        let local = (location.root, location.path.clone());
         if let Some(write) = declaration.operations[..before]
             .iter()
             .rev()
@@ -333,7 +326,6 @@ fn reaching_fact(
                         AbstractAtomicLocation {
                             root: source.root,
                             path,
-                            field: location.field,
                         },
                         ancestry.clone(),
                     ));
@@ -350,7 +342,7 @@ fn reaching_fact(
     Ok(reached)
 }
 
-type Location = (PlaceId, Vec<StructuralPathSegment>, StructuralFieldId);
+type Location = (PlaceId, Vec<StructuralPathSegment>);
 
 /// The first preceding operation that prevents looking farther for a write.
 fn latest_write(
@@ -359,7 +351,7 @@ fn latest_write(
     machine: &TerminalMachine,
     structural_types: &[StructuralTypeDeclaration],
 ) -> Option<Reaching> {
-    let (root, path, field) = location;
+    let (root, path) = location;
     if operation
         .result
         .structural()
@@ -387,15 +379,10 @@ fn latest_write(
         OperationKind::AtomicAccess {
             place: other_root,
             path: other_path,
-            field: other_field,
             event,
             ..
         } => {
-            if other_root == root
-                && other_path == path
-                && other_field == field
-                && event.modifies_resident()
-            {
+            if other_root == root && other_path == path && event.modifies_resident() {
                 return Some(Reaching::Atomic(operation.id));
             }
             if event.modifies_resident()
@@ -413,12 +400,31 @@ fn latest_write(
             field: other_field,
             ..
         } => {
+            // Ordinary field writes retain a type-local field ID. Resolve it
+            // to the same complete projection the atomic event records before
+            // comparing siblings; an unknown declaration remains a fence.
+            let Some(other_type) = terminal_semantics::arrival_parameter(machine, *destination)
+                .map(|parameter| parameter.structural_type)
+                .or_else(|| machine.producing_operation(*destination).map(|(_, ty)| ty))
+            else {
+                return Some(Reaching::Unknown);
+            };
+            let Some(declaration) = terminal_semantics::projected_field_declaration(
+                structural_types.iter(),
+                other_type,
+                other_path,
+                *other_field,
+            ) else {
+                return Some(Reaching::Unknown);
+            };
+            let mut complete = other_path.clone();
+            complete.push(StructuralPathSegment::Field(declaration.identity));
+            let other_path = &complete;
             if (destination != root && may_alias(*destination, other_path))
                 || (destination == root
                     && (path.contains(&terminal_psi::StructuralPathSegment::Referent)
                         || other_path.contains(&terminal_psi::StructuralPathSegment::Referent)
-                        || terminal_semantics::structural_paths_may_overlap(other_path, path)
-                            && other_field == field))
+                        || terminal_semantics::structural_paths_may_overlap(other_path, path)))
             {
                 return Some(Reaching::Effect(operation.id));
             }

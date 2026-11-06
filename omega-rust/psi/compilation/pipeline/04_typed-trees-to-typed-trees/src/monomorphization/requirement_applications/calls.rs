@@ -859,11 +859,20 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     }
     publish_expression_call_views(
         program,
-        invocations.into_iter().filter_map(|invocation| {
+        invocations.iter().filter_map(|invocation| {
             let super::super::CallSite::Expression(expression) = invocation.site else {
                 return None;
             };
             Some((invocation.owner, expression))
+        }),
+    )?;
+    publish_statement_call_views(
+        program,
+        invocations.into_iter().filter_map(|invocation| {
+            let super::super::CallSite::Statement(statement) = invocation.site else {
+                return None;
+            };
+            Some((invocation.owner, statement))
         }),
     )?;
     Ok(())
@@ -917,12 +926,87 @@ pub(super) fn publish_expression_call_views(
         else {
             continue;
         };
-        let Some(bindings) = invocation_binding_views::public_bindings(program, owner, &call)?
+        let Some(bindings) = invocation_binding_views::public_bindings(
+            program,
+            owner,
+            StaticArgumentCall::Expression(expression, &call),
+        )?
         else {
             continue;
         };
         if let Some(signature) = program
             .prepare_requirement_invocation(owner, &call, &bindings, &selected)
+            .map_err(|message| vec![Diagnostic::error(message)])?
+        {
+            let references =
+                typed_trees::references::collect_signature_references(program, &signature);
+            super::super::finalize_referenced_domain_instance_identities(program, references)
+                .map_err(|diagnostic| vec![diagnostic])?;
+        }
+    }
+    Ok(())
+}
+
+fn publish_statement_call_views(
+    program: &mut TypedTrees,
+    calls: impl IntoIterator<Item = (SymbolHandle, typed_trees::statement::StatementHandle)>,
+) -> Result<(), Vec<Diagnostic>> {
+    for (owner, statement) in calls {
+        let Some(call) = program
+            .statement_table
+            .statement(statement)
+            .as_call()
+            .cloned()
+        else {
+            continue;
+        };
+        let selected_scope = if let Some(dispatch) = &call.static_requirement_dispatch {
+            let applications = selected_applications(program, owner, dispatch);
+            let [application] = applications.as_slice() else {
+                continue;
+            };
+            application
+                .trait_scope
+                .scope(program)
+                .map(|scope| (dispatch.requirement, scope))
+        } else {
+            source_scope(
+                program,
+                owner,
+                call.target_symbol,
+                || None,
+                TypeReferenceHandle::invalid(),
+            )?
+        };
+        let Some((template, scope)) = selected_scope else {
+            continue;
+        };
+        let Some((declaration, declared)) = program.trait_machine_signature(template) else {
+            continue;
+        };
+        let Some(scope) = scope.declaring_scope(program, declaration.symbol) else {
+            continue;
+        };
+        let Some(selected) = program
+            .applied_callable_signature(&scope, template)
+            .or_else(|| {
+                (scope.substitutions.is_empty() && declaration.lifetime_parameters.is_empty())
+                    .then_some(declared)
+            })
+            .cloned()
+        else {
+            continue;
+        };
+        let Some(bindings) = invocation_binding_views::public_bindings(
+            program,
+            owner,
+            StaticArgumentCall::Statement(&call),
+        )?
+        else {
+            continue;
+        };
+        if let Some(signature) = program
+            .prepare_requirement_statement_invocation(owner, &call, &bindings, &selected)
             .map_err(|message| vec![Diagnostic::error(message)])?
         {
             let references =

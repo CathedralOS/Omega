@@ -250,6 +250,22 @@ fn admit_machine_rankings_with_topology(
             && !topology
                 .as_ref()
                 .is_some_and(|topology| topology.requires_arrival_witness(position));
+        // A nested helper has no private witness. Its local result is the
+        // source-natural judgment of the component that decreases the
+        // enclosing rank through it.
+        if !local_terminates
+            && !cycle
+            && components.iter().any(|component| {
+                component.positions.contains(&position)
+                    && component.source_outcomes.iter().any(|(member, outcome)| {
+                        *member == position
+                            && matches!(outcome, ranking::DecreaseOutcome::Proven(_))
+                    })
+            })
+        {
+            local_terminates =
+                machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
+        }
         let mut entry_rank_formed = false;
         let mut diagnostic = String::new();
         if needs_judgment {

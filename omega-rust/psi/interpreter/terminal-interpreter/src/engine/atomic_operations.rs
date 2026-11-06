@@ -1,16 +1,16 @@
 //! Serial execution of normalized atomic access events.
 //!
 //! The interpreter runs one activation at a time, so an atomic event is one
-//! uninterrupted observe-then-replace step on the same resolved scalar field:
+//! uninterrupted observe-then-replace step on the same resolved atomic cell:
 //! the observed prior is exactly the resident the replacement consumed, never
-//! a second read. The field resolves through the same structural-argument
+//! a second read. The endpoint resolves through the same structural-argument
 //! resolution other observations use, retaining the current local or arrival
 //! home and every readable stored-reference crossing. Orderings constrain concurrent observation only; a serial run
 //! has no second participant, so they select no different behavior here.
 //! Direct members include a mixed case's common fields: their cells live in
 //! the member namespace regardless of the active payload or physical tag size.
 
-use semantic_vocabulary::{IntegerValue, PlaceId, StructuralFieldId};
+use semantic_vocabulary::{IntegerValue, PlaceId};
 use terminal_psi::{
     AtomicAccessEvent, AtomicReadModifyWrite, Operation, OperationResult, StructuralAccess,
     StructuralPathSegment,
@@ -19,8 +19,7 @@ use terminal_psi::{
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::values::TerminalScalarValue;
 use crate::engine::execution::TerminalExecution;
-use crate::engine::scalar_operations::terminal_scalar_belongs_to_type;
-use terminal_semantics::static_field_projection;
+use crate::storage::primitive_storage::{PrimitiveStorageWrites, scalar_field_projection};
 
 impl TerminalExecution<'_> {
     pub(crate) fn execute_atomic_access(
@@ -28,7 +27,6 @@ impl TerminalExecution<'_> {
         operation: &Operation,
         place: PlaceId,
         path: &[StructuralPathSegment],
-        field: StructuralFieldId,
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
         let machine = self.program.verified_machine(self.current_machine)?;
@@ -48,37 +46,12 @@ impl TerminalExecution<'_> {
         if access == StructuralAccess::WriteOnlyBorrow || !event.ordering_is_legal() {
             return Err(malformed());
         }
-        // A final Case qualifies a payload field of the sum; it does not
-        // designate another structural value. Resolve the actual record/sum
-        // through each current descriptor before selecting that namespace.
-        let (prefix, selected_case) = match path.split_last() {
-            Some((StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
-            _ => (path, None),
-        };
+        // Resolve reference crossings before choosing the final scalar cell.
+        // A Case belongs to its field namespace, rather than a new value home.
+        let (prefix, endpoint) = scalar_field_projection(path).unwrap_or((path, &[]));
         let (parent, view) =
             self.resolve_live_view_projection(place, prefix, StructuralAccess::SharedBorrow)?;
-        let declared_parent = match view {
-            None => parent.structural_type,
-            Some(crate::storage::reference::AggregateViewTip::Aggregate { view, backing })
-                if backing == parent.structural_type =>
-            {
-                view.structural_type
-            }
-            Some(_) => return Err(malformed()),
-        };
-        let namespace = selected_case
-            .into_iter()
-            .map(StructuralPathSegment::Case)
-            .collect::<Vec<_>>();
-        let types = self.structural_types();
-        let (canonical, declaration) =
-            static_field_projection(types.values(), declared_parent, &namespace, field)
-                .ok_or_else(malformed)?;
-        let scalar_type = declaration
-            .field_type
-            .atomic_scalar_type()
-            .ok_or_else(malformed)?;
-        let cell = self.observed_field_cell_in(&parent, view, &canonical, field)?;
+        let (storage, scalar_type) = self.atomic_cell_storage(&parent, view, endpoint)?;
         let operand = |value| {
             self.values
                 .get(&value)
@@ -87,18 +60,13 @@ impl TerminalExecution<'_> {
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
         };
         let prior = if event.observes_resident() {
-            let prior = self
-                .structural_scalar_fields
-                .get(&cell)
-                .map(crate::storage::scalar_storage::ScalarCell::read)
-                .transpose()?
-                .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
-                    source: place,
-                    field,
-                })?;
-            if prior.scalar_type() != scalar_type {
-                return Err(malformed());
-            }
+            let prior = self.read_primitive_storage(
+                place,
+                storage.clone(),
+                scalar_type,
+                scalar_type,
+                false,
+            )?;
             Some(prior)
         } else {
             None
@@ -138,8 +106,9 @@ impl TerminalExecution<'_> {
             }
             _ => None,
         };
-        if replacement.is_some() {
-            self.require_guest_storage_mutation(&cell.parent)?;
+        let mut writes = PrimitiveStorageWrites::default();
+        if let Some(value) = replacement {
+            writes.stage(self, place, storage, scalar_type, value)?;
         }
         match (prior, &operation.result) {
             (Some(prior), OperationResult::Structural(result))
@@ -197,13 +166,7 @@ impl TerminalExecution<'_> {
             (None, OperationResult::Unit) => {}
             _ => return Err(malformed()),
         }
-        if let Some(replacement) = replacement {
-            if !terminal_scalar_belongs_to_type(replacement) {
-                return Err(malformed());
-            }
-            self.invalidate_stored_provenance(&cell.parent);
-            self.structural_scalar_fields.insert(cell, replacement)?;
-        }
+        writes.commit(self)?;
         Ok(())
     }
 }

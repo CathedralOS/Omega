@@ -1,0 +1,691 @@
+// The ordinary map owns these machine members. Each member also records its
+// exact public arithmetic requirement; Build selects that recorded relation.
+// The compiler catalog supplies intrinsic execution only for this sealed map.
+use omega::language::core::float_format;
+use omega::language::core::float_meaning;
+
+trait FloatNativeOperations {
+    machine float_add_f32_f32(left: f32, right: f32) -> f32;
+    machine float_add_f64_f64(left: f64, right: f64) -> f64;
+    machine float_subtract_f32_f32(left: f32, right: f32) -> f32;
+    machine float_subtract_f64_f64(left: f64, right: f64) -> f64;
+    machine float_multiply_f32_f32(left: f32, right: f32) -> f32;
+    machine float_multiply_f64_f64(left: f64, right: f64) -> f64;
+    machine float_divide_f32_f32(left: f32, right: f32) -> f32;
+    machine float_divide_f64_f64(left: f64, right: f64) -> f64;
+    machine float_equal_f32_f32(left: f32, right: f32) -> bool;
+    machine float_equal_f64_f64(left: f64, right: f64) -> bool;
+    machine float_not_equal_f32_f32(left: f32, right: f32) -> bool;
+    machine float_not_equal_f64_f64(left: f64, right: f64) -> bool;
+    machine float_less_f32_f32(left: f32, right: f32) -> bool;
+    machine float_less_f64_f64(left: f64, right: f64) -> bool;
+    machine float_less_or_equal_f32_f32(left: f32, right: f32) -> bool;
+    machine float_less_or_equal_f64_f64(left: f64, right: f64) -> bool;
+    machine float_greater_f32_f32(left: f32, right: f32) -> bool;
+    machine float_greater_f64_f64(left: f64, right: f64) -> bool;
+    machine float_greater_or_equal_f32_f32(left: f32, right: f32) -> bool;
+    machine float_greater_or_equal_f64_f64(left: f64, right: f64) -> bool;
+    machine f32_negate_f32(value: f32) -> f32;
+    machine f64_negate_f64(value: f64) -> f64;
+    machine f32_multiply_then_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32;
+    machine f64_multiply_then_add_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64;
+    machine f32_fused_multiply_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32;
+    machine f64_fused_multiply_add_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64;
+    machine f32_square_root_f32(value: f32) -> f32;
+    machine f64_square_root_f64(value: f64) -> f64;
+    machine f32_minimum_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_minimum_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_maximum_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_maximum_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_from_f64_f64(value: f64) -> f32;
+    machine f64_from_f32_f32(value: f32) -> f64;
+    machine f32_from_i8_i8(value: i8) -> f32;
+    machine f32_from_i16_i16(value: i16) -> f32;
+    machine f32_from_i32_i32(value: i32) -> f32;
+    machine f32_from_i64_i64(value: i64) -> f32;
+    machine f32_from_u8_u8(value: u8) -> f32;
+    machine f32_from_u16_u16(value: u16) -> f32;
+    machine f32_from_u32_u32(value: u32) -> f32;
+    machine f32_from_u64_u64(value: u64) -> f32;
+    machine f64_from_i8_i8(value: i8) -> f64;
+    machine f64_from_i16_i16(value: i16) -> f64;
+    machine f64_from_i32_i32(value: i32) -> f64;
+    machine f64_from_i64_i64(value: i64) -> f64;
+    machine f64_from_u8_u8(value: u8) -> f64;
+    machine f64_from_u16_u16(value: u16) -> f64;
+    machine f64_from_u32_u32(value: u32) -> f64;
+    machine f64_from_u64_u64(value: u64) -> f64;
+    machine i8_from_f32_f32(value: f32) -> i8
+    requires
+        value == value && value > -129.0f32 && value < 128.0f32;
+    machine i8_from_f32_f32_trapping(value: f32) -> i8 in Trapping
+    crashes Trap
+        value != value || value <= -129.0f32 || value >= 128.0f32;
+    machine i8_from_f32_f32_saturating(value: f32) -> i8 in Saturating;
+    machine i8_from_f64_f64(value: f64) -> i8
+    requires
+        value == value && value > -129.0 && value < 128.0;
+    machine i8_from_f64_f64_trapping(value: f64) -> i8 in Trapping
+    crashes Trap
+        value != value || value <= -129.0 || value >= 128.0;
+    machine i8_from_f64_f64_saturating(value: f64) -> i8 in Saturating;
+    machine i16_from_f32_f32(value: f32) -> i16
+    requires
+        value == value && value > -32769.0f32 && value < 32768.0f32;
+    machine i16_from_f32_f32_trapping(value: f32) -> i16 in Trapping
+    crashes Trap
+        value != value || value <= -32769.0f32 || value >= 32768.0f32;
+    machine i16_from_f32_f32_saturating(value: f32) -> i16 in Saturating;
+    machine i16_from_f64_f64(value: f64) -> i16
+    requires
+        value == value && value > -32769.0 && value < 32768.0;
+    machine i16_from_f64_f64_trapping(value: f64) -> i16 in Trapping
+    crashes Trap
+        value != value || value <= -32769.0 || value >= 32768.0;
+    machine i16_from_f64_f64_saturating(value: f64) -> i16 in Saturating;
+    machine i32_from_f32_f32(value: f32) -> i32
+    requires
+        value == value && value >= -2147483648.0f32 && value < 2147483648.0f32;
+    machine i32_from_f32_f32_trapping(value: f32) -> i32 in Trapping
+    crashes Trap
+        value != value || value < -2147483648.0f32 || value >= 2147483648.0f32;
+    machine i32_from_f32_f32_saturating(value: f32) -> i32 in Saturating;
+    machine i32_from_f64_f64(value: f64) -> i32
+    requires
+        value == value && value > -2147483649.0 && value < 2147483648.0;
+    machine i32_from_f64_f64_trapping(value: f64) -> i32 in Trapping
+    crashes Trap
+        value != value || value <= -2147483649.0 || value >= 2147483648.0;
+    machine i32_from_f64_f64_saturating(value: f64) -> i32 in Saturating;
+    machine i64_from_f32_f32(value: f32) -> i64
+    requires
+        value == value && value >= -9223372036854775808.0f32 && value < 9223372036854775808.0f32;
+    machine i64_from_f32_f32_trapping(value: f32) -> i64 in Trapping
+    crashes Trap
+        value != value || value < -9223372036854775808.0f32 || value >= 9223372036854775808.0f32;
+    machine i64_from_f32_f32_saturating(value: f32) -> i64 in Saturating;
+    machine i64_from_f64_f64(value: f64) -> i64
+    requires
+        value == value && value >= -9223372036854775808.0 && value < 9223372036854775808.0;
+    machine i64_from_f64_f64_trapping(value: f64) -> i64 in Trapping
+    crashes Trap
+        value != value || value < -9223372036854775808.0 || value >= 9223372036854775808.0;
+    machine i64_from_f64_f64_saturating(value: f64) -> i64 in Saturating;
+    machine u8_from_f32_f32(value: f32) -> u8
+    requires
+        value == value && value > -1.0f32 && value < 256.0f32;
+    machine u8_from_f32_f32_trapping(value: f32) -> u8 in Trapping
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 256.0f32;
+    machine u8_from_f32_f32_saturating(value: f32) -> u8 in Saturating;
+    machine u8_from_f64_f64(value: f64) -> u8
+    requires
+        value == value && value > -1.0 && value < 256.0;
+    machine u8_from_f64_f64_trapping(value: f64) -> u8 in Trapping
+    crashes Trap
+        value != value || value <= -1.0 || value >= 256.0;
+    machine u8_from_f64_f64_saturating(value: f64) -> u8 in Saturating;
+    machine u16_from_f32_f32(value: f32) -> u16
+    requires
+        value == value && value > -1.0f32 && value < 65536.0f32;
+    machine u16_from_f32_f32_trapping(value: f32) -> u16 in Trapping
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 65536.0f32;
+    machine u16_from_f32_f32_saturating(value: f32) -> u16 in Saturating;
+    machine u16_from_f64_f64(value: f64) -> u16
+    requires
+        value == value && value > -1.0 && value < 65536.0;
+    machine u16_from_f64_f64_trapping(value: f64) -> u16 in Trapping
+    crashes Trap
+        value != value || value <= -1.0 || value >= 65536.0;
+    machine u16_from_f64_f64_saturating(value: f64) -> u16 in Saturating;
+    machine u32_from_f32_f32(value: f32) -> u32
+    requires
+        value == value && value > -1.0f32 && value < 4294967296.0f32;
+    machine u32_from_f32_f32_trapping(value: f32) -> u32 in Trapping
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 4294967296.0f32;
+    machine u32_from_f32_f32_saturating(value: f32) -> u32 in Saturating;
+    machine u32_from_f64_f64(value: f64) -> u32
+    requires
+        value == value && value > -1.0 && value < 4294967296.0;
+    machine u32_from_f64_f64_trapping(value: f64) -> u32 in Trapping
+    crashes Trap
+        value != value || value <= -1.0 || value >= 4294967296.0;
+    machine u32_from_f64_f64_saturating(value: f64) -> u32 in Saturating;
+    machine u64_from_f32_f32(value: f32) -> u64
+    requires
+        value == value && value > -1.0f32 && value < 18446744073709551616.0f32;
+    machine u64_from_f32_f32_trapping(value: f32) -> u64 in Trapping
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 18446744073709551616.0f32;
+    machine u64_from_f32_f32_saturating(value: f32) -> u64 in Saturating;
+    machine u64_from_f64_f64(value: f64) -> u64
+    requires
+        value == value && value > -1.0 && value < 18446744073709551616.0;
+    machine u64_from_f64_f64_trapping(value: f64) -> u64 in Trapping
+    crashes Trap
+        value != value || value <= -1.0 || value >= 18446744073709551616.0;
+    machine u64_from_f64_f64_saturating(value: f64) -> u64 in Saturating;
+    machine f32_classify_f32(value: f32) -> FloatClass;
+    machine f64_classify_f64(value: f64) -> FloatClass;
+    machine f32_is_finite_f32(value: f32) -> bool;
+    machine f64_is_finite_f64(value: f64) -> bool;
+    machine f32_is_nan_f32(value: f32) -> bool;
+    machine f64_is_nan_f64(value: f64) -> bool;
+    machine f32_is_infinite_f32(value: f32) -> bool;
+    machine f64_is_infinite_f64(value: f64) -> bool;
+    machine f32_is_normal_f32(value: f32) -> bool;
+    machine f64_is_normal_f64(value: f64) -> bool;
+    machine f32_is_subnormal_f32(value: f32) -> bool;
+    machine f64_is_subnormal_f64(value: f64) -> bool;
+    machine f32_add_toward_zero_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_add_toward_zero_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_add_toward_positive_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_add_toward_positive_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_add_toward_negative_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_add_toward_negative_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_subtract_toward_zero_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_subtract_toward_zero_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_subtract_toward_positive_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_subtract_toward_positive_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_subtract_toward_negative_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_subtract_toward_negative_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_multiply_toward_zero_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_multiply_toward_zero_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_multiply_toward_positive_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_multiply_toward_positive_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_multiply_toward_negative_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_multiply_toward_negative_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_divide_toward_zero_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_divide_toward_zero_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_divide_toward_positive_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_divide_toward_positive_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_divide_toward_negative_f32_f32(left: f32, right: f32) -> f32;
+    machine f64_divide_toward_negative_f64_f64(left: f64, right: f64) -> f64;
+    machine f32_square_root_toward_zero_f32(value: f32) -> f32;
+    machine f64_square_root_toward_zero_f64(value: f64) -> f64;
+    machine f32_square_root_toward_positive_f32(value: f32) -> f32;
+    machine f64_square_root_toward_positive_f64(value: f64) -> f64;
+    machine f32_square_root_toward_negative_f32(value: f32) -> f32;
+    machine f64_square_root_toward_negative_f64(value: f64) -> f64;
+    machine f32_fused_multiply_add_toward_zero_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32;
+    machine f64_fused_multiply_add_toward_zero_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64;
+    machine f32_fused_multiply_add_toward_positive_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32;
+    machine f64_fused_multiply_add_toward_positive_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64;
+    machine f32_fused_multiply_add_toward_negative_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32;
+    machine f64_fused_multiply_add_toward_negative_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64;
+}
+
+NativeFloats satisfies FloatNativeOperations {
+    boundary machine float_add_f32_f32(left: f32, right: f32) -> f32
+    satisfies Float::add
+    ;
+    boundary machine float_add_f64_f64(left: f64, right: f64) -> f64
+    satisfies Float::add
+    ;
+    boundary machine float_subtract_f32_f32(left: f32, right: f32) -> f32
+    satisfies Float::subtract
+    ;
+    boundary machine float_subtract_f64_f64(left: f64, right: f64) -> f64
+    satisfies Float::subtract
+    ;
+    boundary machine float_multiply_f32_f32(left: f32, right: f32) -> f32
+    satisfies Float::multiply
+    ;
+    boundary machine float_multiply_f64_f64(left: f64, right: f64) -> f64
+    satisfies Float::multiply
+    ;
+    boundary machine float_divide_f32_f32(left: f32, right: f32) -> f32
+    satisfies Float::divide
+    ;
+    boundary machine float_divide_f64_f64(left: f64, right: f64) -> f64
+    satisfies Float::divide
+    ;
+    boundary machine float_equal_f32_f32(left: f32, right: f32) -> bool
+    satisfies Float::equal
+    ;
+    boundary machine float_equal_f64_f64(left: f64, right: f64) -> bool
+    satisfies Float::equal
+    ;
+    boundary machine float_not_equal_f32_f32(left: f32, right: f32) -> bool
+    satisfies Float::not_equal
+    ;
+    boundary machine float_not_equal_f64_f64(left: f64, right: f64) -> bool
+    satisfies Float::not_equal
+    ;
+    boundary machine float_less_f32_f32(left: f32, right: f32) -> bool
+    satisfies Float::less
+    ;
+    boundary machine float_less_f64_f64(left: f64, right: f64) -> bool
+    satisfies Float::less
+    ;
+    boundary machine float_less_or_equal_f32_f32(left: f32, right: f32) -> bool
+    satisfies Float::less_or_equal
+    ;
+    boundary machine float_less_or_equal_f64_f64(left: f64, right: f64) -> bool
+    satisfies Float::less_or_equal
+    ;
+    boundary machine float_greater_f32_f32(left: f32, right: f32) -> bool
+    satisfies Float::greater
+    ;
+    boundary machine float_greater_f64_f64(left: f64, right: f64) -> bool
+    satisfies Float::greater
+    ;
+    boundary machine float_greater_or_equal_f32_f32(left: f32, right: f32) -> bool
+    satisfies Float::greater_or_equal
+    ;
+    boundary machine float_greater_or_equal_f64_f64(left: f64, right: f64) -> bool
+    satisfies Float::greater_or_equal
+    ;
+    boundary machine f32_negate_f32(value: f32) -> f32
+    satisfies F32::negate
+    ;
+    boundary machine f64_negate_f64(value: f64) -> f64
+    satisfies F64::negate
+    ;
+    boundary machine f32_multiply_then_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
+    satisfies F32::multiply_then_add
+    ;
+    boundary machine f64_multiply_then_add_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
+    satisfies F64::multiply_then_add
+    ;
+    boundary machine f32_fused_multiply_add_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
+    satisfies F32::fused_multiply_add
+    ;
+    boundary machine f64_fused_multiply_add_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
+    satisfies F64::fused_multiply_add
+    ;
+    boundary machine f32_square_root_f32(value: f32) -> f32
+    satisfies F32::square_root
+    ;
+    boundary machine f64_square_root_f64(value: f64) -> f64
+    satisfies F64::square_root
+    ;
+    boundary machine f32_minimum_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::minimum
+    ;
+    boundary machine f64_minimum_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::minimum
+    ;
+    boundary machine f32_maximum_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::maximum
+    ;
+    boundary machine f64_maximum_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::maximum
+    ;
+    boundary machine f32_from_f64_f64(value: f64) -> f32
+    satisfies F32::from_f64
+    ;
+    boundary machine f64_from_f32_f32(value: f32) -> f64
+    satisfies F64::from_f32
+    ;
+    boundary machine f32_from_i8_i8(value: i8) -> f32
+    satisfies F32::from_i8
+    ;
+    boundary machine f32_from_i16_i16(value: i16) -> f32
+    satisfies F32::from_i16
+    ;
+    boundary machine f32_from_i32_i32(value: i32) -> f32
+    satisfies F32::from_i32
+    ;
+    boundary machine f32_from_i64_i64(value: i64) -> f32
+    satisfies F32::from_i64
+    ;
+    boundary machine f32_from_u8_u8(value: u8) -> f32
+    satisfies F32::from_u8
+    ;
+    boundary machine f32_from_u16_u16(value: u16) -> f32
+    satisfies F32::from_u16
+    ;
+    boundary machine f32_from_u32_u32(value: u32) -> f32
+    satisfies F32::from_u32
+    ;
+    boundary machine f32_from_u64_u64(value: u64) -> f32
+    satisfies F32::from_u64
+    ;
+    boundary machine f64_from_i8_i8(value: i8) -> f64
+    satisfies F64::from_i8
+    ;
+    boundary machine f64_from_i16_i16(value: i16) -> f64
+    satisfies F64::from_i16
+    ;
+    boundary machine f64_from_i32_i32(value: i32) -> f64
+    satisfies F64::from_i32
+    ;
+    boundary machine f64_from_i64_i64(value: i64) -> f64
+    satisfies F64::from_i64
+    ;
+    boundary machine f64_from_u8_u8(value: u8) -> f64
+    satisfies F64::from_u8
+    ;
+    boundary machine f64_from_u16_u16(value: u16) -> f64
+    satisfies F64::from_u16
+    ;
+    boundary machine f64_from_u32_u32(value: u32) -> f64
+    satisfies F64::from_u32
+    ;
+    boundary machine f64_from_u64_u64(value: u64) -> f64
+    satisfies F64::from_u64
+    ;
+    boundary machine i8_from_f32_f32(value: f32) -> i8
+    satisfies I8::from_f32
+    requires
+        value == value && value > -129.0f32 && value < 128.0f32;
+    boundary machine i8_from_f32_f32_trapping(value: f32) -> i8 in Trapping
+    satisfies I8::from_f32
+    crashes Trap
+        value != value || value <= -129.0f32 || value >= 128.0f32;
+    boundary machine i8_from_f32_f32_saturating(value: f32) -> i8 in Saturating
+    satisfies I8::from_f32
+    ;
+    boundary machine i8_from_f64_f64(value: f64) -> i8
+    satisfies I8::from_f64
+    requires
+        value == value && value > -129.0 && value < 128.0;
+    boundary machine i8_from_f64_f64_trapping(value: f64) -> i8 in Trapping
+    satisfies I8::from_f64
+    crashes Trap
+        value != value || value <= -129.0 || value >= 128.0;
+    boundary machine i8_from_f64_f64_saturating(value: f64) -> i8 in Saturating
+    satisfies I8::from_f64
+    ;
+    boundary machine i16_from_f32_f32(value: f32) -> i16
+    satisfies I16::from_f32
+    requires
+        value == value && value > -32769.0f32 && value < 32768.0f32;
+    boundary machine i16_from_f32_f32_trapping(value: f32) -> i16 in Trapping
+    satisfies I16::from_f32
+    crashes Trap
+        value != value || value <= -32769.0f32 || value >= 32768.0f32;
+    boundary machine i16_from_f32_f32_saturating(value: f32) -> i16 in Saturating
+    satisfies I16::from_f32
+    ;
+    boundary machine i16_from_f64_f64(value: f64) -> i16
+    satisfies I16::from_f64
+    requires
+        value == value && value > -32769.0 && value < 32768.0;
+    boundary machine i16_from_f64_f64_trapping(value: f64) -> i16 in Trapping
+    satisfies I16::from_f64
+    crashes Trap
+        value != value || value <= -32769.0 || value >= 32768.0;
+    boundary machine i16_from_f64_f64_saturating(value: f64) -> i16 in Saturating
+    satisfies I16::from_f64
+    ;
+    boundary machine i32_from_f32_f32(value: f32) -> i32
+    satisfies I32::from_f32
+    requires
+        value == value && value >= -2147483648.0f32 && value < 2147483648.0f32;
+    boundary machine i32_from_f32_f32_trapping(value: f32) -> i32 in Trapping
+    satisfies I32::from_f32
+    crashes Trap
+        value != value || value < -2147483648.0f32 || value >= 2147483648.0f32;
+    boundary machine i32_from_f32_f32_saturating(value: f32) -> i32 in Saturating
+    satisfies I32::from_f32
+    ;
+    boundary machine i32_from_f64_f64(value: f64) -> i32
+    satisfies I32::from_f64
+    requires
+        value == value && value > -2147483649.0 && value < 2147483648.0;
+    boundary machine i32_from_f64_f64_trapping(value: f64) -> i32 in Trapping
+    satisfies I32::from_f64
+    crashes Trap
+        value != value || value <= -2147483649.0 || value >= 2147483648.0;
+    boundary machine i32_from_f64_f64_saturating(value: f64) -> i32 in Saturating
+    satisfies I32::from_f64
+    ;
+    boundary machine i64_from_f32_f32(value: f32) -> i64
+    satisfies I64::from_f32
+    requires
+        value == value && value >= -9223372036854775808.0f32 && value < 9223372036854775808.0f32;
+    boundary machine i64_from_f32_f32_trapping(value: f32) -> i64 in Trapping
+    satisfies I64::from_f32
+    crashes Trap
+        value != value || value < -9223372036854775808.0f32 || value >= 9223372036854775808.0f32;
+    boundary machine i64_from_f32_f32_saturating(value: f32) -> i64 in Saturating
+    satisfies I64::from_f32
+    ;
+    boundary machine i64_from_f64_f64(value: f64) -> i64
+    satisfies I64::from_f64
+    requires
+        value == value && value >= -9223372036854775808.0 && value < 9223372036854775808.0;
+    boundary machine i64_from_f64_f64_trapping(value: f64) -> i64 in Trapping
+    satisfies I64::from_f64
+    crashes Trap
+        value != value || value < -9223372036854775808.0 || value >= 9223372036854775808.0;
+    boundary machine i64_from_f64_f64_saturating(value: f64) -> i64 in Saturating
+    satisfies I64::from_f64
+    ;
+    boundary machine u8_from_f32_f32(value: f32) -> u8
+    satisfies U8::from_f32
+    requires
+        value == value && value > -1.0f32 && value < 256.0f32;
+    boundary machine u8_from_f32_f32_trapping(value: f32) -> u8 in Trapping
+    satisfies U8::from_f32
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 256.0f32;
+    boundary machine u8_from_f32_f32_saturating(value: f32) -> u8 in Saturating
+    satisfies U8::from_f32
+    ;
+    boundary machine u8_from_f64_f64(value: f64) -> u8
+    satisfies U8::from_f64
+    requires
+        value == value && value > -1.0 && value < 256.0;
+    boundary machine u8_from_f64_f64_trapping(value: f64) -> u8 in Trapping
+    satisfies U8::from_f64
+    crashes Trap
+        value != value || value <= -1.0 || value >= 256.0;
+    boundary machine u8_from_f64_f64_saturating(value: f64) -> u8 in Saturating
+    satisfies U8::from_f64
+    ;
+    boundary machine u16_from_f32_f32(value: f32) -> u16
+    satisfies U16::from_f32
+    requires
+        value == value && value > -1.0f32 && value < 65536.0f32;
+    boundary machine u16_from_f32_f32_trapping(value: f32) -> u16 in Trapping
+    satisfies U16::from_f32
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 65536.0f32;
+    boundary machine u16_from_f32_f32_saturating(value: f32) -> u16 in Saturating
+    satisfies U16::from_f32
+    ;
+    boundary machine u16_from_f64_f64(value: f64) -> u16
+    satisfies U16::from_f64
+    requires
+        value == value && value > -1.0 && value < 65536.0;
+    boundary machine u16_from_f64_f64_trapping(value: f64) -> u16 in Trapping
+    satisfies U16::from_f64
+    crashes Trap
+        value != value || value <= -1.0 || value >= 65536.0;
+    boundary machine u16_from_f64_f64_saturating(value: f64) -> u16 in Saturating
+    satisfies U16::from_f64
+    ;
+    boundary machine u32_from_f32_f32(value: f32) -> u32
+    satisfies U32::from_f32
+    requires
+        value == value && value > -1.0f32 && value < 4294967296.0f32;
+    boundary machine u32_from_f32_f32_trapping(value: f32) -> u32 in Trapping
+    satisfies U32::from_f32
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 4294967296.0f32;
+    boundary machine u32_from_f32_f32_saturating(value: f32) -> u32 in Saturating
+    satisfies U32::from_f32
+    ;
+    boundary machine u32_from_f64_f64(value: f64) -> u32
+    satisfies U32::from_f64
+    requires
+        value == value && value > -1.0 && value < 4294967296.0;
+    boundary machine u32_from_f64_f64_trapping(value: f64) -> u32 in Trapping
+    satisfies U32::from_f64
+    crashes Trap
+        value != value || value <= -1.0 || value >= 4294967296.0;
+    boundary machine u32_from_f64_f64_saturating(value: f64) -> u32 in Saturating
+    satisfies U32::from_f64
+    ;
+    boundary machine u64_from_f32_f32(value: f32) -> u64
+    satisfies U64::from_f32
+    requires
+        value == value && value > -1.0f32 && value < 18446744073709551616.0f32;
+    boundary machine u64_from_f32_f32_trapping(value: f32) -> u64 in Trapping
+    satisfies U64::from_f32
+    crashes Trap
+        value != value || value <= -1.0f32 || value >= 18446744073709551616.0f32;
+    boundary machine u64_from_f32_f32_saturating(value: f32) -> u64 in Saturating
+    satisfies U64::from_f32
+    ;
+    boundary machine u64_from_f64_f64(value: f64) -> u64
+    satisfies U64::from_f64
+    requires
+        value == value && value > -1.0 && value < 18446744073709551616.0;
+    boundary machine u64_from_f64_f64_trapping(value: f64) -> u64 in Trapping
+    satisfies U64::from_f64
+    crashes Trap
+        value != value || value <= -1.0 || value >= 18446744073709551616.0;
+    boundary machine u64_from_f64_f64_saturating(value: f64) -> u64 in Saturating
+    satisfies U64::from_f64
+    ;
+    boundary machine f32_classify_f32(value: f32) -> FloatClass
+    satisfies F32::classify
+    ;
+    boundary machine f64_classify_f64(value: f64) -> FloatClass
+    satisfies F64::classify
+    ;
+    boundary machine f32_is_finite_f32(value: f32) -> bool
+    satisfies F32::is_finite
+    ;
+    boundary machine f64_is_finite_f64(value: f64) -> bool
+    satisfies F64::is_finite
+    ;
+    boundary machine f32_is_nan_f32(value: f32) -> bool
+    satisfies F32::is_nan
+    ;
+    boundary machine f64_is_nan_f64(value: f64) -> bool
+    satisfies F64::is_nan
+    ;
+    boundary machine f32_is_infinite_f32(value: f32) -> bool
+    satisfies F32::is_infinite
+    ;
+    boundary machine f64_is_infinite_f64(value: f64) -> bool
+    satisfies F64::is_infinite
+    ;
+    boundary machine f32_is_normal_f32(value: f32) -> bool
+    satisfies F32::is_normal
+    ;
+    boundary machine f64_is_normal_f64(value: f64) -> bool
+    satisfies F64::is_normal
+    ;
+    boundary machine f32_is_subnormal_f32(value: f32) -> bool
+    satisfies F32::is_subnormal
+    ;
+    boundary machine f64_is_subnormal_f64(value: f64) -> bool
+    satisfies F64::is_subnormal
+    ;
+    boundary machine f32_add_toward_zero_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::add_toward_zero
+    ;
+    boundary machine f64_add_toward_zero_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::add_toward_zero
+    ;
+    boundary machine f32_add_toward_positive_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::add_toward_positive
+    ;
+    boundary machine f64_add_toward_positive_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::add_toward_positive
+    ;
+    boundary machine f32_add_toward_negative_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::add_toward_negative
+    ;
+    boundary machine f64_add_toward_negative_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::add_toward_negative
+    ;
+    boundary machine f32_subtract_toward_zero_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::subtract_toward_zero
+    ;
+    boundary machine f64_subtract_toward_zero_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::subtract_toward_zero
+    ;
+    boundary machine f32_subtract_toward_positive_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::subtract_toward_positive
+    ;
+    boundary machine f64_subtract_toward_positive_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::subtract_toward_positive
+    ;
+    boundary machine f32_subtract_toward_negative_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::subtract_toward_negative
+    ;
+    boundary machine f64_subtract_toward_negative_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::subtract_toward_negative
+    ;
+    boundary machine f32_multiply_toward_zero_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::multiply_toward_zero
+    ;
+    boundary machine f64_multiply_toward_zero_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::multiply_toward_zero
+    ;
+    boundary machine f32_multiply_toward_positive_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::multiply_toward_positive
+    ;
+    boundary machine f64_multiply_toward_positive_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::multiply_toward_positive
+    ;
+    boundary machine f32_multiply_toward_negative_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::multiply_toward_negative
+    ;
+    boundary machine f64_multiply_toward_negative_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::multiply_toward_negative
+    ;
+    boundary machine f32_divide_toward_zero_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::divide_toward_zero
+    ;
+    boundary machine f64_divide_toward_zero_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::divide_toward_zero
+    ;
+    boundary machine f32_divide_toward_positive_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::divide_toward_positive
+    ;
+    boundary machine f64_divide_toward_positive_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::divide_toward_positive
+    ;
+    boundary machine f32_divide_toward_negative_f32_f32(left: f32, right: f32) -> f32
+    satisfies F32::divide_toward_negative
+    ;
+    boundary machine f64_divide_toward_negative_f64_f64(left: f64, right: f64) -> f64
+    satisfies F64::divide_toward_negative
+    ;
+    boundary machine f32_square_root_toward_zero_f32(value: f32) -> f32
+    satisfies F32::square_root_toward_zero
+    ;
+    boundary machine f64_square_root_toward_zero_f64(value: f64) -> f64
+    satisfies F64::square_root_toward_zero
+    ;
+    boundary machine f32_square_root_toward_positive_f32(value: f32) -> f32
+    satisfies F32::square_root_toward_positive
+    ;
+    boundary machine f64_square_root_toward_positive_f64(value: f64) -> f64
+    satisfies F64::square_root_toward_positive
+    ;
+    boundary machine f32_square_root_toward_negative_f32(value: f32) -> f32
+    satisfies F32::square_root_toward_negative
+    ;
+    boundary machine f64_square_root_toward_negative_f64(value: f64) -> f64
+    satisfies F64::square_root_toward_negative
+    ;
+    boundary machine f32_fused_multiply_add_toward_zero_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
+    satisfies F32::fused_multiply_add_toward_zero
+    ;
+    boundary machine f64_fused_multiply_add_toward_zero_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
+    satisfies F64::fused_multiply_add_toward_zero
+    ;
+    boundary machine f32_fused_multiply_add_toward_positive_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
+    satisfies F32::fused_multiply_add_toward_positive
+    ;
+    boundary machine f64_fused_multiply_add_toward_positive_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
+    satisfies F64::fused_multiply_add_toward_positive
+    ;
+    boundary machine f32_fused_multiply_add_toward_negative_f32_f32_f32(left: f32, right: f32, addend: f32) -> f32
+    satisfies F32::fused_multiply_add_toward_negative
+    ;
+    boundary machine f64_fused_multiply_add_toward_negative_f64_f64_f64(left: f64, right: f64, addend: f64) -> f64
+    satisfies F64::fused_multiply_add_toward_negative
+    ;
+}

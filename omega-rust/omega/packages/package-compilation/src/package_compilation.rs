@@ -16,6 +16,7 @@ mod errors;
 mod native_bindings;
 mod native_evaluation;
 pub mod native_output_codec;
+mod provider_defaults;
 pub mod provider_selection_codec;
 mod provider_selections;
 pub use native_bindings::{
@@ -30,6 +31,7 @@ pub use build_handoffs::PackageBuildHandoff;
 pub(crate) use construction::canonical_source_root;
 pub use dependency_graph::PackageDependencyClosure;
 pub use errors::PackageCompilationInputError;
+pub use provider_defaults::{CompletedProviderDefaults, ProviderDefaultsAdmission};
 
 use crate::{AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;

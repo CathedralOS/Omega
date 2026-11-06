@@ -15,6 +15,7 @@ use symbols::SymbolHandle;
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
     pub(crate) prepared: PreparedBuildMachineProgram,
+    pub(crate) providers: super::provider_execution::BuildProviderPlans,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
@@ -50,6 +51,7 @@ impl AdmittedBuildProgram {
         &self,
         packages: Option<&package_compilation::PackageCompilationInputs>,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
+        retained_check: Option<psi_compiler::RetainedCheck>,
     ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
         if self.machine.filesystem_reachable
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
@@ -57,11 +59,14 @@ impl AdmittedBuildProgram {
         {
             return None;
         }
+        let checked = self.prepared.checked_program()?;
         crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
-            self.prepared.checked_program()?,
+            checked,
+            retained_check,
+            self.providers.clone(),
             self.machine.symbol,
             self.machine.initial_build.clone(),
-            packages?,
+            packages,
             snapshot,
             &self.filesystem_scope,
             self.artifact_only,
@@ -80,6 +85,7 @@ impl AdmittedBuildProgram {
 /// only entry token accepted by its prepared program.
 pub(crate) fn admit_build_program(
     prepared: PreparedBuildMachineProgram,
+    providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
@@ -110,6 +116,7 @@ pub(crate) fn admit_build_program(
     )?;
     Ok(AdmittedBuildProgram {
         prepared,
+        providers,
         machine,
         filesystem_scope,
         evaluation_sponsor: evaluation_sponsor.cloned(),

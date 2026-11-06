@@ -14,7 +14,14 @@ compiler capability. Common repository knowledge, the [law of completion](../../
 the nine-place sample loop, requirements and evidence, and decision-making
 framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 (`#decision-making-framing-for-compiler-completion`, `#the-sample-loop`,
-`#requirements-and-evidence`).
+`#requirements-and-evidence`, `#sessions-and-subagents`).
+
+- **Standalone session:** One agent executes Steps 1–5 end to end.
+- **Coordinator + subagents:** The coordinator runs Step 1 from `TASKS.md` and
+  `tests/omega/corpus_outcomes.txt` (without reading `omega-rust/` source files
+  to pre-diagnose the bug) and dispatches each worker immediately; the worker
+  executes Steps 2–5 in its own context window and stops at a draft PR for
+  `coordinator-review`.
 
 ## Step 1: Preflight, Worktree & Claim
 
@@ -40,9 +47,11 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    python3 tools/claims.py claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
    ```
    Keep the claim note concise: parent task, remaining acceptance, current
-   witness, observed failure, and next action.
+   witness, observed failure, and next action. At initial dispatch, `--path`
+   can name the witness/board paths or subsystem directory from the recorded
+   diagnostic; workers refine paths if needed after tracing.
 
-## Step 2: Reproduce & Trace Before Editing
+## Step 2: Reproduce & Trace Before Editing (Worker-Owned Under Swarm)
 
 1. **Build or reuse the warm optimized producer** in the worktree's `target/`
    (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir> mbx build -p omega`;
@@ -78,6 +87,11 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 
 ## Step 4: Validate, Sweep the Root-Cause Family & Reconcile `TASKS.md`
 
+Done means the compiler still holds the same object. The pinned diagnostic, and
+the finite `tests/omega` facts fixture, is a photograph of that object.
+Changing the fact, the bound, or the operation so a place passes is repainting
+that photograph: a different object, and a green check on it is not done.
+
 1. **Run focused validation & sweep the full root-cause family ([testing.md](../../../tools/testing.md)):**
    - Do not stop at a 1-off fixture win: identify all pinned regressions in
      `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
@@ -107,7 +121,8 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 1. **Push HEAD to a remote `work/` ref and open a draft PR:**
    ```bash
    git push origin HEAD:refs/heads/work/<name>
-   gh pr create --draft --title "<title>" --body "<body following Explain the change>"
+   python3 tools/check_rules.py --base origin/main --title "<title>" --body-file PR_BODY
+   gh pr create --draft --title "<title>" --body-file PR_BODY  # ends with `Agent: <name>, <session>`
    ```
 2. **Follow the landing boundary ([AGENTS.md](../../../AGENTS.md#sessions-and-subagents)):**
    - **When controlled by a coordinator session:** Stop at the draft PR and

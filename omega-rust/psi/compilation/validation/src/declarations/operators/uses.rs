@@ -321,10 +321,10 @@ fn named_operator_use_fact(
             matching.next().is_none().then_some(selected)
         })
         .filter(|operator| {
-            program.symbols.source_reference_may_select_symbol(
-                expression_table(program).source_span(expression),
-                operator.symbol,
-            )
+            let reference = expression_table(program).source_span(expression);
+            program
+                .symbols
+                .source_reference_may_select_symbol(reference, operator.symbol)
         })?;
     let path = program.operator_path_members(operator.name);
     // Namespace shape classifies a numeric policy adapter; it does not

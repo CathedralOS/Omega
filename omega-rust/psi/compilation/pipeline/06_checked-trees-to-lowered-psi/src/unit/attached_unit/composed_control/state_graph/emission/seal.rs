@@ -1,7 +1,6 @@
-//! Sealing one emitted state: the exit custody its returns and edges
-//! dispose of, the selection cleanups its returns publish, the rank its
-//! blocks carry, its root block, and the catalog counters and occurrence
-//! rows it hands back to the machine emission.
+//! Finish an emitted state's blocks and publish their cleanup actions, ranks
+//! and source occurrences. Attach state parameters to the exact entry block,
+//! then return the updated catalog counters to the machine emitter.
 
 use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration, ValueId,
@@ -191,7 +190,7 @@ impl StateGraphEmission<'_, '_> {
             id: evaluation.current,
             parameters: std::mem::take(&mut evaluation.parameters),
             erased_scalar_formals: Vec::new(),
-            erased_proof_formals: Vec::new(),
+            erased_proof_formals: std::mem::take(&mut evaluation.completion_proof_formals),
             structural_parameters: std::mem::take(&mut evaluation.block_structural_parameters),
             operations: operations[evaluation.operation_start
                 ..if dispatches || !edge_blocks.is_empty() {
@@ -202,18 +201,18 @@ impl StateGraphEmission<'_, '_> {
                 .to_vec(),
             terminator,
         });
+        let root = evaluation
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == self.state_ids[position])
+            .ok_or(LoweringError::Unsupported(
+                "Unit graph state root disappeared during evaluation",
+            ))?;
         if position != 0 || self.entry_reentered {
             // Argument evaluation can split the body; bindings belong to its source root.
             // Entry-aliased parameters keep the entry parameter's place, so
             // they are not block parameters either.
             let aliased = &self.admitted.entry_aliases;
-            let root = evaluation
-                .blocks
-                .iter_mut()
-                .find(|block| block.id == self.state_ids[position])
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph state root disappeared during evaluation",
-                ))?;
             // A chain member holding moved storage is declared as that owned
             // storage now, after the body emitted against its exclusive view
             // and before private-borrow transport would forward it. A shared
@@ -240,8 +239,8 @@ impl StateGraphEmission<'_, '_> {
                 .collect();
             root.structural_parameters
                 .extend(self.captured_loans.declarations(position));
-            // The authored state's own erased roster rides on its root block;
-            // a plain entry's formals already live on the machine contract.
+            // Each state declares its erased parameters on its entry block.
+            // A plain machine entry declares them on the machine contract.
             root.erased_scalar_formals = self.state_erased[position].clone();
             root.erased_proof_formals =
                 crate::scalar_lowering::contracts::erased_proof_formal_declarations(
@@ -249,6 +248,11 @@ impl StateGraphEmission<'_, '_> {
                     self.checked,
                     &self.state_erased_proof[position],
                 );
+        } else {
+            // The source entry reads its machine's proof inputs. Its internal
+            // successor blocks have their own proof parameters, so only this
+            // exact source root binds references to the invocation.
+            crate::scalar_lowering::contracts::bind_invocation_proof_references(root);
         }
         if let Some(rank) = current_rank {
             self.block_ranks.extend(

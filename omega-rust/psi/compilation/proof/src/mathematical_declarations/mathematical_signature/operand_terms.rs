@@ -304,6 +304,25 @@ impl<'a> Elaborator<'a> {
         &mut self,
         handle: ExpressionHandle,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
+        // `embed` of a telescope field is inclusion into Int. The prepared
+        // embedding record is absent while the indexed family is still being
+        // described, because the member has no separate expression type yet.
+        // The field's declared carrier is already on the telescope.
+        if self.integer_theory.is_some()
+            && let ExpressionNode::Call(call) = self.program.expression_table.expression(handle)
+            && self
+                .program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                == Some(symbols::BuiltinFunction::IntegerEmbed)
+        {
+            let arguments = expression_table(self.program).expression_handles(call.arguments);
+            if let [argument] = arguments
+                && self.operand_carrier(*argument) == Some(ScalarCarrier::Integer)
+            {
+                return self.integer_operand(*argument);
+            }
+        }
         // An opaque operation's declared result can be the first occurrence
         // of a data carrier. Elaborate that exact source domain before asking
         // which carrier it denotes; signature occurrence is not authority.

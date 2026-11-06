@@ -193,6 +193,11 @@ pub(super) fn check_flow_call_contracts(
         state_flows
             .par_iter()
             .map(|&state_flow| {
+                // States run on parallel workers; subject times overlap.
+                let _subject = phase_profile::subject(
+                    "psi.05.check_checked_facts.check_flow_call_contracts",
+                    || program.symbols.profile_label(state_flow.machine_symbol),
+                );
                 let mut state_decided = Vec::new();
                 let mut state_constant_obligations = Vec::new();
                 let mut state_recipe_obligations = Vec::new();

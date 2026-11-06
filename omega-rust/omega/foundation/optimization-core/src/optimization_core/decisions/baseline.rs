@@ -1,8 +1,12 @@
 use crate::cursor::Cursor;
+use crate::optimization_core::CountFrame;
 use crate::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,
 };
+
+/// Domain prefix of one baseline decision's canonical identity encoding.
+const BASELINE_DECISION_DOMAIN: &[u8] = b"omega.baseline-decision.v1\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValidatedCandidateSummary {
@@ -34,6 +38,54 @@ pub struct BaselineDecisionRecord {
     pub input: OptimizationUnitIdentity,
     pub considered: Vec<ValidatedCandidateSummary>,
     pub outcome: BaselineDecisionOutcome,
+}
+
+impl BaselineDecisionRecord {
+    /// The authoritative row, written once for both encodings. The wire log
+    /// frames the considered-candidate count as u32 and the canonical identity
+    /// row as u64; every other byte and the field order are stated here alone.
+    fn write_row(&self, encoded: &mut Vec<u8>, frame: CountFrame) {
+        encoded.extend_from_slice(&self.input.bytes());
+        frame.push(encoded, self.considered.len());
+        for candidate in &self.considered {
+            encoded.extend_from_slice(&candidate.candidate.bytes());
+            encoded.extend_from_slice(&candidate.predicted_cost_delta.to_le_bytes());
+        }
+        match self.outcome {
+            BaselineDecisionOutcome::Choose(candidate) => {
+                encoded.push(1);
+                encoded.extend_from_slice(&candidate.bytes());
+            }
+            BaselineDecisionOutcome::Skip(reason) => {
+                encoded.push(2);
+                encoded.push(reason as u8);
+            }
+        }
+    }
+
+    fn canonical_identity(&self) -> OptimizationDecisionIdentity {
+        let mut canonical = Vec::new();
+        canonical.extend_from_slice(BASELINE_DECISION_DOMAIN);
+        self.write_row(&mut canonical, CountFrame::Canonical);
+        OptimizationDecisionIdentity::from_canonical_bytes(&canonical)
+    }
+
+    /// Row builder for the one place a decision is recorded before its identity
+    /// is known: the identity is a function of the row, never an input.
+    fn record(
+        input: OptimizationUnitIdentity,
+        considered: Vec<ValidatedCandidateSummary>,
+        outcome: BaselineDecisionOutcome,
+    ) -> Self {
+        let mut record = Self {
+            identity: OptimizationDecisionIdentity::from_bytes([0; 32]),
+            input,
+            considered,
+            outcome,
+        };
+        record.identity = record.canonical_identity();
+        record
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,25 +130,7 @@ impl BaselineDecisionLog {
         crate::codec_bytes::push_count_u32(&mut encoded, self.records.len());
         for record in &self.records {
             encoded.extend_from_slice(&record.identity.bytes());
-            encoded.extend_from_slice(&record.input.bytes());
-            crate::codec_bytes::push_count_u32(&mut encoded, record.considered.len());
-            for candidate in &record.considered {
-                encoded.extend_from_slice(&candidate.candidate.bytes());
-                crate::codec_bytes::push_encoded(
-                    &mut encoded,
-                    candidate.predicted_cost_delta.to_le_bytes(),
-                );
-            }
-            match record.outcome {
-                BaselineDecisionOutcome::Choose(candidate) => {
-                    encoded.push(1);
-                    encoded.extend_from_slice(&candidate.bytes());
-                }
-                BaselineDecisionOutcome::Skip(reason) => {
-                    encoded.push(2);
-                    encoded.push(reason as u8);
-                }
-            }
+            record.write_row(&mut encoded, CountFrame::Wire);
         }
         encoded
     }
@@ -135,17 +169,11 @@ impl BaselineDecisionLog {
                 }),
                 outcome => return Err(BaselineDecisionLogDecodeError::UnknownOutcome(outcome)),
             };
-            let canonical = encode_decision(input, &considered, outcome);
-            let identity = OptimizationDecisionIdentity::from_canonical_bytes(&canonical);
-            if identity != encoded_identity {
+            let canonical = BaselineDecisionRecord::record(input, considered, outcome);
+            if canonical.identity != encoded_identity {
                 return Err(BaselineDecisionLogDecodeError::DecisionIdentityMismatch);
             }
-            records.push(BaselineDecisionRecord {
-                identity,
-                input,
-                considered,
-                outcome,
-            });
+            records.push(canonical);
         }
         if cursor.offset != encoded.len() {
             return Err(BaselineDecisionLogDecodeError::TrailingBytes);
@@ -201,13 +229,8 @@ impl BaselineDecisionLogBuilder {
         considered: Vec<ValidatedCandidateSummary>,
         outcome: BaselineDecisionOutcome,
     ) {
-        let canonical = encode_decision(input, &considered, outcome);
-        self.records.push(BaselineDecisionRecord {
-            identity: OptimizationDecisionIdentity::from_canonical_bytes(&canonical),
-            input,
-            considered,
-            outcome,
-        });
+        self.records
+            .push(BaselineDecisionRecord::record(input, considered, outcome));
     }
 
     pub fn finish(self) -> BaselineDecisionLog {
@@ -235,35 +258,6 @@ fn finish_log(records: Vec<BaselineDecisionRecord>) -> BaselineDecisionLog {
         identity: OptimizationDecisionLogIdentity::from_canonical_bytes(&canonical),
         records,
     }
-}
-
-fn encode_decision(
-    input: OptimizationUnitIdentity,
-    considered: &[ValidatedCandidateSummary],
-    outcome: BaselineDecisionOutcome,
-) -> Vec<u8> {
-    let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.baseline-decision.v1\0");
-    canonical.extend_from_slice(&input.bytes());
-    crate::codec_bytes::push_count_u64(&mut canonical, considered.len());
-    for candidate in considered {
-        canonical.extend_from_slice(&candidate.candidate.bytes());
-        crate::codec_bytes::push_encoded(
-            &mut canonical,
-            candidate.predicted_cost_delta.to_le_bytes(),
-        );
-    }
-    match outcome {
-        BaselineDecisionOutcome::Choose(candidate) => {
-            canonical.push(1);
-            canonical.extend_from_slice(&candidate.bytes());
-        }
-        BaselineDecisionOutcome::Skip(reason) => {
-            canonical.push(2);
-            canonical.push(reason as u8);
-        }
-    }
-    canonical
 }
 
 #[cfg(test)]

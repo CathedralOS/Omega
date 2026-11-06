@@ -11,12 +11,18 @@ use selected_instructions::{
 fn atomic_exit_admission_binds_memory_width_operands_and_control() {
     let physical = super::aarch64_physical_register_model();
     for form in AtomicForm::ALL {
-        let registers = if form.operation.is_bitwise_fetch() {
-            ["x9", "x10", "x11", "x3", "x4"]
-        } else {
-            ["x2", "x0", "x1", "x3", "x4"]
-        }
-        .map(|name| physical.model().view_named(name).unwrap().id);
+        let registers =
+            if form.operation == selected_instructions::AtomicOperation::CompareExchange {
+                ["x9", "x10", "x11", "x12", "x4"]
+            } else if form
+                .operation
+                .retries_until_commit(target::Architecture::Aarch64)
+            {
+                ["x9", "x10", "x11", "x3", "x4"]
+            } else {
+                ["x2", "x0", "x1", "x3", "x4"]
+            }
+            .map(|name| physical.model().view_named(name).unwrap().id);
         let kind = SelectedInstructionKind::AtomicAccess { form };
         let alternative = MachineAlternativeKey {
             family: MachineAlternativeFamily::AtomicAccess(form),
@@ -59,7 +65,10 @@ fn atomic_exit_admission_binds_memory_width_operands_and_control() {
                     .external_operand_writes
                     .push(form.operand_count()),
                 6 => {
-                    footprint.encoded.control = if form.operation.is_bitwise_fetch() {
+                    footprint.encoded.control = if form
+                        .operation
+                        .retries_until_commit(target::Architecture::Aarch64)
+                    {
                         MachineEncodedControlEffect::FallThroughV1
                     } else {
                         MachineEncodedControlEffect::AtomicRetryUntilCommitV1

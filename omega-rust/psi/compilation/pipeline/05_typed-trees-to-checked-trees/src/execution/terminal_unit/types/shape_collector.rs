@@ -940,16 +940,39 @@ impl<'program> ShapeCollector<'program> {
         }
         if let Some(primitive) = self.program.primitive_type_reference(type_reference) {
             let (copyable, no_code_affine_cleanup, descriptor_cleanup) = storage_properties();
-            let scalar_restriction = match scalar_fields::retain_scalar_field(
+            let (shape, scalar_restriction) = match scalar_fields::retain_scalar_field(
                 self.program,
                 type_reference,
                 substitutions,
                 primitive,
                 None,
             )? {
-                CheckedUnitStructuralFieldType::Scalar(_) => None,
+                CheckedUnitStructuralFieldType::Scalar(_) => (
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    None,
+                ),
                 restriction @ (CheckedUnitStructuralFieldType::BoundedInteger(_)
-                | CheckedUnitStructuralFieldType::RefinedScalar { .. }) => Some(restriction),
+                | CheckedUnitStructuralFieldType::RefinedScalar { .. }) => (
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    Some(restriction),
+                ),
+                CheckedUnitStructuralFieldType::Atomic(primitive) => {
+                    let cell = if primitive == typed_trees::types::PrimitiveType::Bool {
+                        semantic_vocabulary::AtomicCellType::Boolean
+                    } else {
+                        let (sign, bits) = primitive.integer_sign_bits()?;
+                        semantic_vocabulary::AtomicCellType::Integer(
+                            semantic_vocabulary::IntegerType::new(sign, bits).ok()?,
+                        )
+                    };
+                    cell.is_supported().then_some(())?;
+                    (CheckedUnitStructuralTypeShape::AtomicCell(cell), None)
+                }
+                CheckedUnitStructuralFieldType::AtomicBoundedInteger(bounds) => {
+                    let cell = semantic_vocabulary::AtomicCellType::BoundedInteger(bounds);
+                    cell.is_supported().then_some(())?;
+                    (CheckedUnitStructuralTypeShape::AtomicCell(cell), None)
+                }
                 _ => return None,
             };
             self.types.insert(
@@ -967,7 +990,7 @@ impl<'program> ShapeCollector<'program> {
                     copyable,
                     descriptor_cleanup,
                     identity,
-                    shape: CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive),
+                    shape,
                 },
             );
             return Some(identity);
@@ -1777,7 +1800,8 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::ByteSequence(_) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }
-                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                    | CheckedUnitStructuralTypeShape::AtomicCell(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                         if let CheckedUnitRecordStorage::TargetLayout {
                             schema_type_identity,

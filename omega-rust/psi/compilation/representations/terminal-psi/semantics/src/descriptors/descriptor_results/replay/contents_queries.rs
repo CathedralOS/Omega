@@ -2,7 +2,7 @@
 //! Reads and writes share the same exhaustive typed traversal. Incoming contents
 //! stay symbolic until a caller supplies backing; unresolved candidates cannot
 //! be discarded just because another candidate has a usable address.
-use super::engine::{DescriptorReadDepth, Origin, State, Value};
+use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
 use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 
@@ -49,15 +49,39 @@ impl Replay<'_> {
                 return Some(origins);
             }
         }
+        // A referent step names the borrowed carrier, not the pointee value.
+        // The pointee slot is often unknown; the pointer still holds every
+        // current backing origin, including one selected across branches.
         if self.slot_kind.tracks_references()
             && let Some(location) = query.exact_location()
-            && let Some(location) = self.canonical_storage(machine, state, &location)
-            && let Some(value) = state.slots.get(&location)
+            && let Some(carrier) = self.reference_referent_carrier(machine, &location)?
         {
-            // An established current leaf overrides its old entry family.
-            // This reads payload only; contents_targets still owns storage
-            // destinations and must never mistake this pointer for its slot.
-            return value.clone();
+            return self.read_with_depth(machine, state, &carrier, depth);
+        }
+        // A unique address reads that leaf. Branch-selected storage has no
+        // single address; the slot still holds every current backing origin.
+        // Contents targets cannot name one of those addresses, so dropping
+        // the slot would erase a return that already recorded both.
+        if self.slot_kind.tracks_references()
+            && let Some(queried) = query.exact_location()
+        {
+            match self.resolve_storage(machine, state, &queried) {
+                Some(StorageResolution::Unique(location)) => {
+                    if let Some(value) = state.slots.get(&location) {
+                        // An established current leaf overrides its old entry
+                        // family. This reads payload only; contents_targets
+                        // still owns storage destinations and must never
+                        // mistake this pointer for its slot.
+                        return value.clone();
+                    }
+                }
+                Some(StorageResolution::Alternatives) => {
+                    if let Some(value) = state.slots.get(&queried) {
+                        return value.clone();
+                    }
+                }
+                None => {}
+            }
         }
         // Target resolution tolerates a vacant leaf so a store can refill it;
         // a read of that leaf has no value to report.

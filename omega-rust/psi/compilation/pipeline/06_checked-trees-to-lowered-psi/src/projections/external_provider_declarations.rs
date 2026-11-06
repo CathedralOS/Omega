@@ -21,14 +21,22 @@ pub struct ExternalProviderDeclarations {
     pub identities: Arc<TerminalIdentityTable>,
     pub conformances: Vec<ExternalProviderConformance>,
     pub callbacks: PreparedCallbackDeclarations,
-    declarations: Vec<(SymbolHandle, NominalDeclarationIdentity)>,
+    declarations: Vec<(
+        SymbolHandle,
+        Result<NominalDeclarationIdentity, &'static str>,
+    )>,
 }
 
 impl ExternalProviderDeclarations {
     /// Borrow this producer's exact source-to-nominal correspondence. Source
     /// consumers may join it to the canonical catalog without reopening typed
     /// declarations or inventing identities from normalized signatures.
-    pub fn correspondence(&self) -> &[(SymbolHandle, NominalDeclarationIdentity)] {
+    pub fn correspondence(
+        &self,
+    ) -> &[(
+        SymbolHandle,
+        Result<NominalDeclarationIdentity, &'static str>,
+    )] {
         &self.declarations
     }
 
@@ -50,7 +58,7 @@ impl ExternalProviderDeclarations {
             .declarations
             .iter()
             .find(|(source, _)| *source == symbol)?;
-        self.identities.text(declaration.identity())
+        self.identities.text(declaration.as_ref().ok()?.identity())
     }
 }
 
@@ -82,13 +90,54 @@ pub fn project_external_provider_declarations(
                     .symbol_is_in_dependency_scope(symbol, source::DependencyScope::Product)
             })
         },
-        |symbol, identity| declarations.push((symbol, identity)),
+        |symbol, identity| declarations.push((symbol, Ok(identity))),
     )?;
+    // Candidate inclusion and declaration correspondence have different
+    // lifetimes. Review visits checked requirements even when their source
+    // instance supplied no retained Product candidate (for example a separate
+    // Build import of the same toolchain declaration). Publish each exact
+    // checked requirement's identity here; this adds no satisfaction or plan.
+    // Keep a failed identity deferred until review needs that requirement,
+    // just as a missing numeric candidate was deferred before this projection.
+    let mut represented = declarations
+        .iter()
+        .map(|(symbol, _)| (symbol.arena_index(), symbol.generation()))
+        .collect::<Vec<_>>();
+    represented.sort_unstable();
+    represented.dedup();
+    let requirements = arena::unique_handles_in_order(
+        checked
+            .facts
+            .operators
+            .provider_requirements
+            .iter()
+            .map(|(_, requirement)| requirement.symbol),
+    );
+    for requirement in requirements {
+        if represented
+            .binary_search(&(requirement.arena_index(), requirement.generation()))
+            .is_ok()
+        {
+            continue;
+        }
+        declarations.push((
+            requirement,
+            crate::machine_lowering::declarations::nominal(
+                &mut identities,
+                checked,
+                sources,
+                requirement,
+            ),
+        ));
+    }
     declarations.sort_by_key(|(symbol, declaration)| {
         (
             symbol.arena_index(),
             symbol.generation(),
-            declaration.identity(),
+            declaration
+                .as_ref()
+                .map(NominalDeclarationIdentity::identity)
+                .map_err(|reason| *reason),
         )
     });
     declarations.dedup();

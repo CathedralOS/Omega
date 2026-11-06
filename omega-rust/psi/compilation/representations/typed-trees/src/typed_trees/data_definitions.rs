@@ -8,7 +8,7 @@
 //! indexes keep their own freshness rules in `declaration_index`.
 
 use crate::data::DataDefinition;
-use arena::{Arena, HandleSpan, OwnedIndex};
+use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
@@ -76,7 +76,7 @@ impl DataDefinitionIndex {
 #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct DataDefinitionTable {
     arena: Arena<DataDefinition>,
-    index: OwnedIndex<DataDefinitionIndex, HandleSpan<DataDefinition>>,
+    index: OwnedIndex<DataDefinitionIndex, (HandleSpan<DataDefinition>, usize)>,
 }
 
 impl From<Arena<DataDefinition>> for DataDefinitionTable {
@@ -110,14 +110,35 @@ impl std::ops::DerefMut for DataDefinitionTable {
 }
 
 impl DataDefinitionTable {
+    /// A fresh append leaves every existing declaration row unchanged. Derived
+    /// application views use this same arena without joining the visible roster.
+    /// Reusing a freed slot or exposing mutable storage still clears the index.
+    pub fn insert(&mut self, definition: DataDefinition) -> Handle<DataDefinition> {
+        let before = self.arena.append_epoch();
+        let handle = self.arena.insert(definition);
+        let appended = before.zip(self.arena.append_epoch()).is_some_and(
+            |((before_epoch, before_len), (after_epoch, after_len))| {
+                before_epoch == after_epoch && before_len.checked_add(1) == Some(after_len)
+            },
+        );
+        if !appended {
+            self.index.clear();
+        }
+        handle
+    }
+
     pub(super) fn with_index<Result>(
         &self,
         roster: HandleSpan<DataDefinition>,
         read: impl FnOnce(&DataDefinitionIndex) -> Result,
     ) -> Result {
+        let definitions = self.arena.span_or_empty(roster);
+        // A previously out-of-range roster can become valid after an append.
+        // Preserve its complete handle identity and distinguish that resolution
+        // from the empty answer retained before its rows existed.
         self.index.with(
-            roster,
-            || DataDefinitionIndex::build(self.arena.span_or_empty(roster)),
+            (roster, definitions.len()),
+            || DataDefinitionIndex::build(definitions),
             read,
         )
     }

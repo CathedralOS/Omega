@@ -411,13 +411,37 @@ pub(crate) fn require_complete(program: &TypedTrees) -> Result<(), Vec<diagnosti
     if errors.is_empty() {
         Ok(())
     } else {
-        // Undefined anonymous arithmetic has no type to materialize. At this
-        // final selected-tree fence, report its source formation obligation
-        // before the consequent missing-storage diagnostic. Reuse the same
-        // checker as ordinary validation; other unresolved subjects retain
-        // their existing refusal, and no missing type implies anonymity.
+        // An unresolved subject has no storage type to materialize. At this
+        // final selected-tree fence, report the source obligation that left
+        // the type missing before the consequent missing-storage diagnostic.
+        // Anonymous arithmetic, unresolved names, case membership, and float
+        // format combination reuse the ordinary checkers. A subject those
+        // checkers do not explain keeps the missing-storage refusal.
         let mut formation_errors = Vec::new();
         validation::validate_anonymous_numeric_formation(program, &mut formation_errors);
+        let symbols = validation::TopLevelSymbols::build(program, &mut Vec::new());
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                let statements = program.statement_table.statements(state.statement_nodes);
+                for (index, statement) in statements.iter().enumerate() {
+                    let Some(initial) = statement.as_local_data().and_then(|local| {
+                        (local.role == LocalBindingRole::DispatchSubject)
+                            .then_some(local.initial_value)
+                    }) else {
+                        continue;
+                    };
+                    validation::expression_traversal::record_unresolved_subject_source_obligations(
+                        program,
+                        machine,
+                        state,
+                        &statements[..index],
+                        &symbols,
+                        initial,
+                        &mut formation_errors,
+                    );
+                }
+            }
+        }
         if formation_errors.is_empty() {
             Err(errors)
         } else {

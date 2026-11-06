@@ -444,6 +444,38 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         field: validation::StructuralScalarField,
     ) -> Option<ComputationHandle> {
+        // A saved operand is an expression or local home, not a fresh value to
+        // evaluate. Specialization reads a value-parameter descriptor from
+        // that operand after erasure has removed the carrier's runtime place.
+        // The closed integer operand of the application is the field's
+        // established value, so the observation does not borrow storage the
+        // carrier does not have.
+        if let Some(literal) = closed_descriptor_value(self.program, &field) {
+            return Some(self.insert(
+                field.primitive_type,
+                ComputationKind::Value(checked_trees::CheckedScalarExpression::IntegerLiteral {
+                    literal,
+                }),
+            ));
+        }
+        // The parameter place keeps the descriptor as a runtime value parameter
+        // of the specialized machine. That parameter is the saved integer; the
+        // erased carrier still has no storage to borrow.
+        if let Some(symbol) = descriptor_parameter_symbol(self.program, &field)
+            && let Some(position) = self
+                .parameters
+                .iter()
+                .position(|parameter| parameter.symbol == symbol)
+            && self.parameter_types.get(position) == Some(&field.primitive_type)
+        {
+            return Some(self.insert(
+                field.primitive_type,
+                ComputationKind::Value(checked_trees::CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type: field.primitive_type,
+                }),
+            ));
+        }
         let receiver_value = if let Some(captured) = self.captured_dispatch_value(expression)
             && captured.type_reference == field.type_reference
             && field.root == facts::PlaceRoot::Expression(captured.expression)
@@ -502,4 +534,83 @@ impl Builder<'_, '_> {
             },
         ))
     }
+}
+
+/// The closed integer a value-parameter descriptor denotes. A saved expression
+/// and a saved local are the same observation: erasure leaves no runtime place,
+/// and the application's integer operand is the field. A path below that
+/// descriptor is a different observation and keeps the ordinary borrow.
+fn closed_descriptor_value(
+    program: &dyn ::validation::CheckingInput,
+    field: &validation::StructuralScalarField,
+) -> Option<numerics::literals::IntegerLiteral> {
+    if !field.path.is_empty()
+        || !matches!(
+            field.root,
+            facts::PlaceRoot::Expression(_) | facts::PlaceRoot::Symbol(_)
+        )
+    {
+        return None;
+    }
+    let (_, _, index) = descriptor_fields(program, field.type_reference)
+        .into_iter()
+        .find(|(_, descriptor, _)| descriptor.symbol == field.field)?;
+    let literal = program
+        .typed_program()
+        .static_const_literal_from_type_reference(index)?;
+    let landed_type = field.primitive_type.landed_landing()?;
+    Some(literal.with_landing(numerics::literals::IntegerLanding {
+        landed_type,
+        domain: field.domain,
+    }))
+}
+
+/// A descriptor whose application operand is a runtime value parameter. The
+/// parameter place saves that operand as the field; other places save a
+/// closed integer literal.
+fn descriptor_parameter_symbol(
+    program: &dyn ::validation::CheckingInput,
+    field: &validation::StructuralScalarField,
+) -> Option<symbols::SymbolHandle> {
+    if !field.path.is_empty()
+        || !matches!(
+            field.root,
+            facts::PlaceRoot::Expression(_) | facts::PlaceRoot::Symbol(_)
+        )
+    {
+        return None;
+    }
+    let (_, _, index) = descriptor_fields(program, field.type_reference)
+        .into_iter()
+        .find(|(_, descriptor, _)| descriptor.symbol == field.field)?;
+    match program.type_reference_table.type_reference(index) {
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            Some(*symbol)
+        }
+        _ => None,
+    }
+}
+
+/// Value-parameter descriptors of the carrier, after the reference shells a
+/// borrowed local spells in front of the data application.
+fn descriptor_fields(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Vec<(
+    &typed_trees::data::TypeParameter,
+    &typed_trees::data::DataField,
+    typed_trees::types::TypeReferenceHandle,
+)> {
+    let mut visited = 0u32;
+    loop {
+        if visited > 8 {
+            break;
+        }
+        visited += 1;
+        let Some(shell) = validation::reference_shell(program, reference) else {
+            break;
+        };
+        reference = shell.referee;
+    }
+    program.data_application_value_fields(reference)
 }

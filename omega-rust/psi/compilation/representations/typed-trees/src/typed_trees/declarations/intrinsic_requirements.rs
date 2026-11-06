@@ -128,6 +128,21 @@ impl<'typed> IntrinsicRequirement<'typed> {
             .and_then(|machine| Self::from_requirement(typed, machine))
     }
 
+    /// The exact published clauses owned by this requirement declaration.
+    pub fn contracts(
+        &self,
+        typed: &'typed TypedTrees,
+    ) -> Option<&'typed [crate::signature::SignatureContract]> {
+        match self.kind {
+            IntrinsicRequirementKind::Operator => self
+                .operator
+                .map(|operator| typed.operator_contracts(operator)),
+            IntrinsicRequirementKind::TopLevelRequirement => typed
+                .machine(self.symbol)
+                .map(|machine| typed.machine_contracts(machine)),
+        }
+    }
+
     pub fn display(&self) -> String {
         format!("{}::{}", self.namespace, self.name)
     }
