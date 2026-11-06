@@ -67,14 +67,13 @@ fn selected_transition_premise<'program>(
     // interval. Argument effects precede invocation; the callee's own future
     // writes cannot erase the evidence it needs at entry.
     let frames = call_frames?;
-    let mut writes = Vec::new();
-    for argument in validation::call_site_argument_expressions(program, &call_site) {
-        writes.extend(
-            frames
-                .expression_write_frame(machine, *argument)
-                .into_complete_paths()?,
-        );
-    }
+    let writes = crate::flow::captured_call_operand_writes(
+        program,
+        &facts.flow,
+        state_flow.state_symbol,
+        call_flow,
+        frames,
+    )?;
     let premises = crate::flow::guard_observations_after_writes(
         program,
         machine,
@@ -622,23 +621,22 @@ fn decomposed_guard_premise_proves(
     required_label: &str,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((machine, state, site, _)) = super::call_coordinates(program, state_flow, call_flow)
+    let Some((machine, state, _, _)) = super::call_coordinates(program, state_flow, call_flow)
     else {
         return false;
     };
     let Some(frames) = call_frames else {
         return false;
     };
-    let mut writes = Vec::new();
-    for argument in validation::call_site_argument_expressions(program, &site) {
-        let Some(effects) = frames
-            .expression_write_frame(machine, *argument)
-            .into_complete_paths()
-        else {
-            return false;
-        };
-        writes.extend(effects);
-    }
+    let Some(writes) = crate::flow::captured_call_operand_writes(
+        program,
+        &facts.flow,
+        state_flow.state_symbol,
+        call_flow,
+        frames,
+    ) else {
+        return false;
+    };
     let establishes = |premise: ExpressionHandle| {
         crate::flow::guard_observations_after_writes(
             program,

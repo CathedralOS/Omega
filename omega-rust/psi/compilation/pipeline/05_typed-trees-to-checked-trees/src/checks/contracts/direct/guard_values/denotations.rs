@@ -489,14 +489,13 @@ impl Denotations<'_> {
         // Keep argument evaluation in that same epoch judgment: an arm operand
         // can overwrite the observed bytes before its consumer begins.
         let frames = self.call_frames?;
-        let mut later_writes = Vec::new();
-        for argument in self.arguments {
-            later_writes.extend(
-                frames
-                    .expression_write_frame(machine, *argument)
-                    .into_complete_paths()?,
-            );
-        }
+        let later_writes = crate::flow::captured_call_operand_writes(
+            self.program,
+            &self.facts.flow,
+            self.caller_state_symbol,
+            self.call,
+            frames,
+        )?;
         if !crate::flow::saved_guard_observations(
             self.program,
             machine,

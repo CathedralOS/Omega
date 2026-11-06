@@ -49,6 +49,33 @@ pub(crate) fn captured_call_operands<'facts>(
         .then_some((operands, receiver_offset))
 }
 
+/// Complete effects of the authenticated operand roster before invocation.
+/// Expression receivers are evaluation positions too, even when they do not
+/// occupy an explicit formal argument. The callee's own effects are excluded.
+pub(crate) fn captured_call_operand_writes<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    state_symbol: symbols::SymbolHandle,
+    call: &checked_trees::FlowCallFact,
+    frames: &validation::CallFrameResolver<'program>,
+) -> Option<Vec<String>> {
+    if !call.authored_source_custody_valid {
+        return None;
+    }
+    let (machine, state) = validation::find_state(program, state_symbol)?;
+    let owner = flow.control.state(machine.symbol, state.symbol)?;
+    let (operands, _) = captured_call_operands(program, flow, owner, call)?;
+    let mut writes = Vec::new();
+    for operand in operands {
+        writes.extend(
+            frames
+                .expression_write_frame(machine, operand.expression)
+                .into_complete_paths()?,
+        );
+    }
+    Some(writes)
+}
+
 pub(crate) fn operand_contexts(
     program: &dyn ::validation::CheckingInput,
     contexts: &FlowContextFacts,

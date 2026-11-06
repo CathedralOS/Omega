@@ -75,10 +75,10 @@ pub(crate) use selection_conditions::{SelectionCondition, SelectionConditions};
 mod operator_calls;
 pub(crate) use operand_contexts::{
     OperandContextSelection, OperandContextSelections, binding_origin_is_stable,
-    call_return_before_statement_agrees, captured_call_operands, entry_origin_is_stable,
-    operand_binding_before_statement_agrees, operand_bindings_agree, operand_binds_live_view,
-    operand_binds_stable_copy, operand_contents_writes_between, operand_contexts,
-    operand_entry_binding_origin_is_stable, operand_entry_origin_is_stable,
+    call_return_before_statement_agrees, captured_call_operand_writes, captured_call_operands,
+    entry_origin_is_stable, operand_binding_before_statement_agrees, operand_bindings_agree,
+    operand_binds_live_view, operand_binds_stable_copy, operand_contents_writes_between,
+    operand_contexts, operand_entry_binding_origin_is_stable, operand_entry_origin_is_stable,
     operand_observation_before_statement_agrees, operand_observations_agree,
 };
 mod state;
