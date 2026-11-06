@@ -1,8 +1,6 @@
 //! A pure Build cache hit owes the current occurrence its recorded logical charge.
 #[path = "../tests/support/build_execution_counts.rs"]
 mod build_execution_counts;
-#[path = "../tests/support/build_sequence.rs"]
-mod build_sequence;
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 #[path = "../tests/support/joined_product_native.rs"]
@@ -11,6 +9,7 @@ use joined_product_native::{execute_joined_product, execute_report};
 
 #[path = "support/default_build.rs"]
 mod default_build_workflow;
+use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
@@ -234,7 +233,7 @@ fn pure_build_accounting() {
         .expect("fresh account");
     assert_eq!(
         counters::build_execution_count(),
-        builds_after_first,
+        after_first.0,
         "a fresh account pays the retained result without restarting either Build"
     );
     assert_eq!(fresh.consumed_fuel_units(), fuel);
