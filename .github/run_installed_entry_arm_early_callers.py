@@ -92,6 +92,9 @@ process = None
 began = None
 errors = []
 cleanup = {}
+cleanup_phase = False
+cleanup_done = False
+controller_signals = []
 
 
 def emit(kind, **fields):
@@ -189,7 +192,19 @@ def pump(timeout):
 
 
 def interrupted(signum, frame):
-    emit('controller_signal', signal=signum, elapsed=None if began is None else round(time.monotonic() - began, 3))
+    row = dict(signal=signum, elapsed=None if began is None else round(time.monotonic() - began, 3))
+    controller_signals.append(row)
+    if cleanup_phase:
+        # A repeated service signal records failure but cannot unwind TERM,
+        # KILL or reap. Avoid channel I/O until those actions have completed.
+        errors.append(dict(type='CleanupPhaseSignal', message=f'Controller received signal {signum}', **row))
+        if cleanup_done:
+            try:
+                emit('controller_signal', **row)
+            except BaseException as error:
+                errors.append(dict(type=type(error).__name__, message=str(error)))
+        return
+    emit('controller_signal', **row)
     raise InterruptedError(f'Controller received signal {signum}')
 
 
@@ -238,41 +253,78 @@ except BaseException as error:
     errors.append(dict(type=type(error).__name__, message=str(error)))
     emit('outer_error', error=errors[-1])
 finally:
+    cleanup_phase = True
+    # Every termination action is independent. Discovery, output acquisition,
+    # repeated signals and report errors cannot bypass already-held cleanup.
     if process is not None:
         try:
             discover()
-            # Do not reap the debugger leader before closing its own group.
-            for sig, until in ((signal.SIGTERM,55),(signal.SIGKILL,58)):
-                try:
-                    os.killpg(process.pid,sig)
-                except ProcessLookupError:
-                    pass
-                for pid, identity in seen.items():
-                    if not exited(pid):
-                        try:
-                            signal.pidfd_send_signal(identity['fd'],sig)
-                        except ProcessLookupError:
-                            pass
-                while time.monotonic()-began < until and not all(exited(pid) for pid in seen):
-                    pump(.05)
-                if all(exited(pid) for pid in seen):
-                    break
-            remaining = [pid for pid in seen if not exited(pid)]
-            code = process.wait(timeout=max(.01,59-(time.monotonic()-began)))
-            cleanup = dict(debugger_exit=code,remaining_owned_pids=remaining,elapsed=round(time.monotonic()-began,3))
-            assert not remaining and cleanup['elapsed'] <= 60
-            emit('outer_cleanup',**cleanup)
         except BaseException as error:
-            errors.append(dict(type=type(error).__name__,message=str(error)))
-            emit('outer_cleanup_error',error=errors[-1])
+            errors.append(dict(action='cleanup discovery', type=type(error).__name__, message=str(error)))
+        liveness_errors = set()
+
+        def held_exited(pid):
+            try:
+                return exited(pid)
+            except BaseException as error:
+                if pid not in liveness_errors:
+                    liveness_errors.add(pid)
+                    errors.append(dict(action='cleanup liveness', pid=pid, type=type(error).__name__, message=str(error)))
+                return False  # Unknown liveness must not skip termination.
+
+        # No channel pumping or reporting occurs during escalation: the same
+        # channel-limit failure cannot recur and jump past KILL or wait.
+        for sig, until in ((signal.SIGTERM,55),(signal.SIGKILL,58)):
+            try:
+                os.killpg(process.pid,sig)
+            except ProcessLookupError:
+                pass
+            except BaseException as error:
+                errors.append(dict(action='cleanup group signal', signal=sig, type=type(error).__name__, message=str(error)))
+            for pid, identity in seen.items():
+                if not held_exited(pid):
+                    try:
+                        signal.pidfd_send_signal(identity['fd'],sig)
+                    except ProcessLookupError:
+                        pass
+                    except BaseException as error:
+                        errors.append(dict(action='cleanup pidfd signal', pid=pid, signal=sig, type=type(error).__name__, message=str(error)))
+            while time.monotonic()-began < until and not all(held_exited(pid) for pid in seen):
+                time.sleep(.05)
+            if all(held_exited(pid) for pid in seen):
+                break
+        remaining = [pid for pid in seen if not held_exited(pid)]
+        code = None
+        try:
+            # Reap is attempted even when discovery, signalling or observation
+            # already failed. Keep the leader unreaped until group closure.
+            code = process.wait(timeout=max(.01,59-(time.monotonic()-began)))
+        except BaseException as error:
+            errors.append(dict(action='cleanup reap', type=type(error).__name__, message=str(error)))
+        cleanup = dict(debugger_exit=code,remaining_owned_pids=remaining,elapsed=round(time.monotonic()-began,3))
+        if remaining or code is None or cleanup['elapsed'] > 60:
+            errors.append(dict(type='CleanupFailure', message='Owned debugger/process cleanup was not confirmed within 60 seconds'))
+    cleanup_done = True
     for identity in seen.values():
-        os.close(identity['fd'])
+        try:
+            os.close(identity['fd'])
+        except BaseException as error:
+            errors.append(dict(action='close held pidfd', type=type(error).__name__, message=str(error)))
     for file in rawfiles.values():
-        file.close()
+        try:
+            file.close()
+        except BaseException as error:
+            errors.append(dict(action='close raw channel', type=type(error).__name__, message=str(error)))
     result = dict(diagnostic_only=True,observer=head,compiler_source=producer.revision,
-                  protocol_rows=protocol,cleanup=cleanup,errors=errors,
-                  limits='No qualification, allocation-stack, OOM or dominant-cost inference. Original18/13/19 remains owed.')
-    print(json.dumps(dict(protocol=TAG,kind='outer_final',**{k:v for k,v in result.items() if k!='protocol_rows'})),flush=True)
-    (output/'early-callers.json').write_text(json.dumps(result,indent=2)+'\n')
+                  protocol_rows=protocol,cleanup=cleanup,errors=errors,controller_signals=controller_signals,
+                  limits='No qualification, allocation-stack, OOM or dominant-cost inference. Original18/13/19 remains owed. Service SIGKILL can interrupt this controller and cannot be recovered.')
+    try:
+        print(json.dumps(dict(protocol=TAG,kind='outer_final',**{k:v for k,v in result.items() if k!='protocol_rows'})),flush=True)
+    except BaseException as error:
+        errors.append(dict(action='final stdout', type=type(error).__name__, message=str(error)))
+    try:
+        (output/'early-callers.json').write_text(json.dumps(result,indent=2)+'\n')
+    except BaseException as error:
+        errors.append(dict(action='final report', type=type(error).__name__, message=str(error)))
 producer.verify()
 raise SystemExit(1 if errors else 0)

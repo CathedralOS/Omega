@@ -1,7 +1,7 @@
 {
   "schema": "omega-installed-entry-arm-replay-v1",
   "fixed_published_source": "fa40bd63e9b31194ff85545a94fb53001f2f0c70",
-  "expected_parent": "44fca3509d2ef5897ecf751d11db6608853a60a6",
+  "expected_parent": "a7436fc4812226b74f20b421d3d3316438221f52",
   "producer_source": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
   "hosts": {
     "linux_arm64": {

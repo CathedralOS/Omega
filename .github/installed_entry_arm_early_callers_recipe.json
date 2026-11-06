@@ -1,6 +1,6 @@
 {
   "schema": "omega-installed-entry-arm-early-callers-v1",
-  "parent": "44fca3509d2ef5897ecf751d11db6608853a60a6",
+  "parent": "a7436fc4812226b74f20b421d3d3316438221f52",
   "compiler_source": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
   "origin_run": 42202380872,
   "fixture": "pass/build/installed_entry_ram_live_stack_exit",

@@ -37,6 +37,8 @@ jobs:
         run: python .github/run_installed_entry_arm_replay.py preflight
       - name: Retain the published source boundary for canonical source export
         run: git fetch --no-tags --depth=1 origin fa40bd63e9b31194ff85545a94fb53001f2f0c70:refs/remotes/origin/main
+      - name: Retain the exact original compiler source for source and profile checks
+        run: git fetch --no-tags --depth=1 origin 63c75ba6ad0e978d540e3ca9af29f9c95c079766
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         id: retained-cache
         with:
