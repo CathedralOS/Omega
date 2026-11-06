@@ -1074,7 +1074,7 @@ fail/borrows/boundary_constant_temporary_reference_escape rejected 1946ms expect
 	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 2823ms expected @ccdb99ca2214
 	argument `value` for state `read` is declared `&mut` (`&mut f32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/borrows/boundary_returned_view_keeps_backing_loan rejected 2035ms expected @ccdb99ca2214
+fail/borrows/boundary_returned_view_keeps_backing_loan rejected 3666ms expected @54cd60288b4c
 	statement 1 mutates `main.bytes[1]` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/byte_array_state_loan_shared_and_exclusive rejected 15518ms expected @ccdb99ca2214
 	state `both` receives `bytes` as both mutable and read-only
@@ -1216,7 +1216,7 @@ fail/borrows/direct_reference_array_live_source_write rejected 5077ms expected @
 	statement 1 mutates `main.inventory.slots` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/direct_reference_array_range_narrowing rejected 3638ms expected @911f6617ba9e
 	cannot prove ensures contract for exit from Main::read at statement 2: result >= 0 && result <= 50
-fail/borrows/dispatch_boundary_returning_sibling_escape rejected 1810ms expected @ccdb99ca2214
+fail/borrows/dispatch_boundary_returning_sibling_escape rejected 3545ms expected @54cd60288b4c
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/dropped_reference_qualification_after_alias_write rejected 1980ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket in Ticket::Issued
@@ -1872,7 +1872,7 @@ fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 2795ms 
 	linear value `receipt` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/borrows/shared_record_byte_write_before_last_observation rejected 2777ms expected @ccdb99ca2214
 	statement 2 mutates `row.text` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/shared_reference_carrier_writable_call rejected 2197ms expected @7df56d785346
+fail/borrows/shared_reference_carrier_writable_call rejected 2151ms expected @54cd60288b4c
 	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	unreachable branch: the `true` arm of a transition in machine `Main::main` state `main` can never run; its guard contradicts the facts in force here: neighbor >= 99
@@ -15405,6 +15405,9 @@ fail/layouts/accessor_with_linear_owner_write_denied rejected 13119ms expected @
 	accessor write application: the access plan does not permit this operation
 fail/layouts/authored_placed_accessor_requires_realization rejected 644ms expected @ccdb99ca2214
 	bodyless boundary symbol `read` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/layouts/boundary_effect_same_name rejected 3558ms expected @54cd60288b4c
+	cannot prove default-domain field requirement for call replace from keep::entry: parameter storage requires Extent::Granted
+	cannot prove default-domain field requirement for return from keep, state entry, at statement 2: storage requires Extent::Granted
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 2212ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 4056ms expected @f78c2623a68c
@@ -15454,6 +15457,9 @@ fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 2402ms expected 
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 3098ms expected @ccdb99ca2214
 	IntegerAt call in write_first requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 	IntegerAt call in change requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
+fail/layouts/extent_descriptor_write_retires_grant rejected 3493ms expected @54cd60288b4c
+	cannot prove default-domain field requirement for call change_descriptor from keep::entry: parameter storage requires Extent::Granted
+	cannot prove default-domain field requirement for return from keep, state entry, at statement 2: storage requires Extent::Granted
 fail/layouts/extent_descriptor_write_retires_mathematical_qualification rejected 1828ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from preserve at statement 2: storage in Extent::Granted
 fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 1430ms expected @ccdb99ca2214
@@ -15564,7 +15570,7 @@ fail/layouts/placed_factory_result_cannot_upgrade_source rejected 1826ms expecte
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 372ms expected @b43a5fa574e6
 	`Access<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
-fail/layouts/placed_primitive_denied_write rejected 3500ms expected @f78a4fddea0b
+fail/layouts/placed_primitive_denied_write rejected 3477ms expected @54cd60288b4c
 	accessor write application: the access plan does not permit this operation
 fail/layouts/placed_primitive_generic_wrapper rejected 3358ms expected @b43a5fa574e6
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
@@ -26138,6 +26144,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content checked 12345ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/extent_view_external_write checked 14953ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
+pass/layouts/extent_view_preserves_grant_exit checked 9107ms check-target:macos_arm64 @54cd60288b4c
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_computed_const_policy_exit rejected 523ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d68d95fa82f8

@@ -1862,6 +1862,7 @@ pass/inline_asm/asm_memory_transfer_compile built 5618ms exit:0 interpreter-exit
 pass/inline_asm/asm_system_register_scalar_variants_compile incomplete 4039ms @0d0998b4be90
 	`read_thread` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `read_thread::entry`
 pass/layouts/authored_layout_query_names_exit built 5442ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
+pass/layouts/extent_view_preserves_grant_exit built 9662ms exit:0 interpreter-exit:0 interpreter:agrees @54cd60288b4c
 pass/layouts/fixed_layout_closed_requirement_policy_exit built 2844ms exit:0 interpreter-exit:0 interpreter:agrees @2ba727eefb59+wt
 pass/layouts/fixed_layout_computed_const_policy_exit built 2440ms exit:0 interpreter-exit:0 interpreter:agrees @2ba727eefb59+wt
 pass/layouts/fixed_layout_finite_dynamic_policy_exit built 2163ms exit:0 interpreter-exit:0 interpreter:agrees @2ba727eefb59+wt
