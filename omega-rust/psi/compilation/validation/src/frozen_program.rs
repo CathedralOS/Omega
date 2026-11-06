@@ -714,6 +714,15 @@ pub struct CheckingMemos {
     /// strict dependency judgment. Call-frame, denotation, and return-range
     /// queries read that frozen body instead of judging it from source again.
     pub(crate) admitted_dependency_bodies: Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
+    /// Requirement sites each proof machine's shared structural walks proved,
+    /// built once per machine and checked program. Only positive verdicts are
+    /// kept; every other site keeps its solo walk.
+    pub(crate) shared_proof_walks: Mutex<
+        symbols::SymbolKeyMap<
+            symbols::SymbolHandle,
+            Arc<crate::proof_contracts::contract_entailment::shared_proof_walks::SharedProofWalks>,
+        >,
+    >,
     pub(crate) normal_return_intervals: Mutex<
         symbols::SymbolKeyMap<
             (
