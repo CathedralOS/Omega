@@ -596,7 +596,12 @@ pub fn collect_expression_trees(
     roots: impl IntoIterator<Item = ExpressionHandle>,
     handles: &mut Vec<ExpressionHandle>,
 ) {
+    let mut roots = roots.into_iter();
+    let Some(first) = roots.next() else {
+        return;
+    };
     let mut seen: HashSet<_, symbols::BuildSymbolHasher> = handles.iter().copied().collect();
+    collect_expression_nodes(program, first, handles, &mut seen);
     for expression in roots {
         collect_expression_nodes(program, expression, handles, &mut seen);
     }
