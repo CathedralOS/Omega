@@ -146,6 +146,7 @@ pub(crate) fn hash_boundary_settlement_record(
                 execution,
                 CompilerBuiltinExecution::AccessorScalarAccess { .. }
                     | CompilerBuiltinExecution::AccessLifecycle { .. }
+                    | CompilerBuiltinExecution::StaticInterrupt { .. }
             ) {
                 let mut bytes = Vec::new();
                 legalized_operations::legalized_operations::identity::encode_boundary_execution_identity(&mut bytes, target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution));
@@ -225,6 +226,7 @@ pub(crate) fn hash_boundary_settlement_record(
 
 const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> u8 {
     match execution {
+        CompilerBuiltinExecution::StaticInterrupt { .. } => 254,
         CompilerBuiltinExecution::AccessLifecycle { .. } => 253,
         CompilerBuiltinExecution::AccessorScalarAccess { .. } => 250,
         CompilerBuiltinExecution::ProgramImageRetainedSuffixStart => 251,
@@ -255,6 +257,14 @@ fn hash_boundary_realization(
     realization: &BoundaryRealization,
 ) {
     match realization {
+        BoundaryRealization::StaticInterrupt {
+            boundary,
+            operation,
+        } => {
+            digest.byte(12);
+            digest.raw(&boundary.get().to_le_bytes());
+            digest.byte(operation.code());
+        }
         BoundaryRealization::AccessLifecycle { boundary } => {
             digest.byte(11);
             digest.raw(&boundary.get().to_le_bytes());
@@ -814,6 +824,14 @@ pub(crate) fn hash_call_site_owner(
             digest.byte(3);
             digest.raw(&edge.get().to_le_bytes());
             digest.raw(&0_u32.to_le_bytes());
+        }
+        CallSiteOwner::Installation { operation, role } => {
+            digest.byte(5);
+            digest.raw(&operation.get().to_le_bytes());
+            digest.byte(match role {
+                target_operations::InstallationCallRole::Validate => 0,
+                target_operations::InstallationCallRole::Work => 1,
+            });
         }
         CallSiteOwner::CleanupAction {
             edge,

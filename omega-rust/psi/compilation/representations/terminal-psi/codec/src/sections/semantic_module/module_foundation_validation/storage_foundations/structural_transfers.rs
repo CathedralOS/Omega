@@ -5,7 +5,7 @@
 use super::*;
 use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, current_payload_contract, current_selected_payload_contract,
-    descriptor_contents_query, payload_memberships, terminal_graph, terminal_payload_contract,
+    descriptor_contents_query, payload_memberships, terminal_graph_from, terminal_payload_contract,
 };
 use terminal_semantics::{canonical_static_projection, is_copyable_carrier};
 
@@ -82,7 +82,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         .ok_or(CodecError::MalformedStructuralFoundation(
             "owned transfer position is absent",
         ))?;
-    let graph = terminal_graph(module);
+    // Match the producer's query scope: this body and every callable dependency.
+    // An unrelated retained body cannot erase the queried payload history.
+    let graph = terminal_graph_from(module, [machine.id]);
     let contract = current_selected_payload_contract(
         &module.structural_types,
         &module.structural_domains,
@@ -191,7 +193,9 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
         let OperationKind::StructuralLeafCopy { source, path } = &operation.kind else {
             return malformed("case leaf copy does not authenticate memberships");
         };
-        let descriptors = terminal_graph(module);
+        // The module validator still checks every body. This query needs the
+        // complete invocation closure of the body that performs the copy.
+        let descriptors = terminal_graph_from(module, [machine.id]);
         let mut analysis = DescriptorAnalysis::new(&module.structural_types, &descriptors);
         let mut history_failures = Vec::new();
         let mut query_phase = "root";

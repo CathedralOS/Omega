@@ -21,7 +21,7 @@ const LOCATION_CAPACITY: usize = 16;
 
 const REGISTER_CAPACITY: usize = 64;
 
-pub(crate) const CALLBACK_MATERIALIZATION_CAPACITY: usize = 32;
+pub(crate) use language_semantics::callback_declarations::BOUNDARY_CALLBACK_CAPACITY as CALLBACK_MATERIALIZATION_CAPACITY;
 
 pub(crate) const CALLBACK_FIELD_PATH_CAPACITY: usize = 16;
 

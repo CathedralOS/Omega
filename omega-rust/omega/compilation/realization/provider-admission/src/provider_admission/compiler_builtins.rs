@@ -134,6 +134,11 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
+            CompilerBuiltinExecution::StaticInterrupt { .. } => {
+                return Err(vec![Diagnostic::error(
+                    "static interrupt execution requires its exact installed occurrence; ordinary provider proposals cannot supply it",
+                )]);
+            }
             CompilerBuiltinExecution::AccessLifecycle { .. } => {
                 return Err(vec![Diagnostic::error(
                     "private access lifecycle cannot be selected through a provider proposal",
@@ -380,6 +385,7 @@ fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryC
         | CompilerBuiltinExecution::HostedReadByte
         | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
         | CompilerBuiltinExecution::ProgramStorageEntry
+        | CompilerBuiltinExecution::StaticInterrupt { .. }
         | CompilerBuiltinExecution::AccessLifecycle { .. }
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
         | CompilerBuiltinExecution::AccessorScalarAccess { .. } => BoundaryCompletion::NormalReturn,

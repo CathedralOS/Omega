@@ -201,7 +201,7 @@ pub(crate) fn lower_declarations(
                                 "placement primitive declaration is malformed",
                             )
                         })? {
-                            None => terminal_psi::CheckedBoundaryExecution::Provider,
+                            None => static_interrupt_execution(plan.static_interrupt_operation),
                             Some(declaration) => match declaration.operation() {
                                 typed_trees::typed_trees::AccessLifecycleOperation::Initialize => {
                                     terminal_psi::CheckedBoundaryExecution::AccessInitialize
@@ -578,4 +578,24 @@ fn unconditional_termination(
     Ok(
         matches!(guarantee, Some(TerminationGuarantee::Terminates { premises }) if premises.is_empty()),
     )
+}
+
+/// Keep compiler execution ownership on the callable even when its installation
+/// records are absent. A provider cannot fill that missing obligation.
+fn static_interrupt_execution(
+    operation: Option<language_core::static_interrupts::StaticInterruptOperation>,
+) -> terminal_psi::CheckedBoundaryExecution {
+    use language_core::static_interrupts::StaticInterruptOperation;
+    use terminal_psi::CheckedBoundaryExecution;
+    match operation {
+        None => CheckedBoundaryExecution::Provider,
+        Some(StaticInterruptOperation::Install) => CheckedBoundaryExecution::StaticInterruptInstall,
+        Some(StaticInterruptOperation::Context) => CheckedBoundaryExecution::StaticInterruptContext,
+        Some(StaticInterruptOperation::BeginCompletion) => {
+            CheckedBoundaryExecution::StaticInterruptBeginCompletion
+        }
+        Some(StaticInterruptOperation::FinishCompletion) => {
+            CheckedBoundaryExecution::StaticInterruptFinishCompletion
+        }
+    }
 }

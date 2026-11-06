@@ -206,6 +206,9 @@ pub enum TerminalInterpretError {
     VerifiedBoundaryMachineMissing(BoundaryMachineId),
     VerifiedBlockMissing,
     VerifiedOperationMalformed,
+    VerifiedOperationContractInvalid {
+        reason: &'static str,
+    },
     ExecutionSite {
         machine: MachineId,
         block: BlockId,

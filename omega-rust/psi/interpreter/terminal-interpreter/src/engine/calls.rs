@@ -303,6 +303,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         // storage; no declaration or program contents are copied for a call.
         let program = std::sync::Arc::clone(&self.program);
         let boundary_declaration = program.verified_boundary_machine(&boundary)?;
+        if boundary_declaration
+            .declaration
+            .as_ref()
+            .is_some_and(|callable| callable.execution.static_interrupt_operation().is_some())
+        {
+            // CPU installation has no host-supplied substitute. Its native
+            // provider must authenticate the retained root and live arrival.
+            return Err(malformed());
+        }
         // A compiler primitive's completion is not a selectable assertion.
         // Until its execution binds the live extent, completed profile call
         // and actual backing, neither a checked adapter nor a host handler may

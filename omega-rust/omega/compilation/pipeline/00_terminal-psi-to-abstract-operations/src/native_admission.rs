@@ -140,8 +140,10 @@ pub fn admit_prepared_native_realization<'execution>(
                 || !module_boundaries.contains(&proposal.boundary)
         })
         .collect::<Vec<_>>();
-    let native_callbacks = if request.providers.native_callbacks.is_empty() {
-        Vec::new()
+    let (native_callbacks, installed_interrupts) = if request.providers.native_callbacks.is_empty()
+        && request.providers.installed_interrupts.is_empty()
+    {
+        (Vec::new(), Vec::new())
     } else {
         let plan_boundary_call_ops: BTreeSet<semantic_vocabulary::OperationId> = input
             .plan()
@@ -167,25 +169,72 @@ pub fn admit_prepared_native_realization<'execution>(
                 .then_some(operation.id)
             })
             .collect();
-        request
+        // Keep unknown occurrences so admission can reject them. Only known calls
+        // outside this body's executable scope can be omitted.
+        let in_scope = |operation| {
+            plan_boundary_call_ops.contains(&operation)
+                || !module_boundary_call_ops.contains(&operation)
+        };
+        let native_callbacks = request
             .providers
             .native_callbacks
             .iter()
-            .filter(|callback| {
-                plan_boundary_call_ops.contains(&callback.terminal_operation)
-                    || !module_boundary_call_ops.contains(&callback.terminal_operation)
+            .filter(|callback| in_scope(callback.terminal_operation))
+            .cloned()
+            .collect::<Vec<_>>();
+        // The original placement roster is shared by every callable. Prepare
+        // its lookup once so private-body reentry retains exactly its own
+        // installation occurrences without repeatedly scanning all callbacks.
+        let mut callback_occurrences = vec![None; request.providers.callback_occurrences.len()];
+        for occurrence in request.providers.callback_occurrences {
+            let Some(slot) = callback_occurrences.get_mut(occurrence.placement_index()) else {
+                return Err(realization_error(
+                    "installed interrupt callback scope",
+                    "callback placement falls outside the original complete roster",
+                ));
+            };
+            if slot.replace(occurrence).is_some() {
+                return Err(realization_error(
+                    "installed interrupt callback scope",
+                    "original callback placement identity is duplicated",
+                ));
+            }
+        }
+        let installed_interrupts = request
+            .providers
+            .installed_interrupts
+            .iter()
+            .filter(|entry| {
+                in_scope(entry.operation)
+                    || callback_occurrences
+                        .get(entry.placement_index)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|occurrence| {
+                            occurrence.callback_thunk_artifact().entry() == input.plan().entry
+                                && occurrence.terminal_operation() == entry.operation
+                                && occurrence.application_index()
+                                    == entry.placement.application_index
+                                && occurrence.callback_thunk_identity() == entry.callback_function
+                        })
             })
             .cloned()
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        (native_callbacks, installed_interrupts)
     };
     let scoped_providers = ProviderAdmissionRequest {
         profile: request.providers.profile,
+        bootstrap_entry: request.providers.bootstrap_entry,
+        installation_assumptions: request.providers.installation_assumptions,
         selected_provider_plans: request.providers.selected_provider_plans,
         checked_adapters: request.providers.checked_adapters,
         external_binding_rows: request.providers.external_binding_rows,
         settlements: &settlements,
         compiler_builtins: &compiler_builtins,
         native_callbacks: &native_callbacks,
+        installed_interrupts: &installed_interrupts,
+        installed_calling: request.providers.installed_calling,
+        callback_occurrences: request.providers.callback_occurrences,
         terminal_authority_policy: request.providers.terminal_authority_policy,
         terminal_authority_permission_policy: request
             .providers
@@ -223,6 +272,13 @@ pub fn admit_prepared_native_realization<'execution>(
             .unwrap_or_default(),
     );
     input.retain_admitted_native_callbacks(providers.take_native_callbacks());
+    let installed_interrupts = providers.take_installed_interrupts();
+    if installed_interrupts.psi() != input.plan().psi {
+        return Err(vec![Diagnostic::error(
+            "installed interrupt entries belong to another Terminal program",
+        )]);
+    }
+    input.retain_admitted_installed_interrupts(installed_interrupts);
     Ok(AdmittedNativeRealization {
         input,
         providers,

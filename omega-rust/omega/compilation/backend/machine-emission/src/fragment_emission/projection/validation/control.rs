@@ -33,21 +33,36 @@ pub(super) fn check(
             instruction.kind,
             SelectedInstructionKind::InvokeNoNormal { .. }
         ) {
-            let SelectedTerminator::InvokeNoNormal {
-                instruction: terminal,
-                psi_edge,
-            } = &block.terminator
-            else {
-                return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
+            let (terminal, owner) = match &block.terminator {
+                SelectedTerminator::InvokeNoNormal {
+                    instruction,
+                    psi_edge,
+                } => (
+                    instruction,
+                    target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge),
+                ),
+                SelectedTerminator::OperationInvokeNoNormal {
+                    instruction,
+                    operation,
+                } => (
+                    instruction,
+                    target_operations::CallSiteOwner::Installation {
+                        operation: *operation,
+                        role: target_operations::InstallationCallRole::Work,
+                    },
+                ),
+                _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
             };
-            if terminal.id != instruction.id
-                || row.owner != target_operations::CallSiteOwner::InvokeNoNormal(*psi_edge)
-            {
+            if terminal.id != instruction.id || row.owner != owner {
                 return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
             }
         } else if matches!(
             row.owner,
             target_operations::CallSiteOwner::InvokeNoNormal(_)
+                | target_operations::CallSiteOwner::Installation {
+                    role: target_operations::InstallationCallRole::Work,
+                    ..
+                }
         ) {
             return Err(crate::fragment_emission::projection::ResolvedFragmentEmissionError::ArtifactMismatch);
         }
@@ -73,6 +88,10 @@ pub(super) fn check(
     }
     let (terminal, predicate, successors) = match &block.terminator {
         SelectedTerminator::InvokeNoNormal {
+            instruction: terminal,
+            ..
+        }
+        | SelectedTerminator::OperationInvokeNoNormal {
             instruction: terminal,
             ..
         } => {

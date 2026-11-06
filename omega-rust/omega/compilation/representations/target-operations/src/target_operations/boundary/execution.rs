@@ -515,6 +515,12 @@ mod tests {
 /// provider execution or a compact authority coordinate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerBuiltinExecution {
+    /// Exact installed occurrence and live-token admission are required before
+    /// this closed operation may execute. Its kind grants no backing by itself.
+    StaticInterrupt {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        operation: language_core::static_interrupts::StaticInterruptOperation,
+    },
     /// Compiler-private whole-value initialization or extraction. The exact
     /// boundary joins its retained lifecycle plan; an ordinary provider row
     /// cannot stand in for this executable operation.

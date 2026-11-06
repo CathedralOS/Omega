@@ -87,6 +87,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
         SelectedInstructionKind::PortWrite { .. } => 239,
         SelectedInstructionKind::RegisterAccess { .. } => 247,
+        SelectedInstructionKind::InstalledInterruptCpuCheck { .. } => 249,
+        SelectedInstructionKind::InstalledInterruptTaskCommit { .. } => 250,
+        SelectedInstructionKind::InstalledInterruptTablePublication { .. } => 251,
+
         SelectedInstructionKind::AtomicFence => 238,
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::AccessorScalarAccess { form, .. } => form.machine_tag(),
@@ -105,6 +109,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::HostedWriteByteI32 { .. } => 23,
         SelectedInstructionKind::HostedReadByte { .. } => 32,
         SelectedInstructionKind::Crash => 111,
+        SelectedInstructionKind::PrivilegedCrash => 252,
         SelectedInstructionKind::HostedExitProcessI32 => 31,
         SelectedInstructionKind::ByteViewAddress => 22,
         SelectedInstructionKind::Load8Indexed => 21,
@@ -330,6 +335,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
             byte_offset: cursor.u32()?,
         },
         111 => SelectedInstructionKind::Crash,
+        252 => SelectedInstructionKind::PrivilegedCrash,
         31 => SelectedInstructionKind::HostedExitProcessI32,
         tag @ (46 | 47) => {
             let byte_offset = cursor.u32()?;
@@ -353,6 +359,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         },
         tag @ (17 | 18) => {
             let slot = match cursor.byte()? {
+                4 => selected_instructions::FrameStorageSlotId::ActivationBase,
                 2 => selected_instructions::FrameStorageSlotId::Incoming {
                     parameter_index: cursor.u32()?,
                     abi_stack_byte_offset: cursor.u32()?,
@@ -372,6 +379,11 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
                 tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
             };
             let byte_offset = cursor.u32()?;
+            if slot == selected_instructions::FrameStorageSlotId::ActivationBase
+                && (tag != 18 || byte_offset != 0)
+            {
+                return Err(FixedViewCopyDecodeError::UnknownOption(4));
+            }
             if tag == 17 {
                 SelectedInstructionKind::Store64 { slot, byte_offset }
             } else {
@@ -390,6 +402,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         },
         232 => SelectedInstructionKind::ImageAddress {
             reference: match cursor.byte()? {
+                4 => SelectedImageAddressReference::PrivateFunction {
+                    identity: function_identity::MachineFunctionIdentity::from_bytes(
+                        cursor.array()?,
+                    )
+                    .ok_or(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)?,
+                },
                 3 => SelectedImageAddressReference::RetainedEntryStorageStart,
                 2 => SelectedImageAddressReference::NativeCodeLayout {
                     machine: decode_id(cursor, MachineId::new)?,
@@ -423,6 +441,15 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
         tag @ 247 => SelectedInstructionKind::RegisterAccess {
             operation: selected_instructions::RegisterOperation::from_catalog_tag(cursor.u16()?)
                 .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+        },
+        249 => SelectedInstructionKind::InstalledInterruptCpuCheck {
+            gdt_bytes: cursor.u32()?,
+        },
+        250 => SelectedInstructionKind::InstalledInterruptTaskCommit {
+            gdt_bytes: cursor.u32()?,
+        },
+        251 => SelectedInstructionKind::InstalledInterruptTablePublication {
+            table_bytes: cursor.u32()?,
         },
         238 => SelectedInstructionKind::AtomicFence,
         235 => SelectedInstructionKind::ZeroBytes,
@@ -720,6 +747,10 @@ fn structural_primitives_round_trip_symbolic_slots_without_scalar_results() {
         argument_index: 1,
     };
     for kind in [
+        SelectedInstructionKind::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+            byte_offset: 0,
+        },
         SelectedInstructionKind::HostedReadByte {
             slot: selected_instructions::LocalStorageSlotId::Structural {
                 operation: slot
@@ -831,10 +862,10 @@ fn outgoing_slot_roles_round_trip_with_legacy_argument_frame_bytes() {
             let mut cursor = Cursor::new(&bytes);
             assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
             assert_eq!(cursor.remaining(), 0);
-            bytes[1] = 4;
+            bytes[1] = 5;
             assert_eq!(
                 decode_kind(&mut Cursor::new(&bytes)),
-                Err(FixedViewCopyDecodeError::UnknownOption(4))
+                Err(FixedViewCopyDecodeError::UnknownOption(5))
             );
         }
     }
@@ -909,4 +940,50 @@ fn decode_call_target(
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     })
+}
+
+#[cfg(test)]
+#[test]
+fn private_address_codec_retains_identity_and_rejects_truncated_or_invalid_identity() {
+    let caller = terminal_psi::TerminalPsiIdentity {
+        vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([73; 32]),
+    };
+    let identity = function_identity::MachineFunctionIdentity::callback_thunk(caller, 17).unwrap();
+    let kind = SelectedInstructionKind::ImageAddress {
+        reference: SelectedImageAddressReference::PrivateFunction { identity },
+    };
+    let mut bytes = Vec::new();
+    encode_kind(&mut bytes, kind);
+    let mut cursor = Cursor::new(&bytes);
+    assert_eq!(decode_kind(&mut cursor), Ok(kind));
+    assert_eq!(cursor.remaining(), 0);
+    for length in 0..bytes.len() {
+        assert!(decode_kind(&mut Cursor::new(&bytes[..length])).is_err());
+    }
+    bytes[4..36].fill(0);
+    assert_eq!(
+        decode_kind(&mut Cursor::new(&bytes)),
+        Err(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn activation_base_codec_has_a_closed_address_only_payload() {
+    let kind = SelectedInstructionKind::FrameAddress {
+        slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+        byte_offset: 0,
+    };
+    let mut bytes = Vec::new();
+    encode_kind(&mut bytes, kind);
+    assert_eq!(bytes, [18, 4, 0, 0, 0, 0]);
+    assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
+    bytes[0] = 17;
+    assert!(decode_kind(&mut Cursor::new(&bytes)).is_err());
+    bytes[0] = 18;
+    bytes[2] = 1;
+    assert!(decode_kind(&mut Cursor::new(&bytes)).is_err());
+    bytes.truncate(2);
+    assert!(decode_kind(&mut Cursor::new(&bytes)).is_err());
 }

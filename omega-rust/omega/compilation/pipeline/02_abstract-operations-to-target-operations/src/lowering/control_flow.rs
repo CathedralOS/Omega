@@ -38,6 +38,7 @@ mod calls;
 mod dominance;
 mod element_view_write;
 mod ieee_float_arithmetic;
+mod interrupt_installation;
 mod leaf_copy;
 mod observations;
 mod operations;
@@ -50,6 +51,7 @@ mod row;
 pub(super) mod scalar_arrays;
 pub(super) mod scalar_sources;
 mod selected_boundary_calls;
+mod static_interrupts;
 mod structural_case;
 mod terminator;
 mod transfers;
@@ -219,6 +221,7 @@ pub(super) fn lower(
     selected_calls: &crate::lowering::selected_boundary_calls::SelectedCallsByCall,
     scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     native_callbacks: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
+    installed_interrupts: Option<&provider_admission::AdmittedInstalledInterruptCohort>,
 ) -> Result<TargetFunction, LoweringError> {
     if function.block_entries.is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -660,6 +663,7 @@ pub(super) fn lower(
                     selected_calls,
                     scalar_abis,
                     native_callbacks,
+                    installed_interrupts,
                     &prepared,
                     &parameters_by_place,
                 )?;

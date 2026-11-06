@@ -7,6 +7,7 @@
 
 mod carriers;
 mod errors;
+pub(crate) mod installed_stack;
 mod normalized_foreign_calls;
 pub(crate) mod replay;
 pub(crate) mod stack_demand;

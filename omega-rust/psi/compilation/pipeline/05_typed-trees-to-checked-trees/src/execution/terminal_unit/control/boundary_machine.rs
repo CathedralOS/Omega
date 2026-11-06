@@ -131,19 +131,33 @@ pub(crate) fn build_boundary_machine(
                     .is_some_and(|member| member.supplies_checked_body())
             })
     });
-    let reference_outputs = if checked_family {
+    let operation =
+        validation::compiler_operations::static_interrupt_declaration(program, machine)?;
+    let preserves_descriptors = operation.is_some_and(|operation| {
+        operation.entry == state.symbol && operation.preserves_parameter_descriptors()
+    });
+    let reference_outputs = if checked_family || preserves_descriptors {
         Vec::new()
     } else {
         reference_outputs(program, program.state_parameters(state), &[])?
     };
-    Ok(CheckedBoundaryMachinePlan {
-        reference_outputs,
-        result_reference_sources: reference_result_sources(
+    let result_reference_sources =
+        match validation::reference_result_custody::installed_context_sources(
             program,
-            program.state_parameters(state),
-            state.return_type,
-            &[],
-        )?,
+            state.symbol,
+        )? {
+            Some(sources) => sources,
+            None => reference_result_sources(
+                program,
+                program.state_parameters(state),
+                state.return_type,
+                &[],
+            )?,
+        };
+    Ok(CheckedBoundaryMachinePlan {
+        static_interrupt_operation: operation.map(|operation| operation.operation),
+        reference_outputs,
+        result_reference_sources,
         machine: machine.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
@@ -553,6 +567,7 @@ pub(crate) fn build_static_boundary_requirements(
                 })
                 .collect();
             plans.push(CheckedBoundaryMachinePlan {
+                static_interrupt_operation: None,
                 result_reference_sources: match reference_result_sources(
                     program,
                     program.state_signature_parameters(signature),
@@ -679,6 +694,7 @@ fn build_boundary_operator(
         transitive: language_semantics::ServiceReachRowTable::EMPTY_ROW,
     };
     Some(CheckedBoundaryMachinePlan {
+        static_interrupt_operation: None,
         result_reference_sources: reference_result_sources(
             program,
             program.operator_parameters(operator),

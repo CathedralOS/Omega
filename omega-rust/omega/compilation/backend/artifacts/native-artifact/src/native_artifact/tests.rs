@@ -379,6 +379,8 @@ fn fixture_identity(fixture: IdentityFixture<'_>) -> NativeArtifactIdentity {
     }];
     let evidence = fixture.with_validation_evidence.then_some(([5; 32], 43));
     derive_native_artifact_identity(NativeArtifactIdentityFields {
+        installation_assumptions: Vec::new(),
+        physical_entry_requirements: None,
         terminal_artifact_identity: [fixture.terminal_marker; 32],
         target: fixture.target,
         object_text_bytes: fixture.object_text,

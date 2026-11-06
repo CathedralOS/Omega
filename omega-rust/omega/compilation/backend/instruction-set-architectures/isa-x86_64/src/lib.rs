@@ -26,6 +26,9 @@ pub const ORDINARY_RETURN_BYTES: [u8; 1] = [0xc3];
 pub const INTERRUPT_RETURN_BYTES: [u8; 2] = [0x48, 0xcf];
 /// Establish the ordinary internal ABI direction flag after asynchronous entry.
 pub const CLEAR_DIRECTION_FLAG_BYTES: [u8; 1] = [0xfc];
+/// Permanently stop privileged execution: mask ordinary interrupts and retry HLT
+/// after any permitted asynchronous wake. This requires CPL0.
+pub const PRIVILEGED_STOP_BYTES: [u8; 4] = [0xfa, 0xf4, 0xeb, 0xfd];
 mod hosted_kernel;
 mod hosted_linux_encoding;
 mod ieee_float;
@@ -62,17 +65,18 @@ pub use register_model::{
     X86_64_ATOMIC_STORE, X86_64_ATOMIC_UPDATE, X86_64_CODE_SEGMENT_RELOAD,
     X86_64_CONTROL_REGISTER_READ, X86_64_CONTROL_REGISTER_WRITE, X86_64_DATA_SEGMENT_RELOAD,
     X86_64_FLAGS_RESTORE, X86_64_FLAGS_SNAPSHOT, X86_64_GLOBAL_DESCRIPTOR_TABLE,
-    X86_64_INTERRUPT_CONTROL, X86_64_MEMORY_FENCE, X86_64_MODEL_SPECIFIC_READ,
-    X86_64_MODEL_SPECIFIC_WRITE, X86_64_PORT_REGISTER_READ, X86_64_PORT_REGISTER_WRITE,
-    X86_64_PORT_WRITE, X86_64_PROCESSOR_HALT, X86_64_SEGMENT_SELECTOR_READ,
-    X86_64_TASK_REGISTER_ACTIVATE, X86_64_TASK_REGISTER_READ,
+    X86_64_INSTALLED_INTERRUPT_CPU_CHECK, X86_64_INSTALLED_INTERRUPT_TABLE_PUBLICATION,
+    X86_64_INSTALLED_INTERRUPT_TASK_COMMIT, X86_64_INTERRUPT_CONTROL, X86_64_MEMORY_FENCE,
+    X86_64_MODEL_SPECIFIC_READ, X86_64_MODEL_SPECIFIC_WRITE, X86_64_PORT_REGISTER_READ,
+    X86_64_PORT_REGISTER_WRITE, X86_64_PORT_WRITE, X86_64_PROCESSOR_HALT,
+    X86_64_SEGMENT_SELECTOR_READ, X86_64_TASK_REGISTER_ACTIVATE, X86_64_TASK_REGISTER_READ,
 };
 pub use register_model::{
     X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_CRASH, X86_64_FLOAT_RESULT_SATURATING,
     X86_64_FLOAT_RESULT_TRAPPING, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
     X86_64_HOSTED_READ_BYTE, X86_64_IEEE_FLOAT_ARITHMETIC, X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
     X86_64_IEEE_FLOAT_DIRECTED_BINARY, X86_64_IEEE_FLOAT_DIRECTED_UNARY, X86_64_IEEE_FLOAT_TERNARY,
-    X86_64_IEEE_FLOAT_UNARY,
+    X86_64_IEEE_FLOAT_UNARY, X86_64_PRIVILEGED_CRASH,
 };
 pub use register_model::{X86_64_COMPARE_BYTE_SEQUENCES, X86_64_SCAN_BYTE_SEQUENCE};
 pub use register_model::{X86_64_LOAD_ENCODED_SCALAR, X86_64_STORE_ENCODED_SCALAR};
@@ -218,3 +222,12 @@ pub use selected_form_encoding::{
 };
 
 pub use selected_form_encoding::callback_group_bytes as encode_private_callback_materialization;
+
+// These byte producers do not admit an installation or authorize publication.
+pub use selected_form_encoding::register_access::installed_table::{
+    X86InstalledCpuStateGeometry, X86InstalledCpuStateRegisters, X86InstalledTableEncodingError,
+    X86InstalledTablePublicationRegisters, X86InstalledTaskCommitRegisters,
+    encode_x86_64_installed_cpu_state_check, encode_x86_64_installed_table_publication,
+    encode_x86_64_installed_task_commit, validate_x86_64_installed_cpu_state_check,
+    validate_x86_64_installed_table_publication, validate_x86_64_installed_task_commit,
+};

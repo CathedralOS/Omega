@@ -352,7 +352,7 @@ pub(super) fn validate(
     let inputs = if load { 2 } else { 3 };
     let flags = physical
         .model()
-        .view_named("rflags")
+        .view_named("condition_flags")
         .ok_or(Error::NonCanonicalPhysicalModel)?
         .units
         .clone();

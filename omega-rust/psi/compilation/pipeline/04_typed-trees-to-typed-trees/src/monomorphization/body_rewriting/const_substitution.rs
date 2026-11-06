@@ -209,14 +209,19 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
         } else {
             SymbolHandle::invalid()
         };
-        let mut native_query = expressions_of(program)
+        let mut request_call = expressions_of(program)
             .call_node(handle)
-            .and_then(|call| call.native_code_layout.clone());
-        if let Some(query) = &mut native_query
-            && normalize_const_arguments(program, owner, std::slice::from_mut(&mut query.operand))?
+            .expect("call roster")
+            .clone();
+        let mut request_changed = false;
+        for argument in request_call.request_static_arguments_mut() {
+            request_changed |=
+                normalize_const_arguments(program, owner, std::slice::from_mut(argument))?;
+        }
+        if request_changed
             && let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
         {
-            call.native_code_layout = native_query;
+            *call = request_call;
         }
         let has_machine_args = expressions_of(program)
             .call_node(handle)
@@ -244,10 +249,10 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
                 .statement_table
                 .iter_statements(state.statement_nodes)
             {
-                if statement
-                    .as_call()
-                    .is_some_and(|call| !call.machine_arguments.is_empty())
-                {
+                if statement.as_call().is_some_and(|call| {
+                    !call.machine_arguments.is_empty()
+                        || call.installed_interrupt_operation.is_some()
+                }) {
                     statement_handles.push(handle);
                 }
             }
@@ -272,13 +277,19 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
             .statement(handle)
             .as_call()
             .expect("call roster");
-        let mut arguments = call.machine_arguments.clone();
+        let mut call = call.clone();
         let carriers = callee_value_carriers(program, call.target_symbol, &call.machine_arguments);
-        if normalize_const_arguments_for(program, owner, &carriers, &mut arguments)? {
-            let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+        let mut changed =
+            normalize_const_arguments_for(program, owner, &carriers, &mut call.machine_arguments)?;
+        for argument in call.request_static_arguments_mut() {
+            changed |= normalize_const_arguments(program, owner, std::slice::from_mut(argument))?;
+        }
+        if changed {
+            let StatementNode::Call(destination) = program.statement_table.statement_mut(handle)
+            else {
                 continue;
             };
-            call.machine_arguments = arguments;
+            *destination = call;
         }
     }
     Ok(())
@@ -364,6 +375,26 @@ fn normalize_const_arguments_for(
                     .as_mut()
                     .expect("nested static application")
                     .arguments = nested;
+                changed = true;
+            }
+        }
+        if let Some(application) = &arguments[index].application
+            && application.member.is_valid()
+        {
+            let handle = application.member;
+            let mut member = expressions_of(program)
+                .static_member(handle)
+                .ok_or("qualified static member has no owning expression record")?
+                .clone();
+            if normalize_const_arguments_for(
+                program,
+                owner,
+                &[],
+                std::slice::from_mut(&mut member),
+            )? {
+                *expressions_of_mut(program)
+                    .static_member_mut(handle)
+                    .ok_or("qualified static member lost its owning expression record")? = member;
                 changed = true;
             }
         }

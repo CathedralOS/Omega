@@ -24,7 +24,16 @@ pub(crate) fn compile(
             ProjectProduct::Native {
                 destination,
                 private_entry_ram,
+                installation_assumptions,
             } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+                // The complete request was validated before discovery. Targets
+                // refused by output admission keep their refusal and no product.
+                installation_assumptions: installation_assumptions
+                    .iter()
+                    .filter(|row| targets.contains(&row.profile()))
+                    .cloned()
+                    .collect(),
+                retain_native_inputs: false,
                 image: destination.image_demand(),
                 private_entry_ram: private_entry_ram.clone(),
                 terminal_authority_policy:
@@ -86,6 +95,7 @@ pub(crate) fn compile(
                 targets,
                 RequestedCompileProduct::Check,
                 &[],
+                &[],
                 Default::default(),
             );
         }
@@ -96,12 +106,14 @@ pub(crate) fn compile(
                 targets,
                 RequestedCompileProduct::TerminalArtifact,
                 &[],
+                &[],
                 Default::default(),
             );
         }
         ProjectProduct::Native {
             destination,
             private_entry_ram,
+            installation_assumptions,
         } => {
             return compile_standalone_reports(
                 request,
@@ -109,6 +121,7 @@ pub(crate) fn compile(
                 targets,
                 RequestedCompileProduct::NativeArtifact,
                 private_entry_ram,
+                installation_assumptions,
                 destination.image_demand(),
             );
         }
@@ -124,6 +137,7 @@ fn compile_standalone_reports(
     targets: &[TargetProfile],
     product: RequestedCompileProduct,
     private_entry_ram: &[compilation_products::PrivateEntryRamInitialization],
+    installation_assumptions: &[compilation_products::InstallationEnvironmentAssumption],
     native_image: compilation_products::NativeImageDemand,
 ) -> Result<Vec<(TargetProfile, Result<CompilationOutput, BuildError>)>, BuildError> {
     let mut reports = Vec::with_capacity(targets.len());
@@ -138,6 +152,13 @@ fn compile_standalone_reports(
             .with_optimization_rollback(request.optimization_rollback.clone())
             .with_timings(request.timings);
     compilation = compilation
+        .with_installation_assumptions(
+            installation_assumptions
+                .iter()
+                .filter(|row| targets.contains(&row.profile()))
+                .cloned()
+                .collect(),
+        )
         .with_private_entry_ram(private_entry_ram.to_vec())
         .with_native_image_demand(native_image);
     if let Some(snapshot) = &request.build_snapshot {

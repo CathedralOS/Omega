@@ -96,8 +96,7 @@ pub(in crate::borrow) fn prepare(
                             &supplier.owner_path,
                             &source.source_place.segments,
                         )
-                        && (supplier.handle == source.parent_loan
-                            || !supplier.handle.is_valid())
+                        && (supplier.handle == source.parent_loan || !supplier.handle.is_valid())
                 })
             };
             if !rebased.is_empty() && rebased.iter().all(|source| cover(source).is_some()) {

@@ -2,6 +2,10 @@
 //! never a portable IR, installation receipt or serialized validation wrapper.
 //! Same-invocation production keeps its ordinary borrowed inputs.
 mod admissions;
+mod installation_environment;
+pub use installation_environment::{
+    decode_installation_assumptions, encode_installation_assumptions,
+};
 mod entry;
 mod records;
 mod selection;
@@ -19,9 +23,9 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Saved native inputs now recognize typed descriptor-table operations.
-// Older records must be rebuilt before decoding.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI17";
+// V19 retains distinct bootstrap and installed-delivery conditions with closed tags.
+// Older records lack that field and must be rebuilt before decoding.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI19";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -42,6 +46,8 @@ mod tests {
             b"OMGNTI14",
             b"OMGNTI15",
             b"OMGNTI16",
+            b"OMGNTI17",
+            b"OMGNTI18",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -65,7 +71,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI18", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI20", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };
@@ -91,6 +97,7 @@ pub fn retain_native_derivation_inputs(
     provider_proposals: &[backend_plan::TerminalTargetProviderProposal],
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
+    installation_assumptions: &[installation_evidence::InstallationEnvironmentAssumption],
 ) -> Result<Vec<u8>, String> {
     capture(
         checked_entry,
@@ -98,6 +105,7 @@ pub fn retain_native_derivation_inputs(
         provider_proposals,
         request,
         accepted_package_permissions,
+        installation_assumptions,
     )
     .map_err(|reason| reason.to_string())
 }
@@ -108,6 +116,7 @@ fn capture(
     provider_proposals: &[backend_plan::TerminalTargetProviderProposal],
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
+    installation_assumptions: &[installation_evidence::InstallationEnvironmentAssumption],
 ) -> Result<Vec<u8>, RecordError> {
     let TerminalNativeProposalRequest {
         evaluated_binding_identities,
@@ -184,6 +193,7 @@ fn capture(
     accepted_package_permissions
         .identities()
         .write(&mut output)?;
+    write_values(installation_assumptions, &mut output)?;
     Ok(output.finish())
 }
 
@@ -223,6 +233,7 @@ struct DerivationInputs {
     fma: Option<target::AdmittedX86ScalarFmaProvider>,
     accepted_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     accepted_identities: terminal_psi::TerminalIdentityTable,
+    installation_assumptions: Vec<installation_evidence::InstallationEnvironmentAssumption>,
 }
 impl DerivationInputs {
     fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
@@ -268,6 +279,7 @@ impl DerivationInputs {
             fma: RecordValue::read(input)?,
             accepted_permissions: RecordValue::read(input)?,
             accepted_identities: RecordValue::read(input)?,
+            installation_assumptions: RecordValue::read(input)?,
         })
     }
 }
@@ -278,7 +290,14 @@ impl DerivationInputs {
 pub fn recover_native_derivation_inputs(
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
     bytes: &[u8],
-) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
+) -> Result<
+    (
+        RetainedTerminalArtifact,
+        TerminalAuthorityPermissionPolicy,
+        Vec<installation_evidence::InstallationEnvironmentAssumption>,
+    ),
+    Vec<Diagnostic>,
+> {
     let error = |reason: String| vec![Diagnostic::error(reason)];
     let mut reader = RecordReader::new(bytes, RecordLimits::default())
         .map_err(|reason| error(reason.to_string()))?;
@@ -309,6 +328,7 @@ pub fn recover_native_derivation_inputs(
         fma,
         accepted_permissions,
         accepted_identities,
+        installation_assumptions,
     } = inputs;
     crate::providers::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
         accepted_permissions.iter(), &accepted_identities)?;
@@ -369,5 +389,6 @@ pub fn recover_native_derivation_inputs(
             proposal.with_target_provider_proposals(provider_proposals),
         ),
         accepted,
+        installation_assumptions,
     ))
 }

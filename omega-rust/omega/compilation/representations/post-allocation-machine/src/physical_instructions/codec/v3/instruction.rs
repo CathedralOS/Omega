@@ -101,6 +101,7 @@ pub(super) fn decode_instruction(
         }),
         tag @ (2 | 3) => {
             let slot = match byte(cursor)? {
+                4 => selected_instructions::FrameStorageSlotId::ActivationBase,
                 2 => selected_instructions::FrameStorageSlotId::Incoming {
                     parameter_index: u32_field(cursor)?,
                     abi_stack_byte_offset: u32_field(cursor)?,
@@ -126,6 +127,11 @@ pub(super) fn decode_instruction(
                 _ => return Err(PostAllocationMachineDecodeError::InvalidField),
             };
             let byte_offset = u32_field(cursor)?;
+            if slot == selected_instructions::FrameStorageSlotId::ActivationBase
+                && (tag != 3 || byte_offset != 0)
+            {
+                return Err(PostAllocationMachineDecodeError::InvalidField);
+            }
             Some(if tag == 2 {
                 crate::PhysicalAddressOperation::Store64 { slot, byte_offset }
             } else {

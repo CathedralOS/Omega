@@ -146,6 +146,11 @@ pub(super) fn settle_boundary<'request>(
             };
         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
             let completion = match builtin {
+                target_operations::BoundaryRealization::StaticInterrupt { .. } => {
+                    return Err(vec![Diagnostic::error(
+                        "provider execution cannot replace installed interrupt admission",
+                    )]);
+                }
                 target_operations::BoundaryRealization::AccessLifecycle { .. } => {
                     return Err(vec![Diagnostic::error(
                         "provider execution cannot replace a private access lifecycle",

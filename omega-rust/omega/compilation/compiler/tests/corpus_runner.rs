@@ -1424,6 +1424,8 @@ fn check_fail_fixture(
         )?;
         let target_name = discovered.targets.first().cloned();
         let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram,
         terminal_authority_policy:

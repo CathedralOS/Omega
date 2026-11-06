@@ -1,3 +1,5 @@
+use language_semantics::callback_declarations::BOUNDARY_CALLBACK_CAPACITY;
+
 use super::{PackagePolicyCallingPlan, PackagePolicyNativeParameterOrigin};
 use crate::record::validation::{ordered, ordered_by};
 use crate::record::{
@@ -7,12 +9,12 @@ use crate::record::{
 
 pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static str> {
     let callbacks = &policy.callbacks;
-    // The checked source callback vocabulary has 32 entries. Bound the
-    // correspondence scans before examining adversarial recovered catalogs.
-    if callbacks.binders.len() > 32
-        || callbacks.demands.len() > 32
-        || callbacks.materializations.len() > 32
-        || callbacks.layouts.len() > 32
+    // Bound recovered catalogs by the same capacity as authored calling plans
+    // before examining their callback correspondences.
+    if callbacks.binders.len() > BOUNDARY_CALLBACK_CAPACITY
+        || callbacks.demands.len() > BOUNDARY_CALLBACK_CAPACITY
+        || callbacks.materializations.len() > BOUNDARY_CALLBACK_CAPACITY
+        || callbacks.layouts.len() > BOUNDARY_CALLBACK_CAPACITY
     {
         return Err("calling callback catalog exceeds normalized capacity");
     }

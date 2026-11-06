@@ -202,6 +202,29 @@ fn call_body_result_origins(
         include_shared,
         inputs,
     );
+    if std::env::var_os("OMEGA_COMPILER_TRACE_INSTALLED_CONTEXT").is_some()
+        && crate::compiler_operations::static_interrupt_declaration(program, machine)
+            .ok()
+            .flatten()
+            .is_some_and(|declaration| {
+                declaration.operation
+                    == language_core::static_interrupts::StaticInterruptOperation::Context
+            })
+    {
+        eprintln!(
+            "INSTALLED_CONTEXT instantiated expression={:?} shared={} returned={:?}",
+            expression,
+            include_shared,
+            returned.as_ref().map(|origins| origins
+                .references
+                .iter()
+                .map(|leaf| (
+                    leaf.origin.is_some(),
+                    leaf.lifetime_dependencies.as_ref().map(Vec::len)
+                ))
+                .collect::<Vec<_>>())
+        );
+    }
     returned
 }
 

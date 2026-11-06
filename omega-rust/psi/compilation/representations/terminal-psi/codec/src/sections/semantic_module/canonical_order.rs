@@ -47,7 +47,12 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .map(|row| row.application_index),
         "callback applications",
     )?;
-    for application in &module.callback_applications {
+    for application in module.callback_applications.iter().chain(
+        module
+            .installed_interrupt_registrations
+            .iter()
+            .flat_map(|registration| &registration.callbacks),
+    ) {
         let exact_inbound = match application.boundary {
             Some(inbound) => module.boundary_machine(inbound).is_some_and(|boundary| {
                 module.identities.text(boundary.identity) == Some(application.requirement.as_str())

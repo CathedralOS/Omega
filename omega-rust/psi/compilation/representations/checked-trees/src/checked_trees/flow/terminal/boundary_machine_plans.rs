@@ -101,6 +101,10 @@ pub struct CheckedBoundaryScalarDomainRequirementPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBoundaryMachinePlan {
+    /// Exact authenticated compiler operation, selected while checking the
+    /// declaration. Terminal publication carries this decision mechanically.
+    pub static_interrupt_operation:
+        Option<language_core::static_interrupts::StaticInterruptOperation>,
     pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,

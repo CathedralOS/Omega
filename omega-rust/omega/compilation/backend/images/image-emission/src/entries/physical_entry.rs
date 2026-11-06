@@ -20,6 +20,8 @@ use semantic_vocabulary::MachineId;
 use crate::ObjectArtifact;
 use crate::entries::hosted_unit_entry::{EntrySurface, PreparedEntry};
 
+mod requirements;
+pub use requirements::{InstalledPhysicalCpuRequirement, PhysicalEntryRequirements};
 mod stack_switch;
 use stack_switch::{Destination, StackSwitch};
 
@@ -29,11 +31,14 @@ mod tests;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhysicalEntryBinding {
     entry: MachineId,
+    semantic_entry: MachineId,
+    installed_reserve_bytes: u64,
     plan: BoundaryEntryPlan,
     bridge: NativeEntryBridge,
     body_demand: crate::StackDemand,
     arrival_stack: target::TargetEntryStackGuarantee,
     stack_switch: StackSwitch,
+    requirements: PhysicalEntryRequirements,
 }
 
 /// BSS-relative disjoint residences retained by physical entry. These are not
@@ -49,8 +54,21 @@ pub struct PhysicalEntryPartitions {
 }
 
 impl PhysicalEntryBinding {
+    /// Required loader/entry conformance, not a receipt that it occurred.
+    pub fn requirements(&self) -> &PhysicalEntryRequirements {
+        &self.requirements
+    }
+
     pub const fn entry(&self) -> MachineId {
         self.entry
+    }
+
+    pub const fn semantic_entry(&self) -> MachineId {
+        self.semantic_entry
+    }
+
+    pub const fn installed_reserve_bytes(&self) -> u64 {
+        self.installed_reserve_bytes
     }
 
     pub const fn plan(&self) -> &BoundaryEntryPlan {
@@ -76,16 +94,14 @@ impl PhysicalEntryBinding {
         &self,
         existing_bss_bytes: u64,
     ) -> Result<PhysicalEntryPartitions, Diagnostic> {
-        let stack_demand = self
-            .body_demand
-            .ceiling_bytes()
-            .checked_add(self.stack_overhead_bytes())
-            .and_then(|bytes| bytes.checked_add(self.arrival_stack.admission_reserve_bytes()))
-            .ok_or_else(|| invalid("private entry stack demand overflows"))?;
-        PhysicalEntryPartitions::derive(
+        requirements::partitions(
             existing_bss_bytes,
-            u64::from(self.plan.call.stack_alignment),
-            stack_demand,
+            &self.plan,
+            &self.body_demand,
+            &self.bridge,
+            &self.stack_switch,
+            &self.arrival_stack,
+            self.installed_reserve_bytes,
         )
     }
 }
@@ -122,9 +138,10 @@ impl PhysicalEntryPartitions {
 /// formal order. It is a permutation, not an inferred positional convention.
 pub fn bind_physical_entry(
     artifact: &mut ObjectArtifact,
+    semantic_entry: MachineId,
     physical: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
-    arrival_stack: &target::TargetEntryStackGuarantee,
+    contract: &program_entry_plan::ProgramEntryPhysicalContractPlan,
 ) -> Result<(), Diagnostic> {
     if artifact.physical_entry.is_some() || artifact.hosted_receiver.is_some() {
         return Err(invalid("object already has an arrival binding"));
@@ -135,6 +152,14 @@ pub fn bind_physical_entry(
         return Err(invalid(
             "explicit physical arrival currently requires x86-64 PE",
         ));
+    }
+    let arrival_stack = contract.guaranteed_entry_stack().ok_or_else(|| {
+        invalid("physical entry contract has no numeric arrival-stack requirement")
+    })?;
+    if contract.target_slot().owner != target::TargetProfile::UefiX64
+        || contract.boundary_entry_plan() != physical
+    {
+        return Err(invalid("physical entry changed its selected UEFI contract"));
     }
     let request = native_entry_request(artifact, physical, inbound_ordinals)
         .map_err(|error| invalid(&error.to_string()))?;
@@ -149,13 +174,33 @@ pub fn bind_physical_entry(
             "physical prefix exceeds the selected arrival stack contract",
         ));
     }
+    let installed_reserve_bytes = crate::object::object_artifact::installed_stack::root_reserve(
+        artifact,
+        installation_evidence::InstalledPhysicalStackRoot {
+            semantic_entry,
+            adapter: artifact.entry,
+        },
+    )
+    .map_err(|error| invalid(&error.to_string()))?;
+    let requirements = requirements::derive(
+        artifact,
+        semantic_entry,
+        contract,
+        &body_demand,
+        &bridge,
+        &stack_switch,
+        installed_reserve_bytes,
+    )?;
     artifact.physical_entry = Some(PhysicalEntryBinding {
         entry: artifact.entry,
+        semantic_entry,
+        installed_reserve_bytes,
         plan: physical.clone(),
         bridge,
         body_demand,
         arrival_stack: arrival_stack.clone(),
         stack_switch,
+        requirements,
     });
     Ok(())
 }
@@ -163,6 +208,9 @@ pub fn bind_physical_entry(
 /// Independent artifact replay, not another pass during normal production.
 pub(crate) fn validate_binding(artifact: &ObjectArtifact) -> Result<(), Diagnostic> {
     let Some(binding) = &artifact.physical_entry else {
+        // An unbound module is retained beneath the final executable object.
+        // Required provision is checked by executable publication, not while
+        // replaying that earlier composition input.
         return Ok(());
     };
     if binding.entry != artifact.entry || artifact.hosted_receiver.is_some() {
@@ -186,7 +234,28 @@ pub(crate) fn validate_binding(artifact: &ObjectArtifact) -> Result<(), Diagnost
         .map_err(|error| invalid(&error.to_string()))?;
     let demand = derive_body_stack_demand(artifact, artifact.entry)
         .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
-    if demand != binding.body_demand
+    let installed_reserve = crate::object::object_artifact::installed_stack::root_reserve(
+        artifact,
+        installation_evidence::InstalledPhysicalStackRoot {
+            semantic_entry: binding.semantic_entry,
+            adapter: binding.entry,
+        },
+    )
+    .map_err(|error| invalid(&error.to_string()))?;
+    let expected_memory = requirements::derive(
+        artifact,
+        binding.semantic_entry,
+        binding.requirements.contract(),
+        &demand,
+        &binding.bridge,
+        &binding.stack_switch,
+        installed_reserve,
+    )?;
+    if binding.requirements != expected_memory
+        || binding.requirements.contract().boundary_entry_plan() != &binding.plan
+        || binding.requirements.contract().guaranteed_entry_stack() != Some(&binding.arrival_stack)
+        || installed_reserve != binding.installed_reserve_bytes
+        || demand != binding.body_demand
         || !binding
             .arrival_stack
             .admits_demand(0, u64::from(binding.plan.call.stack_alignment))

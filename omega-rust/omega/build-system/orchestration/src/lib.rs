@@ -63,6 +63,7 @@ pub enum ProjectProduct {
     Native {
         destination: NativeDestination,
         private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
+        installation_assumptions: Vec<compilation_products::InstallationEnvironmentAssumption>,
     },
 }
 

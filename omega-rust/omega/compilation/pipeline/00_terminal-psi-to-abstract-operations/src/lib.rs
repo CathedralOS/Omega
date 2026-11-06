@@ -40,19 +40,24 @@ mod optimization;
 // Provider admission and its sealed evidence live in their own package; this
 // stage runs the admission and keeps reading it under the same module name.
 use ::provider_admission as providers;
+pub use ::provider_admission::AdmittedInstalledEntryExecution;
 pub use ::provider_admission::provider_admission;
 mod retained_terminal;
 mod settlement;
 #[cfg(test)]
 mod terminal_decode_once;
 
+pub use installation_evidence::{
+    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
+    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
+};
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     admit_prepared_native_realization, artifact_lowering_error,
 };
 pub use providers::provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
-    NativeCallbackArgumentProposal, SettledCompilerBuiltin,
+    InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SettledCompilerBuiltin,
 };
 pub use retained_terminal::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
@@ -63,6 +68,7 @@ pub use retained_terminal::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
     TerminalNativeProviders, TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
+    decode_installation_assumptions, encode_installation_assumptions,
     project_terminal_native_realization_proposal, recover_native_derivation_inputs,
     retain_native_derivation_inputs,
 };

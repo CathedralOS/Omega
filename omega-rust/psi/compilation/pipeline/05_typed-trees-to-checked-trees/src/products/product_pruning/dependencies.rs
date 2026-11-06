@@ -91,7 +91,12 @@ pub(super) fn interface_retention_set(
 
     // Selected nominal machine uses (registration/callback selections) are
     // Omega-bound callables; the selected machine is always product surface.
-    for nominal_use in &facts.nominal_machine_uses.uses {
+    for nominal_use in facts.nominal_machine_uses.uses.iter().chain(
+        facts
+            .installed_interrupt_registrations
+            .iter()
+            .flat_map(|registration| &registration.callbacks.uses),
+    ) {
         retain_symbol(&mut retained, index, nominal_use.selected_machine);
         retain_symbol(&mut retained, index, nominal_use.selected_entry);
         retain_symbol(&mut retained, index, nominal_use.registration_operation);

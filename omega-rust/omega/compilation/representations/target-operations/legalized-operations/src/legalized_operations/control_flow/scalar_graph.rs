@@ -136,7 +136,13 @@ impl LegalizedScalarInstruction {
     /// reads; a value appears once per operand position that reads it.
     pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
-            LegalizedScalarInstructionKind::AccessLifecycle { indices, .. } => {
+            LegalizedScalarInstructionKind::InstallStaticInterrupt { indices, .. } => {
+                for operand in indices.iter().flatten() {
+                    visit(operand.operand.value);
+                }
+            }
+            LegalizedScalarInstructionKind::StaticInterrupt { indices, .. }
+            | LegalizedScalarInstructionKind::AccessLifecycle { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value));
             }
             LegalizedScalarInstructionKind::EstablishActivationClaim { committed, .. }
@@ -424,6 +430,21 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    InstallStaticInterrupt {
+        boundary: BoundaryMachineId,
+        arguments: [terminal_psi::StructuralArgument; 6],
+        indices: [Vec<LegalizedRuntimeIndexOperand>; 6],
+        /// The independently retained order is Validate followed by Work.
+        calls: [crate::LegalizedScalarCall; 2],
+    },
+    StaticInterrupt {
+        boundary: BoundaryMachineId,
+        operation: language_core::static_interrupts::StaticInterruptOperation,
+        token: terminal_psi::StructuralArgument,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
+        result: Option<terminal_psi::StructuralOperationResult>,
+    },
+
     /// Whole-value placement retains the same original operands and result as
     /// the checked boundary. Selectors are concatenated in operand/path order;
     /// the shared structural catalog owns the complete normalized image plan.
@@ -1133,6 +1154,7 @@ impl LegalizedScalarInstructionKind {
             | Self::ByteSequenceSubslice { result, .. }
             | Self::EstablishElementView { result, .. }
             | Self::ElementViewSubslice { result, .. } => Some(result),
+            Self::StaticInterrupt { result, .. } => result.as_ref(),
             Self::Call(call) => call.structural_result.as_ref(),
             Self::AtomicAccess { outcome, .. } => outcome.as_ref().map(|(result, _)| result),
             Self::NormalizedForeignCall(call) => match &call.result {
@@ -1143,6 +1165,7 @@ impl LegalizedScalarInstructionKind {
                 | target_operations::TargetBoundaryResult::Scalar(_) => None,
             },
             Self::ReleaseActivationClaim { .. }
+            | Self::InstallStaticInterrupt { .. }
             | Self::ProgramImageAddress { .. }
             | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }

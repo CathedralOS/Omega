@@ -59,6 +59,7 @@ fn complete_native(
 ) -> Result<CompilationOutput, CompilationProductError> {
     let PendingNativeProduct {
         terminal,
+        retained_native_inputs: _,
         components,
         accepted_package_permissions,
         request,
@@ -84,6 +85,7 @@ fn complete_native(
         }
         let post_terminal = rollback.effective().project_post_terminal();
         let request = native_production::NativeCompileRequest {
+            installation_assumptions: &request.installation_assumptions,
             private_entry_ram: &request.private_entry_ram,
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,

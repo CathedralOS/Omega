@@ -484,9 +484,7 @@ pub(super) fn membership_evidence(
     // call's entry contexts, which would answer with `x`'s own facts.
     // A stored reference initialized from an erasing cast (`v.t`) carries
     // that erasure to projections through the stored value.
-    if let Some((_, _, domain_symbol, semantic_domain)) =
-        requirement.payload.domain_membership()
-    {
+    if let Some((_, _, domain_symbol, semantic_domain)) = requirement.payload.domain_membership() {
         let erased = (actual.path.is_empty()
             && actual.argument.is_some_and(|argument| {
                 validation::field_domains::expression_erases_membership(
@@ -1340,7 +1338,8 @@ pub(crate) fn operand_erases_membership(
         }
     }
 
-    if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion {
+    if let checked_trees::FlowOperandCompletion::Copied { copy, path: prefix } = operand.completion
+    {
         if control.copied_values.is_valid(copy) {
             let copied = control.copied_values.get(copy);
             let mut combined = control.operand_child_paths.span_or_empty(prefix).to_vec();
@@ -1421,7 +1420,9 @@ pub(crate) fn operand_erases_membership(
         let profile = control.operand_retentions.get(operand.retention);
         if let Some(suppliers) = control.operand_retained_suppliers.span(profile.suppliers) {
             for supplier in suppliers {
-                let supp_path = control.operand_retained_paths.span_or_empty(supplier.projection);
+                let supp_path = control
+                    .operand_retained_paths
+                    .span_or_empty(supplier.projection);
                 if operand_erases_membership(
                     program,
                     control,

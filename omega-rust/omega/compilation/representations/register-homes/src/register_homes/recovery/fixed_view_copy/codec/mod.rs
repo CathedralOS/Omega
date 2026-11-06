@@ -41,7 +41,8 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 89 retains all private callback address placements.
 // Version 90 retains typed descriptor-table instructions.
 // Version 91 separates the occupied owner from its granted backing.
-const VERSION: u32 = 93;
+// Version 94 retains the separately admitted privileged termination instruction.
+const VERSION: u32 = 95;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

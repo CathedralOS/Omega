@@ -303,12 +303,41 @@ pub enum CheckedBoundaryExecution {
     AccessInitialize,
     AccessMoveOut,
     AccessView,
+    StaticInterruptInstall,
+    StaticInterruptContext,
+    StaticInterruptBeginCompletion,
+    StaticInterruptFinishCompletion,
 }
 
 impl CheckedBoundaryExecution {
+    pub const fn static_interrupt_operation(
+        self,
+    ) -> Option<language_core::static_interrupts::StaticInterruptOperation> {
+        use language_core::static_interrupts::StaticInterruptOperation;
+        match self {
+            Self::StaticInterruptInstall => Some(StaticInterruptOperation::Install),
+            Self::StaticInterruptContext => Some(StaticInterruptOperation::Context),
+            Self::StaticInterruptBeginCompletion => Some(StaticInterruptOperation::BeginCompletion),
+            Self::StaticInterruptFinishCompletion => {
+                Some(StaticInterruptOperation::FinishCompletion)
+            }
+            Self::Provider | Self::AccessInitialize | Self::AccessMoveOut | Self::AccessView => {
+                None
+            }
+        }
+    }
+
+    pub const fn compiler_owned(self) -> bool {
+        !matches!(self, Self::Provider)
+    }
+
     pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
         match self {
-            Self::Provider => None,
+            Self::Provider
+            | Self::StaticInterruptInstall
+            | Self::StaticInterruptContext
+            | Self::StaticInterruptBeginCompletion
+            | Self::StaticInterruptFinishCompletion => None,
             Self::AccessInitialize => Some(crate::TerminalAccessLifecycleOperation::Initialize),
             Self::AccessMoveOut => Some(crate::TerminalAccessLifecycleOperation::MoveOut),
             Self::AccessView => Some(crate::TerminalAccessLifecycleOperation::View),

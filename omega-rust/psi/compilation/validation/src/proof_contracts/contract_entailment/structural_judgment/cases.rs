@@ -96,7 +96,13 @@ impl StructuralJudge<'_> {
         {
             return;
         }
+        let Some(identity) =
+            super::ConstructorIdentity::nominal(program, definition, Some(variant))
+        else {
+            return;
+        };
         let value = StructuralTerm::Constructor {
+            identity,
             data: definition.name.as_str().to_owned(),
             case: variant.name.as_str().to_owned(),
             fields: Vec::new(),
@@ -342,36 +348,10 @@ impl StructuralJudge<'_> {
         } else {
             subject
         };
-        if let StructuralTerm::Constructor { data, case, .. } = &subject {
-            // Legacy value terms retain nominal names. Rejoin only a unique
-            // declaration; same-spelled foreign data is not this classifier.
-            let Some(definition) = self.program.data_definition_by_symbol(data_symbol) else {
-                return StructuralJudgment::Unknown;
-            };
-            if definition.name.as_str() != data
-                || self
-                    .program
-                    .data_definitions()
-                    .iter()
-                    .filter(|candidate| candidate.name.as_str() == data)
-                    .count()
-                    != 1
-            {
-                return StructuralJudgment::Unknown;
-            }
-            let observed = self
-                .program
-                .data_members(definition)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(variant) if variant.name.as_str() == case => {
-                        Some(variant.symbol)
-                    }
-                    _ => None,
-                });
-            return match observed {
-                Some(observed) if observed == case_symbol => StructuralJudgment::Proven,
-                Some(_) => StructuralJudgment::Refuted,
+        if let StructuralTerm::Constructor { identity, .. } = &subject {
+            return match identity.matches_case(self.program, data_symbol, case_symbol) {
+                Some(true) => StructuralJudgment::Proven,
+                Some(false) => StructuralJudgment::Refuted,
                 None => StructuralJudgment::Unknown,
             };
         }
@@ -462,19 +442,16 @@ impl StructuralJudge<'_> {
             }
             (
                 StructuralTerm::Constructor {
-                    data: left_data,
-                    case: left_case,
+                    identity: left_identity,
                     fields: left_fields,
+                    ..
                 },
                 StructuralTerm::Constructor {
-                    data: right_data,
-                    case: right_case,
+                    identity: right_identity,
                     fields: right_fields,
+                    ..
                 },
-            ) if left_data == right_data
-                && left_case == right_case
-                && left_fields.len() == right_fields.len() =>
-            {
+            ) if left_identity == right_identity && left_fields.len() == right_fields.len() => {
                 for (name, left) in left_fields {
                     if let Some((_, right)) = right_fields.iter().find(|(field, _)| field == name) {
                         self.intake_case_equation(left.clone(), right.clone(), depth + 1);

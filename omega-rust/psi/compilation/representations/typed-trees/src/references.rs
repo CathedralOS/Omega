@@ -2388,6 +2388,18 @@ fn visit_call_expression(
             visit_static_argument(program, retained, &theorem.application);
         }
     }
+    if let Some(installation) = &call.installed_interrupt_operation {
+        visit_symbol(retained, installation.registrar_trait);
+        if retained.derived_declaration_references() {
+            visit_callable_symbol(program, retained, installation.registrar_target);
+            visit_static_machine_bindings(program, retained, installation.registrar_application);
+            installation
+                .registrar_receiving_scope
+                .visit_references(program, retained);
+        }
+        visit_static_argument(program, retained, &installation.registrar);
+        visit_static_argument(program, retained, &installation.timer_slot);
+    }
     if let Some(layout) = &call.private_layout_operation {
         visit_static_argument(program, retained, &layout.selected_slot);
     }
@@ -2457,6 +2469,18 @@ fn visit_statement(
                     dispatch,
                     call.authored_machine_application,
                 );
+            }
+            if let Some(request) = &call.installed_interrupt_operation {
+                visit_symbol(retained, request.registrar_trait);
+                if retained.derived_declaration_references() {
+                    visit_callable_symbol(program, retained, request.registrar_target);
+                    visit_static_machine_bindings(program, retained, request.registrar_application);
+                    request
+                        .registrar_receiving_scope
+                        .visit_references(program, retained);
+                }
+                visit_static_argument(program, retained, &request.registrar);
+                visit_static_argument(program, retained, &request.timer_slot);
             }
             if retained.call_arguments(program, StaticArgumentCall::Statement(call)) {
                 for argument in StaticArgumentCall::Statement(call).arguments(program) {
@@ -2532,11 +2556,18 @@ fn visit_type_parameters(
                     crate::data::MachineParameterContract::Nominal {
                         receiving_trait,
                         receiving_arguments,
+                        trait_definition,
+                        trait_arguments,
                         instantiated,
                         ..
                     } => {
-                        retained.declaration_description_dependency(*receiving_trait);
-                        for argument in receiving_arguments {
+                        // A generic machine needs the named handler's contract
+                        // while checking its own body. Retain both the receiving
+                        // trait and the declaring parent, with their actuals.
+                        // These declaration references do not call a provider.
+                        visit_symbol(retained, *receiving_trait);
+                        visit_symbol(retained, *trait_definition);
+                        for argument in receiving_arguments.iter().chain(trait_arguments) {
                             visit_type_reference(program, retained, *argument);
                         }
                         instantiated.as_deref()
@@ -2864,6 +2895,7 @@ mod conformance_occurrence_tests {
                     machine_arguments: Box::new([]),
                     quotient_operation: None,
                     private_layout_operation: None,
+                    installed_interrupt_operation: None,
                     layout_query: None,
                     native_code_layout: None,
                     build_selection: Default::default(),

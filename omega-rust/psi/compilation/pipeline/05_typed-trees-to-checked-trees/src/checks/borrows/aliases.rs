@@ -123,7 +123,10 @@ fn same_resolved_descriptor_load(
 fn is_descriptor_load(borrow: &BorrowFacts, loan: &BorrowLoanFact) -> bool {
     borrow.incoming_references.is_valid(loan.incoming_reference)
         && matches!(
-            borrow.incoming_references.get(loan.incoming_reference).origin,
+            borrow
+                .incoming_references
+                .get(loan.incoming_reference)
+                .origin,
             checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
         )
 }

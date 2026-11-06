@@ -31,9 +31,13 @@ mod byte_field_store;
 mod byte_view_field_store;
 mod byte_views;
 mod descriptor_operands;
+mod interrupt_installation;
+mod interrupt_installation_calls;
+mod interrupt_installation_guards;
 mod leaf_copy;
 mod literals;
 mod local_storage;
+mod static_interrupts;
 
 pub(super) fn establish_atomic_outcome(
     source: &LegalizedScalarFunction,
@@ -305,6 +309,11 @@ pub(super) fn operation(
     use LegalizedScalarInstructionKind as Kind;
     dispatch_kind!(
         row,
+        Kind::InstallStaticInterrupt { .. },
+        interrupt_installation::emit(function, source, row, builder)
+    );
+    dispatch_kind!(
+        row,
         Kind::IeeeFloatClassify { .. },
         ieee_float_classify::establish(source, builder, row)
     );
@@ -347,6 +356,11 @@ pub(super) fn operation(
         row,
         Kind::EstablishRecord { .. },
         record::establish(source, row, builder)
+    );
+    dispatch_kind!(
+        row,
+        Kind::StaticInterrupt { .. },
+        static_interrupts::emit(source, row, builder)
     );
     dispatch_kind!(
         row,

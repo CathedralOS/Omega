@@ -190,7 +190,14 @@ pub(crate) fn reject_runtime_bound_static_occurrences(
                 roots.push(local.type_reference);
             }
             if let StatementNode::Call(call) = &statement {
-                collect_static_argument_type_roots(&call.machine_arguments, &mut roots);
+                collect_static_argument_type_roots(program, &call.machine_arguments, &mut roots);
+                for argument in call.request_static_arguments() {
+                    collect_static_argument_type_roots(
+                        program,
+                        std::slice::from_ref(argument),
+                        &mut roots,
+                    );
+                }
             }
             let mut expressions = Vec::new();
             collect_statement_expression_trees(program, statement, &mut expressions);
@@ -256,7 +263,14 @@ pub(crate) fn rebind_state_value_parameters(
                 roots.push(local.type_reference);
             }
             if let StatementNode::Call(call) = &statement {
-                collect_static_argument_type_roots(&call.machine_arguments, &mut roots);
+                collect_static_argument_type_roots(program, &call.machine_arguments, &mut roots);
+                for argument in call.request_static_arguments() {
+                    collect_static_argument_type_roots(
+                        program,
+                        std::slice::from_ref(argument),
+                        &mut roots,
+                    );
+                }
             }
             let mut expressions = Vec::new();
             collect_statement_expression_trees(program, &statement, &mut expressions);
@@ -443,9 +457,13 @@ pub(crate) fn collect_expression_type_roots(
                 );
             }
             ExpressionNode::Call(call) => {
-                collect_static_argument_type_roots(&call.machine_arguments, roots);
-                if let Some(query) = &call.native_code_layout {
-                    collect_static_argument_type_roots(std::slice::from_ref(&query.operand), roots);
+                collect_static_argument_type_roots(program, &call.machine_arguments, roots);
+                for argument in call.request_static_arguments() {
+                    collect_static_argument_type_roots(
+                        program,
+                        std::slice::from_ref(argument),
+                        roots,
+                    );
                 }
             }
             ExpressionNode::TypeExpression(type_reference)
@@ -499,6 +517,7 @@ pub(crate) fn runtime_bound_occurrence_in(
 }
 
 fn collect_static_argument_type_roots(
+    program: &TypedTrees,
     arguments: &[typed_trees::expression::StaticMachineArgument],
     roots: &mut Vec<TypeReferenceHandle>,
 ) {
@@ -507,7 +526,13 @@ fn collect_static_argument_type_roots(
             roots.push(argument.type_reference);
         }
         if let Some(application) = &argument.application {
-            collect_static_argument_type_roots(&application.arguments, roots);
+            collect_static_argument_type_roots(program, &application.arguments, roots);
+            if application.member.is_valid() {
+                let member = expressions_of(program)
+                    .static_member(application.member)
+                    .expect("qualified static member belongs to its expression table");
+                collect_static_argument_type_roots(program, std::slice::from_ref(member), roots);
+            }
         }
     }
 }

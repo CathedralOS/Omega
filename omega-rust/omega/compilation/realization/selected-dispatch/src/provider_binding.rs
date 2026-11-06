@@ -129,11 +129,19 @@ pub fn prepare_selected_execution(
             settlement.provider_declarations,
             settlement.calling_program.artifact.semantic_module(),
         )?;
-        let selected = provider_selection::select_callback_declarations(
+        let mut selected = provider_selection::select_callback_declarations(
             &external_providers.callbacks.declarations,
             &calling_requirements,
             &providers,
         )?;
+        for installed in external_providers
+            .callbacks
+            .installed_roots(&calling_requirements)?
+        {
+            if !selected.contains(&installed) {
+                selected.push(installed);
+            }
+        }
         external_providers.selected_callback_roots(selected)
     };
     let service_declarations = Arc::new(ServiceDeclarations::prepare(

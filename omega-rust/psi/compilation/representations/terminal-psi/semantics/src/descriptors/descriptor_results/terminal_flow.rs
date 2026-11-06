@@ -1432,7 +1432,7 @@ pub(super) fn adapt(
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CapturedBacking {
     StorageAddress,
-    ElementViewPayload,
+    DescriptorPayload,
     AccessInterpretation,
 }
 
@@ -1460,21 +1460,25 @@ fn captured_storage_source(
     let prefix_type = descriptor_location_type(types, root_type, &location.path)?;
     let capture = if plain_owned_shape(types.iter(), prefix_type) {
         CapturedBacking::StorageAddress
-    } else if matches!(
-        find_structural_type(types, prefix_type)?.shape,
-        StructuralTypeShape::ElementView { .. }
-    ) {
-        // A view index captures its current payload lineage, including any
-        // prior window. Reading the descriptor's established origins and
-        // appending this position-bound projection preserves both; capturing
-        // the descriptor cell as owned storage would lose that relationship.
-        CapturedBacking::ElementViewPayload
+    } else if is_descriptor(types.iter(), prefix_type) {
+        // Byte and element views retain their current backing, including prior
+        // slices. The indexed reference captures that backing and this exact
+        // selector occurrence, not the descriptor cell's address.
+        CapturedBacking::DescriptorPayload
     } else if crate::access::access_view_plans::is_access_projection_shape(types, prefix_type) {
         CapturedBacking::AccessInterpretation
     } else {
         return None;
     };
-    crate::runtime_structural_path_tip(types.iter(), prefix_type, &source.path[prefix_length..])?;
+    let suffix = &source.path[prefix_length..];
+    // Inline byte elements have a scalar endpoint without their own structural
+    // declaration. Both queries validate the complete typed projection; neither
+    // supplies access, a bound proof, or permission to use expired backing.
+    if crate::runtime_structural_path_tip(types.iter(), prefix_type, suffix).is_none()
+        && crate::primitive_projection_type(types.iter(), prefix_type, suffix).is_none()
+    {
+        return None;
+    }
     Some((
         location,
         Some(Projection::new(&source.path[prefix_length..]).at(position)),

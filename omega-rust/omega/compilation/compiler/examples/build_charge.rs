@@ -1793,6 +1793,7 @@ fn project_session_lifecycle() {
         build_directory: Some(temporary.path().join("ordinary")),
         targets: orchestration::BuildTargets::Single(profile),
         product: orchestration::ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: orchestration::NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },
@@ -1929,6 +1930,8 @@ fn completed_build_target_fanout() {
     products.push(((host, true), compiler::PreparedPackageProduct {
         build,
         product: compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            installation_assumptions: Vec::new(),
+            retain_native_inputs: false,
             image: Default::default(),
             private_entry_ram: Vec::new(),
             terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
@@ -2209,6 +2212,7 @@ fn production_project_discovery() {
         build_directory: Some(temporary.path().join("output")),
         targets: orchestration::BuildTargets::Batch(targets.clone()),
         product: orchestration::ProjectProduct::Native {
+            installation_assumptions: Vec::new(),
             destination: orchestration::NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },

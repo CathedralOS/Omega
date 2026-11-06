@@ -86,6 +86,7 @@ pub(crate) fn proof_interval_strict_decrease_judged(
         },
         argument: edge_argument,
         relation,
+        carrier: measure.type_reference,
         measure: measure.name.as_str().to_owned(),
         ranked_entries,
         seen: false,
@@ -107,6 +108,7 @@ struct StrictDecrease<'a> {
     site: StructuralPrefixSite,
     argument: ExpressionHandle,
     relation: SymbolHandle,
+    carrier: typed_trees::types::TypeReferenceHandle,
     measure: String,
     ranked_entries: &'a [SymbolHandle],
     seen: bool,
@@ -142,6 +144,39 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             self.proven = false;
             return;
         };
+        let constructors = || {
+            let symbol = program
+                .type_reference_table
+                .type_head_symbol(self.carrier)?;
+            let definition = program.data_constructor_definition(self.carrier, symbol)?;
+            let selected = |name| {
+                let mut variants = program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(|member| match member {
+                        typed_trees::data::DataMember::Variant(variant)
+                            if variant.name.as_str() == name =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    });
+                let variant = variants.next()?;
+                if variants.next().is_some() {
+                    return None;
+                }
+                super::structural_judgment::ConstructorIdentity::nominal(
+                    program,
+                    definition,
+                    Some(variant),
+                )
+            };
+            Some((selected("Succ")?, selected("Zero")?))
+        };
+        let Some((successor, zero)) = constructors() else {
+            self.proven = false;
+            return;
+        };
         let left = StructuralTerm::Application {
             result_type: crate::call_target_return_type(program, self.relation).unwrap_or_default(),
             target: self.relation,
@@ -149,6 +184,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             machine: "saturating_sub".to_owned(),
             arguments: vec![
                 StructuralTerm::Constructor {
+                    identity: successor,
                     data: "Nat".to_owned(),
                     case: "Succ".to_owned(),
                     fields: vec![(
@@ -160,6 +196,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             ],
         };
         let right = StructuralTerm::Constructor {
+            identity: zero,
             data: "Nat".to_owned(),
             case: "Zero".to_owned(),
             fields: Vec::new(),

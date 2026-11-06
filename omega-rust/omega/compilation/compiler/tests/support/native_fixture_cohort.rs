@@ -85,6 +85,8 @@ pub(super) fn produce(
         .collect::<Vec<_>>();
     let root_path = discovered.authored_root_path.clone();
     let native = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram: entry_inputs::load(&root_path)?,
         terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),

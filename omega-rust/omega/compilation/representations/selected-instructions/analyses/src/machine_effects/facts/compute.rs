@@ -132,6 +132,9 @@ fn terminal_selected_keys(
             global_descriptor_table: keys.global_descriptor_table,
             task_register_activate: keys.task_register_activate,
             task_register_read: keys.task_register_read,
+            installed_interrupt_cpu_check: keys.installed_interrupt_cpu_check,
+            installed_interrupt_task_commit: keys.installed_interrupt_task_commit,
+            installed_interrupt_table_publication: keys.installed_interrupt_table_publication,
             code_segment_reload: keys.code_segment_reload,
             data_segment_reload: keys.data_segment_reload,
             segment_selector_read: keys.segment_selector_read,
@@ -152,6 +155,7 @@ fn terminal_selected_keys(
             atomic_compare_exchange: keys.atomic_compare_exchange,
             atomic_compare_exchange_once: keys.atomic_compare_exchange_once,
             crash: keys.crash,
+            privileged_crash: keys.privileged_crash,
             hosted_write_byte_i32: keys.hosted_write_byte_i32,
             save_floating_control: keys.save_floating_control,
             restore_floating_control: keys.restore_floating_control,
@@ -345,6 +349,16 @@ fn exact_declaration<'a>(
 pub fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
         SelectedInstructionKind::InvokeNoNormal { .. } => MachineSemanticKind::InvokeNoNormal,
+        SelectedInstructionKind::InstalledInterruptCpuCheck { .. } => {
+            MachineSemanticKind::InstalledInterruptCpuCheck
+        }
+        SelectedInstructionKind::InstalledInterruptTaskCommit { .. } => {
+            MachineSemanticKind::InstalledInterruptTaskCommit
+        }
+        SelectedInstructionKind::InstalledInterruptTablePublication { .. } => {
+            MachineSemanticKind::InstalledInterruptTablePublication
+        }
+
         SelectedInstructionKind::RegisterAccess { operation } => match operation {
             selected_instructions::RegisterOperation::TaskRegisterActivate => {
                 MachineSemanticKind::TaskRegisterActivate
@@ -529,6 +543,7 @@ pub fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKi
         SelectedInstructionKind::Jump => MachineSemanticKind::Jump,
         SelectedInstructionKind::ReturnScalar => MachineSemanticKind::ReturnScalar,
         SelectedInstructionKind::Crash => MachineSemanticKind::Crash,
+        SelectedInstructionKind::PrivilegedCrash => MachineSemanticKind::PrivilegedCrash,
         SelectedInstructionKind::ReturnUnit => MachineSemanticKind::ReturnUnit,
         SelectedInstructionKind::CallScalar { .. } => MachineSemanticKind::CallScalar,
         SelectedInstructionKind::Load64 { .. } => MachineSemanticKind::Load64,

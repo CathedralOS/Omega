@@ -823,6 +823,21 @@ pub(super) fn relative_result_loans(
             &[],
             sources,
         )?;
+        if validation::compiler_operations::static_interrupt_context(program, call.target_symbol)?
+            .is_some()
+        {
+            let descriptor_loans = super::independent_invocations::form(
+                program,
+                state_symbol,
+                machine_symbol,
+                local_data,
+                expression,
+                validation::call_target_symbol(program, call),
+                contract.return_type_reference(program),
+            )
+            .ok_or("installed context result lost its supplied descriptor")?;
+            loans.extend(descriptor_loans);
+        }
         // Bare and aggregate results both carry the completed source leaves,
         // not just the declared argument's root. Operand reborrow ancestry is
         // evaluated during invocation; it is not the returned value's ancestry.

@@ -1614,20 +1614,20 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    /// An external call can replace a stored pointer without changing a
-    /// separate local. Compute its writes after capturing the arguments;
-    /// the whole-statement query also fences those pointers' future replacement.
-    /// Unknown arguments or changed contained-reference inventories stay opaque.
-    pub fn boundary_invocation_write_frame(
+    /// Determine what a signature-only call can change after its arguments
+    /// have been evaluated. Direct machines and trait requirements use the
+    /// same captured inputs and exact call rules as ordinary frame inference.
+    /// Unknown arguments or changed reference slots remain opaque.
+    pub fn signature_invocation_write_frame(
         &self,
         current_machine: &'program Machine,
         site: &crate::CallSite<'program>,
     ) -> NormalizedWriteFrame {
-        let written = (|| -> Result<Vec<String>, &'static str> {
+        let written = (|| -> Result<Vec<String>, String> {
             let machine_symbols = self
                 .machine_symbols(current_machine)
                 .ok_or("caller symbols unavailable")?;
-            let (site, receiver, target, arguments) = match site {
+            let (site, receiver, target, target_symbol, arguments) = match site {
                 crate::CallSite::Statement(call) => (
                     CallerWriteSite::Call(call),
                     crate::machine_calls::calls::signature_queries::call_receiver_member_names(
@@ -1635,6 +1635,7 @@ impl<'program> CallFrameResolver<'program> {
                         call,
                     ),
                     call.target.as_str(),
+                    call.target_symbol,
                     self.program
                         .statement_table
                         .expression_handles(call.arguments),
@@ -1653,17 +1654,32 @@ impl<'program> CallFrameResolver<'program> {
                         CallerWriteSite::Expression(*expression),
                         receiver,
                         call.target.as_str(),
+                        call.target_symbol,
                         expression_table(self.program).expression_handles(call.arguments),
                     )
                 }
                 crate::CallSite::TransitionNamed { .. } => {
-                    return Err("named transition has no boundary invocation capture");
+                    return Err("named transition has no boundary invocation capture".to_owned());
                 }
             };
+            // This existing catalog authenticates the generated target, exact
+            // field policy and scalar signature. An authored opaque boundary
+            // cannot acquire scalar-access effects through its spelling.
+            let scalar_accessor =
+                typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(
+                    self.program,
+                    target_symbol,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
             let captured = self
                 .invocation_write_origins(current_machine, site)
                 .ok_or("invocation inputs unavailable")?;
-            captured.receiver.ok_or("receiver origin unavailable")?;
+            let receiver_origins = captured
+                .receiver
+                .ok_or("receiver origin unavailable")?
+                .iter()
+                .map(LocalWriteSource::frame_origin)
+                .collect::<Vec<_>>();
             // The storage adapter closes writable reference fields through
             // this inventory. A known outer address does not freeze its contents.
             captured
@@ -1685,29 +1701,63 @@ impl<'program> CallFrameResolver<'program> {
                 &self.caches.state_write_shared_collections,
                 |inference, prefix| {
                     let prefix = prefix?;
-                    let written = known_boundary_call_written_paths_for_parts(
+                    let written = known_call_written_paths_for_parts(
                         self.program,
+                        target_symbol,
+                        target,
+                        &receiver,
+                        &receiver_origins,
+                        None,
+                        arguments,
                         current_machine,
                         &machine_symbols,
                         &self.tables.symbols,
-                        &receiver,
-                        target,
-                        site,
-                        arguments,
                         inference,
                         Some(&argument_origins),
-                    )?;
-                    prefix.close_observed_paths(self.program, written)
+                    )
+                    .or_else(|| {
+                        known_boundary_call_written_paths_for_parts(
+                            self.program,
+                            current_machine,
+                            &machine_symbols,
+                            &self.tables.symbols,
+                            &receiver,
+                            target,
+                            site,
+                            arguments,
+                            inference,
+                            Some(&argument_origins),
+                        )
+                    })
+                    .or_else(|| {
+                        super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                            self.program,
+                            current_machine,
+                            &machine_symbols,
+                            &self.tables.symbols,
+                            &receiver,
+                            target,
+                            site,
+                            arguments,
+                            inference,
+                            Some(&argument_origins),
+                        )
+                    })?;
+                    if scalar_accessor.is_some() {
+                        Some(prefix.close_scalar_access_paths(written))
+                    } else {
+                        prefix.close_observed_paths(self.program, written)
+                    }
                 },
             )
-            .ok_or("boundary input write closure unavailable")
+            .ok_or_else(|| "signature input write closure unavailable".to_owned())
         })();
         match written {
             Ok(paths) => NormalizedWriteFrame::complete(paths),
             Err(reason) => {
                 if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
                     eprintln!(
-                        "CALLWRITE boundary-invocation-unavailable caller={} reason={reason}",
+                        "CALLWRITE signature-invocation-unavailable caller={} reason={reason}",
                         current_machine.name
                     );
                 }

@@ -66,23 +66,26 @@ pub(super) fn build(
             frontier_lower_bound,
             fuel,
             ..
-        } => Ok(SelectedTerminator::Crash {
-            instruction: terminal(
-                builder,
-                SelectedInstructionKind::Crash,
-                keys.crash,
-                &[],
-                SelectedInstructionProvenance {
-                    edges: vec![*psi_edge],
-                    fuel: fuel.clone(),
-                    ..Default::default()
-                },
-            )?,
-            psi_edge: *psi_edge,
-            cause: *cause,
-            site_guard: site_guard.clone(),
-            frontier_lower_bound: frontier_lower_bound.clone(),
-        }),
+        } => {
+            let (kind, key) = builder.crash_form()?;
+            Ok(SelectedTerminator::Crash {
+                instruction: terminal(
+                    builder,
+                    kind,
+                    key,
+                    &[],
+                    SelectedInstructionProvenance {
+                        edges: vec![*psi_edge],
+                        fuel: fuel.clone(),
+                        ..Default::default()
+                    },
+                )?,
+                psi_edge: *psi_edge,
+                cause: *cause,
+                site_guard: site_guard.clone(),
+                frontier_lower_bound: frontier_lower_bound.clone(),
+            })
+        }
         LegalizedScalarTerminator::StructuralCase { .. } => {
             super::structural_case::build(source, block, order, builder)
         }

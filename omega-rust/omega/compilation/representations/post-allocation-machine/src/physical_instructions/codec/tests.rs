@@ -42,18 +42,18 @@ const WRITE_SEMANTICS_OFFSET: usize = 573;
 fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
     use sha2::Digest;
     // Pin both encodings so a coordinated codec/identity change remains visible.
-    // The segment-selector vocabulary advances identity v24 and wire version 25.
+    // Activation-base addresses advance identity v26 and wire version 27.
     let identities = [
-        "cd6c834757e1c9473067d94d58fe530377219da6827eda97657ef658adcf0f2b",
-        "2b3f6cd8c1efd65df566ff9a69519b142f17d85f0a0dabc9db6d14f47804f8c1",
-        "40350e523c6f8891f4a0c418f00df83dbdc28247fdb7437ec86f226209604210",
-        "ec8b2b79ab348a2c9658c4b449b48324277aafbff38894f9ff6406e85c28bbfe",
+        "f06041c0cd07dce70fcf6ae7813cd047b09b381584d81035fb9d1e3f1b60924e",
+        "acd3db0393b1ae08dda2b3e3c8f7cd678a9ec7f1d81a66a08275af24a7dcdf34",
+        "82138b5500a01cf781f9a3a7170aab472ab162084caab3eb1ca616f9a9cb3c87",
+        "9e51b984415c9a15e7e6bc851028667977c7e919abda9dfb3f9b344f6fa91c00",
     ];
     let wire_digests = [
-        "29903ae691de4f328bf02554a50deeab50674055af8d99dd27515879df92231d",
-        "d24fc1bc79ca352a613b06ed21caeeb99a5c1b7cc8dd2fc4b36abd528dd0b600",
-        "dd79e06e1d7404825c8f1db3fd3909590f449df7fe3421c4de0e0bbeec0ddf7c",
-        "a1aa3c69f28fda2d0ed0f980cc7d04db9bd1cd97b9768f4a9f8a020fd46d4947",
+        "bd6fc498ca5b46236c972455fab13883fa6e759506ddfbbf27132e11bfb73609",
+        "da38c499a1b1a297557b4322f19f1718291963ebe78d5729e102f3a17fb9fc3a",
+        "56d7d970b61317e54fd5cec3b854213cc3112c94683dcf33c1c32508b712dc62",
+        "97bf5a334251947b93ce83dd803e9ac866f79a745fca34c13d288c791021f895",
     ];
     let measured = (0..4)
         .map(|variant| {
@@ -956,5 +956,29 @@ fn physical_codec_retains_narrow_load_families_and_exact_addresses() {
             assert_ne!(source.identity, post_allocation_machine_identity(&changed));
             assert!(PostAllocationMachinePlan::decode(&changed.encode()).is_err());
         }
+    }
+}
+
+#[test]
+fn activation_base_physical_address_round_trips_without_a_storage_slot() {
+    let mut source = plan();
+    first_instruction(&mut source).address = Some(PhysicalAddressOperation::FrameAddress {
+        slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+        byte_offset: 0,
+    });
+    restamp_and_round_trip(&mut source);
+    for address in [
+        PhysicalAddressOperation::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+            byte_offset: 1,
+        },
+        PhysicalAddressOperation::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+            byte_offset: 0,
+        },
+    ] {
+        first_instruction(&mut source).address = Some(address);
+        source.identity = post_allocation_machine_identity(&source);
+        assert!(PostAllocationMachinePlan::decode(&source.encode()).is_err());
     }
 }

@@ -1031,7 +1031,7 @@ pub(crate) fn compiler_owns_boundary_execution(declaration: &BoundaryMachineDecl
     declaration
         .declaration
         .as_ref()
-        .is_some_and(|callable| callable.execution.placement_operation().is_some())
+        .is_some_and(|callable| callable.execution.compiler_owned())
 }
 
 #[cfg(test)]

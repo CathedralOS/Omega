@@ -485,6 +485,10 @@ macro_rules! boundary_realization_conversion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
+    StaticInterrupt {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        operation: language_core::static_interrupts::StaticInterruptOperation,
+    },
     /// Whole-value operation using the immutable lifecycle catalog retained
     /// with this native program's structural declarations.
     AccessLifecycle {

@@ -8,6 +8,7 @@
 //! which children owe cleanup. Captured outgoing projections retain their
 //! backing independently of that obsolete root binding.
 
+mod complete_values;
 mod field_stores;
 mod windows;
 

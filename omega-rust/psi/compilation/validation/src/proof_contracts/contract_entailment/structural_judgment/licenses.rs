@@ -992,11 +992,7 @@ pub(super) fn fold_scalar_binary(
             let verdict = operator
                 .evaluate_comparison(&left, &right)
                 .expect("comparison operator");
-            return Some(StructuralTerm::Constructor {
-                data: "bool".to_owned(),
-                case: verdict.to_string(),
-                fields: Vec::new(),
-            });
+            return Some(StructuralTerm::boolean(verdict));
         }
         _ => {}
     }

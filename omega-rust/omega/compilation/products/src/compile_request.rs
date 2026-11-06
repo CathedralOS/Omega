@@ -18,7 +18,10 @@ mod checked;
 mod native;
 pub use checked::{CheckedCompileRequest, CheckedExecutionRequest, SettledCheckReuse};
 pub mod options;
-pub use native::{NativeImageDemand, NativeProductRequest};
+pub use native::{
+    NativeImageDemand, NativeProductRequest, partition_installation_assumptions,
+    validate_installation_assumption_targets,
+};
 pub use terminal_installation::PrivateEntryRamInitialization;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +112,7 @@ struct RequestedDestination {
 struct CompilePolicy {
     native_image: NativeImageDemand,
     private_entry_ram: Vec<PrivateEntryRamInitialization>,
+    installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
     pub(super) build_snapshot: Option<BuildSnapshotRequest>,
     terminal_authority_policy: TerminalAuthorityPolicy,
     /// The receiver-admission axis, supplied only by an explicit
@@ -126,6 +130,7 @@ impl Default for CompilePolicy {
         Self {
             native_image: NativeImageDemand::Emit,
             private_entry_ram: Vec::new(),
+            installation_assumptions: Vec::new(),
             build_snapshot: None,
             terminal_authority_policy: current_terminal_authority_policy(),
             // Ordinary production supplies no receiving permission policy: the
@@ -199,6 +204,40 @@ impl CompileRequest {
         self
     }
 
+    /// Accept only the explicitly named platform intervals. Native admission
+    /// rejoins every row to the exact produced Terminal and selected entry.
+    pub fn with_installation_assumptions(
+        mut self,
+        inputs: Vec<crate::InstallationEnvironmentAssumption>,
+    ) -> Self {
+        self.policy.installation_assumptions = inputs;
+        self
+    }
+
+    pub fn with_bootstrap_assumptions(
+        mut self,
+        inputs: Vec<crate::BootstrapEnvironmentAssumption>,
+    ) -> Self {
+        self.policy.installation_assumptions.extend(
+            inputs
+                .into_iter()
+                .map(crate::InstallationEnvironmentAssumption::Bootstrap),
+        );
+        self
+    }
+
+    pub fn with_interrupt_delivery_assumptions(
+        mut self,
+        inputs: Vec<crate::X86InterruptDeliveryAssumption>,
+    ) -> Self {
+        self.policy.installation_assumptions.extend(
+            inputs
+                .into_iter()
+                .map(crate::InstallationEnvironmentAssumption::InterruptDelivery),
+        );
+        self
+    }
+
     /// Explicitly sponsor fresh private typed entry RAM; default supply is absent.
     pub fn with_private_entry_ram(mut self, inputs: Vec<PrivateEntryRamInitialization>) -> Self {
         self.policy.private_entry_ram = inputs;
@@ -252,7 +291,16 @@ impl CompileRequest {
         }
         let multiple = self.destinations.len() > 1;
         let shared = Arc::new(self.shared);
-        let policy = Arc::new(self.policy);
+        let mut policy = self.policy;
+        let installation_assumptions = std::mem::take(&mut policy.installation_assumptions);
+        if !installation_assumptions.is_empty()
+            && shared.requested_product != RequestedCompileProduct::NativeArtifact
+        {
+            return Err(vec![Diagnostic::error(
+                "installation assumptions require a native product",
+            )]);
+        }
+        let policy = Arc::new(policy);
         let mut targets = Vec::<ValidatedTargetCompilation>::with_capacity(self.destinations.len());
         let mut diagnostics = Vec::new();
         for mut destination in self.destinations {
@@ -335,12 +383,29 @@ impl CompileRequest {
             };
             targets.push(ValidatedTargetCompilation {
                 policy: policy.clone(),
+                installation_assumptions: Vec::new(),
                 package_inputs,
                 profile,
             });
         }
         if !diagnostics.is_empty() {
             return Err(diagnostics);
+        }
+        let profiles = targets
+            .iter()
+            .filter_map(|target| target.profile)
+            .collect::<Vec<_>>();
+        let groups = partition_installation_assumptions(installation_assumptions, &profiles)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let mut groups = groups.into_iter();
+        for target in &mut targets {
+            if target.profile.is_some() {
+                target.installation_assumptions = groups.next().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "installation assumption partition lost a target",
+                    )]
+                })?;
+            }
         }
         targets.sort_by_key(|target| {
             target.profile.and_then(|profile| {
@@ -370,6 +435,7 @@ impl ValidatedCompileRequest {
 #[derive(Debug)]
 pub struct ValidatedTargetCompilation {
     policy: Arc<CompilePolicy>,
+    installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
     package_inputs: Option<PackageCompilationInputs>,
     profile: Option<TargetProfile>,
 }
@@ -392,8 +458,10 @@ impl ValidatedTargetCompilation {
     /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
+            retain_native_inputs: false,
             image: self.policy.native_image,
             private_entry_ram: self.policy.private_entry_ram.clone(),
+            installation_assumptions: self.installation_assumptions,
             terminal_authority_policy: self.policy.terminal_authority_policy.clone(),
             terminal_authority_permission_policy: self
                 .policy

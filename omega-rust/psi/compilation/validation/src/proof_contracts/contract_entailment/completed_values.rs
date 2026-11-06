@@ -286,9 +286,7 @@ pub(super) fn observed_projections(
     let mut children = Vec::new();
     let mut complete_constructor = false;
     if let StructuralTerm::Constructor {
-        data: name,
-        case,
-        fields,
+        identity, fields, ..
     } = value.semantic_value()
     {
         let peeled = program.type_reference_table.unconstrained_type_reference(
@@ -296,16 +294,22 @@ pub(super) fn observed_projections(
                 .type_reference_table
                 .dereferenced_type_reference(reference),
         );
-        if let Some(owner) = crate::value_custody::type_shapes::head_data_symbol(program, peeled)
-            && let Some(data) = program.data_definition_by_symbol(owner)
-            && data.name.as_str() == name.as_str()
+        if let Some(owner) = identity.declaration()
+            && let Some(data) = program.data_constructor_definition(peeled, owner)
+            && super::structural_judgment::ConstructorIdentity::at_reference(
+                program, peeled, data, None,
+            )
+            .is_some_and(|expected| identity.same_carrier(expected))
         {
             let declared = program
                 .data_members(data)
                 .iter()
                 .flat_map(|member| match member {
                     DataMember::Field(field) => std::slice::from_ref(field),
-                    DataMember::Variant(variant) if variant.name.as_str() == case.as_str() => {
+                    DataMember::Variant(variant)
+                        if identity.matches_case(program, data.symbol, variant.symbol)
+                            == Some(true) =>
+                    {
                         program.data_payload_fields(variant)
                     }
                     _ => &[],

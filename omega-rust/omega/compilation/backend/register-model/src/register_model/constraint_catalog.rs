@@ -104,6 +104,9 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub global_descriptor_table: Option<RegisterConstraintKey>,
     pub task_register_activate: Option<RegisterConstraintKey>,
     pub task_register_read: Option<RegisterConstraintKey>,
+    pub installed_interrupt_cpu_check: Option<RegisterConstraintKey>,
+    pub installed_interrupt_task_commit: Option<RegisterConstraintKey>,
+    pub installed_interrupt_table_publication: Option<RegisterConstraintKey>,
     pub code_segment_reload: Option<RegisterConstraintKey>,
     pub data_segment_reload: Option<RegisterConstraintKey>,
     pub segment_selector_read: Option<RegisterConstraintKey>,
@@ -126,6 +129,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     /// Bitwise RMW may need a retry sequence with a different register contract.
     pub atomic_bitwise_update: Option<RegisterConstraintKey>,
     pub crash: RegisterConstraintKey,
+    pub privileged_crash: Option<RegisterConstraintKey>,
     pub load64: Option<RegisterConstraintKey>,
     pub load_packed: Option<RegisterConstraintKey>,
     pub store_packed: Option<RegisterConstraintKey>,

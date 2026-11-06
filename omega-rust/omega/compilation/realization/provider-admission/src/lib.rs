@@ -11,13 +11,24 @@
 //! by type without depending on that stage. This is standalone evidence, not
 //! a pipeline stage.
 
+pub use installation_evidence::{
+    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
+    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
+};
+
+mod installed_entry_execution;
+pub use installed_entry_execution::AdmittedInstalledEntryExecution;
+
 pub mod provider_admission;
 pub mod provider_installation;
 
 pub(crate) use optimization_core::digest_encoder;
 
 pub use provider_admission::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedCallbackEntry,
+    AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptHelper,
+    AdmittedInstalledInterruptScope, AdmittedInterruptContextAnchor,
+    AdmittedNativeCallbackArgument, InstalledInterruptNativeEntryProposal,
     NativeCallbackArgumentProposal, SettledCompilerBuiltin,
 };
 pub use provider_installation::{
@@ -29,4 +40,7 @@ mod lowering_facts;
 pub use admission_source::{
     AdmissionSource, AdmittedProgramEntryCall, ComponentCallFacts, selected_calling_boundary,
 };
-pub use lowering_facts::{AdmittedLoweringFacts, AdmittedNativeCallbackCohort, LoweringEntryCall};
+pub use lowering_facts::{
+    AdmittedInstalledInterruptCohort, AdmittedLoweringFacts, AdmittedNativeCallbackCohort,
+    LoweringEntryCall,
+};

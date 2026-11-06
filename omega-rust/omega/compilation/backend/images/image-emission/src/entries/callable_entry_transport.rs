@@ -10,7 +10,8 @@ use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact, Privat
 use calling_conventions::{BoundaryEntryPlan, EntryControl, ValueClass};
 use function_identity::MachineFunctionIdentity;
 use machine_emission::native_entry_bridge::{
-    NativeEntryBridgeRequest, NativeEntryParameter, emit_native_entry_bridge,
+    InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
+    emit_installed_interrupt_entry_bridge, emit_native_entry_bridge,
 };
 
 /// Bind a caller-scoped private identity to its unchanged body and native entry.
@@ -26,6 +27,41 @@ pub fn create_private_function_object(
         identity,
         body,
         entry_bridge,
+        inbound: inbound.clone(),
+        inbound_ordinals: inbound_ordinals.to_vec(),
+    })
+}
+
+/// Bind an explicitly admitted installed arrival to its ordinary handler body.
+/// The plan retains the exact arrival protocol and stack domain. It grants no
+/// ordinary callback the privilege or retained roots of an installed arrival.
+pub fn create_installed_private_function_object(
+    identity: MachineFunctionIdentity,
+    body: Arc<ObjectArtifact>,
+    inbound: &BoundaryEntryPlan,
+    inbound_ordinals: &[u32],
+    installed_plan: InstalledInterruptEntryPlan,
+) -> Result<PrivateFunctionObject, Error> {
+    let execution = body.installed_entry_execution().ok_or(Error::Mismatch(
+        "installed private entry has no retained execution domain",
+    ))?;
+    if execution.entry().callback_function != identity
+        || execution.entry().entry().inbound() != inbound
+        || execution.entry().entry().inbound_ordinals() != inbound_ordinals
+    {
+        return Err(Error::Mismatch(
+            "installed private entry changed its execution domain",
+        ));
+    }
+    let request = native_entry_request(&body, inbound, inbound_ordinals)?;
+    let bridge = emit_installed_interrupt_entry_bridge(request, installed_plan)
+        .map_err(Error::NativeEntryBridge)?;
+    Ok(PrivateFunctionObject {
+        identity,
+        body,
+        entry_bridge: Some(bridge),
+        inbound: inbound.clone(),
+        inbound_ordinals: inbound_ordinals.to_vec(),
     })
 }
 
@@ -37,6 +73,11 @@ pub fn create_callable_entry_transport(
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<Option<machine_emission::native_entry_bridge::NativeEntryBridge>, Error> {
+    if body.installed_entry_execution().is_some() {
+        return Err(Error::Mismatch(
+            "a privileged installed body cannot become an ordinary callable entry",
+        ));
+    }
     let request = native_entry_request(body, inbound, inbound_ordinals)?;
     if identity_transport(&request) {
         Ok(None)
@@ -178,22 +219,28 @@ fn identity_transport(request: &NativeEntryBridgeRequest) -> bool {
 pub(crate) fn validate_entry_transport(
     private: &crate::ObjectCompilerPrivateFunction,
 ) -> Result<(), Error> {
-    let Some(bridge) = &private.entry_bridge else {
-        return Ok(());
+    // An alias still promises an external ABI. Reconstruct its transport too,
+    // so removing an adapter cannot bypass the retained calling recipe.
+    let installed = private
+        .entry_bridge
+        .as_ref()
+        .and_then(|bridge| bridge.installed_interrupt());
+    let expected = match installed {
+        Some(plan) => create_installed_private_function_object(
+            private.identity,
+            Arc::clone(&private.body),
+            &private.inbound,
+            &private.inbound_ordinals,
+            plan,
+        )?,
+        None => create_private_function_object(
+            private.identity,
+            Arc::clone(&private.body),
+            &private.inbound,
+            &private.inbound_ordinals,
+        )?,
     };
-    let request = bridge.request();
-    let ordinals = request
-        .parameters
-        .iter()
-        .map(|(_, parameter)| parameter.inbound_ordinal)
-        .collect::<Vec<_>>();
-    let expected = create_private_function_object(
-        private.identity,
-        Arc::clone(&private.body),
-        &request.inbound,
-        &ordinals,
-    )?;
-    if expected.entry_bridge.as_ref() != Some(bridge) {
+    if expected.entry_bridge != private.entry_bridge {
         return Err(Error::Mismatch(
             "private native entry differs from ordinary body transport",
         ));

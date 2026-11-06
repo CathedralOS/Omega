@@ -109,6 +109,53 @@ impl<'a> Reviewer<'a> {
             }
             return Ok(());
         }
+        if let Some(operation) = declaration
+            .declaration
+            .as_ref()
+            .and_then(|row| row.execution.static_interrupt_operation())
+        {
+            let expected = TerminalMechanismIdentity::CompilerIntrinsic(
+                effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation),
+            );
+            if self.context.mechanisms.get(&boundary) != Some(&expected) {
+                return Err(format!(
+                    "static interrupt {boundary:?} has no exact admitted execution"
+                ));
+            }
+            if operation == language_core::static_interrupts::StaticInterruptOperation::Install {
+                if !self
+                    .context
+                    .installed_interrupts
+                    .scopes()
+                    .iter()
+                    .any(|scope| scope.boundary() == boundary)
+                {
+                    return Err(format!(
+                        "static interrupt {boundary:?} has no admitted Scope"
+                    ));
+                }
+                // The reached operation contributes its exact MachineControl
+                // service and checked site through AuthorityGraph. Its leaf uses
+                // the ordinary root or selected-provider permission review.
+            } else {
+                let exercised =
+                    self.context
+                        .physical_policy
+                        .classify(expected)
+                        .map_err(|error| {
+                            format!(
+                                "static interrupt helper has no physical classification: {:?}",
+                                error.mechanism()
+                            )
+                        })?;
+                if !exercised.classes().is_empty() {
+                    return Err(format!(
+                        "static interrupt helper {boundary:?} unexpectedly exercises host authority"
+                    ));
+                }
+            }
+            return Ok(());
+        }
         let requirement = self
             .context
             .input

@@ -641,11 +641,7 @@ impl StructuralJudge<'_> {
                 }
             }
         }
-        Some(StructuralTerm::Constructor {
-            data: "bool".to_owned(),
-            case: common?.to_string(),
-            fields: Vec::new(),
-        })
+        Some(StructuralTerm::boolean(common?))
     }
 
     /// Transport an exact declared membership over its still-live subject.

@@ -131,6 +131,10 @@ wire_enum! {
         1 => AccessInitialize,
         2 => AccessMoveOut,
         3 => AccessView,
+        4 => StaticInterruptInstall,
+        5 => StaticInterruptContext,
+        6 => StaticInterruptBeginCompletion,
+        7 => StaticInterruptFinishCompletion,
     }
     Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
     RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

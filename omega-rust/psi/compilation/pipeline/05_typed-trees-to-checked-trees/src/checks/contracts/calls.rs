@@ -102,13 +102,7 @@ pub(super) fn check_call_requires(
     phase_profile::scope(
         "psi.05.check_checked_facts.check_flow_call_contracts.lender_domains",
         || {
-            check_lender_domain_restoration(
-                program,
-                facts,
-                state_flow,
-                call_flow,
-                diagnostics,
-            );
+            check_lender_domain_restoration(program, facts, state_flow, call_flow, diagnostics);
         },
     );
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
@@ -1093,7 +1087,8 @@ fn check_lender_domain_restoration(
     call_flow: &FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(parameters) = validation::call_target_parameters(program, call_flow.target_symbol) else {
+    let Some(parameters) = validation::call_target_parameters(program, call_flow.target_symbol)
+    else {
         return;
     };
     if !parameters.iter().any(|p| {
@@ -1202,8 +1197,7 @@ fn check_lender_domain_restoration(
                 else {
                     continue;
                 };
-                for row in
-                    validation::field_domains::declared_type_domain_rows(program, local_type)
+                for row in validation::field_domains::declared_type_domain_rows(program, local_type)
                 {
                     if row.transfer {
                         continue;

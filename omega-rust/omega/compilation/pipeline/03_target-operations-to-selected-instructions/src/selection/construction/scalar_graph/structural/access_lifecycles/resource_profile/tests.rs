@@ -306,7 +306,10 @@ fn profile_home(builder: &mut Builder<'_>, row: &LegalizedScalarInstruction) -> 
     let place = PlaceId::new(19).unwrap();
     let pointer = fragmented_scalar::constant(builder, row, place, 0).unwrap();
     ImageHome {
-        storage: fragmented_scalar::StorageAccess::Place(&[]),
+        storage: fragmented_scalar::StorageAccess::Place {
+            indices: &[],
+            byte_offset: 0,
+        },
         place,
         pointer,
         byte_offset: 0,

@@ -14,7 +14,9 @@ mod conformance_demands;
 pub(super) use conformance_demands::prepare as prepare_conformance_machine_demands;
 pub(crate) use conformance_demands::prepare_occurrence as prepare_conformance_occurrence;
 mod demands;
+mod installed_interrupts;
 mod invocations;
+pub(crate) use installed_interrupts::prepare as prepare_installed_interrupts;
 mod providers;
 mod static_operands;
 

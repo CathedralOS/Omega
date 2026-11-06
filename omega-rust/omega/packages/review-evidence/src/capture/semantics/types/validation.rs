@@ -363,6 +363,7 @@ fn validate_package_index_expression(
                 || !call.evidence_arguments.is_empty()
                 || call.quotient_operation.is_some()
                 || call.private_layout_operation.is_some()
+                || call.installed_interrupt_operation.is_some()
                 || call.layout_query.is_some()
             {
                 return Err(vec![Diagnostic::error(

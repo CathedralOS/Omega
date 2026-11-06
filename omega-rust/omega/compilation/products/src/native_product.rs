@@ -13,6 +13,8 @@ use terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPe
 /// the actual receiver and requires completed scalar inputs before emission.
 pub struct PendingNativeProduct {
     pub terminal: RetainedTerminalArtifact,
+    /// Optional bytes from the checked producer, not a saved native admission.
+    pub retained_native_inputs: Option<Vec<u8>>,
     pub components: Result<Vec<SelectedIndependentComponent>, String>,
     pub accepted_package_permissions: TerminalAuthorityPermissionPolicy,
     pub request: NativeProductRequest,
