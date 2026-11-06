@@ -197,8 +197,7 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
           OMEGA_COMPILER_PILOT_RECORD_RESULTS: ${{ inputs.record_results }}
-        run: |
-          python -c "import os,subprocess,sys; entry='tools/ci/sample_compiler_stacks.py' if sys.platform == 'linux' and 'OMEGA_COMPILER_CHECK_SITES' in os.environ and 'OMEGA_PHASE_PROFILE' in os.environ else 'tools/ci/compiler_pilot.py'; raise SystemExit(subprocess.call([sys.executable,entry]+([] if entry.endswith('sample_compiler_stacks.py') else ['--phase','consume'])))"
+        run: python tools/ci/compiler_pilot.py --phase consume
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('preparation.json', 'summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
