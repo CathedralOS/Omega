@@ -689,10 +689,10 @@ fn validate<'program>(
         let mut self_call_descents = Vec::new();
         // Machines run on parallel workers, so subject wall times overlap and
         // their sum exceeds the loop's own row.
-        let _subject = phase_profile::subject(
-            "psi.05.prepare_typed_program.validate.machine_loop",
-            || program.symbols.profile_label(machine.symbol),
-        );
+        let _subject =
+            phase_profile::subject("psi.05.prepare_typed_program.validate.machine_loop", || {
+                program.symbols.profile_label(machine.symbol)
+            });
         let _machine_pkg_guard = phase_profile::enabled().then(|| {
             let is_toolchain_or_std = program
                 .symbols

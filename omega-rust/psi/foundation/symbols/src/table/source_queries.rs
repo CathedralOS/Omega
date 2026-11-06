@@ -31,8 +31,10 @@ impl SymbolTable {
                         format!("library:{}", &path[at + "/library/".len()..])
                     }
                     _ => {
-                        let relative =
-                            file.path.strip_prefix(&file.package_root).unwrap_or(&file.path);
+                        let relative = file
+                            .path
+                            .strip_prefix(&file.package_root)
+                            .unwrap_or(&file.path);
                         relative.to_string_lossy().replace('\\', "/")
                     }
                 }

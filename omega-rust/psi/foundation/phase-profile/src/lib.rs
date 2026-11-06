@@ -154,7 +154,10 @@ pub struct SubjectGuard {
 #[inline]
 pub fn subject(pass: &'static str, name: impl FnOnce() -> String) -> SubjectGuard {
     if !enabled() {
-        return SubjectGuard { pass, subject: None };
+        return SubjectGuard {
+            pass,
+            subject: None,
+        };
     }
     let nested = OPEN_PASSES.with(|open| {
         let mut open = open.borrow_mut();
@@ -163,7 +166,9 @@ pub fn subject(pass: &'static str, name: impl FnOnce() -> String) -> SubjectGuar
         nested
     });
     if nested {
-        let mut rows = NESTED.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut rows = NESTED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         match rows.iter_mut().find(|(name, _)| *name == pass) {
             Some(row) => row.1 += 1,
             None => rows.push((pass, 1)),
@@ -229,7 +234,11 @@ pub fn render_subjects(limit: usize) -> String {
     let mut start = 0;
     while start < rows.len() {
         let pass = rows[start].pass;
-        let end = start + rows[start..].iter().take_while(|row| row.pass == pass).count();
+        let end = start
+            + rows[start..]
+                .iter()
+                .take_while(|row| row.pass == pass)
+                .count();
         let group = &rows[start..end];
         let attributed: u64 = group.iter().map(|row| row.nanos).sum();
         let own = passes
@@ -319,7 +328,10 @@ pub fn subject_totals(rows: &[SubjectRow]) -> Vec<SubjectTotal> {
     by_subject.sort_by(|left, right| left.subject.cmp(&right.subject));
     let mut totals: Vec<SubjectTotal> = Vec::new();
     for row in by_subject {
-        if totals.last().is_none_or(|total| total.subject != row.subject) {
+        if totals
+            .last()
+            .is_none_or(|total| total.subject != row.subject)
+        {
             totals.push(SubjectTotal {
                 subject: row.subject.clone(),
                 nanos: 0,
@@ -574,7 +586,10 @@ mod tests {
         assert_eq!(rows[0].subject, "a.omg	A::run");
         assert_eq!(rows[0].count, 2);
         let report = super::render_subjects(5);
-        assert!(report.contains("SUBJECTS test.pass: 2 subject(s)"), "{report}");
+        assert!(
+            report.contains("SUBJECTS test.pass: 2 subject(s)"),
+            "{report}"
+        );
         assert!(report.contains("% coverage"), "{report}");
         assert!(report.contains("a.omg"), "{report}");
     }
@@ -583,9 +598,24 @@ mod tests {
     fn totals_sum_each_subject_across_passes_and_csv_quotes_commas() {
         super::STATE.store(super::ENABLED, std::sync::atomic::Ordering::Relaxed);
         let rows = vec![
-            super::SubjectRow { pass: "p.one", subject: "f.omg	Map<K, V>::get".into(), count: 1, nanos: 2_000_000 },
-            super::SubjectRow { pass: "p.two", subject: "f.omg	Map<K, V>::get".into(), count: 3, nanos: 5_000_000 },
-            super::SubjectRow { pass: "p.two", subject: "g.omg	Small".into(), count: 1, nanos: 1_000_000 },
+            super::SubjectRow {
+                pass: "p.one",
+                subject: "f.omg	Map<K, V>::get".into(),
+                count: 1,
+                nanos: 2_000_000,
+            },
+            super::SubjectRow {
+                pass: "p.two",
+                subject: "f.omg	Map<K, V>::get".into(),
+                count: 3,
+                nanos: 5_000_000,
+            },
+            super::SubjectRow {
+                pass: "p.two",
+                subject: "g.omg	Small".into(),
+                count: 1,
+                nanos: 1_000_000,
+            },
         ];
         assert_eq!(super::subject_passes(&rows), vec!["p.one", "p.two"]);
         let totals = super::subject_totals(&rows);
