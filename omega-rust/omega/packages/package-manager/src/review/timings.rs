@@ -1,16 +1,12 @@
-//! Opt-in wall-clock attribution for the package-review route's stages.
+//! Keep completed review timings available when a package command is interrupted.
 //!
-//! `wiki/drafts/measurements/test_cycle_measurements.md` attributes the checked-passes
-//! route but leaves the manager-side review work between compilations
-//! undivided (~250 s there). Setting `OMEGA_REVIEW_TIMINGS` prints one
-//! `stage=<name> micros=<elapsed>` line per instrumented stage to stderr —
-//! the same opt-in observation convention as `OMEGA_PROOF_MEASUREMENTS` —
-//! as each stage finishes, so an ordinary
-//! `omega install|update|audit packages` supplies the figures a hotspot
-//! study needs even if a later stage exceeds its time limit. Start notes
-//! identify the stages still running when an invocation is interrupted.
-//! Normal invocations collect nothing beyond one env-var
-//! check per stage; measurements describe cost, never a verdict.
+//! Setting `OMEGA_REVIEW_TIMINGS` prints a start note and then a
+//! `stage=<name> micros=<elapsed>` line as each stage finishes. A timed-out
+//! `omega install|update|audit packages` therefore retains completed work and
+//! names the stages that were still running. Buffering these observations until
+//! the outer command returns would lose them when that process is killed.
+//! Normal invocations perform only one environment-variable check per stage;
+//! measurements describe cost, never a verdict.
 //!
 //! A compile or check that asked for `--timings` requests the same stages
 //! through [`requested`] for the duration of its candidate compilation, so
