@@ -51,7 +51,12 @@ pub(crate) fn lower_selected_module(
     if !module.machine(entry).is_some() {
         return Err(LoweringError::VerifiedEntryMachineMissing(entry));
     }
-    if layouts.is_none() && module.access_lifecycle_plans.iter().any(|plan| plan.target.is_some()) {
+    if layouts.is_none()
+        && module
+            .access_lifecycle_plans
+            .iter()
+            .any(|plan| plan.target.is_some())
+    {
         return Err(LoweringError::SemanticIdentity(
             terminal_codec::CodecError::MalformedStructuralFoundation(
                 "native lifecycle requires an admitted target placement selection",
