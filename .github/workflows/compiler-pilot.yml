@@ -1,56 +1,56 @@
-name: Installed entry target migration
+name: Installed entry diagnostic and target qualification
 on:
   workflow_dispatch:
 permissions:
   contents: read
   actions: read
 jobs:
-  baseline:
+  qualification:
     runs-on: ubuntu-24.04
     timeout-minutes: 65
     env:
       CARGO_TARGET_DIR: /tmp/ot
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+      CARGO_BUILD_FINGERPRINT: content
       OMEGA_CORPUS_JOBS: '1'
       OMEGA_CORPUS_FIXTURE_SECS: '120'
       RUST_MIN_STACK: '67108864'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 4
+          fetch-depth: 5
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Authenticate completed published producer and migration inputs
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Authenticate exact inputs and scope before building
         run: |
-          python - <<'CHECK'
-          import hashlib, json, os, subprocess
+          python - <<'INPUTS'
           from pathlib import Path
-          output = Path('build/installed-entry-migration')
+          import hashlib, json, os, subprocess, sys
+          from tools.ci.compiler_pilot import select_fixtures, select_samples
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          from qualification import source_inputs
+          recipe = json.loads(Path('.github/installed_entry_qualification.json').read_text())
+          manifest = json.loads(Path('.github/installed_entry_inputs.json').read_text())
+          assert not subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()
+          assert source_inputs(Path.cwd(), os.environ['GITHUB_SHA'], manifest['compiled_input_roots']) == manifest['compiled_input_roots']
+          assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == h for p,h in manifest['inputs'].items())
+          assert select_fixtures(','.join(recipe['source_positive'] + recipe['source_negative'])) == (tuple(recipe['source_positive']), tuple(recipe['source_negative']))
+          assert len(recipe['source_positive']) == 1 and len(recipe['source_negative']) == 5
+          assert set(select_samples(manifest['sample_root'])) == set(recipe['samples']) and len(recipe['samples']) == 3
+          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS'] == '120' and os.environ['OMEGA_CORPUS_JOBS'] == '1'
+          assert not os.environ.get('OMEGA_PHASE_PROFILE')
+          output = Path('build/installed-entry-qualification')
           output.mkdir(parents=True, exist_ok=False)
-          def api(path):
-              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
-          run = api('repos/CathedralOS/Omega/actions/runs/42159698659')
-          assert run['status'] == 'completed' and run['conclusion'] == 'success'
-          assert run['head_sha'] == '0b53c8a4e109e8d6ef3a9bbabc29c52529317a48'
-          artifact = api('repos/CathedralOS/Omega/actions/artifacts/13477766469')
-          assert not artifact['expired'] and artifact['workflow_run']['id'] == run['id']
-          assert artifact['workflow_run']['head_sha'] == run['head_sha']
-          assert artifact['size_in_bytes'] == 564769040
-          assert artifact['digest'] == 'sha256:779a859071009316756a6ba2a4f6ffe33bc698017f63192801bc81b4f4483c58'
-          assert os.environ['OMEGA_CORPUS_FIXTURE_SECS'] == '120'
-          assert os.environ['OMEGA_CORPUS_JOBS'] == '1' and not os.environ.get('OMEGA_PHASE_PROFILE')
-          inputs = json.loads(Path('.github/installed_entry_inputs.json').read_text())
-          assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest() == h for p, h in inputs['inputs'].items())
-          assert subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip() == ''
-          (output / 'origin.json').write_text(json.dumps({'run':run, 'artifact':artifact, 'observer':os.environ['GITHUB_SHA'], 'program_inputs':inputs['program_source']}, indent=2) + '\n')
-          CHECK
+          (output / 'input-binding.json').write_text(json.dumps({'observer':os.environ['GITHUB_SHA'], 'compiler_component':recipe['component'], 'manifest':manifest, 'recipe':recipe}, indent=2) + chr(10))
+          INPUTS
       - name: Pin the published source boundary
         run: git fetch --no-tags --depth=1 origin 0b53c8a4e109e8d6ef3a9bbabc29c52529317a48:refs/remotes/origin/main
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
-        id: retained-cache
+        id: warm-cache
         with:
           path: |
             ~/.cargo/registry
@@ -58,62 +58,108 @@ jobs:
             /tmp/ot
           key: compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-0b53c8a4e109e8d6ef3a9bbabc29c52529317a48
           fail-on-cache-miss: true
-      - name: Require the exact cache; never build a replacement
+      - name: Require the exact warm cache before Cargo
         run: |
           python - <<'CACHE'
-          assert '${{ steps.retained-cache.outputs.cache-hit }}' == 'true'
+          assert '${{ steps.warm-cache.outputs.cache-hit }}' == 'true'
           CACHE
-      - name: Observe migrated target checks and engine backing
+      - name: Check the existing dependency-refusal recovery test
+        timeout-minutes: 20
         run: |
-          python - <<'CORPUS'
+          python - <<'TEST'
+          from pathlib import Path
+          import json, os, re, shutil, subprocess
+          recipe = json.loads(Path('.github/installed_entry_qualification.json').read_text())
+          test = recipe['existing_rust_test']
+          command = (['mbx', 'nextest', 'run'] if shutil.which('mbx') else ['cargo', 'test'])
+          command += ['--locked', '-p', test['package'], '--test', test['target'], test['filter']]
+          output = Path('build/installed-entry-qualification')
+          with (output / 'dependency-recovery.stdout').open('wb') as out, (output / 'dependency-recovery.stderr').open('wb') as err:
+              result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err)
+          text = (output / 'dependency-recovery.stdout').read_text(errors='replace') + (output / 'dependency-recovery.stderr').read_text(errors='replace')
+          passed = result.returncode == 0 and re.search(r'\b1 passed\b', text) is not None
+          (output / 'dependency-recovery.json').write_text(json.dumps({'source':os.environ['GITHUB_SHA'], 'command':command, 'exit':result.returncode, 'passed':passed}, indent=2) + chr(10))
+          assert passed, 'The existing test must actually run once and pass'
+          TEST
+      - name: Prepare the new optimized producer and retain build receipts
+        id: producer-preparation
+        run: |
+          python - <<'PREPARE'
+          from pathlib import Path
+          import json
           from tools.ci.compiler_pilot import run_suite
-          raise SystemExit(run_suite('installed-entry-migration', (), (), fixtures='@.github/installed_entry_plan.json'))
-          CORPUS
+          recipe = json.loads(Path('.github/installed_entry_qualification.json').read_text())
+          raise SystemExit(run_suite('installed-entry-qualification', tuple(recipe['source_positive']), tuple(recipe['source_negative']), phase='prepare'))
+          PREPARE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        with:
+          name: installed-entry-preparation-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/installed-entry-qualification/
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            /tmp/ot
+          key: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+      - name: Observe target and refuted-requires corpus controls
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        run: |
+          python - <<'CONSUME'
+          from pathlib import Path
+          import json
+          from tools.ci.compiler_pilot import run_suite
+          recipe = json.loads(Path('.github/installed_entry_qualification.json').read_text())
+          raise SystemExit(run_suite('installed-entry-qualification', tuple(recipe['source_positive']), tuple(recipe['source_negative']), phase='consume'))
+          CONSUME
       - name: Retain the original corpus budgets
-        if: ${{ !cancelled() && steps.retained-cache.outputs.cache-hit == 'true' }}
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: |
           python - <<'BUDGET'
-          import json
           from pathlib import Path
-          root = Path('build/installed-entry-migration')
-          checking = json.loads((root / 'checking.json').read_text())
-          both = json.loads((root / 'both.json').read_text())
-          rows = checking['observations'] + both['observations']
-          assert len(checking['observations']) == 1 and len(both['observations']) == 1
-          passed = all(type(row.get('millis')) is int and 0 <= row['millis'] <= 120000 for row in rows)
-          (root / 'budgets.json').write_text(json.dumps({'limit_ms':120000, 'passed':passed, 'checking':checking['observations'], 'both':both['observations']}, indent=2) + '\n')
-          assert passed, 'Original corpus budget remains unmet; reports retained unchanged'
+          import json
+          output = Path('build/installed-entry-qualification')
+          checking = json.loads((output / 'checking.json').read_text())
+          both = json.loads((output / 'both.json').read_text())
+          assert len(checking['observations']) == 6 and len(both['observations']) == 1
+          passed = all(type(r.get('millis')) is int and 0 <= r['millis'] <= 120000 for report in (checking,both) for r in report['observations'])
+          (output / 'budgets.json').write_text(json.dumps({'limit_ms':120000, 'passed':passed, 'checking':checking['observations'], 'both':both['observations']}, indent=2) + chr(10))
+          assert passed, 'Original corpus budget remains unmet; preserve raw reports'
           BUDGET
-      - name: Observe ordinary target entry RAM and its invalid twin
-        if: ${{ !cancelled() && steps.retained-cache.outputs.cache-hit == 'true' }}
+      - name: Observe ordinary target positive and both immutable invalid samples
+        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: |
           python - <<'SAMPLES'
-          import json, os, subprocess, sys
           from pathlib import Path
-          output = Path('build/installed-entry-migration')
-          summary = json.loads((output / 'summary.json').read_text())
-          cli = summary['producer']['cli']
-          command = [sys.executable, '.github/installed_entry_samples.py', '--cli', cli,
-                     '--source', os.environ['GITHUB_SHA'], '--manifest', '.github/installed_entry_inputs.json',
-                     '--output', str(output / 'samples')]
+          import json, os, subprocess, sys
+          output = Path('build/installed-entry-qualification')
+          producer = json.loads((output / 'producer.json').read_text())['producer']
+          command = [sys.executable, '.github/installed_entry_samples.py', '--cli', producer['cli'], '--source', os.environ['GITHUB_SHA'], '--manifest', '.github/installed_entry_inputs.json', '--output', str(output / 'samples')]
           result = subprocess.run(command, stdin=subprocess.DEVNULL)
           if result.returncode:
               raise SystemExit(result.returncode)
           rows = json.loads((output / 'samples/samples.json').read_text())
           expected = json.loads(Path('.github/installed_entry_inputs.json').read_text())['samples']
-          assert len(rows) == len(expected) == 2 and {r['sample'] for r in rows} == set(expected)
+          assert len(rows) == len(expected) == 3 and {r['sample'] for r in rows} == set(expected)
           assert all(r['state'] == ('rejected' if r['sample'].endswith('/invalid') else 'pass') for r in rows)
           SAMPLES
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-migration-${{ github.sha }}-${{ github.run_attempt }}
+          name: installed-entry-observations-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            build/installed-entry-migration/*.json
-            build/installed-entry-migration/source/
-            build/installed-entry-migration/producer-replay-*/cache-inputs.json
-            build/installed-entry-migration/artifacts-*/
-            build/installed-entry-migration/samples/
+            build/installed-entry-qualification/*.json
+            build/installed-entry-qualification/*.stdout
+            build/installed-entry-qualification/*.stderr
+            build/installed-entry-qualification/source/
+            build/installed-entry-qualification/artifacts-*/
+            build/installed-entry-qualification/samples/
           include-hidden-files: true
           if-no-files-found: error
           compression-level: 0

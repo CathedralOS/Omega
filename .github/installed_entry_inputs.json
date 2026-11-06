@@ -1,6 +1,5 @@
 {
   "program_source": "82f41baa29c4fcf45171fcca729e01c650abbf7d",
-  "compiler_source": "0b53c8a4e109e8d6ef3a9bbabc29c52529317a48",
   "inputs": {
     "samples/cli/facts/installed_entry_storage/README.md": "be3988b768160bbf7a1aff94190a2bfbd1466eb84ed4b29f37360178e44b4dec",
     "samples/cli/facts/installed_entry_storage/build.omg": "ca95d15e3ae2c26e3cdad749a37578253cdca675a2e6514f37c9c1a51c3a4925",
@@ -359,14 +358,36 @@
     "tests/omega/pass/layouts/placed_view_source_access_exit/expected_interpreter_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
     "tests/omega/pass/layouts/placed_view_source_access_exit/expected_native_exit.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
     "tests/omega/pass/layouts/placed_view_source_access_exit/main.omg": "ab45c1531df168946d83c75a8731b503dd6efaa53e54621c1578a80a9f5362d3",
-    "tests/omega/run/layouts/validate_placed_entry_ram.py": "b86bef253c098cbd8d81f667cf65d8bd193e6a6199dc8f2da8fa7f2299407755"
+    "tests/omega/run/layouts/validate_placed_entry_ram.py": "b86bef253c098cbd8d81f667cf65d8bd193e6a6199dc8f2da8fa7f2299407755",
+    "tests/omega/fail/calls/free_machine_named_transition_rejected/build.omg": "d35eb62f9998d1251ab8a9aa17ba2e57c61a3e82008f616ba3669752ce20d972",
+    "tests/omega/fail/calls/free_machine_named_transition_rejected/expected.txt": "8445711af604efba577b0eac8345fdc8e00d4e3d33977ac029798e8fc6953783",
+    "tests/omega/fail/calls/free_machine_named_transition_rejected/main.omg": "b29a3bb78102e187efabbba9c3db1f75d40d0b3dedbc0a97cca06bafb098ca57",
+    "tests/omega/fail/calls/free_machine_named_transition_rejected/sample.json": "376ede262b656cf98dd54c3b61ffdf266031d8f39a05232f71d0b2a251ac8c20",
+    "tests/omega/fail/calls/attached_parameter_overload_bound/build.omg": "d8c96b3c6db16298cb0ab548c9c3ee38613df03cb35666cce1097cc735068aad",
+    "tests/omega/fail/calls/attached_parameter_overload_bound/expected.txt": "231f3352e27b7f0319eb7e0053c5d0b0a2b92ef98abbbd6d96bc1492b355fc81",
+    "tests/omega/fail/calls/attached_parameter_overload_bound/main.omg": "7228de9754ff5bb1ef9a6bb44bbcfbb8d25f9bd706bd1e223739e1497aad9893",
+    "tests/omega/fail/proofs/value_call_refuted_inequality_rejected/expected.txt": "cba74a609dd17667767d3244a876c378603bd5c3123dda2decfed5d39baa8ec6",
+    "tests/omega/fail/proofs/value_call_refuted_inequality_rejected/main.omg": "4d7a048576b81f0d8b70d28521d107c9b93c18ad55518656cd3f9d0131efc117",
+    "tests/omega/fail/constants/owned_record_argument_requires/build.omg": "5fda0325d32232858b4cc6561055b6ddb506756bec8e12bf9a9b6ca4c4e922cd",
+    "tests/omega/fail/constants/owned_record_argument_requires/expected.txt": "54d9257074d3b65aefab56f5e1d53870b97b4fd2bafdf9a69ea39f1b422be88e",
+    "tests/omega/fail/constants/owned_record_argument_requires/main.omg": "2473690c8cd7ebdcc0b6a3277cffa9e3c01f46eb4da28e819f156f07d7fd4eb1",
+    "tests/omega/fail/arithmetic/ordinary_clamp_inverted_bounds/build.omg": "1e054ee3bf390936f4068a3a394d7d9c18fd2820056d8a564949beb9cf760aa5",
+    "tests/omega/fail/arithmetic/ordinary_clamp_inverted_bounds/expected.txt": "12ef373d3c98c484dd3514009abf0779c003b0dcbff88bd2ef8fb3018c29bd9c",
+    "tests/omega/fail/arithmetic/ordinary_clamp_inverted_bounds/main.omg": "72f73eb559af94935f6083f25de3e1ed1e85cb6580a9ab635dafe8f3361c48ea",
+    "omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/refuted_requires.rs": "53933652fefb492f67e6a55b6f52dfdff1fb3942245fcf0d736aaa0d0345444a"
   },
   "samples": [
+    "samples/cli/facts/installed_entry_storage/other_state/invalid",
     "samples/cli/facts/installed_entry_storage/target_body",
     "samples/cli/facts/installed_entry_storage/target_body/invalid"
   ],
   "source_checks": [
-    "pass/facts/installed_entry_storage_through_target_body_exit"
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "fail/calls/free_machine_named_transition_rejected",
+    "fail/calls/attached_parameter_overload_bound",
+    "fail/proofs/value_call_refuted_inequality_rejected",
+    "fail/constants/owned_record_argument_requires",
+    "fail/arithmetic/ordinary_clamp_inverted_bounds"
   ],
   "both": [
     "pass/facts/installed_entry_storage_through_target_body_exit"
@@ -456,10 +477,25 @@
     "fail/build/installed_entry_ram_wrong_occurrence": {
       "expected_refusal": "private entry RAM initializer answers no declared entry position\n",
       "entry_ram": "1=2900000003000000\n"
+    },
+    "fail/calls/free_machine_named_transition_rejected": {
+      "expected_refusal": "value call to `scan` violates required fact `value == 41`\n"
+    },
+    "fail/calls/attached_parameter_overload_bound": {
+      "expected_refusal": "violates required fact `N == 37`\nthe instantiated fact is structurally false (`36 == 37`)\n"
+    },
+    "fail/proofs/value_call_refuted_inequality_rejected": {
+      "expected_refusal": "violates required fact\n"
+    },
+    "fail/constants/owned_record_argument_requires": {
+      "expected_refusal": "constant invocation of `read` failed checking\nviolates required fact `packet.first == 7`\nstructurally false (`8 == 7`)\n"
+    },
+    "fail/arithmetic/ordinary_clamp_inverted_bounds": {
+      "expected_refusal": "value call to `clamp_i32` violates required fact `lower <= upper`\n"
     }
   },
   "compiled_input_roots": {
-    "omega-rust": "ac71fb9b3017cc55fc15bdd88a070eb77f6a8d95",
+    "omega-rust": "f7a60b75e3f10603345109645bd209d2b1635f95",
     "source/library": "d8f5fade211c574016dc76a4dbc44bbfc2d10817",
     "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
     "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -475,62 +511,7 @@
   "corpus_seconds": 120,
   "workers": 1,
   "phase_profile": false,
+  "compiler_component": "91746359814a613a0a7e001b61dfc6b0bd85cd83",
   "authored_component": "82f41baa29c4fcf45171fcca729e01c650abbf7d",
-  "all_original_source_checks": [
-    "pass/facts/installed_entry_storage_through_call_result_exit",
-    "pass/facts/installed_entry_storage_through_const_name_exit",
-    "pass/facts/installed_entry_storage_through_field_exit",
-    "pass/facts/installed_entry_storage_through_local_exit",
-    "pass/facts/installed_entry_storage_through_match_join_exit",
-    "pass/facts/installed_entry_storage_through_other_machine_exit",
-    "pass/facts/installed_entry_storage_through_other_state_exit",
-    "pass/facts/installed_entry_storage_through_parameter_exit",
-    "pass/facts/installed_entry_storage_through_target_body_exit",
-    "pass/build/installed_entry_ram_live_stack_exit",
-    "pass/build/installed_entry_ram_stack_occurrence_exit",
-    "pass/build/installed_entry_ram_two_occurrences_exit",
-    "pass/layouts/placed_view_source_access_exit",
-    "fail/build/installed_entry_ram_invalid_extent",
-    "fail/build/installed_entry_ram_invalid_padding",
-    "fail/build/installed_entry_ram_missing_backing",
-    "fail/build/installed_entry_ram_overlapping_exclusive_roots",
-    "fail/build/installed_entry_ram_wrong_occurrence"
-  ],
-  "all_original_both": [
-    "pass/facts/installed_entry_storage_through_call_result_exit",
-    "pass/facts/installed_entry_storage_through_const_name_exit",
-    "pass/facts/installed_entry_storage_through_field_exit",
-    "pass/facts/installed_entry_storage_through_local_exit",
-    "pass/facts/installed_entry_storage_through_match_join_exit",
-    "pass/facts/installed_entry_storage_through_other_machine_exit",
-    "pass/facts/installed_entry_storage_through_other_state_exit",
-    "pass/facts/installed_entry_storage_through_parameter_exit",
-    "pass/facts/installed_entry_storage_through_target_body_exit",
-    "pass/build/installed_entry_ram_live_stack_exit",
-    "pass/build/installed_entry_ram_stack_occurrence_exit",
-    "pass/build/installed_entry_ram_two_occurrences_exit",
-    "pass/layouts/placed_view_source_access_exit"
-  ],
-  "all_original_samples": [
-    "samples/cli/facts/installed_entry_storage",
-    "samples/cli/facts/installed_entry_storage/call_result",
-    "samples/cli/facts/installed_entry_storage/call_result/invalid",
-    "samples/cli/facts/installed_entry_storage/const_name",
-    "samples/cli/facts/installed_entry_storage/const_name/invalid",
-    "samples/cli/facts/installed_entry_storage/field",
-    "samples/cli/facts/installed_entry_storage/field/invalid",
-    "samples/cli/facts/installed_entry_storage/local",
-    "samples/cli/facts/installed_entry_storage/local/invalid",
-    "samples/cli/facts/installed_entry_storage/match_join",
-    "samples/cli/facts/installed_entry_storage/match_join/invalid",
-    "samples/cli/facts/installed_entry_storage/other_machine",
-    "samples/cli/facts/installed_entry_storage/other_machine/invalid",
-    "samples/cli/facts/installed_entry_storage/other_state",
-    "samples/cli/facts/installed_entry_storage/other_state/invalid",
-    "samples/cli/facts/installed_entry_storage/parameter",
-    "samples/cli/facts/installed_entry_storage/parameter/invalid",
-    "samples/cli/facts/installed_entry_storage/target_body",
-    "samples/cli/facts/installed_entry_storage/target_body/invalid"
-  ],
-  "sample_root": "samples/cli/facts/installed_entry_storage/target_body"
+  "sample_root": "samples/cli/facts/installed_entry_storage/target_body,samples/cli/facts/installed_entry_storage/other_state/invalid"
 }
