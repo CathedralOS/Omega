@@ -2231,11 +2231,11 @@ fail/build/installed_entry_ram_overlapping_exclusive_roots rejected 4046ms expec
 	state `touch` receives `view` as mutable more than once
 fail/build/installed_entry_ram_wrong_occurrence rejected 5158ms expected @ccdb99ca2214
 	private entry RAM initializer answers no declared entry position
-fail/build/interrupt_return_masked_enable rejected 41473ms expected @6299adddf42d+wt
+fail/build/interrupt_return_masked_enable rejected 85962ms expected @a8ccf4d4c552
 	native artifact callback entry ABI failed: masked interrupt handler can enable nested interrupts
-fail/build/interrupt_return_missing_gpr_restore rejected 29825ms expected @6299adddf42d+wt
+fail/build/interrupt_return_missing_gpr_restore rejected 46251ms expected @a8ccf4d4c552
 	calling policy accepted an invalid plan: permitted transitive machine-state use includes interrupted state the entry stub does not save
-fail/build/interrupt_return_vector_helper rejected 41782ms expected @6299adddf42d+wt
+fail/build/interrupt_return_vector_helper rejected 82094ms expected @a8ccf4d4c552
 	native artifact callback entry ABI failed: native entry transport: native entry bridge failed: interrupt handler uses machine state its entry does not permit, save and restore
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
@@ -19909,9 +19909,9 @@ pass/build/generated_source_selects_authored rejected 1413ms published:none regr
 	published outputs [] differ from expected_published.txt [files/generated.omg]
 pass/build/installed_entry_ram_stack_occurrence_exit checked 4719ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/installed_entry_ram_two_occurrences_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/interrupt_return_cathedral_ack checked 44737ms check-target:linux_x86_64 @6299adddf42d+wt
-pass/build/interrupt_return_debug_marker checked 40766ms check-target:linux_x86_64 @6299adddf42d+wt
-pass/build/interrupt_return_helper_debug_marker checked 42490ms check-target:linux_x86_64 @6299adddf42d+wt
+pass/build/interrupt_return_cathedral_ack checked 88831ms check-target:linux_x86_64 @a8ccf4d4c552
+pass/build/interrupt_return_debug_marker checked 86476ms check-target:linux_x86_64 @a8ccf4d4c552
+pass/build/interrupt_return_helper_debug_marker checked 83630ms check-target:linux_x86_64 @a8ccf4d4c552
 pass/build/layout_query_constant_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/named_map_target_family_rows_exit rejected 16933ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
