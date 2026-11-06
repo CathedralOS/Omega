@@ -22,7 +22,11 @@ jobs:
         run: |
           cp .github/atomic_integrated_linux_callers.py "$RUNNER_TEMP/atomic_integrated_linux_callers.py"
           cp .github/atomic_integrated_linux_callers.json "$RUNNER_TEMP/atomic_integrated_linux_callers.json"
-          git checkout --detach 86c4ccf817c3878b15052a1d54b0e31e1cca3122
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 86c4ccf817c3878b15052a1d54b0e31e1cca3122
+          fetch-depth: 1
+          persist-credentials: false
       - name: Authenticate the retained producer and capture two bounded caller snapshots
         run: python "$RUNNER_TEMP/atomic_integrated_linux_callers.py" "$RUNNER_TEMP/atomic_integrated_linux_callers.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
