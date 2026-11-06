@@ -73,7 +73,17 @@ pub fn evaluate_fixed_layout_applications(
     let mut inputs = Vec::new();
     let checking = source_checking_applications(typed, scopes, &defaults, &topology, &operational)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    // `cross_platform_cli`, `local_unchecked`, and `alpha_bootstrap` can select
+    // a provider whose body names a fixed layout, but they publish no
+    // representation profile. A facts-bearing target still forms that layout.
+    // Demanding a profile from the fact-less selection rejects the layout the
+    // bearing target already supplies. When no scope has facts, the demand
+    // stays and the refusal is unchanged.
+    let facts_supplied = scopes.iter().any(|scope| scope.facts.is_some());
     for (scope, work) in scopes.iter().zip(&checking) {
+        if scope.facts.is_none() && facts_supplied {
+            continue;
+        }
         if let Some(facts) = &scope.facts {
             facts
                 .validate()
