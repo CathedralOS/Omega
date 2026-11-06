@@ -1,0 +1,46 @@
+{
+  "kind": "Exact ten nonignored current real-body controls; no CLI or whole-outcome claim",
+  "source": "f201276352ff88b0e473f9dc2680c5619784a08c",
+  "expected_total_passes": 10,
+  "groups": [
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "reference_outputs::",
+      "expected_nonignored_passes": 10,
+      "test_names": [
+        "reference_outputs::tests::performed_reborrow_and_ordinary_relay_retain_the_actual_parent",
+        "reference_outputs::tests::two_exported_reborrows_keep_the_immediate_parent_edge",
+        "reference_outputs::tests::equal_backing_cannot_make_two_exclusive_children_siblings",
+        "reference_outputs::tests::missing_and_active_recursive_bodies_do_not_supply_empty_outputs",
+        "reference_outputs::tests::known_unchanged_stored_slots_keep_a_complete_entry_graph",
+        "reference_outputs::tests::performed_move_and_refill_keep_the_transferred_occurrence",
+        "reference_outputs::tests::parent_reseating_does_not_redirect_an_exported_child",
+        "reference_outputs::tests::owned_ingress_formation_keeps_the_parent_until_the_child_ends",
+        "reference_outputs::result_composition_tests::access_factory_region_result_keeps_capture_through_relay_and_stored_output",
+        "reference_outputs::result_composition_tests::inconsistent_performed_factory_backing_cannot_donate_a_stored_capture"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests.rs",
+          "sha256": "124fec80e556f14c12858428cf306544c29cffa02ad6e8d24893c87f4e17bde6"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/result_composition_tests.rs",
+          "sha256": "d1a4c51e2912bc9aaf9818201cda343087ed2043ae6d8aad9297f921fe2f40f0"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs.rs",
+          "sha256": "6f47684553a104a7d51a0e5492d117f47e0e7e5a9b2657eb0763a967172ce03b"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
