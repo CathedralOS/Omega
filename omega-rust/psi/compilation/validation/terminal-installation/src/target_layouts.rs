@@ -171,6 +171,8 @@ pub fn admit_target_layouts(
         // consistent forged pointer geometry is not a deployment receipt.
         if realization.pointer_size != target.pointer_size
             || realization.pointer_alignment != target.pointer_alignment
+            || realization.case_tag_size != target.case_tag_size
+            || realization.case_tag_alignment != target.case_tag_alignment
             || realization.little_endian != target.little_endian
         {
             return Err(stale());

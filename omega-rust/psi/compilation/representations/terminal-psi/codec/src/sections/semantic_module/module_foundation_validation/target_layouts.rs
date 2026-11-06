@@ -10,7 +10,7 @@ use terminal_psi::{
     StructuralRecordStorage, StructuralTypeShape, TargetLayoutFieldLayoutSource,
     TargetLayoutSchemaFieldKind, TerminalIdentityIndex, TerminalModule,
 };
-use terminal_semantics::{reference_storage_byte_width, reference_storage_layout};
+use terminal_semantics::reference_storage_byte_width;
 
 pub(super) fn validate(
     module: &TerminalModule,
@@ -96,6 +96,8 @@ pub(super) fn validate(
             if realization.target != input.target
                 || realization.pointer_size != input.pointer_size
                 || realization.pointer_alignment != input.pointer_alignment
+                || realization.case_tag_size != input.case_tag_size
+                || realization.case_tag_alignment != input.case_tag_alignment
                 || realization.little_endian != input.little_endian
             {
                 return malformed("layout realization changed its independent issuer target input");
@@ -172,9 +174,8 @@ pub(super) fn validate(
                     source
                         .field_type
                         .as_structural()
-                        .and_then(|child| {
-                            schema_storage_layout(module, child, realization, &mut BTreeSet::new())
-                        })
+                        .map(|child| schema_storage_layout(module, child, realization))
+                        .transpose()?
                         .map(|(size, align)| {
                             (
                                 size,
@@ -212,6 +213,9 @@ pub(super) fn validate(
                 || realization.pointer_size == 0
                 || !realization.pointer_alignment.is_power_of_two()
                 || realization.pointer_size % realization.pointer_alignment != 0
+                || realization.case_tag_size == 0
+                || !realization.case_tag_alignment.is_power_of_two()
+                || realization.case_tag_size % realization.case_tag_alignment != 0
                 || realization.fields.len() != live_fields.len()
                 || realization
                     .fields
@@ -257,82 +261,58 @@ pub(super) fn validate(
     Ok(())
 }
 
-/// Reconstruct the reflected source geometry using the exact target's pointer
-/// facts. A pointer never recursively demands its referent's storage. A nested
-/// representation reads that child's admitted result for this same target.
+/// Receiving validation uses the same aggregate packing as layout queries and
+/// native realization. The selected tag and nested recipes are inputs, never
+/// inferred from the host or replaced by ordinary packing when absent.
 fn schema_storage_layout(
     module: &TerminalModule,
     identity: StructuralTypeId,
     target: &terminal_psi::TargetLayoutRealization,
-    visiting: &mut BTreeSet<StructuralTypeId>,
-) -> Option<(u64, u64)> {
-    use terminal_psi::ByteSequenceCarrier;
-    if !visiting.insert(identity) {
-        return None;
+) -> Result<(u64, u64), CodecError> {
+    terminal_semantics::ReferenceStorageGeometry::new(
+        module.structural_types.iter(),
+        |application| {
+            Err(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                application,
+            ))
+        },
+    )
+    .with_target_carriers(Some(semantic_vocabulary::TargetCarrierLayout {
+        pointer_byte_size: target.pointer_size,
+        pointer_byte_alignment: target.pointer_alignment,
+        descriptor_byte_size: target.pointer_size.checked_mul(2).ok_or(
+            CodecError::MalformedStructuralFoundation("target descriptor footprint overflows"),
+        )?,
+        descriptor_byte_alignment: target.pointer_alignment,
+        case_tag_byte_size: target.case_tag_size,
+        case_tag_byte_alignment: target.case_tag_alignment,
+    }))
+    .with_record_storage(SchemaStorage { module, target })
+    .layout(identity)
+    .map_err(|error| {
+        CodecError::NativeLayout(format!(
+            "schema {identity:?} under target {} has no represented geometry: {error:?}",
+            target.target,
+        ))
+    })
+}
+
+struct SchemaStorage<'module> {
+    module: &'module TerminalModule,
+    target: &'module terminal_psi::TargetLayoutRealization,
+}
+
+impl terminal_semantics::RecordStorageResolver for SchemaStorage<'_> {
+    fn realization(
+        &self,
+        record: StructuralTypeId,
+        application: terminal_psi::LayoutApplicationId,
+    ) -> Result<&terminal_psi::TargetLayoutRealization, terminal_semantics::StorageGeometryError>
+    {
+        selected_layout_realization(self.module, record, application, self.target).ok_or(
+            terminal_semantics::StorageGeometryError::UnresolvedLayout(record),
+        )
     }
-    let result = (|| {
-        let ty = module.structural_type(identity)?;
-        match &ty.shape {
-            StructuralTypeShape::Reference { .. } => {
-                Some((target.pointer_size, target.pointer_alignment))
-            }
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
-                Some((target.pointer_size, target.pointer_alignment))
-            }
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
-            | StructuralTypeShape::ElementView { .. } => Some((
-                target.pointer_size.checked_mul(2)?,
-                target.pointer_alignment,
-            )),
-            StructuralTypeShape::FixedArray { element, length } => {
-                let (size, align) = schema_storage_layout(module, *element, target, visiting)?;
-                Some((size.checked_mul(length.literal()?)?, align))
-            }
-            StructuralTypeShape::Record { fields, storage } => match storage {
-                StructuralRecordStorage::TargetLayout(id) => {
-                    selected_layout_realization(module, identity, *id, target)
-                        .map(|row| (row.storage.byte_size, row.storage.byte_alignment))
-                }
-                StructuralRecordStorage::Authored(storage) => {
-                    Some((storage.byte_size, storage.byte_alignment))
-                }
-                StructuralRecordStorage::Packed => {
-                    let mut offset = 0u64;
-                    let mut alignment = 1u64;
-                    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                        let (size, align) = if let Some(scalar) = field.field_type.scalar_type() {
-                            let size = u64::from(reference_storage_byte_width(scalar)?);
-                            (size, size)
-                        } else {
-                            schema_storage_layout(
-                                module,
-                                field.field_type.as_structural()?,
-                                target,
-                                visiting,
-                            )?
-                        };
-                        offset = offset
-                            .checked_add(align.checked_sub(1)?)?
-                            .checked_div(align)?
-                            .checked_mul(align)?
-                            .checked_add(size)?;
-                        alignment = alignment.max(align);
-                    }
-                    Some((
-                        offset
-                            .checked_add(alignment - 1)?
-                            .checked_div(alignment)?
-                            .checked_mul(alignment)?,
-                        alignment,
-                    ))
-                }
-                _ => None,
-            },
-            _ => reference_storage_layout(module.structural_types.iter(), identity),
-        }
-    })();
-    visiting.remove(&identity);
-    result
 }
 
 /// An origin describes the exact child storage selection, never equal geometry
@@ -400,6 +380,8 @@ fn selected_layout_realization<'module>(
             row.target == target.target
                 && row.pointer_size == target.pointer_size
                 && row.pointer_alignment == target.pointer_alignment
+                && row.case_tag_size == target.case_tag_size
+                && row.case_tag_alignment == target.case_tag_alignment
                 && row.little_endian == target.little_endian
         })
 }

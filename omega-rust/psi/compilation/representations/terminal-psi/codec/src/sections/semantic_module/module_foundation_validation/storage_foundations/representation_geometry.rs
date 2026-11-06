@@ -107,6 +107,8 @@ impl RecordStorageResolver for RetainedLayout<'_> {
                     row.target == self.input.target
                         && row.pointer_size == self.input.pointer_size
                         && row.pointer_alignment == self.input.pointer_alignment
+                        && row.case_tag_size == self.input.case_tag_size
+                        && row.case_tag_alignment == self.input.case_tag_alignment
                         && row.little_endian == self.input.little_endian
                 })
             })
