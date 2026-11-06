@@ -1095,6 +1095,25 @@ projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
 
+## Audited modular exponentiation state
+
+At `7a9a7b8287e6`, `samples/cli/arithmetic/modular_exponentiation` declared
+`ModExp.result: i32 [0..=99]` and `ModExp.base: i32 [0..=99]`.
+Migration `f0fbaddf4ca` erased both bounds and reduced each product's factors
+again. Commit `bf34ac4736b` independently replaced the scratch record with
+explicit scalar state inputs; that design remains.
+
+The original result field now corresponds to `accumulator` in `step`,
+`classify`, `accumulate` and `square`; the original base field corresponds
+to each machine's `base`. Each input tuple retains both inclusive signed
+0..=99 bounds through `requires`. Return `ensures` clauses carry the same
+result bound through the calls; `accumulator` cannot be confused with the
+logical return subject `result`. The original products precede their outer
+remainder, and the entry still reduces the base once. Entry requires only
+`base >= 0`, so reduction also admits larger nonnegative inputs. Exponent
+inputs remain unrestricted, with the original remainder, division and
+branch behavior. The authored Console transcript and exit 87 are unchanged.
+
 ## Audited guarded-store owner fields
 
 The existing `pass/range/runtime_funnel_guard_agreement_exit` and
