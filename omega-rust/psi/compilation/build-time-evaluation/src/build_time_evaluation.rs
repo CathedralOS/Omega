@@ -690,6 +690,7 @@ impl PreCheckEvaluation {
                 "restored pre-check has not rejoined current declaration authority",
             )]);
         }
+        self.complete_access_views(typed)?;
         const_initializers::retain_deferred_entries(typed, &self.domain);
         let defer = {
             let _g = phase_profile::guard("evaluate_or_defer.check_defer");
@@ -790,6 +791,7 @@ impl PreCheckEvaluation {
                 "restored pre-check has not rejoined current declaration authority",
             )]);
         }
+        self.complete_access_views(typed)?;
         const_lengths::evaluate_selected_array_lengths(
             typed,
             self.selection_authority.clone(),
@@ -820,6 +822,7 @@ impl PreCheckEvaluation {
         typed: &mut TypedTrees,
     ) -> Result<EvaluatedPreCheck, Vec<diagnostics::Diagnostic>> {
         let _g = phase_profile::guard("evaluate_or_defer.evaluate_work");
+        self.complete_access_views(typed)?;
         const_initializers::retain_deferred_entries(typed, &self.domain);
         phase_profile::scope(
             "evaluate_or_defer.evaluate_work.const_array_lengths",
@@ -871,14 +874,6 @@ impl PreCheckEvaluation {
                 &self.domain,
             )
         })?;
-        phase_profile::scope("evaluate_or_defer.evaluate_work.access_view_plans", || {
-            access_views::validate_access_view_plans_in(
-                typed,
-                &self.access_view_records,
-                self.selection_authority.clone(),
-                &self.domain,
-            )
-        })?;
         // Every position this evaluation folded leaves the recipe roster;
         // only still-symbolic positions remain for a later target closure.
         typed.retain_symbolic_constant_recipes();
@@ -894,6 +889,28 @@ impl PreCheckEvaluation {
             selected_operators: self.selected_operators,
             provider_bodies: self.provider_bodies,
         })
+    }
+
+    /// Accessor declarations already exist after typing. Publish their checked
+    /// plans before preparing calls, even when unrelated target work must wait.
+    /// Successful records leave this continuation so resuming it cannot install
+    /// a second plan for the same accessor.
+    fn complete_access_views(
+        &mut self,
+        typed: &mut TypedTrees,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if self.access_view_records.is_empty() {
+            return Ok(());
+        }
+        let _g = phase_profile::guard("evaluate_or_defer.complete_access_views");
+        access_views::validate_access_view_plans_in(
+            typed,
+            &self.access_view_records,
+            self.selection_authority.clone(),
+            &self.domain,
+        )?;
+        self.access_view_records.clear();
+        Ok(())
     }
 }
 
