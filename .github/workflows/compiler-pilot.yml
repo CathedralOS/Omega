@@ -130,18 +130,34 @@ jobs:
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-73c0f983346371af1094d396708d1a812216f5c0
-      - name: Require the reviewed main compiler cache
+          restore-keys: compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-86c4ccf817c3878b15052a1d54b0e31e1cca3122
+      - name: Require the retained integration compiler cache
         if: github.event_name == 'workflow_dispatch'
         env:
           OBSERVED_CACHE_KEY: ${{ steps.build-cache.outputs.cache-matched-key }}
         shell: python
         run: |
           import os
-          assert os.environ['OBSERVED_CACHE_KEY'] == 'compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-73c0f983346371af1094d396708d1a812216f5c0', 'exact reviewed main cache is required; no cold build was attempted'
+          assert os.environ['OBSERVED_CACHE_KEY'] == 'compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-86c4ccf817c3878b15052a1d54b0e31e1cca3122', 'exact retained 86c4 cache is required; no cold build was attempted'
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Exercise existing state-index mutation and duplicate behavior
+        timeout-minutes: 10
+        shell: python
+        run: |
+          from pathlib import Path
+          import json,os,re,shutil,subprocess
+          out=Path('build/compiler-pilot');out.mkdir(parents=True,exist_ok=True)
+          name='state_lookup_preserves_roster_order_duplicates_and_mutation'
+          command=(['mbx','nextest','run','--locked','-p','typed-trees','--lib',name] if shutil.which('mbx') else ['cargo','test','--locked','-p','typed-trees','--lib',name])
+          with (out/'state-lookup-unit.stdout').open('wb') as stdout,(out/'state-lookup-unit.stderr').open('wb') as stderr:
+           result=subprocess.run(command,stdin=subprocess.DEVNULL,stdout=stdout,stderr=stderr,env=dict(os.environ,CARGO_TERM_COLOR='never'))
+          text=(out/'state-lookup-unit.stdout').read_text(errors='replace')+(out/'state-lookup-unit.stderr').read_text(errors='replace')
+          passed=result.returncode==0 and bool(re.search(r'\b1 passed\b',text))
+          (out/'state-lookup-unit.json').write_text(json.dumps({'source':os.environ['GITHUB_SHA'],'test':name,'command':command,'exit':result.returncode,'passed':passed},indent=2)+'\n')
+          print(text)
+          assert passed,'the existing state-index mutation/duplicate test must actually execute and pass'
       - name: Prepare and retain the optimized producer
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
