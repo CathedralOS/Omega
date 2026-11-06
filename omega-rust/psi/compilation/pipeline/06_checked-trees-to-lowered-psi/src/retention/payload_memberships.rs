@@ -155,7 +155,12 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                 );
                             }
                         })
-                        .map_err(LoweringError::Unsupported)?
+                        .map_err(|reason| LoweringError::ReferenceFormationMembershipUnavailable {
+                            machine: machine.id,
+                            operation: operation.id,
+                            position,
+                            reason,
+                        })?
                         {
                             copies.push((block_index, ordinal, contract));
                         }

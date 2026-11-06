@@ -6,7 +6,7 @@ use lowered_psi::LoweredPsi;
 use terminal_psi::{BoundaryReferenceForwardingDemand, BoundaryReferenceSource, OperationKind};
 
 use crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path;
-use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::LoweringError;
 
 pub(super) fn retain(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -18,7 +18,7 @@ pub(super) fn retain(
         .boundary_reference_forwarding
         .is_empty()
     {
-        return unsupported("reference forwarding requests were already lowered");
+        return invalid_plan("reference forwarding requests were already lowered");
     }
     let control = &checked.facts.flow.control;
     let mut requested = Vec::new();
@@ -49,11 +49,13 @@ pub(super) fn retain(
                 .iter()
                 .map(|(_, state)| state)
                 .filter(|state| state.state_symbol == request.state_symbol);
-            let state = states.next().ok_or(LoweringError::Unsupported(
-                "the forwarding producer state is absent",
-            ))?;
+            let state = states
+                .next()
+                .ok_or(LoweringError::InvalidReferenceForwardingPlan(
+                    "the forwarding producer state is absent",
+                ))?;
             if states.next().is_some() {
-                return unsupported("the forwarding producer state is ambiguous");
+                return invalid_plan("the forwarding producer state is ambiguous");
             }
             if !occurrence.matches_checked_origin(
                 checked,
@@ -75,16 +77,18 @@ pub(super) fn retain(
                         && call.call_ordinal == request.call_ordinal
                         && call.authored_expression == request.invocation
                 });
-            let call = calls.next().ok_or(LoweringError::Unsupported(
-                "the forwarding producer has no exact recorded call",
-            ))?;
+            let call = calls
+                .next()
+                .ok_or(LoweringError::InvalidReferenceForwardingPlan(
+                    "the forwarding producer has no exact recorded call",
+                ))?;
             if calls.next().is_some() {
-                return unsupported("the forwarding producer has ambiguous recorded calls");
+                return invalid_plan("the forwarding producer has ambiguous recorded calls");
             }
             if occurrence.source_target != call.target_symbol
                 && occurrence.source_target != call.authored_target
             {
-                return unsupported("the forwarding request joins another source target");
+                return invalid_plan("the forwarding request joins another source target");
             }
             let mut operations = lowered
                 .semantic_module
@@ -97,13 +101,13 @@ pub(super) fn retain(
                 })
                 .filter(|(_, operation)| operation.id == operation_id);
             let (Some((machine, operation)), None) = (operations.next(), operations.next()) else {
-                return unsupported("the forwarding producer has no unique emitted operation");
+                return invalid_plan("the forwarding producer has no unique emitted operation");
             };
             let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
-                return unsupported("the forwarding producer did not lower to a boundary call");
+                return invalid_plan("the forwarding producer did not lower to a boundary call");
             };
             let declaration = lowered.semantic_module.boundary_machine(boundary).ok_or(
-                LoweringError::Unsupported("the forwarding boundary is absent"),
+                LoweringError::InvalidReferenceForwardingPlan("the forwarding boundary is absent"),
             )?;
             let packed = |position| -> Result<
                 (u32, &terminal_psi::StructuralParameterDeclaration),
@@ -115,11 +119,13 @@ pub(super) fn retain(
                     .enumerate()
                     .filter(|(_, parameter)| parameter.position == position);
                 let (Some((index, parameter)), None) = (rows.next(), rows.next()) else {
-                    return unsupported("the forwarding formal has no unique packed lane");
+                    return invalid_plan("the forwarding formal has no unique packed lane");
                 };
                 Ok((
                     u32::try_from(index).map_err(|_| {
-                        LoweringError::Unsupported("the forwarding lane exceeds u32")
+                        LoweringError::InvalidReferenceForwardingPlan(
+                            "the forwarding lane exceeds u32",
+                        )
                     })?,
                     parameter,
                 ))
@@ -146,7 +152,7 @@ pub(super) fn retain(
                             && output.path == path
                     });
             let (Some((output, _)), None) = (outputs.next(), outputs.next()) else {
-                return unsupported("the forwarding request has no exact public reference output");
+                return invalid_plan("the forwarding request has no exact public reference output");
             };
             let mut sources = Vec::new();
             for source in &request.sources {
@@ -178,13 +184,15 @@ pub(super) fn retain(
             sources.sort();
             sources.dedup();
             if sources.is_empty() {
-                return unsupported("the forwarding request has no reference value choices");
+                return invalid_plan("the forwarding request has no reference value choices");
             }
             rows.push(BoundaryReferenceForwardingDemand {
                 machine,
                 operation: operation_id,
                 output: u32::try_from(output).map_err(|_| {
-                    LoweringError::Unsupported("the forwarding output ordinal exceeds u32")
+                    LoweringError::InvalidReferenceForwardingPlan(
+                        "the forwarding output ordinal exceeds u32",
+                    )
                 })?,
                 sources,
             });
@@ -197,7 +205,7 @@ pub(super) fn retain(
             .iter()
             .map(|(_, state)| state)
             .find(|state| state.state_symbol == request.state_symbol)
-            .ok_or(LoweringError::Unsupported(
+            .ok_or(LoweringError::InvalidReferenceForwardingPlan(
                 "the forwarding source state is absent",
             ))?;
         let origin =
@@ -215,7 +223,9 @@ pub(super) fn retain(
             _ => false,
         };
         if emitted && !visited {
-            return unsupported("an emitted forwarding dependency has no producer call occurrence");
+            return invalid_plan(
+                "an emitted forwarding dependency has no producer call occurrence",
+            );
         }
     }
     rows.sort();
@@ -224,8 +234,12 @@ pub(super) fn retain(
         (pair[0].machine, pair[0].operation, pair[0].output)
             == (pair[1].machine, pair[1].operation, pair[1].output)
     }) {
-        return unsupported("one forwarding output has inconsistent requested choice sets");
+        return invalid_plan("one forwarding output has inconsistent requested choice sets");
     }
     lowered.semantic_module.boundary_reference_forwarding = rows;
     Ok(())
+}
+
+fn invalid_plan<T>(reason: &'static str) -> Result<T, LoweringError> {
+    Err(LoweringError::InvalidReferenceForwardingPlan(reason))
 }

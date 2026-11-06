@@ -100,6 +100,25 @@ pub enum LoweringError {
     /// Preserve the declaration and provenance reason from source identity closure.
     InvalidDeclarationIdentity(String),
     InvalidBoundaryApplication(String),
+    /// A checked lender request must join its exact emitted call and public row.
+    InvalidLenderPreservationPlan(&'static str),
+    /// A checked forwarding request must keep its source choices when emitted.
+    InvalidReferenceForwardingPlan(&'static str),
+    /// An actual saved-reference use can require a conditional provider proof.
+    /// Keep the semantic refusal when its captured choices cannot be completed.
+    ReferenceForwardingCompletionRefused(&'static str),
+    /// Producer-side dependency discovery must finish within its finite inventory.
+    ReferenceForwardingCompletionLimit {
+        maximum: usize,
+    },
+    /// Forming a reference needs complete, justified memberships at this cut.
+    /// This is the semantic owner's refusal, not a previously checked roster.
+    ReferenceFormationMembershipUnavailable {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        position: (semantic_vocabulary::BlockId, u32),
+        reason: &'static str,
+    },
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
     InvalidQuotientCorrespondence(Vec<String>),
     InvalidUnitMachinePlan {

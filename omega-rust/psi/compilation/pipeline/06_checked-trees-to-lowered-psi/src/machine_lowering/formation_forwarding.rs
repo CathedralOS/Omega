@@ -23,13 +23,11 @@ pub(super) fn retain(module: &mut terminal_psi::TerminalModule) -> Result<(), Lo
             terminal_semantics::descriptor_results::formation_reference_forwarding_requirements(
                 module,
             )
-            .map_err(LoweringError::Unsupported)?;
+            .map_err(LoweringError::ReferenceForwardingCompletionRefused)?;
         if required == module.boundary_reference_forwarding {
             return Ok(());
         }
         module.boundary_reference_forwarding = required;
     }
-    Err(LoweringError::Unsupported(
-        "reference formation forwarding dependencies did not reach a finite fixed point",
-    ))
+    Err(LoweringError::ReferenceForwardingCompletionLimit { maximum })
 }

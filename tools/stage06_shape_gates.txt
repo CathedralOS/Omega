@@ -22,7 +22,7 @@
 9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/expression_validation.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/formation_memberships.rs
 14 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/indexed_write.rs
-12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/loan_completions.rs
+8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/loan_completions.rs
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/mod.rs
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/operation_emission/boundary_calls.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/operation_emission/boundary_calls/overflow_eligibility.rs
@@ -103,7 +103,7 @@
 17 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use/places.rs
 24 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs
-50 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs
+49 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs
 20 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/call_lowering.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/guards.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/prepared.rs
@@ -213,7 +213,6 @@
 14 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/calls.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/completed_arguments.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/dynamic_calls.rs
-5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/loan_completions.rs
 54 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/locals.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/register_access.rs
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame/selection_retirement.rs

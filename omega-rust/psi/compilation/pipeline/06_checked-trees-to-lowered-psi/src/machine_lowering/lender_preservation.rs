@@ -6,7 +6,7 @@ use checked_trees::CheckedTrees;
 use lowered_psi::LoweredPsi;
 use terminal_psi::{BoundaryLenderPreservationDemand, OperationKind, StructuralDomainRequirement};
 
-use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::LoweringError;
 use crate::shared::terminal_identities::StructuralDomainBinding;
 
 pub(super) fn retain(
@@ -19,7 +19,7 @@ pub(super) fn retain(
         .boundary_lender_preservation
         .is_empty()
     {
-        return unsupported("lender preservation requests were already lowered");
+        return invalid_plan("lender preservation requests were already lowered");
     }
     let mut rows = Vec::new();
     let mut visited = std::collections::HashSet::new();
@@ -64,12 +64,12 @@ pub(super) fn retain(
             continue;
         };
         if matching.next().is_some() {
-            return unsupported("a lowered lender call has ambiguous checked request owners");
+            return invalid_plan("a lowered lender call has ambiguous checked request owners");
         }
         if occurrence.source_target != call.target_symbol
             && occurrence.source_target != call.authored_target
         {
-            return unsupported("the lender request joins another checked call target");
+            return invalid_plan("the lender request joins another checked call target");
         }
         let mut operations = lowered
             .semantic_module
@@ -82,13 +82,15 @@ pub(super) fn retain(
             })
             .filter(|(_, operation)| operation.id == operation_id);
         let (Some((machine, operation)), None) = (operations.next(), operations.next()) else {
-            return unsupported("the lender call has no unique emitted operation");
+            return invalid_plan("the lender call has no unique emitted operation");
         };
         let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
-            return unsupported("the lender request did not lower to a boundary call");
+            return invalid_plan("the lender request did not lower to a boundary call");
         };
         let declaration = lowered.semantic_module.boundary_machine(boundary).ok_or(
-            LoweringError::Unsupported("the lender call has no public declaration"),
+            LoweringError::InvalidLenderPreservationPlan(
+                "the lender call has no public declaration",
+            ),
         )?;
         let domain_ids = lowered
             .semantic_module
@@ -100,7 +102,7 @@ pub(super) fn retain(
                     // identity; the concrete carrier-specific domain id is separate.
                     semantic_domain: language_semantics::SemanticDomainId(
                         u32::try_from(domain.semantic_domain.get()).map_err(|_| {
-                            LoweringError::Unsupported(
+                            LoweringError::InvalidLenderPreservationPlan(
                                 "the semantic domain exceeds Psi's identity range",
                             )
                         })?,
@@ -118,7 +120,7 @@ pub(super) fn retain(
                 .enumerate()
                 .filter(|(_, formal)| formal.position == request.argument_position);
             let (Some((index, formal)), None) = (parameters.next(), parameters.next()) else {
-                return unsupported("the lender formal has no exact packed structural position");
+                return invalid_plan("the lender formal has no exact packed structural position");
             };
             let mut selected =
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
@@ -131,21 +133,26 @@ pub(super) fn retain(
                     formal.structural_type,
                     &lowered.semantic_module.structural_types,
                 )?;
-            let qualification = selected.pop().ok_or(LoweringError::Unsupported(
-                "the lender request lost its exact projected domain",
-            ))?;
+            let qualification =
+                selected
+                    .pop()
+                    .ok_or(LoweringError::InvalidLenderPreservationPlan(
+                        "the lender request lost its exact projected domain",
+                    ))?;
             if !selected.is_empty() {
-                return unsupported("the lender request expanded into multiple domains");
+                return invalid_plan("the lender request expanded into multiple domains");
             }
             let requirement = StructuralDomainRequirement {
                 argument_index: u32::try_from(index).map_err(|_| {
-                    LoweringError::Unsupported("the lender structural position exceeds u32")
+                    LoweringError::InvalidLenderPreservationPlan(
+                        "the lender structural position exceeds u32",
+                    )
                 })?,
                 path: qualification.path,
                 domain: qualification.domain,
             };
             if !declaration.normal_qualifications.contains(&requirement) {
-                return unsupported(
+                return invalid_plan(
                     "the lender request is not the exact public normal contract row",
                 );
             }
@@ -185,13 +192,17 @@ pub(super) fn retain(
                 call.call_ordinal,
             ))
         {
-            return unsupported("an emitted checked lender request has no call occurrence");
+            return invalid_plan("an emitted checked lender request has no call occurrence");
         }
     }
     rows.sort();
     if rows.windows(2).any(|pair| pair[0] == pair[1]) {
-        return unsupported("multiple lender requests name the same emitted duty");
+        return invalid_plan("multiple lender requests name the same emitted duty");
     }
     lowered.semantic_module.boundary_lender_preservation = rows;
     Ok(())
+}
+
+fn invalid_plan<T>(reason: &'static str) -> Result<T, LoweringError> {
+    Err(LoweringError::InvalidLenderPreservationPlan(reason))
 }
