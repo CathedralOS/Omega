@@ -247,12 +247,11 @@ pub(super) fn retain_facts(
         .terminal_debug
         .machines
         .retain(|row| retained(&row.machine));
-    facts.flow.guarded_exits.tails.retain(|row| {
-        index
-            .state_machine
-            .get(&row.state)
-            .is_none_or(&retained)
-    });
+    facts
+        .flow
+        .guarded_exits
+        .tails
+        .retain(|row| index.state_machine.get(&row.state).is_none_or(&retained));
     facts
         .flow
         .terminal_unit_effects
