@@ -334,7 +334,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         }
         let (contract_expressions, logical_selections) = {
             let scopes = selection::contract_expression_scopes(program);
-            let expressions = selection::contract_expression_handles(program);
+            let expressions = selection::contract_expression_handles_from_scopes(program, &scopes);
             let selections =
                 collect_contract_call_selections(program, &scopes, &candidates, &callee_states);
             (expressions, selections)

@@ -20,7 +20,8 @@ mod static_bindings;
 
 pub(crate) use callee_proposals::{
     ContractExpressionScope, collect_machine_proposals_for_callee, contract_expression_handles,
-    contract_expression_scopes, resolve_callee, state_by_symbol,
+    contract_expression_handles_from_scopes, contract_expression_scopes, resolve_callee,
+    state_by_symbol,
 };
 pub(crate) use proposals::{BindingContext, StaticProposals};
 pub(crate) use selection_assembly::{
