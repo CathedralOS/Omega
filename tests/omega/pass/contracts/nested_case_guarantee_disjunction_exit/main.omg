@@ -1,4 +1,5 @@
-// Expected exit: 0. A public disjunction yields its case only when the scalar sibling is false.
+// Expected exit: 0
+// The public promise proves Cell only when flag is false.
 public data Choice { case Cell(value: u32); case Empty; }
 
 public machine choose(flag: bool) -> Choice
