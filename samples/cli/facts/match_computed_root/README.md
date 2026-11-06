@@ -27,6 +27,16 @@ That is an incomplete input contract in the retired source form, not evidence of
 a new compiler defect. The earlier four private-call checking regressions are
 already repaired by the retained producer.
 
+The unchanged revised programs were also checked against published main
+`0b53c8a4e109e8d6ef3a9bbabc29c52529317a48` in
+[run 42166308906](https://github.com/CathedralOS/Omega/actions/runs/42166308906).
+Eight positives checked and all nine twins reached their original expected
+active-borrow diagnostics. Only the migrated target place refused: the checker
+could not carry the provider's required `visits == 0` condition into the ordinary
+`apply` helper. This checking gap needs the general private-call arrival repair;
+the public contracts and authored programs remain unchanged. That run checked
+Source only and supplies no runtime result.
+
 The provider migration and incrementing counter are not yet qualified. This row
 remains open until all nine revised places run on both engines, their twins reach
 the intended loan diagnostic, the counter effect is inspected, and normal review

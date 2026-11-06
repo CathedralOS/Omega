@@ -26,6 +26,7 @@ use typed_trees::signature::SignatureContractKind;
 
 use super::ProvenContractExpressions;
 use super::statements::statement_source_span;
+use crate::proof_contracts::contract_entailment::structural_prefix::private_invocation_index;
 
 /// One strict check's entailment judgment for a single non-instance machine.
 /// Ordinals index that machine's expression `ensures` list, which is stable
@@ -171,6 +172,7 @@ impl DependencyBodyIndex {
             });
             admissions.push(admission);
         }
+        exclude_private_arrival_dependencies(program, &callees, &mut admissions);
         Self {
             active: true,
             record,
@@ -513,6 +515,44 @@ fn substitution_context(
         body_hash: admission.body_hash,
         dependency_context: hash.finish(),
     })
+}
+
+/// Checking a retained body without comparing the full program cannot validate
+/// caller facts imported from constants or domains. Statement text alone does
+/// not capture those definitions. Check these bodies and every enclosing caller
+/// again, so a retained call cannot skip that check. Whole-program reuse still
+/// compares the complete source and the entries callable from outside it.
+fn exclude_private_arrival_dependencies(
+    program: &dyn crate::CheckingInput,
+    callees: &[Vec<u32>],
+    admissions: &mut [Option<BodyAdmission>],
+) {
+    let index = private_invocation_index(program);
+    let mut callers = vec![Vec::new(); callees.len()];
+    for (caller, targets) in callees.iter().enumerate() {
+        for &target in targets {
+            callers[target as usize].push(caller);
+        }
+    }
+    let mut excluded = program
+        .machines()
+        .iter()
+        .map(|machine| index.has_closed_private_uses(program, machine))
+        .collect::<Vec<_>>();
+    let mut pending = excluded
+        .iter()
+        .enumerate()
+        .filter_map(|(machine, &exclude)| exclude.then_some(machine))
+        .collect::<Vec<_>>();
+    while let Some(machine) = pending.pop() {
+        admissions[machine] = None;
+        for &caller in &callers[machine] {
+            if !excluded[caller] {
+                excluded[caller] = true;
+                pending.push(caller);
+            }
+        }
+    }
 }
 
 fn dependency_context(
