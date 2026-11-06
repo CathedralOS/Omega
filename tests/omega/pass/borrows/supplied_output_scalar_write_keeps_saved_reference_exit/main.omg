@@ -1,29 +1,57 @@
-// Expected exit: 0
-// A helper replaces 7 with 5; the saved reference must observe the write.
+// Expected exit: 0.
+// One stored leaf chooses either issued backing; consuming the output restores only universally held duties.
 public data Ticket [copy] { number: u64; }
 public domain Ticket::Issued requires self.number > 0;
+public data Input<T> { body: T; }
 public data Output<T> { body: T; }
 public boundary trait Installer {
-    machine install<'storage>(output: &mut Output<&'storage mut Ticket in Issued>) reaches;
+    machine install<'storage>(input: &mut Input<&'storage mut Ticket in Issued>, output: &mut Output<&'storage mut Ticket in Issued>) reaches;
 }
 public CheckedInstaller satisfies Installer {
-    machine install<'storage>(output: &mut Output<&'storage mut Ticket in Issued>) {
-        output.body.number = 5;
+    machine install<'storage>(input: &mut Input<&'storage mut Ticket in Issued>, output: &mut Output<&'storage mut Ticket in Issued>) {
+        output = Output { body: &mut input.body };
     }
 }
 machine read_issued(ticket: &Ticket in Issued) -> u64 { ticket.number }
-machine exercise() -> bool reaches Installer {
-    let mut old_output: Ticket in Issued = Ticket { number: 7 };
+machine read_plain(ticket: &Ticket) -> u64 { ticket.number }
+machine finish<'storage>(mut output: Output<&'storage mut Ticket in Issued>) -> u64 {
+    output.body = Ticket { number: 43 };
+    read_issued(&output.body)
+}
+machine prepare<'storage>(input: &mut Input<&'storage mut Ticket in Issued>, selected: &'storage mut Ticket, number: u64) -> u64 requires number > 0 {
+    selected = Ticket { number: number };
+    let qualified: &mut Ticket in Issued = &mut selected;
+    input = Input { body: qualified };
+    number
+}
+machine exercise(flag: bool) -> bool reaches Installer {
+    let mut left: Ticket = Ticket { number: 0 };
+    let mut right: Ticket = Ticket { number: 0 };
+    let mut initial_input: Ticket in Issued = Ticket { number: 7 };
+    let mut old_output: Ticket in Issued = Ticket { number: 5 };
     let mut spare: Ticket in Issued = Ticket { number: 9 };
+    let mut input: Input<&mut Ticket in Issued> = Input { body: &mut initial_input };
+    let staged: u64 = match flag {
+        true -> prepare(&mut input, &mut left, 17),
+        false -> prepare(&mut input, &mut right, 23),
+    };
     let mut output: Output<&mut Ticket in Issued> = Output { body: &mut old_output };
-    Installer::install(&mut output);
-    output = Output { body: &mut spare };
-    let old_value: u64 = read_issued(&old_output);
-    old_value == 5 && output.body.number == 9
+    Installer::install(&mut input, &mut output);
+    input = Input { body: &mut spare };
+    let observed: u64 = finish(output);
+    let restored: u64 = read_issued(&old_output);
+    let left_value: u64 = read_plain(&left);
+    let right_value: u64 = read_plain(&right);
+    let initial_value: u64 = read_plain(&initial_input);
+    let spare_value: u64 = input.body.number;
+    observed == 43 && restored == 5 && initial_value == 7 && spare_value == 9
+        && ((flag && staged == 17 && left_value == 43 && right_value == 0)
+            || (!flag && staged == 23 && left_value == 0 && right_value == 43))
 }
 machine main() crashes Trap reaches Installer {
-    let okay: bool = exercise();
-    transition okay { true -> done() false -> bad() }
+    let first: bool = exercise(true);
+    let second: bool = exercise(false);
+    transition first && second { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

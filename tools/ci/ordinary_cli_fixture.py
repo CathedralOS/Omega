@@ -223,7 +223,19 @@ def observe(root, producer, fixture, output, *, dependency_projects=()):
         validate_exits(code, text, expected)
         if not kept or not (output / "products/program.oterm").is_file():
             raise ValueError("ordinary CLI fixture lost its retained Terminal product")
-        record.update(passed=True, native_exit=expected, terminal_exit=expected)
+        record.update(native_exit=expected, terminal_exit=expected)
+        artifact = output / "products/program.oterm"
+        artifact_digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        code = command("runtime-artifact-reload",
+                       [producer.cli, "inspect-terminal", "--artifact", artifact], workspace, 240)
+        if code != 0 or hashlib.sha256(artifact.read_bytes()).hexdigest() != artifact_digest:
+            raise ValueError(f"the exact kept runtime artifact refused canonical reload ({code})")
+        record["runtime_artifact_reload"] = dict(
+            path=str(artifact), sha256=artifact_digest, exit_code=code,
+            same_as_kept_product=record["products"]["program.oterm"] == artifact_digest)
+        if not record["runtime_artifact_reload"]["same_as_kept_product"]:
+            raise ValueError("the kept runtime artifact changed before canonical reload")
+        record["passed"] = True
         return record
     except (OSError, ValueError) as error:
         record["error"] = str(error)
