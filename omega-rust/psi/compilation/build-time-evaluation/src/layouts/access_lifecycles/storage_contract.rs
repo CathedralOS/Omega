@@ -59,7 +59,9 @@ pub(super) fn check(
                     })?
                     .type_reference
             }
-            AccessLifecycleOperation::MoveOut => parameter.type_reference,
+            AccessLifecycleOperation::MoveOut | AccessLifecycleOperation::Relocate => {
+                parameter.type_reference
+            }
             AccessLifecycleOperation::View => {
                 return Err(Diagnostic::error(
                     "typed run is not a borrowed placement operation",
@@ -88,7 +90,10 @@ pub(super) fn check(
                 )),
             }
         };
-        let extent_reference = if operation == AccessLifecycleOperation::MoveOut {
+        let extent_reference = if matches!(
+            operation,
+            AccessLifecycleOperation::MoveOut | AccessLifecycleOperation::Relocate
+        ) {
             storage.type_reference
         } else {
             parameter.type_reference

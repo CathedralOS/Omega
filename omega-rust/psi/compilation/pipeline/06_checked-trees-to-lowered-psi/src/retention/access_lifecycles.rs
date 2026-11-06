@@ -135,6 +135,9 @@ pub(crate) fn retain(
                     }
                     AccessLifecycleOperation::MoveOut => TerminalAccessLifecycleOperation::MoveOut,
                     AccessLifecycleOperation::View => TerminalAccessLifecycleOperation::View,
+                    AccessLifecycleOperation::Relocate => {
+                        TerminalAccessLifecycleOperation::Relocate
+                    }
                 },
                 execution: execution.clone(),
                 schema: schema_type,
@@ -239,54 +242,57 @@ fn execution_contract(
         }
         return Ok(TerminalAccessLifecycleExecution::SelectedProvider);
     };
-    let profile_type =
-        {
-            let state = checked.typed.state_by_symbol(declaration.state()).ok_or(
-                LoweringError::Unsupported("placement primitive entry is absent"),
-            )?;
-            let parameters = checked.typed.state_parameters(state);
-            let profile = match (declaration.operation(), parameters) {
-                (AccessLifecycleOperation::Initialize, [_, _, profile])
-                | (
-                    AccessLifecycleOperation::MoveOut | AccessLifecycleOperation::View,
-                    [_, profile],
-                ) => profile,
-                _ => {
-                    return unsupported("placement primitive profile input is absent");
-                }
-            };
-            let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
-                .typed
-                .type_reference_table
-                .type_reference(profile.type_reference)
-            else {
-                return unsupported("placement primitive must borrow its original profile result");
-            };
-            let data = checked.typed.closed_data_definition(*referee).ok_or(
-                LoweringError::Unsupported("placement primitive profile type is absent"),
-            )?;
-            Some(
-                super::access_view_plans::schema_type(checked, module, data).ok_or(
-                    LoweringError::Unsupported("placement primitive profile type was not emitted"),
-                )?,
-            )
+    let mut profile_type = None;
+    let mut profile_requirements = Vec::new();
+    let profile_positions: &[usize] = match declaration.operation() {
+        AccessLifecycleOperation::Initialize => &[2],
+        AccessLifecycleOperation::MoveOut | AccessLifecycleOperation::View => &[1],
+        AccessLifecycleOperation::Relocate => &[2, 3],
+    };
+    for (role_position, position) in profile_positions.iter().enumerate() {
+        let state = checked.typed.state_by_symbol(declaration.state()).ok_or(
+            LoweringError::Unsupported("placement primitive entry is absent"),
+        )?;
+        let parameters = checked.typed.state_parameters(state);
+        let profile = parameters.get(*position).ok_or(LoweringError::Unsupported(
+            "placement primitive profile input is absent",
+        ))?;
+        let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
+            .typed
+            .type_reference_table
+            .type_reference(profile.type_reference)
+        else {
+            return unsupported("placement primitive must borrow its original profile result");
         };
-    let profile_requirement = if profile_type.is_some() {
-        Some(profile_requirement(
+        let data =
+            checked
+                .typed
+                .closed_data_definition(*referee)
+                .ok_or(LoweringError::Unsupported(
+                    "placement primitive profile type is absent",
+                ))?;
+        let retained_type = super::access_view_plans::schema_type(checked, module, data).ok_or(
+            LoweringError::Unsupported("placement primitive profile type was not emitted"),
+        )?;
+        if profile_type.is_some_and(|previous| previous != retained_type) {
+            return unsupported("placement primitive profiles have different core carriers");
+        }
+        profile_type = Some(retained_type);
+        profile_requirements.push(profile_requirement(
             identities,
             checked,
             exact_toolchain_sources,
             lowered,
-            declaration.profile_role(&checked.typed).map_err(|_| {
-                LoweringError::Unsupported("placement primitive lost its exact supply role")
-            })?,
+            declaration
+                .profile_role(&checked.typed, role_position)
+                .map_err(|_| {
+                    LoweringError::Unsupported("placement primitive lost its exact supply role")
+                })?,
         )?)
-    } else {
-        None
-    };
+    }
     Ok(TerminalAccessLifecycleExecution::CompilerPrimitive {
         profile_type,
-        profile_requirement,
+        profile_requirements,
     })
 }
 

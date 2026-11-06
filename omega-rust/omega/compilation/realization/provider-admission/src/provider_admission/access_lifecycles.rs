@@ -180,109 +180,114 @@ fn bind_profile(
 ) -> Result<(), &'static str> {
     let TerminalAccessLifecycleExecution::CompilerPrimitive {
         profile_type: Some(profile_type),
-        profile_requirement: Some(requirement),
+        profile_requirements,
     } = &plan.execution
     else {
         return Err("lifecycle lost its exact core profile requirement");
     };
-    let (storage, profile) = match (plan.operation, arguments) {
-        (TerminalAccessLifecycleOperation::Initialize, [storage, _, profile])
-        | (
-            TerminalAccessLifecycleOperation::MoveOut | TerminalAccessLifecycleOperation::View,
-            [storage, profile],
-        ) => (storage, profile),
-        _ => return Err("lifecycle lost its storage, value or profile input"),
-    };
-    let storage_access = if plan.operation == TerminalAccessLifecycleOperation::View {
-        module
-            .boundary_machine(plan.boundary)
-            .and_then(|boundary| boundary.structural_parameters.first())
-            .filter(|parameter| {
-                matches!(
-                    parameter.access,
-                    terminal_psi::reading_borrow_pair_pattern!()
-                )
+    let operands = plan.operation.profile_operands();
+    if profile_requirements.len() != operands.len() {
+        return Err("lifecycle lost its complete supply-role roster");
+    }
+    for (operand, requirement) in operands.iter().zip(profile_requirements) {
+        let storage = arguments
+            .get(operand.storage)
+            .ok_or("lifecycle lost its storage input")?;
+        let profile = arguments
+            .get(operand.profile)
+            .ok_or("lifecycle lost its profile input")?;
+        let storage_access = if plan.operation == TerminalAccessLifecycleOperation::View {
+            module
+                .boundary_machine(plan.boundary)
+                .and_then(|boundary| boundary.structural_parameters.first())
+                .filter(|parameter| {
+                    matches!(
+                        parameter.access,
+                        terminal_psi::reading_borrow_pair_pattern!()
+                    )
+                })
+                .ok_or("borrowed placement lost its declared storage loan")?
+                .access
+        } else {
+            StructuralAccess::Owned
+        };
+        if storage.access != storage_access || profile.access != StructuralAccess::SharedBorrow {
+            return Err("placement operation lost its storage access or original profile borrow");
+        }
+        let query = argument_query(module, graph, caller, profile)?;
+        let original = descriptor_results::unchanged_payload_producer(
+            &module.structural_types,
+            graph,
+            caller,
+            position,
+            &query,
+        )?;
+        let machine = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == caller)
+            .ok_or("profile consumer machine is absent")?;
+        let producer = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == original.producer.0)
+            .and_then(|block| block.operations.get(original.producer.1 as usize))
+            .ok_or("profile producer operation is absent")?;
+        let call = selected_profile_call(
+            installation.installed_calls(),
+            caller,
+            producer.id,
+            requirement.boundary,
+        )?;
+        if call.result() != &producer.result
+            || call.result().as_structural().is_none_or(|result| {
+                result.place != original.payload.root || result.structural_type != *profile_type
             })
-            .ok_or("borrowed placement lost its declared storage loan")?
-            .access
-    } else {
-        StructuralAccess::Owned
-    };
-    if storage.access != storage_access || profile.access != StructuralAccess::SharedBorrow {
-        return Err("placement operation lost its storage access or original profile borrow");
+        {
+            return Err("profile is not the complete original selected-call result");
+        }
+        let [borrowed_storage] = call.structural_arguments() else {
+            return Err("profile call has no exact borrowed extent input");
+        };
+        if borrowed_storage.access != StructuralAccess::SharedBorrow
+            || !call.scalar_arguments().is_empty()
+        {
+            return Err("profile call differs from its shared extent contract");
+        }
+        let mut analysis =
+            DescriptorAnalysis::with_reference_slots(&module.structural_types, graph);
+        let supplied = argument_storage(
+            module,
+            graph,
+            &mut analysis,
+            caller,
+            original.producer,
+            borrowed_storage,
+        )?;
+        // A run consumes its complete linear owner, while its profile was obtained
+        // for the backing field. Compare that exact projection, not the descriptor
+        // root; matching a parent by address would forget the selected occurrence.
+        let mut backing = storage.clone();
+        if operand.occupied {
+            backing.path.extend(
+                plan.storage
+                    .owner_storage_path(&module.structural_types)
+                    .ok_or("lifecycle owner lost its exact backing projection")?,
+            );
+        }
+        let consumed = argument_storage(module, graph, &mut analysis, caller, position, &backing)?;
+        if supplied != consumed {
+            return Err("profile call and lifecycle refer to different extent occurrences");
+        }
+        descriptor_results::require_unchanged_observed_storage(
+            &module.structural_types,
+            graph,
+            caller,
+            original.producer,
+            position,
+            &consumed,
+        )?;
     }
-    let query = argument_query(module, graph, caller, profile)?;
-    let original = descriptor_results::unchanged_payload_producer(
-        &module.structural_types,
-        graph,
-        caller,
-        position,
-        &query,
-    )?;
-    let machine = module
-        .machines
-        .iter()
-        .find(|machine| machine.id == caller)
-        .ok_or("profile consumer machine is absent")?;
-    let producer = machine
-        .blocks
-        .iter()
-        .find(|block| block.id == original.producer.0)
-        .and_then(|block| block.operations.get(original.producer.1 as usize))
-        .ok_or("profile producer operation is absent")?;
-    let call = selected_profile_call(
-        installation.installed_calls(),
-        caller,
-        producer.id,
-        requirement.boundary,
-    )?;
-    if call.result() != &producer.result
-        || call.result().as_structural().is_none_or(|result| {
-            result.place != original.payload.root || result.structural_type != *profile_type
-        })
-    {
-        return Err("profile is not the complete original selected-call result");
-    }
-    let [borrowed_storage] = call.structural_arguments() else {
-        return Err("profile call has no exact borrowed extent input");
-    };
-    if borrowed_storage.access != StructuralAccess::SharedBorrow
-        || !call.scalar_arguments().is_empty()
-    {
-        return Err("profile call differs from its shared extent contract");
-    }
-    let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, graph);
-    let supplied = argument_storage(
-        module,
-        graph,
-        &mut analysis,
-        caller,
-        original.producer,
-        borrowed_storage,
-    )?;
-    // A run consumes its complete linear owner, while its profile was obtained
-    // for the backing field. Compare that exact projection, not the descriptor
-    // root; matching a parent by address would forget the selected occurrence.
-    let mut backing = storage.clone();
-    if plan.operation == TerminalAccessLifecycleOperation::MoveOut {
-        backing.path.extend(
-            plan.storage
-                .owner_storage_path(&module.structural_types)
-                .ok_or("lifecycle owner lost its exact backing projection")?,
-        );
-    }
-    let consumed = argument_storage(module, graph, &mut analysis, caller, position, &backing)?;
-    if supplied != consumed {
-        return Err("profile call and lifecycle refer to different extent occurrences");
-    }
-    descriptor_results::require_unchanged_observed_storage(
-        &module.structural_types,
-        graph,
-        caller,
-        original.producer,
-        position,
-        &consumed,
-    )?;
     Ok(())
 }
 

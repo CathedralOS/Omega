@@ -65,6 +65,7 @@ pub enum AccessLifecycleOperation {
     Initialize,
     MoveOut,
     View,
+    Relocate,
 }
 
 impl AccessLifecyclePlan {

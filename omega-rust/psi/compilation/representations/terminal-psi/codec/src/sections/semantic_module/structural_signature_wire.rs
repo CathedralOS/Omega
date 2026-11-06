@@ -133,6 +133,7 @@ wire_enum! {
         2 => AccessMoveOut,
         3 => AccessView,
         4 => EmptyRunRelease,
+        5 => AccessRelocate,
     }
     Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
     RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {

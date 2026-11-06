@@ -349,7 +349,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                     )?;
                     // Resolve and normalize the exact completed supply before any
                     // write. The result alone does not establish resident contents.
-                    let (binding, supplied) = self.lifecycle_profile(plan, &storage, &profile)?;
+                    let (binding, supplied) =
+                        self.lifecycle_profile(plan, 0, &storage, &profile)?;
                     // Terminal byte regions use the same little-endian scalar
                     // codec as ordinary captured byte storage. Native realization
                     // supplies its target byte order independently.
