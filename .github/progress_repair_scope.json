@@ -1,0 +1,40 @@
+{
+  "schema": "omega-progress-selector-scope-v1",
+  "fixtures": [
+    "pass/facts/progress_selector_through_local_exit",
+    "fail/facts/progress_selector_through_local_rejected",
+    "pass/facts/progress_selector_through_field_exit",
+    "fail/facts/progress_selector_through_field_rejected",
+    "pass/facts/progress_selector_through_parameter_exit",
+    "fail/facts/progress_selector_through_parameter_rejected",
+    "pass/facts/progress_selector_through_call_result_exit",
+    "fail/facts/progress_selector_through_call_result_rejected",
+    "pass/facts/progress_selector_through_match_join_exit",
+    "fail/facts/progress_selector_through_match_join_rejected",
+    "pass/facts/progress_selector_through_const_name_exit",
+    "fail/facts/progress_selector_through_const_name_rejected",
+    "pass/facts/progress_selector_through_other_state_exit",
+    "fail/facts/progress_selector_through_other_state_rejected",
+    "pass/facts/progress_selector_through_other_machine_exit",
+    "fail/facts/progress_selector_through_other_machine_rejected",
+    "pass/facts/progress_selector_through_target_body_exit",
+    "fail/facts/progress_selector_through_target_body_rejected",
+    "fail/termination/progress_selector_replaced_slot",
+    "fail/termination/progress_selector_replaced_carrier",
+    "fail/termination/progress_selector_unknown_alternative",
+    "fail/termination/progress_selector_stale_contents"
+  ],
+  "source_only": false,
+  "samples": [
+    "samples/cli/facts/progress_selector/local",
+    "samples/cli/facts/progress_selector/field",
+    "samples/cli/facts/progress_selector/parameter",
+    "samples/cli/facts/progress_selector/call_result",
+    "samples/cli/facts/progress_selector/match_join",
+    "samples/cli/facts/progress_selector/const_name",
+    "samples/cli/facts/progress_selector/other_state",
+    "samples/cli/facts/progress_selector/other_machine",
+    "samples/cli/facts/progress_selector/target_body"
+  ],
+  "cli_fixtures": []
+}
