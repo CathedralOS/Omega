@@ -1,5 +1,7 @@
 //! Admission predicates and immutable inputs shared by construction and replay.
 
+mod descriptor_tables;
+
 use super::Error;
 use abstract_operations::{
     AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
@@ -15,6 +17,7 @@ mod primitive_accesses;
 mod stack_calls;
 mod structural_case;
 mod structural_fields;
+mod structural_homes;
 pub(super) use stack_calls::{CallStackEdge, stack_calls};
 #[cfg(test)]
 mod tests;
@@ -58,6 +61,11 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 }
                 | AbstractOperation::AtomicEvent { .. }
                 | AbstractOperation::RegisterAccess { .. }
+                | AbstractOperation::ReadSegmentSelector { .. }
+                | AbstractOperation::ReadTaskRegister { .. }
+                | AbstractOperation::ReloadSegmentDescriptors { .. }
+                | AbstractOperation::ActivateTaskRegister { .. }
+                | AbstractOperation::GlobalDescriptorTable { .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. }
                 | abstract_operations::establish_record_or_case_pattern!(..)
@@ -192,6 +200,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .selected_plan()
             .function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
+        let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
+            .map_err(Error::Mismatch)?;
         let structural = selected.structural.as_ref();
         let graph_result = aggregate_results::header(abstracted, targeted, selected);
         // A provider service ceiling is declaration metadata, not a structural
@@ -287,6 +297,18 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for (operation_ordinal, operation) in abstracted.operations.iter().enumerate() {
             let admitted = match operation {
+                AbstractOperation::ReadSegmentSelector { .. }
+                | AbstractOperation::ReadTaskRegister { .. }
+                | AbstractOperation::ReloadSegmentDescriptors { .. }
+                | AbstractOperation::ActivateTaskRegister { .. }
+                | AbstractOperation::GlobalDescriptorTable { .. } => {
+                    descriptor_replay.validate(operation).map_err(|reason| Error::UnaccountedOperation {
+                        machine: fragment.machine,
+                        operation_ordinal,
+                        operation_description: format!("{operation:?}: {reason}"),
+                    })?;
+                    true
+                }
                 AbstractOperation::RegisterAccess { psi_operation, event, result, .. } => {
                     let mut instructions = selected.instructions().filter(|instruction| {
                         instruction.provenance.operations.contains(psi_operation)
