@@ -4,7 +4,9 @@
 //! Selecting an application, however, selects its authored template's public
 //! surface, not the compiler-generated name. Selection checks follow retained
 //! specialization custody; ordinary declaration/reflection queries keep the
-//! private instance visibility. Neither query grants a body or dependency.
+//! private instance visibility. Exact owned implementation members likewise
+//! select their enclosing map's visibility without publishing their bodies.
+//! Neither query grants a body or dependency.
 
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -64,10 +66,11 @@ pub fn owning_machine_is_retained(program: &TypedTrees, symbol: SymbolHandle) ->
 }
 
 /// Visibility of the declaration an authored callable application selects.
-/// A state inherits its machine's visibility. Capture and invocation
-/// specialization retain the exact template identity; a generated name, signature resemblance or source span
-/// cannot substitute for that association. Missing or cyclic custody closes
-/// nothing, and a private template remains private for every application.
+/// A state inherits its machine's selection surface. Capture and invocation
+/// specialization retain the exact template identity; a generated name,
+/// signature resemblance or source span cannot substitute for that association.
+/// Missing or cyclic custody closes nothing, and an independently private
+/// template remains private for every application.
 pub fn authored_selection_visibility(
     program: &TypedTrees,
     symbol: SymbolHandle,
@@ -120,13 +123,13 @@ pub fn authored_selection_visibility(
                     .map(|(_, capture)| capture.template),
             );
         let Some(template) = origins.next() else {
-            return declaration_visibility(program, declaration);
+            return authored_machine_visibility(program, declaration);
         };
         if origins.next().is_some() {
             return None;
         }
         if template == declaration {
-            return declaration_visibility(program, declaration);
+            return authored_machine_visibility(program, declaration);
         }
         if !template.is_valid() || program.symbols.get(template).kind != SymbolKind::Machine {
             return None;
@@ -134,6 +137,26 @@ pub fn authored_selection_visibility(
         declaration = template;
     }
     None
+}
+
+/// A member can be selected through its owning implementation without making
+/// its body public. Use the retained inverse ownership and exact owned row;
+/// a map referencing a private callee, or a member's nested helper, owns no
+/// such selection surface. Missing ownership evidence cannot publish a body.
+fn authored_machine_visibility(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+) -> Option<DeclarationVisibility> {
+    let owner = program.symbols.get(machine).declaration_owner;
+    if owner.is_valid() && program.symbols.get(owner).kind == SymbolKind::Conformance {
+        let (implementation, _) = program.owned_conformance_realization(machine)?;
+        let visibility = declaration_visibility(program, implementation.symbol)?;
+        return Some(DeclarationVisibility {
+            kind: "machine",
+            is_public: visibility.is_public(),
+        });
+    }
+    declaration_visibility(program, machine)
 }
 
 /// Resolve declaration visibility independently of executable root membership.
@@ -348,6 +371,111 @@ mod tests {
                     ..Default::default()
                 });
             assert!(super::authored_selection_visibility(&program, invoked).is_none());
+        }
+    }
+
+    #[test]
+    fn owned_member_selection_uses_map_visibility_without_exporting_helpers() {
+        use crate::trait_definition::{Conformance, ConformanceRow, ConformanceRowSource};
+        use crate::typed_trees::CapturedMachineApplication;
+
+        for is_public in [false, true] {
+            for source in [
+                ConformanceRowSource::Inline,
+                ConformanceRowSource::TraitDefault,
+                ConformanceRowSource::Synthesized,
+                ConformanceRowSource::Reference,
+            ] {
+                let mut builder = SymbolTableBuilder::default();
+                let owner =
+                    builder.insert_root(SymbolKind::Conformance, SymbolNameRef::Static("Selected"));
+                let member =
+                    builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("member"));
+                let children = builder.insert_children(
+                    member,
+                    [
+                        (SymbolKind::State, SymbolNameRef::Static("entry")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("helper")),
+                    ],
+                );
+                let state = children.start();
+                let nested = children.handle_at(1);
+                let instance =
+                    builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("captured"));
+                let mut program = TypedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                if source.owns_realization() {
+                    program
+                        .symbols
+                        .record_declaration_owner(member, owner)
+                        .unwrap();
+                }
+                for symbol in [member, nested, instance] {
+                    program.push_machine(Machine {
+                        symbol,
+                        ..Default::default()
+                    });
+                }
+                let row = ConformanceRow {
+                    declaring_trait: symbols::SymbolHandle::invalid(),
+                    declaring_trait_name: Default::default(),
+                    requirement: symbols::SymbolHandle::invalid(),
+                    requirement_name: Default::default(),
+                    realization_machine: member,
+                    realization_state: state,
+                    realization_name: Default::default(),
+                    source,
+                };
+                program.push_conformance(Conformance {
+                    symbol: owner,
+                    is_public,
+                    rows: vec![row.clone()],
+                    ..Default::default()
+                });
+                program
+                    .captured_machine_applications
+                    .insert(CapturedMachineApplication {
+                        template: member,
+                        instance,
+                        ..Default::default()
+                    });
+                for symbol in [member, state, instance] {
+                    assert!(
+                        !declaration_visibility(&program, symbol)
+                            .unwrap()
+                            .is_public()
+                    );
+                    assert_eq!(
+                        super::authored_selection_visibility(&program, symbol)
+                            .unwrap()
+                            .is_public(),
+                        source.owns_realization() && is_public,
+                    );
+                }
+                assert!(
+                    !super::authored_selection_visibility(&program, nested)
+                        .unwrap()
+                        .is_public()
+                );
+
+                // An inverse pointer without its unique owned row grants nothing.
+                if source.owns_realization() {
+                    program
+                        .tables
+                        .conformances
+                        .get_mut(program.roots.conformances.start())
+                        .rows
+                        .push(row);
+                } else {
+                    program
+                        .symbols
+                        .record_declaration_owner(member, owner)
+                        .unwrap();
+                }
+                assert!(super::authored_selection_visibility(&program, member).is_none());
+            }
         }
     }
 

@@ -18952,6 +18952,9 @@ fail/traits/public_guarantee_wrong_field rejected 3715ms expected @911f6617ba9e
 	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `slot.bytes.len == replacement.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/traits/public_guarantee_wrong_formal rejected 1983ms expected @ccdb99ca2214
 	machine `Wrong::set` satisfies `Setting::set` but proves no ensures matching the declared law `first == value` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
+fail/traits/public_implementation_private_members_rejected rejected 4896ms expected @12aef75abec1
+	package PackageKeyIdentity([141, 201, 2, 15, 13, 1, 172, 0, 150, 185, 135, 187, 255, 136, 75, 10, 3, 56, 14, 123, 101, 16, 16, 33, 122, 70, 5, 140, 194, 246, 72, 100]) selects private machine `Hidden::read::read`
+	package PackageKeyIdentity([141, 201, 2, 15, 13, 1, 172, 0, 150, 185, 135, 187, 255, 136, 75, 10, 3, 56, 14, 123, 101, 16, 16, 33, 122, 70, 5, 140, 194, 246, 72, 100]) selects private machine `private_helper::entry`
 fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
 	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
 fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
@@ -28049,6 +28052,7 @@ pass/traits/operator_machine_add checked 3752ms @ccdb99ca2214
 pass/traits/prepared_callable_nested_borrow_paths_exit checked 3586ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/private_generic_requirement_owned_exit checked 2993ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_guarantee_positional_formals_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/public_implementation_member_selection_exit checked 5691ms check-target:macos_arm64 @12aef75abec1
 pass/traits/public_method_callback_prefix_inference_exit checked 2992ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_method_const_prefix_inference_exit checked 3056ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_nested_machine_contract_scopes checked 3933ms check-target:macos_arm64 @ccdb99ca2214
