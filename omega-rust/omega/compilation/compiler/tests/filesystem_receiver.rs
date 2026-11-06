@@ -45,13 +45,8 @@ fn windows_canonicalize_receiver() {
         .to_path_buf();
     copy_tree(root.join(FIXTURE).parent().unwrap(), &project);
     let profile = target::TargetProfile::WindowsX64;
-    let mut session = orchestration::BuildSession::create(&project.join("build/package-manager"))
-        .expect("ordinary project session");
     eprintln!("Windows receiver: starting ordinary project review");
-    accept_project(&project, profile, &mut session);
-    session
-        .close()
-        .expect("complete ordinary review invocation");
+    accept_project(&project, profile);
     eprintln!("Windows receiver: ordinary project review completed");
     // The receiver selects its trusted source identity independently: this
     // private std path, expected authored package name and explicit local
@@ -328,26 +323,29 @@ fn copy_tree(source: &Path, destination: &Path) {
     }
 }
 
-fn accept_project(
-    project: &Path,
-    target: target::TargetProfile,
-    session: &mut orchestration::BuildSession,
-) {
+fn accept_project(project: &Path, target: target::TargetProfile) {
     let mut options = PackageCommandOptions {
         project_root: project.to_path_buf(),
         targets: vec![target],
         offline: true,
         build_inputs: None,
     };
-    let mut outcome = orchestration::execute_package_command(
+    // Match explicit CLI review: Update returns to the user before a later
+    // Resume invocation reads the saved proposal and authored decisions. Each
+    // command owns its compiler and resource grant until disposal; this test
+    // does not exercise the CLI's same-invocation automatic acceptance option.
+    let workspace = project.join("build/package-manager");
+    let mut session = orchestration::BuildSession::create_retained(&workspace)
+        .expect("ordinary update invocation");
+    let outcome = orchestration::execute_package_command(
         PackageCommand::Update {
             packages: Vec::new(),
             revision: None,
         },
         options.clone(),
-        session,
-    )
-    .expect("ordinary project update");
+        &mut session,
+    );
+    let mut outcome = session.dispose(outcome).expect("ordinary project update");
     // This harness supplies repository-test review consent through the same
     // editable decisions as the CLI. It neither constructs accepted bindings
     // nor turns those project decisions into the receiver's permission table.
@@ -375,14 +373,17 @@ fn accept_project(
             std::fs::write(path, accepted).expect("authored test review consent");
         }
         options.targets.clear();
-        outcome = orchestration::execute_package_command(
+        options.build_inputs = None;
+        let mut session = orchestration::BuildSession::create_retained(&workspace)
+            .expect("ordinary resume invocation");
+        let resumed = orchestration::execute_package_command(
             PackageCommand::Resume {
                 kind: PackageCommandKind::Update,
             },
             options.clone(),
-            session,
-        )
-        .expect("ordinary project resume");
+            &mut session,
+        );
+        outcome = session.dispose(resumed).expect("ordinary project resume");
     }
     assert_eq!(
         outcome.status,
