@@ -73,10 +73,12 @@ was host I/O, not compiler work.
 ## What changed
 
 - The core Product sources are typed on a second compile thread while the core
-  Build is checked, and offered to the existing Product retention only if no
-  source or frontend was admitted to the core preparation after the
-  speculation finished. Otherwise, or if it failed, completion types them as
-  before.
+  Build is checked, against a fork of the core preparation. The fork is taken
+  before the check and adopted when the core Build completes, both at fixed
+  points on the compile thread, and only if nothing was admitted to the
+  preparation in between; otherwise, or if it failed, the preparation is
+  untouched and completion types the sources as before. Either path yields the
+  same preparation state, so output does not depend on which one ran.
 - Calling policies run on the checking pool and are consumed in request order,
   so the first refusal in that order is still the one reported.
 - Calling source capture runs beside Terminal publication.
