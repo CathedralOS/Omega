@@ -22,42 +22,6 @@ use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint};
 use symbols::SymbolHandle;
 
-#[derive(Clone, Copy)]
-struct FieldOperandRefusal {
-    reason: &'static str,
-    expression: typed_trees::expression::ExpressionHandle,
-    reference: typed_trees::types::TypeReferenceHandle,
-    storage: arena::Handle<checked_trees::FlowStorageSnapshot>,
-    state: SymbolHandle,
-    statement: usize,
-}
-
-impl FieldOperandRefusal {
-    fn new(
-        reason: &'static str,
-        operand: &checked_trees::FlowOperandFact,
-        reference: typed_trees::types::TypeReferenceHandle,
-        state: SymbolHandle,
-        statement: usize,
-    ) -> Self {
-        Self {
-            reason,
-            expression: operand.expression,
-            reference,
-            storage: operand.storage_snapshot,
-            state,
-            statement,
-        }
-    }
-
-    fn diagnostic(&self) -> String {
-        format!(
-            "{}: expression={:?}, reference={:?}, storage={:?}, state={:?}, statement={}",
-            self.reason, self.expression, self.reference, self.storage, self.state, self.statement
-        )
-    }
-}
-
 pub(super) struct DeclaredFieldRequirements {
     rows: symbols::SymbolKeyMap<SymbolHandle, UniqueRoster<FieldRequirement>>,
 }
@@ -267,26 +231,14 @@ pub(super) fn check(
                                         source_state,
                                         source_statement,
                                     ) else {
-                                        route_refusals[route] = Some(FieldOperandRefusal::new(
-                                            "operand context unavailable",
-                                            &operand,
-                                            reference,
-                                            source_state,
-                                            source_statement,
-                                        ));
+                                        route_refusals[route] = Some("operand context unavailable");
                                         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                                             eprintln!("CHECKSITE nominal-field-context-unavailable state={:?} statement={} target={:?} expression={:?} reference={reference:?} source_state={source_state:?} source_statement={source_statement} invocation={invocation:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression);
                                         }
                                         return false;
                                     };
                                     if subjects.as_ref().is_none_or(Vec::is_empty) {
-                                        route_refusals[route] = Some(FieldOperandRefusal::new(
-                                            "operand projection unavailable or empty",
-                                            &operand,
-                                            reference,
-                                            source_state,
-                                            source_statement,
-                                        ));
+                                        route_refusals[route] = Some("operand projection unavailable or empty");
                                     }
                                     subjects.is_some_and(|subjects| {
                                         !subjects.is_empty()
@@ -320,17 +272,11 @@ pub(super) fn check(
                                                             *semantic_domain,
                                                         ));
                                                 if !satisfied {
-                                                    route_refusals[route] = Some(FieldOperandRefusal::new(
-                                                        if cases_selected {
-                                                            "declared field domain not proved"
-                                                        } else {
-                                                            "source case not selected"
-                                                        },
-                                                        &operand,
-                                                        reference,
-                                                        source_state,
-                                                        source_statement,
-                                                    ));
+                                                    route_refusals[route] = Some(if cases_selected {
+                                                        "declared field domain not proved"
+                                                    } else {
+                                                        "source case not selected"
+                                                    });
                                                 }
                                                 if !satisfied && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                                                     eprintln!("CHECKSITE nominal-field-proof-refused state={:?} statement={} target={:?} expression={:?} reference={reference:?} subject={:?} storage={:?} source_state={source_state:?} source_statement={source_statement} contexts={:?} constraints={:?}", state.state_symbol, call.statement_index, call.target_symbol, operand.expression, place.projected, place.storage, selection.contexts, facts.flow.contexts.constraint_refs.span_or_empty(invocation));
@@ -347,18 +293,17 @@ pub(super) fn check(
                         })
                 });
             if !satisfied {
-                let refusal = failed_capture.map(|routes| {
-                    routes.map(|refusal| refusal.map(|refusal| refusal.diagnostic()))
-                });
+                let detail = failed_capture
+                    .and_then(|routes| routes.into_iter().flatten().next())
+                    .map(|reason| format!(" ({reason})"))
+                    .unwrap_or_default();
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot prove default-domain field requirement for call {} from {}::{}: parameter {} requires {}; captured field refusal: argument={argument:?}, invocation_storage={:?}, completed_storage={:?}, observation/producer={refusal:?}",
+                    "cannot prove default-domain field requirement for call {} from {}::{}: parameter {} requires {}{detail}",
                     call_target_label(program, call.target_symbol),
                     machine_name(program, state.machine_symbol),
                     symbol_name(program, state.state_symbol),
                     facts::canonical_place_label_from_parts(program, PlaceRoot::Symbol(parameter.symbol), segments),
                     symbol_name(program, *domain_symbol),
-                    call.invocation_storage,
-                    call.completed_storage,
                 )));
             }
         }
