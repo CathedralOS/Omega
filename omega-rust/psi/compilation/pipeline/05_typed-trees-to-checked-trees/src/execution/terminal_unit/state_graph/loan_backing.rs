@@ -511,6 +511,7 @@ fn retained_parents(
         .borrow
         .unique_state_borrow(machine, state)
         .ok_or("state loan parents: source borrow state")?;
+    let root_grants = incoming_root_grants(program, facts, borrow_state);
     let mut captured = Vec::new();
     let mut operand_parents = Vec::new();
     if let Some(CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }) =
@@ -535,6 +536,7 @@ fn retained_parents(
             question: StorageQuestion::RetainForArrival,
             forbidden: &[],
             ingress: &ingress,
+            root_grants: &root_grants,
             ingress_storage: &ingress_storage,
         };
         if !dependencies.contents(root, call.entry_constraints, &mut Vec::new(), &mut captured) {
@@ -558,6 +560,7 @@ fn retained_parents(
             question: StorageQuestion::RetainForArrival,
             forbidden: &[],
             ingress: &ingress,
+            root_grants: &root_grants,
             ingress_storage: &ingress_storage,
         };
         let root = resource.parent_lifetime.root;
@@ -621,6 +624,7 @@ fn retained_parents(
         question: StorageQuestion::RetainForArrival,
         forbidden: &[],
         ingress: &ingress,
+        root_grants: &root_grants,
         ingress_storage: &ingress_storage,
     };
     for root in shared_backings {
@@ -1043,6 +1047,7 @@ pub(super) fn retired_carrier_backing(
         question: StorageQuestion::ProveRelocationIndependence,
         forbidden: &[backing_root, carrier_root],
         ingress: &[],
+        root_grants: &[],
         ingress_storage: &[],
     };
     let mut selected = false;
@@ -1202,6 +1207,55 @@ enum StorageQuestion {
     ProveRelocationIndependence,
 }
 
+/// Root referent grants and contained pointer occurrences have different
+/// namespaces even when both have an empty owner path. Retain only the exact
+/// invocation grant published for a real runtime reference formal.
+fn incoming_root_grants(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &checked_trees::StateBorrowFact,
+) -> Vec<Handle<checked_trees::IncomingReferenceIdentity>> {
+    let Some(typed_state) = program.state_by_symbol(state.state_symbol) else {
+        return Vec::new();
+    };
+    let mut parameters = program
+        .state_parameters(typed_state)
+        .iter()
+        .collect::<Vec<_>>();
+    parameters.sort_by_key(|parameter| parameter.symbol);
+    let mut grants = state
+        .incoming_references
+        .handles()
+        .filter(|&handle| {
+            if !facts.borrow.state_owns_incoming_reference(state, handle) {
+                return false;
+            }
+            let incoming = facts.borrow.incoming_references.get(handle);
+            let checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol } =
+                incoming.origin
+            else {
+                return false;
+            };
+            if facts.borrow.owner_segments.span(incoming.owner_path) != Some(&[][..]) {
+                return false;
+            }
+            let first = parameters.partition_point(|parameter| parameter.symbol < symbol);
+            let after = parameters.partition_point(|parameter| parameter.symbol <= symbol);
+            if after - first != 1 {
+                return false;
+            }
+            let parameter = parameters[first];
+            let carrier = validation::peel_declared_constraints(program, parameter.type_reference);
+            !parameter.is_const
+                && !parameter.relevance.is_erased()
+                && incoming.carrier_type == carrier
+                && validation::reference_shell(program, carrier).is_some()
+        })
+        .collect::<Vec<_>>();
+    grants.sort_unstable();
+    grants
+}
+
 struct Dependencies<'a> {
     program: &'a dyn validation::CheckingInput,
     facts: &'a CheckFacts,
@@ -1214,10 +1268,28 @@ struct Dependencies<'a> {
     /// lifetime, not for proving relocation independence. That judgment passes
     /// no ingress assumptions and retains its existing fail-closed behavior.
     ingress: &'a [(PlaceRoot, &'a [checked_trees::BorrowLoanOwnerSegment])],
+    /// Authenticated root grants, never used as interior descriptor coverage.
+    root_grants: &'a [Handle<checked_trees::IncomingReferenceIdentity>],
     ingress_storage: &'a [IngressStorageCarrier<'a>],
 }
 
 impl Dependencies<'_> {
+    fn root_grant(
+        &self,
+        handle: Handle<checked_trees::IncomingReferenceIdentity>,
+        root: PlaceRoot,
+    ) -> bool {
+        self.question == StorageQuestion::RetainForArrival
+            && self.root_grants.binary_search(&handle).is_ok()
+            && self
+                .facts
+                .borrow
+                .incoming_references
+                .get(handle)
+                .place_root()
+                == root
+    }
+
     fn captured_storage(
         &self,
         resource: &checked_trees::CheckedCallBorrowLoanResource,
@@ -1253,11 +1325,30 @@ impl Dependencies<'_> {
                 .borrow
                 .incoming_references
                 .get(resource.backing_incoming_reference);
+            let root_grant = self.root_grant(resource.backing_incoming_reference, root);
+            if matches!(
+                incoming.origin,
+                checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+            ) && !root_grant
+            {
+                return false;
+            }
+            if root_grant
+                && self
+                    .facts
+                    .borrow
+                    .call_loan_backing_paths
+                    .span(resource.backing_incoming_owner_path)
+                    .is_none()
+            {
+                return false;
+            }
             if matches!(
                 incoming.origin,
                 checked_trees::IncomingReferenceOrigin::Output { .. }
                     | checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
-            ) {
+            ) || root_grant
+            {
                 if self.question != StorageQuestion::RetainForArrival
                     || incoming.machine_symbol != self.borrow_state.machine_symbol
                     || incoming.state_symbol != self.state
@@ -1652,8 +1743,21 @@ impl Dependencies<'_> {
                         checked_trees::IncomingReferenceOrigin::Output { identity }
                             if loan.root == PlaceRoot::InvocationOutput(identity))
             };
-        if loan.incoming_reference.is_valid() && !incoming && !output {
+        let root_grant = self.root_grant(loan.incoming_reference, loan.root)
+            && self
+                .facts
+                .borrow
+                .access_segments
+                .span(loan.incoming_owner_path)
+                .is_some();
+        if loan.incoming_reference.is_valid() && !incoming && !output && !root_grant {
             return false;
+        }
+        if root_grant && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE retained-root-referent state={:?} statement={} loan={handle:?} incoming={:?} root={:?} lineage={:?}",
+                self.state, self.statement, loan.incoming_reference, loan.root, loan.lineage
+            );
         }
         if output {
             let Some(suppliers) = self.facts.borrow.loan_suppliers.span(loan.supplying_loans)
@@ -1681,7 +1785,11 @@ impl Dependencies<'_> {
                 return false;
             }
         }
-        if !incoming && !output && !self.root(loan.root, constraints, active_roots, captured) {
+        if !incoming
+            && !output
+            && !root_grant
+            && !self.root(loan.root, constraints, active_roots, captured)
+        {
             return false;
         }
         active_loans.push(handle);
@@ -1704,7 +1812,7 @@ impl Dependencies<'_> {
             // identity or complete supplier relation still names its backing;
             // this independence query grants no restoration authority.
             checked_trees::BorrowLoanLineage::UnretainedDerived => {
-                incoming || !loan.supplying_loans.is_empty()
+                incoming || root_grant || !loan.supplying_loans.is_empty()
             }
         };
         let independent = parent_independent
