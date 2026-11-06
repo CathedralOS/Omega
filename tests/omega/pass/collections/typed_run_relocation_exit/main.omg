@@ -113,6 +113,13 @@ machine main() crashes Trap {
     machine allocated(address: addr) {
         let grant: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 160 });
         let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(grant);
+        // The admitted provider grants authority, not an implicit promise to
+        // preserve the requested geometry. Check the actual returned extent.
+        transition vacant.length == 160 { true -> partition(vacant) false -> bad() }
+    }
+    machine partition(vacant: Extent in Granted & Vacant)
+        requires vacant.length == 160
+    {
         let source: VacantExtentParts = split_vacant_extent(vacant, 56);
         let destinations: VacantExtentParts = split_vacant_extent(source.rest, 48);
         let source_base: addr = source.taken.base;
@@ -129,7 +136,7 @@ machine main() crashes Trap {
         let short_base: addr = short.base;
         transition Run::relocate<WordPlacement, Word, TestMemory, TestMemory>(run, short) {
             AccessOutcome::Ready { view } -> bad()
-            AccessOutcome::Rejected { returned, reason } -> rejected(returned.source, returned.value, destination, source_base, short_base)
+            AccessOutcome::Rejected { returned, reason } -> rejected(returned.source, returned.custody, destination, source_base, short_base)
         }
     }
     machine rejected(run: Run<WordPlacement, Word> in Live<WordPlacement, Word>,

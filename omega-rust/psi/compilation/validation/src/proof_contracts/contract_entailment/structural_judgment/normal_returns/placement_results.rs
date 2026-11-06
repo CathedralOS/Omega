@@ -65,7 +65,7 @@ impl StructuralJudge<'_> {
                         "Rejected",
                         &[
                             (0, "storage", "returned.source.storage", &["base", "length"]),
-                            (1, "", "returned.value", &["base", "length"]),
+                            (1, "", "returned.custody", &["base", "length"]),
                             (0, "", "returned.source", &["count"]),
                         ],
                     ),

@@ -37,7 +37,7 @@ pub(super) fn call_plan() -> CallPlan {
     }
 }
 
-fn aligned_placement() -> access_plans::ValidatedAccessPlan {
+pub(super) fn aligned_placement() -> access_plans::ValidatedAccessPlan {
     use access_plans::{
         AccessExposure, AccessFields, AccessPlan, FieldAccess, validate_access_plan,
     };

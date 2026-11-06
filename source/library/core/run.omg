@@ -118,11 +118,13 @@ ensures (match result {
     AccessOutcome::Rejected { returned, reason } ->
         returned.source.count == run.count &&
         returned.source.storage.base == run.storage.base && returned.source.storage.length == run.storage.length &&
-        returned.value.base == destination.base && returned.value.length == destination.length,
+        returned.custody.base == destination.base && returned.custody.length == destination.length,
 })
 {
     let source_profile: ResourceProfile = ResourceProfileSupply<SourceRole>::profile(&run.storage);
-    let destination_profile: ResourceProfile = ResourceProfileSupply<DestinationRole>::profile(&destination);
+    let destination_profile: ResourceProfile = ResourceProfileSupply<DestinationRole>::profile(
+        &destination as &Extent in Granted
+    );
     Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
         run, destination, &source_profile, &destination_profile
     )

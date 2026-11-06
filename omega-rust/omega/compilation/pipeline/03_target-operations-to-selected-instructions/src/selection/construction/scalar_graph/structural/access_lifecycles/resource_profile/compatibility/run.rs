@@ -55,8 +55,8 @@ pub(in super::super::super) fn assess(
             bin!(emission => builder => WrappingMultiplyI64 => geometry.count => stride)?;
         let exact = emission.equal(builder, occupied, geometry.length)?;
         emission.write_scratch(builder, RUN_COMPATIBLE, exact)?;
-        if footprint != 0 {
-            let bound = emission.constant(builder, u64::MAX / footprint)?;
+        if let Some(maximum_count) = u64::MAX.checked_div(footprint) {
+            let bound = emission.constant(builder, maximum_count)?;
             let fits = emission.at_most(builder, geometry.count, bound)?;
             intersect(emission, builder, RUN_COMPATIBLE, fits)?;
         }
