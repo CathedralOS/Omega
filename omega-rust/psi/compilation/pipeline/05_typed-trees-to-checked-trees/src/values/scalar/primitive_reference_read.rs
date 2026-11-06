@@ -38,9 +38,22 @@ pub(crate) fn declared(
     {
         return None;
     }
+    parameter(program, parameters, name.symbol)
+}
+
+/// Read a formal through the same storage or erased observation namespace as
+/// a named source operand. Entry adapters have a symbol, not a Name node.
+pub(crate) fn parameter(
+    program: &dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    symbol: symbols::SymbolHandle,
+) -> Option<(ScalarExpression, numerics::arithmetic::ArithmeticDomain)> {
+    if !symbol.is_valid() {
+        return None;
+    }
     let mut matching = parameters
         .iter()
-        .filter(|parameter| parameter.symbol == name.symbol);
+        .filter(|parameter| parameter.symbol == symbol);
     let parameter = matching.next()?;
     if (matching.next().is_some()) || parameter.is_const {
         return None;
@@ -119,7 +132,7 @@ pub(crate) fn local(
     })
 }
 
-pub(crate) fn readable_type(
+fn readable_type(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, numerics::arithmetic::ArithmeticDomain)> {

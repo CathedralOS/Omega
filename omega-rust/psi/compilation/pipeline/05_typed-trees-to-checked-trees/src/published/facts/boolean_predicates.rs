@@ -168,14 +168,12 @@ pub(crate) fn entry_scalar(
     }
     let position = usize::try_from(position).ok()?;
     let parameter = parameters.get(position)?;
-    if let Some((actual, _)) = crate::values::scalar::primitive_reference_read::readable_type(
+    if let Some((observation, _)) = crate::values::scalar::primitive_reference_read::parameter(
         program,
-        parameter.type_reference,
+        parameters,
+        parameter.symbol,
     ) {
-        return (actual == primitive).then_some(Scalar::StorageRead {
-            symbol: parameter.symbol,
-            primitive_type: primitive,
-        });
+        return (observation.primitive_type() == Some(primitive)).then_some(observation);
     }
     if program.primitive_type_reference(parameters.get(position)?.type_reference) != Some(primitive)
     {

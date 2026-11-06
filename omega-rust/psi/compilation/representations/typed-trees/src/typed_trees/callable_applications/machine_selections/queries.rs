@@ -468,6 +468,12 @@ impl TypedTrees {
         let lifetimes = self.static_machine_application_lifetimes(invocation);
         (!original.callable_contract_source.is_valid()
             && original.registration_operation.is_valid()
+            && self.same_registered_machine_operation(
+                retained.registration_operation,
+                original.registration_operation,
+            )
+            && original.binding_declaration.is_valid()
+            && original.lexical_owner.is_valid()
             && retained.binding_declaration == original.binding_declaration
             && retained.lexical_owner == original.lexical_owner
             // Empty region tuples have no named region owner to substitute.
@@ -482,6 +488,18 @@ impl TypedTrees {
                 original.lexical_owner,
             ))
         .then_some(source)
+    }
+
+    fn same_registered_machine_operation(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
+        // A machine head and its unique entry name the same operation. Public
+        // requirements remain distinct even when their implementation tuple matches.
+        let head_and_entry = |head, entry| {
+            self.machine_by_symbol(head).is_some_and(|machine| {
+                self.unique_machine_by_entry_state_symbol(entry)
+                    .is_some_and(|(owner, _)| owner.symbol == machine.symbol)
+            })
+        };
+        left == right || head_and_entry(left, right) || head_and_entry(right, left)
     }
 
     pub fn applied_machine_callables(
