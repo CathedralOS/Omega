@@ -1,0 +1,45 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "6910ade0c3879099635eda57629c5a8b81c2aeee",
+    "tree": "ffece1f674b498ba50091b18c380fa4469105b24",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "1ec18db86046771860e84fac55ccb344443c7445",
+      "source/library": "d8f5fade211c574016dc76a4dbc44bbfc2d10817",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+      "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+      "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": null
+    },
+    "executables": {
+      "cli": {
+        "sha256": "b98f890cab97d5f209ed33fad5f9c94acff11c8e1c1a13ab5638ad2678415953",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "6f7ddf6cc18855032ebed4fbcdb1727bd2adba3550bfe534e47db12ba63a8089",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42173620685,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-6910ade0c3879099635eda57629c5a8b81c2aeee"
+  },
+  "fixtures": [
+    "pass/dependent/data_where_invariant_window_restored_exit"
+  ],
+  "source_only": true,
+  "samples": [],
+  "cli_fixtures": []
+}
