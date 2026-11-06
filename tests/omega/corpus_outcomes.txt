@@ -27139,8 +27139,7 @@ pass/providers/token_machine_family_override_exit rejected 333259ms check-target
 pass/providers/uncalled_boundary_provider_exit checked 3494ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unreached_console_provider_rows checked 16889ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/unused_named_provider_candidates checked 3791ms check-target:macos_arm64 @ccdb99ca2214
-pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove index `main.i` is within length 2 in add::entry
+pass/range/data_parameter_counter_non_negative_exit checked 105253ms check-target:macos_arm64 @c856a48a8504
 pass/range/runtime_funnel_guard_agreement_exit checked 11294ms check-target:macos_arm64 @ccdb99ca2214
 pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
 pass/ranges/loop_saved_guard_disjoint_write_exit rejected 2618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

@@ -146,7 +146,11 @@ pub(crate) fn check_indexed_accesses(
                             .collect()
                     },
                 );
-                let state_argument_facts = if non_entry_has_indexed {
+                let state_argument_facts = if state_has_indexed
+                    .iter()
+                    .copied()
+                    .any(std::convert::identity)
+                {
                     phase_profile::scope(
                         "psi.05.check_checked_facts.check_indexed_accesses.state_argument_facts",
                         || {
@@ -156,7 +160,9 @@ pub(crate) fn check_indexed_accesses(
                                 &bound_lookup,
                                 machine,
                                 call_frames,
-                                &calls,
+                                borrows,
+                                flow,
+                                semantic,
                                 operators,
                                 mutation_summaries,
                             )
