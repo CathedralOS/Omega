@@ -106,7 +106,7 @@ pub fn emit_component_shared_image(
     );
     let emitted = emitted.and_then(|image| {
         let validation =
-            validate_component_entry_effects(&image, export_symbol, entry_bridge.as_ref());
+            validate_component_entry_effects(&image, &body, export_symbol, entry_bridge.as_ref());
         match validation {
             Ok(()) => Ok(image),
             Err(diagnostic) => Err((image.image().clone(), diagnostic)),
@@ -196,6 +196,7 @@ pub(crate) fn emit_shared_function_container(
 /// remains with the original checked fragment; this is not a whole-image decoder.
 fn validate_component_entry_effects(
     container: &ComponentSharedContainer,
+    body: &crate::ObjectArtifact,
     export: image::FinalImageSymbolHandle,
     bridge: Option<&NativeEntryBridge>,
 ) -> Result<(), Diagnostic> {
@@ -211,6 +212,33 @@ fn validate_component_entry_effects(
         .as_ref()
         .ok_or_else(|| Diagnostic::error("component entry lost its complete state evidence"))?;
     if let Some(bridge) = bridge {
+        let function = body.entry_function();
+        let body_handle =
+            arena::Handle::from_parts(function.symbol.arena_index(), function.symbol.generation());
+        if image.symbol_table.entry_symbol != body_handle
+            || !image.symbol_table.symbols.is_valid(body_handle)
+        {
+            return Err(Diagnostic::error(
+                "component entry lost its exact body symbol",
+            ));
+        }
+        let body_symbol = image.symbol_table.symbols.get(body_handle);
+        if body_symbol.section != image::FinalImageSection::Text
+            || body_symbol.kind != object_file::SymbolKind::Function
+            || body_symbol.offset != function.text_offset
+            || body_symbol.size != function.byte_count
+        {
+            return Err(Diagnostic::error(
+                "component entry changed its retained body placement",
+            ));
+        }
+        crate::image::entry_effects::validate_body_call_target(
+            bridge.request().target.architecture,
+            container.final_text_bytes(),
+            symbol.offset,
+            bridge.call_field_offset(),
+            body_symbol.offset,
+        )?;
         if complete != bridge.complete_effects() {
             return Err(Diagnostic::error(
                 "component entry state differs from its checked closure",
