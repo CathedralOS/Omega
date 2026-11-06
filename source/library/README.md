@@ -62,6 +62,21 @@ acceptance, nine-place facts and reject controls, including old-spelling
 removal. Existing numeric examples using primitive-member limits are migration
 inputs, not an implemented alternate API.
 
+## Core indexing contract migration
+
+The ratified [core indexing architecture](../../wiki/spec/language/expressions.md#contract-gated-core-operations)
+selects token-bearing sealed primitives directly and proves their complete
+contracts through ordinary call checking. Generic catalog admission, borrowed
+access, mutable operations and ranges are tracked by **CORE-INDEXING-CONTRACTS**
+in [TASKS.md](../../TASKS.md) and its [migration plan](../../wiki/drafts/designs/core_indexing_contracts.md).
+
+The current `core/slice.omg` helpers `slice_index` and `slice_range` are used
+named APIs whose checked bodies delegate through `slice_views` to builtin
+brackets. They are not the compiler's authoritative indexing declarations.
+The unused `SliceAccess` requirements are pending removal in this migration;
+no provider must be selected merely to import the slice helpers. Named helper
+compatibility and backing-loan preservation remain required during migration.
+
 ## Core slice iteration
 
 `use omega::language::core::iteration;` exposes ordinary checked traversal:

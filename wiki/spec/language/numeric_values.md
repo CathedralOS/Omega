@@ -579,6 +579,14 @@ conversion. Bounds must follow that selected operator's actual contract, not
 another declaration sharing its token. Bounds evidence grants no element-domain,
 borrow, mutation, or transfer authority.
 
+The [core indexing contract](expressions.md#contract-gated-core-operations)
+requires ordinary call-contract discharge for every selected requirement.
+Bounds strategies establish reusable propositions over live operand identities;
+they do not admit indexing independently of its declaration. Fixed and generic
+extents, saved selectors, assignment-length facts and normalized range endpoints
+use this same proof interface. Successful discharge retains the evidence for
+each emitted access occurrence, separately from its loan and access authority.
+
 ## Policy realization
 
 Integer `as` coercions preserve denotation under every target policy and require representability.
