@@ -1,0 +1,88 @@
+{
+  "schema": "omega-installed-entry-arm-replay-v1",
+  "fixed_published_source": "fa40bd63e9b31194ff85545a94fb53001f2f0c70",
+  "expected_parent": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
+  "producer_source": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
+  "hosts": {
+    "linux_arm64": {
+      "runner": "ubuntu-24.04-arm",
+      "job_minutes": 90,
+      "target_dir": "/tmp/ot"
+    }
+  },
+  "source_checks": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit",
+    "fail/build/installed_entry_ram_invalid_extent",
+    "fail/build/installed_entry_ram_invalid_padding",
+    "fail/build/installed_entry_ram_missing_backing",
+    "fail/build/installed_entry_ram_overlapping_exclusive_roots",
+    "fail/build/installed_entry_ram_wrong_occurrence"
+  ],
+  "both": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit"
+  ],
+  "samples": [
+    "samples/cli/facts/installed_entry_storage",
+    "samples/cli/facts/installed_entry_storage/call_result",
+    "samples/cli/facts/installed_entry_storage/call_result/invalid",
+    "samples/cli/facts/installed_entry_storage/const_name",
+    "samples/cli/facts/installed_entry_storage/const_name/invalid",
+    "samples/cli/facts/installed_entry_storage/field",
+    "samples/cli/facts/installed_entry_storage/field/invalid",
+    "samples/cli/facts/installed_entry_storage/local",
+    "samples/cli/facts/installed_entry_storage/local/invalid",
+    "samples/cli/facts/installed_entry_storage/match_join",
+    "samples/cli/facts/installed_entry_storage/match_join/invalid",
+    "samples/cli/facts/installed_entry_storage/other_machine",
+    "samples/cli/facts/installed_entry_storage/other_machine/invalid",
+    "samples/cli/facts/installed_entry_storage/other_state",
+    "samples/cli/facts/installed_entry_storage/other_state/invalid",
+    "samples/cli/facts/installed_entry_storage/parameter",
+    "samples/cli/facts/installed_entry_storage/parameter/invalid",
+    "samples/cli/facts/installed_entry_storage/target_body",
+    "samples/cli/facts/installed_entry_storage/target_body/invalid"
+  ],
+  "limits": {
+    "corpus_fixture_seconds": 120,
+    "sample_cli_seconds": 300,
+    "workers": 1,
+    "phase_profile": false
+  },
+  "replay_plan": "@.github/installed_entry_arm_replay_plan.json",
+  "preparation_artifact": {
+    "id": 13495239312,
+    "name": "installed-entry-preparation-linux_arm64-63c75ba6ad0e978d540e3ca9af29f9c95c079766-1",
+    "bytes": 430462623,
+    "digest": "sha256:e806165620fd0e9b23b1458bf4eb14f1635c017d4ae44cf8cfe5193c17a872ab"
+  },
+  "origin_run": 42202380872,
+  "cache_id": 10112763476,
+  "cache_key": "compiler-regression-Linux-ARM64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-63c75ba6ad0e978d540e3ca9af29f9c95c079766",
+  "producer_policy": "Authenticate the exact normally visible current-branch cache. Missing cache/executable/profile aborts; no compiler build, fallback, unit repetition or producer archive download. Canonical replay materialization retains actual63 compiler identity and the new consumer source separately.",
+  "stopping_point": "For each host all13 checking positives, five intended backing refusals,13 genuine native/Terminal exit-zero pairs with exact original backing,ten ordinary positives plus nine immutable invalid controls must pass at original limits. Any failure remains failed and is investigated against these exact authored inputs. A green observation permits evidence-only draft updates; row and parent stay open because invalid corpus twins and full distinct-target portable-artifact acceptance remain missing.",
+  "original_failure": "Host shutdown143 before any completed consumer report; no observation archive. Preserve it as infrastructure failure. The full original18/13/19 is still owed."
+}
