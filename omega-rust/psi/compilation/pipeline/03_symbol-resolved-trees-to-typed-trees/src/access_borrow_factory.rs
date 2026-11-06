@@ -10,13 +10,25 @@ pub fn access_borrow_factory(
     program: &resolved::SymbolResolvedTrees,
     target_symbol: symbols::SymbolHandle,
 ) -> Result<Option<typed::expression::AccessBorrowOperationRequest>, Diagnostic> {
-    let Some(machine) = program.machines.iter().find(|machine| {
-        machine.symbol == target_symbol
-            || program
-                .machine_state_handles(machine.states)
-                .iter()
-                .any(|state| program.machine_state(*state).symbol == target_symbol)
-    }) else {
+    // Typing asks this of every machine it lowers, by the machine's own symbol.
+    // State symbols are minted with `SymbolKind::State`, so no state carries a
+    // machine-kind symbol, and the first machine keyed by it is exactly what the
+    // roster scan below finds. Scanning every machine's states for each of them
+    // made typing quadratic in the machine count.
+    let found = if target_symbol.is_valid()
+        && program.symbols.get(target_symbol).kind == symbols::SymbolKind::Machine
+    {
+        program.machines.by_symbol(target_symbol)
+    } else {
+        program.machines.iter().find(|machine| {
+            machine.symbol == target_symbol
+                || program
+                    .machine_state_handles(machine.states)
+                    .iter()
+                    .any(|state| program.machine_state(*state).symbol == target_symbol)
+        })
+    };
+    let Some(machine) = found else {
         return Ok(None);
     };
     let (access, resident) = match machine.name.as_str().rsplit("::").next() {
