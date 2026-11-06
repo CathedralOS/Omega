@@ -1,6 +1,5 @@
 use crate::unit_validation::operation_contracts::claim_transfers::proposition_structural_roots;
 use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
-use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
@@ -9,7 +8,7 @@ use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::StructuralDomainDeclaration;
 use terminal_psi::StructuralTypeDeclaration;
-use terminal_semantics::structural_paths_may_overlap;
+use terminal_semantics::{canonical_static_projection, structural_claim_paths_may_overlap};
 
 pub(crate) fn plain_scalar_sum_call(
     operation: &O,
@@ -278,12 +277,23 @@ pub(crate) fn validate_structural_call_result(
             .any(|pair| pair[0] >= pair[1])
         || result.claims.windows(2).any(|pair| pair[0] >= pair[1])
         || result.claims.iter().any(|claim| {
-            resolve_structural_path(types, result.structural_type, &claim.path).is_none()
+            canonical_static_projection(
+                types.values().copied(),
+                result.structural_type,
+                &claim.path,
+            )
+            .is_none()
         })
         || result.claims.iter().enumerate().any(|(index, claim)| {
-            result.claims[index + 1..]
-                .iter()
-                .any(|other| structural_paths_may_overlap(&claim.path, &other.path))
+            result.claims[index + 1..].iter().any(|other| {
+                structural_claim_paths_may_overlap(
+                    types.values().copied(),
+                    result.structural_type,
+                    &claim.path,
+                    &other.path,
+                )
+                .is_none_or(|overlap| overlap)
+            })
         })
     {
         return false;
