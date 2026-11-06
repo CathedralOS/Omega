@@ -19,7 +19,7 @@ pub fn consumer_captures(
         .iter()
         .filter(|row| row.statement_index == statement)
     {
-        pending.extend([row.stored_value, row.store_target]);
+        pending.extend([row.stored_value, row.store_target, row.evaluated_value]);
         for invocation in control
             .operator_invocations
             .span(row.operator_invocations)?

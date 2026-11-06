@@ -50,11 +50,6 @@ impl StoredReferenceEffect {
 #[derive(Clone)]
 pub enum StoredReferenceCallContext {
     Entry,
-    /// Final lexical contents, after the statement's guard but before any
-    /// departing transition arm. The last schedule row names this predecessor.
-    StatementCompletion {
-        entry: usize,
-    },
     Invocation {
         entry: usize,
         /// Zero is an ordinary statement call, never a transition target.
@@ -65,6 +60,15 @@ pub enum StoredReferenceCallContext {
     Join {
         alternatives: Vec<usize>,
     },
+}
+
+/// The statement's normal continuation selects one node in its evaluated
+/// call graph. Departing transition operands keep their own nodes; their
+/// stores do not replace the guard's fallthrough descriptor inventory.
+#[derive(Clone)]
+pub struct StoredReferenceCallSchedule {
+    pub contexts: Vec<StoredReferenceCallContext>,
+    pub fallthrough: usize,
 }
 
 /// The actual descriptor home and its backing are distinct coordinates.

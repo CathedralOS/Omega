@@ -324,6 +324,7 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         /// its canonical rooted path. A stored reference already owns
         /// its capture; its zero identity keeps that existing resource.
         formation_expression: typed_trees::expression::ExpressionHandle,
+        qualification_decisions: arena::HandleSpan<crate::CheckedValueQualification>,
         carrier_type_identity: typed_trees::type_identity::TypeIdentityId,
     },
 }

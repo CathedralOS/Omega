@@ -31,7 +31,9 @@ pub(crate) use local_origins::close_storage_places_over_aliases;
 pub(crate) use local_origins::close_storage_places_over_origins;
 pub(crate) use local_origins::place_from_origin_path;
 pub(crate) use local_origins::rebase_exact_local_place;
-pub(crate) use local_origins::{OriginPrecision, origin_place, sole_local_referent_origin};
+pub(crate) use local_origins::{
+    OriginPrecision, exact_source_place, origin_place, sole_local_referent_origin,
+};
 pub(in crate::flow) use receiver::call_data_argument;
 pub(crate) use receiver::{
     call_receiver_is_mutable, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
@@ -39,7 +41,9 @@ pub(crate) use receiver::{
 };
 pub(crate) use regions::StorageRegion;
 use summary::instantiate_known_call_mutation_summary_places;
-pub(in crate::flow) use summary::{AccessRouteReader, instantiate_call_relative_places};
+pub(in crate::flow) use summary::{
+    AccessRouteReader, WriteDestination, instantiate_call_relative_places,
+};
 pub(crate) use summary::{StateMutationSummaryCache, state_storage_writes};
 
 #[derive(Clone, Copy)]
@@ -57,6 +61,10 @@ pub(super) enum WritePlaceNamespace {
 pub(in crate::flow) struct CallMutationWrite {
     pub region: StorageRegion,
     pub source: Option<StorageRegion>,
+    /// Replacing a reference changes the pointer; writing through it changes
+    /// the data. Keep those roles even when their displayed paths match.
+    /// Unknown effects have no known role.
+    pub destination: Option<WriteDestination>,
     /// Exact destination presentation of the checked assignment, retained
     /// through call projection. A may-write footprint alone proves no domain.
     pub checked_write_type: typed_trees::types::TypeReferenceHandle,
@@ -177,6 +185,7 @@ pub(in crate::flow) fn call_mutation_writes(
             writes.push(CallMutationWrite {
                 region,
                 source: None,
+                destination: None,
                 checked_write_type: Default::default(),
             });
         }
@@ -457,6 +466,7 @@ fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
         .map(|region| CallMutationWrite {
             region,
             source: None,
+            destination: None,
             checked_write_type: Default::default(),
         })
         .collect()
@@ -504,7 +514,8 @@ fn shared_call_storage_regions(
         borrow_call.call_ordinal,
     )?;
     let resolver = call_frames?;
-    let frame = resolver.boundary_invocation_write_frame(machine, &site);
+    let captured = resolver.boundary_invocation_storage(machine, &site);
+    let frame = &captured.frame;
     let trace = std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some();
     if trace {
         eprintln!(
@@ -531,11 +542,13 @@ fn shared_call_storage_regions(
                 borrow_call.statement_index
             );
         }
-        let regions = local_origins::rebase_local_write_regions(
+        let regions = local_origins::rebase_captured_storage_region(
             program,
             caller_state_symbol,
             borrow_call.statement_index,
-            source?,
+            StorageRegion::Declared(source?),
+            captured.references.as_deref(),
+            summary::WriteDestination::Referent,
             call_frames,
         );
         if trace {

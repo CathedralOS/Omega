@@ -4,13 +4,14 @@ use super::module_wire::encode_raw;
 use super::target_family_tests::{identity_table, unit_machine};
 use crate::{CodecError, decode_module, encode_module, semantic_fingerprint};
 use semantic_vocabulary::{
-    BoundaryMachineId, DomainSemanticId, MachineId, PlaceId, StructuralDomainId, StructuralFieldId,
-    StructuralTypeId,
+    BoundaryMachineId, DomainSemanticId, MachineId, OperationId, PlaceId, StructuralDomainId,
+    StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
-    BindingRelevance, BoundaryCompletion, BoundaryLifetimeDependency, BoundaryMachineDeclaration,
-    BoundaryMachineResult, BoundaryParameterKind, BoundaryReferenceDestination,
-    BoundaryReferenceOutput, BoundaryRequirementKind, NominalDeclarationIdentity, StructuralAccess,
+    BindingRelevance, BoundaryCompletion, BoundaryLenderPreservationDemand,
+    BoundaryLifetimeDependency, BoundaryMachineDeclaration, BoundaryMachineResult,
+    BoundaryParameterKind, BoundaryReferenceDestination, BoundaryReferenceOutput,
+    BoundaryRequirementKind, NominalDeclarationIdentity, StructuralAccess,
     StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
@@ -25,7 +26,7 @@ fn field(value: u32) -> StructuralPathSegment {
     StructuralPathSegment::Field(TerminalIdentityIndex(value))
 }
 
-fn module() -> TerminalModule {
+pub(super) fn module() -> TerminalModule {
     let machine = MachineId::new(1).unwrap();
     let mut module = TerminalModule::for_entry(machine);
     module.identities = identity_table(12);
@@ -238,6 +239,74 @@ fn normal_qualification_public_decoder_rejects_wrong_carrier_and_missing_path() 
         decode_module(&encode_raw(&malformed).unwrap()),
         Err(CodecError::MalformedStructuralFoundation(
             "boundary requirement domain has the wrong path carrier"
+        )),
+    );
+}
+
+#[test]
+fn lender_preservation_wire_and_identity_retain_exact_call_and_requirement() {
+    let mut module = module();
+    module.boundary_lender_preservation = vec![BoundaryLenderPreservationDemand {
+        machine: MachineId::new(1).unwrap(),
+        operation: OperationId::new(1).unwrap(),
+        requirement: module.boundary_machines[0].normal_qualifications[2].clone(),
+    }];
+    let original = semantic_fingerprint(&module).unwrap();
+    // This test isolates transport. Public admission separately checks that
+    // the named operation really is a call owing this requirement.
+    let bytes = encode_module(&module).unwrap();
+    let mut reader = super::wire::Reader::new(&bytes);
+    assert_eq!(reader.take(super::MAGIC.len()).unwrap(), super::MAGIC);
+    assert_eq!(reader.u16().unwrap(), super::FORMAT_MARKER);
+    let decoded = super::module_wire::decode_module_body(&mut reader).unwrap();
+    assert_eq!(reader.remaining(), 0);
+    assert_eq!(decoded, module);
+
+    let mut changed = module.clone();
+    changed.boundary_lender_preservation.clear();
+    assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
+    let mut variants = vec![module.clone(); 5];
+    variants[0].boundary_lender_preservation[0].machine = MachineId::new(2).unwrap();
+    variants[1].boundary_lender_preservation[0].operation = OperationId::new(2).unwrap();
+    variants[2].boundary_lender_preservation[0]
+        .requirement
+        .argument_index = 1;
+    variants[3].boundary_lender_preservation[0]
+        .requirement
+        .path
+        .pop();
+    variants[4].boundary_lender_preservation[0]
+        .requirement
+        .domain = StructuralDomainId::new(2).unwrap();
+    for changed in variants {
+        assert_ne!(semantic_fingerprint(&changed).unwrap(), original);
+    }
+}
+
+#[test]
+fn lender_preservation_roster_refuses_duplicate_and_reordered_requests() {
+    let mut module = module();
+    let first = BoundaryLenderPreservationDemand {
+        machine: MachineId::new(1).unwrap(),
+        operation: OperationId::new(1).unwrap(),
+        requirement: module.boundary_machines[0].normal_qualifications[2].clone(),
+    };
+    let mut second = first.clone();
+    second.operation = OperationId::new(2).unwrap();
+    module.boundary_lender_preservation = vec![first.clone(), second];
+    assert!(encode_module(&module).is_ok());
+    module.boundary_lender_preservation.reverse();
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::NonCanonicalOrder(
+            "boundary lender preservation demands"
+        )),
+    );
+    module.boundary_lender_preservation = vec![first.clone(), first];
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::NonCanonicalOrder(
+            "boundary lender preservation demands"
         )),
     );
 }

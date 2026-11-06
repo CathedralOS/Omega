@@ -39,17 +39,22 @@ mod successor_cleanup;
 // details.
 mod access_sources;
 mod aliases;
-pub(in crate::checks) use aliases::transport_suppliers;
+pub(in crate::checks) use crate::borrow::transport_suppliers;
 mod completed_backings;
 mod formation_captures;
 mod shared_observations;
 pub(crate) use shared_observations::shared_reference_observation;
 mod details;
 mod overlap;
+mod physical_sources;
 mod place_access;
 pub(crate) use overlap::{
     StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint,
     storage_path_compatibility,
+};
+pub(crate) use physical_sources::{
+    permission_sources as returned_borrow_permission_sources,
+    resolve as resolve_physical_borrow_sources,
 };
 mod simultaneous;
 

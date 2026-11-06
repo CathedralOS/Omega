@@ -98,7 +98,8 @@ pub use calls::{CheckedBoundaryAdapterDispatch, CheckedFactCallProjection};
 pub use carry::{
     CarryFacts, ClaimCarryPolicyFact, DataCarryFact, MachineActivationCarryFact,
     SuspensionCrossingBorrowFrontier, SuspensionCrossingCarryFact, SuspensionCrossingLiveValueFact,
-    SuspensionCrossingLoanBacking, SuspensionCrossingLoanFact, SuspensionCrossingLoanSource,
+    SuspensionCrossingLoanBacking, SuspensionCrossingLoanBackingPlan, SuspensionCrossingLoanFact,
+    SuspensionCrossingLoanRelations, SuspensionCrossingLoanResource, SuspensionCrossingLoanSource,
     SuspensionCrossingStorage, SuspensionCrossingValueOrigin, SuspensionValueBorrowFrontier,
     canonical_suspension_crossing_id,
 };

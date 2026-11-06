@@ -425,6 +425,21 @@ pub(super) fn membership_evidence(
     call: &FlowCallFact,
     requirement: &facts::Fact,
 ) -> Option<MembershipEvidence> {
+    let unavailable = |source_line: u32| {
+        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            eprintln!(
+                "CALL_WRITE membership-capture-unavailable machine={:?} state={:?} stmt={} ordinal={} target={:?} requirement={:?} place={:?} source_line={source_line}",
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+                call.target_symbol,
+                requirement.payload,
+                requirement.place
+            );
+        }
+        Some(MembershipEvidence::default())
+    };
     let facts::FactPayload::ContractDomainMembership {
         value,
         fact: source_fact,
@@ -441,7 +456,7 @@ pub(super) fn membership_evidence(
         call.statement_index,
         call.call_ordinal,
     )) else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     let mut position = None;
     for reference in facts
@@ -462,21 +477,21 @@ pub(super) fn membership_evidence(
         ) {
             Ok(Some(bound)) => bound,
             Ok(None) => return None,
-            Err(()) => return Some(MembershipEvidence::default()),
+            Err(()) => return unavailable(line!()),
         };
         if position.is_some_and(|position| position != bound) {
-            return Some(MembershipEvidence::default());
+            return unavailable(line!());
         }
         position = Some(bound);
     }
     let Some(position) = position else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     let Some(actual) = actual_at(program, state, call, position, declared.segments) else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     let Some(place) = requirement.place.as_place() else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     // The bytes of `&(x as T)` stay in `x`, so the place below still finds
     // `x`'s facts. The lent value itself lost any meaning `T` omits, and a
@@ -520,7 +535,7 @@ pub(super) fn membership_evidence(
         &facts.semantic,
         facts.semantic.places.get(place),
     ) else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     let Some(expected) = actual.argument.and_then(|argument| {
         crate::published::semantic::facts::projected_argument_place(
@@ -532,7 +547,7 @@ pub(super) fn membership_evidence(
             &actual.path,
         )
     }) else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     if required.root != expected.root
         || required.segments.len() != expected.segments.len()
@@ -544,10 +559,10 @@ pub(super) fn membership_evidence(
                 crate::flow::canonical_place_segments_equal(program, *left, *right)
             })
     {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     }
     let Some(values) = captured_values(program, facts, state, call, &actual) else {
-        return Some(MembershipEvidence::default());
+        return unavailable(line!());
     };
     let mut cases = values
         .iter()
@@ -561,6 +576,33 @@ pub(super) fn membership_evidence(
                 captured.observation_type,
                 call.entry_constraints,
             );
+            if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                eprintln!("CALL_WRITE membership-capture machine={:?} state={:?} stmt={} ordinal={} target={:?} requirement={:?} place={:?} observation={:?} operand={:?} type={:?} projection_expression={:?} projection_remaining={:?} projection_destination={:?} contexts={contexts:?} choices={:?}",
+                    state.machine_symbol, state.state_symbol, call.statement_index,
+                    call.call_ordinal, call.target_symbol, requirement.payload, requirement.place,
+                    captured.observation.recorded_in(&facts.flow.control),
+                    captured.operand.recorded_in(&facts.flow.control),
+                    captured.type_reference, captured.projection.expression,
+                    captured.projection.remaining, captured.projection.destination, captured.choices);
+                eprintln!("CALL_WRITE membership-capture-epochs machine={:?} state={:?} stmt={} ordinal={} target={:?} requirement={:?} place={:?} observation_state={:?} observation_stmt={} observation_expression={:?} observation_type={:?} observation_snapshot={:?} operand_state={:?} operand_stmt={} operand_expression={:?} operand_type={:?} operand_snapshot={:?} producer_epoch={:?}",
+                    state.machine_symbol, state.state_symbol, call.statement_index,
+                    call.call_ordinal, call.target_symbol, requirement.payload, requirement.place,
+                    captured.observation.state_symbol, captured.observation.statement_index,
+                    captured.observation.expression, captured.observation_type,
+                    captured.observation.storage_snapshot,
+                    captured.operand.state_symbol, captured.operand.statement_index,
+                    captured.operand.expression, captured.type_reference,
+                    captured.operand.storage_snapshot,
+                    captured.producer_epoch.map(|value| (value.recorded_in(&facts.flow.control),
+                        value.state_symbol, value.statement_index, value.expression, value.storage_snapshot)));
+                for choice in &captured.choices {
+                    let alternative = facts.flow.control.operand_alternatives.get(choice.alternative);
+                    eprintln!("CALL_WRITE membership-capture-choice machine={:?} state={:?} stmt={} ordinal={} target={:?} selection={:?} alternative={:?} source_arm={:?} pattern={:?} value={:?} contexts={contexts:?}",
+                        state.machine_symbol, state.state_symbol, call.statement_index,
+                        call.call_ordinal, call.target_symbol, choice.selection, choice.alternative,
+                        alternative.source_arm, alternative.pattern, alternative.value);
+                }
+            }
             let referents = crate::flow::operand_binds_live_view(program, captured.type_reference)
                 .then(|| {
                     // Missing address capture is not an authenticated backing

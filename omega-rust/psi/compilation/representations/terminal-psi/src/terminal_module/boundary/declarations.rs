@@ -5,8 +5,8 @@ use crate::{
 };
 use semantic_vocabulary::{
     BoundaryMachineId, ContentAlgebra, ContentConservation, ContentProjectionExpression,
-    ContentProjectionIdentity, ContentProjectionScalar, Proposition, ScalarType, ServiceId,
-    StructuralDomainId, StructuralTypeId, ValueId,
+    ContentProjectionIdentity, ContentProjectionScalar, MachineId, OperationId, Proposition,
+    ScalarType, ServiceId, StructuralDomainId, StructuralTypeId, ValueId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -20,6 +20,41 @@ pub struct StructuralDomainRequirement {
     /// stored-reference crossing. A row does not establish membership.
     pub path: Vec<crate::StructuralPathSegment>,
     pub domain: StructuralDomainId,
+}
+
+/// A call must keep this guarantee about the data borrowed from its owner.
+/// The requirement selects an existing normal qualification; it supplies
+/// neither membership nor proof that the provider preserves the captured data.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryLenderPreservationDemand {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub requirement: StructuralDomainRequirement,
+}
+
+/// Require an output to forward one of the captured incoming reference values.
+/// The selected implementation must prove this condition independently; the
+/// request grants no access, qualification or storage extent.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BoundaryReferenceForwardingDemand {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    /// Ordinal in the boundary declaration's reference-output roster.
+    pub output: u32,
+    pub sources: Vec<BoundaryReferenceSource>,
+}
+
+/// An outer borrowed argument and a reference stored inside it are different
+/// captured values, even when the stored value has an empty path.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryReferenceSource {
+    Reference {
+        argument_index: u32,
+    },
+    Stored {
+        argument_index: u32,
+        path: Vec<crate::StructuralPathSegment>,
+    },
 }
 
 /// A scalar argument's exact nominal qualification. Its primitive carrier and

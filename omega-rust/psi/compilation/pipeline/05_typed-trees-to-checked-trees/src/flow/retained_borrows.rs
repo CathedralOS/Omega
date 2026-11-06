@@ -40,8 +40,7 @@ impl RetainedBorrowHandback {
 }
 
 mod qualifications;
-pub(in crate::flow) use qualifications::memberships;
-pub(crate) use qualifications::{RetainedMembership, replay_memberships};
+pub(in crate::flow) use qualifications::declared_duties;
 
 mod captured_inputs;
 mod output_debts;
@@ -113,9 +112,12 @@ fn ending_inputs(
     Some(result)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn handbacks(
     program: &dyn validation::CheckingInput,
     borrow: &BorrowFacts,
+    contexts: &checked_trees::FlowContextFacts,
+    lifetimes: &checked_trees::FlowBorrowLifetimeFacts,
     control: &FlowControlFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -170,7 +172,10 @@ pub(super) fn handbacks(
     };
     let completed = sources.completed_calls(control);
     let mut previous = Vec::new();
-    for (_, performed) in control.calls.iter().filter(|(_, performed)| {
+    let Some(calls) = control.calls.span(sources.call_scope().calls) else {
+        return Vec::new();
+    };
+    for performed in calls.iter().filter(|performed| {
         performed.statement_index == call.statement_index
             && completed.contains(&performed.authored_expression)
     }) {
@@ -189,17 +194,17 @@ pub(super) fn handbacks(
         else {
             continue;
         };
-        let Some(inputs) = control.operands.span(performed.operands) else {
-            continue;
-        };
         let Some(captured) = super::call_phases::ArgumentSources::new(
             program,
+            borrow,
             machine.symbol,
             state.symbol,
             recorded,
             Some(&[]),
             control,
-            inputs,
+            sources.call_scope().calls,
+            performed.operands,
+            performed.invocation_storage,
         ) else {
             continue;
         };
@@ -209,39 +214,93 @@ pub(super) fn handbacks(
             previous.push((recorded, ended.holders));
         }
     }
+    // Consuming a record ends that generation, not every saved reference
+    // derived from it. Start with the descriptors captured at this call's
+    // entry, and keep each still-live holder's complete original obligations.
+    // A replacement at the same name cannot revive its discarded generation.
+    let held = (|| -> Result<Vec<_>, &'static str> {
+        let entry = call
+            .input_reference_loans
+            .and_then(|span| borrow.loan_suppliers.span(span))
+            .ok_or("the consuming call has no complete entry obligation roster")?;
+        borrow
+            .loans
+            .span(call.completed_reference_loans)
+            .ok_or("the consuming call has no complete produced obligation roster")?;
+        let produced = call.completed_reference_loans.handles().collect::<Vec<_>>();
+        let mut roots = entry.to_vec();
+        for root in &produced {
+            push_unique(&mut roots, *root);
+        }
+        let mut held = Vec::new();
+        for root in roots {
+            if !borrow.state_owns_loan(row, root) {
+                return Err("the consuming call names a foreign or unavailable obligation holder");
+            }
+            let holder = borrow.loans.get(root);
+            let produced_here = produced.contains(&root);
+            let ended_before = previous.iter().any(|(performed, holders)| {
+                formed_before(holder, performed) && covers(holders, holder)
+            });
+            let live = produced_here
+                || (formed_before(holder, call)
+                    && !ended_before
+                    && (order.precedes(call.statement_index, holder.last_use_statement_index)
+                        || (holder.last_use_statement_index == call.statement_index
+                            && !covers(&ending.holders, holder))));
+            if live {
+                let obligations = crate::borrow::retained_loan_closure(
+                    borrow,
+                    row,
+                    root,
+                    &crate::borrow::RetainedLoanSourceScope {
+                        program,
+                        contexts,
+                        lifetimes,
+                        control,
+                        calls: sources.call_scope(),
+                    },
+                )?;
+                held.push((root, obligations));
+            }
+        }
+        Ok(held)
+    })();
+    let held = match held {
+        Ok(held) => held,
+        Err(reason) => {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE retained-handback-holders-unavailable state={:?} statement={} call={} reason={reason}",
+                    state.symbol, call.statement_index, call.call_ordinal
+                );
+            }
+            return Vec::new();
+        }
+    };
     ending
         .borrows
         .into_iter()
         .filter(|returned| {
             returned.place.root.is_valid()
-                && returned
-                    .place
-                    .segments
-                    .iter()
-                    .all(super::place_segment_has_static_identity)
-                && !borrow.state_loans(row).any(|(_, other)| {
-                    if other.lineage != BorrowLoanLineage::LifetimeDependency
-                        || other.root != returned.place.root
-                        || !super::canonical_place_segments_may_overlap(
-                            program,
-                            &returned.place.segments,
-                            borrow.loan_segments(other),
-                        )
-                    {
-                        return false;
-                    }
-                    let produced_here = call.authored_expression.is_valid()
-                        && other.formation_expression == call.authored_expression;
-                    let ended_before = previous.iter().any(|(performed, holders)| {
-                        formed_before(other, performed) && covers(holders, other)
-                    });
-                    produced_here
-                        || (formed_before(other, call)
-                            && !ended_before
-                            && (order
-                                .precedes(call.statement_index, other.last_use_statement_index)
-                                || (other.last_use_statement_index == call.statement_index
-                                    && !covers(&ending.holders, other))))
+                && returned.place.segments.iter().all(super::place_segment_has_static_identity)
+                && !held.iter().any(|(holder, obligations)| {
+                    obligations.iter().any(|handle| {
+                        let other = borrow.loans.get(*handle);
+                        let blocked = other.lineage == BorrowLoanLineage::LifetimeDependency
+                            && other.root == returned.place.root
+                            && super::canonical_place_segments_may_overlap(
+                                program, &returned.place.segments, borrow.loan_segments(other),
+                            );
+                        if blocked && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                            let owner = borrow.loans.get(*holder);
+                            eprintln!("CHECKSITE retained-handback-still-held state={:?} statement={} call={} subject={:?} holder={holder:?} holder_owner={:?} holder_last_use={} loan={handle:?} owner={:?} owner_path={:?} ending_holders={:?}",
+                                state.symbol, call.statement_index, call.call_ordinal, returned.place,
+                                owner.storage_owner, owner.last_use_statement_index, other.storage_owner,
+                                borrow.loan_owner_path(other), ending.holders);
+                        }
+                        blocked
+                    })
                 })
         })
         .collect()

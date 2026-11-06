@@ -11,11 +11,9 @@
 use crate::checks::contracts::exclusive_referent_type;
 use crate::checks::contracts::is_readable_mutable_reference;
 use crate::checks::places::place_in;
-use crate::flow::RetainedMembership;
 use crate::flow::call_parameter_qualification_identities;
 use crate::flow::operand_binds_live_view;
 use crate::flow::project_captured_view_place;
-use crate::flow::replay_retained_memberships;
 use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact};
 use facts::{FactPlace, PlaceRoot, PlaceSegment, ProgramPoint, QualificationEvidence};
@@ -39,7 +37,6 @@ pub(super) struct ParameterQualificationJoin<'program> {
     call_flow: &'program FlowCallFact,
     checked_body: bool,
     subjects: Vec<ParameterSubject>,
-    retained: Vec<RetainedMembership>,
 }
 
 impl<'program> ParameterQualificationJoin<'program> {
@@ -161,7 +158,6 @@ impl<'program> ParameterQualificationJoin<'program> {
                 .compare_identity(&right.place)
                 .then_with(|| left.position.cmp(&right.position))
         });
-        let retained = replay_retained_memberships(program, facts, point);
         Some(Self {
             program,
             facts,
@@ -170,7 +166,6 @@ impl<'program> ParameterQualificationJoin<'program> {
             call_flow,
             checked_body,
             subjects,
-            retained,
         })
     }
 
@@ -193,16 +188,6 @@ impl<'program> ParameterQualificationJoin<'program> {
             root,
             segments: path.to_vec(),
         };
-        // A consumed lifetime holder has no direct mutable formal for the
-        // original referent. This separately replayed source receipt, not the
-        // completion's signature or issuer name, admits its exact descendant.
-        if self
-            .retained
-            .iter()
-            .any(|row| row.place == subject && row.domain == domain && row.instance == instance)
-        {
-            return Some(());
-        }
         let start = self
             .subjects
             .partition_point(|row| row.place.compare_identity(&subject).is_lt());

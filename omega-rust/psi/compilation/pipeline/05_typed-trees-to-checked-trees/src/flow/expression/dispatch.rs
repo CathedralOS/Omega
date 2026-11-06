@@ -38,6 +38,7 @@ impl Execution<'_, '_, '_> {
         expression: ExpressionHandle,
         dispatch: TableMatchExpression,
         destination: TypeReferenceHandle,
+        evaluated_inputs: &mut HandleSpan<checked_trees::FlowOperandFact>,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> HandleSpan<FlowOperandAlternative> {
@@ -73,10 +74,13 @@ impl Execution<'_, '_, '_> {
             )
             .capture
         };
+        // The discriminator is evaluated before every arm. Keep that exact
+        // input as well as the values the selection may later yield.
+        *evaluated_inputs = self.context.control.operands.insert_many([subject_operand]);
+        let subject = evaluated_inputs.start();
         let outer_captures = self.match_subjects.len();
         if dispatch.capture.is_valid() {
-            self.match_subjects
-                .push((dispatch.capture, subject_operand));
+            self.match_subjects.push((dispatch.capture, subject));
         }
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
@@ -117,10 +121,12 @@ impl Execution<'_, '_, '_> {
                     &case_coverage,
                 );
             }
+            let mut pattern_value = arena::Handle::invalid();
             if let MatchPattern::Value(pattern) = arm.pattern {
                 let pattern_operand = self
                     .evaluated_operand(pattern, contexts, constraints)
                     .capture;
+                pattern_value = self.context.control.operands.append(pattern_operand);
                 if let Ok(ordinal) = u32::try_from(ordinal) {
                     let source_arm = dispatch.arms.handle_at(ordinal);
                     self.record_operator_invocation(
@@ -138,7 +144,7 @@ impl Execution<'_, '_, '_> {
             let mut selected_contexts = *contexts;
             let mut selected_constraints = *constraints;
             if let MatchPattern::Destructure(pattern) = arm.pattern {
-                self.evaluated_operand(pattern.condition, contexts, constraints);
+                pattern_value = self.evaluate_value_root(pattern.condition, contexts, constraints);
                 selected_contexts = *contexts;
                 selected_constraints = *constraints;
                 let prefix = self.write_prefix();
@@ -264,7 +270,11 @@ impl Execution<'_, '_, '_> {
                 .unwrap_or_default();
             self.context.control.operand_alternatives.append_to_span(
                 &mut alternatives,
-                FlowOperandAlternative { source_arm, value },
+                FlowOperandAlternative {
+                    source_arm,
+                    pattern: pattern_value,
+                    value,
+                },
             );
             let yielded = self.predicates_on_value(arm.value, &selected_contexts);
             match shared_predicates.as_mut() {
@@ -318,7 +328,6 @@ impl Execution<'_, '_, '_> {
             *contexts = joined_contexts;
             *constraints = joined_constraints;
         }
-        let subject = self.context.control.operands.insert(subject_operand);
         self.retain_value_observation(
             expression,
             subject,

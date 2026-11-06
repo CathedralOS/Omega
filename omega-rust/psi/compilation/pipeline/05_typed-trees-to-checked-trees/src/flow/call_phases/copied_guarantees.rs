@@ -4,6 +4,9 @@
 //! their own postconditions remain publishable after writes through the call.
 
 mod captured_aliases;
+mod forwarding;
+mod leaf_writes;
+mod lender_subjects;
 
 use crate::published::places::place_at;
 use validation::CanonicalPlace;
@@ -20,8 +23,11 @@ use typed_trees::{domain::ProofFact, expression::ExpressionHandle};
 
 pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
     program: &'program dyn ::validation::CheckingInput,
+    borrow: &'program checked_trees::BorrowFacts,
     state: SymbolHandle,
+    call_scope: crate::borrow::lifetime_contract::SourceCallScope,
     statement: usize,
+    invocation_storage: Handle<checked_trees::FlowStorageSnapshot>,
     parameters: &'program [typed_trees::signature::StateParameter],
     arguments: &'program [ExpressionHandle],
     writes: Option<&'writes [CanonicalPlace]>,
@@ -32,12 +38,15 @@ pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
 /// identify destination children; later writes retain each child's own epoch.
 struct CapturedSource {
     operand: FlowOperandFact,
+    handle: Handle<FlowOperandFact>,
     position: usize,
     destination: Vec<PlaceSegment>,
     expression: ExpressionHandle,
     type_reference: typed_trees::types::TypeReferenceHandle,
     later_writes: Option<Vec<CanonicalPlace>>,
     referents: Vec<CanonicalPlace>,
+    reference_sources:
+        std::sync::OnceLock<Result<Vec<validation::CapturedReferenceLeafSources>, &'static str>>,
 }
 
 fn writes_after_capture(
@@ -85,6 +94,7 @@ fn retain_capture(
     program: &dyn ::validation::CheckingInput,
     control: &FlowControlFacts,
     capture: &FlowOperandFact,
+    capture_handle: Handle<FlowOperandFact>,
     invocation: &FlowOperandFact,
     position: usize,
     destination: Vec<PlaceSegment>,
@@ -115,12 +125,14 @@ fn retain_capture(
     };
     captures.push(CapturedSource {
         operand: *capture,
+        handle: capture_handle,
         position,
         destination: destination.clone(),
         expression: capture.expression,
         type_reference,
         later_writes: writes_after_capture(control, capture, invocation),
         referents,
+        reference_sources: std::sync::OnceLock::new(),
     });
     for child in control
         .operand_children
@@ -146,6 +158,7 @@ fn retain_capture(
             program,
             control,
             control.operands.get(child.value),
+            child.value,
             invocation,
             position,
             path,
@@ -159,6 +172,10 @@ fn retain_capture(
 }
 
 impl<'program, 'writes> ArgumentSources<'program, 'writes> {
+    pub(in crate::flow) fn call_scope(&self) -> crate::borrow::lifetime_contract::SourceCallScope {
+        self.call_scope
+    }
+
     /// The completed reference's actual backing, not the source spelling or
     /// a replay of its initializer. An empty roster is unavailable evidence;
     /// several candidates do not identify which one the callee changed.
@@ -173,13 +190,17 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
 
     pub(in crate::flow) fn new(
         program: &'program dyn ::validation::CheckingInput,
+        borrow: &'program checked_trees::BorrowFacts,
         machine: SymbolHandle,
         state: SymbolHandle,
         call: &BorrowCallFact,
         writes: Option<&'writes [CanonicalPlace]>,
         control: &FlowControlFacts,
-        captured_operands: &[FlowOperandFact],
+        calls: HandleSpan<checked_trees::FlowCallFact>,
+        recorded_operands: HandleSpan<FlowOperandFact>,
+        invocation_storage: Handle<checked_trees::FlowStorageSnapshot>,
     ) -> Option<Self> {
+        let captured_operands = control.operands.span(recorded_operands)?;
         let site = validation::find_call_site(
             program,
             machine,
@@ -219,6 +240,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                     program,
                     control,
                     captured_operands.get(position + offset)?,
+                    recorded_operands.handles().nth(position + offset)?,
                     invocation,
                     position,
                     Vec::new(),
@@ -229,9 +251,16 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             }
         }
         Some(Self {
+            call_scope: crate::borrow::lifetime_contract::SourceCallScope {
+                machine,
+                state,
+                calls,
+            },
             program,
+            borrow,
             state,
             statement: call.statement_index,
+            invocation_storage,
             parameters,
             arguments,
             writes,
@@ -265,6 +294,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             self.program,
             borrow,
             control,
+            self.call_scope,
             &captured.operand,
             &[],
             self.parameters.get(position)?.type_reference,
@@ -274,12 +304,33 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             self.program,
             borrow,
             control,
+            self.call_scope,
             self.state,
             call,
             &captured.operand,
             self.parameters.get(position)?.type_reference,
             &stable_name,
         );
+        if let Err(reason) = &debts
+            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        {
+            eprintln!(
+                "CHECKSITE output-debt-handback-unavailable state={:?} statement={} call={} argument={position} actual={:?} reason={reason}",
+                self.state, call.statement_index, call.call_ordinal, captured.operand.expression
+            );
+        }
+        let debts = debts.ok();
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE retained-input-handback state={:?} statement={} call={} argument={position} actual={:?} current={:?} debts={:?}",
+                self.state,
+                call.statement_index,
+                call.call_ordinal,
+                captured.operand.expression,
+                current,
+                debts
+            );
+        }
         match (current, debts) {
             (Some(mut current), Some(debts)) => {
                 current.append(debts);

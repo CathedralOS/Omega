@@ -17,7 +17,7 @@ use terminal_psi::{
 
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::proofs::{content_conservation, evidence_lowering};
-use crate::shared::lowering_error::{LoweringError, invalid_suspension, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use crate::unit::attached_unit::checked_unit_boundary_identity;
 
 pub(crate) mod access_lifecycles;

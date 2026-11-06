@@ -42,10 +42,10 @@ impl Execution<'_, '_, '_> {
             if effect.incoming_identity && binding_writes.is_some_and(<[_]>::is_empty) {
                 continue;
             }
-            let Some(actual) = input(effect.destination.local_symbol) else {
+            let Some(actual_handle) = input(effect.destination.local_symbol) else {
                 continue;
             };
-            let actual = *self.context.control.operands.get(actual);
+            let actual = *self.context.control.operands.get(actual_handle);
             // Stores select the data reached by the actual's outer reference,
             // including an empty path that replaces an inner pointer slot.
             // This is destination typing; a write-only address need not read
@@ -79,6 +79,28 @@ impl Execution<'_, '_, '_> {
                 .sources
                 .iter()
                 .any(|source| source.backing.invocation_output.is_some());
+            let output_lifetime_sources = if supplies_output {
+                let Some(parameter) = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == effect.destination.local_symbol)
+                else {
+                    continue;
+                };
+                self.capture_output_lifetime_sources(
+                    parameters,
+                    inputs,
+                    call,
+                    facts::InvocationOutputIdentity {
+                        state_symbol: self.state.symbol,
+                        statement_index: self.statement_index,
+                        call_ordinal: call.call_ordinal,
+                        parameter_symbol: parameter.symbol,
+                    },
+                    &effect.destination.local_segments,
+                )
+            } else {
+                Handle::invalid()
+            };
             // Capture suppliers from this same pre-call tuple. A lifetime-only
             // dependency cannot supply the written pointer. Performed outputs
             // keep their own incoming identity and full cohort above.
@@ -265,13 +287,6 @@ impl Execution<'_, '_, '_> {
                     for root in retained {
                         crate::shared::collections::push_unique(&mut roots, root);
                     }
-                    self.capture_output_lifetime_sources(
-                        parameters,
-                        inputs,
-                        call,
-                        identity,
-                        &effect.destination.local_segments,
-                    );
                     crate::shared::collections::push_unique(&mut origins, origin);
                     continue;
                 }
@@ -494,6 +509,7 @@ impl Execution<'_, '_, '_> {
                             && source_images.iter().all(Option::is_some)
                             && (effect.has_static_values || !effect.sources.is_empty());
                         profile.suppliers = suppliers;
+                        profile.output_lifetime_sources = output_lifetime_sources;
                     }
                     // Only descriptor identity and lifetime cross. Earlier
                     // pointee facts and scalar predicates do not become output.
@@ -591,6 +607,8 @@ impl Execution<'_, '_, '_> {
                 } else {
                     values.push(CallStore {
                         destination: destination.place,
+                        actual: actual_handle,
+                        path: effect.destination.local_segments.clone(),
                         value,
                     });
                 }
@@ -647,7 +665,7 @@ impl Execution<'_, '_, '_> {
                             *right,
                         )
                     })
-                && validation::project_type_reference_from_segments(
+                && validation::borrow_contracts::installed_output_path_type(
                     self.program,
                     incoming.carrier_type,
                     &place_path,

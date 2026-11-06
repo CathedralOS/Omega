@@ -228,21 +228,26 @@ fn output_write_region(
     if !shell.access.is_exclusive() {
         return None;
     }
-    // The parameter's outer reference addresses its receiving storage. The
-    // first reference below it is the actual output leaf, including a root
-    // reference-valued slot. Later selectors stay inside that opaque referent.
-    let length = (0..=source.segments.len()).find(|length| {
-        validation::project_type_reference_from_segments(
-            program,
-            shell.referee,
-            &source.segments[..*length],
-        )
-        .and_then(|reference| validation::reference_shell(program, reference))
-        .is_some()
+    // The first reference in the stored carrier is the actual output leaf,
+    // including a root reference-valued slot. Later selectors stay inside
+    // that opaque referent; this remains an unresolved write obligation.
+    let stored = validation::borrow_contracts::installed_output_carrier_type(
+        program,
+        parameter.type_reference,
+    )?;
+    let path = validation::corresponding_place_projection(program, stored, &source.segments)?;
+    let length = (0..=path.len()).find(|length| {
+        validation::project_type_reference_from_segments(program, stored, &path[..*length])
+            .and_then(|reference| validation::reference_shell(program, reference))
+            .is_some()
     })?;
     let mut projected = source.segments.clone();
     projected.extend_from_slice(relative);
-    validation::project_type_reference_from_segments(program, shell.referee, &projected)?;
+    validation::borrow_contracts::installed_output_path_type(
+        program,
+        parameter.type_reference,
+        &projected,
+    )?;
     Some(StorageRegion::UnresolvedContent {
         carrier: CanonicalPlace {
             root: facts::PlaceRoot::InvocationOutput(identity),
@@ -344,7 +349,17 @@ pub(super) fn exact_origin_place(
     statement_index: usize,
     origin: &validation::LocalWriteOrigin,
 ) -> Option<CanonicalPlace> {
-    let source = origin.source.as_ref()?;
+    exact_source_place(program, state, statement_index, origin.source.as_ref()?)
+}
+
+/// Preservation uses the recorded source namespace, never a display-path
+/// fallback that was retained only to conservatively invalidate observations.
+pub(crate) fn exact_source_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    source: &validation::LocalWriteSource,
+) -> Option<CanonicalPlace> {
     if !source.recasts.is_empty() || source.representation.is_some() {
         return None;
     }

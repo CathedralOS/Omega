@@ -21,6 +21,7 @@ pub(crate) fn append_writes(
     contents: HandleSpan<FlowOperandReferent>,
     bindings_complete: bool,
     contents_complete: bool,
+    endpoint: Option<checked_trees::FlowStorageWriteEndpoint>,
 ) -> Handle<FlowStorageSnapshot> {
     if bindings.is_empty() && contents.is_empty() && bindings_complete && contents_complete {
         return previous;
@@ -32,6 +33,7 @@ pub(crate) fn append_writes(
             contents,
             bindings_complete,
             contents_complete,
+            endpoint,
         },
     })
 }
@@ -41,6 +43,16 @@ pub(crate) fn append_place_writes(
     previous: Handle<FlowStorageSnapshot>,
     bindings: Option<&[CanonicalPlace]>,
     contents: Option<&[CanonicalPlace]>,
+) -> Handle<FlowStorageSnapshot> {
+    append_place_writes_at_endpoint(control, previous, bindings, contents, None)
+}
+
+pub(crate) fn append_place_writes_at_endpoint(
+    control: &mut FlowControlFacts,
+    previous: Handle<FlowStorageSnapshot>,
+    bindings: Option<&[CanonicalPlace]>,
+    contents: Option<&[CanonicalPlace]>,
+    endpoint: Option<checked_trees::FlowStorageWriteEndpoint>,
 ) -> Handle<FlowStorageSnapshot> {
     fn rows(
         control: &mut FlowControlFacts,
@@ -71,6 +83,7 @@ pub(crate) fn append_place_writes(
         content_rows,
         bindings.is_some(),
         contents.is_some(),
+        endpoint,
     )
 }
 
@@ -80,6 +93,37 @@ pub(crate) fn append_store(
     destination: &CanonicalPlace,
     value: Handle<FlowOperandFact>,
     projection: &[PlaceSegment],
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+) -> Handle<FlowStorageSnapshot> {
+    let receiving_type = control
+        .operands
+        .is_valid(value)
+        .then(|| control.operands.get(value).type_reference)
+        .unwrap_or_default();
+    append_store_at_endpoint(
+        control,
+        previous,
+        destination,
+        value,
+        projection,
+        receiving_type,
+        Handle::invalid(),
+        state,
+        statement_index,
+    )
+}
+
+pub(crate) fn append_store_at_endpoint(
+    control: &mut FlowControlFacts,
+    previous: Handle<FlowStorageSnapshot>,
+    destination: &CanonicalPlace,
+    value: Handle<FlowOperandFact>,
+    projection: &[PlaceSegment],
+    receiving_type: typed_trees::types::TypeReferenceHandle,
+    target: Handle<FlowOperandFact>,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
 ) -> Handle<FlowStorageSnapshot> {
     if !destination
         .segments
@@ -99,6 +143,10 @@ pub(crate) fn append_store(
     control.storage_snapshots.insert(FlowStorageSnapshot {
         previous,
         operation: FlowStorageOperation::Store {
+            state,
+            statement_index,
+            receiving_type,
+            target,
             destination: FlowOperandReferent {
                 formation: Handle::invalid(),
                 root: destination.root,

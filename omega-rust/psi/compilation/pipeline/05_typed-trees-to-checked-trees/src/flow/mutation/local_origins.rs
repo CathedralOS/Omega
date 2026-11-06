@@ -19,8 +19,8 @@ use validation::push_field_place_segments;
 use validation::resolve_member_symbol_from_place;
 use validation::{
     AssignmentWriteTarget, CallFrameResolver, CanonicalPlace, LocalWriteOrigin,
-    assignment_stored_value_type, canonical_place_type_reference, declared_reference_access,
-    find_state, place_has_builtin_coordinates, reference_shell,
+    canonical_place_type_reference, declared_reference_access, find_state,
+    place_has_builtin_coordinates, reference_shell,
 };
 
 use crate::flow::canonical_place_from_symbol;
@@ -36,7 +36,9 @@ use symbols::SymbolHandle;
 mod coordinates;
 pub(in crate::flow) use coordinates::alias_projection as captured_alias_projection;
 pub(super) use coordinates::write_source_region;
-pub(crate) use coordinates::{OriginPrecision, origin_place, sole_local_referent_origin};
+pub(crate) use coordinates::{
+    OriginPrecision, exact_source_place, origin_place, sole_local_referent_origin,
+};
 
 pub(crate) fn close_storage_places_over_aliases(
     program: &dyn ::validation::CheckingInput,
@@ -211,71 +213,31 @@ pub(super) fn assignment_storage_regions(
     ) {
         return direct.map(|place| vec![StorageRegion::Declared(place)]);
     }
-    if assignment_stored_value_type(program, machine, state, assignment)
-        .is_some_and(|reference| reference_shell(program, reference).is_some())
-    {
-        let captured = resolver
-            .assignment_storage_origins(machine, statement)
-            .ok()?;
-        let mut regions = Vec::new();
-        for source in captured.destinations {
-            let StorageRegion::Declared(place) =
-                coordinates::write_source_region(program, state, statement_index, &source, &[])?
-            else {
-                return None;
-            };
-            let reference =
-                canonical_place_type_reference(program, state_symbol, statement_index, &place)?;
-            reference_shell(program, reference)?;
-            for region in rebase_descriptor_slot_regions(
-                program,
-                state_symbol,
-                statement_index,
-                place,
-                call_frames,
-            )? {
-                push_unique(&mut regions, region);
+    // Every assignment writes the destination captured before its RHS. A
+    // record replacement writes its cells, not the data behind old pointers
+    // stored in those cells. The address owner has already resolved all
+    // receiver crossings and preserved every possible destination.
+    let captured = match resolver.assignment_storage_origins(machine, statement) {
+        Ok(captured) => captured,
+        Err(reason) => {
+            if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                eprintln!(
+                    "CALLWRITE assignment-destination-unavailable state={state_symbol:?} statement={statement_index} reason={reason}"
+                );
             }
+            return None;
         }
-        return Some(regions);
-    }
-    let Some(target) = target else {
-        // The resolver cannot classify a write through a reference local it
-        // has no origin for; a local of finite candidate origins still names
-        // exactly those places (`rebase_local_write_places`), anything else
-        // stays unknown.
-        return rebase_local_write_regions(
-            program,
-            state_symbol,
-            statement_index,
-            direct?,
-            call_frames,
-        );
     };
-    match target {
-        AssignmentWriteTarget::LocalBindingReplacement { .. } => {
-            direct.map(|place| vec![StorageRegion::Declared(place)])
-        }
-        AssignmentWriteTarget::Storage { paths } => {
-            if let Some(place) = direct {
-                rebase_local_write_regions(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    place,
-                    call_frames,
-                )
-            } else {
-                paths
-                    .iter()
-                    .map(|path| {
-                        frame_write_place(program, state, statement_index, path)
-                            .map(StorageRegion::Declared)
-                    })
-                    .collect()
-            }
-        }
+    if captured.destinations.is_empty() {
+        return None;
     }
+    let mut regions = Vec::new();
+    for source in captured.destinations {
+        let region =
+            coordinates::write_source_region(program, state, statement_index, &source, &[])?;
+        push_unique(&mut regions, region);
+    }
+    Some(regions)
 }
 
 fn place_requires_local_write_origin(
@@ -461,28 +423,6 @@ fn rebase_region_owner(
     }
 }
 
-/// A checked receiving reference field names its cell, not its old pointee.
-/// No descriptor load is needed for a path entirely inside owned storage.
-pub(super) fn rebase_descriptor_slot_regions(
-    program: &dyn validation::CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    place: CanonicalPlace,
-    call_frames: Option<&CallFrameResolver<'_>>,
-) -> Option<Vec<StorageRegion>> {
-    if descriptor_slot_is_inline(program, state_symbol, statement_index, &place)? {
-        return Some(vec![StorageRegion::Declared(place)]);
-    }
-    rebase_write_regions(
-        program,
-        state_symbol,
-        statement_index,
-        place,
-        call_frames,
-        true,
-    )
-}
-
 fn descriptor_slot_is_inline(
     program: &dyn validation::CheckingInput,
     state_symbol: SymbolHandle,
@@ -583,7 +523,36 @@ fn rebase_reachable_storage(
     descriptor_slot: bool,
     origins: &[LocalWriteOrigin],
 ) -> Option<Vec<StorageRegion>> {
-    let (_, state) = find_state(program, state_symbol)?;
+    let query = place.clone();
+    let resolved = reachable_storage_regions(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        descriptor_slot,
+        origins,
+    );
+    if let Err(reason) = &resolved
+        && std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some()
+    {
+        eprintln!(
+            "CALLWRITE captured-region-refused state={state_symbol:?} statement={statement_index} query={query:?} descriptor_slot={descriptor_slot} origin_count={} reason={reason}",
+            origins.len()
+        );
+    }
+    resolved.ok()
+}
+
+fn reachable_storage_regions(
+    program: &dyn validation::CheckingInput,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: CanonicalPlace,
+    descriptor_slot: bool,
+    origins: &[LocalWriteOrigin],
+) -> Result<Vec<StorageRegion>, String> {
+    let (_, state) = find_state(program, state_symbol)
+        .ok_or_else(|| "captured storage has no owning state".to_owned())?;
     // An origin identifies the captured referent of one descriptor, not the
     // transitive storage footprint of that referent. Walk the same immutable
     // inventory through every writable descriptor before deciding a local
@@ -592,31 +561,58 @@ fn rebase_reachable_storage(
     let mut pending = vec![(place, Vec::<usize>::new())];
     let mut projected = Vec::new();
     while let Some((place, crossed)) = pending.pop() {
-        let root = place.root.as_symbol()?;
+        let root = place
+            .root
+            .as_symbol()
+            .ok_or_else(|| format!("captured storage has no symbol root: {place:?}"))?;
         let mut retains_private_storage = true;
         for (origin_index, origin) in origins.iter().enumerate() {
-            if origin.local_symbol != root
-                || !canonical_place_segments_may_overlap(
-                    program,
-                    &place.segments,
-                    &origin.local_segments,
-                )
-            {
+            if origin.local_symbol != root {
                 continue;
             }
-            if descriptor_slot && place.segments.len() == origin.local_segments.len() {
+            // A helper's field can belong to another prepared occurrence of
+            // this record. Select the actual local's member before comparing
+            // paths or reading its type. This supplies coordinates, not access.
+            let owner_type = canonical_place_type_reference(
+                program,
+                state_symbol,
+                statement_index,
+                &CanonicalPlace {
+                    root: place.root,
+                    segments: Vec::new(),
+                },
+            )
+            .ok_or_else(|| {
+                format!("captured reference owner has no physical type: root={root:?} origin={origin_index}")
+            })?;
+            let local_segments = validation::corresponding_place_projection(
+                program,
+                owner_type,
+                &origin.local_segments,
+            )
+            .ok_or_else(|| {
+                format!("captured reference path has no applied member correspondence: root={root:?} owner_type={owner_type:?} path={:?} origin={origin_index}", origin.local_segments)
+            })?;
+            if !canonical_place_segments_may_overlap(program, &place.segments, &local_segments) {
+                continue;
+            }
+            if descriptor_slot && place.segments.len() == local_segments.len() {
                 continue;
             }
             let descriptor = CanonicalPlace {
                 root: place.root,
-                segments: origin.local_segments.clone(),
+                segments: local_segments.clone(),
             };
             let reference = canonical_place_type_reference(
-                program,
-                state_symbol,
-                statement_index,
-                &descriptor,
-            )?;
+            program,
+            state_symbol,
+            statement_index,
+            &descriptor,
+        ).ok_or_else(|| {
+            let owner = canonical_place_type_reference(program, state_symbol, statement_index,
+                &CanonicalPlace { root: place.root, segments: Vec::new() });
+            format!("captured reference leaf has no physical type: descriptor={descriptor:?} owner_type={owner:?} origin={origin_index}")
+        })?;
             if declared_reference_access(program, reference)
                 .is_some_and(|access| !access.is_exclusive())
                 || origin
@@ -626,36 +622,34 @@ fn rebase_reachable_storage(
             {
                 continue;
             }
-            let relative = if place.segments.len() >= origin.local_segments.len() {
+            let relative = if place.segments.len() >= local_segments.len() {
                 retains_private_storage = false;
-                &place.segments[origin.local_segments.len()..]
+                &place.segments[local_segments.len()..]
             } else {
                 &[]
             };
-            let region = write_source_region(
-                program,
-                state,
-                statement_index,
-                origin.source.as_ref()?,
-                relative,
-            )?;
+            let source = origin.source.as_ref().ok_or_else(|| format!(
+            "captured reference leaf has an unknown source: descriptor={descriptor:?} type={reference:?} origin={origin_index}"))?;
+            let region = write_source_region(program, state, statement_index, source, relative)
+            .ok_or_else(|| format!("captured source projection is unavailable: descriptor={descriptor:?} type={reference:?} source_root={:?} source_path={:?} relative={relative:?} recasts={} represented={}",
+                source.root, source.segments, source.recasts.len(), source.representation.is_some()))?;
             let canonical = match region {
                 StorageRegion::Declared(place) => place,
                 region @ (StorageRegion::ResidentContent { .. }
                 | StorageRegion::NonresidentContent { .. }
                 | StorageRegion::UnresolvedContent { .. }) => {
                     for rebased in rebase_region_owner(region, |owner| {
-                        rebase_reachable_storage(
-                            program,
-                            state_symbol,
-                            statement_index,
-                            owner,
-                            false,
-                            origins,
-                        )
-                    })? {
-                        push_unique(&mut projected, rebased);
-                    }
+                    rebase_reachable_storage(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        owner,
+                        false,
+                        origins,
+                    )
+                }).ok_or_else(|| format!("captured content owner cannot be rebased: descriptor={descriptor:?} origin={origin_index}"))? {
+                    push_unique(&mut projected, rebased);
+                }
                     continue;
                 }
             };
@@ -671,7 +665,9 @@ fn rebase_reachable_storage(
                 continue;
             }
             if crossed.contains(&origin_index) {
-                return None;
+                return Err(format!(
+                    "captured reference origins are cyclic: descriptor={descriptor:?} current={place:?} next={canonical:?} origin={origin_index} crossed={crossed:?}"
+                ));
             }
             let mut next_crossed = crossed.clone();
             next_crossed.push(origin_index);
@@ -685,7 +681,7 @@ fn rebase_reachable_storage(
             projected.push(region);
         }
     }
-    Some(projected)
+    Ok(projected)
 }
 
 /// A reference local bound from a checked reference result names one of

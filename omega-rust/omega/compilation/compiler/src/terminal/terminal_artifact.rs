@@ -208,6 +208,8 @@ impl ProducedTerminalProduct {
             .execution
             .selected_target_profile
             .unwrap_or_else(target::TargetProfile::host);
+        build_settings::lender_preservation::complete(artifact, target.target_name(), proposals)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         build_settings::scalar_completion::complete(
             artifact,
             target.target_name(),

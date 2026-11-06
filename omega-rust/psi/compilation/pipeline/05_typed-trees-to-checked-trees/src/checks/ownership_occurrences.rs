@@ -71,6 +71,9 @@ pub(super) struct StatementOccurrence {
     /// Exact invocation completed here, independent of its syntax's scalar
     /// expression handle (named transitions and statement calls have none).
     pub(super) invocation: Option<InvocationIdentity>,
+    /// A borrow uses the receiving context of its actual value consumer.
+    /// Nested calls replace this key only while evaluating their own operands.
+    pub(super) consumer: Option<ObservationConsumer>,
     pub(super) route: Vec<EvaluationBranch>,
     /// The last step through which this occurrence's access is held: its own
     /// position, or the completion of the outermost invocation that stages it
@@ -83,6 +86,27 @@ pub(super) enum InvocationIdentity {
     Expression(ExpressionHandle),
     Statement,
     Transition(TransitionTargetHandle),
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ObservationConsumer {
+    Invocation(InvocationOperand),
+    StoredValue,
+    StoreTarget,
+    EvaluatedValue,
+    OutgoingValue(TransitionTargetHandle),
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct InvocationOperand {
+    pub(super) invocation: InvocationIdentity,
+    pub(super) position: InvocationOperandPosition,
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum InvocationOperandPosition {
+    Receiver,
+    Argument(usize),
 }
 
 impl InvocationIdentity {
@@ -210,13 +234,22 @@ pub(super) fn statement_steps_at_evaluation(
             .collect(),
         steps: Vec::new(),
         route: Vec::new(),
+        consumer: None,
     };
     match statement {
         StatementNode::Assembly(_) => {}
-        StatementNode::LocalData(local) => order.expression(local.initial_value, false),
-        StatementNode::Expression(expression) => order.expression(*expression, false),
+        StatementNode::LocalData(local) => {
+            order.consumer = Some(ObservationConsumer::StoredValue);
+            order.expression(local.initial_value, false);
+        }
+        StatementNode::Expression(expression) => {
+            order.consumer = Some(ObservationConsumer::EvaluatedValue);
+            order.expression(*expression, false);
+        }
         StatementNode::Assignment(assignment) => {
+            order.consumer = Some(ObservationConsumer::StoreTarget);
             order.selectors(assignment.target, false);
+            order.consumer = Some(ObservationConsumer::StoredValue);
             order.expression(assignment.value, false);
         }
         StatementNode::Call(call) => {
@@ -227,16 +260,34 @@ pub(super) fn statement_steps_at_evaluation(
                 &CallSite::Statement(call),
                 statement_index,
             ) {
+                let previous =
+                    order
+                        .consumer
+                        .replace(ObservationConsumer::Invocation(InvocationOperand {
+                            invocation: InvocationIdentity::Statement,
+                            position: InvocationOperandPosition::Receiver,
+                        }));
                 order.push(StatementStep::Observe {
                     place: receiver,
                     expression: ExpressionHandle::invalid(),
                 });
+                order.consumer = previous;
             }
             // A statement receiver has no expression handle. Its extraction
             // still precedes the first positional argument.
             order.complete_moves(ExpressionHandle::invalid(), false);
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                order.expression(*argument, false);
+            for (position, argument) in program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+            {
+                order.operand(
+                    InvocationIdentity::Statement,
+                    InvocationOperandPosition::Argument(position),
+                    *argument,
+                    false,
+                );
             }
             order.push(StatementStep::Complete(ExpressionHandle::invalid()));
             order
@@ -257,7 +308,9 @@ pub(super) fn statement_steps_at_evaluation(
                 Some(FlowPermissionEvaluation::TransitionTarget(_))
             ) && let TransitionGuardNode::When(guard) = transition.guard
             {
+                order.consumer = Some(ObservationConsumer::EvaluatedValue);
                 order.expression(guard, false);
+                order.consumer = None;
                 for occurrence in &mut order.steps {
                     occurrence.evaluation = FlowPermissionEvaluation::TransitionGuard;
                 }
@@ -285,15 +338,29 @@ pub(super) fn statement_steps_at_evaluation(
                 }
                 let first_target_step = order.steps.len();
                 match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Value(value) => order.expression(*value, conditional),
+                    TransitionTargetNode::Value(value) => {
+                        order.consumer = Some(ObservationConsumer::OutgoingValue(target));
+                        order.expression(*value, conditional);
+                        order.consumer = None;
+                    }
                     // Transition arguments live in the statement table's
                     // handle arena, as statement-call arguments do; the
                     // expression table's span at the same offset names
                     // unrelated expressions.
                     TransitionTargetNode::Named { arguments, .. } => {
                         let first = order.steps.len();
-                        for argument in program.statement_table.expression_handles(*arguments) {
-                            order.expression(*argument, conditional);
+                        for (position, argument) in program
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .enumerate()
+                        {
+                            order.operand(
+                                InvocationIdentity::Transition(target),
+                                InvocationOperandPosition::Argument(position),
+                                *argument,
+                                conditional,
+                            );
                         }
                         order.push(StatementStep::Complete(ExpressionHandle::invalid()));
                         order
@@ -460,6 +527,7 @@ struct StatementOrder<'a> {
     remaining: Vec<(usize, &'a crate::flow::DiscoveredMoveEvent)>,
     steps: Vec<StatementOccurrence>,
     route: Vec<EvaluationBranch>,
+    consumer: Option<ObservationConsumer>,
 }
 
 impl StatementOrder<'_> {
@@ -469,9 +537,27 @@ impl StatementOrder<'_> {
             step,
             evaluation: FlowPermissionEvaluation::Statement,
             invocation: None,
+            consumer: self.consumer,
             route: self.route.clone(),
             held_until: position,
         });
+    }
+
+    fn operand(
+        &mut self,
+        invocation: InvocationIdentity,
+        position: InvocationOperandPosition,
+        expression: ExpressionHandle,
+        conditional: bool,
+    ) {
+        let previous = self
+            .consumer
+            .replace(ObservationConsumer::Invocation(InvocationOperand {
+                invocation,
+                position,
+            }));
+        self.expression(expression, conditional);
+        self.consumer = previous;
     }
 
     /// An invocation holds every access it staged from `first` on until the
@@ -572,13 +658,26 @@ impl StatementOrder<'_> {
                 }
                 ExpressionNode::Call(call) => {
                     invocation = Some(self.steps.len());
-                    self.expression(call.receiver, conditional);
-                    for argument in self
+                    let owner = InvocationIdentity::Expression(expression);
+                    self.operand(
+                        owner,
+                        InvocationOperandPosition::Receiver,
+                        call.receiver,
+                        conditional,
+                    );
+                    for (position, argument) in self
                         .program
                         .expression_table
                         .expression_handles(call.arguments)
+                        .iter()
+                        .enumerate()
                     {
-                        self.expression(*argument, conditional);
+                        self.operand(
+                            owner,
+                            InvocationOperandPosition::Argument(position),
+                            *argument,
+                            conditional,
+                        );
                     }
                 }
                 ExpressionNode::Match(dispatch) => {

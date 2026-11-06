@@ -160,6 +160,7 @@ pub fn provider_invocation(
             invocations: Vec::new(),
             projection: Projection::new(&[]),
             lifetime_dependencies,
+            forwarded_sources: None,
         })];
         match output.destination {
             BoundaryReferenceDestination::Parameter(position) => {
@@ -195,4 +196,97 @@ pub fn provider_invocation(
         // tuple. Calls without a returned-region contract keep ordinary lookup.
         result,
     })
+}
+
+/// Capture a requested choice of reference values independently of lifetime
+/// debts. These are the caller's inputs before simultaneous output updates.
+pub(super) fn bind_forwarding_sources(
+    types: &[StructuralTypeDeclaration],
+    caller: MachineId,
+    declaration: &terminal_psi::BoundaryMachineDeclaration,
+    requirements: &[terminal_psi::BoundaryReferenceForwardingDemand],
+    invocation: &mut DescriptorInvocation,
+) -> Option<()> {
+    let DescriptorInvocationTarget::Provider { effects, .. } = &mut invocation.target else {
+        return None;
+    };
+    for requirement in requirements
+        .iter()
+        .filter(|row| row.machine == caller && row.operation == invocation.operation)
+    {
+        declaration
+            .reference_outputs
+            .get(usize::try_from(requirement.output).ok()?)?;
+        if requirement.sources.is_empty() {
+            return None;
+        }
+        let sources = requirement
+            .sources
+            .iter()
+            .map(|source| {
+                Some(match source {
+                    terminal_psi::BoundaryReferenceSource::Reference { argument_index } => {
+                        let position = usize::try_from(*argument_index).ok()?;
+                        let formal = declaration.structural_parameters.get(position)?;
+                        if !matches!(
+                            formal.access,
+                            StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow
+                                | StructuralAccess::WriteOnlyBorrow
+                        ) {
+                            return None;
+                        }
+                        DescriptorForwardingSource::ReferenceArgument { position }
+                    }
+                    terminal_psi::BoundaryReferenceSource::Stored {
+                        argument_index,
+                        path,
+                    } => {
+                        let position = usize::try_from(*argument_index).ok()?;
+                        let formal = declaration.structural_parameters.get(position)?;
+                        let source = descriptor_location(
+                            types,
+                            formal.place,
+                            formal.structural_type,
+                            path,
+                            None,
+                        )?;
+                        let carrier =
+                            crate::descriptors::descriptor_lifetimes::descriptor_location_type(
+                                types,
+                                formal.structural_type,
+                                &source.path,
+                            )?;
+                        if !matches!(
+                            terminal_psi::find_structural_type(types, carrier)?.shape,
+                            StructuralTypeShape::Reference { .. }
+                        ) {
+                            return None;
+                        }
+                        DescriptorForwardingSource::Value(DescriptorStoredOrigin::IncomingSlot {
+                            position,
+                            path: source.path,
+                        })
+                    }
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut selected = effects
+            .iter_mut()
+            .flat_map(|effect| &mut effect.origins)
+            .filter_map(|origin| match origin {
+                DescriptorStoredOrigin::Provider(provider)
+                    if provider.output == requirement.output =>
+                {
+                    Some(provider)
+                }
+                _ => None,
+            });
+        let provider = selected.next()?;
+        if selected.next().is_some() || provider.forwarded_sources.is_some() {
+            return None;
+        }
+        provider.forwarded_sources = Some(sources);
+    }
+    Some(())
 }

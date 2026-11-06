@@ -190,6 +190,7 @@ impl FlowBoundaryFacts {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowControlFacts {
     pub storage_snapshots: Arena<super::FlowStorageSnapshot>,
+    pub call_stored_outputs: Arena<super::FlowCallStoredOutput>,
     pub storage_predecessors: Arena<arena::Handle<super::FlowStorageSnapshot>>,
     pub value_observations: Arena<super::FlowValueObservationFact>,
     pub descriptor_context_observations: super::FlowDescriptorObservationTable,
@@ -283,6 +284,7 @@ impl FlowControlFacts {
     ) -> Self {
         Self {
             storage_snapshots: Arena::default(),
+            call_stored_outputs: Arena::default(),
             storage_predecessors: Arena::default(),
             statements,
             value_observations: Arena::default(),
@@ -583,6 +585,7 @@ paged_flow_roots!(FlowBoundaryFacts {
 paged_flow_roots!(FlowControlFacts {
     arenas: [
         storage_snapshots,
+        call_stored_outputs,
         storage_predecessors,
         value_observations,
         descriptor_context_observations,

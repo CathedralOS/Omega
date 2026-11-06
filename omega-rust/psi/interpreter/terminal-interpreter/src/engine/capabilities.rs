@@ -105,6 +105,20 @@ pub(crate) fn check_with_private_entry_ram(
     let mut missing_providers = BTreeSet::new();
     let mut access_candidates = Vec::new();
     let mut selected_calls = Vec::new();
+    let mut lender_preservation_checked = BTreeSet::new();
+    let mut require_lender_preservation = |boundary, implementation| {
+        if !lender_preservation_checked.insert(boundary) {
+            return Ok(());
+        }
+        terminal_semantics::descriptor_results::require_boundary_lender_preservation(
+            &program.catalogs,
+            boundary,
+            implementation,
+        )
+        .map_err(
+            |reason| TerminalInterpretError::RuntimeSupplySelectionRejected { boundary, reason },
+        )
+    };
     let mut external_completion = None;
     let mut external_demands = BTreeSet::new();
     let mut scalar_applications = BTreeSet::new();
@@ -289,6 +303,7 @@ pub(crate) fn check_with_private_entry_ram(
                                 *boundary,
                             )?;
                             if let terminal_psi::TargetMachineCallable::Machine(member) = member {
+                                require_lender_preservation(*boundary, Some(member))?;
                                 if !selected_calls.contains(&(*boundary, member)) {
                                     selected_calls.push((*boundary, member));
                                 }
@@ -309,6 +324,7 @@ pub(crate) fn check_with_private_entry_ram(
                         // are never host import slots, even without a plan.
                         if crate::embedding::program::compiler_owns_boundary_execution(declaration)
                         {
+                            require_lender_preservation(*boundary, None)?;
                             continue;
                         }
                         if let BoundaryCompletion::External(kind) = declaration.completion {
@@ -344,6 +360,7 @@ pub(crate) fn check_with_private_entry_ram(
                             .and_then(|installation| installation.supplies.get(boundary))
                         {
                             Some(AdmittedBoundarySupply::CheckedProvider(selected)) => {
+                                require_lender_preservation(*boundary, Some(*selected))?;
                                 Some(*selected)
                             }
                             Some(
@@ -351,6 +368,7 @@ pub(crate) fn check_with_private_entry_ram(
                                 | AdmittedBoundarySupply::DeferredComponent
                                 | AdmittedBoundarySupply::ComponentProvider { .. },
                             ) => {
+                                require_lender_preservation(*boundary, None)?;
                                 imports.insert(*boundary);
                                 None
                             }
@@ -359,6 +377,7 @@ pub(crate) fn check_with_private_entry_ram(
                                 None
                             }
                             None => {
+                                require_lender_preservation(*boundary, None)?;
                                 imports.insert(*boundary);
                                 None
                             }

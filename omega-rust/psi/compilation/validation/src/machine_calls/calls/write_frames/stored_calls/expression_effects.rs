@@ -90,12 +90,12 @@ pub(super) fn prepare_normal_exits<'program>(
         state,
         symbols,
     };
-    let mut context = context.clone();
     let mut effects = SlotRelationTransfer {
         template_dependent: context.template_dependent,
         incomplete_calls: context.incomplete_calls.clone(),
         ..SlotRelationTransfer::default()
     };
+    let mut context = Some(context.clone());
     let empty = SlotRelationTransfer::default();
     let mut capture = Capture::default();
     if let TransitionGuardNode::When(guard) = transition.guard {
@@ -149,7 +149,7 @@ pub(super) fn prepare_normal_exits<'program>(
                 &mut branch_inference,
                 &effects,
                 &mut capture,
-            )?);
+            )??);
         }
         if !branch.is_complete() {
             return None;
@@ -157,7 +157,7 @@ pub(super) fn prepare_normal_exits<'program>(
         exits.push(PreparedSlotExit {
             arrival,
             arguments,
-            context: branch_context,
+            context: branch_context?,
         });
     }
     Some(exits)
@@ -167,10 +167,33 @@ pub(super) fn prepare_normal_exits<'program>(
 /// inventory after every actual and before its own normal-exit transfer; all
 /// other values use the ordinary completed-expression inventory. The ambient
 /// evaluator still installs every effect before evaluating the next operand.
-#[derive(Default)]
 struct ObservedValue {
-    operands: Vec<SlotArgumentCapture>,
-    call_entry: Option<(CollectedStatementPrefix, FrameInference)>,
+    operands: Option<Vec<SlotArgumentCapture>>,
+    call_entry: Option<(Option<CollectedStatementPrefix>, FrameInference)>,
+}
+
+impl Default for ObservedValue {
+    fn default() -> Self {
+        Self {
+            operands: Some(Vec::new()),
+            call_entry: None,
+        }
+    }
+}
+
+fn retain_argument(
+    arguments: &mut Option<Vec<SlotArgumentCapture>>,
+    observed: Option<SlotArgumentCapture>,
+) {
+    if let (Some(arguments), Some(observed)) = (arguments.as_mut(), observed) {
+        arguments.push(observed);
+    } else {
+        *arguments = None;
+    }
+}
+
+struct StatementEvaluation {
+    transfers: Option<StatementSlotTransfers>,
 }
 
 /// Outgoing operands belong to their selected edge. Only the guard's effects
@@ -213,11 +236,12 @@ pub(in super::super) fn statement_effects(
         machine,
         state,
         statement,
-        context,
+        Some(context),
         symbols,
         inference,
         &mut Capture::default(),
-    )
+    )?
+    .transfers
 }
 
 pub(in super::super) fn effects_at_expression(
@@ -239,7 +263,7 @@ pub(in super::super) fn effects_at_expression(
         machine,
         state,
         statement,
-        context,
+        Some(context),
         symbols,
         inference,
         &mut capture,
@@ -274,7 +298,7 @@ pub(super) fn completed_value(
         machine,
         state,
         statement,
-        context,
+        Some(context),
         symbols,
         inference,
         &mut capture,
@@ -289,10 +313,14 @@ pub(in super::super) fn call_contexts(
     machine: &Machine,
     state: &typed_trees::state::State,
     statement: &StatementNode,
-    context: &CollectedStatementPrefix,
+    context: Option<&CollectedStatementPrefix>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
-) -> Option<Vec<super::StoredReferenceCallContext>> {
+) -> Option<super::StoredReferenceCallSchedule> {
+    // Call order does not depend on knowing the pointers stored before this
+    // statement. With no inventory the same evaluator still visits the calls,
+    // but publishes neither argument captures nor normal-exit slot effects.
+    // The loan-tracker consumer supplies the graph's authentic Entry roster.
     let mut capture = Capture {
         collect_calls: true,
         calls: vec![super::StoredReferenceCallContext::Entry],
@@ -308,14 +336,12 @@ pub(in super::super) fn call_contexts(
         inference,
         &mut capture,
     )?;
-    capture
-        .calls
-        .push(super::StoredReferenceCallContext::StatementCompletion {
-            entry: capture
-                .fallthrough_call_context
-                .unwrap_or(capture.current_call_context),
-        });
-    Some(capture.calls)
+    Some(super::StoredReferenceCallSchedule {
+        fallthrough: capture
+            .fallthrough_call_context
+            .unwrap_or(capture.current_call_context),
+        contexts: capture.calls,
+    })
 }
 
 #[derive(Default)]
@@ -332,16 +358,22 @@ struct Capture {
 }
 
 impl Capture {
-    fn completed_call(&mut self, expression: ExpressionHandle, transfer: &SlotRelationTransfer) {
+    fn completed_call(
+        &mut self,
+        expression: ExpressionHandle,
+        transfer: Option<&SlotRelationTransfer>,
+    ) {
         if self.collect_calls {
             self.calls
                 .push(super::StoredReferenceCallContext::Invocation {
                     entry: self.current_call_context,
                     expression,
-                    effects: transfer
-                        .is_complete()
-                        .then(|| super::public_effects(transfer.effects.clone()))
-                        .flatten(),
+                    effects: transfer.and_then(|transfer| {
+                        transfer
+                            .is_complete()
+                            .then(|| super::public_effects(transfer.effects.clone()))
+                            .flatten()
+                    }),
                 });
             self.current_call_context = self.calls.len() - 1;
         }
@@ -373,23 +405,25 @@ fn evaluate_statement(
     machine: &Machine,
     state: &typed_trees::state::State,
     statement: &StatementNode,
-    context: &CollectedStatementPrefix,
+    context: Option<&CollectedStatementPrefix>,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     capture: &mut Capture,
-) -> Option<StatementSlotTransfers> {
+) -> Option<StatementEvaluation> {
     let query = Evaluation {
         program,
         machine,
         state,
         symbols,
     };
-    let mut context = context.clone();
-    let mut effects = SlotRelationTransfer {
-        template_dependent: context.template_dependent,
-        incomplete_calls: context.incomplete_calls.clone(),
-        ..SlotRelationTransfer::default()
-    };
+    let mut effects = context
+        .map(|context| SlotRelationTransfer {
+            template_dependent: context.template_dependent,
+            incomplete_calls: context.incomplete_calls.clone(),
+            ..SlotRelationTransfer::default()
+        })
+        .unwrap_or_default();
+    let mut context = context.cloned();
     let mut fallthrough = None;
     let empty_prefix = SlotRelationTransfer::default();
     if let StatementNode::Transition(transition) = statement {
@@ -445,22 +479,25 @@ fn evaluate_statement(
             program,
             &mut context,
             &mut effects,
-            join(alternatives),
+            Some(join(alternatives)),
             inference,
         );
     } else if !matches!(statement, StatementNode::AssemblyFact(_)) {
-        let mut completed_arguments = Vec::new();
+        let mut completed_arguments = Some(Vec::new());
         for expression in super::super::demand::statement_value_expression_roots(program, statement)
         {
             if statement.as_call().is_some() {
-                completed_arguments.push(query.observe(
-                    expression,
-                    &mut context,
-                    &mut effects,
-                    inference,
-                    &empty_prefix,
-                    capture,
-                )?);
+                retain_argument(
+                    &mut completed_arguments,
+                    query.observe(
+                        expression,
+                        &mut context,
+                        &mut effects,
+                        inference,
+                        &empty_prefix,
+                        capture,
+                    )?,
+                );
             } else {
                 query.expression(
                     expression,
@@ -480,36 +517,36 @@ fn evaluate_statement(
                 )
                 .is_some();
             let called = if wire_codec {
-                SlotRelationTransfer::complete(Vec::new())
+                Some(SlotRelationTransfer::complete(Vec::new()))
             } else {
-                super::call_effects(
-                    program,
-                    machine,
-                    state,
-                    call,
-                    &completed_arguments,
-                    &context,
-                    symbols,
-                    inference,
-                )
-                .unwrap_or_else(|| {
-                    SlotRelationTransfer::unknown(
-                        &context,
-                        call.target_symbol,
-                        false,
-                        super::provider_output_relation_required(
-                            program,
-                            machine.symbol,
-                            call.target_symbol,
-                            ExpressionHandle::invalid(),
-                        ),
-                    )
+                context.as_ref().map(|context| {
+                    completed_arguments
+                        .as_deref()
+                        .and_then(|arguments| {
+                            super::call_effects(
+                                program, machine, state, call, arguments, context, symbols,
+                                inference,
+                            )
+                        })
+                        .unwrap_or_else(|| {
+                            SlotRelationTransfer::unknown(
+                                context,
+                                call.target_symbol,
+                                false,
+                                super::provider_output_relation_required(
+                                    program,
+                                    machine.symbol,
+                                    call.target_symbol,
+                                    ExpressionHandle::invalid(),
+                                ),
+                            )
+                        })
                 })
             };
-            // A derived codec has no checked invocation. Publishing the zero
-            // handle is the absence state, and completion rejects it.
+            // A codec has no checked invocation to capture. A real call whose
+            // context is unavailable still records that absence, never an empty call.
             if !wire_codec {
-                capture.completed_call(ExpressionHandle::invalid(), &called);
+                capture.completed_call(ExpressionHandle::invalid(), called.as_ref());
             }
             install(program, &mut context, &mut effects, called, inference);
         }
@@ -521,7 +558,9 @@ fn evaluate_statement(
         },
         None => StatementSlotTransfers::SingleRoute(effects),
     };
-    Some(transfers)
+    Some(StatementEvaluation {
+        transfers: context.map(|_| transfers),
+    })
 }
 
 struct Evaluation<'request, 'symbols> {
@@ -533,17 +572,19 @@ struct Evaluation<'request, 'symbols> {
 
 impl Evaluation<'_, '_> {
     /// Retain a value's actual evaluated inputs only when its caller needs the
-    /// completed value. The callee selector and unused guard values still run
-    /// through the same transfer without allocating an unused snapshot.
+    /// completed value. The outer Option reports evaluation availability; the
+    /// inner Option contains an observation only when its inventory is known.
+    /// Missing inventories never become empty captures. The callee selector and
+    /// unused guard values follow the same evaluator without an unused snapshot.
     fn observe(
         &self,
         expression: ExpressionHandle,
-        context: &mut CollectedStatementPrefix,
+        context: &mut Option<CollectedStatementPrefix>,
         effects: &mut SlotRelationTransfer,
         inference: &mut FrameInference,
         prefix: &SlotRelationTransfer,
         capture: &mut Capture,
-    ) -> Option<SlotArgumentCapture> {
+    ) -> Option<Option<SlotArgumentCapture>> {
         let mut observed = ObservedValue::default();
         self.expression(
             expression,
@@ -556,14 +597,22 @@ impl Evaluation<'_, '_> {
         )?;
         let after =
             (capture.value_requested && expression == capture.expression && effects.is_complete())
-                .then(|| context.clone());
+                .then(|| context.clone())
+                .flatten();
         let (context, inference) = observed
             .call_entry
             .as_ref()
             .map(|(context, inference)| (context, inference))
             .unwrap_or((context, inference));
-        let result = SlotArgumentCapture::at(expression, context, inference, observed.operands);
-        if let Some(after) = after {
+        let result = context.as_ref().and_then(|context| {
+            Some(SlotArgumentCapture::at(
+                expression,
+                context,
+                inference,
+                observed.operands?,
+            ))
+        });
+        if let (Some(after), Some(result)) = (after, result.as_ref()) {
             capture.completed_value = Some((result.clone(), after));
         }
         Some(result)
@@ -572,7 +621,7 @@ impl Evaluation<'_, '_> {
     fn expression(
         &self,
         expression: ExpressionHandle,
-        context: &mut CollectedStatementPrefix,
+        context: &mut Option<CollectedStatementPrefix>,
         effects: &mut SlotRelationTransfer,
         inference: &mut FrameInference,
         prefix: &SlotRelationTransfer,
@@ -637,14 +686,17 @@ impl Evaluation<'_, '_> {
                     let mut branch = prefix_effects.clone();
                     let mut branch_inference = prefix_inference.clone();
                     if let Some(output) = observed.as_mut() {
-                        output.operands.push(self.observe(
-                            arm.value,
-                            &mut branch_context,
-                            &mut branch,
-                            &mut branch_inference,
-                            &branch_prefix,
-                            capture,
-                        )?);
+                        retain_argument(
+                            &mut output.operands,
+                            self.observe(
+                                arm.value,
+                                &mut branch_context,
+                                &mut branch,
+                                &mut branch_inference,
+                                &branch_prefix,
+                                capture,
+                            )?,
+                        );
                     } else {
                         self.expression(
                             arm.value,
@@ -670,10 +722,10 @@ impl Evaluation<'_, '_> {
                     self.program,
                     context,
                     effects,
-                    join(alternatives),
+                    Some(join(alternatives)),
                     inference,
                 );
-                capture_completed(expression, prefix, effects, capture);
+                capture_completed(expression, prefix, effects, context.as_ref(), capture);
                 return Some(());
             }
             ExpressionNode::Binary(binary)
@@ -686,14 +738,10 @@ impl Evaluation<'_, '_> {
                     ) =>
             {
                 if let Some(output) = observed.as_mut() {
-                    output.operands.push(self.observe(
-                        binary.left,
-                        context,
-                        effects,
-                        inference,
-                        prefix,
-                        capture,
-                    )?);
+                    retain_argument(
+                        &mut output.operands,
+                        self.observe(binary.left, context, effects, inference, prefix, capture)?,
+                    );
                 } else {
                     self.expression(
                         binary.left,
@@ -716,7 +764,7 @@ impl Evaluation<'_, '_> {
                     ),
                     (BinaryOperator::And, Some(false)) | (BinaryOperator::Or, Some(true))
                 ) {
-                    capture_completed(expression, prefix, effects, capture);
+                    capture_completed(expression, prefix, effects, context.as_ref(), capture);
                     return Some(());
                 }
                 let branch_prefix = capture_prefix(prefix, effects, capture);
@@ -725,14 +773,17 @@ impl Evaluation<'_, '_> {
                 let mut branch = SlotRelationTransfer::default();
                 let mut branch_inference = inference.clone();
                 if let Some(output) = observed.as_mut() {
-                    output.operands.push(self.observe(
-                        binary.right,
-                        &mut branch_context,
-                        &mut branch,
-                        &mut branch_inference,
-                        &branch_prefix,
-                        capture,
-                    )?);
+                    retain_argument(
+                        &mut output.operands,
+                        self.observe(
+                            binary.right,
+                            &mut branch_context,
+                            &mut branch,
+                            &mut branch_inference,
+                            &branch_prefix,
+                            capture,
+                        )?,
+                    );
                 } else {
                     self.expression(
                         binary.right,
@@ -751,10 +802,10 @@ impl Evaluation<'_, '_> {
                     self.program,
                     context,
                     effects,
-                    join(vec![SlotRelationTransfer::default(), branch]),
+                    Some(join(vec![SlotRelationTransfer::default(), branch])),
                     inference,
                 );
-                capture_completed(expression, prefix, effects, capture);
+                capture_completed(expression, prefix, effects, context.as_ref(), capture);
                 return Some(());
             }
             _ => {}
@@ -763,12 +814,14 @@ impl Evaluation<'_, '_> {
         crate::queries::expression_traversal::executable_children(self.program, node, |child| {
             children.push(child)
         });
-        let mut completed_inputs = Vec::new();
+        let mut completed_inputs = Some(Vec::new());
         for (position, child) in children.into_iter().enumerate() {
             let is_call = matches!(node, ExpressionNode::Call(_));
             if (is_call && position > 0) || (!is_call && observed.is_some()) {
-                completed_inputs
-                    .push(self.observe(child, context, effects, inference, prefix, capture)?);
+                retain_argument(
+                    &mut completed_inputs,
+                    self.observe(child, context, effects, inference, prefix, capture)?,
+                );
             } else {
                 self.expression(child, context, effects, inference, prefix, capture, None)?;
             }
@@ -776,7 +829,7 @@ impl Evaluation<'_, '_> {
         if let ExpressionNode::Call(call) = node {
             // Return-origin substitution uses the already observed inputs; the
             // caller-visible stores below cannot retarget an earlier operand.
-            capture_completed(expression, prefix, effects, capture);
+            capture_completed(expression, prefix, effects, context.as_ref(), capture);
             if let Some(output) = observed.as_mut() {
                 output.call_entry = Some((context.clone(), inference.clone()));
             }
@@ -793,41 +846,47 @@ impl Evaluation<'_, '_> {
                 }
                 return Some(());
             }
-            let called = super::invocation_effects(
-                self.program,
-                self.machine,
-                self.state,
-                call.target_symbol,
-                expression,
-                super::super::caller_aliases::CallerWriteSite::Expression(expression),
-                expression_table(self.program).expression_handles(call.arguments),
-                &completed_inputs,
-                call.machine_arguments.is_empty(),
-                context,
-                self.symbols,
-                inference,
-            )
-            .unwrap_or_else(|| {
-                SlotRelationTransfer::unknown(
-                    context,
-                    call.target_symbol,
-                    false,
-                    super::provider_output_relation_required(
-                        self.program,
-                        self.machine.symbol,
-                        call.target_symbol,
-                        expression,
-                    ),
-                )
+            let called = context.as_ref().map(|context| {
+                completed_inputs
+                    .as_deref()
+                    .and_then(|arguments| {
+                        super::invocation_effects(
+                            self.program,
+                            self.machine,
+                            self.state,
+                            call.target_symbol,
+                            expression,
+                            super::super::caller_aliases::CallerWriteSite::Expression(expression),
+                            expression_table(self.program).expression_handles(call.arguments),
+                            arguments,
+                            call.machine_arguments.is_empty(),
+                            context,
+                            self.symbols,
+                            inference,
+                        )
+                    })
+                    .unwrap_or_else(|| {
+                        SlotRelationTransfer::unknown(
+                            context,
+                            call.target_symbol,
+                            false,
+                            super::provider_output_relation_required(
+                                self.program,
+                                self.machine.symbol,
+                                call.target_symbol,
+                                expression,
+                            ),
+                        )
+                    })
             });
-            capture.completed_call(expression, &called);
+            capture.completed_call(expression, called.as_ref());
             install(self.program, context, effects, called, inference);
             if let Some(output) = observed {
                 output.operands = completed_inputs;
             }
             return Some(());
         }
-        capture_completed(expression, prefix, effects, capture);
+        capture_completed(expression, prefix, effects, context.as_ref(), capture);
         if let Some(output) = observed {
             output.operands = completed_inputs;
         }
@@ -839,11 +898,12 @@ fn capture_completed(
     expression: ExpressionHandle,
     prefix: &SlotRelationTransfer,
     current: &SlotRelationTransfer,
+    context: Option<&CollectedStatementPrefix>,
     capture: &mut Capture,
 ) {
     if expression == capture.expression {
         capture.count += 1;
-        capture.transfer = Some(capture_prefix(prefix, current, capture));
+        capture.transfer = context.map(|_| capture_prefix(prefix, current, capture));
     }
 }
 
@@ -859,11 +919,19 @@ fn same_slot(left: &SlotEffect, right: &SlotEffect) -> bool {
 /// overwrite may replace them, never an earlier invocation's obligation.
 fn install(
     program: &dyn crate::CheckingInput,
-    context: &mut CollectedStatementPrefix,
+    context: &mut Option<CollectedStatementPrefix>,
     accumulated: &mut SlotRelationTransfer,
-    next: SlotRelationTransfer,
+    next: Option<SlotRelationTransfer>,
     inference: &mut FrameInference,
 ) {
+    let Some(next) = next else {
+        // An unavailable transfer cannot preserve a known inventory.
+        *context = None;
+        return;
+    };
+    let Some(context) = context else {
+        return;
+    };
     context.template_dependent |= next.template_dependent;
     context
         .incomplete_calls

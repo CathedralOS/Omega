@@ -312,6 +312,7 @@ fn write_permission_envelope(
     };
     if reference.is_none() {
         return Ok(vec![super::aliases::ResolvedAlias {
+            selected: checked_trees::CheckedBorrowSourceOccurrence::DirectStorage,
             place,
             lineage: Vec::new(),
         }]);

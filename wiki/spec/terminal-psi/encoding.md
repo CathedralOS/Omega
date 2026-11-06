@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 240 even when every table
+order below. This layout uses semantic format marker 248 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -723,6 +723,11 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
 | 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
 | 132 | ReadScalarApplication | scalar application id |
+| 133 | GlobalDescriptorTable | service id + `u8` operation (0 Store, 1 Load) + source structural argument |
+| 134 | ActivateTaskRegister | service id + `u16` entry count + GDT structural argument + task-state structural argument + selector value id + scratch structural argument |
+| 135 | ReadTaskRegister | service id |
+| 136 | ReloadSegmentDescriptors | service id + `u16` entry count + `u8` reload kind (0 Code, 1 Data) + GDT structural argument + selector value id + scratch structural argument |
+| 137 | ReadSegmentSelector | service id + `u8` register (0 Code, 1 Data, 2 Extra, 3 Stack, 4 Fs, 5 Gs) |
 
 Catalog ordering events use the existing authority-free `RegisterObservation`
 carrier, with no scalar operands or result. Their `u16` identities are 0x500
@@ -847,8 +852,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 240 + `u16` vocabulary
-marker 133 + a Boolean default-entry presence flag, followed by the entry
+Module bytes are `PSITERM\0` + `u16` format marker 248 + `u16` vocabulary
+marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
@@ -920,45 +925,92 @@ Older markers are rejected before their payload is read.
 | 4 | scalar qualification catalog | the six counted catalog tables above |
 | 5 | quotient catalog | the canonical quotient catalog |
 | 6 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
-| 7 | structural types | counted structural type declarations |
-| 8 | structural referent identities | counted identity-only pointer targets |
-| 9 | structural domains | counted structural domain declarations |
-| 10 | services | counted service declarations |
-| 11 | concrete root service reach | counted service ids |
-| 12 | installation reach dependencies | counted installation reach rows |
-| 13 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
-| 14 | access lifecycle plans | counted whole-value access demand rows, below |
-| 15 | access-view inputs | counted access-view input rows |
-| 16 | reborrow restored call uses | counted restored-use rows |
-| 17 | boundary machines | counted boundary machine declarations |
-| 18 | calling signatures | counted boundary-to-declaration ABI associations |
-| 19 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
-| 20 | calling policy requests | counted ordered explicit policy applications, below |
-| 21 | opaque representations | counted exact selected carrier applications, below |
-| 22 | unoptimized behavior | counted pre-optimization behavior rows |
-| 23 | external providers | counted external provider conformances |
-| 24 | provider candidates | counted provider candidate rows |
-| 25 | dynamic dispatch | counted interfaces and implementation tables |
-| 26 | float-meaning projections | counted projection rows |
-| 27 | float-meaning equalities | counted equality rows |
-| 28 | proposition declarations | counted proposition declaration rows |
-| 29 | proposition applications | counted proposition application rows |
-| 30 | evidence terms | counted evidence term rows |
-| 31 | evidence contract lanes | counted evidence lane rows |
-| 32 | proof-output invocations | counted proof-output call rows |
-| 33 | proof recursive components | counted recursive component rows |
-| 34 | closed conformance applications | counted conformance application rows |
-| 35 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 36 | scalar block invariants | the counted invariant rows above |
-| 37 | operation crash contracts | counted operation crash contract rows |
-| 38 | machines | counted machine rows |
-| 39 | legacy target-machine families | counted family rows; removal pending |
-| 40 | target layout applications | counted complete checked policy alternatives |
-| 41 | native layout catalog | counted nominal records and complete native reports, below |
-| 42 | boundary application demands | counted exact requirement/application rows |
-| 43 | callback applications | counted checked registrar occurrences |
-| 44 | boundary application candidates | counted checked bodies for closed applications |
-| 45 | task activation demands | counted task activation demand rows |
+| 7 | scalar applications | scalar application and condition catalog, above |
+| 8 | structural types | counted structural type declarations |
+| 9 | structural referent identities | counted identity-only pointer targets |
+| 10 | structural domains | counted structural domain declarations |
+| 11 | services | counted service declarations |
+| 12 | concrete root service reach | counted service ids |
+| 13 | installation reach dependencies | counted installation reach rows |
+| 14 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
+| 15 | access lifecycle plans | counted whole-value access demand rows, below |
+| 16 | access-view inputs | counted access-view input rows |
+| 17 | reborrow restored call uses | counted restored-use rows |
+| 18 | boundary machines | counted boundary machine declarations |
+| 19 | boundary lender preservation demands | counted call/normal-qualification requests, below |
+| 20 | boundary reference forwarding demands | counted call/output/captured-source requests, below |
+| 21 | calling signatures | counted boundary-to-declaration ABI associations |
+| 22 | declaration ABIs | counted exact declaration applications and storage/telescopes, below |
+| 23 | calling policy requests | counted ordered explicit policy applications, below |
+| 24 | opaque representations | counted exact selected carrier applications, below |
+| 25 | unoptimized behavior | counted pre-optimization behavior rows |
+| 26 | external providers | counted external provider conformances |
+| 27 | provider candidates | counted provider candidate rows |
+| 28 | provider instance requirements | counted provider-instance requirement rows |
+| 29 | dynamic dispatch | counted interfaces and implementation tables |
+| 30 | float-meaning projections | counted projection rows |
+| 31 | float-meaning equalities | counted equality rows |
+| 32 | proposition declarations | counted proposition declaration rows |
+| 33 | proposition applications | counted proposition application rows |
+| 34 | evidence terms | counted evidence term rows |
+| 35 | evidence contract lanes | counted evidence lane rows |
+| 36 | proof-output invocations | counted proof-output call rows |
+| 37 | proof recursive components | counted recursive component rows |
+| 38 | closed conformance applications | counted conformance application rows |
+| 39 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
+| 40 | scalar block invariants | the counted invariant rows above |
+| 41 | operation crash contracts | counted operation crash contract rows |
+| 42 | machines | counted machine rows |
+| 43 | legacy target-machine families | counted family rows; removal pending |
+| 44 | target layout applications | counted complete checked policy alternatives |
+| 45 | native layout catalog | counted nominal records and complete native reports, below |
+| 46 | boundary application demands | counted exact requirement/application rows |
+| 47 | callback applications | counted checked registrar occurrences |
+| 48 | boundary application candidates | counted checked bodies for closed applications |
+| 49 | task activation demands | counted task activation demand rows |
+
+### Call preservation and forwarding requests
+
+These two tables record what a call must establish so later code can keep using
+the original data. One requests preservation of an existing guarantee; the other
+restricts which captured input references a helper may forward through an output.
+
+A lender-preservation row encodes a machine id, operation id, and one structural
+domain requirement: `u32` packed structural-argument index, qualification path,
+then domain id. Rows are strictly increasing by this complete tuple. The named
+operation must be a normally returning boundary call, and the requirement must
+be an exact row of that boundary's declared normal qualifications. Its subject
+is captured before the call; checking the selected implementation's writes and
+the subject's prior membership remain separate semantic judgments.
+
+A reference-forwarding row encodes a machine id, operation id, `u32` output
+ordinal, then a counted nonempty source list. The ordinal indexes the called
+boundary declaration's reference-output roster. Rows are strictly increasing by
+`(machine, operation, output)`; two different source lists cannot split the same
+output request. Each source list is itself strictly increasing and duplicate-free.
+
+| Tag | Captured reference source | Fields after the tag |
+| --- | --- | --- |
+| 0 | Reference | `u32` packed structural-argument index |
+| 1 | Stored | `u32` packed structural-argument index + ordinary structural path |
+
+`Reference` names the outer borrowed argument. `Stored` names a reference value
+inside the argument's storage, including an empty path. For `&mut &mut T`, these
+select different values: the outer pointer to the pointer cell, and the inner
+pointer stored in that cell. The request selects a typed stored-reference output
+and sources with matching referent carriers and compatible access. Reading
+write-only storage or upgrading shared access rejects.
+
+The selected implementation must independently forward one of those captured
+values unchanged on every possible normal return, including an output it leaves
+untouched. Captured value identity, source extent, lifetime obligations and access
+authority retain their own checks. These rows encode requests rather than proof
+results or resolved addresses; they do not turn lifetime anchors into locations
+or impose an input-only output rule on every boundary call.
+
+Format 247 introduced lender-preservation requests; format 248 additionally
+retains the distinct reference-source choices under vocabulary 135. Older module
+markers reject rather than supplying either table implicitly.
 
 Marker 238 requires the explicit prerequisite/result role byte after the
 subject of every integer-range and predicate condition, together with complete
@@ -1545,11 +1597,17 @@ structural declaration carries a supplied provider.
 
 | tag | Structural path segment | Fields after the tag |
 | --- | --- | --- |
-| 1 | Field | field identity string |
+| 1 | Field | `u32` canonical identity-table index |
 | 2 | FixedIndex | `u64` index |
 | 3 | Referent | none |
 | 4 | FixedByteRange | `u64` start + `u64` end |
 | 6 | RuntimeIndex | selector value id + obligation id |
+| 7 | Case | structural case id |
+
+A qualification path uses the same counted projection encoding and additionally
+retains `AllElements` as tag 10 with no payload. Ordinary operand and owned paths
+reject that universal projection. Lender-preservation requirements use this
+qualification-path entrance; `Stored` forwarding sources use ordinary paths.
 
 `RuntimeIndex` selects one element of the fixed array its prefix resolves to
 by the runtime integer the selector value holds. The operation carrying the
@@ -2132,14 +2190,14 @@ identities: two actual positions may name the same storage and still contribute
 separate rows, claims and policies. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v8` domain and includes the ordered roster and
+`terminal-suspension-frontier-v9` domain and includes the ordered roster and
 its cardinality, each value's loan links and the complete loan graph. Marker
 137 adds evaluated-actual captures; earlier markers are not reinterpreted.
 
 Each live value ends with a loan tag: `0` unresolved, `1` view-free, or `2`
 followed by a span into the plan's loan-link arena. The plan then encodes counted
 structural path segments, counted value-to-loan handles, counted supplier
-handles and counted loan occurrences. Marker 158 replaces a single supplier
+handles, counted input-obligation handles and counted loan occurrences. Marker 158 replaces a single supplier
 handle with a span of immediate supplier alternatives; earlier markers are not
 reinterpreted. Shared predecessors retain custody without enumerating histories.
 Handles are `u32` one-based slot plus `u32` generation: zero/zero is absent,
@@ -2148,7 +2206,7 @@ zero/zero/zero empty representation. Decoder bounds checks concern foreign
 coordinates, not source borrow admission.
 
 A loan occurrence encodes capture, backing, resource kind, parent handle,
-supplier span, structural access and an active-at-call Boolean. Capture is
+supplier span, input-obligation span, structural access and an active-at-call Boolean. Capture is
 `0` unresolved, or `1` followed by formation operation, carrier place, source
 place, source access and a source-path span, or `2` followed by a `u32`
 retained live-value position and a captured-leaf path span. This position
@@ -2161,7 +2219,29 @@ structural argument. Resource kind is `0` unresolved, `1` direct root,
 ingress captures, ordinary no-normal invocations and inherited scalar-domain
 membership rows. Earlier independent marker-195 and marker-196 layouts reject
 rather than being reinterpreted.
-Parentage and supplier transport are distinct relationships.
+Marker 239 adds completed helper outputs and their original input obligations.
+Capture `3` names the normal-completion operation, its evaluated output argument
+and the selected output-leaf path. Capture `4` names the earlier call operation,
+its evaluated input argument, selected leaf path and a Stored Boolean: true
+selects the input's stored descriptor contents at invocation entry; false
+selects its referent. The distinction remains explicit for an empty path.
+Capture `5` is a nonspatial input obligation; capture `6` is descriptor transport
+through the separately encoded immediate suppliers.
+
+Backing `3` names the retained completed-output loan occurrence, `4` retains
+backing lifetime through the complete dependency roster, and `5` denotes the
+backing observed by that row's earlier call-input capture. Backing `4` is valid
+for a lifetime obligation or a descriptor transfer with nonempty immediate
+suppliers. The transfer retains its independent physical capture and no spatial
+parent; the dependency backing does not create a pointer or upgrade access. Resource tags `4`, `5`, `6` and `7` respectively
+identify a completed output, lifetime dependency, captured output input and
+descriptor transport. Every input-obligation link names a captured output-input
+row. Those links retain all inputs; supplier alternatives and borrowing parents
+remain different relationships. The output's pointer permission does not make
+its lifetime-related inputs spatial parents or its old variable owned backing.
+Earlier wire markers reject rather than reinterpret these records.
+
+Parentage, supplier transport and input retention are distinct relationships.
 Incoming referents are not descriptor-slot ownership; retired dependencies do
 not become active because descendants retain them. These rows record demands,
 not a completed lifetime, activation or physical-preservation judgment.

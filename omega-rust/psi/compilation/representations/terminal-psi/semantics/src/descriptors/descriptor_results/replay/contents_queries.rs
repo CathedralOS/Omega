@@ -5,8 +5,80 @@
 use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
 use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
+use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
 impl Replay<'_> {
+    /// This identifies the payload of one unchanged incoming reference. It
+    /// never turns that subject into local storage or grants write permission.
+    /// Both routes must be static: expanding a one-element runtime family does
+    /// not make the original operation an exact whole-value replacement.
+    pub(super) fn unchanged_incoming_payload_target(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        query: &DescriptorContentsQuery,
+        receiving: StructuralTypeId,
+    ) -> Option<DescriptorContentsQuery> {
+        let original = query.exact_location()?;
+        if descriptor_location_type(
+            self.types,
+            *machine.place_types.get(&original.root)?,
+            &original.path,
+        )? != receiving
+        {
+            return None;
+        }
+        let targets = self.contents_targets(machine, state, query)?;
+        let mut targets = targets.into_iter();
+        let DescriptorPayloadTarget::Incoming(incoming) = targets.next()? else {
+            return None;
+        };
+        if targets.next().is_some() {
+            return None;
+        }
+        let selected = incoming.exact_location()?;
+        let formal = self.parameter(machine, selected.root)?.2;
+        incoming.validate(self.types, formal)?;
+        let actual = descriptor_location_type(self.types, formal, &selected.path)?;
+        (crate::borrowed_referent_presentation(self.types.iter(), actual, receiving)
+            == Some(crate::BorrowedReferentPresentation::Unchanged))
+        .then_some(incoming)
+    }
+
+    /// Whole, unchanged typed storage for every alternative. A read target
+    /// alone does not establish the supplying reference's extent/presentation.
+    pub(super) fn unchanged_payload_targets(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        query: &DescriptorContentsQuery,
+    ) -> Option<Vec<DescriptorLocation>> {
+        let selected = query.exact_location()?;
+        let source = descriptor_location_type(
+            self.types,
+            *machine.place_types.get(&selected.root)?,
+            &selected.path,
+        )?;
+        let mut unchanged = Vec::new();
+        for target in self.contents_targets(machine, state, query)? {
+            let DescriptorPayloadTarget::Storage(target) = target else {
+                return None;
+            };
+            let destination = descriptor_location_type(
+                self.types,
+                *machine.place_types.get(&target.root)?,
+                &target.path,
+            )?;
+            if crate::borrowed_referent_presentation(self.types.iter(), source, destination)
+                != Some(crate::BorrowedReferentPresentation::Unchanged)
+            {
+                return None;
+            }
+            unchanged.push(target);
+        }
+        (!unchanged.is_empty()).then_some(unchanged)
+    }
+
     pub(super) fn read_contents(
         &self,
         machine: &DescriptorMachine,
@@ -53,6 +125,7 @@ impl Replay<'_> {
         // The pointee slot is often unknown; the pointer still holds every
         // current backing origin, including one selected across branches.
         if self.slot_kind.tracks_references()
+            && !state.arrival_storage.contains_key(&query.root)
             && let Some(location) = query.exact_location()
             && let Some(carrier) = self.reference_referent_carrier(machine, &location)?
         {
@@ -133,6 +206,26 @@ impl Replay<'_> {
         // an ancestor cannot be bypassed by taking the contents-query route.
         if state.contents_address_invalidated(query) {
             return None;
+        }
+        if let Some(storage) = state.arrival_storage.get(&query.root) {
+            let carrier = *machine.place_types.get(&query.root)?;
+            let mut targets = BTreeSet::new();
+            for target in storage.as_ref()? {
+                targets.extend(match target {
+                    DescriptorPayloadTarget::Storage(location) => {
+                        self.contents_targets_at(machine, state, location, &query.steps, depth)?
+                    }
+                    DescriptorPayloadTarget::Incoming(incoming) => self.incoming_targets_at(
+                        machine,
+                        state,
+                        incoming.clone(),
+                        carrier,
+                        &query.steps,
+                        depth,
+                    )?,
+                });
+            }
+            return (!targets.is_empty()).then_some(targets);
         }
         self.contents_targets_at(
             machine,
@@ -261,6 +354,25 @@ impl Replay<'_> {
     ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
         let _read = depth.enter()?;
         let mut incoming = match origin {
+            Origin::Provider(provider) => {
+                if provider.projection != Projection::new(&[]) {
+                    return None;
+                }
+                let mut targets = BTreeSet::new();
+                for source in provider.forwarded_sources? {
+                    let source = match source {
+                        DescriptorForwardingSource::Value(source)
+                        | DescriptorForwardingSource::Address(source) => source,
+                        DescriptorForwardingSource::ReferenceArgument { .. } => return None,
+                    };
+                    // Captured choices preserve every source. One opaque,
+                    // represented or unavailable alternative poisons the set.
+                    targets.extend(self.reference_targets(
+                        machine, state, source, reference, referent, suffix, depth,
+                    )?);
+                }
+                return (!targets.is_empty()).then_some(targets);
+            }
             Origin::Storage(backing) => {
                 if !self.reference_backing_matches(machine, &backing, reference)? {
                     return None;

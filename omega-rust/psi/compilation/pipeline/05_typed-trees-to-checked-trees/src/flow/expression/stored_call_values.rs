@@ -15,6 +15,8 @@ use validation::CanonicalPlace;
 
 pub(super) struct CallStore {
     pub(super) destination: CanonicalPlace,
+    pub(super) actual: Handle<FlowOperandFact>,
+    pub(super) path: Vec<facts::PlaceSegment>,
     pub(super) value: CallStoredValue,
 }
 
@@ -127,7 +129,30 @@ impl Execution<'_, '_, '_> {
         call: Handle<checked_trees::FlowCallFact>,
         stores: Vec<CallStore>,
     ) {
+        let outputs_start = self.context.control.call_stored_outputs.frontier();
         for store in stores {
+            let path = self
+                .context
+                .control
+                .operand_retained_paths
+                .insert_many(store.path);
+            let segments = self
+                .context
+                .control
+                .operand_referent_segments
+                .insert_many(store.destination.segments.iter().copied());
+            self.context
+                .control
+                .call_stored_outputs
+                .append(checked_trees::FlowCallStoredOutput {
+                    actual: store.actual,
+                    path,
+                    destination: checked_trees::FlowOperandReferent {
+                        root: store.destination.root,
+                        segments,
+                        ..Default::default()
+                    },
+                });
             self.storage_snapshot = self.install_call_stored_value(
                 self.storage_snapshot,
                 &store.destination,
@@ -135,7 +160,14 @@ impl Execution<'_, '_, '_> {
             );
         }
         if call.is_valid() {
-            self.context.control.calls.get_mut(call).completed_storage = self.storage_snapshot;
+            let outputs = self
+                .context
+                .control
+                .call_stored_outputs
+                .span_since(outputs_start);
+            let call = self.context.control.calls.get_mut(call);
+            call.completed_storage = self.storage_snapshot;
+            call.stored_outputs = outputs;
         }
     }
 
@@ -152,10 +184,18 @@ impl Execution<'_, '_, '_> {
                 destination,
                 Handle::invalid(),
                 &[],
+                self.state.symbol,
+                self.statement_index,
             ),
-            CallStoredValue::Captured(value) => {
-                append_store(&mut self.context.control, previous, destination, value, &[])
-            }
+            CallStoredValue::Captured(value) => append_store(
+                &mut self.context.control,
+                previous,
+                destination,
+                value,
+                &[],
+                self.state.symbol,
+                self.statement_index,
+            ),
             CallStoredValue::Incoming(source) => {
                 append_preserved_binding(&mut self.context.control, previous, destination, source)
             }

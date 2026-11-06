@@ -121,6 +121,10 @@ pub struct FlowOperandRetention {
     /// carriers. It supplies neither descriptor geometry nor new permission;
     /// those remain with the captured input and its checked loans.
     pub lifetime_sources: Option<HandleSpan<FlowOperandRetainedSupplier>>,
+    /// A saved reference must keep the helper's recorded source list.
+    /// This association retains its completed output row; consumers establish
+    /// source completeness, forwarding and permission separately.
+    pub output_lifetime_sources: Handle<FlowOutputLifetimeSources>,
     /// Exact completed inputs retaining the permission carried by a call store.
     /// These are supplier associations, not value equality or pointee snapshots.
     pub suppliers: HandleSpan<FlowOperandRetainedSupplier>,
@@ -403,6 +407,9 @@ impl FlowOperandFact {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandAlternative {
     pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
+    /// The actual comparison operand or destructuring condition evaluated
+    /// before this arm. It is not a yielded value or supplier of its lifetime.
+    pub pattern: Handle<FlowOperandFact>,
     pub value: Handle<FlowOperandFact>,
 }
 

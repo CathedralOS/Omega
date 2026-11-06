@@ -46,6 +46,14 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
 use typed_trees::types::TypeReferenceHandle;
 
+/// A call's writes and the reference contents captured before it runs.
+/// Reusing this inventory avoids interpreting the caller again at a later cut.
+/// Unknown contents remain unavailable even when outer write names are known.
+pub struct InvocationWriteFrame {
+    pub frame: NormalizedWriteFrame,
+    pub references: Option<Vec<LocalWriteOrigin>>,
+}
+
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
 /// requires consumers to invalidate every fact they cannot otherwise prove.
@@ -485,20 +493,21 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         state: &State,
         statement_index: usize,
-    ) -> Option<Vec<super::stored_calls::StoredReferenceCallContext>> {
+    ) -> Result<super::stored_calls::StoredReferenceCallSchedule, &'static str> {
         let statement = self
             .program
             .statement_table
-            .statement_at(state, statement_index)?;
+            .statement_at(state, statement_index)
+            .ok_or("the call schedule has no exact statement owner")?;
         if statement.as_call().is_none()
             && !statement_value_expression_roots(self.program, statement)
                 .iter()
                 .any(|expression| expression_has_calls(self.program, *expression))
         {
-            return Some(vec![
-                super::stored_calls::StoredReferenceCallContext::Entry,
-                super::stored_calls::StoredReferenceCallContext::StatementCompletion { entry: 0 },
-            ]);
+            return Ok(super::stored_calls::StoredReferenceCallSchedule {
+                contexts: vec![super::stored_calls::StoredReferenceCallContext::Entry],
+                fallthrough: 0,
+            });
         }
         let prefix = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
@@ -508,16 +517,23 @@ impl<'program> CallFrameResolver<'program> {
             &self.tables.symbols,
             statement_index,
             true,
-        )?;
+        );
+        if prefix.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE call-entry-transfer-unavailable state={:?} statement={} reason=the ordered schedule has no complete statement-entry reference prefix",
+                state.symbol, statement_index,
+            );
+        }
         super::stored_calls::call_contexts(
             self.program,
             machine,
             state,
             statement,
-            &prefix,
+            prefix.as_ref(),
             &self.tables.symbols,
             &mut FrameInference::for_state(state.symbol),
         )
+        .ok_or("the ordered call schedule has unavailable operand effects")
     }
 
     /// Completed calls at this exact operand, including its evaluated children.
@@ -1618,12 +1634,12 @@ impl<'program> CallFrameResolver<'program> {
     /// separate local. Compute its writes after capturing the arguments;
     /// the whole-statement query also fences those pointers' future replacement.
     /// Unknown arguments or changed contained-reference inventories stay opaque.
-    pub fn boundary_invocation_write_frame(
+    pub fn boundary_invocation_storage(
         &self,
         current_machine: &'program Machine,
         site: &crate::CallSite<'program>,
-    ) -> NormalizedWriteFrame {
-        let written = (|| -> Result<Vec<String>, &'static str> {
+    ) -> InvocationWriteFrame {
+        let written = (|| -> Result<(Vec<String>, Vec<LocalWriteOrigin>), &'static str> {
             let machine_symbols = self
                 .machine_symbols(current_machine)
                 .ok_or("caller symbols unavailable")?;
@@ -1666,7 +1682,7 @@ impl<'program> CallFrameResolver<'program> {
             captured.receiver.ok_or("receiver origin unavailable")?;
             // The storage adapter closes writable reference fields through
             // this inventory. A known outer address does not freeze its contents.
-            captured
+            let references = captured
                 .references
                 .ok_or("contained references changed during argument evaluation")?;
             let argument_origins = captured
@@ -1677,7 +1693,7 @@ impl<'program> CallFrameResolver<'program> {
                         .map(|sources| sources.iter().map(LocalWriteSource::frame_origin).collect())
                 })
                 .collect::<Vec<_>>();
-            super::caller_aliases::with_caller_origin_context(
+            let paths = super::caller_aliases::with_caller_origin_context(
                 self.program,
                 current_machine,
                 &self.tables.symbols,
@@ -1700,10 +1716,14 @@ impl<'program> CallFrameResolver<'program> {
                     prefix.close_observed_paths(self.program, written)
                 },
             )
-            .ok_or("boundary input write closure unavailable")
+            .ok_or("boundary input write closure unavailable")?;
+            Ok((paths, references))
         })();
         match written {
-            Ok(paths) => NormalizedWriteFrame::complete(paths),
+            Ok((paths, references)) => InvocationWriteFrame {
+                frame: NormalizedWriteFrame::complete(paths),
+                references: Some(references),
+            },
             Err(reason) => {
                 if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
                     eprintln!(
@@ -1711,7 +1731,10 @@ impl<'program> CallFrameResolver<'program> {
                         current_machine.name
                     );
                 }
-                NormalizedWriteFrame::opaque()
+                InvocationWriteFrame {
+                    frame: NormalizedWriteFrame::opaque(),
+                    references: None,
+                }
             }
         }
     }

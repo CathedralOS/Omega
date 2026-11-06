@@ -28,6 +28,7 @@ fn completed_observation_of_incoming_storage_survives_only_preserved_cuts() {
         contents: Default::default(),
         bindings_complete: true,
         contents_complete: true,
+        endpoint: None,
     };
     let observed = flow.control.storage_snapshots.insert(FlowStorageSnapshot {
         previous: Handle::invalid(),

@@ -23,6 +23,10 @@ pub(super) struct State {
     // This keeps captured contents independent without copying every slot at
     // scalar operations or copying every nested map with a states snapshot.
     pub(super) slots: Arc<Slots>,
+    // A borrowed block parameter names the storage selected on its incoming
+    // edge. Keep that address separate from the descriptor value read there:
+    // replacing an inner pointer changes its contents, not this alias's home.
+    pub(super) arrival_storage: Arc<BTreeMap<PlaceId, Option<BTreeSet<DescriptorPayloadTarget>>>>,
     // Keys name incoming backing families, not addresses in local carriers.
     // Values are captured origins; reading them never replays a later write.
     pub(super) contents: Arc<BTreeMap<DescriptorContentsQuery, Value>>,
@@ -229,30 +233,35 @@ impl<'a> Replay<'a> {
             }
         };
         loop {
+            if state.arrival_storage.contains_key(&current.root) {
+                let targets = self.contents_targets(
+                    machine,
+                    state,
+                    &DescriptorContentsQuery::from_location(&current),
+                )?;
+                let mut targets = targets.into_iter();
+                let DescriptorPayloadTarget::Storage(first) = targets.next()? else {
+                    return None;
+                };
+                if targets.any(|target| target != DescriptorPayloadTarget::Storage(first.clone())) {
+                    return Some(StorageResolution::Alternatives);
+                }
+                return Some(StorageResolution::Unique(first));
+            }
             // Value transport copies an ordinary carrier into its receiving
             // home. Only a pointer-bearing root's stored origins name backing
             // outside that home; a record join does not alias its predecessors.
             let root_type = *machine.place_types.get(&current.root)?;
-            let definition =
-                &exactly_one(machine.places.iter(), |row| row.place == current.root)?.definition;
-            let borrowed = match definition {
-                DescriptorDefinition::Parameter { access, .. }
-                | DescriptorDefinition::Arrival { access } => *access != StructuralAccess::Owned,
-                DescriptorDefinition::Local | DescriptorDefinition::Literal => false,
-            };
-            // A whole borrowed formal already denotes its pointee; it needs
-            // no authored Referent suffix. Resolve its captured edge binding
-            // before stopping at an empty path. Owned carriers still name
-            // their own home, including a reference descriptor's own bytes.
-            if current.path.is_empty() && !borrowed {
+            // Machine formals name their abstract receiving storage. Block
+            // aliases were translated through their captured addresses above;
+            // a value installed in either home cannot rename that storage.
+            if current.path.is_empty() {
                 return Some(StorageResolution::Unique(current));
             }
-            let aliases_backing = borrowed
-                || matches!(
-                    find_structural_type(self.types, root_type)?.shape,
-                    StructuralTypeShape::Reference { .. }
-                )
-                || is_descriptor(self.types.iter(), root_type);
+            let aliases_backing = matches!(
+                find_structural_type(self.types, root_type)?.shape,
+                StructuralTypeShape::Reference { .. }
+            ) || is_descriptor(self.types.iter(), root_type);
             if aliases_backing
                 && let Some(Some(origins)) =
                     state.slots.get(&DescriptorLocation::whole(current.root))
@@ -353,6 +362,20 @@ impl<'a> Replay<'a> {
         state: &State,
         location: &DescriptorLocation,
     ) -> Option<Vec<DescriptorLocation>> {
+        if state.arrival_storage.contains_key(&location.root) {
+            return self
+                .contents_targets(
+                    machine,
+                    state,
+                    &DescriptorContentsQuery::from_location(location),
+                )?
+                .into_iter()
+                .map(|target| match target {
+                    DescriptorPayloadTarget::Storage(location) => Some(location),
+                    DescriptorPayloadTarget::Incoming(_) => None,
+                })
+                .collect();
+        }
         let origins = state
             .slots
             .get(&DescriptorLocation::whole(location.root))?
@@ -447,6 +470,14 @@ impl<'a> Replay<'a> {
         depth: &DescriptorReadDepth,
     ) -> Value {
         let _read = depth.enter()?;
+        if state.arrival_storage.contains_key(&location.root) {
+            return self.read_contents_with_depth(
+                machine,
+                state,
+                &DescriptorContentsQuery::from_location(location),
+                depth,
+            );
+        }
         // Distinct element origins are not one address. Keep the queried path
         // and let the family below return every storage alternative.
         let location = match self.resolve_storage(machine, state, location)? {
@@ -583,6 +614,10 @@ impl<'a> Replay<'a> {
     pub(super) fn initial(&self, machine: &DescriptorMachine) -> Option<State> {
         let mut state = State::default();
         for row in &machine.places {
+            if matches!(row.definition, DescriptorDefinition::Arrival { access } if access != StructuralAccess::Owned)
+            {
+                Arc::make_mut(&mut state.arrival_storage).insert(row.place, None);
+            }
             state
                 .slots_mut()
                 .insert(DescriptorLocation::whole(row.place), None);
@@ -739,20 +774,51 @@ impl<'a> Replay<'a> {
         case_storage: &super::case_flow::Storage,
     ) -> Option<State> {
         let position = transfer.position();
-        // Operation writes follow exact current storage aliases; edge bindings
-        // define new carrier names and therefore use their declared destinations.
-        let canonical = |location: &DescriptorLocation| {
+        // Operations write the complete typed target set captured at this cut.
+        // Edges instead define receiving names. A symbolic pointee belongs in
+        // the incoming-contents map, never in a fabricated local alias slot.
+        let targets = |location: &DescriptorLocation| {
             if position.is_some() {
-                self.canonical_storage(machine, before, location)
+                self.contents_targets(
+                    machine,
+                    before,
+                    &DescriptorContentsQuery::from_location(location),
+                )
             } else {
-                Some(location.clone())
+                Some(BTreeSet::from([DescriptorPayloadTarget::Storage(
+                    location.clone(),
+                )]))
             }
         };
-        let definitions = definitions
+        let written = definitions
             .iter()
-            .map(canonical)
-            .collect::<Option<Vec<_>>>()?;
-        let mut assigned = Slots::new();
+            .map(targets)
+            .collect::<Option<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect::<BTreeSet<_>>();
+        let mut assigned = BTreeMap::new();
+        let assign =
+            |destination: &DescriptorLocation,
+             value,
+             assigned: &mut BTreeMap<DescriptorPayloadTarget, Value>| {
+                if position.is_some() {
+                    self.contents_replacements(
+                        machine,
+                        before,
+                        &DescriptorContentsQuery::from_location(destination),
+                        value,
+                        assigned,
+                    )
+                } else {
+                    merge_value(
+                        assigned,
+                        DescriptorPayloadTarget::Storage(destination.clone()),
+                        value,
+                    );
+                    Some(())
+                }
+            };
         for (source, destination) in derivations.clone() {
             let projection = position.and_then(|position| {
                 machine
@@ -766,11 +832,10 @@ impl<'a> Replay<'a> {
                     destination.clone(),
                 ))
             }) {
-                // Borrowing a pointer slot captures its address; reborrowing
-                // its whole ordinary referent captures the pointer it contains
-                // now. The latter must survive replacement of that slot.
-                // Storage aliases alone transport descendant slots; copying
-                // them into a captured pointer would misplace their contents.
+                // A known local address can form a concrete pointer. Other
+                // address families need a representable pointer origin; losing
+                // that association withholds provenance rather than inventing
+                // a reference to the borrowed parameter's own carrier.
                 let value =
                     if let Some(carrier) = self.reference_referent_carrier(machine, source)? {
                         self.read(machine, before, &carrier)
@@ -785,11 +850,11 @@ impl<'a> Replay<'a> {
                             StorageResolution::Alternatives => self.read(machine, before, source),
                         }
                     };
-                merge_value(
-                    &mut assigned,
-                    canonical(destination)?,
+                assign(
+                    destination,
                     self.project(machine, value, projection),
-                );
+                    &mut assigned,
+                )?;
                 continue;
             }
             let contents_query = position.and_then(|position| {
@@ -801,63 +866,59 @@ impl<'a> Replay<'a> {
                 Some(query) => self.read_contents(machine, before, query),
                 None => self.read(machine, before, source),
             };
-            let value = self.project(machine, value, projection);
-            let destination = canonical(destination)?;
-            merge_value(&mut assigned, destination.clone(), value);
-            // A query loads descriptor contents; it does not transport every
-            // carrier below the conservative observation prefix into its result.
+            assign(
+                destination,
+                self.project(machine, value, projection),
+                &mut assigned,
+            )?;
             if contents_query.is_some() {
                 continue;
             }
             for location in before.slots.keys() {
                 if location != source
-                    && let Some(target) = location.transported(source, &destination)
+                    && let Some(target) = location.transported(source, destination)
                 {
-                    merge_value(
-                        &mut assigned,
-                        target,
+                    assign(
+                        &target,
                         self.project(machine, self.read(machine, before, location), projection),
-                    );
+                        &mut assigned,
+                    )?;
                 }
             }
         }
-        // Every derivation reads the pre-operation snapshot. Apply only the
-        // final changed entries: assignments override cleared definitions, and
-        // an unchanged value need not detach the shared map. Canonicalization
-        // and every derivation above still run before any update is omitted.
         let mut after = before.clone();
         after.cases = super::case_flow::transport(
             self,
             machine,
             before,
-            &definitions,
+            definitions,
             derivations,
             transfer,
             case_storage,
         )?;
-        if !definitions.is_empty() {
-            for (location, value) in before.slots.iter() {
-                if value.is_some()
-                    && !assigned.contains_key(location)
-                    && definitions
-                        .iter()
-                        .any(|definition| definition.contains(location))
-                {
-                    after.slots_mut().insert(location.clone(), None);
-                }
+        for target in written {
+            if assigned.contains_key(&target) {
+                continue;
             }
-            for definition in &definitions {
-                if !assigned.contains_key(definition) && after.slots.get(definition) != Some(&None)
-                {
-                    after.slots_mut().insert(definition.clone(), None);
+            match target {
+                DescriptorPayloadTarget::Storage(location) => {
+                    for (stored, value) in before.slots.iter() {
+                        if value.is_some()
+                            && location.contains(stored)
+                            && !assigned
+                                .contains_key(&DescriptorPayloadTarget::Storage(stored.clone()))
+                        {
+                            after.slots_mut().insert(stored.clone(), None);
+                        }
+                    }
+                    after.slots_mut().insert(location, None);
+                }
+                DescriptorPayloadTarget::Incoming(query) => {
+                    after.contents_mut().insert(query, None);
                 }
             }
         }
-        for (location, value) in assigned {
-            if after.slots.get(&location) != Some(&value) {
-                after.slots_mut().insert(location, value);
-            }
-        }
+        Self::install_contents(&mut after, assigned);
         Some(after)
     }
     fn transfer_edge(
@@ -883,6 +944,21 @@ impl<'a> Replay<'a> {
                 DescriptorFlowSource::Contents(query) => Some(query.clone()),
                 DescriptorFlowSource::Unavailable(_) => None,
             };
+            if binding.access != StructuralAccess::Owned {
+                if !binding.parameter.path.is_empty()
+                    || !matches!(
+                        exactly_one(machine.places.iter(), |row| row.place == binding.parameter.root)?.definition,
+                        DescriptorDefinition::Arrival { access } if access == binding.access
+                    )
+                {
+                    return None;
+                }
+                let storage = query.as_ref().and_then(|query| {
+                    let targets = self.contents_targets(machine, before, query)?;
+                    (!targets.is_empty()).then_some(targets)
+                });
+                Arc::make_mut(&mut after.arrival_storage).insert(binding.parameter.root, storage);
+            }
             if let Some(query) = query {
                 // A formed reference has no owned child slots under its
                 // temporary. Capture the receiving carrier's complete cohort
@@ -1667,7 +1743,7 @@ impl<'a> Replay<'a> {
     }
 }
 
-pub(super) fn merge_value(state: &mut Slots, location: DescriptorLocation, value: Value) {
+pub(super) fn merge_value<Key: Ord>(state: &mut BTreeMap<Key, Value>, location: Key, value: Value) {
     match state.get_mut(&location) {
         None => {
             state.insert(location, value);
@@ -1690,6 +1766,25 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
         changed = true;
     }
     existing.contents_invalidated |= incoming.contents_invalidated;
+    for root in before
+        .arrival_storage
+        .keys()
+        .chain(incoming.arrival_storage.keys())
+        .copied()
+        .collect::<BTreeSet<_>>()
+    {
+        let storage = match (
+            before.arrival_storage.get(&root).and_then(Option::as_ref),
+            incoming.arrival_storage.get(&root).and_then(Option::as_ref),
+        ) {
+            (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
+            _ => None,
+        };
+        if existing.arrival_storage.get(&root) != Some(&storage) {
+            Arc::make_mut(&mut existing.arrival_storage).insert(root, storage);
+            changed = true;
+        }
+    }
     for query in before
         .contents
         .keys()
@@ -1969,6 +2064,9 @@ mod snapshot_tests {
             contents_queries: BTreeMap::new(),
             contents_transfers: BTreeMap::new(),
             payload_producers: BTreeMap::new(),
+            payload_stores: BTreeMap::new(),
+            primitive_payload_writes: Default::default(),
+            opaque_payload_results: Default::default(),
             payload_entry_predicates: None,
             payload_scalar_definitions: BTreeMap::new(),
             payload_scalar_postconditions: BTreeMap::new(),
@@ -2132,6 +2230,317 @@ mod snapshot_tests {
         assert!(!before.contents_invalidated);
         assert_eq!(after.slots.get(&slot), Some(&new));
         assert_eq!(after.contents.get(&query), Some(&new));
+    }
+
+    #[test]
+    fn borrowed_arrival_storage_survives_pointer_replacement_and_complete_joins() {
+        use crate::descriptors::descriptor_lifetimes::{DescriptorFlowBinding, DescriptorFlowEdge};
+        use semantic_vocabulary::{BlockId, ScalarType};
+        use terminal_psi::TerminalIdentityIndex;
+
+        let boolean = StructuralTypeId::new(1).unwrap();
+        let pointer = StructuralTypeId::new(2).unwrap();
+        let types = [
+            (
+                boolean,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+            ),
+            (
+                pointer,
+                StructuralTypeShape::Reference {
+                    referent: boolean,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+        ]
+        .map(|(id, shape)| StructuralTypeDeclaration {
+            id,
+            identity: TerminalIdentityIndex(id.get() as u32),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            shape,
+        });
+        let source = location(1);
+        let scalar_alias = location(2);
+        let pointer_alias = location(3);
+        let owned_pointer = location(4);
+        let new_data = location(5);
+        let other_pointer = location(6);
+        let place_types = [
+            (source.root, pointer),
+            (scalar_alias.root, boolean),
+            (pointer_alias.root, pointer),
+            (owned_pointer.root, pointer),
+            (new_data.root, boolean),
+            (other_pointer.root, pointer),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        let position = (BlockId::new(1).unwrap(), 0);
+        let machine = DescriptorMachine {
+            id: MachineId::new(1).unwrap(),
+            returns: None,
+            places: place_types
+                .iter()
+                .enumerate()
+                .map(|(position, (place, ty))| DescriptorPlace {
+                    place: *place,
+                    definition: if [scalar_alias.root, pointer_alias.root].contains(place) {
+                        DescriptorDefinition::Arrival {
+                            access: StructuralAccess::MutableBorrow,
+                        }
+                    } else if *place == owned_pointer.root {
+                        DescriptorDefinition::Arrival {
+                            access: StructuralAccess::Owned,
+                        }
+                    } else {
+                        DescriptorDefinition::Parameter {
+                            position,
+                            access: StructuralAccess::Owned,
+                            structural_type: *ty,
+                        }
+                    },
+                })
+                .collect(),
+            place_types,
+            entry: position,
+            flow: BTreeMap::new(),
+            case_constructors: BTreeMap::new(),
+            case_successors: BTreeMap::new(),
+            originations: BTreeMap::new(),
+            projections: BTreeMap::new(),
+            contents_queries: BTreeMap::new(),
+            contents_transfers: BTreeMap::new(),
+            payload_producers: BTreeMap::new(),
+            payload_stores: BTreeMap::new(),
+            primitive_payload_writes: Default::default(),
+            opaque_payload_results: Default::default(),
+            payload_entry_predicates: None,
+            payload_scalar_definitions: BTreeMap::new(),
+            payload_scalar_postconditions: BTreeMap::new(),
+            payload_scalar_parameters: BTreeMap::new(),
+            scalar_payload_reads: BTreeMap::new(),
+            payload_edge_predicates: BTreeMap::new(),
+            payload_scalar_bindings: BTreeMap::new(),
+            scalar_payload_writes: BTreeMap::new(),
+            payload_invalidations: BTreeMap::new(),
+            unresolved_contents_writes: BTreeSet::new(),
+            storage_derivations: BTreeSet::new(),
+            calls: BTreeMap::new(),
+            normal_exits: Vec::new(),
+        };
+        let graph = [machine];
+        let replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+        let machine = &graph[0];
+        let before = replay.initial(machine).unwrap();
+        let referent = |location: &DescriptorLocation| DescriptorContentsQuery {
+            root: location.root,
+            steps: vec![DescriptorContentsStep::Address(
+                DescriptorPathSegment::Referent,
+            )],
+        };
+        let binding = |source, parameter: &DescriptorLocation, access| {
+            DescriptorFlowBinding::new(source, parameter.clone(), access, access).unwrap()
+        };
+        let edge = DescriptorFlowEdge {
+            target: position,
+            parameters: vec![
+                scalar_alias.clone(),
+                pointer_alias.clone(),
+                owned_pointer.clone(),
+            ],
+            bindings: vec![
+                binding(
+                    DescriptorFlowSource::Contents(referent(&source)),
+                    &scalar_alias,
+                    StructuralAccess::MutableBorrow,
+                ),
+                binding(
+                    DescriptorFlowSource::Location(source.clone()),
+                    &pointer_alias,
+                    StructuralAccess::MutableBorrow,
+                ),
+                binding(
+                    DescriptorFlowSource::Location(source.clone()),
+                    &owned_pointer,
+                    StructuralAccess::Owned,
+                ),
+            ],
+        };
+        let storage = super::super::case_flow::Storage::new(&replay, machine);
+        let arrived = replay
+            .transfer_edge(machine, &before, &edge, &storage)
+            .unwrap();
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &arrived,
+                &DescriptorContentsQuery::from_location(&scalar_alias)
+            ),
+            Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
+                referent(&source)
+            )]))
+        );
+        assert!(
+            replay
+                .canonical_storage(machine, &arrived, &scalar_alias)
+                .is_none()
+        );
+        assert_eq!(
+            replay.canonical_storage(machine, &arrived, &pointer_alias),
+            Some(source.clone())
+        );
+        let pointer_home = BTreeSet::from([DescriptorPayloadTarget::Storage(source.clone())]);
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &arrived,
+                &DescriptorContentsQuery::from_location(&pointer_alias)
+            ),
+            Some(pointer_home.clone())
+        );
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &arrived,
+                &DescriptorContentsQuery::from_location(&owned_pointer)
+            ),
+            Some(BTreeSet::from([DescriptorPayloadTarget::Storage(
+                owned_pointer.clone()
+            )]))
+        );
+
+        let mut replaced = arrived.clone();
+        Replay::install_contents(
+            &mut replaced,
+            BTreeMap::from([(
+                DescriptorPayloadTarget::Storage(source.clone()),
+                Some(BTreeSet::from([Origin::Storage(new_data.clone())])),
+            )]),
+        );
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &replaced,
+                &DescriptorContentsQuery::from_location(&pointer_alias)
+            ),
+            Some(pointer_home)
+        );
+        assert_eq!(
+            replay.read(machine, &replaced, &pointer_alias),
+            Some(BTreeSet::from([Origin::Storage(new_data.clone())]))
+        );
+        assert_eq!(
+            replay.contents_targets(machine, &replaced, &referent(&pointer_alias)),
+            Some(BTreeSet::from([DescriptorPayloadTarget::Storage(new_data)]))
+        );
+        assert_eq!(
+            replay.canonical_storage(machine, &replaced, &pointer_alias),
+            Some(source.clone())
+        );
+        let reseated = replay
+            .transfer(
+                machine,
+                &replaced,
+                std::slice::from_ref(&pointer_alias),
+                std::iter::once((&other_pointer, &pointer_alias)),
+                super::super::case_flow::Transfer::Operation(position),
+                &storage,
+            )
+            .unwrap();
+        assert_eq!(
+            replay.read(machine, &reseated, &pointer_alias),
+            Some(BTreeSet::from([Origin::Incoming(other_pointer.clone())]))
+        );
+        assert_eq!(
+            replay.canonical_storage(machine, &reseated, &pointer_alias),
+            Some(source.clone())
+        );
+        assert_eq!(
+            reseated.slots.get(&location(5)),
+            arrived.slots.get(&location(5))
+        );
+        let rewritten = replay
+            .transfer(
+                machine,
+                &arrived,
+                std::slice::from_ref(&scalar_alias),
+                std::iter::once((&location(5), &scalar_alias)),
+                super::super::case_flow::Transfer::Operation(position),
+                &storage,
+            )
+            .unwrap();
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &rewritten,
+                &DescriptorContentsQuery::from_location(&scalar_alias)
+            ),
+            Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
+                referent(&source)
+            )]))
+        );
+        assert!(rewritten.contents.contains_key(&referent(&source)));
+        // The independently owned pointer value kept its captured old identity.
+        assert_eq!(
+            replay.contents_targets(machine, &replaced, &referent(&owned_pointer)),
+            Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
+                referent(&source)
+            )]))
+        );
+
+        let mut alternative = edge.clone();
+        alternative.bindings[1].source = DescriptorFlowSource::Location(other_pointer.clone());
+        let alternative = replay
+            .transfer_edge(machine, &before, &alternative, &storage)
+            .unwrap();
+        let mut joined = arrived.clone();
+        assert!(merge_state(&mut joined, &alternative));
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &joined,
+                &DescriptorContentsQuery::from_location(&pointer_alias)
+            ),
+            Some(BTreeSet::from([
+                DescriptorPayloadTarget::Storage(source.clone()),
+                DescriptorPayloadTarget::Storage(other_pointer)
+            ]))
+        );
+        assert_eq!(
+            replay.contents_targets(
+                machine,
+                &arrived,
+                &DescriptorContentsQuery::from_location(&pointer_alias)
+            ),
+            Some(BTreeSet::from([DescriptorPayloadTarget::Storage(
+                source.clone()
+            )]))
+        );
+        assert!(
+            replay
+                .canonical_storage(machine, &joined, &pointer_alias)
+                .is_none()
+        );
+        let mut unknown = edge;
+        unknown.bindings[1].source = DescriptorFlowSource::Unavailable(source.root);
+        let unknown = replay
+            .transfer_edge(machine, &before, &unknown, &storage)
+            .unwrap();
+        assert!(merge_state(&mut joined, &unknown));
+        assert!(
+            replay
+                .contents_targets(
+                    machine,
+                    &joined,
+                    &DescriptorContentsQuery::from_location(&pointer_alias)
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -2344,6 +2753,9 @@ mod snapshot_tests {
             contents_queries: BTreeMap::new(),
             contents_transfers: BTreeMap::new(),
             payload_producers: BTreeMap::new(),
+            payload_stores: BTreeMap::new(),
+            primitive_payload_writes: BTreeSet::new(),
+            opaque_payload_results: BTreeSet::new(),
             payload_entry_predicates: None,
             payload_scalar_definitions: BTreeMap::new(),
             payload_scalar_postconditions: BTreeMap::new(),

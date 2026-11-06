@@ -258,7 +258,37 @@ pub(in crate::flow) fn apply_call_invalidations(
     }
     let invalidations_start = build.invalidations.events.frontier();
     let post_contexts = match writes {
-        None => HandleSpan::empty(),
+        None => {
+            if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                let contexts: Vec<_> = build
+                    .contexts
+                    .semantic_context_refs
+                    .span_or_empty(active_contexts)
+                    .iter()
+                    .map(|reference| reference.context)
+                    .collect();
+                eprintln!(
+                    "CALL_WRITE membership-all-contexts-withdrawn stmt={} ordinal={} target={:?} contexts={contexts:?}",
+                    borrow_call.statement_index,
+                    borrow_call.call_ordinal,
+                    borrow_call.target_symbol
+                );
+                for handle in contexts {
+                    let context = semantic.contexts.get(handle);
+                    let roster: Vec<_> = semantic
+                        .refs
+                        .span_or_empty(context.facts)
+                        .iter()
+                        .map(|reference| reference.fact)
+                        .collect();
+                    eprintln!(
+                        "CALL_WRITE membership-withdrawn-context handle={handle:?} point={:?} roster={roster:?}",
+                        context.point
+                    );
+                }
+            }
+            HandleSpan::empty()
+        }
         Some(writes) => crate::flow::domain::filter_contexts_after_mutations(
             semantic,
             &mut build.contexts.semantic_context_refs,

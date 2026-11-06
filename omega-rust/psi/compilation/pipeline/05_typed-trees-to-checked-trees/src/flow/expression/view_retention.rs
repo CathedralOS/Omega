@@ -766,8 +766,15 @@ impl Execution<'_, '_, '_> {
         let mut leaves = Vec::new();
         for path in paths {
             let path = crate::borrow::owner_place_segments(path);
-            let mut place = source.clone();
-            place.segments.extend_from_slice(&path);
+            let Some(place) = validation::completed_storage::project_captured_storage_place(
+                self.program,
+                self.state.symbol,
+                self.statement_index,
+                source.clone(),
+                &path,
+            ) else {
+                return Handle::invalid();
+            };
             let retention = match at_snapshot(
                 self.program,
                 &self.context.control,

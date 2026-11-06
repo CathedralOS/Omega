@@ -21,10 +21,29 @@ use validation::{
     CanonicalPlace, CheckingInput, project_type_reference_from_segments, reference_shell,
 };
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub(in crate::flow) struct RetainedSources {
     pub(super) holders: Vec<CanonicalPlace>,
+    /// Every possible captured duty remains covered across alternatives. This
+    /// roster cannot restore a qualification or declare any holder retired.
+    pub(super) duty_places: Vec<CanonicalPlace>,
     pub(super) borrows: Vec<RetainedBorrowHandback>,
+}
+
+impl std::fmt::Debug for RetainedSources {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let subjects = self
+            .borrows
+            .iter()
+            .map(|returned| (&returned.place, returned.reference, returned.supplies.len()))
+            .collect::<Vec<_>>();
+        formatter
+            .debug_struct("RetainedSources")
+            .field("holders", &self.holders)
+            .field("duty_places", &self.duty_places)
+            .field("subjects", &subjects)
+            .finish()
+    }
 }
 
 impl RetainedSources {
@@ -32,6 +51,11 @@ impl RetainedSources {
         for holder in other.holders {
             if !self.holders.contains(&holder) {
                 self.holders.push(holder);
+            }
+        }
+        for place in other.duty_places {
+            if !self.duty_places.contains(&place) {
+                self.duty_places.push(place);
             }
         }
         for borrow in other.borrows {
@@ -47,6 +71,13 @@ impl RetainedSources {
         }
     }
     pub(super) fn meet(&mut self, other: &Self) {
+        // Every alternative's debt remains represented, even when their
+        // distinct subjects cannot share a returned qualification.
+        for place in &other.duty_places {
+            if !self.duty_places.contains(place) {
+                self.duty_places.push(place.clone());
+            }
+        }
         self.holders.retain(|holder| other.holders.contains(holder));
         self.borrows.retain_mut(|borrow| {
             let Some(alternative) = other.borrows.iter().find(|row| row.same_subject(borrow))
@@ -63,6 +94,7 @@ pub(in crate::flow) fn captured_sources(
     program: &dyn CheckingInput,
     borrow: &BorrowFacts,
     control: &FlowControlFacts,
+    scope: crate::borrow::lifetime_contract::SourceCallScope,
     operand: &FlowOperandFact,
     projection: &[PlaceSegment],
     contract: TypeReferenceHandle,
@@ -72,6 +104,7 @@ pub(in crate::flow) fn captured_sources(
         program: &dyn CheckingInput,
         borrow: &BorrowFacts,
         control: &FlowControlFacts,
+        scope: crate::borrow::lifetime_contract::SourceCallScope,
         operand: &FlowOperandFact,
         projection: &[PlaceSegment],
         contract: TypeReferenceHandle,
@@ -94,6 +127,11 @@ pub(in crate::flow) fn captured_sources(
                     operand.type_reference,
                     projection,
                 )?;
+            for selected in &places {
+                if !result.duty_places.contains(&selected.place) {
+                    result.duty_places.push(selected.place.clone());
+                }
+            }
             // Different completed arms may name one returned subject while
             // carrying different original proofs. Preserve every arm's epoch;
             // equality of raw capture/fact handles is not the meet operation.
@@ -113,6 +151,7 @@ pub(in crate::flow) fn captured_sources(
                         program,
                         borrow,
                         control,
+                        scope,
                         control.operands.get(alternative.value),
                         projection,
                         contract,
@@ -172,6 +211,7 @@ pub(in crate::flow) fn captured_sources(
                     program,
                     borrow,
                     control,
+                    scope,
                     profile,
                     declared,
                     stable_name,
@@ -190,6 +230,7 @@ pub(in crate::flow) fn captured_sources(
         program: &dyn CheckingInput,
         borrow: &BorrowFacts,
         control: &FlowControlFacts,
+        scope: crate::borrow::lifetime_contract::SourceCallScope,
         handle: Handle<FlowOperandRetention>,
         contract: TypeReferenceHandle,
         stable_name: &impl Fn(&FlowOperandFact, &CanonicalPlace) -> bool,
@@ -209,6 +250,7 @@ pub(in crate::flow) fn captured_sources(
                         program,
                         borrow,
                         control,
+                        scope,
                         alternative,
                         contract,
                         stable_name,
@@ -226,8 +268,12 @@ pub(in crate::flow) fn captured_sources(
                 None => &[],
             } {
                 for alternatives in crate::borrow::lifetime_contract::retained_inputs(
-                    program, borrow, control, source,
-                )? {
+                    program, borrow, control, Some(scope), source,
+                ).inspect_err(|reason| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE retained-input-source-unavailable supplier={source:?} reason={reason}");
+                    }
+                }).ok()? {
                     let mut common: Option<RetainedSources> = None;
                     for input in alternatives {
                         let supplied = match input {
@@ -243,6 +289,7 @@ pub(in crate::flow) fn captured_sources(
                                     program,
                                     borrow,
                                     control,
+                                    scope,
                                     control.operands.get(operand),
                                     path,
                                     bound,
@@ -285,6 +332,7 @@ pub(in crate::flow) fn captured_sources(
                         program,
                         borrow,
                         control,
+                        scope,
                         control.operands.get(source.operand),
                         control.operand_retained_paths.span(source.projection)?,
                         contract,
@@ -308,6 +356,7 @@ pub(in crate::flow) fn captured_sources(
                     program,
                     borrow,
                     control,
+                    scope,
                     control.operands.get(profile.stored_value),
                     control
                         .operand_retained_paths
@@ -326,6 +375,7 @@ pub(in crate::flow) fn captured_sources(
         program,
         borrow,
         control,
+        scope,
         operand,
         projection,
         contract,

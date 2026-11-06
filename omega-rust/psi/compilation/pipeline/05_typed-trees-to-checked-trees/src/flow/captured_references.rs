@@ -43,4 +43,26 @@ impl CapturedReferencePlace {
             formation: self.formation,
         })
     }
+
+    /// Select the same declared child in this physical carrier's application.
+    /// The descriptor keeps its formation and observation cut; translating a
+    /// selector supplies no address, permission or lifetime evidence.
+    pub fn projected_storage(
+        self,
+        program: &dyn validation::CheckingInput,
+        state: symbols::SymbolHandle,
+        statement_index: usize,
+        suffix: &[PlaceSegment],
+    ) -> Option<Self> {
+        Some(Self {
+            place: validation::completed_storage::project_captured_storage_place(
+                program,
+                state,
+                statement_index,
+                self.place,
+                suffix,
+            )?,
+            formation: self.formation,
+        })
+    }
 }

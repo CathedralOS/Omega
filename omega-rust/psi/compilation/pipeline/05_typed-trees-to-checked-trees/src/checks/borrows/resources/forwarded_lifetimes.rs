@@ -73,10 +73,15 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
     for (_, held) in facts.borrow.stored_call_inputs.iter() {
         for input in facts
             .borrow
-            .stored_call_input_resources
-            .span_or_empty(held.resources)
+            .retained_borrow_inputs
+            .span_or_empty(held.inputs)
         {
-            let resource = facts.borrow.call_loan_resources.get(*input);
+            let checked_trees::CheckedRetainedBorrowInputPermission::Borrowed { resource } =
+                input.permission
+            else {
+                continue;
+            };
+            let resource = facts.borrow.call_loan_resources.get(resource);
             let parents = match resource.source {
                 checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
                 checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => facts
@@ -102,10 +107,10 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
     for (_, output) in facts.borrow.supplied_output_resources.iter() {
         for input in facts
             .borrow
-            .supplied_output_inputs
+            .retained_borrow_inputs
             .span_or_empty(output.inputs)
         {
-            let checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } =
+            let checked_trees::CheckedRetainedBorrowInputPermission::Borrowed { resource } =
                 input.permission
             else {
                 continue; // Entry namespaces have no caller-owned restoration interval.
@@ -173,9 +178,10 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             let mut final_weakening = lexical;
             while cursor < holders.len() {
                 let supplier = holders[cursor];
-                cursor += 1;
-                let supplier_end = lexical_end(facts, flow_state, supplier)?
+                let supplier_end_handle = holder_ends[cursor];
+                let supplier_end = supplier_end_handle
                     .map(|handle| facts.flow.borrow_lifetimes.weakenings.get(handle));
+                cursor += 1;
                 let Some(transferred) = transfers
                     .get(supplier.arena_index() as usize)
                     .filter(|row| row.loan == supplier)
@@ -210,7 +216,21 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                             final_weakening = Some(weakening);
                         }
                     }
-                    holder_ends.push(weakening);
+                    // A call-installed intermediary may have no lexical end.
+                    // Its later copies still owe the end inherited from the
+                    // original supplier, alongside every real descendant end.
+                    let inherited_end = if facts
+                        .borrow
+                        .loans
+                        .get(candidate)
+                        .established_by_call
+                        .is_valid()
+                    {
+                        weakening.or(supplier_end_handle)
+                    } else {
+                        weakening
+                    };
+                    holder_ends.push(inherited_end);
                     holders.push(candidate);
                 }
             }
@@ -258,10 +278,10 @@ fn close_output_descendants(
     for (_, output) in facts.borrow.supplied_output_resources.iter() {
         for input in facts
             .borrow
-            .supplied_output_inputs
+            .retained_borrow_inputs
             .span_or_empty(output.inputs)
         {
-            let checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } =
+            let checked_trees::CheckedRetainedBorrowInputPermission::Borrowed { resource } =
                 input.permission
             else {
                 continue;

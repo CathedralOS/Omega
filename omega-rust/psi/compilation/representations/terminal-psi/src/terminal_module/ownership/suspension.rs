@@ -146,17 +146,15 @@ pub enum TerminalSuspensionLoanBacking {
     /// Canonical live-value roster index of the retained owner. Its enclosing
     /// activation lifetime covers the incomplete call, never a descriptor slot
     /// standing in for an incoming referent.
-    RetainedOwner {
-        live_value: u32,
-    },
+    RetainedOwner { live_value: u32 },
     /// The call's incoming referent namespace. The argument is an ingress
     /// coordinate, not proof that its descriptor owns or pins that storage.
-    IncomingReferent {
-        argument: StructuralArgument,
-    },
+    IncomingReferent { argument: StructuralArgument },
     CompletedOutput {
         loan: Handle<TerminalSuspensionLoan>,
     },
+    /// Backing lifetime retained through the complete checked dependency
+    /// roster, independently of a former parameter's descriptor slot.
     InputDependencies,
     /// Backing observed by this row's original CallInput capture.
     CapturedInput,

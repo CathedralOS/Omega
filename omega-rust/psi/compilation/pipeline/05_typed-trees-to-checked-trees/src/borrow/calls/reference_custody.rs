@@ -22,29 +22,26 @@ pub(in crate::borrow) fn append_reference_custody(
     history: &mut Vec<StateLoanTracker>,
     incoming: &[StateLoanTracker],
 ) -> Result<Option<Vec<StateLoanTracker>>, diagnostics::Diagnostic> {
-    let Some(schedule) = frames
+    let schedule = match frames
+        .ok_or("the call has no prepared frame owner")
         .and_then(|frames| frames.stored_reference_call_contexts(machine, state, statement_index))
-    else {
-        return Ok(None);
+    {
+        Ok(schedule) => schedule,
+        Err(reason) => {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE call-entry-roster-unavailable state={:?} statement={statement_index} phase=schedule reason={reason}",
+                    state.symbol
+                );
+            }
+            return Ok(None);
+        }
     };
-    let schedule_len = schedule.len();
     let mut contexts: Vec<Option<Vec<StateLoanTracker>>> = Vec::new();
     let mut published_calls = Vec::new();
-    for (position, context) in schedule.into_iter().enumerate() {
+    for context in schedule.contexts {
         use validation::StoredReferenceCallContext;
         let current = match context {
-            StoredReferenceCallContext::StatementCompletion { entry } => {
-                if position + 1 != schedule_len {
-                    return Err(diagnostics::Diagnostic::error(
-                        "normal reference-slot completion precedes another context",
-                    ));
-                }
-                return contexts.get_mut(entry).map(Option::take).ok_or_else(|| {
-                    diagnostics::Diagnostic::error(
-                        "normal reference-slot completion names an unavailable predecessor",
-                    )
-                });
-            }
             StoredReferenceCallContext::Entry if contexts.is_empty() => Some(incoming.to_vec()),
             StoredReferenceCallContext::Entry => {
                 return Err(diagnostics::Diagnostic::error(
@@ -86,7 +83,13 @@ pub(in crate::borrow) fn append_reference_custody(
                         "normal reference-slot invocation names an unavailable entry context",
                     ));
                 };
-                let (Some(incoming), Some(effects)) = (entry, effects) else {
+                let Some(incoming) = entry else {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE call-entry-roster-unavailable state={:?} statement={statement_index} expression={expression:?} phase=predecessor",
+                            state.symbol
+                        );
+                    }
                     contexts.push(None);
                     continue;
                 };
@@ -112,6 +115,20 @@ pub(in crate::borrow) fn append_reference_custody(
                         .loan_suppliers
                         .insert_many(incoming.iter().map(|loan| loan.handle)),
                 );
+                // The arguments were already captured before the callee ran.
+                // Unknown output changes cannot erase that known input cut;
+                // they still leave the successor descriptor context unknown.
+                let Some(effects) = effects else {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE call-entry-roster-recorded state={:?} statement={statement_index} expression={expression:?} call={call:?} loans={} successor=unavailable",
+                            state.symbol,
+                            incoming.len()
+                        );
+                    }
+                    contexts.push(None);
+                    continue;
+                };
                 if effects.is_empty() {
                     contexts.push(Some(incoming.clone()));
                     continue;
@@ -153,8 +170,13 @@ pub(in crate::borrow) fn append_reference_custody(
                     })
                     .cloned()
                     .collect::<Vec<_>>();
-                let mut produced =
-                    crate::borrow::loans::stored_reference_effect_loans(program, effects, incoming);
+                let mut produced = crate::borrow::loans::stored_reference_effect_loans(
+                    program,
+                    state,
+                    statement_index,
+                    effects,
+                    incoming,
+                );
                 for loan in &mut produced {
                     loan.formation_expression = expression;
                 }
@@ -173,9 +195,11 @@ pub(in crate::borrow) fn append_reference_custody(
         };
         contexts.push(current);
     }
-    Err(diagnostics::Diagnostic::error(
-        "normal reference-slot schedule has no statement completion",
-    ))
+    contexts.get(schedule.fallthrough).cloned().ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "normal reference-slot continuation names an unavailable call context",
+        )
+    })
 }
 
 /// A definite transferred slot replaces exactly the descriptor occurrences

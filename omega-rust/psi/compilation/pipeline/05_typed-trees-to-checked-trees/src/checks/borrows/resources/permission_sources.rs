@@ -69,7 +69,10 @@ pub(super) fn lending_sources(
                     argument_grant = has_captured_entry_reference(program, facts, state, receiver);
                 }
             }
-            AddressReceiver::InlineValue => argument_grant = true,
+            AddressReceiver::InlineValue => {
+                super::super::access_sources::stored_address(program, facts, state, target, false)?;
+                argument_grant = true;
+            }
             AddressReceiver::Unavailable => {
                 return Err("the formation receiver has no complete descriptor path");
             }
@@ -763,6 +766,7 @@ fn trace_descriptor_storage(
                 destination,
                 value,
                 projection,
+                ..
             } if destination.root == place.root => {
                 eprintln!(
                     "STRUCT descriptor-storage-store at={snapshot:?} root={:?} path={:?} value={value:?} value_type={:?} permission={:?} projection={:?}",
@@ -792,6 +796,7 @@ fn trace_descriptor_storage(
                 contents,
                 bindings_complete,
                 contents_complete,
+                ..
             } => {
                 for (kind, rows, complete) in [
                     ("binding", bindings, bindings_complete),
@@ -1043,9 +1048,17 @@ fn collect_invocation_accesses(
             return InvocationAccessCoverage::Unavailable;
         }
         for backing in backings {
+            if matches!(
+                backing.selected,
+                checked_trees::CheckedBorrowSourceOccurrence::Unknown
+            ) {
+                output.truncate(before);
+                return InvocationAccessCoverage::Unavailable;
+            }
             output.push(PermissionSupplier {
                 source: CheckedCallBorrowLoanSource::CallAccess {
                     access,
+                    selected: backing.selected,
                     parents: parents.insert_many(backing.lineage),
                 },
                 actual: source,

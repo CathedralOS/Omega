@@ -23,8 +23,11 @@ mod callback_applications;
 pub(crate) mod debug_map;
 pub(crate) mod declarations;
 pub(crate) mod float_meanings;
+mod formation_forwarding;
 pub(crate) mod guarded_exits;
+mod lender_preservation;
 pub(crate) mod machine_dispatch;
+mod reference_forwarding;
 
 use crate::shared::checked_facts::flow_facts;
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
@@ -134,6 +137,12 @@ pub fn lower_machine(
         )
     })
     .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
+    phase_profile::scope("psi.06.lender_preservation", || {
+        lender_preservation::retain(&mut identities, checked, &mut lowered)
+    })?;
+    phase_profile::scope("psi.06.reference_forwarding", || {
+        reference_forwarding::retain(&mut identities, checked, &mut lowered)
+    })?;
     match external_declarations {
         Some(declarations) => declarations.retain(
             checked,
@@ -162,6 +171,9 @@ pub fn lower_machine(
             .map_err(LoweringError::TaskActivation)?;
     lowered.semantic_module.identities =
         phase_profile::scope("psi.06.identities_build", || identities.build());
+    phase_profile::scope("psi.06.formation_forwarding", || {
+        formation_forwarding::retain(&mut lowered.semantic_module)
+    })?;
     // Declaration and evidence producers intern beyond the body snapshot.
     // Validate against their complete module-owned table before publication.
     if let Err(reason) = phase_profile::scope("psi.06.validate_runtime_evidence_inputs", || {

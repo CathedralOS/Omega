@@ -334,6 +334,7 @@ pub(super) fn stage(
                 &projected,
                 None,
                 identity_cursor,
+                &[],
             )?;
             let mut leaves = leaves.iter().filter_map(|leaf| match &leaf.kind {
                 StorageLeafKind::Opaque {

@@ -17,6 +17,7 @@ mod component_memberships;
 pub use compiler_evaluation::{AdmittedCompilerEvaluation, admit_compiler_evaluation};
 mod component_provider;
 mod entry_values;
+mod lender_preservation;
 mod private_entry_ram;
 mod provider_installation;
 mod scalar_applications;
@@ -28,6 +29,7 @@ pub use component_provider::{AdmittedComponentProvider, admit_component_provider
 pub use entry_values::{
     TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
 };
+pub use lender_preservation::require_selected_lender_preservation;
 pub use private_entry_ram::{
     CheckedPrivateEntryRamRecipe, PrivateEntryRamInitialization, PrivateEntryRamRecipe,
     PrivateEntryRamScalarInitialization, admit_private_entry_ram,

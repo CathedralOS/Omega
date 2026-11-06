@@ -28,7 +28,9 @@ mod descriptor_observations;
 mod invalidations;
 mod operand;
 mod storage;
-pub use storage::{FlowStorageOperation, FlowStorageSnapshot};
+pub use storage::{
+    FlowCallStoredOutput, FlowStorageOperation, FlowStorageSnapshot, FlowStorageWriteEndpoint,
+};
 mod ownership;
 mod semantic_dependencies;
 mod state_rows;
@@ -108,7 +110,8 @@ pub use boundaries::FlowBoundaryEdgeFact;
 pub use contexts::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 pub use control::{
     FlowCallDispatchRole, FlowCallFact, FlowCallResult, FlowCallSite, FlowExitFact,
-    FlowExitParameterOrigin, FlowOperatorInvocationFact, FlowStateFact, FlowStateOutgoingFact,
+    FlowExitParameterOrigin, FlowLenderPreservation, FlowOperatorInvocationFact,
+    FlowReferenceForwarding, FlowReferenceForwardingSource, FlowStateFact, FlowStateOutgoingFact,
     FlowStatementFact, RetiredFlowCall,
 };
 pub use descriptor_observations::FlowDescriptorObservationTable;

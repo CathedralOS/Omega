@@ -38,6 +38,7 @@ use checked_trees::{
 
 mod completed_projection;
 mod completed_storage;
+pub(in crate::unit::attached_unit) use completed_storage::checked_formation_memberships;
 mod completions;
 mod content_transformations;
 mod copied_place;
@@ -1978,6 +1979,7 @@ impl Emission<'_, '_, '_> {
                     expression: node.expression,
                     backing_type,
                     qualification_decisions: node.qualification_decisions,
+                    domain_declarations: self.domain_declarations,
                     domain_ids: self.domain_ids,
                 },
                 &source,

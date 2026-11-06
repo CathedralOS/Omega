@@ -15,6 +15,82 @@ use crate::emission::formation_memberships::publish;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 
+/// Publish a checked predicate at the operation that creates its value.
+/// Existing memberships supply every routed prerequisite; the desired result
+/// cannot authorize its own formation. Owned transport and reference formation
+/// use this same decision on the exact source subject.
+pub(in crate::unit::attached_unit) fn checked_formation_memberships(
+    checked: &checked_trees::CheckedTrees,
+    domain_ids: &[crate::shared::terminal_identities::StructuralDomainBinding],
+    domain_declarations: &[terminal_psi::StructuralDomainDeclaration],
+    carrier: semantic_vocabulary::StructuralTypeId,
+    decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+    qualifications: Option<&[semantic_vocabulary::StructuralDomainId]>,
+) -> Result<Vec<semantic_vocabulary::StructuralDomainId>, LoweringError> {
+    let decisions = checked
+        .facts
+        .qualifications
+        .value_formations
+        .span(decisions)
+        .ok_or(LoweringError::Unsupported(
+            "operand membership decisions are stale",
+        ))?;
+    if decisions.is_empty() {
+        return Ok(Vec::new());
+    }
+    let qualifications = qualifications.ok_or(LoweringError::Unsupported(
+        "completed operand membership source is missing",
+    ))?;
+    let mut established = Vec::new();
+    for decision in decisions {
+        let domain = checked_membership_domain(checked, domain_ids, decision, carrier)?;
+        if !qualifications.contains(&domain) {
+            let declaration = domain_declarations
+                .iter()
+                .find(|row| row.id == domain)
+                .ok_or(LoweringError::Unsupported(
+                    "owned membership declaration is absent",
+                ))?;
+            let missing = declaration
+                .missing_membership_requirements(domain_declarations, qualifications)
+                .ok_or(LoweringError::Unsupported(
+                    "owned membership transport has unknown prerequisites",
+                ))?;
+            if missing
+                .iter()
+                .any(|row| !row.establishment_routes.is_empty())
+            {
+                return unsupported("owned membership transport cannot establish routed authority");
+            }
+            established.push(domain);
+        }
+    }
+    Ok(established)
+}
+
+fn checked_membership_domain(
+    checked: &checked_trees::CheckedTrees,
+    domain_ids: &[crate::shared::terminal_identities::StructuralDomainBinding],
+    decision: &checked_trees::CheckedValueQualification,
+    carrier: semantic_vocabulary::StructuralTypeId,
+) -> Result<semantic_vocabulary::StructuralDomainId, LoweringError> {
+    lookup_domain_id_for_carrier(domain_ids, decision.semantic_domain, carrier).map_err(|cause| {
+        LoweringError::InvalidOccurrenceMembership {
+            machine: checked.symbols.display_path(decision.machine, "::"),
+            state: checked.symbols.display_path(decision.state, "::"),
+            statement_index: decision.statement_index,
+            domain: checked
+                .typed
+                .semantic_domains
+                .name(decision.semantic_domain)
+                .unwrap_or("<unregistered domain>")
+                .to_owned(),
+            carrier,
+            cause: Box::new(cause),
+        }
+    })
+}
+
 impl Emission<'_, '_, '_> {
     /// A private value edge changes storage identity, not membership.
     /// Carry the actual source declaration into its new parameter instead of
@@ -177,22 +253,7 @@ impl Emission<'_, '_, '_> {
         decision: &checked_trees::CheckedValueQualification,
         carrier: semantic_vocabulary::StructuralTypeId,
     ) -> Result<semantic_vocabulary::StructuralDomainId, LoweringError> {
-        lookup_domain_id_for_carrier(self.domain_ids, decision.semantic_domain, carrier).map_err(
-            |cause| LoweringError::InvalidOccurrenceMembership {
-                machine: self.checked.symbols.display_path(self.machine, "::"),
-                state: self.checked.symbols.display_path(self.state, "::"),
-                statement_index: self.statement,
-                domain: self
-                    .checked
-                    .typed
-                    .semantic_domains
-                    .name(decision.semantic_domain)
-                    .unwrap_or("<unregistered domain>")
-                    .to_owned(),
-                carrier,
-                cause: Box::new(cause),
-            },
-        )
+        checked_membership_domain(self.checked, self.domain_ids, decision, carrier)
     }
 
     /// The Terminal domains of checked memberships on their exact subject.
@@ -291,16 +352,7 @@ impl Emission<'_, '_, '_> {
         first_new_place: u64,
     ) -> Result<StructuralArgument, LoweringError> {
         let source = self.refresh_memberships(identities, source, expression, first_new_place)?;
-        let memberships = self
-            .checked
-            .facts
-            .qualifications
-            .value_formations
-            .span(decisions)
-            .ok_or(LoweringError::Unsupported(
-                "operand membership decisions are stale",
-            ))?;
-        if memberships.is_empty() {
+        if decisions.is_empty() {
             return Ok(source);
         }
         // Source memberships qualify a reference's referent, not its affine
@@ -309,59 +361,33 @@ impl Emission<'_, '_, '_> {
         let (membership_carrier, relative) = self.checked_membership_subject()?;
         let mut membership_path = source.path.clone();
         membership_path.extend_from_slice(relative);
-        let (qualifications, projected_qualifications) = self
+        let qualifications = self
             .completed_memberships(source.place)
-            .ok_or(LoweringError::Unsupported(
-            "completed operand membership source is missing",
-        ))?;
-        let (mut qualifications, _) = terminal_psi::StructuralPathQualification::select(
-            qualifications,
-            projected_qualifications,
-            &membership_path,
-        );
-        // A stored field and its completed descriptor can present the same
-        // value on different carrier rows. Rebind existing memberships through
-        // the common unchanged-referent/identical-theory judgment before asking
-        // for prerequisites on the receiving subject. Raw source row IDs are
-        // not memberships on that other carrier, even when names coincide.
-        terminal_semantics::present_structural_memberships(
-            self.structural_types.iter(),
-            self.domain_declarations.iter(),
+            .map(|(whole, projected)| {
+                let (mut qualifications, _) = terminal_psi::StructuralPathQualification::select(
+                    whole,
+                    projected,
+                    &membership_path,
+                );
+                terminal_semantics::present_structural_memberships(
+                    self.structural_types.iter(),
+                    self.domain_declarations.iter(),
+                    membership_carrier,
+                    &mut qualifications,
+                    &mut Vec::new(),
+                )
+                .map_err(LoweringError::Unsupported)?;
+                Ok::<_, LoweringError>(qualifications)
+            })
+            .transpose()?;
+        let established = checked_formation_memberships(
+            self.checked,
+            self.domain_ids,
+            self.domain_declarations,
             membership_carrier,
-            &mut qualifications,
-            &mut Vec::new(),
-        )
-        .map_err(LoweringError::Unsupported)?;
-        let mut established = Vec::new();
-        for decision in memberships {
-            let domain = self.checked_membership_domain(decision, membership_carrier)?;
-            if !qualifications.contains(&domain) {
-                let declaration = self
-                    .domain_declarations
-                    .iter()
-                    .find(|row| row.id == domain)
-                    .ok_or(LoweringError::Unsupported(
-                        "owned membership declaration is absent",
-                    ))?;
-                let missing = declaration
-                    .missing_membership_requirements(self.domain_declarations, &qualifications)
-                    .ok_or(LoweringError::Unsupported(
-                        "owned membership transport has unknown prerequisites",
-                    ))?;
-                // Checked formation supplies the erased predicate proof. Only
-                // actual memberships on this source path can supply an issuer;
-                // the desired receiving roster cannot authorize itself.
-                if missing
-                    .iter()
-                    .any(|row| !row.establishment_routes.is_empty())
-                {
-                    return unsupported(
-                        "owned membership transport cannot establish routed authority",
-                    );
-                }
-                established.push(domain);
-            }
-        }
+            decisions,
+            qualifications.as_deref(),
+        )?;
         if established.is_empty() {
             return Ok(source);
         }

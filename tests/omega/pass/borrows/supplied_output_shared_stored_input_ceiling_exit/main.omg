@@ -1,3 +1,5 @@
+// A helper can save a read-only reference to a cell through a read-only container.
+// That reference must still read 73 after a call that may pause.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
 // Expected exit: 0
 public boundary trait Scheduler { machine park() reaches suspends; }

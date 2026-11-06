@@ -19,73 +19,120 @@ pub(in crate::flow) fn sources(
     program: &dyn validation::CheckingInput,
     borrow: &BorrowFacts,
     control: &FlowControlFacts,
+    scope: crate::borrow::lifetime_contract::SourceCallScope,
     state_symbol: symbols::SymbolHandle,
     call: &BorrowCallFact,
     operand: &FlowOperandFact,
     contract: TypeReferenceHandle,
     stable_name: &impl Fn(&FlowOperandFact, &CanonicalPlace) -> bool,
-) -> Option<RetainedSources> {
+) -> Result<RetainedSources, &'static str> {
     if validation::reference_shell(program, contract).is_some()
         || program.type_multiplicity(contract) == language_semantics::Multiplicity::Unrestricted
     {
-        return None;
+        return Err("the argument is not an owned affine output carrier");
     }
     let holder = place_at(
         program,
         state_symbol,
         operand.statement_index,
         operand.expression,
-    )?;
+    )
+    .ok_or("the output argument has no captured holder place")?;
     if matches!(holder.root, facts::PlaceRoot::Expression(_)) || !stable_name(operand, &holder) {
-        return None;
+        return Err("the consumed output has no stable named holder");
     }
-    let roster = borrow.loan_suppliers.span(call.input_reference_loans?)?;
+    let roster = borrow
+        .loan_suppliers
+        .span(
+            call.input_reference_loans
+                .ok_or("the consuming call has no complete entry loan roster")?,
+        )
+        .ok_or("the consuming call entry roster is unavailable")?;
+    let machine = program
+        .machine_holding_state(state_symbol)
+        .ok_or("the output handback has no owning machine")?;
+    let (_, state) = borrow
+        .first_state_borrow(machine.symbol, state_symbol)
+        .ok_or("the output handback has no borrowing state")?;
     if roster.iter().any(|loan| !borrow.loans.is_valid(*loan)) {
-        return None;
+        return Err("the call-entry output roster contains an unavailable loan");
     }
-    let paths = validation::borrow_contracts::borrow_carrying_owner_paths(program, contract)?;
+    let paths = validation::borrow_contracts::borrow_carrying_owner_paths(program, contract)
+        .ok_or("the output contract has no complete reference-leaf roster")?;
     let mut result = RetainedSources::default();
     let mut found = false;
     for path in paths {
-        let mut path = owner_place_segments(&path);
-        let declared = validation::project_type_reference_from_segments(program, contract, &path)?;
+        let path = owner_place_segments(&path);
+        let declared = validation::project_type_reference_from_segments(program, contract, &path)
+            .ok_or("the output contract field has no declared type")?;
         if !crate::checks::contracts::exclusive_referent_type(program, declared).is_valid() {
             // This query cannot replace the separate nominal-lifetime carrier
             // or shared-permission paths of captured_sources.
-            return None;
+            return Err("the output field has no exclusive returned duty");
         }
-        let mut owner = holder.segments.clone();
-        owner.append(&mut path);
-        let selected = roster
-            .iter()
-            .copied()
-            .filter(|handle| {
-                let loan = borrow.loans.get(*handle);
-                loan.storage_owner == holder.root
-                    && same_path(
-                        program,
-                        &owner_place_segments(borrow.loan_owner_path(loan)),
-                        &owner,
-                    )
-            })
-            .collect::<Vec<_>>();
+        // The receiving contract and installed holder can use distinct
+        // prepared members of one applied record. Match the entire current
+        // generation roster in the holder's own typed coordinates.
+        let owner = validation::completed_storage::project_captured_storage_place(
+            program,
+            state_symbol,
+            operand.statement_index,
+            holder.clone(),
+            &path,
+        )
+        .ok_or("the consumed output field has no applied member correspondence")?;
+        let root_type = validation::canonical_place_type_reference(
+            program,
+            state_symbol,
+            operand.statement_index,
+            &CanonicalPlace {
+                root: holder.root,
+                segments: Vec::new(),
+            },
+        )
+        .ok_or("the consumed output holder has no declared type")?;
+        let mut selected = Vec::new();
+        for handle in roster.iter().copied() {
+            let loan = borrow.loans.get(handle);
+            if loan.storage_owner != holder.root {
+                continue;
+            }
+            let loan_path = validation::corresponding_loan_owner_path(
+                program,
+                root_type,
+                borrow.loan_owner_path(loan),
+            )
+            .ok_or("a current output loan has no applied owner correspondence")?;
+            if same_path(program, &owner_place_segments(&loan_path), &owner.segments) {
+                selected.push(handle);
+            }
+        }
         if selected.iter().any(|handle| {
             let loan = borrow.loans.get(*handle);
             !loan.kind.is_exclusive()
                 || !matches!(
                     loan.lineage,
-                    BorrowLoanLineage::SuppliedOutput | BorrowLoanLineage::LifetimeDependency
+                    BorrowLoanLineage::SuppliedOutput
+                        | BorrowLoanLineage::UnretainedDerived
+                        | BorrowLoanLineage::LifetimeDependency
                 )
         }) {
-            return None;
+            return Err("the current output field has a different permission role");
         }
-        let outputs = selected
-            .iter()
-            .copied()
-            .filter(|handle| borrow.loans.get(*handle).lineage == BorrowLoanLineage::SuppliedOutput)
-            .collect::<Vec<_>>();
+        let mut outputs = Vec::new();
+        for current in selected.iter().copied().filter(|handle| {
+            borrow.loans.get(*handle).lineage != BorrowLoanLineage::LifetimeDependency
+        }) {
+            for original in
+                crate::borrow::supplied_outputs::completed_output_origins(borrow, state, current)?
+            {
+                if !outputs.contains(&original) {
+                    outputs.push(original);
+                }
+            }
+        }
         if outputs.is_empty() {
-            return None;
+            return Err("the current field has no completed output generation");
         }
         let debts = selected
             .iter()
@@ -96,20 +143,27 @@ pub(in crate::flow) fn sources(
             })
             .collect::<Vec<_>>();
         if debts.is_empty() {
-            return None;
+            return Err("the current output has no exclusive input windows");
         }
         let mut common: Option<RetainedSources> = None;
         for output in outputs {
-            let origin = borrow.supplied_output_call(output)?;
+            let origin = borrow
+                .supplied_output_call(output)
+                .ok_or("the original output has no exact normal completion")?;
             let output_loan = borrow.loans.get(output);
             let incoming = borrow
                 .incoming_references
                 .get(output_loan.incoming_reference);
             let checked_trees::IncomingReferenceOrigin::Output { identity } = incoming.origin
             else {
-                return None;
+                return Err("the completed output has no output namespace");
             };
-            let owner_path = owner_place_segments(borrow.owner_segments.span(incoming.owner_path)?);
+            let owner_path = owner_place_segments(
+                borrow
+                    .owner_segments
+                    .span(incoming.owner_path)
+                    .ok_or("the original output lost its descriptor path")?,
+            );
             let mut receipts = control
                 .output_lifetime_sources
                 .iter()
@@ -120,13 +174,22 @@ pub(in crate::flow) fn sources(
                             .span(receipt.owner_path)
                             .is_some_and(|path| same_path(program, path, &owner_path))
                 });
-            let (_, receipt) = receipts.next()?;
+            let (_, receipt) = receipts
+                .next()
+                .ok_or("the original output has no captured input receipt")?;
             if receipts.next().is_some() {
-                return None;
+                return Err("the output has ambiguous captured input receipts");
             }
-            let sources = control.operand_retained_suppliers.span(receipt.sources?)?;
+            let sources = control
+                .operand_retained_suppliers
+                .span(
+                    receipt
+                        .sources
+                        .ok_or("the output input receipt is incomplete")?,
+                )
+                .ok_or("the output input receipt roster is unavailable")?;
             if sources.is_empty() {
-                return None;
+                return Err("the output has an empty captured input roster");
             }
             let original = borrow.calls.get(origin);
             let original_debts = original
@@ -145,14 +208,22 @@ pub(in crate::flow) fn sources(
             // lineage as the performed generation's recorded input window.
             for debt in &debts {
                 if !window_is_covered(program, borrow, *debt, &original_debts) {
-                    return None;
+                    return Err(
+                        "a current debt does not retain the original completed input window",
+                    );
                 }
             }
             let mut restored = RetainedSources::default();
             for supplier in sources {
                 for alternatives in crate::borrow::lifetime_contract::retained_inputs(
-                    program, borrow, control, supplier,
-                )? {
+                    program, borrow, control, Some(scope), supplier,
+                )
+                .inspect_err(|reason| {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!("CHECKSITE original-output-input-unavailable output={output:?} supplier={supplier:?} reason={reason}");
+                    }
+                })?
+                {
                     let mut common: Option<RetainedSources> = None;
                     for input in alternatives {
                         let supplied = match input {
@@ -162,17 +233,19 @@ pub(in crate::flow) fn sources(
                                 bound,
                             } => {
                                 if !control.operands.is_valid(operand) {
-                                    return None;
+                                    return Err("an original input has no completed capture");
                                 }
                                 super::captured_sources(
                                     program,
                                     borrow,
                                     control,
+                                    scope,
                                     control.operands.get(operand),
                                     path,
                                     bound,
                                     stable_name,
-                                )?
+                                )
+                                .ok_or("the captured input has no complete typed duty inventory")?
                             }
                             crate::borrow::lifetime_contract::RetainedLifetimeInput::Incoming {
                                 bound,
@@ -180,7 +253,9 @@ pub(in crate::flow) fn sources(
                                 if crate::checks::contracts::exclusive_referent_type(program, bound)
                                     .is_valid()
                                 {
-                                    return None;
+                                    return Err(
+                                        "an incoming exclusive duty has no completed owned handback",
+                                    );
                                 }
                                 RetainedSources::default()
                             }
@@ -190,7 +265,7 @@ pub(in crate::flow) fn sources(
                             None => common = Some(supplied),
                         }
                     }
-                    restored.append(common?);
+                    restored.append(common.ok_or("the stored input has no source alternatives")?);
                 }
             }
             restored.borrows.retain(|returned| {
@@ -206,32 +281,47 @@ pub(in crate::flow) fn sources(
             });
             if debts.iter().any(|handle| {
                 let debt = borrow.loans.get(*handle);
-                !restored.borrows.iter().any(|returned| {
-                    returned.place.root == debt.root
-                        && same_path(
-                            program,
-                            &returned.place.segments,
-                            borrow.loan_segments(debt),
-                        )
+                !restored.duty_places.iter().any(|place| {
+                    place.root == debt.root
+                        && same_path(program, &place.segments, borrow.loan_segments(debt))
                 })
             }) {
-                return None;
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    let describe = |handle: &Handle<BorrowLoanFact>| {
+                        let loan = borrow.loans.get(*handle);
+                        (
+                            *handle,
+                            loan.root,
+                            borrow.loan_segments(loan),
+                            &loan.kind,
+                            &loan.lineage,
+                            borrow.loan_suppliers.span(loan.supplying_loans),
+                        )
+                    };
+                    eprintln!(
+                        "CHECKSITE output-duty-coverage-unavailable state={state_symbol:?} statement={} output={output:?} current_debts={:?} original_debts={:?} restored={restored:?}",
+                        operand.statement_index,
+                        debts.iter().map(describe).collect::<Vec<_>>(),
+                        original_debts.iter().map(describe).collect::<Vec<_>>()
+                    );
+                }
+                return Err("a current debt has no complete captured duty coverage");
             }
             match &mut common {
                 Some(common) => common.meet(&restored),
                 None => common = Some(restored),
             }
         }
-        result.append(common?);
+        result.append(common.ok_or("the output has no completed alternatives")?);
         found = true;
     }
     if !found {
-        return None;
+        return Err("the owned argument has no output field");
     }
     if !result.holders.contains(&holder) {
         result.holders.push(holder);
     }
-    Some(result)
+    Ok(result)
 }
 
 /// The original generation is a complete roster of input alternatives. Every

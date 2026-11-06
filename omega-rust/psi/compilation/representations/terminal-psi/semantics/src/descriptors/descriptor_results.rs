@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-    TerminalMachine, TerminalModule, Terminator,
+    StructuralMultiplicity, StructuralPathSegment, StructuralStoreDisposition,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule, Terminator,
 };
 
 use crate::descriptors::descriptor_lifetimes::{
@@ -37,6 +37,7 @@ pub(crate) use payload_entry::prove as prove_payload_predicate;
 mod payload_history;
 pub(crate) use payload_history::completed_payload_contract;
 mod payload_predicates;
+pub use payload_predicates::introduction_predicate as membership_introduction_predicate;
 mod payload_reachability;
 mod payload_versions;
 mod scalar_contracts;
@@ -49,6 +50,7 @@ pub use contents::{
 };
 pub use payload_history::{
     PayloadMembershipHistory, current_payload_contract, current_selected_payload_contract,
+    require_boundary_lender_preservation,
 };
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{
@@ -68,6 +70,8 @@ mod invocation;
 pub use invocation::selected_stored_effects_row;
 mod provider_invocation;
 pub use provider_invocation::{provider_invocation, provider_outputs_cover_writable_slots};
+mod formation_forwarding;
+pub use formation_forwarding::formation_reference_forwarding_requirements;
 mod terminal_flow;
 pub use invocation::{
     public_invocation, public_realizations, public_result_slots, writable_descriptor_slots,
@@ -204,6 +208,24 @@ pub struct DescriptorProviderOrigin<Dependency> {
     pub invocations: Vec<DescriptorInvocationSite>,
     pub projection: Projection,
     pub lifetime_dependencies: Vec<DescriptorLifetimeDebt<Dependency>>,
+    /// A separate conditional forwarding requirement captures these reference
+    /// values before the call. This is a complete source choice, not a chosen
+    /// address or permission. Missing geometry remains unavailable.
+    pub forwarded_sources: Option<Vec<DescriptorForwardingSource<Dependency>>>,
+}
+
+/// A stored descriptor is read at invocation entry. An outer borrowed actual
+/// is the pointer to that storage, even when the storage itself holds a pointer.
+/// The latter role is resolved at the call before this value is published.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum DescriptorForwardingSource<Dependency> {
+    Value(Dependency),
+    /// The captured address of an actual's storage. Preserve this role through
+    /// helper summaries so substitution never loads a descriptor from it.
+    Address(Dependency),
+    ReferenceArgument {
+        position: usize,
+    },
 }
 
 /// Permission retained for one lifetime anchor, independent of the access
@@ -480,6 +502,16 @@ pub struct DescriptorMachine {
     /// Payload writes not described by structural value derivations. These
     /// retire value memberships independently of descriptor pointer contents.
     pub payload_producers: BTreeMap<DescriptorPosition, PlaceId>,
+    /// Later checks must know exactly which data a write replaces.
+    pub payload_stores: BTreeMap<DescriptorPosition, DescriptorPayloadStore>,
+    /// Later checks distinguish data updates from replacing a saved reference.
+    /// This marks actual primitive stores; consumers independently check the
+    /// destination, complete effects, access and value obligations.
+    pub primitive_payload_writes: BTreeSet<DescriptorPosition>,
+    /// Public returned values may retain duties beyond their declared minimum.
+    /// Keep their missing completeness through copies and stored children;
+    /// ordinary observations may still use the public lower guarantees.
+    pub opaque_payload_results: BTreeSet<DescriptorPosition>,
     /// Caller-owed entry propositions in their original formal namespace.
     pub payload_entry_predicates: Option<(PropositionContext, Vec<Proposition>)>,
     /// Closed scalar contents captured from actual constructor/store operands.
@@ -508,6 +540,18 @@ pub struct DescriptorMachine {
     pub storage_derivations: BTreeSet<(DescriptorPosition, DescriptorLocation, DescriptorLocation)>,
     pub calls: BTreeMap<DescriptorPosition, DescriptorInvocation>,
     pub normal_exits: Vec<DescriptorPosition>,
+}
+
+/// A write through a reference must keep its original destination.
+/// Retain the typed query alongside its derived coordinates; access, write
+/// coverage and current value facts remain separate checks.
+#[derive(Clone, Debug)]
+pub struct DescriptorPayloadStore {
+    pub source: DescriptorLocation,
+    pub destination: DescriptorLocation,
+    pub destination_query: DescriptorContentsQuery,
+    pub destination_carrier: StructuralTypeId,
+    pub disposition: StructuralStoreDisposition,
 }
 
 /// A typed tag observation at an exact storage subject, before edge binding.
@@ -743,12 +787,13 @@ pub fn terminal_graph_from(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
 ) -> Vec<DescriptorMachine> {
-    terminal_graph_closure(module, roots).unwrap_or_default()
+    terminal_graph_closure(module, roots, DescriptorSlotKind::Views).unwrap_or_default()
 }
 
 fn terminal_graph_closure(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
+    slots: DescriptorSlotKind,
 ) -> Option<Vec<DescriptorMachine>> {
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut reached = BTreeMap::new();
@@ -757,7 +802,14 @@ fn terminal_graph_closure(
             continue;
         }
         let body = exactly_one(module.machines.iter(), |body| body.id == identity)?;
-        let graph = terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], None)?;
+        let graph = terminal_flow::adapt(
+            module,
+            body,
+            slots,
+            &[],
+            &module.boundary_reference_forwarding,
+            None,
+        )?;
         for call in graph.calls.values() {
             match &call.target {
                 DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -792,7 +844,14 @@ fn terminal_graph_closure(
     bodies
         .into_iter()
         .map(|body| {
-            terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], Some(&initial))
+            terminal_flow::adapt(
+                module,
+                body,
+                slots,
+                &[],
+                &module.boundary_reference_forwarding,
+                Some(&initial),
+            )
         })
         .collect()
 }
@@ -807,6 +866,15 @@ pub fn terminal_reference_graph(module: &TerminalModule) -> Vec<DescriptorMachin
 /// neither inventory can stand in for the other when tracking carrier homes.
 pub fn terminal_borrowed_storage_graph(module: &TerminalModule) -> Vec<DescriptorMachine> {
     terminal_graph_for(module, DescriptorSlotKind::BorrowedStorage, &[]).unwrap_or_default()
+}
+
+/// Capture the same complete invocation closure while retaining ordinary
+/// reference storage as well as views. Pair with borrowed-storage replay.
+pub fn terminal_borrowed_storage_graph_from(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = MachineId>,
+) -> Vec<DescriptorMachine> {
+    terminal_graph_closure(module, roots, DescriptorSlotKind::BorrowedStorage).unwrap_or_default()
 }
 
 /// Typed address capture and borrowed edge roles for physical-home liveness.
@@ -834,12 +902,30 @@ fn terminal_graph_for(
     kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
+    terminal_graph_with_forwarding(
+        module,
+        kind,
+        selected_calls,
+        &module.boundary_reference_forwarding,
+    )
+}
+
+// A forwarding condition cannot prove itself. Ordinary conditional replay
+// receives the retained requirements; the independent body proof passes none.
+fn terminal_graph_with_forwarding(
+    module: &TerminalModule,
+    kind: DescriptorSlotKind,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+    forwarding: &[terminal_psi::BoundaryReferenceForwardingDemand],
+) -> Option<Vec<DescriptorMachine>> {
     // The first graph conservatively withholds stored-selector identities. Its
     // version cuts authenticate actual stores before resource hints are added.
     let initial = module
         .machines
         .iter()
-        .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, None))
+        .map(|machine| {
+            terminal_flow::adapt(module, machine, kind, selected_calls, forwarding, None)
+        })
         .collect::<Option<Vec<_>>>()?;
     // The graph parameter is consulted only by dynamic calls. Ordinary
     // modules already have their final graph; replaying every machine again
@@ -854,7 +940,16 @@ fn terminal_graph_for(
     module
         .machines
         .iter()
-        .map(|machine| terminal_flow::adapt(module, machine, kind, selected_calls, Some(&initial)))
+        .map(|machine| {
+            terminal_flow::adapt(
+                module,
+                machine,
+                kind,
+                selected_calls,
+                forwarding,
+                Some(&initial),
+            )
+        })
         .collect()
 }
 

@@ -32,7 +32,7 @@ fn identity(snapshot: Snapshot) -> (u32, u32) {
 
 fn resolved(annotations: &BTreeMap<(u32, u32), Annotation>, snapshot: Snapshot) -> Resolution {
     if !snapshot.is_valid() {
-        return Resolution::Incoming;
+        return Resolution::Unavailable;
     }
     match annotations.get(&identity(snapshot)) {
         Some(Annotation::Complete(value)) => value.clone(),
@@ -79,6 +79,177 @@ fn preserved_binding_matches(
     )
 }
 
+/// The same descriptor and its payload can share a source-level path.
+/// Only the checked type walk can distinguish those endpoints; a mismatch
+/// that proves no reference crossing remains unavailable.
+fn store_endpoint_matches(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    destination: checked_trees::FlowOperandReferent,
+    receiving: typed_trees::types::TypeReferenceHandle,
+    observed_path: &[facts::PlaceSegment],
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Result<bool, &'static str> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(receiving)
+        || !program
+            .type_reference_table
+            .contains_type_reference(expected)
+    {
+        return Err("the store or observation has no checked receiving endpoint");
+    }
+    let prefix = control
+        .operand_referent_segments
+        .span(destination.segments)
+        .ok_or("the store destination has no complete path")?;
+    let suffix = observed_path
+        .get(prefix.len()..)
+        .ok_or("the observation does not extend this store destination")?;
+    let stored = crate::project_type_reference_from_segments(program, receiving, suffix)
+        .ok_or("the stored endpoint has no complete selected type")?;
+    if crate::declared_carriers_match(program, stored, expected) {
+        return Ok(true);
+    }
+    if !suffix.is_empty() {
+        return Err("the selected stored value and observation have different carriers");
+    }
+    let mut preceding = expected;
+    let mut visited = Vec::new();
+    while let Some(shell) = crate::reference_shell(program, preceding) {
+        if visited.contains(&preceding) {
+            return Err("the observation has a cyclic reference endpoint");
+        }
+        visited.push(preceding);
+        preceding = shell.referee;
+        if crate::declared_carriers_match(program, preceding, stored) {
+            return Ok(false);
+        }
+    }
+    Err("the store has no proved value or post-reference relation to this observation")
+}
+
+fn observation_endpoint(
+    program: &dyn crate::CheckingInput,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+) -> typed_trees::types::TypeReferenceHandle {
+    // The actual store has completed its lexical declaration. This is a
+    // declaration cut, not an execution successor or a later binding replay.
+    let declared = statement_index
+        .checked_add(1)
+        .and_then(|after| crate::canonical_place_type_reference(program, state, after, source))
+        .unwrap_or_default();
+    match observation {
+        StoredObservation::Binding | StoredObservation::InlineContents => declared,
+        StoredObservation::Contents => {
+            crate::reference_shell(program, declared).map_or(declared, |shell| shell.referee)
+        }
+    }
+}
+
+/// A write past a stored pointer changes its pointee, while the pointer's
+/// inline binding survives. Every path and receiving type must still match;
+/// an unknown or unrelated endpoint never proves preservation.
+fn write_preserves_endpoint(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    write: checked_trees::FlowOperandReferent,
+    receiving: typed_trees::types::TypeReferenceHandle,
+    source: &CanonicalPlace,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Result<bool, &'static str> {
+    if matches_store(program, control, source, write) == Some(true) {
+        return store_endpoint_matches(
+            program,
+            control,
+            write,
+            receiving,
+            &source.segments,
+            expected,
+        )
+        .map(|matches| !matches);
+    }
+    let written = control
+        .operand_referent_segments
+        .span(write.segments)
+        .ok_or("the write has no complete selected path")?;
+    if source.segments.len() >= written.len()
+        || !source.segments.iter().zip(written).all(|(left, right)| {
+            crate::storage_path_relations::canonical_place_segments_equal(program, *left, *right)
+        })
+    {
+        return Err("the overlapping write has no exact endpoint prefix");
+    }
+    let suffix = &written[source.segments.len()..];
+    let at_write = crate::project_type_reference_from_segments(program, expected, suffix)
+        .ok_or("the inline observation has no complete typed write path")?;
+    let matches = store_endpoint_matches(program, control, write, receiving, written, at_write)?;
+    if !matches {
+        return Ok(true);
+    }
+    for length in 0..suffix.len() {
+        let prefix =
+            crate::project_type_reference_from_segments(program, expected, &suffix[..length])
+                .ok_or("the inline observation has an unavailable write prefix")?;
+        if crate::reference_shell(program, prefix).is_some() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn write_preserves_observation(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+    write: checked_trees::FlowOperandReferent,
+    endpoint: Option<checked_trees::FlowStorageWriteEndpoint>,
+    expected: Option<typed_trees::types::TypeReferenceHandle>,
+) -> Result<bool, &'static str> {
+    let segments = control
+        .operand_referent_segments
+        .span(write.segments)
+        .ok_or("the observed write path is unavailable")?;
+    let overlaps = match observation {
+        StoredObservation::Binding => {
+            crate::storage_path_relations::binding_overwrite(program, source, segments)
+        }
+        StoredObservation::InlineContents | StoredObservation::Contents => {
+            crate::storage_path_relations::contents_overlap(program, source, segments)
+        }
+    };
+    if !overlaps {
+        return Ok(true);
+    }
+    if matches!(observation, StoredObservation::Contents) {
+        return Ok(false);
+    }
+    let Some(endpoint) = endpoint else {
+        return Ok(false);
+    };
+    let expected = expected.unwrap_or_else(|| {
+        observation_endpoint(
+            program,
+            source,
+            observation,
+            endpoint.state,
+            endpoint.statement_index,
+        )
+    });
+    write_preserves_endpoint(
+        program,
+        control,
+        write,
+        endpoint.receiving_type,
+        source,
+        expected,
+    )
+}
+
 enum SourceBoundary<'query> {
     Stores,
     ReadCuts(&'query std::collections::BTreeSet<(u32, u32)>),
@@ -104,7 +275,7 @@ pub fn contents_preserved_from(
         return false;
     }
     let cuts = cuts.iter().map(|cut| identity(*cut)).collect();
-    matches!(resolve_snapshot(program, control, snapshot, source, observation, SourceBoundary::ReadCuts(&cuts)),
+    matches!(resolve_snapshot(program, control, snapshot, source, observation, SourceBoundary::ReadCuts(&cuts), None),
         Some(Resolution::Sources { incoming: false, stores }) if !stores.is_empty())
 }
 
@@ -115,6 +286,7 @@ fn resolve_snapshot(
     source: &CanonicalPlace,
     observation: StoredObservation,
     boundary: SourceBoundary<'_>,
+    endpoint: Option<typed_trees::types::TypeReferenceHandle>,
 ) -> Option<Resolution> {
     if !snapshot.is_valid() {
         return None;
@@ -145,13 +317,16 @@ fn resolve_snapshot(
         };
         remaining = next;
         if !current.is_valid() {
-            continue;
+            return Some(Resolution::Unavailable);
         }
         if !control.storage_snapshots.is_valid(current) {
             return Some(Resolution::Unavailable);
         }
         let event = control.storage_snapshots.get(current);
         let key = identity(current);
+        if matches!(event.operation, FlowStorageOperation::Entry) && event.previous.is_valid() {
+            return Some(Resolution::Unavailable);
+        }
         if let SourceBoundary::ReadCuts(cuts) = boundary
             && cuts.contains(&key)
         {
@@ -224,6 +399,11 @@ fn resolve_snapshot(
             None => {}
         }
         let terminal = match event.operation {
+            FlowStorageOperation::Entry => Some(if event.previous.is_valid() {
+                Resolution::Unavailable
+            } else {
+                Resolution::Incoming
+            }),
             FlowStorageOperation::Unknown => Some(Resolution::Unavailable),
             FlowStorageOperation::Store { destination, .. }
                 if matches!(boundary, SourceBoundary::ReadCuts(_)) =>
@@ -236,21 +416,49 @@ fn resolve_snapshot(
                 .then_some(Resolution::Unavailable)
             }
             FlowStorageOperation::Store {
-                destination, value, ..
+                destination,
+                value,
+                receiving_type,
+                state,
+                statement_index,
+                ..
             } => match matches_store(program, control, source, destination) {
                 None => Some(Resolution::Unavailable),
                 Some(false) => None,
-                Some(true) if control.operands.is_valid(value) => Some(Resolution::Sources {
-                    incoming: false,
-                    stores: vec![current],
-                }),
-                Some(true) => Some(Resolution::Unavailable),
+                Some(true) => {
+                    let expected = endpoint.unwrap_or_else(|| {
+                        observation_endpoint(program, source, observation, state, statement_index)
+                    });
+                    match store_endpoint_matches(
+                        program,
+                        control,
+                        destination,
+                        receiving_type,
+                        &source.segments,
+                        expected,
+                    ) {
+                        Ok(false) => None,
+                        Ok(true) if control.operands.is_valid(value) => Some(Resolution::Sources {
+                            incoming: false,
+                            stores: vec![current],
+                        }),
+                        result => {
+                            if trace_query_enabled(source) {
+                                eprintln!(
+                                    "STORAGE_QUERY endpoint-unavailable source={source:?} snapshot={current:?} expected={expected:?} receiving={receiving_type:?} state={state:?} statement={statement_index} reason={result:?}"
+                                );
+                            }
+                            Some(Resolution::Unavailable)
+                        }
+                    }
+                }
             },
             FlowStorageOperation::Writes {
                 bindings,
                 contents,
                 bindings_complete,
                 contents_complete,
+                endpoint: write_endpoint,
             } => {
                 let (writes, complete) = match observation {
                     StoredObservation::Binding | StoredObservation::InlineContents => {
@@ -264,23 +472,13 @@ fn resolve_snapshot(
                         .span(writes)
                         .is_some_and(|writes| {
                             writes.iter().all(|write| {
-                                write.root != source.root
-                                    || control
-                                        .operand_referent_segments
-                                        .span(write.segments)
-                                        .is_some_and(|segments| !match observation {
-                                            StoredObservation::Binding => {
-                                                crate::storage_path_relations::binding_overwrite(
-                                                    program, source, segments,
-                                                )
-                                            }
-                                            StoredObservation::InlineContents
-                                            | StoredObservation::Contents => {
-                                                crate::storage_path_relations::contents_overlap(
-                                                    program, source, segments,
-                                                )
-                                            }
-                                        })
+                                write.root != source.root || write_preserves_observation(
+                                    program, control, source, observation, *write, write_endpoint, endpoint,
+                                ).inspect_err(|reason| {
+                                    if trace_query_enabled(source) {
+                                        eprintln!("STORAGE_QUERY write-endpoint-unavailable source={source:?} snapshot={current:?} endpoint={write_endpoint:?} expected={endpoint:?} reason={reason}");
+                                    }
+                                }) == Ok(true)
                             })
                         });
                 (!stable).then_some(Resolution::Unavailable)
@@ -335,12 +533,74 @@ pub fn at_snapshot(
         source,
         observation,
         SourceBoundary::Stores,
+        None,
     )?;
     if matches!(resolved, Resolution::Incoming) {
         None
     } else {
         sources_from_resolution(control, snapshot, source, resolved)
     }
+}
+
+/// Select this exact stored endpoint, not a payload written through one
+/// of its reference shells. The caller retains the selected carrier from
+/// the actual capture; receiving annotations supply no storage identity.
+pub fn at_typed_snapshot(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Option<StoredOperand> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(expected)
+        || !control.storage_snapshots.is_valid(snapshot)
+    {
+        return Some(StoredOperand::Unavailable);
+    }
+    let resolved = resolve_snapshot(
+        program,
+        control,
+        snapshot,
+        source,
+        observation,
+        SourceBoundary::Stores,
+        Some(expected),
+    )?;
+    if matches!(resolved, Resolution::Incoming) {
+        None
+    } else {
+        sources_from_resolution(control, snapshot, source, resolved)
+    }
+}
+
+pub fn sources_at_typed_snapshot(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    snapshot: Snapshot,
+    source: &CanonicalPlace,
+    observation: StoredObservation,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Option<StoredOperand> {
+    if !program
+        .type_reference_table
+        .contains_type_reference(expected)
+        || !control.storage_snapshots.is_valid(snapshot)
+    {
+        return Some(StoredOperand::Unavailable);
+    }
+    let resolved = resolve_snapshot(
+        program,
+        control,
+        snapshot,
+        source,
+        observation,
+        SourceBoundary::Stores,
+        Some(expected),
+    )?;
+    sources_from_resolution(control, snapshot, source, resolved)
 }
 
 /// Keep a proved unchanged entry value distinct from an invalid or unavailable
@@ -360,6 +620,7 @@ pub fn sources_at_snapshot(
         source,
         observation,
         SourceBoundary::Stores,
+        None,
     )?;
     sources_from_resolution(control, snapshot, source, resolved)
 }
@@ -383,6 +644,7 @@ fn sources_from_resolution(
                     destination,
                     value,
                     projection,
+                    ..
                 } = control.storage_snapshots.get(handle).operation
                 else {
                     return Some(StoredOperand::Unavailable);
@@ -457,6 +719,7 @@ fn trace_query_refusal(
             destination,
             value,
             projection,
+            ..
         } => {
             eprintln!(
                 "STORAGE_QUERY refused-store destination_root={:?} destination_path={:?} value={value:?} type={:?} projection={:?}",
@@ -474,6 +737,7 @@ fn trace_query_refusal(
             contents,
             bindings_complete,
             contents_complete,
+            ..
         } => {
             for (mode, writes, complete) in [
                 ("binding", bindings, bindings_complete),
@@ -497,3 +761,6 @@ fn trace_query_refusal(
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests;

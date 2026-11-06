@@ -25,14 +25,18 @@ pub(in crate::checks::borrows) fn retained_places(
     active_calls: &mut Vec<Handle<FlowCallFact>>,
 ) -> Option<Vec<ResolvedAlias>> {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
+    let (_, borrow_state) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)?;
     let mut pending = resolve_captured_all(program, facts, state, statement, constraints, source)?
         .into_iter()
-        .map(|source| (source.place, source.lineage))
+        .map(|source| (source.place, source.selected, source.lineage))
         .collect::<Vec<_>>();
     let mut roots = Vec::new();
-    while let Some((place, ancestors)) = pending.pop() {
+    while let Some((place, selected_source, ancestors)) = pending.pop() {
         if place.incoming_reference.is_valid() {
             roots.push(ResolvedAlias {
+                selected: selected_source,
                 place,
                 lineage: ancestors,
             });
@@ -100,11 +104,13 @@ pub(in crate::checks::borrows) fn retained_places(
             crossed = true;
             let mut suppliers = ancestors.clone();
             suppliers.push(handle);
-            pending.extend(
-                destinations
-                    .into_iter()
-                    .map(|place| (place, suppliers.clone())),
-            );
+            pending.extend(destinations.into_iter().map(|place| {
+                (
+                    place,
+                    crate::checks::borrows::aliases::selected_loan_source(facts, state, handle),
+                    suppliers.clone(),
+                )
+            }));
         }
         if !crossed {
             // Current loan rows above own every replacement of a stored
@@ -114,7 +120,10 @@ pub(in crate::checks::borrows) fn retained_places(
             // descriptors with missing provenance. This retains lifetime only:
             // the invocation's captured access and geometry remain unchanged.
             for (incoming_reference, incoming) in facts.borrow.incoming_references.iter() {
-                if incoming.machine_symbol != state.machine_symbol
+                if !facts
+                    .borrow
+                    .state_owns_incoming_reference(borrow_state, incoming_reference)
+                    || incoming.machine_symbol != state.machine_symbol
                     || incoming.state_symbol != state.state_symbol
                 {
                     continue;
@@ -143,11 +152,15 @@ pub(in crate::checks::borrows) fn retained_places(
                 );
                 if destinations.as_slice() != [place.clone()] {
                     crossed = true;
-                    pending.extend(
-                        destinations
-                            .into_iter()
-                            .map(|place| (place, ancestors.clone())),
-                    );
+                    pending.extend(destinations.into_iter().map(|place| {
+                        (
+                            place,
+                            checked_trees::CheckedBorrowSourceOccurrence::FixedIncoming {
+                                identity: incoming_reference,
+                            },
+                            ancestors.clone(),
+                        )
+                    }));
                 }
             }
         }
@@ -156,6 +169,7 @@ pub(in crate::checks::borrows) fn retained_places(
                 return None;
             }
             roots.push(ResolvedAlias {
+                selected: selected_source,
                 place,
                 lineage: ancestors,
             });
@@ -486,6 +500,7 @@ fn projected_operand_places(
         )?
     } else {
         vec![ResolvedAlias {
+            selected: checked_trees::CheckedBorrowSourceOccurrence::DirectStorage,
             place: CapturedPlace {
                 root: source.root,
                 segments: source.segments,

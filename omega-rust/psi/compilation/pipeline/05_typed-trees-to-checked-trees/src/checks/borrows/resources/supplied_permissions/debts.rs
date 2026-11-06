@@ -5,9 +5,8 @@
 use arena::Handle;
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, CapturedPlace, CheckFacts,
-    CheckedCallBorrowLoanSource, CheckedOutputBorrowInput,
-    CheckedOutputLifetimeDependencyResource as Debt,
-    CheckedOutputLifetimeDependencySource as Source,
+    CheckedCallBorrowLoanSource, CheckedOutputLifetimeDependencyResource as Debt,
+    CheckedOutputLifetimeDependencySource as Source, CheckedRetainedBorrowInput,
 };
 use diagnostics::Diagnostic;
 
@@ -36,7 +35,7 @@ pub(in crate::checks::borrows::resources) fn install_transfers(
                 continue;
             };
             let mut parents = Vec::new();
-            let mut inputs: Vec<CheckedOutputBorrowInput> = Vec::new();
+            let mut inputs: Vec<CheckedRetainedBorrowInput> = Vec::new();
             let mut complete = !suppliers.is_empty() && row.source_owner_symbol.is_valid();
             let Some((_, owner)) = facts.borrow.first_state_borrow(machine, state) else {
                 return Err(vec![Diagnostic::error(
@@ -60,7 +59,7 @@ pub(in crate::checks::borrows::resources) fn install_transfers(
                     break;
                 }
                 let parent_row = facts.borrow.output_lifetime_dependencies.get(parent);
-                let Some(captured) = facts.borrow.supplied_output_inputs.span(parent_row.inputs)
+                let Some(captured) = facts.borrow.retained_borrow_inputs.span(parent_row.inputs)
                 else {
                     return Err(vec![Diagnostic::error(
                         "transported output debt lost its complete captured inputs",
@@ -81,7 +80,7 @@ pub(in crate::checks::borrows::resources) fn install_transfers(
                 .borrow
                 .output_dependency_suppliers
                 .insert_many(parents);
-            let inputs = facts.borrow.supplied_output_inputs.insert_many(inputs);
+            let inputs = facts.borrow.retained_borrow_inputs.insert_many(inputs);
             facts.borrow.output_lifetime_dependencies.insert(Debt {
                 loan,
                 source: Source::Transfer { suppliers },
@@ -221,7 +220,7 @@ fn resolve_windows(
     validate_debt_sources(borrow, debt_handle)?;
     let row = borrow.output_lifetime_dependencies.get(debt_handle);
     let mut inputs = borrow
-        .supplied_output_inputs
+        .retained_borrow_inputs
         .span(row.inputs)
         .ok_or("output debt's captured input roster is unavailable")?
         .iter()
@@ -238,10 +237,10 @@ fn resolve_windows(
             }
             input_seen.push(input);
             let input = match input {
-                checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } => {
+                checked_trees::CheckedRetainedBorrowInputPermission::Borrowed { resource } => {
                     resource
                 }
-                checked_trees::CheckedOutputBorrowInputPermission::Incoming {
+                checked_trees::CheckedRetainedBorrowInputPermission::Incoming {
                     identity,
                     access,
                     root,
@@ -322,7 +321,7 @@ fn resolve_windows(
             }
             inputs.extend(
                 borrow
-                    .supplied_output_inputs
+                    .retained_borrow_inputs
                     .span(output.inputs)
                     .ok_or("earlier output's captured inputs are unavailable")?
                     .iter()
@@ -333,7 +332,7 @@ fn resolve_windows(
             validate_debt_sources(borrow, debt)?;
             inputs.extend(
                 borrow
-                    .supplied_output_inputs
+                    .retained_borrow_inputs
                     .span(borrow.output_lifetime_dependencies.get(debt).inputs)
                     .ok_or("earlier debt's captured inputs are unavailable")?
                     .iter()
@@ -404,11 +403,12 @@ fn complete_inputs(
     borrow: &BorrowFacts,
     output: &checked_trees::CheckedSuppliedOutputBorrowResource,
 ) -> bool {
-    let Some(inputs) = borrow.supplied_output_inputs.span(output.inputs) else {
+    let Some(inputs) = borrow.retained_borrow_inputs.span(output.inputs) else {
         return false;
     };
-    output
-        .lifetime_sources
-        .handles()
-        .all(|source| inputs.iter().any(|input| input.source == source))
+    output.lifetime_sources.handles().all(|source| {
+        inputs
+            .iter()
+            .any(|input| input.declared_source() == Some(source))
+    })
 }

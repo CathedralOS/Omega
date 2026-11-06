@@ -1,8 +1,9 @@
-//! Publish the complete Product code universe independently of selected execution.
+//! Keep program code available for execution and outstanding checks.
 //!
-//! Authored entry roots, policy bodies, constant providers and boundary catalogs
-//! belong to source completion. A target may later select and admit a use of
-//! this code, but cannot change its retention roots or trigger policy-only code.
+//! Authored entry roots, policy bodies, constant providers, boundary catalogs
+//! and callers with lender-preservation duties belong to source completion.
+//! A target may later select and admit a use of this code, but cannot change
+//! its retention roots or trigger policy-only code.
 
 use compilation_products::{CheckedProductSource, ComputedBuildConfig, ProductTerminalPublication};
 use diagnostics::Diagnostic;
@@ -69,6 +70,10 @@ impl<'a> ProductCodeSource<'a> {
                     .filter(|receipt| receipt.provider_machine.is_valid())
                     .map(|receipt| receipt.provider_machine),
             );
+            // Saved-reference checks still apply when no entry will execute.
+            // Retain their actual callers and formed values for the same
+            // provider checks used by executable publication.
+            machines.extend(validation::terminal_receiving_machines(self.program));
             machines.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
             machines.dedup();
             let boundaries = self.boundary_roots()?;

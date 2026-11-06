@@ -39,7 +39,7 @@ mod borrows;
 pub(crate) use borrows::check_external_root_borrows;
 pub(crate) use borrows::{
     StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint,
-    storage_path_compatibility,
+    resolve_physical_borrow_sources, storage_path_compatibility,
 };
 pub(crate) mod atomic_fences;
 mod case_access;

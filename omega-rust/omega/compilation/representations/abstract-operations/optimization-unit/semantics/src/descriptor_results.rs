@@ -13,11 +13,11 @@ use terminal_psi::{
 use terminal_semantics::borrowed_storage::Projection;
 use terminal_semantics::descriptor_lifetimes::{
     DescriptorFlowBinding, DescriptorFlowEdge, DescriptorFlowSource, DescriptorFlowStep,
-    DescriptorLocation, descriptor_location,
+    DescriptorLocation, descriptor_location, descriptor_location_type,
 };
 use terminal_semantics::descriptor_results::{
-    self as kernel, DescriptorDefinition, DescriptorInvocation, DescriptorMachine, DescriptorPlace,
-    writable_descriptor_slots,
+    self as kernel, DescriptorDefinition, DescriptorInvocation, DescriptorMachine,
+    DescriptorPayloadStore, DescriptorPlace, writable_descriptor_slots,
 };
 
 pub mod access_results;
@@ -397,6 +397,9 @@ fn adapt(
         contents_transfers: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
         payload_producers: BTreeMap::new(),
+        payload_stores: BTreeMap::new(),
+        primitive_payload_writes: Default::default(),
+        opaque_payload_results: Default::default(),
         payload_entry_predicates: function.verified_contract.as_ref().and_then(|contract| {
             Some((
                 semantic_vocabulary::PropositionContext::from_value_types_and_places(
@@ -647,6 +650,9 @@ fn adapt(
             };
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
+                if matches!(&operation.kind, O::BoundaryCall { .. }) {
+                    graph.opaque_payload_results.insert(position);
+                }
                 let destination = DescriptorLocation::whole(result.place);
                 step.definitions.push(destination.clone());
                 if !kernel::is_descriptor(types.iter(), result.structural_type)
@@ -699,7 +705,22 @@ fn adapt(
                 O::WriteOnlyPrimitiveStore {
                     destination, path, ..
                 } => {
+                    graph.primitive_payload_writes.insert(position);
                     payload_writes.push(payload_query(destination.place(), path, None));
+                }
+                O::StoreStructuralField {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } if location(destination.place(), path, *field).is_none()
+                    || location(value.place, &value.path, None).is_none() =>
+                {
+                    // A dynamic destination still changes the selected object.
+                    // Keep its possible-write query when exact value coordinates
+                    // are unavailable.
+                    payload_writes.push(payload_query(destination.place(), path, *field));
                 }
                 O::StructuralScalarFieldStore {
                     destination,
@@ -707,6 +728,7 @@ fn adapt(
                     field,
                     ..
                 } => {
+                    graph.primitive_payload_writes.insert(position);
                     payload_writes.push(payload_query(destination.place(), path, Some(*field)));
                 }
                 O::StructuralByteSequenceFieldByteStore {
@@ -1045,12 +1067,20 @@ fn adapt(
                     }
                 }
                 O::StoreStructuralField {
+                    disposition,
                     destination,
                     path,
                     field,
                     value,
                     ..
                 } => {
+                    let destination_query = kernel::descriptor_contents_query(
+                        types,
+                        destination.place(),
+                        *graph.place_types.get(&destination.place())?,
+                        path,
+                        *field,
+                    );
                     let value_type = runtime_structural_path_tip(
                         types.iter(),
                         *graph.place_types.get(&value.place)?,
@@ -1082,6 +1112,25 @@ fn adapt(
                         location(destination.place(), path, *field),
                         location(value.place, &value.path, None),
                     ) {
+                        if let (Some(destination_query), Some(destination_carrier)) = (
+                            destination_query,
+                            descriptor_location_type(
+                                types,
+                                *graph.place_types.get(&destination.root)?,
+                                &destination.path,
+                            ),
+                        ) {
+                            graph.payload_stores.insert(
+                                position,
+                                DescriptorPayloadStore {
+                                    source: source.clone(),
+                                    destination: destination.clone(),
+                                    destination_query,
+                                    destination_carrier,
+                                    disposition: *disposition,
+                                },
+                            );
+                        }
                         step.definitions.push(destination.clone());
                         step.derivations.push((source, destination.clone()));
                         // Reseating contents retains the destination storage home.

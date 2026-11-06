@@ -479,6 +479,9 @@ mod tests {
             flow,
             case_constructors: BTreeMap::new(),
             case_successors: BTreeMap::new(),
+            payload_stores: BTreeMap::new(),
+            primitive_payload_writes: Default::default(),
+            opaque_payload_results: Default::default(),
             payload_producers: BTreeMap::from([
                 (position(2), original.root),
                 (position(3), copy.root),

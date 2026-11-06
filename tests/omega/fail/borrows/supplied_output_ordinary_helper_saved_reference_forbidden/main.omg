@@ -1,3 +1,5 @@
+// The record holding this cell cannot be kept across a call that may pause.
+// Saving a reference to its cell must preserve that restriction.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
 // Expected exit: 0
 public boundary trait Scheduler { machine park() reaches suspends; }

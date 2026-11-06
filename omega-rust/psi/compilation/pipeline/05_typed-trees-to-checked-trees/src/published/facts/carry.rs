@@ -18,5 +18,6 @@ pub(super) fn build_carry_facts(program: &dyn ::validation::CheckingInput) -> Ca
         claim_policies: Vec::new(),
         suspension_loans: arena::Arena::new(),
         suspension_value_loans: arena::Arena::new(),
+        suspension_loan_relations: arena::Arena::new(),
     }
 }

@@ -25,6 +25,7 @@ pub(crate) struct Formation<'checked> {
     /// The supplying endpoint, never the receiving reference annotation.
     pub(crate) backing_type: typed_trees::types::TypeReferenceHandle,
     pub(crate) qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
+    pub(crate) domain_declarations: &'checked [terminal_psi::StructuralDomainDeclaration],
     pub(crate) domain_ids:
         &'checked [crate::shared::terminal_identities::StructuralDomainBinding],
 }
@@ -302,6 +303,7 @@ pub(crate) fn emit_carrier(
                 "reference result is not structural",
             ));
         };
+        let mut source_qualifications = None;
         if let Some((root, whole, projected)) =
             super::structural_values::member_memberships::source_memberships_in(
                 source.place,
@@ -351,7 +353,7 @@ pub(crate) fn emit_carrier(
                         "field loan lost its reference carrier",
                     ));
                 };
-                let mut domains = if access == terminal_psi::StructuralAccess::SharedBorrow {
+                let domains = if access == terminal_psi::StructuralAccess::SharedBorrow {
                     Vec::new()
                 } else {
                     validation::field_domains::domain_constraint_identities(
@@ -362,16 +364,6 @@ pub(crate) fn emit_carrier(
                     .map(|(_, domain)| domain)
                     .collect::<Vec<_>>()
                 };
-                let decisions = formation
-                    .checked
-                    .facts
-                    .qualifications
-                    .value_formations
-                    .span(formation.qualification_decisions)
-                    .ok_or(LoweringError::Unsupported(
-                        "field loan membership decisions are stale",
-                    ))?;
-                domains.extend(decisions.iter().map(|decision| decision.semantic_domain));
                 for domain in domains {
                     result.projected_qualifications.push(
                         terminal_psi::StructuralPathQualification {
@@ -385,7 +377,44 @@ pub(crate) fn emit_carrier(
                     );
                 }
             }
+            let terminal_psi::StructuralTypeShape::Reference { referent, .. } = declaration.shape
+            else {
+                unreachable!("reference result shape selected above")
+            };
+            let (mut qualifications, mut projected) =
+                terminal_psi::StructuralPathQualification::select(
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                    &[terminal_psi::StructuralPathSegment::Referent],
+                );
+            terminal_semantics::present_structural_memberships(
+                declarations.iter(),
+                formation.domain_declarations.iter(),
+                referent,
+                &mut qualifications,
+                &mut projected,
+            )
+            .map_err(LoweringError::Unsupported)?;
+            source_qualifications = Some(qualifications);
         }
+        let terminal_psi::StructuralTypeShape::Reference { referent, .. } = declaration.shape
+        else {
+            unreachable!("reference result shape selected above")
+        };
+        let established = super::structural_values::checked_formation_memberships(
+            formation.checked,
+            formation.domain_ids,
+            formation.domain_declarations,
+            referent,
+            formation.qualification_decisions,
+            source_qualifications.as_deref(),
+        )?;
+        terminal_psi::StructuralPathQualification::append_under(
+            &established,
+            &[],
+            &[terminal_psi::StructuralPathSegment::Referent],
+            &mut result.projected_qualifications,
+        );
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
     }

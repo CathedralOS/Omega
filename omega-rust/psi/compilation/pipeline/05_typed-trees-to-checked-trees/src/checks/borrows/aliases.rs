@@ -1,6 +1,8 @@
 //! Local reference operands rejoin retained storage before overlap comparison.
 //! A captured place does not grant ancestry: only receivers with independently
 //! retained lineage may exempt their own parent loans from interference.
+use crate::borrow::same_carrier_generation;
+pub(in crate::checks) use crate::borrow::transport_suppliers;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, StateBorrowFact,
@@ -10,12 +12,193 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 mod lineage;
-pub(in crate::checks) use lineage::transport_suppliers;
 pub(in crate::checks::borrows) use lineage::{formation_lineage, retained_lineage};
 
 pub(in crate::checks::borrows) struct ResolvedAlias {
+    pub(in crate::checks::borrows) selected: checked_trees::CheckedBorrowSourceOccurrence,
     pub(in crate::checks::borrows) place: CapturedPlace,
     pub(in crate::checks::borrows) lineage: Vec<Handle<BorrowLoanFact>>,
+}
+
+/// Select a known physical loan without interpreting its supplier order.
+/// A fixed incoming referent is an entry grant; every other selected loan,
+/// including UnretainedDerived, keeps its own original occurrence and graph.
+pub(in crate::checks::borrows) fn selected_loan_source(
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    loan: Handle<BorrowLoanFact>,
+) -> checked_trees::CheckedBorrowSourceOccurrence {
+    use checked_trees::CheckedBorrowSourceOccurrence as Source;
+    let Some((_, owner)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+    else {
+        return Source::Unknown;
+    };
+    if !facts.borrow.state_owns_loan(owner, loan) {
+        return Source::Unknown;
+    }
+    let row = facts.borrow.loans.get(loan);
+    if row.lineage == BorrowLoanLineage::LifetimeDependency {
+        return Source::Unknown;
+    }
+    if row.lineage == BorrowLoanLineage::DirectRoot
+        && facts
+            .borrow
+            .state_owns_incoming_reference(owner, row.incoming_reference)
+    {
+        let incoming = facts.borrow.incoming_references.get(row.incoming_reference);
+        if incoming.machine_symbol == state.machine_symbol
+            && incoming.state_symbol == state.state_symbol
+            && incoming.place_root() == row.root
+            && incoming.owner_path.is_empty()
+            && matches!(
+                incoming.origin,
+                checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+            )
+        {
+            return Source::FixedIncoming {
+                identity: row.incoming_reference,
+            };
+        }
+    }
+    Source::SelectedLoan { loan }
+}
+
+/// Classify an explicit unloaned storage route. Missing descriptor suppliers
+/// are Unknown; they never acquire DirectStorage from an invalid loan handle.
+pub(in crate::checks::borrows) fn unloaned_source(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    place: &CapturedPlace,
+) -> checked_trees::CheckedBorrowSourceOccurrence {
+    unloaned_source_at(program, facts, state, place, false)
+}
+
+/// Only the checked storage-address operation calls this route. Owning a
+/// final descriptor cell is separate from the pointee that descriptor lends.
+pub(in crate::checks::borrows) fn unloaned_storage_source(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    place: &CapturedPlace,
+) -> checked_trees::CheckedBorrowSourceOccurrence {
+    unloaned_source_at(program, facts, state, place, true)
+}
+
+fn unloaned_source_at(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    place: &CapturedPlace,
+    descriptor_storage: bool,
+) -> checked_trees::CheckedBorrowSourceOccurrence {
+    use checked_trees::CheckedBorrowSourceOccurrence as Source;
+    let Some((_, owner)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+    else {
+        return Source::Unknown;
+    };
+    if place.incoming_reference.is_valid() {
+        if !facts
+            .borrow
+            .state_owns_incoming_reference(owner, place.incoming_reference)
+        {
+            return Source::Unknown;
+        }
+        let incoming = facts
+            .borrow
+            .incoming_references
+            .get(place.incoming_reference);
+        return if incoming.machine_symbol == state.machine_symbol
+            && incoming.state_symbol == state.state_symbol
+            && incoming.place_root() == place.root
+            && matches!(
+                incoming.origin,
+                checked_trees::IncomingReferenceOrigin::Parameter { .. }
+                    | checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+            ) {
+            Source::FixedIncoming {
+                identity: place.incoming_reference,
+            }
+        } else {
+            Source::Unknown
+        };
+    }
+    let Some(declaration) = program.state_by_symbol(state.state_symbol) else {
+        return Source::Unknown;
+    };
+    if let Some(root) = place.root.as_symbol() {
+        if let Some(parameter) = program.state_parameter_by_symbol(declaration, root) {
+            if let Some(shell) = validation::reference_shell(program, parameter.type_reference) {
+                if descriptor_storage
+                    && place.segments.is_empty()
+                    && parameter.is_mutable
+                    && shell.access == language_semantics::ReferenceAccess::Shared
+                {
+                    return Source::DirectStorage;
+                }
+                if !place.segments.is_empty()
+                    && validation::owned_projection_type_reference(
+                        program,
+                        shell.referee,
+                        &place.segments,
+                    )
+                    .is_none_or(|selected| {
+                        !descriptor_storage
+                            && crate::borrow::reference_borrow_access_kind(program, selected)
+                                .is_some()
+                    })
+                {
+                    return Source::Unknown;
+                }
+                let mut identities = owner.incoming_references.handles().filter(|identity| {
+                    let incoming = facts.borrow.incoming_references.get(*identity);
+                    incoming.machine_symbol == state.machine_symbol
+                        && incoming.state_symbol == state.state_symbol
+                        && incoming.owner_path.is_empty()
+                        && matches!(incoming.origin,
+                            checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol } if symbol == root)
+                });
+                let Some(identity) = identities.next() else {
+                    return Source::Unknown;
+                };
+                return if identities.next().is_none() {
+                    Source::FixedIncoming { identity }
+                } else {
+                    Source::Unknown
+                };
+            }
+        }
+    }
+    let Some(root_type) = validation::canonical_place_type_reference(
+        program,
+        state.state_symbol,
+        declaration.statement_nodes.count() as usize,
+        &validation::CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        },
+    ) else {
+        return Source::Unknown;
+    };
+    if crate::borrow::reference_borrow_access_kind(program, root_type).is_some()
+        && !(descriptor_storage && place.segments.is_empty())
+    {
+        return Source::Unknown;
+    }
+    if validation::owned_projection_type_reference(program, root_type, &place.segments).is_some_and(
+        |selected| {
+            descriptor_storage
+                || crate::borrow::reference_borrow_access_kind(program, selected).is_none()
+        },
+    ) {
+        Source::DirectStorage
+    } else {
+        Source::Unknown
+    }
 }
 
 impl ResolvedAlias {
@@ -95,7 +278,8 @@ fn same_carrier_occurrence(
     right: &BorrowLoanFact,
 ) -> bool {
     let path = borrow.loan_owner_path(right);
-    (same_carrier_generation(left, right) || same_resolved_descriptor_load(borrow, left, right))
+    (crate::borrow::same_carrier_occurrence(borrow, left, right)
+        || same_resolved_descriptor_load(borrow, left, right))
         && borrow.loan_owner_path(left) == path
         && !path.contains(&checked_trees::BorrowLoanOwnerSegment::DynamicIndex)
 }
@@ -129,15 +313,6 @@ fn is_descriptor_load(borrow: &BorrowFacts, loan: &BorrowLoanFact) -> bool {
                 .origin,
             checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
         )
-}
-
-fn same_carrier_generation(left: &BorrowLoanFact, right: &BorrowLoanFact) -> bool {
-    right.owner_symbol.is_valid()
-        && right.storage_owner.is_valid()
-        && left.owner_symbol == right.owner_symbol
-        && left.storage_owner == right.storage_owner
-        && left.statement_index == right.statement_index
-        && left.established_by_call == right.established_by_call
 }
 
 /// Formation may retain a descriptor together with its existing lifetime
@@ -210,6 +385,7 @@ fn exclusive_carrier_cases(
 }
 
 pub(in crate::checks::borrows) struct ResolvedPlace {
+    pub(in crate::checks::borrows) selected: checked_trees::CheckedBorrowSourceOccurrence,
     pub(in crate::checks::borrows) place: CapturedPlace,
     pub(in crate::checks::borrows) local_loan: Handle<BorrowLoanFact>,
 }
@@ -261,6 +437,7 @@ pub(in crate::checks::borrows) fn resolve_places_with_loans(
         });
     if !reference_local {
         return Some(vec![ResolvedPlace {
+            selected: unloaned_source(program, facts, state_flow, &place),
             place,
             local_loan: Handle::invalid(),
         }]);
@@ -406,6 +583,7 @@ fn resolve_descriptor_places_with_loans(
                 .is_some_and(|selected| validation::reference_shell(program, selected).is_none())
         });
         return root_parameter.then_some(vec![ResolvedPlace {
+            selected: unloaned_source(program, facts, state_flow, &place),
             place,
             local_loan: Handle::invalid(),
         }]);
@@ -421,6 +599,7 @@ fn resolve_descriptor_places_with_loans(
             let mut segments = borrow.loan_segments(loan).to_vec();
             segments.extend_from_slice(&place.segments[depth..]);
             Some(ResolvedPlace {
+                selected: selected_loan_source(facts, state_flow, handle),
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
                     incoming_owner_path: facts
@@ -439,6 +618,7 @@ fn resolve_descriptor_places_with_loans(
         let incoming = borrow.incoming_references.get(identity);
         if incoming.owner_path.count() as usize == depth {
             places.push(ResolvedPlace {
+                selected: checked_trees::CheckedBorrowSourceOccurrence::FixedIncoming { identity },
                 place: CapturedPlace {
                     incoming_reference: identity,
                     incoming_owner_path: Vec::new(),
@@ -502,6 +682,7 @@ pub(in crate::checks::borrows) fn unchanged_incoming_leaf(
         validation::reference_shell(program, selected)
             .ok_or("the incoming selection is not a descriptor")?;
         resolved.push(ResolvedAlias {
+            selected: checked_trees::CheckedBorrowSourceOccurrence::FixedIncoming { identity },
             place: CapturedPlace {
                 incoming_reference: identity,
                 incoming_owner_path: if owner.contains(&BorrowLoanOwnerSegment::DynamicIndex) {

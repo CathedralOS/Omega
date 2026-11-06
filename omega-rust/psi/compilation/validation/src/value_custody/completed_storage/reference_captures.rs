@@ -100,12 +100,13 @@ pub fn stored_reference_sources_at_path(
                     root: place.root,
                     segments: place.segments,
                 };
-                match super::at_snapshot(
+                match super::at_typed_snapshot(
                     program,
                     control,
                     current,
                     &place,
                     StoredObservation::Binding,
+                    shell.referee,
                 ) {
                     Some(stored) => resolver.stored(stored, &[]),
                     None => Selection::Sources {
@@ -284,12 +285,18 @@ impl Resolver<'_> {
             // A changed or unavailable slot must remain changed/unavailable;
             // the namespace never revives an older entry value. An unchanged
             // slot remains explicitly incoming for the authority consumer.
-            return match super::at_snapshot(
+            return match super::at_typed_snapshot(
                 self.program,
                 self.control,
                 self.current,
                 &place,
                 StoredObservation::Binding,
+                crate::project_type_reference_from_segments(
+                    self.program,
+                    capture.type_reference,
+                    path,
+                )
+                .unwrap_or_default(),
             ) {
                 None => Selection::Sources {
                     incoming: vec![place],
@@ -530,12 +537,18 @@ impl Resolver<'_> {
                 capture.storage_snapshot
             };
             selected.push(
-                match super::at_snapshot(
+                match super::at_typed_snapshot(
                     self.program,
                     self.control,
                     snapshot,
                     &place,
                     StoredObservation::Binding,
+                    crate::project_type_reference_from_segments(
+                        self.program,
+                        capture.type_reference,
+                        path,
+                    )
+                    .unwrap_or_default(),
                 ) {
                     None if view
                         || self
@@ -660,12 +673,13 @@ impl Resolver<'_> {
                 selected.push(captured_pointer(place));
                 continue;
             }
-            match super::at_snapshot(
+            match super::at_typed_snapshot(
                 self.program,
                 self.control,
                 capture.storage_snapshot,
                 &place,
                 StoredObservation::Binding,
+                capture.type_reference,
             ) {
                 Some(stored) => selected.push(self.stored(stored, &[])),
                 None if place.root.as_symbol().is_some_and(|root| {
@@ -797,12 +811,18 @@ impl Resolver<'_> {
             ) else {
                 return Some(Selection::Unavailable);
             };
-            match super::at_snapshot(
+            match super::at_typed_snapshot(
                 self.program,
                 self.control,
                 self.current,
                 &place,
                 StoredObservation::Binding,
+                crate::project_type_reference_from_segments(
+                    self.program,
+                    capture.type_reference,
+                    &path[..end],
+                )
+                .unwrap_or_default(),
             ) {
                 None if end == path.len() => results.push(Selection::Sources {
                     incoming: vec![place],

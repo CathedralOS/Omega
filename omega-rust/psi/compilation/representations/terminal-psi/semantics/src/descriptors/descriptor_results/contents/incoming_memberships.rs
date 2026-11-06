@@ -1,11 +1,12 @@
 //! Read source-side universal element contracts without recovering addresses.
 use super::*;
 
-pub(super) fn select(
+pub(in crate::descriptors::descriptor_results) fn select(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     contract: PayloadMembershipContract,
     steps: &[DescriptorContentsStep],
+    kind: super::PayloadMembershipKind,
 ) -> Option<PayloadMembershipContract> {
     let count = steps
         .iter()
@@ -18,10 +19,13 @@ pub(super) fn select(
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    let mut contract = super::select_payload_memberships(types, domains, &contract, &address)?;
+    let mut contract =
+        super::select_payload_memberships_with_kind(types, domains, &contract, &address, kind)?;
     let carrier = contract.carrier;
     let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(count) else {
-        super::close_predicate_memberships(types, domains, &mut contract);
+        if kind == super::PayloadMembershipKind::Observed {
+            super::close_predicate_memberships(types, domains, &mut contract);
+        }
         return Some(contract);
     };
     let suffix = &steps[count + 1..];
@@ -49,6 +53,7 @@ pub(super) fn select(
                     projected_qualifications,
                 },
                 suffix,
+                kind,
             )
         }
         StructuralTypeShape::FixedArray {
@@ -74,8 +79,15 @@ pub(super) fn select(
                         projected_qualifications,
                     },
                     suffix,
+                    kind,
                 )?;
                 if let Some(common) = &mut common {
+                    if kind == super::PayloadMembershipKind::Preserved
+                        && (common.qualifications != selected.qualifications
+                            || common.projected_qualifications != selected.projected_qualifications)
+                    {
+                        return None;
+                    }
                     if common.carrier != selected.carrier {
                         return None;
                     }

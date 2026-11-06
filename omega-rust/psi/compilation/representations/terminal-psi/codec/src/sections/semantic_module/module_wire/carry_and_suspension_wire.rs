@@ -359,20 +359,23 @@ fn validate_loan_coordinates(
         if matches!(
             loan.backing,
             TerminalSuspensionLoanBacking::InputDependencies
-        ) && loan.resource != TerminalSuspensionLoanResource::LifetimeDependency
-            || matches!(loan.backing, TerminalSuspensionLoanBacking::CapturedInput)
-                && (loan.active_at_call
-                    || !matches!(
-                        loan.capture,
-                        TerminalSuspensionLoanCapture::CallInput { .. }
-                    )
-                    || !matches!(
-                        loan.resource,
-                        TerminalSuspensionLoanResource::OutputInput
-                            | TerminalSuspensionLoanResource::DirectRoot
-                            | TerminalSuspensionLoanResource::Reborrow
-                            | TerminalSuspensionLoanResource::DescriptorTransfer
-                    ))
+        ) && !matches!(
+            loan.resource,
+            TerminalSuspensionLoanResource::LifetimeDependency
+                | TerminalSuspensionLoanResource::DescriptorTransfer
+        ) || matches!(loan.backing, TerminalSuspensionLoanBacking::CapturedInput)
+            && (loan.active_at_call
+                || !matches!(
+                    loan.capture,
+                    TerminalSuspensionLoanCapture::CallInput { .. }
+                )
+                || !matches!(
+                    loan.resource,
+                    TerminalSuspensionLoanResource::OutputInput
+                        | TerminalSuspensionLoanResource::DirectRoot
+                        | TerminalSuspensionLoanResource::Reborrow
+                        | TerminalSuspensionLoanResource::DescriptorTransfer
+                ))
         {
             return Err(CodecError::NonCanonicalEncoding);
         }
@@ -707,6 +710,47 @@ mod tests {
                 .expect("decode completed output graph"),
             output_plan
         );
+        // A transferred pointer keeps all original captured sources alive
+        // without keeping a moved parameter descriptor as current storage.
+        let mut transferred_plan = output_plan.clone();
+        let transferred_suppliers = transferred_plan.loans.supplier_links.insert_many([input]);
+        let transferred = transferred_plan
+            .loans
+            .occurrences
+            .insert(TerminalSuspensionLoan {
+                capture: TerminalSuspensionLoanCapture::DescriptorTransfer,
+                backing: TerminalSuspensionLoanBacking::InputDependencies,
+                resource: TerminalSuspensionLoanResource::DescriptorTransfer,
+                suppliers: transferred_suppliers,
+                ..Default::default()
+            });
+        let transferred_links = transferred_plan
+            .loans
+            .value_links
+            .insert_many([transferred]);
+        transferred_plan.live_values[0].loans = TerminalSuspensionValueLoans::Retained {
+            links: transferred_links,
+        };
+        assert_eq!(
+            decode_suspension_call_plan(&mut Reader::new(&encode(&transferred_plan)))
+                .expect("decode saved pointer with retained inputs"),
+            transferred_plan
+        );
+        let mut wrong_backing_role = transferred_plan.clone();
+        wrong_backing_role
+            .loans
+            .occurrences
+            .get_mut(transferred)
+            .resource = TerminalSuspensionLoanResource::DirectRoot;
+        assert!(
+            decode_suspension_call_plan(&mut Reader::new(&encode(&wrong_backing_role))).is_err()
+        );
+        transferred_plan
+            .loans
+            .occurrences
+            .get_mut(transferred)
+            .suppliers = HandleSpan::empty();
+        assert!(decode_suspension_call_plan(&mut Reader::new(&encode(&transferred_plan))).is_err());
         // An ordinary helper can retain an earlier argument's saved
         // descriptor. Its capture remains at that call and its existing
         // supplier is still mandatory; no new output permission is created.

@@ -1,7 +1,6 @@
-//! The encoding contract says every operation tag absent from its table
-//! rejects as an unknown operation tag. These tests carry such a tag inside an
-//! otherwise valid module and observe the module decoder refuse it, rather
-//! than trusting the decoder's match arm to stay exhaustive.
+//! A saved program with an unknown instruction number must fail verification.
+//! These tests put an unassigned operation tag inside an otherwise valid
+//! module and check that its decoder reports that exact unknown tag.
 
 use super::super::target_family_tests::unit_machine;
 use super::{Writer, encode_operation, operation_tags};
@@ -9,13 +8,12 @@ use crate::{CodecError, decode_module, encode_module};
 use semantic_vocabulary::{MachineId, OperationId, ScalarQualificationSetId, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration};
 
-/// Tags that no current operation decodes. 71 and 72 were never assigned.
-/// The other tags below 133 are retired; some keep a table row marked
-/// retired, and none may be reused. Tags from 133 onward lie past the
-/// current inventory. A new operation takes the next free tag, and it must
-/// gain its row in `wiki/spec/terminal-psi/encoding.md`.
-const TAGS_WITHOUT_TABLE_ROWS: [u8; 19] = [
-    0, 48, 49, 51, 52, 53, 54, 55, 57, 61, 67, 71, 72, 73, 74, 76, 80, 82, 87,
+/// Keep gaps rejected when the instruction inventory grows. This list covers
+/// gaps below 138, including retired tags that must never be reused. Tags after
+/// `READ_SEGMENT_SELECTOR` (137) are also unassigned. A new operation takes the
+/// next free tag; update this boundary and `wiki/spec/terminal-psi/encoding.md`.
+const TAGS_WITHOUT_TABLE_ROWS: [u8; 20] = [
+    0, 48, 49, 51, 52, 53, 54, 55, 57, 61, 67, 71, 72, 73, 74, 76, 80, 82, 87, 88,
 ];
 
 /// One valid module whose only operation is `BooleanConstant`, plus the byte
@@ -56,7 +54,9 @@ fn module_with_one_operation() -> (TerminalModule, Vec<u8>, usize) {
 fn an_operation_tag_without_a_table_row_rejects_the_module() {
     let (module, bytes, tag_offset) = module_with_one_operation();
     assert_eq!(decode_module(&bytes).unwrap(), module);
-    let unknown = TAGS_WITHOUT_TABLE_ROWS.into_iter().chain(133..=u8::MAX);
+    let unknown = TAGS_WITHOUT_TABLE_ROWS
+        .into_iter()
+        .chain((operation_tags::READ_SEGMENT_SELECTOR + 1)..=u8::MAX);
     for tag in unknown {
         let mut changed = bytes.clone();
         changed[tag_offset] = tag;

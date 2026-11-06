@@ -99,7 +99,7 @@ struct StateMutationSummary {
 /// A reference-valued receiving cell is distinct from the storage its value
 /// denotes. Preserve that destination judgment until caller projection ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum WriteDestination {
+pub(in crate::flow) enum WriteDestination {
     Referent,
     DescriptorSlot,
 }
@@ -1039,6 +1039,7 @@ fn instantiate_call_relative_writes_pre_resolved(
             .map(|region| CallMutationWrite {
                 region,
                 source: Some(relative_region.clone()),
+                destination: Some(destination),
                 checked_write_type: Default::default(),
             })
             .collect()
@@ -1196,64 +1197,26 @@ pub(super) fn captured_argument_write_regions(
         .and_then(|origins| origins.references.as_deref());
     if reference_shell(program, parameter_type).is_none() {
         let actual = *call_site_argument_expressions(program, site).get(position)?;
-        let mut regions = Vec::new();
-        for projection in crate::flow::literal_expression_projections(
+        let resolved = captured_owned_argument_write_regions(
             program,
+            machine,
+            state,
+            statement_index,
             actual,
             parameter_type,
             relative,
-            false,
-        )? {
-            let projected_type = project_type_reference_from_segments(
-                program,
-                parameter_type,
-                &projection.destination,
-            )?;
-            let projected_regions = if reference_shell(program, projected_type).is_some() {
-                resolver
-                    .reference_operand_write_sources(
-                        machine,
-                        projection.expression,
-                        projected_type,
-                    )?
-                    .iter()
-                    .map(|source| {
-                        local_origins::write_source_region(
-                            program,
-                            state,
-                            statement_index,
-                            source,
-                            &projection.remaining,
-                        )
-                    })
-                    .collect::<Option<Vec<_>>>()?
-            } else {
-                let mut place = place_at(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    projection.expression,
-                )?;
-                place.segments.extend_from_slice(&projection.remaining);
-                vec![StorageRegion::Declared(place)]
-            };
-            for region in projected_regions {
-                for region in rebase_projected_call_region(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    region,
-                    projected_type,
-                    &projection.remaining,
-                    destination,
-                    references,
-                    call_frames,
-                )? {
-                    crate::shared::collections::push_unique(&mut regions, region);
-                }
-            }
+            destination,
+            resolver,
+            references,
+        );
+        if let Err(reason) = &resolved
+            && std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some()
+        {
+            eprintln!(
+                "CALLWRITE captured-owned-argument-unavailable state={state_symbol:?} statement={statement_index} actual={actual:?} relative={relative:?} reason={reason}"
+            );
         }
-        return Some(regions);
+        return resolved.ok();
     }
     let origins = captured.as_ref()?;
     let mut places = Vec::new();
@@ -1281,6 +1244,93 @@ pub(super) fn captured_argument_write_regions(
         }
     }
     Some(places)
+}
+
+// Moving a record copies its pointers. A write through one changes the
+// supplying data, not the record's old local slot. Select the pointer from
+// the completed argument before substituting that write into caller storage.
+#[allow(clippy::too_many_arguments)]
+fn captured_owned_argument_write_regions<'program>(
+    program: &'program dyn validation::CheckingInput,
+    machine: &'program typed_trees::machine::Machine,
+    state: &'program State,
+    statement: usize,
+    actual: typed_trees::expression::ExpressionHandle,
+    parameter: TypeReferenceHandle,
+    relative: &[PlaceSegment],
+    destination: WriteDestination,
+    resolver: &CallFrameResolver<'program>,
+    references: Option<&[LocalWriteOrigin]>,
+) -> Result<Vec<StorageRegion>, &'static str> {
+    let mut selected = parameter;
+    let mut boundary = None;
+    for index in 0..=relative.len() {
+        if let Some(shell) = reference_shell(program, selected) {
+            boundary = Some((index, shell.referee));
+            break;
+        }
+        let Some(segment) = relative.get(index) else {
+            break;
+        };
+        selected =
+            project_type_reference_from_segments(program, selected, std::slice::from_ref(segment))
+                .ok_or("owned write has no complete typed reference path")?;
+    }
+    let (boundary, referee) =
+        boundary.ok_or("caller-visible owned write has no reference crossing")?;
+    let actual_type = validation::expression_result_type_reference(program, machine, state, actual)
+        .ok_or("completed owned argument has no type")?;
+    let leaf_path =
+        validation::corresponding_place_projection(program, actual_type, &relative[..boundary])
+            .ok_or("owned write reference has no actual member correspondence")?;
+    let actual_referee = project_type_reference_from_segments(program, actual_type, &leaf_path)
+        .and_then(|reference| reference_shell(program, reference))
+        .ok_or("owned write actual path is not a reference")?
+        .referee;
+    let carrier = program.normalized_type_identity(referee);
+    if !carrier.is_valid() || program.normalized_type_identity(actual_referee) != carrier {
+        return Err("owned write reference and actual have different referee carriers");
+    }
+    let leaves = resolver.completed_operand_reference_sources(
+        machine,
+        state.symbol,
+        statement,
+        actual,
+        actual_type,
+    )?;
+    let leaf = leaves
+        .iter()
+        .find(|leaf| leaf.path == leaf_path)
+        .ok_or("completed owned argument has no captured matching reference leaf")?;
+    let sources = leaf.sources.as_ref().map_err(|reason| *reason)?;
+    if sources.is_empty() {
+        return Err("completed owned reference leaf has no supplying storage");
+    }
+    let mut regions = Vec::new();
+    for source in sources {
+        let region = local_origins::write_source_region(
+            program,
+            state,
+            statement,
+            source,
+            &relative[boundary..],
+        )
+        .ok_or("captured owned reference write has no complete storage projection")?;
+        for region in local_origins::rebase_captured_storage_region(
+            program,
+            state.symbol,
+            statement,
+            region,
+            references,
+            destination,
+            Some(resolver),
+        )
+        .ok_or("captured owned reference write has an unresolved further storage crossing")?
+        {
+            crate::shared::collections::push_unique(&mut regions, region);
+        }
+    }
+    Ok(regions)
 }
 
 /// Rebase the selected source coordinate with its genuine receiving mode.

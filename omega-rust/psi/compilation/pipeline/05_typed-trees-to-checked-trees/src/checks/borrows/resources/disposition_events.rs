@@ -335,6 +335,7 @@ fn resolve_disposition_event(
         restored_call: Default::default(),
         restored_borrow_call: Default::default(),
         restored_call_access: Default::default(),
+        restored_parent_weakening: Default::default(),
     })
 }
 
@@ -712,6 +713,13 @@ pub(crate) fn bind_restored_call_uses(
             continue;
         }
 
+        let checked_trees::CheckedBorrowParentEnd::Lexical { weakening } = child.parent_end else {
+            return Err(reborrow_restored_call_use_drift());
+        };
+        if !flow.borrow_lifetimes.weakenings.is_valid(weakening) {
+            return Err(reborrow_restored_call_use_drift());
+        }
+        event.restored_parent_weakening = weakening;
         event.restored_call = *call_handle;
         event.restored_borrow_call = *borrow_call_handle;
         event.restored_call_access = access_handle;

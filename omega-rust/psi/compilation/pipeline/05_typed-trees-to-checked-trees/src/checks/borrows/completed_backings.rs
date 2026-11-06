@@ -28,10 +28,10 @@ pub(super) struct CompletedDescriptorBackings {
     pub(super) forwarded_inputs: Vec<Handle<FlowOperandFact>>,
 }
 
-/// A selected incoming alternative keeps its original entry descriptor even
-/// when a conditional store retires that identity from the current roster.
+/// A conditional update can replace a saved pointer on one path and keep it
+/// on another. The path that keeps it still uses the caller's original reference.
 /// Callers have selected this exact Incoming member on the immutable storage
-/// timeline. Resolve its entry namespace without reactivating current access;
+/// timeline. Resolve its entry namespace without reactivating current aliases;
 /// the reference used to reach the slot cannot supply that permission.
 pub(in crate::checks::borrows) fn incoming_sources(
     program: &dyn validation::CheckingInput,
@@ -304,6 +304,9 @@ impl Resolver<'_> {
             )?;
             let loan = self.facts.borrow.loans.get(handle);
             return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                selected: crate::checks::borrows::aliases::selected_loan_source(
+                    self.facts, self.state, handle,
+                ),
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
                     incoming_owner_path: self
@@ -427,6 +430,9 @@ impl Resolver<'_> {
                 );
             }
             return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                selected: crate::checks::borrows::aliases::selected_loan_source(
+                    self.facts, self.state, handle,
+                ),
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
                     root: loan.root,
@@ -461,14 +467,37 @@ impl Resolver<'_> {
                 immutable_image: true,
             });
         }
+        // A new view keeps its evaluated receiver through casts and checked
+        // factories. Select that positive formation before a stored-slot or
+        // generic call-result interpretation; neither can replace its loan.
+        if let Some(formation) =
+            super::formation_captures::reference_formation(self.program, self.facts, capture)?
+        {
+            if !path.is_empty() {
+                return self.retained_descriptor(
+                    formation.target,
+                    path,
+                    ancestors,
+                    forwarded_inputs,
+                );
+            }
+            if formation.storage {
+                return super::access_sources::stored_address(
+                    self.program,
+                    self.facts,
+                    self.state,
+                    formation.target,
+                    true,
+                )
+                .map(BackingFrontier::borrowed);
+            }
+            return self.formation_receiver(formation.target, ancestors, forwarded_inputs);
+        }
         // Other stored descriptors retain that occurrence's own loan, even
         // when their value graph remembers an older construction. Replacing
         // this with only the construction's suppliers would lose descriptor
         // identity in the live-loan interference judgment.
-        if !matches!(
-            self.program.expression_table.expression(operand.expression),
-            ExpressionNode::Borrow(_)
-        ) && let Some(source) = &coordinate
+        if let Some(source) = &coordinate
             && source.root.as_symbol().is_some()
         {
             return self.stored(capture, operand, source, path, ancestors, forwarded_inputs);
@@ -622,43 +651,68 @@ impl Resolver<'_> {
                 forwarded_inputs,
             );
         }
-        if matches!(
-            self.program.expression_table.expression(operand.expression),
-            ExpressionNode::Borrow(_)
-        ) {
-            let formation =
-                super::formation_captures::reference_formation(self.program, self.facts, capture)?
-                    .ok_or("the completed borrow has no exact formation receiver")?;
-            if formation.storage && path.is_empty() {
-                return super::access_sources::stored_address(
+        Err("the computed descriptor has no retained authority producer")
+    }
+
+    /// Borrowing through a saved pointer keeps the permission of that exact
+    /// read. Its source slot may already hold a different pointer. The typed
+    /// receiver path can narrow that permission only when its retained places
+    /// establish the same projection; an enclosing footprint stays enclosing.
+    fn formation_receiver(
+        &self,
+        target: Handle<FlowOperandFact>,
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
+        use super::formation_captures::{AddressReceiver, address_receiver};
+        match address_receiver(self.program, self.facts, target) {
+            AddressReceiver::Reference {
+                capture,
+                projection,
+            } => {
+                let control = &self.facts.flow.control;
+                let receiver = control.operands.get(capture);
+                let target = control.operands.get(target);
+                if receiver.state_symbol != target.state_symbol
+                    || receiver.statement_index != target.statement_index
+                {
+                    return Err("the formed reference has another evaluated receiver");
+                }
+                let mut resolved =
+                    self.retained_descriptor(capture, &[], ancestors, forwarded_inputs)?;
+                let projectable = validation::completed_storage::projectable_reference_places(
                     self.program,
-                    self.facts,
-                    self.state,
-                    formation.target,
-                    true,
-                )
-                .map(BackingFrontier::borrowed);
+                    control,
+                    capture,
+                    &[],
+                );
+                for backing in &mut resolved.places {
+                    if projectable.as_ref().is_some_and(|places| {
+                        places.iter().any(|place| {
+                            place.root == backing.place.root
+                                && place.segments == backing.place.segments
+                        })
+                    }) {
+                        backing.place.segments = facts::project_captured_view_segments(
+                            &backing.place.segments,
+                            &projection,
+                        )
+                        .ok_or("the formed reference exceeds its captured receiver window")?;
+                    }
+                }
+                Ok(resolved)
             }
-            let source =
-                coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
-            let mut place = CapturedPlace {
-                root: source.root,
-                segments: source.segments,
-                ..Default::default()
-            };
-            place.segments.extend_from_slice(path);
-            super::access_sources::resolve_captured_all(
+            AddressReceiver::InlineValue => super::access_sources::stored_address(
                 self.program,
                 self.facts,
                 self.state,
-                operand.statement_index,
-                operand.constraints,
-                place,
+                target,
+                false,
             )
-            .map(BackingFrontier::borrowed)
-            .ok_or("the completed borrow has no retained source authority")
-        } else {
-            Err("the computed descriptor has no retained authority producer")
+            .map(BackingFrontier::borrowed),
+            AddressReceiver::Unavailable => {
+                Err("the formed reference has no complete evaluated receiver path")
+            }
         }
     }
 
@@ -871,6 +925,18 @@ impl Resolver<'_> {
                 return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
             }
         }
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE stored-descriptor-source-unavailable state={:?} statement={} capture={capture:?} expression={:?} type={:?} completion={:?} backing={:?} retention={:?} source={source:?} path={path:?}",
+                operand.state_symbol,
+                operand.statement_index,
+                operand.expression,
+                operand.type_reference,
+                operand.completion,
+                operand.backing,
+                operand.retention,
+            );
+        }
         Err("the stored descriptor has no retained loan occurrence")
     }
 
@@ -1025,6 +1091,7 @@ impl Resolver<'_> {
                 continue;
             }
             candidates.push(super::aliases::ResolvedPlace {
+                selected: super::aliases::selected_loan_source(self.facts, self.state, handle),
                 place: CapturedPlace {
                     incoming_reference: loan.incoming_reference,
                     incoming_owner_path: self
@@ -1144,10 +1211,11 @@ fn append_distinct(
     values: impl IntoIterator<Item = ResolvedAlias>,
 ) {
     for value in values {
-        if !target
-            .iter()
-            .any(|existing| existing.place == value.place && existing.lineage == value.lineage)
-        {
+        if !target.iter().any(|existing| {
+            existing.selected == value.selected
+                && existing.place == value.place
+                && existing.lineage == value.lineage
+        }) {
             target.push(value);
         }
     }

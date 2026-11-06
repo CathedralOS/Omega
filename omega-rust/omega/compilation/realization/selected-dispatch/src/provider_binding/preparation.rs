@@ -61,7 +61,10 @@ impl PreparedBindingDeclarations {
                 .admitted_qualification_issuers()
                 .map(|issuers| issuers.into_iter().cloned().collect()),
             services: inventory.retained_service_catalog(),
-            has_proof_obligations: program.facts.proof_applications.has_obligations,
+            has_proof_obligations: program.facts.proof_applications.has_obligations
+                || validation::terminal_receiving_machines(program)
+                    .next()
+                    .is_some(),
         }
     }
 }

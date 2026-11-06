@@ -33,6 +33,13 @@ use checked_trees::BorrowFacts;
 pub(crate) mod accesses;
 pub(crate) mod calls;
 mod children;
+mod descriptor_transfers;
+mod retained_loans;
+pub(crate) use descriptor_transfers::{retained_input_terminal, transport_suppliers};
+pub(crate) use retained_loans::{
+    RetainedLoanSourceScope, retained_loan_closure, same_carrier_generation,
+    same_carrier_occurrence,
+};
 mod last_uses;
 pub(crate) mod lifetime_contract;
 mod loans;

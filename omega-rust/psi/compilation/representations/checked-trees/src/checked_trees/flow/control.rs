@@ -9,6 +9,41 @@ use super::{
     FlowInvalidationFact, FlowSemanticContextRef,
 };
 
+/// One requested conservation duty on a captured borrowed reference leaf.
+/// The argument position is authored; structural-lane packing happens only
+/// when the exact checked call is lowered. This records no proof result.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowLenderPreservation {
+    pub argument_position: u32,
+    pub path: Vec<crate::CheckedUnitStructuralPathSegment>,
+    pub domain: language_semantics::SemanticDomainId,
+}
+
+/// A provider output whose unchanged reference value was needed by a later
+/// storage proof. These are requested choices, not an established forwarding
+/// relation. The selected provider must prove every normal output independently.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowReferenceForwarding {
+    pub state_symbol: SymbolHandle,
+    pub statement_index: usize,
+    pub invocation: typed_trees::expression::ExpressionHandle,
+    pub call_ordinal: usize,
+    pub output_parameter: u32,
+    pub output_path: Vec<crate::CheckedUnitStructuralPathSegment>,
+    pub sources: Vec<FlowReferenceForwardingSource>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowReferenceForwardingSource {
+    Reference {
+        argument_position: u32,
+    },
+    Stored {
+        argument_position: u32,
+        path: Vec<crate::CheckedUnitStructuralPathSegment>,
+    },
+}
+
 /// Preconditions at a spelled, implicit, or named operator invocation, after
 /// operand evaluation and before either comparison branch acquires its own
 /// observations. A spelled or Match-comparison use names its `operator_use`
@@ -25,6 +60,8 @@ pub struct FlowOperatorInvocationFact {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowCallFact {
+    pub lender_preservation: Vec<FlowLenderPreservation>,
+    pub reference_forwarding: Vec<FlowReferenceForwarding>,
     pub statement_index: usize,
     pub call_ordinal: usize,
     /// Exact storage after every operand completes and before the call runs.
@@ -33,6 +70,8 @@ pub struct FlowCallFact {
     /// Storage after the call's own normal-return writes. Guarantees about
     /// post-call storage hold at this cut until a later write retires them.
     pub completed_storage: arena::Handle<super::FlowStorageSnapshot>,
+    /// Installed leaves with their original evaluated receiver and path.
+    pub stored_outputs: HandleSpan<super::FlowCallStoredOutput>,
     /// Actuals in authored evaluation order, captured at their own completion.
     pub operands: HandleSpan<super::FlowOperandFact>,
     /// Exact expression occurrence captured by the semantic call traversal.
@@ -192,6 +231,10 @@ pub struct FlowStatementFact {
     /// Completed RHS after destination evaluation, before storage. Zero for
     /// statements without a stored value; children retain their own epochs.
     pub stored_value: arena::Handle<super::FlowOperandFact>,
+    /// The value already evaluated by an expression statement or transition
+    /// guard. Its children retain their receiving context and read epochs.
+    /// Recording this root does not evaluate the expression a second time.
+    pub evaluated_value: arena::Handle<super::FlowOperandFact>,
     /// Destination evaluation before the RHS and the store. This retains
     /// the completed address and any descriptor observations produced while
     /// forming it, not a read of the old value or permission to dispose it.

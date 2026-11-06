@@ -23,6 +23,7 @@ mod operand_claims;
 pub(crate) mod record;
 pub(crate) mod structural_case;
 
+pub(super) use emission::checked_formation_memberships;
 pub(crate) use emission::{ValueDestination, ValueProduction, emit};
 pub(super) use locals::local_binding;
 

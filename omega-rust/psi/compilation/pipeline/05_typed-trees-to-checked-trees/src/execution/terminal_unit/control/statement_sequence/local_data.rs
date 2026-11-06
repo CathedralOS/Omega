@@ -460,6 +460,12 @@ fn plan_inner(
         structural_local_symbols.push(local.symbol);
         operations.push(CheckedUnitEffectOperationPlan::EstablishReference {
             formation_expression: local.initial_value,
+            qualification_decisions: facts.qualifications.formation_decisions_at(
+                machine.symbol,
+                state.symbol,
+                statement_index,
+                local.initial_value,
+            ),
             backing_type: capture.backing_type,
             result,
             source: capture.source,

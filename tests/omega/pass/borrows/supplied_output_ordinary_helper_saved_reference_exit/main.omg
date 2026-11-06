@@ -1,3 +1,5 @@
+// A reference installed by a helper still reaches its cell after a call that may pause.
+// The later read must return the cell's value, 73.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
 // Expected exit: 0
 public boundary trait Scheduler { machine park() reaches suspends; }

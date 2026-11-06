@@ -123,6 +123,25 @@ pub(super) fn check_call_requires(
             let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
                 let requirement_contexts =
                     case.map_or(entry_contexts.as_slice(), |case| case.contexts.as_slice());
+                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some()
+                    && let Some((_, _, domain, _)) = fact.payload.domain_membership()
+                    && let Some(place) = fact.place.as_place()
+                {
+                    trace_requirement_contexts(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        if case.is_some() {
+                            "captured-case"
+                        } else {
+                            "entry"
+                        },
+                        requirement_contexts,
+                        place,
+                        domain,
+                    );
+                }
                 let cache_index = whole_contract_caches
                     .iter()
                     .position(|cache| cache.contexts.as_slice() == requirement_contexts)
@@ -262,13 +281,28 @@ pub(super) fn check_call_requires(
                         fact,
                         call_frames,
                     );
-                satisfied
+                let accepted = satisfied
                     && super::prover::contract_membership_place_is_accessible(
                         program,
                         &facts.semantic,
                         requirement_contexts,
                         fact,
-                    )
+                    );
+                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some()
+                    && fact.payload.domain_membership().is_some()
+                {
+                    eprintln!(
+                        "CALL_WRITE membership-case-verdict machine={:?} state={:?} stmt={} ordinal={} target={:?} requirement={:?} place={:?} contexts={requirement_contexts:?} captured_judgment={captured_judgment:?} satisfied={satisfied} access_checked={satisfied} final_result={accepted}",
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        call_flow.statement_index,
+                        call_flow.call_ordinal,
+                        call_flow.target_symbol,
+                        fact.payload,
+                        fact.place
+                    );
+                }
+                accepted
             };
             // Every possible completed actual must establish the requirement
             // independently. Combining arm facts would invent a value that no
@@ -303,6 +337,46 @@ pub(super) fn check_call_requires(
                 });
             }
             if !satisfied {
+                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some()
+                    && let Some((_, _, domain, _)) = fact.payload.domain_membership()
+                    && let Some(place) = fact.place.as_place()
+                {
+                    trace_requirement_contexts(
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        "failing-call-entry",
+                        &entry_contexts,
+                        place,
+                        domain,
+                    );
+                    if let Some(evidence) = membership.as_ref() {
+                        for (index, case) in evidence.cases.iter().enumerate() {
+                            eprintln!(
+                                "CALL_WRITE membership-case-inventory machine={:?} state={:?} stmt={} ordinal={} target={:?} requirement={:?} place={:?} index={index} referents={:?}",
+                                state_flow.machine_symbol,
+                                state_flow.state_symbol,
+                                call_flow.statement_index,
+                                call_flow.call_ordinal,
+                                call_flow.target_symbol,
+                                fact.payload,
+                                fact.place,
+                                case.referents
+                            );
+                            trace_requirement_contexts(
+                                program,
+                                facts,
+                                state_flow,
+                                call_flow,
+                                "failing-captured-case-inventory",
+                                &case.contexts,
+                                place,
+                                domain,
+                            );
+                        }
+                    }
+                }
                 if let FactPayload::ContractBooleanExpression { expression, .. } = fact.payload
                     && super::prover::has_builtin_operators(program, &facts.operators, expression)
                     && let Some(parameters) =
@@ -863,6 +937,65 @@ fn explain_missing_boolean_fact(
     ))
 }
 
+// A past removal may have been followed by a valid restoration. Show the
+// actual premise roster at this check, separately for each captured operand.
+fn trace_requirement_contexts(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    role: &str,
+    contexts: &[facts::FactContextHandle],
+    required_place: facts::PlaceHandle,
+    required_domain: SymbolHandle,
+) {
+    eprintln!(
+        "CALL_WRITE membership-cut machine={:?} state={:?} stmt={} ordinal={} target={:?} role={role} required_place={required_place:?} required_domain={required_domain:?} contexts={contexts:?}",
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+        call.target_symbol
+    );
+    for handle in contexts {
+        let context = facts.semantic.contexts.get(*handle);
+        let references = facts.semantic.refs.span_or_empty(context.facts);
+        let roster: Vec<_> = references.iter().map(|reference| reference.fact).collect();
+        eprintln!(
+            "CALL_WRITE membership-context handle={handle:?} point={:?} roster={roster:?}",
+            context.point
+        );
+        for reference in references {
+            let current = facts.semantic.facts.get(reference.fact);
+            let Some((_, _, domain, _)) = current.payload.domain_membership() else {
+                continue;
+            };
+            let Some(place) = current.place.as_place() else {
+                continue;
+            };
+            let same_place = facts.semantic.places_match(program, place, required_place);
+            let same_domain = facts.semantic.domain_implies(domain, required_domain)
+                || validation::field_domains::domain_membership_implies(
+                    program,
+                    domain,
+                    required_domain,
+                );
+            eprintln!(
+                "CALL_WRITE membership-current machine={:?} state={:?} stmt={} ordinal={} target={:?} role={role} required_place={required_place:?} required_domain={required_domain:?} context={handle:?} fact={:?} point={:?} place={:?} payload={:?} same_place={same_place} same_domain={same_domain}",
+                state.machine_symbol,
+                state.state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+                call.target_symbol,
+                reference.fact,
+                current.point,
+                current.place,
+                current.payload
+            );
+        }
+    }
+}
+
 fn explain_domain_requirement_failure(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
@@ -900,6 +1033,23 @@ fn explain_domain_requirement_failure(
             continue;
         }
 
+        if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+            eprintln!(
+                "CALL_WRITE membership-historical-removal machine={:?} state={:?} stmt={} ordinal={} target={:?} required_place={required_place:?} required_domain={required_domain:?} source={:?} context={:?} context_point={:?} fact={:?} fact_point={:?} fact_place={:?} payload={:?}",
+                state_flow.machine_symbol,
+                state_flow.state_symbol,
+                call_flow.statement_index,
+                call_flow.call_ordinal,
+                call_flow.target_symbol,
+                invalidation.source,
+                invalidation.context,
+                facts.semantic.contexts.get(invalidation.context).point,
+                invalidation.fact,
+                fact.point,
+                fact.place,
+                fact.payload
+            );
+        }
         let fact_place = facts.semantic.places.get(fact_place);
         let dependency_segments = facts
             .flow

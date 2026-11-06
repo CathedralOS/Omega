@@ -100,7 +100,7 @@
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/external_providers.rs
 29 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/operation_crash_contracts.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/payload_memberships.rs
-18 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use.rs
+17 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/reborrow_restored_call_use/places.rs
 24 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/retained_borrow_custody.rs
 50 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs

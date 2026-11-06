@@ -418,7 +418,9 @@ impl TerminalExecution<'_> {
         projected_qualifications: &[terminal_psi::StructuralPathQualification],
         storage: Option<terminal_psi::ReferenceStorageView>,
         identity_cursor: &mut Option<u64>,
+        predicate_introductions: &[terminal_psi::StructuralPathQualification],
     ) -> Result<PreparedReference, TerminalInterpretError> {
+        let ordinary_formation = storage.is_none();
         let (referent_type, access) = self.reference_contract(reference_type)?;
         let mut normalized_source = source.clone();
         normalized_source.path = terminal_semantics::reference_source_storage_path(
@@ -988,6 +990,76 @@ impl TerminalExecution<'_> {
                 self.structural_cases.as_map(),
                 &required_paths,
             )?;
+        if ordinary_formation
+            && access != StructuralAccess::SharedBorrow
+            && !predicate_introductions.is_empty()
+        {
+            // EstablishReference independently proves these explicitly
+            // requested predicates at its current source cut. Host output
+            // completion supplies no introduction roster. Existing duties
+            // still pass the unchanged exact-roster conservation check below.
+            let types = self
+                .structural_types()
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+            let introduce = |path: &[StructuralPathSegment], domain| {
+                let mut full_path = vec![StructuralPathSegment::Referent];
+                full_path.extend_from_slice(path);
+                if !predicate_introductions
+                    .iter()
+                    .any(|row| row.path == full_path && row.domain == domain)
+                {
+                    return false;
+                }
+                let Some(declaration) = self
+                    .program
+                    .catalogs
+                    .structural_domains
+                    .iter()
+                    .find(|row| row.id == domain)
+                else {
+                    return false;
+                };
+                if terminal_semantics::qualification_path_carrier(
+                    types.iter(),
+                    referent.structural_type,
+                    path,
+                ) != Some(declaration.carrier)
+                {
+                    return false;
+                }
+                let (supplied, _) = terminal_psi::StructuralPathQualification::select(
+                    &referent.qualifications,
+                    &referent.projected_qualifications,
+                    path,
+                );
+                terminal_semantics::descriptor_results::membership_introduction_predicate(
+                    &types,
+                    &self.program.catalogs.structural_domains,
+                    declaration,
+                    &supplied,
+                )
+                .is_some()
+            };
+            let whole = required_whole
+                .iter()
+                .copied()
+                .filter(|domain| {
+                    !referent.qualifications.contains(domain) && introduce(&[], *domain)
+                })
+                .collect::<Vec<_>>();
+            let projected = required_paths
+                .iter()
+                .filter(|row| {
+                    !referent.projected_qualifications.contains(row)
+                        && introduce(&row.path, row.domain)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            referent.qualifications.extend(whole);
+            referent.projected_qualifications.extend(projected);
+        }
         // Declaration-owned field predicates are existing typed invariants,
         // independently of temporal memberships on the physical home's birth
         // declaration. Entailment cannot introduce an issuer or a new policy.
@@ -1352,6 +1424,7 @@ impl TerminalExecution<'_> {
                 &result.projected_qualifications,
                 storage,
                 &mut identity_cursor,
+                &result.projected_qualifications,
             )
             .map_err(|error| TerminalInterpretError::ReferenceFormation {
                 stage: "establish reference",

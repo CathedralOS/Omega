@@ -6,6 +6,7 @@
 //! a pause never reconstructs the instance or replays earlier effects.
 
 pub(crate) mod completed_pure_build;
+pub mod lender_preservation;
 pub(crate) mod preparation;
 mod project;
 mod provider_installation;

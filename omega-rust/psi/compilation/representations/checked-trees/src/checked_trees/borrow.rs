@@ -439,11 +439,15 @@ pub struct CheckedCallBorrowLoanResource {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub call: Handle<crate::FlowCallFact>,
+    /// Explicit parameter position in this call's evaluated argument tuple.
+    pub parameter_index: usize,
     pub owner_operand: Handle<crate::FlowOperandFact>,
     pub operand: Handle<crate::FlowOperandFact>,
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     /// The same leaf in the closed actual carrier's structural namespace.
     pub capture_path: HandleSpan<crate::CheckedUnitStructuralPathSegment>,
+    /// The receiving operation records Stored even for an empty inner path.
+    pub capture_source: Option<crate::ViewReturnInputSource>,
     /// Exact stored occurrence or invocation access supplying this permission.
     pub source: CheckedCallBorrowLoanSource,
     pub access: BorrowAccessKind,
@@ -461,7 +465,24 @@ pub struct CheckedCallBorrowLoanResource {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedStoredCallBorrowInputs {
     pub loan: Handle<BorrowLoanFact>,
-    pub resources: HandleSpan<Handle<CheckedCallBorrowLoanResource>>,
+    pub inputs: HandleSpan<CheckedRetainedBorrowInput>,
+}
+
+/// The exact physical permission occurrence selected for one captured backing.
+/// This is not a derived-row grant: SelectedLoan retains that row's complete
+/// authenticated supplier graph for the borrowing owner to resolve. Unknown
+/// never authorizes a crossing; all lifetime/cohort parents remain separate.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedBorrowSourceOccurrence {
+    #[default]
+    Unknown,
+    DirectStorage,
+    FixedIncoming {
+        identity: Handle<IncomingReferenceIdentity>,
+    },
+    SelectedLoan {
+        loan: Handle<BorrowLoanFact>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -474,6 +495,10 @@ pub enum CheckedCallBorrowLoanSource {
     /// Referent custody belongs to operand completion, not invocation entry.
     CallAccess {
         access: Handle<BorrowArgumentAccessFact>,
+        /// Paired with this resource's exact captured backing, never chosen
+        /// from the widened parent roster below.
+        selected: CheckedBorrowSourceOccurrence,
+        /// Complete simultaneous supplier, lifetime and cohort duties.
         parents: HandleSpan<Handle<BorrowLoanFact>>,
     },
 }
@@ -519,6 +544,11 @@ pub struct CheckedSuppliedOutputBorrowResource {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
     pub call: Handle<crate::FlowCallFact>,
+    /// The checked output actual and leaf path at normal completion.
+    pub parameter_index: usize,
+    /// A dynamic selector can establish permission without a static capture.
+    /// A crossing separately requires the complete emitted capture path.
+    pub capture_path: Option<HandleSpan<crate::CheckedUnitStructuralPathSegment>>,
     pub identity: Handle<IncomingReferenceIdentity>,
     /// Complete original applied input edges. Resource existence distinguishes
     /// a checked empty roster from unavailable source evidence.
@@ -526,7 +556,7 @@ pub struct CheckedSuppliedOutputBorrowResource {
     /// Permission demands captured at those inputs' own completion cuts.
     /// Stored sources select their earlier descriptor value, not the short
     /// exclusive loan of the output slot used to install its replacement.
-    pub inputs: HandleSpan<CheckedOutputBorrowInput>,
+    pub inputs: HandleSpan<CheckedRetainedBorrowInput>,
     /// The complete nonspatial cohort published beside this exact output.
     /// These are lifetime obligations, never additional pointer alternatives.
     pub debts: HandleSpan<Handle<BorrowLoanFact>>,
@@ -548,7 +578,7 @@ pub struct CheckedSuppliedOutputBorrowResource {
 pub struct CheckedOutputLifetimeDependencyResource {
     pub loan: Handle<BorrowLoanFact>,
     pub source: CheckedOutputLifetimeDependencySource,
-    pub inputs: HandleSpan<CheckedOutputBorrowInput>,
+    pub inputs: HandleSpan<CheckedRetainedBorrowInput>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
@@ -569,22 +599,68 @@ impl Default for CheckedOutputLifetimeDependencySource {
     }
 }
 
-/// A declared input edge and its selected permission retain different
-/// coordinates. In particular, a Stored edge names the earlier captured
-/// descriptor; its outer actual can point at a slot overwritten by the call.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedOutputBorrowInput {
-    /// Selected leaf below the original evaluated actual, at call entry.
+/// A reference saved by a helper retains the exact argument that supplied it.
+/// The capture event and lending permission can belong to different calls.
+/// Neither coordinate grants new access or extends a source lifetime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedRetainedBorrowInput {
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
+    pub origin: CheckedRetainedBorrowInputOrigin,
+    pub call: Handle<crate::FlowCallFact>,
+    pub parameter_index: usize,
     pub capture_path: HandleSpan<crate::CheckedUnitStructuralPathSegment>,
-    pub source: Handle<crate::FlowOperandRetainedSupplier>,
-    pub stored: Handle<crate::FlowOperandStoredSource>,
-    pub permission: CheckedOutputBorrowInputPermission,
+    pub source_kind: crate::ViewReturnInputSource,
+    pub permission: CheckedRetainedBorrowInputPermission,
+}
+
+impl Default for CheckedRetainedBorrowInput {
+    fn default() -> Self {
+        Self {
+            machine_symbol: Handle::invalid(),
+            state_symbol: Handle::invalid(),
+            origin: Default::default(),
+            call: Handle::invalid(),
+            parameter_index: 0,
+            capture_path: HandleSpan::empty(),
+            source_kind: crate::ViewReturnInputSource::Stored,
+            permission: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedRetainedBorrowInputOrigin {
+    Declared {
+        source: Handle<crate::FlowOperandRetainedSupplier>,
+        stored: Handle<crate::FlowOperandStoredSource>,
+    },
+    CompletedStore {
+        capture: Handle<crate::FlowCallStoredOutput>,
+    },
+}
+
+impl Default for CheckedRetainedBorrowInputOrigin {
+    fn default() -> Self {
+        Self::CompletedStore {
+            capture: Handle::invalid(),
+        }
+    }
+}
+
+impl CheckedRetainedBorrowInput {
+    pub fn declared_source(&self) -> Option<Handle<crate::FlowOperandRetainedSupplier>> {
+        match self.origin {
+            CheckedRetainedBorrowInputOrigin::Declared { source, .. } => Some(source),
+            CheckedRetainedBorrowInputOrigin::CompletedStore { .. } => None,
+        }
+    }
 }
 
 /// An unchanged incoming descriptor owes lifetime retention without creating
 /// a new call-access loan. Produced descriptors retain their real permission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub enum CheckedOutputBorrowInputPermission {
+pub enum CheckedRetainedBorrowInputPermission {
     Borrowed {
         resource: Handle<CheckedCallBorrowLoanResource>,
     },
@@ -597,7 +673,7 @@ pub enum CheckedOutputBorrowInputPermission {
     },
 }
 
-impl Default for CheckedOutputBorrowInputPermission {
+impl Default for CheckedRetainedBorrowInputPermission {
     fn default() -> Self {
         Self::Borrowed {
             resource: Handle::invalid(),
@@ -821,7 +897,8 @@ pub struct CheckedRetiredParentResourceDispositionStep {
 /// weakening boundary is the exact receiver-free, single-argument mutating
 /// call that consumes the directly restored mutable parent — `restored_call`,
 /// `restored_borrow_call` and `restored_call_access` name that call and its
-/// whole-root argument access. All three stay absent handles otherwise.
+/// whole-root argument access. `restored_parent_weakening` records its selected
+/// parent retirement. These handles stay absent for other events.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowResourceDispositionEvent {
     pub machine_symbol: SymbolHandle,
@@ -843,6 +920,9 @@ pub struct CheckedReborrowResourceDispositionEvent {
     pub restored_call: Handle<crate::FlowCallFact>,
     pub restored_borrow_call: Handle<BorrowCallFact>,
     pub restored_call_access: Handle<BorrowArgumentAccessFact>,
+    /// The parent retirement selected while checking this restored call.
+    /// Absent when no restored call is bound to the event.
+    pub restored_parent_weakening: Handle<crate::FlowBorrowWeakeningFact>,
 }
 
 /// Checked-only resource closure for one explicit direct reborrow.
@@ -932,12 +1012,11 @@ pub struct BorrowFacts {
     /// row.
     pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,
     pub supplied_output_resources: Arena<CheckedSuppliedOutputBorrowResource>,
-    pub supplied_output_inputs: Arena<CheckedOutputBorrowInput>,
+    pub retained_borrow_inputs: Arena<CheckedRetainedBorrowInput>,
     pub output_lifetime_dependencies: Arena<CheckedOutputLifetimeDependencyResource>,
     pub output_dependency_suppliers: Arena<Handle<CheckedOutputLifetimeDependencyResource>>,
     pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
     pub stored_call_inputs: Arena<CheckedStoredCallBorrowInputs>,
-    pub stored_call_input_resources: Arena<Handle<CheckedCallBorrowLoanResource>>,
     pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,
     pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
     pub call_loan_backing_paths: Arena<facts::PlaceSegment>,
@@ -952,10 +1031,10 @@ pub struct BorrowFacts {
 impl BorrowFacts {
     /// Only a complete, unique normal-call association supplies retained input
     /// coverage. Missing and duplicate associations remain unavailable.
-    pub fn retained_call_inputs(
+    pub fn retained_call_input_span(
         &self,
         loan: Handle<BorrowLoanFact>,
-    ) -> Option<&[Handle<CheckedCallBorrowLoanResource>]> {
+    ) -> Option<HandleSpan<CheckedRetainedBorrowInput>> {
         let mut rows = self
             .stored_call_inputs
             .iter()
@@ -964,9 +1043,18 @@ impl BorrowFacts {
         if rows.next().is_some() {
             return None;
         }
-        self.stored_call_input_resources
-            .span(row.resources)
-            .filter(|rows| !rows.is_empty())
+        self.retained_borrow_inputs
+            .span(row.inputs)
+            .filter(|rows| !rows.is_empty())?;
+        Some(row.inputs)
+    }
+
+    pub fn retained_call_inputs(
+        &self,
+        loan: Handle<BorrowLoanFact>,
+    ) -> Option<&[CheckedRetainedBorrowInput]> {
+        self.retained_borrow_inputs
+            .span(self.retained_call_input_span(loan)?)
     }
     /// Exact checked invocation within one owning state. Coordinates repeat
     /// across states; duplicate rows are unavailable rather than first-match.
@@ -1021,12 +1109,11 @@ impl BorrowFacts {
             direct_loan_resources: Arena::new(),
             reborrow_loan_resources: Arena::new(),
             supplied_output_resources: Arena::new(),
-            supplied_output_inputs: Arena::new(),
+            retained_borrow_inputs: Arena::new(),
             output_lifetime_dependencies: Arena::new(),
             output_dependency_suppliers: Arena::new(),
             call_loan_resources: Arena::new(),
             stored_call_inputs: Arena::new(),
-            stored_call_input_resources: Arena::new(),
             call_loan_parents: Arena::new(),
             call_loan_paths: Arena::new(),
             call_loan_backing_paths: Arena::new(),

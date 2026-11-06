@@ -166,7 +166,8 @@ mod region_inference;
 
 pub use provider_outputs::{
     BorrowRelationReadiness, ProviderLifetimeDependency, ProviderOutput, ProviderOutputDestination,
-    ProviderOutputRelation, resolve_provider_outputs,
+    ProviderOutputRelation, installed_output_carrier_type, installed_output_path_type,
+    resolve_provider_outputs,
 };
 
 pub(crate) use callable_refinement::lexical_region_owner;

@@ -71,7 +71,9 @@ pub(in crate::checks::borrows) fn resolve_all(
                 for mut actual in resolve_all(program, facts, state, statement, argument)? {
                     actual.place.segments.extend_from_slice(&projection);
                     if !resolved.iter().any(|previous: &ResolvedAlias| {
-                        previous.place == actual.place && previous.lineage == actual.lineage
+                        previous.selected == actual.selected
+                            && previous.place == actual.place
+                            && previous.lineage == actual.lineage
                     }) {
                         resolved.push(actual);
                     }
@@ -245,6 +247,7 @@ pub(super) fn retain_captured_lineage(
     for (candidate, alternatives) in candidates.into_iter().zip(descriptor_alternatives) {
         if !candidate.local_loan.is_valid() {
             resolved.push(ResolvedAlias {
+                selected: candidate.selected,
                 place: candidate.place,
                 lineage: Vec::new(),
             });
@@ -261,6 +264,7 @@ pub(super) fn retain_captured_lineage(
                 crate::shared::collections::push_unique(&mut lineage, alternative);
             }
             resolved.push(ResolvedAlias {
+                selected: candidate.selected,
                 place: candidate.place,
                 lineage,
             });
@@ -305,6 +309,7 @@ pub(super) fn retain_captured_lineage(
             }
         }
         resolved.push(ResolvedAlias {
+            selected: candidate.selected,
             place: candidate.place,
             lineage,
         });

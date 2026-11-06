@@ -247,7 +247,12 @@ impl Execution<'_, '_, '_> {
             let suppliers = places
                 .iter()
                 .map(|place| {
-                    let place = place.clone().projected(&path)?;
+                    let place = place.clone().projected_storage(
+                        self.program,
+                        self.state.symbol,
+                        self.statement_index,
+                        &path,
+                    )?;
                     let stored = capture_at_snapshot(
                         self.program,
                         &self.context.control,
@@ -298,8 +303,14 @@ impl Execution<'_, '_, '_> {
                     .handles()
                     .next()
                     .unwrap_or_default();
-                let Some(place) = place.clone().projected(&path) else {
+                let Some(place) = place.clone().projected_storage(
+                    self.program,
+                    self.state.symbol,
+                    self.statement_index,
+                    &path,
+                ) else {
                     known = false;
+                    lifetime_known = false;
                     break;
                 };
                 let lifetime = self

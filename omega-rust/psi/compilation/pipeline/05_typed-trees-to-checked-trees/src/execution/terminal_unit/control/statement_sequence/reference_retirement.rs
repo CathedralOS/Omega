@@ -1008,6 +1008,54 @@ impl Retirement<'_> {
                     .precedes(binding.statement_index as usize, loan.statement_index)
         });
         let materialized_home = earlier_homes.next().is_some() && earlier_homes.next().is_none();
+        if holder.is_none() && !stored {
+            // A helper can replace a record's reference without creating a
+            // new caller result. Its exact installed generation still dies
+            // with that record's checked cleanup, after the final call uses it.
+            match validation::completed_storage::loan_call_descriptors(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                handle,
+            ) {
+                Ok(Some(descriptors)) if !descriptors.is_empty() => {
+                    let Ok(formation) = u32::try_from(loan.statement_index) else {
+                        return false;
+                    };
+                    let Some(reference) = storage_owner_type_reference(
+                        self.program,
+                        self.state,
+                        loan.owner_symbol,
+                        formation,
+                    ) else {
+                        return false;
+                    };
+                    let Some(path) = transport::carrier_path(
+                        self.program,
+                        reference,
+                        self.facts.borrow.loan_owner_path(loan),
+                    ) else {
+                        return false;
+                    };
+                    return self.completion_retires_holder(
+                        handle,
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                            symbol: loan.owner_symbol,
+                        },
+                        formation,
+                        &path,
+                        reference,
+                        active,
+                    );
+                }
+                Ok(_) => {}
+                Err(reason) => {
+                    self.trace.phase(reason);
+                    return false;
+                }
+            }
+        }
         if holder.is_none() && !stored && !materialized_home {
             // A captured place alias without an emitted descriptor ends at
             // checked weakening for every borrow access. Unknown and replaced

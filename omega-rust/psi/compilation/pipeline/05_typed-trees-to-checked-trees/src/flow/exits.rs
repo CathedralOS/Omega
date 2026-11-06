@@ -248,7 +248,13 @@ pub(super) fn append_transition_flow_facts<'plans>(
     );
     execution.evaluation = checked_trees::FlowPermissionEvaluation::TransitionGuard;
     if let typed_trees::statement::TransitionGuardNode::When(expression) = transition.guard {
-        execution.expression(expression, active_contexts, active_constraints);
+        let value = execution.evaluate_value_root(expression, active_contexts, active_constraints);
+        execution
+            .context
+            .control
+            .statements
+            .get_mut(statement_fact)
+            .evaluated_value = value;
     }
     // Guards execute on both paths. Their effects survive a missed arm, while
     // calls evaluating one target never run on its sibling continuation.

@@ -55,9 +55,9 @@ pub(super) fn plan(
             program,
             &facts.borrow,
             control,
+            None,
             supplier,
-        )
-        .ok_or("completed output lifetime input does not match its captured call argument")?;
+        )?;
         let source_path = control
             .operand_retained_paths
             .span(contract.source_path)
@@ -288,6 +288,13 @@ fn append_borrowed(
     if suppliers.is_empty() {
         return Err("completed input has no selected lending permission");
     }
+    let contract = facts
+        .flow
+        .control
+        .operand_retained_suppliers
+        .get(source)
+        .contract
+        .ok_or("completed input lost its declared receiving operation")?;
     for mut selected in suppliers {
         if let CheckedCallBorrowLoanSource::CallAccess { parents: old, .. } = &mut selected.source {
             let retained = captured_parents
@@ -299,10 +306,12 @@ fn append_borrowed(
             source,
             stored,
             permission: InputPermissionDraft::Borrowed(ResourceDraft {
+                source_kind: contract.source,
                 resource: CheckedCallBorrowLoanResource {
                     machine_symbol: state.machine_symbol,
                     state_symbol: state.state_symbol,
                     call,
+                    parameter_index: contract.parameter_index,
                     owner_operand: owner,
                     operand,
                     source: selected.source,

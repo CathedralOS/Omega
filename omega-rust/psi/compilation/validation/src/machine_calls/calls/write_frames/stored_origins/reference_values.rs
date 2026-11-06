@@ -337,27 +337,30 @@ fn opaque_output_projection_known(
     let Some(parameter) = crate::invocation_output_parameter(program, identity) else {
         return false;
     };
-    let Some(outer) = crate::reference_shell(program, parameter.type_reference) else {
+    if crate::reference_shell(program, parameter.type_reference).is_none() {
+        return false;
+    }
+    let Some(stored) =
+        crate::borrow_contracts::installed_output_carrier_type(program, parameter.type_reference)
+    else {
         return false;
     };
-    for depth in 0..=source.segments.len() {
-        let Some(reference) = crate::owned_projection_type_reference(
-            program,
-            outer.referee,
-            &source.segments[..depth],
-        ) else {
+    let Some(path) = crate::corresponding_place_projection(program, stored, &source.segments)
+    else {
+        return false;
+    };
+    for depth in 0..=path.len() {
+        let Some(reference) =
+            crate::owned_projection_type_reference(program, stored, &path[..depth])
+        else {
             return false;
         };
         if let Some(shell) = crate::reference_shell(program, reference) {
-            if depth == source.segments.len() {
+            if depth == path.len() {
                 return true;
             }
-            return crate::owned_projection_type_reference(
-                program,
-                shell.referee,
-                &source.segments[depth..],
-            )
-            .is_some_and(|reference| crate::reference_shell(program, reference).is_none());
+            return crate::owned_projection_type_reference(program, shell.referee, &path[depth..])
+                .is_some_and(|reference| crate::reference_shell(program, reference).is_none());
         }
     }
     false

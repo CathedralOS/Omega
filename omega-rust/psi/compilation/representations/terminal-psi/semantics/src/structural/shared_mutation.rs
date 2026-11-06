@@ -73,11 +73,13 @@ fn type_mutation<'types>(
                 SharedMutation::None
             }
         }
-        StructuralTypeShape::ElementView { element, .. } => {
-            if type_mutation(declarations.clone(), *element, active) == SharedMutation::None {
-                SharedMutation::None
-            } else {
+        StructuralTypeShape::ElementView { element, access } => {
+            if access.is_some_and(|access| access != StructuralAccess::SharedBorrow)
+                || type_mutation(declarations.clone(), *element, active) != SharedMutation::None
+            {
                 SharedMutation::Unbounded
+            } else {
+                SharedMutation::None
             }
         }
         StructuralTypeShape::FixedArray { element, length } => {

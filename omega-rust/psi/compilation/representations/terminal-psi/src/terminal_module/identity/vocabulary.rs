@@ -18,8 +18,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Admitted callbacks retain an exact inbound declaration; unadmitted
-        // nominal uses can retain no entry for contextual foreign refusal.
-        133
+        // Boundary calls retain conditional forwarding of captured references.
+        135
     }
 }

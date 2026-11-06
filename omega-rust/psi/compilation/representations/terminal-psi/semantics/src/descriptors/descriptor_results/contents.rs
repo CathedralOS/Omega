@@ -5,7 +5,7 @@
 //! or disjointness authority from an uncertain selection. Reads must account for
 //! every selected slot; one unknown candidate makes the contents unknown.
 use super::*;
-mod incoming_memberships;
+pub(super) mod incoming_memberships;
 use crate::descriptors::descriptor_lifetimes::{
     descriptor_location, descriptor_location_type, descriptor_path,
 };
@@ -17,6 +17,15 @@ pub use crate::descriptors::descriptor_lifetimes::{
 use semantic_vocabulary::ScalarRefinement;
 use semantic_vocabulary::ScalarType;
 use terminal_psi::StructuralPathQualification;
+
+/// A view may observe newly proved predicates; a mutable preservation roster
+/// carries only the memberships its sources already promised.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum PayloadMembershipKind {
+    #[default]
+    Observed,
+    Preserved,
+}
 
 /// Leaf-wise value transfer. Carrier custody still uses the exact flow graph;
 /// these queries describe possible payload locations, not write authority.
@@ -263,11 +272,12 @@ impl PayloadMembershipContract {
 /// address walk ends at a primitive field rather than a nested declaration.
 /// Current source rows and independently validated source-field predicates
 /// supply the facts. Receiving annotations never supply evidence.
-pub(super) fn select_payload_memberships(
+pub(super) fn select_payload_memberships_with_kind(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     contract: &PayloadMembershipContract,
     address: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
+    kind: PayloadMembershipKind,
 ) -> Option<PayloadMembershipContract> {
     let path = descriptor_path(types, contract.carrier, address)?;
     let carrier = crate::qualification_path_carrier(types.iter(), contract.carrier, &path)?;
@@ -303,7 +313,9 @@ pub(super) fn select_payload_memberships(
         qualifications,
         projected_qualifications,
     };
-    super::payload_predicates::close(types, domains, &mut selected);
+    if kind == PayloadMembershipKind::Observed {
+        super::payload_predicates::close(types, domains, &mut selected);
+    }
     Some(selected)
 }
 
@@ -313,23 +325,70 @@ pub fn payload_memberships(
     types: &[StructuralTypeDeclaration],
     domains: &[terminal_psi::StructuralDomainDeclaration],
     targets: impl IntoIterator<Item = DescriptorPayloadTarget>,
-    mut source: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
+    source: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
 ) -> Option<PayloadMembershipContract> {
-    let mut common: Option<PayloadMembershipContract> = None;
-    for target in targets {
-        let mut selected = match target {
-            DescriptorPayloadTarget::Storage(location) => {
-                select_payload_memberships(types, domains, &source(location.root)?, &location.path)?
-            }
+    payload_memberships_with_kind(
+        types,
+        domains,
+        targets,
+        source,
+        PayloadMembershipKind::Observed,
+    )
+}
+
+pub(super) fn payload_memberships_with_kind(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    targets: impl IntoIterator<Item = DescriptorPayloadTarget>,
+    mut source: impl FnMut(PlaceId) -> Option<PayloadMembershipContract>,
+    kind: PayloadMembershipKind,
+) -> Option<PayloadMembershipContract> {
+    intersect_payload_memberships_with_kind(
+        types,
+        domains,
+        targets,
+        |target| match target {
+            DescriptorPayloadTarget::Storage(location) => select_payload_memberships_with_kind(
+                types,
+                domains,
+                &source(location.root)?,
+                &location.path,
+                kind,
+            ),
             DescriptorPayloadTarget::Incoming(query) => {
                 let contract = source(query.root)?;
                 query.validate(types, contract.carrier)?;
-                incoming_memberships::select(types, domains, contract, &query.steps)?
+                incoming_memberships::select(types, domains, contract, &query.steps, kind)
             }
-        };
+        },
+        kind,
+    )
+}
+
+/// Every selected subject must independently supply its current contract.
+/// Intersecting those contracts never chooses one backing or fills a missing
+/// alternative from the receiving declaration.
+pub(super) fn intersect_payload_memberships_with_kind(
+    types: &[StructuralTypeDeclaration],
+    domains: &[terminal_psi::StructuralDomainDeclaration],
+    targets: impl IntoIterator<Item = DescriptorPayloadTarget>,
+    mut selected: impl FnMut(DescriptorPayloadTarget) -> Option<PayloadMembershipContract>,
+    kind: PayloadMembershipKind,
+) -> Option<PayloadMembershipContract> {
+    let mut common: Option<PayloadMembershipContract> = None;
+    for target in targets {
+        let mut selected = selected(target)?;
         let carrier = selected.carrier;
-        close_predicate_memberships(types, domains, &mut selected);
+        if kind == PayloadMembershipKind::Observed {
+            close_predicate_memberships(types, domains, &mut selected);
+        }
         if let Some(common) = &mut common {
+            if kind == PayloadMembershipKind::Preserved
+                && (common.qualifications != selected.qualifications
+                    || common.projected_qualifications != selected.projected_qualifications)
+            {
+                return None;
+            }
             if common.carrier != carrier {
                 return None;
             }

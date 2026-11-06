@@ -16,9 +16,11 @@
 
 mod call_foundations;
 mod declaration_foundations;
+mod lender_preservation;
 mod machine_foundations;
 mod native_layouts;
 mod proof_scope;
+mod reference_forwarding;
 mod reference_outputs;
 mod scalar_applications;
 mod scalar_boundary_contracts;
@@ -362,6 +364,8 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine, &mut transfers)?;
     }
+    lender_preservation::validate(module)?;
+    reference_forwarding::validate(module)?;
     // Replay custody only after types, the finite by-value graph, and every
     // operation/place relationship are checked. Malformed constructor loops
     // must reject before they can grow an unbounded abstract carrier path.

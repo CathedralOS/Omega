@@ -10,8 +10,9 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     BoundaryCompletion, BoundaryContentGuarantee, BoundaryDeclarationRole,
-    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-    BoundaryReferenceOutput, BoundaryRequirementKind, BoundaryStructuralResultDeclaration,
+    BoundaryLenderPreservationDemand, BoundaryMachineDeclaration, BoundaryMachineResult,
+    BoundaryParameterKind, BoundaryReferenceForwardingDemand, BoundaryReferenceOutput,
+    BoundaryReferenceSource, BoundaryRequirementKind, BoundaryStructuralResultDeclaration,
     CheckedBoundaryCallable, CheckedBoundaryExecution, ExternalCompletionKind,
     ProgramLocalRootIntroductionSchema, RetainedBorrowContentProjection, RetainedBorrowCustody,
     RetainedBorrowPlace, RetainedBorrowPlaceRoot, ScalarDomainRequirement, StructuralAccess,
@@ -22,9 +23,9 @@ use super::CodecError;
 use super::wire::{Reader, Writer};
 use super::wire_fields::{
     Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Field, Flag, Id,
-    Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, OptionalId, PathQualification,
-    ProjectionIdentity, Proposition, QualificationPath, QualificationSet, ReachArgument, Scalar,
-    Text, U32, U64, wire_enum, wire_record,
+    Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, OptionalId, Path,
+    PathQualification, ProjectionIdentity, Proposition, QualificationPath, QualificationSet,
+    ReachArgument, Scalar, Text, U32, U64, wire_enum, wire_record,
 };
 use crate::sections::semantic_module::wire::decode_counted;
 
@@ -69,6 +70,17 @@ wire_record! {
         argument_index: U32,
         path: QualificationPath,
         domain: Id,
+    }
+    LenderPreservationDemand: BoundaryLenderPreservationDemand {
+        machine: Id,
+        operation: Id,
+        requirement: DomainRequirement,
+    }
+    ReferenceForwardingDemand: BoundaryReferenceForwardingDemand {
+        machine: Id,
+        operation: Id,
+        output: U32,
+        sources: List<ReferenceSource>,
     }
     ScalarDomain: ScalarDomainRequirement { argument_index: U32, domain: Id }
     RootIntroduction: ProgramLocalRootIntroductionSchema {
@@ -126,6 +138,10 @@ wire_record! {
 }
 
 wire_enum! {
+    ReferenceSource: BoundaryReferenceSource, "BoundaryReferenceSource" {
+        0 => Reference { argument_index: U32 },
+        1 => Stored { argument_index: U32, path: Path },
+    }
     Execution: CheckedBoundaryExecution, "checked boundary execution" {
         0 => Provider,
         1 => AccessInitialize,

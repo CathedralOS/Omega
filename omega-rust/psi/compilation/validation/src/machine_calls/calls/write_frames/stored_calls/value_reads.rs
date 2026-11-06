@@ -64,6 +64,65 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_value_reads(
 }
 
 impl CompletedValueReads {
+    /// A stored value can use different prepared members from its receiver.
+    /// Translate every leaf into this query carrier before joining alternatives;
+    /// its supplying storage coordinates remain in their original namespace.
+    /// These are possible addresses, not permission to read through them.
+    pub(in crate::machine_calls::calls::write_frames) fn reference_leaf_sources(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<Vec<frames::CapturedReferenceLeafSources>, &'static str> {
+        let mut result: Vec<frames::CapturedReferenceLeafSources> = Vec::new();
+        for leaf in &self.returned.references {
+            if !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_)) {
+                continue;
+            }
+            let path = crate::corresponding_place_projection(
+                program,
+                self.reference,
+                &leaf.local_segments,
+            )
+            .ok_or("completed reference leaf has no query-carrier member correspondence")?;
+            crate::project_type_reference_from_segments(program, self.reference, &path)
+                .and_then(|reference| crate::reference_shell(program, reference))
+                .ok_or("completed reference leaf does not select a query-carrier reference")?;
+            let source = match leaf.lifetime_dependencies.as_ref() {
+                None => Err("captured leaf has an incomplete lifetime frontier"),
+                Some(dependencies) if !dependencies.is_empty() => {
+                    Err("captured leaf retains nonspatial lifetime dependencies")
+                }
+                Some(_) => match leaf.origin.as_ref() {
+                    Some(ReferenceSource::Captured(observed))
+                        if observed.source.lifetime_access.is_none() =>
+                    {
+                        Ok(frames::LocalWriteSource::from(
+                            observed.source.origin.clone(),
+                        ))
+                    }
+                    Some(ReferenceSource::Symbolic(origin)) if origin.source.is_static() => {
+                        Ok(frames::LocalWriteSource::from(origin.clone()))
+                    }
+                    _ => Err("captured leaf has no complete supplying storage interpretation"),
+                },
+            };
+            if let Some(existing) = result.iter_mut().find(|row| row.path == path) {
+                if let Ok(sources) = &mut existing.sources {
+                    match source {
+                        Ok(source) if !sources.contains(&source) => sources.push(source),
+                        Ok(_) => {}
+                        Err(reason) => existing.sources = Err(reason),
+                    }
+                }
+            } else {
+                result.push(frames::CapturedReferenceLeafSources {
+                    path,
+                    sources: source.map(|source| vec![source]),
+                });
+            }
+        }
+        Ok(result)
+    }
+
     /// Publish every supplier of the first captured descriptor. A coarse write
     /// footprint does not discard its structured supplier coordinates. Consumers
     /// requiring one exact referent must still validate those coordinates and

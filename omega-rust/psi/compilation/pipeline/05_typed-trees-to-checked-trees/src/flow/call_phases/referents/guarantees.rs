@@ -92,13 +92,8 @@ impl PreparedGuarantees {
         domain: SymbolHandle,
         identity: SemanticDomainId,
         write_region: Option<&CanonicalPlace>,
-        checked_write_type: typed_trees::types::TypeReferenceHandle,
+        checked_write_domains: &[(SymbolHandle, SemanticDomainId)],
     ) -> bool {
-        let checked_write_domains = if checked_write_type.is_valid() {
-            validation::field_domains::domain_constraint_identities(program, checked_write_type)
-        } else {
-            Vec::new()
-        };
         let matches_contract = |row: &ReturnedGuarantee| {
             parameter == Some(row.parameter)
                 && domain == row.domain
@@ -117,6 +112,24 @@ impl PreparedGuarantees {
             matches_contract(row) && same_occurrence_when_selected(program, concrete, &row.place)
         })
     }
+}
+
+/// Keep only a fact which was true before the call. A checked replacement
+/// must establish that same applied domain and cover its exact storage subject;
+/// neither a deeper write nor an enclosing value's same-named root constraint
+/// proves this subject's membership. A different home cannot stand in for it.
+/// This supplies no new promise, loan permission, or current-value inference.
+pub(super) fn checked_whole_write_restores(
+    program: &dyn validation::CheckingInput,
+    concrete: &CanonicalPlace,
+    domain: SymbolHandle,
+    identity: SemanticDomainId,
+    write_region: Option<&CanonicalPlace>,
+    checked_write_domains: &[(SymbolHandle, SemanticDomainId)],
+) -> bool {
+    checked_write_domains.contains(&(domain, identity))
+        && write_region
+            .is_some_and(|region| same_occurrence_when_selected(program, concrete, region))
 }
 
 /// Conditional identity of a concrete row and a captured selected occurrence.

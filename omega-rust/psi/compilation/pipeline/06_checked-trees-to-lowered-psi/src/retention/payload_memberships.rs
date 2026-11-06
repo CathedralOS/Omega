@@ -64,6 +64,17 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
         )
     });
     let mut analysis = descriptors::DescriptorAnalysis::new(&types, &graph);
+    let preservation_graph = descriptors::terminal_borrowed_storage_graph_from(
+        module,
+        module
+            .machines
+            .iter()
+            .zip(&candidate_machines)
+            .filter(|(_, candidate)| **candidate)
+            .map(|(machine, _)| machine.id),
+    );
+    let mut preservation_analysis =
+        descriptors::DescriptorAnalysis::with_borrowed_storage_slots(&types, &preservation_graph);
     for (machine_index, has_candidate) in candidate_machines.into_iter().enumerate() {
         if !has_candidate {
             continue;
@@ -79,6 +90,12 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                     &graph,
                     machine,
                 );
+                let mut preservation =
+                    descriptors::PayloadMembershipHistory::for_module_preservation(
+                        module,
+                        &preservation_graph,
+                        machine,
+                    );
                 for (block_index, block) in machine.blocks.iter().enumerate() {
                     for (ordinal, operation) in block.operations.iter().enumerate() {
                         let Some(result) = operation.result.structural() else {
@@ -121,6 +138,25 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                                 &memberships,
                             )
                         }) {
+                            copies.push((block_index, ordinal, contract));
+                        }
+                        if let Some(contract) = operand_memberships::reference_formation(
+                            module,
+                            operation,
+                            position,
+                            &mut preservation_analysis,
+                            &mut preservation,
+                        )
+                        .inspect_err(|reason| {
+                            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                eprintln!(
+                                    "CHECKSITE reference-preservation-unavailable machine={:?} block={:?} ordinal={ordinal} operation={operation:?} reason={reason}",
+                                    machine.id, block.id
+                                );
+                            }
+                        })
+                        .map_err(LoweringError::Unsupported)?
+                        {
                             copies.push((block_index, ordinal, contract));
                         }
                         if let Some(contract) =

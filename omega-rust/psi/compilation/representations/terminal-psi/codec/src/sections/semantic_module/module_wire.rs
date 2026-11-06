@@ -106,6 +106,8 @@ wire_record! {
         access_view_inputs: List<access_view_wire::Input>,
         reborrow_restored_call_uses: List<borrow_wire::RestoredCallUse>,
         boundary_machines: List<super::structural_signature_wire::BoundaryMachine>,
+        boundary_lender_preservation: List<super::structural_signature_wire::LenderPreservationDemand>,
+        boundary_reference_forwarding: List<super::structural_signature_wire::ReferenceForwardingDemand>,
         calling_signatures: List<calling_signature_wire::Declaration>,
         calling_abi_signatures: List<calling_signature_wire::AbiDeclaration>,
         calling_policy_requests: List<calling_signature_wire::PolicyRequest>,

@@ -158,7 +158,7 @@ impl Execution<'_, '_, '_> {
         call: &BorrowCallFact,
         identity: facts::InvocationOutputIdentity,
         owner_path: &[PlaceSegment],
-    ) {
+    ) -> Handle<checked_trees::FlowOutputLifetimeSources> {
         let captured = (|| {
             let output_parameter = parameters
                 .iter()
@@ -243,6 +243,6 @@ impl Execution<'_, '_, '_> {
                 owner_path,
                 sources: captured,
             },
-        );
+        )
     }
 }

@@ -114,6 +114,7 @@ fn project_address(
             append_distinct(
                 &mut resolved,
                 ResolvedAlias {
+                    selected: backing.selected,
                     place: projected,
                     lineage: backing.lineage,
                 },
@@ -144,6 +145,9 @@ fn project_address(
                 append_distinct(
                     &mut resolved,
                     ResolvedAlias {
+                        selected: crate::checks::borrows::aliases::unloaned_storage_source(
+                            program, facts, state, &place,
+                        ),
                         place,
                         lineage: Vec::new(),
                     },
@@ -172,10 +176,11 @@ fn project_address(
 }
 
 fn append_distinct(resolved: &mut Vec<ResolvedAlias>, candidate: ResolvedAlias) {
-    if !resolved
-        .iter()
-        .any(|previous| previous.place == candidate.place && previous.lineage == candidate.lineage)
-    {
+    if !resolved.iter().any(|previous| {
+        previous.place == candidate.place
+            && previous.selected == candidate.selected
+            && previous.lineage == candidate.lineage
+    }) {
         resolved.push(candidate);
     }
 }

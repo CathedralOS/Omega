@@ -18,34 +18,57 @@ pub fn completed_descriptor_load(
     state: &FlowStateFact,
     identity: Handle<IncomingReferenceIdentity>,
 ) -> Result<CompletedDescriptorLoad, &'static str> {
-    if !facts.borrow.incoming_references.is_valid(identity) {
+    completed_descriptor_load_at_activations(
+        program,
+        &facts.borrow,
+        &facts.flow.control,
+        state.machine_symbol,
+        state.state_symbol,
+        facts
+            .flow
+            .borrow_lifetimes
+            .activations
+            .span_or_empty(state.borrow_activations)
+            .iter(),
+        identity,
+    )
+}
+
+/// A pointer read keeps its original source after the variable changes. Find
+/// that read in the caller's owned activation ledger while its state is still
+/// being checked; exact loan and identity membership bind the same event.
+#[allow(clippy::too_many_arguments)]
+pub fn completed_descriptor_load_at_activations<'a>(
+    program: &dyn crate::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
+    control: &checked_trees::FlowControlFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    activations: impl Iterator<Item = &'a checked_trees::FlowBorrowActivationFact>,
+    identity: Handle<IncomingReferenceIdentity>,
+) -> Result<CompletedDescriptorLoad, &'static str> {
+    if !borrow.incoming_references.is_valid(identity) {
         return Err("the loaded pointer has no checked incoming identity");
     }
-    let incoming = facts.borrow.incoming_references.get(identity);
+    let incoming = borrow.incoming_references.get(identity);
     let IncomingReferenceOrigin::DescriptorLoad { expression } = incoming.origin else {
         return Err("the incoming pointer has no completed descriptor-load source");
     };
-    if incoming.machine_symbol != state.machine_symbol
-        || incoming.state_symbol != state.state_symbol
-    {
+    if incoming.machine_symbol != machine || incoming.state_symbol != state {
         return Err("the descriptor load belongs to another invocation");
     }
-    let control = &facts.flow.control;
-    let mut activations = facts
-        .flow
-        .borrow_lifetimes
-        .activations
-        .span_or_empty(state.borrow_activations)
-        .iter()
-        .filter(|activation| {
-            if !facts.borrow.loans.is_valid(activation.loan) {
-                return false;
-            }
-            let loan = facts.borrow.loans.get(activation.loan);
-            loan.incoming_reference == identity
-                && loan.storage_owner == PlaceRoot::Expression(expression)
-                && loan.formation_expression == expression
-        });
+    let owner = borrow
+        .unique_state_borrow(machine, state)
+        .ok_or("the descriptor load has no unique borrowing state")?;
+    let mut activations = activations.filter(|activation| {
+        if !borrow.state_owns_loan(owner, activation.loan) {
+            return false;
+        }
+        let loan = borrow.loans.get(activation.loan);
+        loan.incoming_reference == identity
+            && loan.storage_owner == PlaceRoot::Expression(expression)
+            && loan.formation_expression == expression
+    });
     let activation = activations
         .next()
         .ok_or("the incoming pointer has no actual load activation")?;
@@ -53,31 +76,34 @@ pub fn completed_descriptor_load(
         return Err("the incoming pointer has no unique completed load");
     }
     let capture = control.operands.get(activation.formation_value);
-    let descriptor_loan = capture.descriptor_permission.loaded_loan();
-    let descriptor_read = capture.descriptor_permission.loaded_read();
-    if descriptor_loan != activation.loan
+    let checked_trees::FlowDescriptorPermission::Loaded { loan, read } =
+        capture.descriptor_permission
+    else {
+        return Err("the descriptor activation lost its completed source association");
+    };
+    if loan != activation.loan
         || capture.expression != expression
-        || capture.state_symbol != state.state_symbol
-        || !control.value_observations.is_valid(descriptor_read)
+        || capture.state_symbol != state
+        || !control.value_observations.is_valid(read)
         || !control.operands.is_valid(capture.backing)
     {
         return Err("the descriptor activation lost its completed source association");
     }
-    let read = control.value_observations.get(descriptor_read);
+    let read = control.value_observations.get(read);
     if read.expression != expression || read.receiver != capture.backing || read.places.is_empty() {
         return Err("the descriptor activation has no authenticated source read");
     }
     let receiver = control.operands.get(capture.backing);
     let source = crate::canonical_place_from_expression_in_state(
         program,
-        state.state_symbol,
+        state,
         capture.statement_index,
         expression,
     )
     .ok_or("the completed descriptor read has no exact source slot")?;
     let parent = crate::canonical_place_from_expression_in_state(
         program,
-        state.state_symbol,
+        state,
         receiver.statement_index,
         receiver.expression,
     )

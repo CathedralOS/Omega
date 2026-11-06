@@ -3,27 +3,44 @@
 use checked_trees::{FlowControlFacts, FlowOperandRetainedSupplier, ViewReturnInputSource};
 use typed_trees::types::TypeReferenceHandle;
 
+/// Earlier calls can already have completed while their containing state is
+/// still being built. This view names that builder-owned call span; it does
+/// not publish a completed state or supply any call/argument permission.
+#[derive(Clone, Copy)]
+pub(crate) struct SourceCallScope {
+    pub machine: symbols::SymbolHandle,
+    pub state: symbols::SymbolHandle,
+    pub calls: arena::HandleSpan<checked_trees::FlowCallFact>,
+}
+
 pub(crate) fn source_type(
     program: &dyn validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     control: &FlowControlFacts,
+    scope: Option<SourceCallScope>,
     supplier: &FlowOperandRetainedSupplier,
-) -> Option<TypeReferenceHandle> {
-    let contract = supplier.contract?;
+) -> Result<TypeReferenceHandle, &'static str> {
+    let contract = supplier
+        .contract
+        .ok_or("the retained supplier has no applied contract")?;
     if !control.operands.is_valid(contract.input) || !control.operands.is_valid(supplier.operand) {
-        return None;
+        return Err("the retained edge has an unavailable captured input");
     }
     let input = control.operands.get(contract.input);
-    let machine = program.machine_holding_state(contract.state_symbol)?;
-    let borrowed = borrow.call_at(
-        machine.symbol,
-        contract.state_symbol,
-        contract.statement_index,
-        contract.call_ordinal,
-    )?;
+    let machine = program
+        .machine_holding_state(contract.state_symbol)
+        .ok_or("the retained edge has no original machine")?;
+    let borrowed = borrow
+        .call_at(
+            machine.symbol,
+            contract.state_symbol,
+            contract.statement_index,
+            contract.call_ordinal,
+        )
+        .ok_or("the retained edge has no original borrowing call")?;
     let borrowed = borrow.calls.get(borrowed);
     if borrowed.authored_expression != contract.invocation {
-        return None;
+        return Err("the retained edge names another authored invocation");
     }
     let site = validation::find_call_site(
         program,
@@ -31,7 +48,8 @@ pub(crate) fn source_type(
         contract.state_symbol,
         contract.statement_index,
         contract.call_ordinal,
-    )?;
+    )
+    .ok_or("the retained edge has no original invocation site")?;
     let call = contract
         .invocation
         .is_valid()
@@ -39,7 +57,10 @@ pub(crate) fn source_type(
         .flatten();
     let receiver = usize::from(call.is_some_and(|call| call.receiver.is_valid()));
     let arguments = if contract.output_parameter.is_none() {
-        program.expression_table.expression_handles(call?.arguments)
+        program.expression_table.expression_handles(
+            call.ok_or("the returned-value edge has no expression call")?
+                .arguments,
+        )
     } else {
         validation::call_site_argument_expressions(program, &site)
     };
@@ -47,22 +68,38 @@ pub(crate) fn source_type(
         || input.state_symbol != contract.state_symbol
         || input.statement_index != contract.statement_index
     {
-        return None;
+        return Err("the retained input does not match its original argument position");
     }
     // The actual performed tuple, not an equal type or source spelling,
     // authenticates the input retained by this edge.
-    let state = control.unique_state(machine.symbol, contract.state_symbol)?;
-    let mut actual_calls = state.calls.handles().filter_map(|handle| {
-        let recorded = control.calls.get(handle);
-        (recorded.statement_index == contract.statement_index
-            && recorded.call_ordinal == contract.call_ordinal
-            && recorded.authored_expression == contract.invocation
-            && recorded.target_symbol == borrowed.target_symbol)
-            .then_some(recorded)
-    });
-    let actual = actual_calls.next()?;
+    let calls = match scope {
+        Some(scope) if scope.machine == machine.symbol && scope.state == contract.state_symbol => {
+            scope.calls
+        }
+        _ => {
+            control
+                .unique_state(machine.symbol, contract.state_symbol)
+                .ok_or("the retained input has no unique original flow state")?
+                .calls
+        }
+    };
+    let mut actual_calls = control
+        .calls
+        .span(calls)
+        .ok_or("the retained input has an unavailable owning call span")?
+        .iter()
+        .filter_map(|recorded| {
+            (recorded.statement_index == contract.statement_index
+                && recorded.call_ordinal == contract.call_ordinal
+                && recorded.authored_expression == contract.invocation
+                && recorded.target_symbol == borrowed.target_symbol)
+                .then_some(recorded)
+        });
+    let actual = actual_calls
+        .next()
+        .ok_or("the retained input has no original completed flow call")?;
     if actual_calls.next().is_some() {
-        return None;
+        return Err("the retained input has ambiguous original flow calls");
     }
     if actual.operands.count() as usize != arguments.len() + receiver
         || actual
@@ -71,28 +108,43 @@ pub(crate) fn source_type(
             .nth(contract.parameter_index + receiver)
             != Some(contract.input)
     {
-        return None;
+        return Err("the retained input is absent from the original evaluated tuple");
     }
-    let source_path = control.operand_retained_paths.span(contract.source_path)?;
-    let owner_path = control.operand_retained_paths.span(contract.owner_path)?;
-    let projection = control.operand_retained_paths.span(supplier.projection)?;
+    let source_path = control
+        .operand_retained_paths
+        .span(contract.source_path)
+        .ok_or("the retained edge lost its declared input path")?;
+    let owner_path = control
+        .operand_retained_paths
+        .span(contract.owner_path)
+        .ok_or("the retained edge lost its declared output path")?;
+    let projection = control
+        .operand_retained_paths
+        .span(supplier.projection)
+        .ok_or("the retained supplier lost its captured projection")?;
     if supplier.operand != contract.input || !same_path(program, projection, source_path) {
-        return None;
+        return Err("the retained supplier no longer matches the original input projection");
     }
     match contract.source {
         ViewReturnInputSource::Stored => {
             validate_stored_sources(program, control, &contract, actual.invocation_storage)?;
         }
-        ViewReturnInputSource::Referent if !contract.stored_sources.is_empty() => return None,
+        ViewReturnInputSource::Referent if !contract.stored_sources.is_empty() => {
+            return Err("a referent edge contains stored descriptor alternatives");
+        }
         ViewReturnInputSource::Referent => {}
     }
     let identity_type = program.normalized_type_identity(contract.source_type);
     if !identity_type.is_valid() {
-        return None;
+        return Err("the retained input has no normalized declared type");
     }
     let (source, source_type, path) = if let Some(position) = contract.output_parameter {
-        let parameters = site.parameters(program, machine.symbol)?;
-        let parameter = parameters.get(position)?;
+        let parameters = site
+            .parameters(program, machine.symbol)
+            .ok_or("the completed output has no original parameter list")?;
+        let parameter = parameters
+            .get(position)
+            .ok_or("the completed output has no declared output parameter")?;
         let identity = facts::InvocationOutputIdentity {
             state_symbol: contract.state_symbol,
             statement_index: contract.statement_index,
@@ -115,60 +167,90 @@ pub(crate) fn source_type(
                     "STRUCT output-lifetime-contract-refused output={identity:?} reason={reason}"
                 );
             }
-            return None;
+            return Err(reason);
         }
-        let relation =
-            validation::borrow_contracts::resolve_provider_outputs(program, parameters).ok()?;
+        let relation = validation::borrow_contracts::resolve_provider_outputs(program, parameters)
+            .map_err(|reason| match reason {
+                validation::borrow_contracts::ViewReturnAmbiguity::IncompleteStructure {
+                    ..
+                } => "the original output relation has an incomplete structural frontier",
+                validation::borrow_contracts::ViewReturnAmbiguity::IncompatibleSourceAccess {
+                    ..
+                } => "the original output relation has incompatible input access",
+                validation::borrow_contracts::ViewReturnAmbiguity::ElidedMultipleInputs {
+                    ..
+                } => "the original output relation has ambiguous elided inputs",
+                validation::borrow_contracts::ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                    ..
+                } => "the original output lifetime has no input",
+            })?;
         if relation.readiness != validation::borrow_contracts::BorrowRelationReadiness::Complete {
-            return None;
+            return Err("the original completed output relation is incomplete");
         }
-        let output = relation.outputs.iter().find(|output| {
-            output.destination
-                == validation::borrow_contracts::ProviderOutputDestination::Parameter(position)
-                && same_path(
-                    program,
-                    &crate::borrow::owner_place_segments(&output.owner_path),
-                    owner_path,
-                )
-        })?;
-        let edge = output.dependencies.iter().find(|edge| {
-            edge.parameter_index == contract.parameter_index
-                && edge.source == contract.source
-                && program.normalized_type_identity(edge.source_type) == identity_type
-                && same_path(
-                    program,
-                    &crate::borrow::owner_place_segments(&edge.source_path),
-                    source_path,
-                )
-        })?;
+        let output = relation
+            .outputs
+            .iter()
+            .find(|output| {
+                output.destination
+                    == validation::borrow_contracts::ProviderOutputDestination::Parameter(position)
+                    && same_path(
+                        program,
+                        &crate::borrow::owner_place_segments(&output.owner_path),
+                        owner_path,
+                    )
+            })
+            .ok_or("the retained edge has no matching original output leaf")?;
+        let edge = output
+            .dependencies
+            .iter()
+            .find(|edge| {
+                edge.parameter_index == contract.parameter_index
+                    && edge.source == contract.source
+                    && program.normalized_type_identity(edge.source_type) == identity_type
+                    && same_path(
+                        program,
+                        &crate::borrow::owner_place_segments(&edge.source_path),
+                        source_path,
+                    )
+            })
+            .ok_or("the retained edge has no matching original declared input")?;
         (edge.source, edge.source_type, source_path)
     } else {
-        let edges =
-            crate::borrow::call_reference_lifetime_sources(program, contract.state_symbol, call?)?;
-        let edge = edges.iter().find(|edge| {
-            edge.parameter_index == contract.parameter_index
-                && edge.source == contract.source
-                && program.normalized_type_identity(edge.source_type) == identity_type
-                && same_path(
-                    program,
-                    &crate::borrow::owner_place_segments(&edge.source_path),
-                    source_path,
-                )
-                && same_path(
-                    program,
-                    &crate::borrow::owner_place_segments(&edge.owner_path),
-                    owner_path,
-                )
-        })?;
+        let edges = crate::borrow::call_reference_lifetime_sources(
+            program,
+            contract.state_symbol,
+            call.ok_or("the returned-value edge has no original expression call")?,
+        )
+        .ok_or("the original returned-value lifetime relation is unavailable")?;
+        let edge = edges
+            .iter()
+            .find(|edge| {
+                edge.parameter_index == contract.parameter_index
+                    && edge.source == contract.source
+                    && program.normalized_type_identity(edge.source_type) == identity_type
+                    && same_path(
+                        program,
+                        &crate::borrow::owner_place_segments(&edge.source_path),
+                        source_path,
+                    )
+                    && same_path(
+                        program,
+                        &crate::borrow::owner_place_segments(&edge.owner_path),
+                        owner_path,
+                    )
+            })
+            .ok_or("the retained edge has no matching returned-value input declaration")?;
         (edge.source, edge.source_type, source_path)
     };
     let carrier = match source {
         ViewReturnInputSource::Referent => source_type,
         ViewReturnInputSource::Stored => {
-            validation::reference_result_custody::input_carrier_type(program, source_type)?
+            validation::reference_result_custody::input_carrier_type(program, source_type)
+                .ok_or("the stored input has no readable declared carrier")?
         }
     };
     validation::project_type_reference_from_segments(program, carrier, path)
+        .ok_or("the retained input has no projected declared type")
 }
 
 /// Rejoin every frozen member to the same immutable invocation-entry cut.
@@ -179,31 +261,39 @@ fn validate_stored_sources(
     control: &FlowControlFacts,
     contract: &checked_trees::FlowOperandLifetimeContract,
     snapshot: arena::Handle<checked_trees::FlowStorageSnapshot>,
-) -> Option<()> {
+) -> Result<(), &'static str> {
     use checked_trees::FlowOperandStoredSource;
     let input = control.operands.get(contract.input);
     let carrier =
-        validation::reference_result_custody::input_carrier_type(program, input.type_reference)?;
+        validation::reference_result_custody::input_carrier_type(program, input.type_reference)
+            .ok_or("the original stored actual has no readable carrier")?;
     let path = validation::corresponding_place_projection(
         program,
         carrier,
-        control.operand_retained_paths.span(contract.source_path)?,
-    )?;
-    let selected = validation::project_type_reference_from_segments(program, carrier, &path)?;
+        control
+            .operand_retained_paths
+            .span(contract.source_path)
+            .ok_or("the original stored input has no recorded source path")?,
+    )
+    .ok_or("the original stored input path has no applied correspondence")?;
+    let selected = validation::project_type_reference_from_segments(program, carrier, &path)
+        .ok_or("the original stored input path has no selected type")?;
     let leaves = if validation::reference_shell(program, selected).is_some() {
         vec![Vec::new()]
     } else {
-        validation::borrow_contracts::carried_reference_paths(program, selected)?
+        validation::borrow_contracts::carried_reference_paths(program, selected)
+            .ok_or("the original stored input has no complete reference inventory")?
             .into_iter()
             .map(|(path, _)| crate::borrow::owner_place_segments(&path))
             .collect()
     };
     let mut recorded = control
         .operand_stored_sources
-        .span(contract.stored_sources)?
+        .span(contract.stored_sources)
+        .ok_or("the original stored input has no recorded source frontier")?
         .iter();
     if leaves.is_empty() {
-        return None;
+        return Err("the original stored input has no declared reference leaves");
     }
     for leaf in leaves {
         let mut full_path = path.clone();
@@ -218,14 +308,23 @@ fn validate_stored_sources(
         let mut expected = Vec::new();
         flatten_stored_sources(sources, &mut expected)?;
         if expected.is_empty() {
-            return None;
+            return Err("the original stored leaf has no source alternatives");
         }
         for expected in expected {
-            let recorded = recorded.next()?;
+            let recorded = recorded
+                .next()
+                .ok_or("the recorded input frontier omits a selected source alternative")?;
             let (FlowOperandStoredSource::Value { path, .. }
             | FlowOperandStoredSource::Incoming { path, .. }) = recorded;
-            if !same_path(program, control.operand_retained_paths.span(*path)?, &leaf) {
-                return None;
+            if !same_path(
+                program,
+                control
+                    .operand_retained_paths
+                    .span(*path)
+                    .ok_or("the recorded input alternative has no leaf path")?,
+                &leaf,
+            ) {
+                return Err("the recorded input alternative names a different leaf");
             }
             match (*recorded, expected) {
                 (
@@ -247,40 +346,55 @@ fn validate_stored_sources(
                         || reference != expected_reference
                         || !same_path(
                             program,
-                            control.operand_retained_paths.span(projection)?,
+                            control.operand_retained_paths.span(projection).ok_or(
+                                "the recorded input alternative has no captured projection",
+                            )?,
                             &expected_projection,
                         )
                     {
-                        return None;
+                        return Err(
+                            "the recorded input alternative differs from its original capture or projection",
+                        );
                     }
                     match (slot, expected_slot) {
                         (Some(slot), Some(expected))
                             if stored_slot_matches(program, control, slot, &expected) => {}
                         (None, None) => {}
-                        _ => return None,
+                        _ => {
+                            return Err(
+                                "the recorded input alternative names a different storage slot",
+                            );
+                        }
                     }
                 }
                 (
                     FlowOperandStoredSource::Incoming { slot, .. },
                     validation::completed_storage::StoredOperand::Incoming(expected),
                 ) if stored_slot_matches(program, control, slot, &expected) => {}
-                _ => return None,
+                _ => return Err("the recorded input alternative has a different provenance role"),
             }
         }
     }
-    recorded.next().is_none().then_some(())
+    if recorded.next().is_some() {
+        return Err("the recorded input frontier contains an unselected source alternative");
+    }
+    Ok(())
 }
 
 fn flatten_stored_sources(
     source: validation::completed_storage::StoredOperand,
     output: &mut Vec<validation::completed_storage::StoredOperand>,
-) -> Option<()> {
+) -> Result<(), &'static str> {
     use validation::completed_storage::StoredOperand;
     match source {
-        StoredOperand::Unavailable => return None,
+        StoredOperand::Unavailable => {
+            return Err(
+                "the original stored input query is unavailable at its invocation-entry snapshot",
+            );
+        }
         StoredOperand::Alternatives(sources) => {
             if sources.is_empty() {
-                return None;
+                return Err("the original stored input query has no alternatives");
             }
             for source in sources {
                 flatten_stored_sources(source, output)?;
@@ -288,7 +402,7 @@ fn flatten_stored_sources(
         }
         source => output.push(source),
     }
-    Some(())
+    Ok(())
 }
 
 fn stored_slot_matches(
@@ -323,21 +437,28 @@ pub(crate) fn retained_inputs<'a>(
     program: &dyn validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     control: &'a FlowControlFacts,
+    scope: Option<SourceCallScope>,
     supplier: &FlowOperandRetainedSupplier,
-) -> Option<Vec<Vec<RetainedLifetimeInput<'a>>>> {
-    let bound = source_type(program, borrow, control, supplier)?;
-    let contract = supplier.contract?;
+) -> Result<Vec<Vec<RetainedLifetimeInput<'a>>>, &'static str> {
+    let bound = source_type(program, borrow, control, scope, supplier)?;
+    let contract = supplier
+        .contract
+        .ok_or("the retained input has no original contract")?;
     if contract.source == ViewReturnInputSource::Referent {
-        return Some(vec![vec![RetainedLifetimeInput::Value {
+        return Ok(vec![vec![RetainedLifetimeInput::Value {
             operand: supplier.operand,
-            path: control.operand_retained_paths.span(supplier.projection)?,
+            path: control
+                .operand_retained_paths
+                .span(supplier.projection)
+                .ok_or("the retained referent has no captured projection")?,
             bound,
         }]]);
     }
     let mut inputs: Vec<(Vec<facts::PlaceSegment>, Vec<RetainedLifetimeInput<'a>>)> = Vec::new();
     for member in control
         .operand_stored_sources
-        .span(contract.stored_sources)?
+        .span(contract.stored_sources)
+        .ok_or("the retained stored input has no recorded source frontier")?
     {
         use checked_trees::FlowOperandStoredSource;
         let (FlowOperandStoredSource::Value { path, .. }
@@ -345,9 +466,14 @@ pub(crate) fn retained_inputs<'a>(
         let path = validation::corresponding_place_projection(
             program,
             bound,
-            control.operand_retained_paths.span(*path)?,
-        )?;
-        let bound = validation::project_type_reference_from_segments(program, bound, &path)?;
+            control
+                .operand_retained_paths
+                .span(*path)
+                .ok_or("the retained source alternative has no leaf path")?,
+        )
+        .ok_or("the retained source leaf has no declared member correspondence")?;
+        let bound = validation::project_type_reference_from_segments(program, bound, &path)
+            .ok_or("the retained source leaf has no projected bound")?;
         let input = match *member {
             FlowOperandStoredSource::Value {
                 operand,
@@ -355,7 +481,10 @@ pub(crate) fn retained_inputs<'a>(
                 ..
             } => RetainedLifetimeInput::Value {
                 operand,
-                path: control.operand_retained_paths.span(projection)?,
+                path: control
+                    .operand_retained_paths
+                    .span(projection)
+                    .ok_or("the retained source alternative has no captured projection")?,
                 bound,
             },
             FlowOperandStoredSource::Incoming { .. } => RetainedLifetimeInput::Incoming { bound },
@@ -366,7 +495,10 @@ pub(crate) fn retained_inputs<'a>(
             inputs.push((path, vec![input]));
         }
     }
-    (!inputs.is_empty()).then(|| inputs.into_iter().map(|(_, group)| group).collect())
+    if inputs.is_empty() {
+        return Err("the retained stored input has an empty source frontier");
+    }
+    Ok(inputs.into_iter().map(|(_, group)| group).collect())
 }
 
 fn same_path(
@@ -456,10 +588,10 @@ pub(crate) fn output_input_accesses(
                     .ok_or("output lifetime input has no output path")?,
                 &crate::borrow::owner_place_segments(owner_path),
             )
-            || source_type(program, borrow, control, supplier).is_none()
         {
             return Err("output lifetime input does not match its exact captured declaration");
         }
+        source_type(program, borrow, control, None, supplier)?;
         let source_path = control
             .operand_retained_paths
             .span(contract.source_path)

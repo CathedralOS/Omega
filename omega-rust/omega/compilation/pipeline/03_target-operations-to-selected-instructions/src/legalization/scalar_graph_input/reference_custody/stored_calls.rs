@@ -346,6 +346,9 @@ pub(super) fn prepare(
                     invocations: Vec::new(),
                     projection: terminal_semantics::borrowed_storage::Projection::new(&[]),
                     lifetime_dependencies: dependencies,
+                    // This declaration-wide summary has no performed call.
+                    // Only operation-bound replay can use forwarding demands.
+                    forwarded_sources: None,
                 };
                 Some(Effect {
                     destination: StructuralArgument {

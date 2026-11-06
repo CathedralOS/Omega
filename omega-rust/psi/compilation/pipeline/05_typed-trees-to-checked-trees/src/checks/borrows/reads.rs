@@ -271,6 +271,8 @@ pub(super) struct StatementRead<'a> {
     /// Invalid for a statement call's receiver, which has no expression.
     pub(super) expression: ExpressionHandle,
     pub(super) evaluation: checked_trees::FlowPermissionEvaluation,
+    pub(super) occurrence: &'a StatementOccurrence,
+    pub(super) position: usize,
     pub(super) active_loans: &'a [Handle<BorrowLoanFact>],
 }
 
@@ -450,7 +452,43 @@ pub(super) fn check_storage_read<'p>(
         segments: read.place.segments.clone(),
         ..Default::default()
     };
-    let backings = if metadata_receiver.is_some() {
+    // The same source can lend its pointer slot or the data behind it. The
+    // real consumer's receiving type and evaluated target choose the endpoint.
+    let formation = if borrow.is_some() {
+        match super::formation_captures::observed_reference_formation(
+            program,
+            facts,
+            read.state,
+            read.statement,
+            read.occurrence,
+            read.expression,
+        ) {
+            Ok(formation) => formation,
+            Err(reason) => {
+                diagnostics.push(super::staged_values::refusal(program, read.state, statement_index, read.expression,
+                    &format!("statement {statement_index} borrow observation {} has no exact receiving capture: {reason}", read.position)));
+                return;
+            }
+        }
+    } else {
+        None
+    };
+    let backings = if let Some(formation) = formation.filter(|formation| formation.storage) {
+        match super::access_sources::stored_address(
+            program,
+            facts,
+            read.state,
+            formation.target,
+            true,
+        ) {
+            Ok(backings) => Some(backings),
+            Err(reason) => {
+                diagnostics.push(super::staged_values::refusal(program, read.state, statement_index, read.expression,
+                    &format!("statement {statement_index} borrow has no exact evaluated storage: {reason}")));
+                return;
+            }
+        }
+    } else if metadata_receiver.is_some() {
         metadata_backings(program, facts, &read, place)
     } else {
         place_access::place_backings(
@@ -492,6 +530,31 @@ pub(super) fn check_storage_read<'p>(
             &message,
         )
     };
+    if backings.is_none() && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        let control = &facts.flow.control;
+        for observation in control
+            .value_observations
+            .span_or_empty(read.statement.value_observations)
+            .iter()
+            .filter(|observation| {
+                observation.expression == read.expression
+                    && observation.evaluation == read.evaluation
+            })
+        {
+            eprintln!(
+                "CHECKSITE read-backing-unavailable state={:?} statement={statement_index} position={} expression={:?} source={:?} observation={observation:?} receiver={:?} active_loans={:?}",
+                read.state.state_symbol,
+                read.position,
+                read.expression,
+                read.place,
+                control
+                    .operands
+                    .is_valid(observation.receiver)
+                    .then(|| control.operands.get(observation.receiver)),
+                read.active_loans
+            );
+        }
+    }
     if backings.is_none() {
         diagnostics.push(refusal(format!(
             "statement {statement_index} {verb} `{label}` without an exact retained backing for its loan",

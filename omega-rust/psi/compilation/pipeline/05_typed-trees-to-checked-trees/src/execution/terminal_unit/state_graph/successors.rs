@@ -674,6 +674,9 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     ),
                                     subject,
                                     formation_expression: expression,
+                                    qualification_decisions: facts.qualifications.formation_decisions_at(
+                                        machine.symbol, source.symbol, ordinal, expression,
+                                    ),
                                     carrier_type_identity,
                                 },
                                 target_index,
@@ -1404,6 +1407,12 @@ fn projected_loan_transfer(
         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
             retired_carrier_backing: None,
             formation_expression,
+            qualification_decisions: facts.qualifications.formation_decisions_at(
+                machine,
+                source,
+                ordinal,
+                formation_expression,
+            ),
             carrier_type_identity,
             subject: CheckedUnitStructuralArgumentPlan {
                 projection_evaluations: Default::default(),

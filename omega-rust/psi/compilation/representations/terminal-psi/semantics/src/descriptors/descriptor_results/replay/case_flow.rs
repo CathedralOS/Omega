@@ -182,18 +182,21 @@ fn written_locations(
     definitions: &[DescriptorLocation],
     position: Option<DescriptorPosition>,
 ) -> Option<Vec<DescriptorLocation>> {
-    let mut writes = definitions.to_vec();
     let Some(position) = position else {
-        return Some(writes);
+        return Some(definitions.to_vec());
     };
-    let mut queries = Vec::new();
+    let mut writes = Vec::new();
+    let mut queries = definitions
+        .iter()
+        .map(DescriptorContentsQuery::from_location)
+        .collect::<Vec<_>>();
     for query in machine
         .payload_invalidations
         .get(&position)
         .into_iter()
         .flatten()
     {
-        queries.push(query.as_ref()?);
+        queries.push(query.as_ref()?.clone());
     }
     for transfer in machine
         .contents_transfers
@@ -201,13 +204,13 @@ fn written_locations(
         .into_iter()
         .flatten()
     {
-        queries.push(&transfer.destination);
+        queries.push(transfer.destination.clone());
         if transfer.removes_source {
-            queries.push(&transfer.source);
+            queries.push(transfer.source.clone());
         }
     }
     for query in queries {
-        let targets = replay.contents_targets(machine, before, query)?;
+        let targets = replay.contents_targets(machine, before, &query)?;
         if targets.is_empty() {
             return None;
         }

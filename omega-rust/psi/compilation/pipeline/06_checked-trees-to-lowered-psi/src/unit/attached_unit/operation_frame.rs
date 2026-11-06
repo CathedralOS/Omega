@@ -690,6 +690,7 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,
+                qualification_decisions,
                 backing_type,
                 result,
                 source,
@@ -697,6 +698,7 @@ impl OperationFrame<'_, '_> {
             } => self.establish_reference(
                 identities,
                 *formation_expression,
+                *qualification_decisions,
                 *backing_type,
                 result,
                 source,
@@ -725,6 +727,7 @@ impl OperationFrame<'_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 
         formation_expression: checked_trees::expression::ExpressionHandle,
+        qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
         backing_type: typed_trees::types::TypeReferenceHandle,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
@@ -798,7 +801,8 @@ impl OperationFrame<'_, '_> {
                 statement_index: result.statement_index as usize,
                 expression: formation_expression,
                 backing_type,
-                qualification_decisions: Default::default(),
+                qualification_decisions,
+                domain_declarations: self.calls.domain_declarations,
                 domain_ids: self.calls.domain_ids,
             },
             result,

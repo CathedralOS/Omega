@@ -11,5 +11,6 @@ pub mod expression_traversal;
 pub(crate) mod layout_checking;
 pub mod product_queries;
 pub mod substitutions;
+pub(crate) mod terminal_receiving;
 pub(crate) mod type_applications;
 pub(crate) mod type_regions;

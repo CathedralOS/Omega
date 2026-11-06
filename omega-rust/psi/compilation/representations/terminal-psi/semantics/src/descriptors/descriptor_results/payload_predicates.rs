@@ -159,70 +159,83 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
                 Cow::Owned(premises)
             }
         });
-        let mut value_types = Vec::new();
-        for observation in &contract.scalar_observations {
-            if let Some(value) = &observation.value {
-                collect_value_types(value, &mut value_types, 0);
-            }
-        }
-        for premise in requirements.iter() {
-            collect_proposition_types(premise, &mut value_types);
-        }
-        let Ok(context) = PropositionContext::from_value_types_and_places(
-            value_types,
-            [(
-                predicate.subject,
-                StructuralPlaceKind::Parameter { position: 0 },
-            )],
-        ) else {
-            continue;
-        };
-        // These premises came from entry obligations, completed calls or
-        // selected edges. Their unconditional equalities may rewrite captured
-        // scalar operands just as the independently reconstructed field
-        // equations do; the requested domain supplies neither roster.
-        let mut equations = requirements.to_vec();
-        for observation in &contract.scalar_observations {
-            let Some(value) = &observation.value else {
-                continue;
-            };
-            let Some(path) = canonical_path(&observation.path) else {
-                continue;
-            };
-            let scalar_type = value.scalar_type();
-            if observation_type(types, contract.carrier, &observation.path) != Some(scalar_type) {
-                continue;
-            }
-            let observed = match scalar_type {
-                ScalarType::Integer(integer) => {
-                    ScalarTerm::integer_field_path(predicate.subject, path, integer)
-                }
-                ScalarType::Boolean => ScalarTerm::boolean_field_path(predicate.subject, path),
-                // IEEE equality is not a snapshot equation for NaN.
-                ScalarType::IeeeFloat(_) => continue,
-            };
-            equations.push(Proposition::Equal(observed, value.clone()));
-        }
-        visit_proposition_terms(&predicate.proposition, &mut |term| {
-            if let Some(value) = observed_byte_predicate(types, contract, predicate.subject, term) {
-                equations.push(Proposition::Equal(term.clone(), ScalarTerm::Boolean(value)));
-            }
-        });
-        let checked = proof_admission::check_predicate_denotations_with_value_equalities(
-            &context,
-            &predicate.proposition,
-            requirements,
-            &equations,
-        );
-        if checked.is_ok_and(|checked| {
-            super::payload_entry::prove(&context, checked.goal(), checked.requirements(), 0)
-                .is_some_and(|proof| checked.check_certificate(&context, &proof).is_ok())
-        }) {
+        if predicate_is_proved(types, contract, &predicate, requirements) {
             contract.qualifications.push(domain.id);
         }
     }
     contract.qualifications.sort();
     contract.qualifications.dedup();
+}
+
+/// Check a closed predicate against actual current scalar observations. This
+/// proves only its value condition; its caller still owns domain provenance,
+/// complete theory, storage identity and any restoration obligation.
+pub(super) fn predicate_is_proved(
+    types: &[StructuralTypeDeclaration],
+    contract: &PayloadMembershipContract,
+    predicate: &terminal_psi::StructuralDomainPredicate,
+    requirements: &[Proposition],
+) -> bool {
+    let mut value_types = Vec::new();
+    for observation in &contract.scalar_observations {
+        if let Some(value) = &observation.value {
+            collect_value_types(value, &mut value_types, 0);
+        }
+    }
+    for premise in requirements {
+        collect_proposition_types(premise, &mut value_types);
+    }
+    collect_proposition_types(&predicate.proposition, &mut value_types);
+    let Ok(context) = PropositionContext::from_value_types_and_places(
+        value_types,
+        [(
+            predicate.subject,
+            StructuralPlaceKind::Parameter { position: 0 },
+        )],
+    ) else {
+        return false;
+    };
+    // These premises came from entry obligations, completed calls or
+    // selected edges. Their unconditional equalities may rewrite captured
+    // scalar operands just as the independently reconstructed field
+    // equations do; the requested domain supplies neither roster.
+    let mut equations = requirements.to_vec();
+    for observation in &contract.scalar_observations {
+        let Some(value) = &observation.value else {
+            continue;
+        };
+        let Some(path) = canonical_path(&observation.path) else {
+            continue;
+        };
+        let scalar_type = value.scalar_type();
+        if observation_type(types, contract.carrier, &observation.path) != Some(scalar_type) {
+            continue;
+        }
+        let observed = match scalar_type {
+            ScalarType::Integer(integer) => {
+                ScalarTerm::integer_field_path(predicate.subject, path, integer)
+            }
+            ScalarType::Boolean => ScalarTerm::boolean_field_path(predicate.subject, path),
+            // IEEE equality is not a snapshot equation for NaN.
+            ScalarType::IeeeFloat(_) => continue,
+        };
+        equations.push(Proposition::Equal(observed, value.clone()));
+    }
+    visit_proposition_terms(&predicate.proposition, &mut |term| {
+        if let Some(value) = observed_byte_predicate(types, contract, predicate.subject, term) {
+            equations.push(Proposition::Equal(term.clone(), ScalarTerm::Boolean(value)));
+        }
+    });
+    let checked = proof_admission::check_predicate_denotations_with_value_equalities(
+        &context,
+        &predicate.proposition,
+        requirements,
+        &equations,
+    );
+    checked.is_ok_and(|checked| {
+        super::payload_entry::prove(&context, checked.goal(), checked.requirements(), 0)
+            .is_some_and(|proof| checked.check_certificate(&context, &proof).is_ok())
+    })
 }
 
 fn collect_value_types(term: &ScalarTerm, output: &mut Vec<(ValueId, ScalarType)>, depth: usize) {
@@ -504,7 +517,7 @@ pub(crate) fn terminal_scalar_snapshots(
 /// Prove every still-missing value obligation on this exact subject. Existing
 /// memberships cover their own authenticated prerequisites; an unsupplied
 /// issuer or content obligation cannot be replaced by predicate truth.
-pub(super) fn introduction_predicate(
+pub fn introduction_predicate(
     types: &[StructuralTypeDeclaration],
     domains: &[StructuralDomainDeclaration],
     domain: &StructuralDomainDeclaration,

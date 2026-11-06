@@ -160,6 +160,15 @@ pub struct LocalWriteOrigin {
     pub source: Option<LocalWriteSource>,
 }
 
+/// A completed operand freezes its root or contained reference before the call.
+/// Keep every source's storage interpretation; an unknown alternative makes
+/// that leaf unavailable rather than disappearing from the frontier.
+#[derive(Clone)]
+pub struct CapturedReferenceLeafSources {
+    pub path: Vec<facts::PlaceSegment>,
+    pub sources: Result<Vec<LocalWriteSource>, &'static str>,
+}
+
 /// Performed store destinations and independently available reference bindings.
 /// An inline-owned cell can retain its typed home without a captured reference
 /// inventory. Unknown references remain None, never an empty preservation proof.

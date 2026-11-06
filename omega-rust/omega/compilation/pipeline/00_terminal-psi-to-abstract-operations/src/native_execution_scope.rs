@@ -28,6 +28,10 @@ pub(crate) enum NativeExecutionScopeError {
     MissingBoundary(BoundaryMachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
+    LenderPreservationUnavailable {
+        boundary: BoundaryMachineId,
+        reason: &'static str,
+    },
 }
 
 impl std::fmt::Display for NativeExecutionScopeError {
@@ -49,6 +53,10 @@ impl std::fmt::Display for NativeExecutionScopeError {
             Self::CompetingSelectedCheckedProviders(boundary) => write!(
                 formatter,
                 "native execution scope has competing selected checked providers for {boundary:?}"
+            ),
+            Self::LenderPreservationUnavailable { boundary, reason } => write!(
+                formatter,
+                "native provider for {boundary:?} cannot preserve its captured lender: {reason}"
             ),
         }
     }
@@ -222,6 +230,44 @@ impl NativeExecutionScope {
         scope.machines.sort_unstable();
         scope.boundaries.sort_unstable();
         scope.selected_candidate_positions.sort_unstable();
+        for &boundary in &scope.boundaries {
+            let mut selected = boundary;
+            let mut visited = std::collections::BTreeSet::new();
+            while let Some((_, supplied)) = assumptions
+                .iter()
+                .find(|(required, _)| *required == selected)
+            {
+                if !visited.insert(selected) {
+                    return Err(NativeExecutionScopeError::LenderPreservationUnavailable {
+                        boundary,
+                        reason: "the assumed provider selection is cyclic",
+                    });
+                }
+                selected = *supplied;
+            }
+            let target = crate::optimization::target_family_member(module, Some(targets), selected)
+                .map_err(NativeExecutionScopeError::TargetFamily)?;
+            let implementation = entry_call
+                .filter(|entry| entry.boundary() == selected)
+                .map(crate::SelectedProgramEntryCall::entry)
+                .or_else(|| match target {
+                    Some(terminal_psi::TargetMachineCallable::Machine(body)) => Some(body),
+                    _ => scope
+                        .selected_candidate_positions
+                        .iter()
+                        .map(|position| &module.provider_candidates[*position])
+                        .find(|candidate| candidate.boundary == selected)
+                        .map(|candidate| candidate.candidate),
+                });
+            terminal_semantics::descriptor_results::require_boundary_lender_preservation(
+                module,
+                boundary,
+                implementation,
+            )
+            .map_err(|reason| {
+                NativeExecutionScopeError::LenderPreservationUnavailable { boundary, reason }
+            })?;
+        }
         Ok(scope)
     }
 

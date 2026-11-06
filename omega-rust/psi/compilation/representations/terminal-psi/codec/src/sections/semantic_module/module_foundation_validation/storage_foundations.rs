@@ -373,7 +373,41 @@ pub(super) fn validate_reference_memberships(module: &TerminalModule) -> Result<
         &module.structural_types,
         &graph,
     );
+    let borrowed_graph =
+        terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+            module,
+            module
+                .machines
+                .iter()
+                .filter(|machine| {
+                    machine.operations().any(|operation| {
+                        matches!(&operation.kind,
+                    OperationKind::EstablishReference { source, storage }
+                        if storage.is_none() && (source.access != StructuralAccess::SharedBorrow
+                            || operation.result.structural().is_some_and(|result|
+                                !result.projected_qualifications.is_empty())))
+                    })
+                })
+                .map(|machine| machine.id),
+        );
+    let mut borrowed_analysis =
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+            &module.structural_types,
+            &borrowed_graph,
+        );
     for machine in &module.machines {
+        let mut observations =
+            terminal_semantics::descriptor_results::PayloadMembershipHistory::for_module(
+                module,
+                &borrowed_graph,
+                machine,
+            );
+        let mut preservation =
+            terminal_semantics::descriptor_results::PayloadMembershipHistory::for_module_preservation(
+                module,
+                &borrowed_graph,
+                machine,
+            );
         for block in &machine.blocks {
             for (ordinal, operation) in block.operations.iter().enumerate() {
                 if !matches!(&operation.kind, OperationKind::EstablishReference { .. }) {
@@ -395,6 +429,9 @@ pub(super) fn validate_reference_memberships(module: &TerminalModule) -> Result<
                     (block.id, ordinal),
                     &graph,
                     &mut analysis,
+                    &mut borrowed_analysis,
+                    &mut preservation,
+                    &mut observations,
                 )
                 .map_err(|error| {
                     super::operation_foundation_error(module, machine, block.id, operation, error)
@@ -412,6 +449,9 @@ fn validate_reference_membership(
     position: (BlockId, u32),
     reference_graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
     reference_analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
+    borrowed_analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
+    preservation: &mut terminal_semantics::descriptor_results::PayloadMembershipHistory<'_>,
+    observations: &mut terminal_semantics::descriptor_results::PayloadMembershipHistory<'_>,
 ) -> Result<(), CodecError> {
     let OperationKind::EstablishReference { source, storage } = &operation.kind else {
         return malformed("reference membership admission has no reference operation");
@@ -419,6 +459,9 @@ fn validate_reference_membership(
     let Some(result) = operation.result.structural() else {
         return malformed("reference membership admission has no structural result");
     };
+    if !result.qualifications.is_empty() {
+        return malformed("reference membership cannot qualify its permission descriptor");
+    }
     let Some(StructuralTypeShape::Reference { access, .. }) = module
         .structural_type(result.structural_type)
         .map(|row| &row.shape)
@@ -447,8 +490,69 @@ fn validate_reference_membership(
             result.structural_type,
             &result.projected_qualifications,
         );
+    // Shared attenuation with no requested membership has no predicate goal.
+    // Its storage/access checks remain with reference foundation admission.
+    if !inline_owner
+        && *access == StructuralAccess::SharedBorrow
+        && storage.is_none()
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+    {
+        return Ok(());
+    }
     let memberships_match = if inline_owner {
         field_compatible
+    } else if *access == StructuralAccess::SharedBorrow && storage.is_none() {
+        // A birth annotation cannot outlive a write. Current observations use
+        // the complete borrowed-storage graph, the exact cut and the module's
+        // normal-call context. Unknown observation proves no requested row;
+        // declaration-owned scalar invariants remain an independent proof.
+        let mut captured = Vec::new();
+        let current = observations.current_selected_payload_contract_in(
+            borrowed_analysis,
+            position,
+            source.place,
+            source_path,
+        );
+        if let Ok(current) = &current {
+            StructuralPathQualification::append_under(
+                &current.qualifications,
+                &current.projected_qualifications,
+                &[StructuralPathSegment::Referent],
+                &mut captured,
+            );
+        }
+        let matches = result.projected_qualifications.iter().all(|row| {
+            captured.contains(row)
+                || row
+                    .path
+                    .strip_prefix(&[StructuralPathSegment::Referent])
+                    .is_some_and(|relative| {
+                        let mut path = source_path.to_vec();
+                        path.extend_from_slice(relative);
+                        scalar_projection_entails_membership(
+                            module.structural_types.iter(),
+                            module.structural_domains.iter(),
+                            source_type,
+                            &path,
+                            row.domain,
+                        )
+                    })
+        });
+        if !matches && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE shared-reference-membership-unavailable machine={:?} position={position:?} operation={:?} source={source:?} requested={:?} current={:?} reason={:?}",
+                machine.id,
+                operation.id,
+                result.projected_qualifications,
+                current
+                    .as_ref()
+                    .ok()
+                    .map(|c| (&c.qualifications, &c.projected_qualifications)),
+                current.as_ref().err()
+            );
+        }
+        matches
     } else {
         declared_memberships(machine, source.place).is_some_and(
             |(whole, projected)| {
@@ -464,6 +568,12 @@ fn validate_reference_membership(
                 ) else {
                     return false;
                 };
+                if *access != StructuralAccess::SharedBorrow && storage.is_none() {
+                    let Ok(backing) = preservation.reference_formation_memberships(
+                        &module.identities, borrowed_analysis, position, source, storage.as_ref(), result,
+                    ) else { return false; };
+                    captured.extend(backing);
+                } else {
                 if let Ok(backing) =
                     terminal_semantics::descriptor_results::reference_backing_memberships(
                         &module.structural_types,
@@ -475,14 +585,11 @@ fn validate_reference_membership(
                         source,
                         storage.as_ref(),
                         result,
-                        |place| {
-                            terminal_semantics::descriptor_results::terminal_payload_contract(
-                                machine, place,
-                            )
-                        },
+                        |place| terminal_semantics::descriptor_results::terminal_payload_contract(machine, place),
                     )
                 {
                     captured.extend(backing);
+                }
                 }
                 if *access == StructuralAccess::SharedBorrow
                     && result

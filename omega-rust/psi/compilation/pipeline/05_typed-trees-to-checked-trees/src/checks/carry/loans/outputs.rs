@@ -5,8 +5,8 @@
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource,
-    CheckedOutputBorrowInput, CheckedOutputLifetimeDependencyResource,
-    CheckedOutputLifetimeDependencySource, CheckedSuppliedOutputBorrowResource, FlowFacts,
+    CheckedOutputLifetimeDependencyResource, CheckedOutputLifetimeDependencySource,
+    CheckedRetainedBorrowInput, CheckedSuppliedOutputBorrowResource, FlowFacts,
     IncomingReferenceIdentity, StateBorrowFact,
 };
 
@@ -40,7 +40,10 @@ pub(super) fn output(
 pub(super) fn inputs(
     borrow: &BorrowFacts,
     loan: Handle<BorrowLoanFact>,
-) -> Option<HandleSpan<CheckedOutputBorrowInput>> {
+) -> Option<HandleSpan<CheckedRetainedBorrowInput>> {
+    if let Some(inputs) = borrow.retained_call_input_span(loan) {
+        return Some(inputs);
+    }
     if let Some(resource) = dependency(borrow, loan) {
         return Some(borrow.output_lifetime_dependencies.get(resource).inputs);
     }
@@ -82,7 +85,7 @@ pub(super) fn validate_output(
         || borrow.loans.get(output.loan).incoming_reference != output.identity
         || crate::borrow::supplied_outputs::normal_call(borrow, flow, output.loan)
             != Some(output.call)
-        || borrow.supplied_output_inputs.span(output.inputs).is_none()
+        || borrow.retained_borrow_inputs.span(output.inputs).is_none()
         || flow
             .control
             .operand_retained_suppliers
@@ -130,13 +133,51 @@ pub(super) fn validate_input(
     flow: &FlowFacts,
     state: &StateBorrowFact,
     owner: Handle<BorrowLoanFact>,
-    input: Handle<CheckedOutputBorrowInput>,
+    input: Handle<CheckedRetainedBorrowInput>,
 ) -> Result<(), &'static str> {
     if !borrow.state_owns_loan(state, owner)
         || !inputs(borrow, owner).is_some_and(|span| span.handles().any(|member| member == input))
-        || !borrow.supplied_output_inputs.is_valid(input)
+        || !borrow.retained_borrow_inputs.is_valid(input)
     {
         return Err("the retained input belongs to another output generation");
+    }
+    if borrow.retained_call_input_span(owner).is_some() {
+        let selected = borrow.retained_borrow_inputs.get(input);
+        let checked_trees::CheckedRetainedBorrowInputOrigin::CompletedStore { capture } =
+            selected.origin
+        else {
+            return Err("the saved reference input lost its completed store origin");
+        };
+        let loan = borrow.loans.get(owner);
+        let call = borrow.calls.get(loan.established_by_call);
+        let state_flow = flow
+            .control
+            .unique_state(state.machine_symbol, state.state_symbol)
+            .ok_or("the saved input has no unique flow owner")?;
+        let mut calls = state_flow
+            .calls
+            .handles()
+            .map(|handle| flow.control.calls.get(handle))
+            .filter(|candidate| {
+                candidate.statement_index == call.statement_index
+                    && candidate.call_ordinal == call.call_ordinal
+                    && candidate.target_symbol == call.target_symbol
+                    && candidate.authored_expression == call.authored_expression
+                    && candidate
+                        .stored_outputs
+                        .handles()
+                        .any(|member| member == capture)
+                    && flow
+                        .borrow_loan_constraints(candidate.exit_constraints)
+                        .any(|member| member == owner)
+            });
+        let _ = calls
+            .next()
+            .ok_or("the saved input has no exact completed store")?;
+        if calls.next().is_some() {
+            return Err("the saved input has ambiguous completed stores");
+        }
+        return validate_permission(borrow, flow, state, selected);
     }
     let mut outputs = Vec::new();
     if let Some(resource) = dependency(borrow, owner) {
@@ -147,7 +188,7 @@ pub(super) fn validate_input(
                 .ok_or("the retained input has no completed output owner")?,
         );
     }
-    let input = borrow.supplied_output_inputs.get(input);
+    let input = borrow.retained_borrow_inputs.get(input);
     let mut admitted = false;
     for resource in outputs {
         validate_output(borrow, flow, state, resource)?;
@@ -155,50 +196,67 @@ pub(super) fn validate_input(
         if !output
             .lifetime_sources
             .handles()
-            .any(|source| source == input.source)
+            .any(|source| Some(source) == input.declared_source())
         {
             continue;
         }
         // The constructor validates the selected member's type and access. A
         // transferred record must still be one of this completion's records.
         if !borrow
-            .supplied_output_inputs
+            .retained_borrow_inputs
             .span_or_empty(output.inputs)
             .contains(input)
         {
             continue;
         }
-        match input.permission {
-            checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource } => {
-                if !borrow.call_loan_resources.is_valid(resource) {
-                    return Err("the completed input's borrowing permission is unavailable");
-                }
-                let permission = borrow.call_loan_resources.get(resource);
-                if permission.machine_symbol != state.machine_symbol
-                    || permission.state_symbol != state.state_symbol
-                    || permission.parent_lifetime.machine_symbol != state.machine_symbol
-                    || permission.parent_lifetime.state_symbol != state.state_symbol
-                    || permission.call != output.call
-                    || !flow
-                        .control
-                        .calls
-                        .get(output.call)
-                        .argument_operands()
-                        .handles()
-                        .any(|operand| operand == permission.owner_operand)
-                {
-                    return Err("the completed input has no original captured invocation");
-                }
-            }
-            checked_trees::CheckedOutputBorrowInputPermission::Incoming { identity, .. } => {
-                if !borrow.state_owns_incoming_reference(state, identity) {
-                    return Err("the completed input has no original entry namespace");
-                }
-            }
-        }
+        validate_permission(borrow, flow, state, input)?;
         admitted = true;
     }
     admitted
         .then_some(())
         .ok_or("the retained input is absent from its original completion")
+}
+
+fn validate_permission(
+    borrow: &BorrowFacts,
+    flow: &FlowFacts,
+    state: &StateBorrowFact,
+    input: &CheckedRetainedBorrowInput,
+) -> Result<(), &'static str> {
+    if !flow.control.calls.is_valid(input.call) {
+        return Err("the retained input has no original capture call");
+    }
+    let call = flow.control.calls.get(input.call);
+    if input.machine_symbol != state.machine_symbol
+        || input.state_symbol != state.state_symbol
+        || !flow
+            .control
+            .unique_state(state.machine_symbol, state.state_symbol)
+            .is_some_and(|state| state.calls.handles().any(|call| call == input.call))
+        || input.parameter_index >= call.argument_operands().len()
+        || borrow.call_loan_paths.span(input.capture_path).is_none()
+    {
+        return Err("the retained input has no original captured argument");
+    }
+    match input.permission {
+        checked_trees::CheckedRetainedBorrowInputPermission::Borrowed { resource } => {
+            if !borrow.call_loan_resources.is_valid(resource) {
+                return Err("the retained input's borrowing permission is unavailable");
+            }
+            let permission = borrow.call_loan_resources.get(resource);
+            if permission.machine_symbol != state.machine_symbol
+                || permission.state_symbol != state.state_symbol
+                || permission.parent_lifetime.machine_symbol != state.machine_symbol
+                || permission.parent_lifetime.state_symbol != state.state_symbol
+            {
+                return Err("the retained input's lending permission belongs to another state");
+            }
+        }
+        checked_trees::CheckedRetainedBorrowInputPermission::Incoming { identity, .. } => {
+            if !borrow.state_owns_incoming_reference(state, identity) {
+                return Err("the retained input has no original entry namespace");
+            }
+        }
+    }
+    Ok(())
 }

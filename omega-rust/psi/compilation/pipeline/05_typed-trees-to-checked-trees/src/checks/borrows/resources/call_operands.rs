@@ -23,6 +23,7 @@ use checked_trees::{
 
 pub(super) struct ResourceDraft {
     pub(super) resource: CheckedCallBorrowLoanResource,
+    pub(super) source_kind: checked_trees::ViewReturnInputSource,
     pub(super) path: Vec<BorrowLoanOwnerSegment>,
     pub(super) backing: CapturedPlace,
 }
@@ -33,12 +34,13 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
     for (_, state) in facts.flow.control.states.iter() {
         for call in state.calls.handles() {
             let row = facts.flow.control.calls.get(call);
-            for operand in row.argument_operands().handles() {
+            for (parameter_index, operand) in row.argument_operands().handles().enumerate() {
                 collect(
                     program,
                     facts,
                     state,
                     call,
+                    parameter_index,
                     operand,
                     operand,
                     &[],
@@ -92,6 +94,7 @@ pub(super) fn install_resource(
         .call_loan_backing_paths
         .insert_many(draft.backing.segments);
     draft.resource.capture_path = facts.borrow.call_loan_paths.insert_many(path);
+    draft.resource.capture_source = Some(draft.source_kind);
     draft.resource.owner_path = facts.borrow.owner_segments.insert_many(draft.path);
     Some(facts.borrow.call_loan_resources.insert(draft.resource))
 }
@@ -101,6 +104,7 @@ fn collect(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
+    parameter_index: usize,
     owner_operand: Handle<FlowOperandFact>,
     operand: Handle<FlowOperandFact>,
     path: &[BorrowLoanOwnerSegment],
@@ -137,6 +141,7 @@ fn collect(
                 facts,
                 state,
                 call,
+                parameter_index,
                 owner_operand,
                 alternative.value,
                 path,
@@ -176,6 +181,7 @@ fn collect(
                 facts,
                 state,
                 call,
+                parameter_index,
                 owner_operand,
                 child.value,
                 &child_path,
@@ -192,6 +198,7 @@ fn collect(
             facts,
             state,
             call,
+            parameter_index,
             owner_operand,
             operand,
             operand,
@@ -234,6 +241,7 @@ fn collect(
                         facts,
                         state,
                         call,
+                        parameter_index,
                         owner_operand,
                         operand,
                         selected.capture,
@@ -283,10 +291,12 @@ fn collect(
                     machine_symbol: state.machine_symbol,
                     state_symbol: state.state_symbol,
                     call,
+                    parameter_index,
                     owner_operand,
                     operand,
                     owner_path: HandleSpan::empty(),
                     capture_path: HandleSpan::empty(),
+                    capture_source: None,
                     source: CheckedCallBorrowLoanSource::StoredLoan { loan },
                     access: row.kind.clone(),
                     parent_lifetime: CheckedDirectBorrowParentLifetime {
@@ -298,6 +308,7 @@ fn collect(
                     backing_incoming_owner_path: HandleSpan::empty(),
                     backing_path: HandleSpan::empty(),
                 },
+                source_kind: argument_leaf_source(program, facts, owner_operand, &owner_path),
                 path: owner_path,
                 backing: CapturedPlace {
                     incoming_reference: row.incoming_reference,
@@ -320,6 +331,7 @@ fn collect_suppliers(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
+    parameter_index: usize,
     owner_operand: Handle<FlowOperandFact>,
     operand: Handle<FlowOperandFact>,
     source: Handle<FlowOperandFact>,
@@ -352,6 +364,7 @@ fn collect_suppliers(
             machine_symbol: state.machine_symbol,
             state_symbol: state.state_symbol,
             call,
+            parameter_index,
             owner_operand,
             operand,
             source: supplier.source,
@@ -363,8 +376,31 @@ fn collect_suppliers(
             },
             ..Default::default()
         },
+        source_kind: argument_leaf_source(program, facts, owner_operand, path),
         path: path.to_vec(),
         backing: supplier.backing,
     }));
     true
+}
+
+/// A whole reference actual supplies its referent. A leaf inside an owned
+/// carrier supplies stored descriptor contents. Declared Stored edges record
+/// their own role separately, including a descriptor below an empty path.
+fn argument_leaf_source(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    owner: Handle<FlowOperandFact>,
+    path: &[BorrowLoanOwnerSegment],
+) -> checked_trees::ViewReturnInputSource {
+    if path.is_empty()
+        && validation::reference_shell(
+            program,
+            facts.flow.control.operands.get(owner).type_reference,
+        )
+        .is_some()
+    {
+        checked_trees::ViewReturnInputSource::Referent
+    } else {
+        checked_trees::ViewReturnInputSource::Stored
+    }
 }

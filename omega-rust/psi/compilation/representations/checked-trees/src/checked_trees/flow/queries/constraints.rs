@@ -20,6 +20,19 @@ impl FlowContextFacts {
                 FlowConstraintKind::Unknown | crate::borrow_resource_pattern!(..) => None,
             })
     }
+
+    pub fn borrow_loan_constraints(
+        &self,
+        constraints: HandleSpan<FlowConstraintRef>,
+    ) -> impl Iterator<Item = Handle<BorrowLoanFact>> + '_ {
+        self.constraint_refs
+            .span_or_empty(constraints)
+            .iter()
+            .filter_map(|constraint| match constraint.kind {
+                FlowConstraintKind::BorrowLoan { loan } => Some(loan),
+                FlowConstraintKind::Unknown | crate::nonloan_constraint_pattern!(..) => None,
+            })
+    }
 }
 
 impl FlowFacts {
@@ -77,11 +90,6 @@ impl FlowFacts {
         &self,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> impl Iterator<Item = Handle<BorrowLoanFact>> + '_ {
-        self.constraints(constraints)
-            .iter()
-            .filter_map(|constraint| match constraint.kind {
-                FlowConstraintKind::BorrowLoan { loan } => Some(loan),
-                FlowConstraintKind::Unknown | crate::nonloan_constraint_pattern!(..) => None,
-            })
+        self.contexts.borrow_loan_constraints(constraints)
     }
 }

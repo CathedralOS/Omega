@@ -742,6 +742,11 @@ fn walk_state_write_prefix_body(
                 relation_complete,
             )
         {
+            trace_prefix_refusal(
+                state.symbol,
+                statement_index,
+                "the statement exposes a frozen binding",
+            );
             return None;
         }
         if !replaces_local_binding && !divergent_alias_origins.is_empty() {
@@ -920,7 +925,15 @@ fn walk_state_write_prefix_body(
                     inference,
                     include_shared,
                     replaces_local_binding,
-                )?;
+                )
+                .or_else(|| {
+                    trace_prefix_refusal(
+                        state.symbol,
+                        statement_index,
+                        "the assignment has no complete captured origin transfer",
+                    );
+                    None
+                })?;
                 if replaces_local_binding {
                     let relative = coarse_place_path(program, assignment.target)?;
                     if queried_assignment {
@@ -945,27 +958,59 @@ fn walk_state_write_prefix_body(
                     replacement?.install(inference, &mut stored);
                     continue;
                 }
-                let relative = stable_assignment_target_path(
-                    program,
-                    machine,
-                    &machine_symbols,
-                    inference,
-                    assignment.target,
-                    parameters,
-                    &isolated_local_roots,
-                    &local_alias_origins,
-                    symbols,
-                )?;
-                let paths = expand_write_path(program, &relative, &local_alias_origins, &stored)?;
-                push_queried_assignment_and_visible_paths(
-                    queried_assignment,
-                    &mut assignments,
-                    statement_index,
-                    &paths,
-                    &mut written,
-                    parameters,
-                    &locals,
-                )?;
+                // A store changes the receiving cell. Its old pointers may
+                // refer to other objects that the store leaves alone. The
+                // origin transfer already records the replacement below; full
+                // frame and queried-assignment consumers still retain every
+                // destination and reachable write path here.
+                if !origin_transfer_only || queried_assignment {
+                    let relative = stable_assignment_target_path(
+                        program,
+                        machine,
+                        &machine_symbols,
+                        inference,
+                        assignment.target,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                        symbols,
+                    )
+                    .or_else(|| {
+                        trace_prefix_refusal(
+                            state.symbol,
+                            statement_index,
+                            "the assignment has no stable destination path",
+                        );
+                        None
+                    })?;
+                    let paths =
+                        expand_write_path(program, &relative, &local_alias_origins, &stored)
+                            .or_else(|| {
+                                trace_prefix_refusal(
+                                    state.symbol,
+                                    statement_index,
+                                    "the assignment destination has unavailable reachable writes",
+                                );
+                                None
+                            })?;
+                    push_queried_assignment_and_visible_paths(
+                        queried_assignment,
+                        &mut assignments,
+                        statement_index,
+                        &paths,
+                        &mut written,
+                        parameters,
+                        &locals,
+                    )
+                    .or_else(|| {
+                        trace_prefix_refusal(
+                            state.symbol,
+                            statement_index,
+                            "the assignment write paths are outside the visible state namespace",
+                        );
+                        None
+                    })?;
+                }
                 // The write target and returned origins are captured before
                 // RHS effects. Install the final store after those effects.
                 assignment_replacement = replacement;
@@ -1302,6 +1347,14 @@ fn install_statement_call_effects(
         for record in stored {
             inference.record_local(record);
         }
+    }
+}
+
+fn trace_prefix_refusal(state: SymbolHandle, statement: usize, reason: &str) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "CHECKSITE reference-prefix-unavailable state={state:?} statement={statement} reason={reason}",
+        );
     }
 }
 

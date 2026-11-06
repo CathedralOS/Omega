@@ -11,8 +11,8 @@ use super::operand_contexts::binding_origin_is_stable;
 use super::reference_spans::appended_span_since;
 use super::reference_spans::filter_constraint_refs;
 use super::storage_footprints::assignment;
-use super::stored_values::append_place_writes;
-use super::stored_values::append_store;
+use super::stored_values::append_place_writes_at_endpoint;
+use super::stored_values::append_store_at_endpoint;
 use super::transfers::narrow_pinned_selectors;
 use super::transfers::statement_write;
 use crate::flow::FlowBuildContext;
@@ -52,6 +52,16 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     execution_order: &typed_trees::statement::StatementExecutionOrder,
 ) -> arena::HandleSpan<FlowCallFact> {
     let mut state_calls = arena::HandleSpan::empty();
+    // The first executed statement has a real entry cut even when no storage
+    // operation preceded it. An invalid handle cannot stand for that value.
+    let entry_storage =
+        build
+            .control
+            .storage_snapshots
+            .append(checked_trees::FlowStorageSnapshot {
+                previous: Handle::invalid(),
+                operation: checked_trees::FlowStorageOperation::Entry,
+            });
     build.state_statements_start = build.control.statements.frontier();
     let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
     let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
@@ -95,13 +105,14 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             .statements
             .span_or_empty(previous_statements)
             .last()
-            .map_or_else(Handle::invalid, |statement| statement.storage_snapshot);
+            .map_or(entry_storage, |statement| statement.storage_snapshot);
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
             storage_snapshot,
             value_observations: HandleSpan::empty(),
             operator_invocations: HandleSpan::empty(),
             stored_value: Handle::invalid(),
+            evaluated_value: Handle::invalid(),
             store_target: Handle::invalid(),
             stored_destination: Handle::invalid(),
             completed_writes: HandleSpan::empty(),
@@ -202,6 +213,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             let retained = build.control.statements.get_mut(statement_fact);
             retained.storage_snapshot = evaluated.writes.storage_snapshot;
             retained.stored_value = evaluated.stored_value;
+            retained.evaluated_value = evaluated.evaluated_value;
             retained.store_target = evaluated.store_target;
             retained.completed_writes = evaluated.writes.binding_writes;
             retained.completed_unknown_write = evaluated.writes.binding_unknown;
@@ -745,6 +757,20 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         });
         // Calls have already published their ordered writes and replacements.
         // Only the enclosing statement's own store follows RHS evaluation.
+        let receiving_type = match statement {
+            StatementNode::Assignment(assignment) => Some(
+                validation::assignment_stored_value_type(program, machine, state, assignment)
+                    .unwrap_or_default(),
+            ),
+            StatementNode::LocalData(local) => Some(local.type_reference),
+            _ => None,
+        };
+        let endpoint =
+            receiving_type.map(|receiving_type| checked_trees::FlowStorageWriteEndpoint {
+                state: state.symbol,
+                statement_index,
+                receiving_type,
+            });
         let final_write = match statement {
             StatementNode::Assignment(_) | StatementNode::Assembly(_) => Some((
                 final_storage_writes.as_deref(),
@@ -760,11 +786,12 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     .statements
                     .get(statement_fact)
                     .storage_snapshot;
-                let snapshot = append_place_writes(
+                let snapshot = append_place_writes_at_endpoint(
                     &mut build.control,
                     snapshot,
                     Some(std::slice::from_ref(&destination)),
                     Some(std::slice::from_ref(&destination)),
+                    endpoint,
                 );
                 build
                     .control
@@ -781,7 +808,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 .statements
                 .get(statement_fact)
                 .storage_snapshot;
-            let snapshot = append_place_writes(&mut build.control, snapshot, bindings, contents);
+            let snapshot = append_place_writes_at_endpoint(
+                &mut build.control,
+                snapshot,
+                bindings,
+                contents,
+                endpoint,
+            );
             build
                 .control
                 .statements
@@ -799,7 +832,18 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         {
             let snapshot = completed.storage_snapshot;
             let value = completed.stored_value;
-            let snapshot = append_store(&mut build.control, snapshot, &destination, value, &[]);
+            let target = completed.store_target;
+            let snapshot = append_store_at_endpoint(
+                &mut build.control,
+                snapshot,
+                &destination,
+                value,
+                &[],
+                receiving_type.unwrap_or_default(),
+                target,
+                state.symbol,
+                statement_index,
+            );
             build
                 .control
                 .statements

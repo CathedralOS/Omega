@@ -165,12 +165,13 @@ pub(super) struct Execution<'a, 'b, 'plans> {
     /// reads borrow these captures; they never replay their source operands.
     match_subjects: Vec<(
         Handle<typed_trees::expression::CompletedValueCapture>,
-        checked_trees::FlowOperandFact,
+        Handle<checked_trees::FlowOperandFact>,
     )>,
     read_purpose: ReadPurpose,
 }
 
 pub(super) struct StatementEvaluation {
+    pub(super) evaluated_value: Handle<checked_trees::FlowOperandFact>,
     pub(super) stored_value: Handle<checked_trees::FlowOperandFact>,
     pub(super) store_target: Handle<checked_trees::FlowOperandFact>,
     pub(super) writes: EvaluatedWritePrefix,
@@ -210,6 +211,7 @@ pub(super) fn append_statement_calls<'plans>(
         contexts,
         constraints,
     );
+    let mut evaluated_value = Handle::invalid();
     let mut stored_value = Handle::invalid();
     let mut store_target = Handle::invalid();
     match statement {
@@ -293,6 +295,7 @@ pub(super) fn append_statement_calls<'plans>(
                 {
                     let returned_value =
                         execution.context.control.operands.append(evaluated.capture);
+                    evaluated_value = returned_value;
                     super::exits::append_outgoing_state_fact(
                         execution.context,
                         machine.symbol,
@@ -307,7 +310,7 @@ pub(super) fn append_statement_calls<'plans>(
                     );
                 }
             } else {
-                execution.expression(*expression, contexts, constraints);
+                evaluated_value = execution.evaluate_value_root(*expression, contexts, constraints);
             }
         }
         StatementNode::Call(call) => {
@@ -355,6 +358,7 @@ pub(super) fn append_statement_calls<'plans>(
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
     StatementEvaluation {
+        evaluated_value,
         stored_value,
         store_target,
         writes: execution.write_prefix(),
@@ -551,6 +555,14 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 )
             },
         );
+        // The arguments have finished evaluating. Record their exact operand
+        // identities before call invalidation and restoration consume them;
+        // those phases must not rediscover a capture from its source spelling.
+        let recorded_operands = self
+            .context
+            .control
+            .operands
+            .insert_many(captured_operands.iter().copied());
         let mut call =
             phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
                 build_call_flow_fact(
@@ -562,10 +574,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.context,
                     self.machine,
                     self.state,
+                    *self.state_calls,
                     contexts,
                     constraints,
                     borrowed_call,
                     captured_operands,
+                    recorded_operands,
+                    self.storage_snapshot,
                     writes.as_deref(),
                 )
             });
@@ -592,11 +607,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         call.invocation_storage = self.storage_snapshot;
         // Installed and returned descriptors share these exact evaluated
         // occurrences. Publish them before capturing any normal-return stores.
-        call.operands = self
-            .context
-            .control
-            .operands
-            .insert_many(captured_operands.iter().copied());
+        call.operands = recorded_operands;
         let argument_operands = call.argument_operands();
 
         let binding_writes = writes
@@ -718,8 +729,21 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         (value, completed)
     }
 
-    /// Capture the completed evaluation itself, including nested constructed
-    /// children. No expression-key lookup can substitute another evaluation.
+    /// Keep the value this expression already evaluates as the read consumer's
+    /// root. Sibling flow owners receive only its durable handle, not the
+    /// evaluator's private completion scratch.
+    pub(super) fn evaluate_value_root(
+        &mut self,
+        expression: ExpressionHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> Handle<checked_trees::FlowOperandFact> {
+        let evaluated = self.evaluated_operand(expression, contexts, constraints);
+        self.context.control.operands.append(evaluated.capture)
+    }
+
+    /// Capture the completed evaluation itself, including constructed children.
+    /// Expression identity cannot substitute another evaluation.
     fn evaluated_operand(
         &mut self,
         expression: ExpressionHandle,
@@ -1718,10 +1742,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     .iter()
                     .rev()
                     .find_map(|(capture, value)| (*capture == saved.capture).then_some(*value));
-                if let Some(captured) = captured {
+                if let Some(source) = captured {
+                    let captured = *self.context.control.operands.get(source);
                     *formed_type = captured.type_reference;
                     *completion = captured.completion;
-                    let source = self.context.control.operands.insert(captured);
                     *backing = source;
                     if self.is_view_type(captured.type_reference)
                         || self.program.type_multiplicity(captured.type_reference)
@@ -1760,6 +1784,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     expression,
                     *dispatch,
                     destination,
+                    evaluated_inputs,
                     contexts,
                     constraints,
                 ));

@@ -240,9 +240,16 @@ pub(super) fn collect_backings(
                 return Err("an actual's descriptor source capture is missing");
             }
             let operand = facts.flow.control.operands.get(capture);
-            let descriptor_loan = operand.descriptor_permission.loaded_loan();
-            if projection.is_empty() && facts.borrow.loans.is_valid(descriptor_loan) {
-                let loan = facts.borrow.loans.get(descriptor_loan);
+            if projection.is_empty()
+                && facts
+                    .borrow
+                    .loans
+                    .is_valid(operand.descriptor_permission.loaded_loan())
+            {
+                let loan = facts
+                    .borrow
+                    .loans
+                    .get(operand.descriptor_permission.loaded_loan());
                 if facts
                     .borrow
                     .incoming_references

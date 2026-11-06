@@ -142,6 +142,7 @@ impl BoundaryStorageInputs {
             &result.projected_qualifications,
             None,
             identity_cursor,
+            &[],
         )
     }
 }

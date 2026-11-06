@@ -116,6 +116,29 @@ impl QualificationFacts {
             .collect()
     }
 
+    /// The linked judgments for one authored evaluation. The arena groups
+    /// these rows at publication; synthetic construction owns a separate key.
+    pub fn formation_decisions_at(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: u32,
+        expression: ExpressionHandle,
+    ) -> arena::HandleSpan<CheckedValueQualification> {
+        let mut span = arena::HandleSpan::empty();
+        for (handle, row) in self.value_formations.iter() {
+            if !row.structural_value.is_valid()
+                && row.machine == machine
+                && row.state == state
+                && row.statement_index == statement_index
+                && row.expression == expression
+            {
+                span.push_contiguous(handle);
+            }
+        }
+        span
+    }
+
     /// Publish the source-to-value association once after checking. Membership
     /// rows carry no exposed handles before this join, so group them into one
     /// arena and let each value retain a span instead of making every lowering

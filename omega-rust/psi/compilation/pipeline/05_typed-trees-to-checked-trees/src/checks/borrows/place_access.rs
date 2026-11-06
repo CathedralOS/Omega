@@ -40,6 +40,9 @@ pub(super) fn place_backings(
         .any(|loan| facts.borrow.loans.get(*loan).storage_owner == place.root)
     {
         return Some(vec![ResolvedAlias {
+            selected: crate::checks::borrows::aliases::unloaned_source(
+                program, facts, state, &place,
+            ),
             place,
             lineage: Vec::new(),
         }]);
@@ -161,25 +164,28 @@ pub(super) fn argument_backings(
             forwarded_inputs: Vec::new(),
         });
     }
-    let forwarded = !matches!(
-        program.expression_table.expression(access.expression),
-        typed_trees::expression::ExpressionNode::Borrow(_)
-    ) && (validation::expression_type_reference_in_state(
-        program,
-        state.state_symbol,
-        call.statement_index,
-        access.expression,
-    )
-    .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
-        || selected.is_some_and(|capture| {
-            super::completed_backings::value_observation_descriptor_source(program, facts, capture)
+    // A newly formed view keeps its evaluated receiver even when a cast
+    // changes its access. It is not a load of the named source's stored pointer.
+    let forms_reference =
+        validation::reference_formation_source(program, access.expression).is_some();
+    let forwarded = !forms_reference
+        && (validation::expression_type_reference_in_state(
+            program,
+            state.state_symbol,
+            call.statement_index,
+            access.expression,
+        )
+        .is_some_and(|reference| validation::reference_shell(program, reference).is_some())
+            || selected.is_some_and(|capture| {
+                super::completed_backings::value_observation_descriptor_source(
+                    program, facts, capture,
+                )
                 .is_ok()
-        }));
+            }));
     if !forwarded {
         if let Some(selected) = selected
             && let Some(formation) =
                 super::formation_captures::argument_formation(program, facts, state, selected)?
-            && formation.storage
         {
             let resolved =
                 super::completed_backings::resolve(program, facts, state, formation.value)?;
@@ -188,6 +194,9 @@ pub(super) fn argument_backings(
                 capture: formation.value,
                 forwarded_inputs: resolved.forwarded_inputs,
             });
+        }
+        if forms_reference {
+            return Err("the formed argument has no exact completed formation receiver");
         }
         return place_backings(
             program,

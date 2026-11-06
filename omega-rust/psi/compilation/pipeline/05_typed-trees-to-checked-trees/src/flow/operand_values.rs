@@ -199,8 +199,13 @@ pub(super) fn captured_places(
                             .span_or_empty(referent.segments)
                             .to_vec(),
                     };
-                    let place =
-                        project_captured_view_place(storage.clone(), &selected[prefix_length..])?;
+                    let place = validation::completed_storage::project_captured_storage_place(
+                        program,
+                        operand.state_symbol,
+                        operand.statement_index,
+                        storage.clone(),
+                        &selected[prefix_length..],
+                    )?;
                     Some(CapturedValuePlace {
                         storage,
                         projected: place,
@@ -211,14 +216,24 @@ pub(super) fn captured_places(
         if operand_binds_live_view(program, type_reference) {
             return None;
         }
-        let storage = validation::CanonicalPlace {
+        let root = validation::CanonicalPlace {
             root: PlaceRoot::Expression(source.expression),
-            segments: control.operand_child_paths.span_or_empty(path).to_vec(),
+            segments: Vec::new(),
         };
-        let place = validation::CanonicalPlace {
-            root: storage.root,
-            segments: selected,
-        };
+        let storage = validation::completed_storage::project_captured_storage_place(
+            program,
+            operand.state_symbol,
+            operand.statement_index,
+            root.clone(),
+            control.operand_child_paths.span_or_empty(path),
+        )?;
+        let place = validation::completed_storage::project_captured_storage_place(
+            program,
+            operand.state_symbol,
+            operand.statement_index,
+            root,
+            &selected,
+        )?;
         return Some(vec![CapturedValuePlace {
             storage,
             projected: place,
@@ -226,14 +241,20 @@ pub(super) fn captured_places(
     }
     let referents = control.operand_referents.span_or_empty(operand.referents);
     if !operand_binds_live_view(program, type_reference) || referents.is_empty() {
-        let mut place = place_at(
+        let place = place_at(
             program,
             operand.state_symbol,
             operand.statement_index,
             projection.expression,
         )?;
         let storage = place.clone();
-        place.extend_segments(&projection.remaining);
+        let place = validation::completed_storage::project_captured_storage_place(
+            program,
+            operand.state_symbol,
+            operand.statement_index,
+            place,
+            &projection.remaining,
+        )?;
         return Some(vec![CapturedValuePlace {
             storage,
             projected: place,
@@ -250,7 +271,13 @@ pub(super) fn captured_places(
                     .to_vec(),
             };
             let storage = place.clone();
-            place = project_captured_view_place(place, &projection.remaining)?;
+            place = validation::completed_storage::project_captured_storage_place(
+                program,
+                operand.state_symbol,
+                operand.statement_index,
+                place,
+                &projection.remaining,
+            )?;
             Some(CapturedValuePlace {
                 storage,
                 projected: place,

@@ -116,6 +116,7 @@ pub(super) fn owned_storage_source(
         // their referents. Consuming a reference's whole referent instead
         // follows the same captured route as a projected extraction.
         Some(ResolvedAlias {
+            selected: checked_trees::CheckedBorrowSourceOccurrence::DirectStorage,
             place: checked_trees::CapturedPlace {
                 root: facts::PlaceRoot::Symbol(root),
                 segments: Vec::new(),

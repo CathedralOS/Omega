@@ -43,6 +43,7 @@ struct PendingLoad {
     /// The receiver's authority locates this address, independently of the
     /// final descriptor's grant over its own referent.
     lineage: Vec<Handle<BorrowLoanFact>>,
+    selected: checked_trees::CheckedBorrowSourceOccurrence,
     /// A borrowed formal supplies its outer grant separately from the stored
     /// ingress leaves of its referee. In `&&T`, both have the empty owner path.
     formal_root: bool,
@@ -199,6 +200,7 @@ fn resolve_loads(
                     })
             });
     let mut pending = vec![PendingLoad {
+        selected: crate::checks::borrows::aliases::unloaned_source(program, facts, state, &address),
         address,
         carrier,
         remaining: place.segments,
@@ -241,6 +243,7 @@ fn resolve_loads(
             append_distinct(
                 &mut resolved,
                 ResolvedAlias {
+                    selected: cursor.selected,
                     place: descriptor,
                     lineage: cursor.lineage,
                 },
@@ -256,12 +259,24 @@ fn resolve_loads(
                 append_distinct(
                     &mut resolved,
                     ResolvedAlias {
+                        selected: crate::checks::borrows::aliases::unloaned_source(
+                            program,
+                            facts,
+                            state,
+                            &descriptor,
+                        ),
                         place: descriptor,
                         lineage: Vec::new(),
                     },
                 );
             } else {
                 pending.push(PendingLoad {
+                    selected: crate::checks::borrows::aliases::unloaned_source(
+                        program,
+                        facts,
+                        state,
+                        &descriptor,
+                    ),
                     address: descriptor,
                     carrier: reference.referee,
                     remaining: remaining.to_vec(),
@@ -342,6 +357,7 @@ fn resolve_loads(
                 let mut ancestors = cursor.ancestors.clone();
                 ancestors.push(occurrence);
                 pending.push(PendingLoad {
+                    selected: alternative.selected,
                     address: alternative.place,
                     carrier: reference.referee,
                     remaining: remaining.to_vec(),
@@ -443,7 +459,9 @@ fn current_incoming<'facts>(
 
 fn append_distinct(resolved: &mut Vec<ResolvedAlias>, alternative: ResolvedAlias) {
     if !resolved.iter().any(|previous| {
-        previous.place == alternative.place && previous.lineage == alternative.lineage
+        previous.selected == alternative.selected
+            && previous.place == alternative.place
+            && previous.lineage == alternative.lineage
     }) {
         resolved.push(alternative);
     }

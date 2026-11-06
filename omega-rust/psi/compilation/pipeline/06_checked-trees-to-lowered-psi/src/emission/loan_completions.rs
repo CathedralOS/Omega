@@ -10,7 +10,6 @@ use crate::emission::operation_emission::buffer::{
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::shared::checked_facts::flow_facts;
 use crate::shared::lowering_error::{LoweringError, unsupported};
-use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedTrees;
 use language_semantics::{PermissionClaimIdentity, PermissionEventKind, PermissionEventSource};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -26,11 +25,6 @@ pub(crate) struct PreparedLoanCompletion {
     pub(crate) path: Vec<StructuralPathSegment>,
     pub(crate) multiplicity: StructuralMultiplicity,
     pub(crate) claims: Vec<(PermissionClaimIdentity, Vec<StructuralPathSegment>, bool)>,
-    pub(crate) qualifications: Vec<(
-        language_semantics::SemanticDomainId,
-        Vec<StructuralPathSegment>,
-        StructuralTypeId,
-    )>,
 }
 
 /// The returned region's checked field qualifications are catalog dependencies
@@ -161,72 +155,10 @@ pub(crate) fn prepare(
             );
             claims.push((event.claim_identity, terminal_path, introduces));
         }
-        let mut qualifications = Vec::new();
-        for fact in qualification_facts(checked, region) {
-            if super::call_qualifications::declaration_represents(identities, checked, fact)? {
-                continue;
-            }
-            let Some(place_handle) = fact.place.as_place() else {
-                continue;
-            };
-            let place = checked.facts.semantic.places.get(place_handle);
-            let segments = checked
-                .facts
-                .semantic
-                .place_segments
-                .span_or_empty(place.segments);
-            let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership()
-            else {
-                continue;
-            };
-            // The checked completion publishes a membership in existing
-            // storage. Observing through a stored reference grants no owned
-            // claim to its referent; those claims were prepared separately.
-            let mut fact_path =
-                validation::qualification_storage_path(&checked.typed, reference, segments)
-                    .map_err(LoweringError::Unsupported)?;
-            let selected = validation::project_type_reference_from_segments(
-                &checked.typed,
-                reference,
-                segments,
-            )
-            .ok_or(LoweringError::Unsupported(
-                "loan completion qualification lost its selected source type",
-            ))?;
-            let (membership_path, _) =
-                validation::result_membership_carrier(&checked.typed, selected, domain_symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "loan completion qualification has no matching domain carrier",
-                    ))?;
-            fact_path.extend(membership_path);
-            let mut full_path = owner.path.clone();
-            full_path.extend(
-                crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                    identities,
-                    &fact_path,
-                    structural_type,
-                    types,
-                )?,
-            );
-            let carrier = if full_path.is_empty() {
-                structural_type
-            } else {
-                terminal_semantics::qualification_path_carrier(
-                    types.iter(),
-                    structural_type,
-                    &full_path,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "loan completion qualification has no exact projected carrier",
-                ))?
-            };
-            qualifications.push((semantic_domain, full_path, carrier));
-        }
         completions.push(PreparedLoanCompletion {
             place: owner.place,
             path: completed_path,
             claims,
-            qualifications,
             multiplicity: match region.multiplicity {
                 language_semantics::Multiplicity::Unrestricted => {
                     StructuralMultiplicity::Unrestricted
@@ -309,32 +241,6 @@ pub(crate) fn emit(
             multiplicity: completion.multiplicity,
             claims,
         });
-
-        let mut qualifications = Vec::new();
-        let mut projected_qualifications = Vec::new();
-        for (semantic_domain, path, carrier) in &completion.qualifications {
-            let domain =
-                lookup_domain_id_for_carrier(calls.domain_ids, *semantic_domain, *carrier)?;
-            if path.is_empty() {
-                qualifications.push(domain);
-            } else {
-                projected_qualifications.push(terminal_psi::StructuralPathQualification {
-                    path: path.clone(),
-                    domain,
-                });
-            }
-        }
-        qualifications.sort();
-        qualifications.dedup();
-        projected_qualifications.sort();
-        projected_qualifications.dedup();
-        if !qualifications.is_empty() || !projected_qualifications.is_empty() {
-            operations.add_structural_qualifications(
-                completion.place,
-                &qualifications,
-                &projected_qualifications,
-            );
-        }
     }
     operations.loan_completions.sort_by(|left, right| {
         (left.operation, left.place, &left.path).cmp(&(right.operation, right.place, &right.path))

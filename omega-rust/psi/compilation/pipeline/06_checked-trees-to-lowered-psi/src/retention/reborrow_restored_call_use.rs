@@ -1,4 +1,3 @@
-use arena::Handle;
 use checked_trees::{
     CheckedParentBorrowResource, CheckedReborrowResourceDisposition,
     CheckedReborrowResourceDispositionEvent,
@@ -49,7 +48,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             || !flow
                 .borrow_lifetimes
                 .weakenings
-                .is_valid(child_parent_weakening_handle(borrow, event)?)
+                .is_valid(event.restored_parent_weakening)
             || !flow.control.calls.is_valid(event.restored_call)
             || !borrow.calls.is_valid(event.restored_borrow_call)
             || !borrow
@@ -290,28 +289,4 @@ fn restored_kind(event: &CheckedReborrowResourceDispositionEvent) -> Result<bool
         }
         _ => unsupported("restored reborrow call use names a non-restoration disposition"),
     }
-}
-
-fn child_parent_weakening_handle(
-    borrow: &checked_trees::BorrowFacts,
-    event: &CheckedReborrowResourceDispositionEvent,
-) -> Result<Handle<checked_trees::FlowBorrowWeakeningFact>, LoweringError> {
-    if !borrow
-        .reborrow_loan_resources
-        .is_valid(event.child_resource)
-    {
-        return unsupported("restored reborrow call use child resource handle is invalid");
-    }
-    let weakening = match borrow
-        .reborrow_loan_resources
-        .get(event.child_resource)
-        .parent_end_status
-        .parent_end
-    {
-        checked_trees::CheckedBorrowParentEnd::Lexical { weakening } => weakening,
-        checked_trees::CheckedBorrowParentEnd::CompletedOutput { holder_weakening } => {
-            holder_weakening
-        }
-    };
-    Ok(weakening)
 }

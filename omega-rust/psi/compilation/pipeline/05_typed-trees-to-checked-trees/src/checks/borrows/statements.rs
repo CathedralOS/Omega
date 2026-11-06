@@ -407,6 +407,8 @@ pub(super) fn check_statement_borrows<'p>(
                             place,
                             expression: *expression,
                             evaluation: occurrence.evaluation,
+                            occurrence,
+                            position,
                             active_loans: &active,
                         },
                         stated_premises,

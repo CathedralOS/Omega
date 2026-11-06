@@ -11,6 +11,8 @@ use terminal_psi::RecordFieldValue;
 use terminal_psi::element_view_establish_pair_pattern;
 use terminal_psi::find_structural_type;
 
+mod payload_writes;
+
 /// Ordinary edges transport evaluated SSA operands. A case edge instead births
 /// scalar values by reading the selected payload before edge cleanup; those
 /// values have no predecessor SSA operand to substitute into payload history.
@@ -64,6 +66,7 @@ pub(super) fn adapt(
     machine: &TerminalMachine,
     slot_kind: DescriptorSlotKind,
     selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+    forwarding: &[terminal_psi::BoundaryReferenceForwardingDemand],
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = super::payload_predicates::TerminalScalarExpressions::new(machine);
@@ -92,6 +95,9 @@ pub(super) fn adapt(
         contents_transfers: BTreeMap::new(),
         payload_invalidations: BTreeMap::new(),
         payload_producers: BTreeMap::new(),
+        payload_stores: BTreeMap::new(),
+        primitive_payload_writes: Default::default(),
+        opaque_payload_results: Default::default(),
         payload_entry_predicates: Some((
             semantic_vocabulary::PropositionContext::from_value_types_and_places(
                 machine
@@ -245,6 +251,9 @@ pub(super) fn adapt(
             let result = operation.result.structural();
             if let Some(result) = result {
                 graph.payload_producers.insert(position, result.place);
+                if matches!(&operation.kind, OperationKind::BoundaryCall { .. }) {
+                    graph.opaque_payload_results.insert(position);
+                }
                 let mut rows = machine
                     .structural_places
                     .iter()
@@ -276,34 +285,13 @@ pub(super) fn adapt(
             // exact addresses for dynamic selectors. Unknown writes remain
             // explicit and retire evidence conservatively in membership replay.
             let payload_query = |root, path: &[StructuralPathSegment], field| {
-                let mut query = descriptor_contents_query(
+                payload_writes::selected_query(
                     &module.structural_types,
                     root,
                     *graph.place_types.get(&root)?,
                     path,
                     field,
-                )?;
-                if field.is_none() {
-                    let selected = crate::runtime_structural_path_tip(
-                        module.structural_types.iter(),
-                        *graph.place_types.get(&root)?,
-                        path,
-                    )?;
-                    match selected.shape {
-                        StructuralTypeShape::ElementView { element, .. } => {
-                            query
-                                .steps
-                                .push(DescriptorContentsStep::AnyElement { element });
-                        }
-                        StructuralTypeShape::ByteSequence(_)
-                            if is_descriptor(module.structural_types.iter(), selected.id) =>
-                        {
-                            return None;
-                        }
-                        _ => {}
-                    }
-                }
-                Some(query)
+                )
             };
             let mut payload_writes = Vec::new();
             match &operation.kind {
@@ -323,7 +311,22 @@ pub(super) fn adapt(
                 OperationKind::WriteOnlyPrimitiveStore {
                     destination, path, ..
                 } => {
+                    graph.primitive_payload_writes.insert(position);
                     payload_writes.push(payload_query(*destination, path, None));
+                }
+                OperationKind::StoreStructuralField {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } if location(*destination, path, *field).is_none()
+                    || location(value.place, &value.path, None).is_none() =>
+                {
+                    // A runtime-selected structural store still changes its
+                    // payload when it contains no descriptor slots. Exact
+                    // stores use the simultaneous value transfer below.
+                    payload_writes.push(payload_query(*destination, path, *field));
                 }
                 OperationKind::StructuralScalarFieldStore {
                     destination,
@@ -331,6 +334,7 @@ pub(super) fn adapt(
                     field,
                     ..
                 } => {
+                    graph.primitive_payload_writes.insert(position);
                     payload_writes.push(payload_query(*destination, path, Some(*field)));
                 }
                 OperationKind::StructuralByteSequenceFieldByteStore {
@@ -376,30 +380,21 @@ pub(super) fn adapt(
                 }
                 terminal_psi::call_structural_argument_variants!(arguments) => {
                     for argument in arguments {
-                        let selected = crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
+                        match payload_writes::for_argument(
+                            &module.structural_types,
+                            argument,
                             *graph.place_types.get(&argument.place)?,
-                            &argument.path,
-                        );
-                        let mutation = selected
-                            .map(|selected| {
-                                crate::shared_mutation(
-                                    module.structural_types.iter(),
-                                    selected.id,
-                                    &[],
-                                )
-                            })
-                            .unwrap_or(crate::SharedMutation::Unbounded);
-                        if mutation == crate::SharedMutation::Unbounded {
-                            payload_writes.push(None);
-                        } else if argument.access != StructuralAccess::SharedBorrow
-                            || mutation != crate::SharedMutation::None
-                        {
-                            payload_writes.push(payload_query(
-                                argument.place,
-                                &argument.path,
-                                None,
-                            ));
+                        ) {
+                            Ok(queries) => payload_writes.extend(queries.into_iter().map(Some)),
+                            Err(reason) => {
+                                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                    eprintln!(
+                                        "CHECKSITE call-payload-write-unavailable machine={:?} position={position:?} argument={argument:?} reason={reason}",
+                                        machine.id,
+                                    );
+                                }
+                                payload_writes.push(None);
+                            }
                         }
                     }
                 }
@@ -555,6 +550,12 @@ pub(super) fn adapt(
                         ));
                     }
                     let preserves_coordinates = match &operation.kind {
+                        // A byte/layout view can select a subregion of its
+                        // supplying object. Its logical reference type alone
+                        // does not certify that object's full address/extent.
+                        OperationKind::EstablishReference {
+                            storage: Some(_), ..
+                        } => false,
                         element_view_establish_pair_pattern!(source, element, region, ..) => {
                             crate::runtime_structural_path_tip(
                                 module.structural_types.iter(),
@@ -573,7 +574,8 @@ pub(super) fn adapt(
                         _ => true,
                     };
                     if !preserves_coordinates {
-                        // Viewed element paths cannot refine differently named backing paths.
+                        // A view may change both the address and its extent. Keep
+                        // its backing lineage without claiming an exact source coordinate.
                         backing_projection
                             .get_or_insert_with(|| Projection::new(&[]))
                             .forget_address();
@@ -705,12 +707,20 @@ pub(super) fn adapt(
                     }
                 }
                 OperationKind::StoreStructuralField {
+                    disposition,
                     destination,
                     path,
                     field,
                     value,
                     ..
                 } => {
+                    let destination_query = descriptor_contents_query(
+                        &module.structural_types,
+                        *destination,
+                        *graph.place_types.get(destination)?,
+                        path,
+                        *field,
+                    );
                     let value_type = crate::runtime_structural_path_tip(
                         module.structural_types.iter(),
                         *graph.place_types.get(&value.place)?,
@@ -742,6 +752,25 @@ pub(super) fn adapt(
                         location(*destination, path, *field),
                         location(value.place, &value.path, None),
                     ) {
+                        if let (Some(destination_query), Some(destination_carrier)) = (
+                            destination_query,
+                            descriptor_location_type(
+                                &module.structural_types,
+                                *graph.place_types.get(&destination.root)?,
+                                &destination.path,
+                            ),
+                        ) {
+                            graph.payload_stores.insert(
+                                position,
+                                DescriptorPayloadStore {
+                                    source: source.clone(),
+                                    destination: destination.clone(),
+                                    destination_query,
+                                    destination_carrier,
+                                    disposition: *disposition,
+                                },
+                            );
+                        }
                         step.definitions.push(destination.clone());
                         step.derivations.push((source, destination.clone()));
                         // Reseating contents retains the destination storage home.
@@ -1148,21 +1177,32 @@ pub(super) fn adapt(
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
                         && (!declaration.reference_outputs.is_empty()
-                            || !declaration.result_reference_regions.is_empty())
+                            || !declaration.result_reference_regions.is_empty()
+                            || !declaration.normal_qualifications.is_empty())
                         && slot_kind != DescriptorSlotKind::AccessOrigins
                     {
-                        graph.calls.insert(
-                            position,
-                            provider_invocation(
-                                operation.id,
+                        let mut invocation = provider_invocation(
+                            operation.id,
+                            &module.structural_types,
+                            slot_kind,
+                            declaration,
+                            structural_arguments,
+                            result,
+                            &graph.place_types,
+                        )?;
+                        if matches!(
+                            slot_kind,
+                            DescriptorSlotKind::References | DescriptorSlotKind::BorrowedStorage
+                        ) {
+                            super::provider_invocation::bind_forwarding_sources(
                                 &module.structural_types,
-                                slot_kind,
+                                machine.id,
                                 declaration,
-                                structural_arguments,
-                                result,
-                                &graph.place_types,
-                            )?,
-                        );
+                                forwarding,
+                                &mut invocation,
+                            )?;
+                        }
+                        graph.calls.insert(position, invocation);
                     }
                 }
                 _ => {}
@@ -1526,15 +1566,27 @@ fn mark_opaque_call_occupancy(
     }) {
         unresolved_contents_writes.insert(position);
     }
-    for actual in actuals
-        .iter()
-        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-    {
-        step.definitions.extend(slot_kind.slots(
-            types,
-            actual.place,
-            *place_types.get(&actual.place)?,
-        )?);
+    for actual in actuals {
+        let root_type = *place_types.get(&actual.place)?;
+        // Borrowing a pointer's holder mutably does not make a shared
+        // pointee writable. Keep the cumulative access ceiling, and limit
+        // the footprint to the subtree actually supplied to this call.
+        let writable = slot_kind.writable_slots(types, actual.place, root_type, actual.access)?;
+        let mut affected = writable.into_iter().collect::<BTreeSet<_>>();
+        // Moving an owned carrier also consumes its inline descriptor slots;
+        // this is separate from writes through the references it contains.
+        if actual.access == StructuralAccess::Owned {
+            affected.extend(slot_kind.owned_slots(types, actual.place, root_type)?);
+        }
+        if affected.is_empty() {
+            continue;
+        }
+        let selected = slot_kind
+            .overwritten_slots(types, actual.place, root_type, &actual.path, None)?
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        step.definitions
+            .extend(affected.into_iter().filter(|slot| selected.contains(slot)));
     }
     Some(())
 }

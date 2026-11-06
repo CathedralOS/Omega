@@ -4,6 +4,8 @@ use crate::descriptors::descriptor_lifetimes::descriptor_location;
 use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
 mod call_origins;
+#[cfg(test)]
+mod tests;
 
 /// Disposable current-body analysis. Snapshots and summaries are shared across
 /// queries; every source observation denotes the state before its operation.
@@ -370,6 +372,179 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay
             .storage_origins(machine, states.get(&position)?, location)
     }
+
+    /// Writing a number cannot install another saved reference or its duties.
+    /// Certify only the actual primitive operation's unchanged scalar targets;
+    /// the caller still needs an independently complete old duty roster.
+    pub(in crate::descriptors::descriptor_results) fn unchanged_primitive_payload_write(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        query: &DescriptorContentsQuery,
+    ) -> Result<(), &'static str> {
+        self.retained_primitive_payload_write(identity, position, query)?;
+        let machine = self
+            .replay
+            .machine(identity)
+            .ok_or("the primitive write has no body")?;
+        let before = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(Option::as_ref)
+            .and_then(|snapshots| snapshots.get(&position))
+            .ok_or("the primitive write has no current snapshot")?;
+        self.replay
+            .unchanged_payload_targets(machine, before, query)
+            .ok_or("the primitive write has no complete unchanged scalar targets")?;
+        Ok(())
+    }
+
+    /// Authenticate the one actual scalar write and its typed footprint.
+    /// This supplies no alias separation or address for an incoming target;
+    /// an invocation consumer must independently bind all its actual targets.
+    pub(in crate::descriptors::descriptor_results) fn retained_primitive_payload_write(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        query: &DescriptorContentsQuery,
+    ) -> Result<(), &'static str> {
+        self.replay
+            .prepare_states(identity)
+            .ok_or("the primitive write has no current descriptor replay")?;
+        let machine = self
+            .replay
+            .machine(identity)
+            .ok_or("the primitive write has no body")?;
+        let step = machine
+            .flow
+            .get(&position)
+            .ok_or("the primitive write has no operation cut")?;
+        if !machine.primitive_payload_writes.contains(&position)
+            || !step.derivations.is_empty()
+            || step.may_escape
+            || machine.payload_stores.contains_key(&position)
+            || machine.calls.contains_key(&position)
+            || machine.unresolved_contents_writes.contains(&position)
+        {
+            return Err("the operation is not a sole retained primitive payload write");
+        }
+        let Some([Some(recorded)]) = machine
+            .payload_invalidations
+            .get(&position)
+            .map(Vec::as_slice)
+        else {
+            return Err("the primitive write has no single complete typed footprint");
+        };
+        if recorded != query {
+            return Err("the primitive write footprint belongs to another destination");
+        }
+        let selected = query
+            .exact_location()
+            .ok_or("the primitive write destination is not static")?;
+        machine
+            .place_types
+            .get(&selected.root)
+            .and_then(|root| {
+                super::super::payload_predicates::observation_type(
+                    self.replay.types,
+                    *root,
+                    &selected.path,
+                )
+            })
+            .ok_or("the primitive write footprint is not a typed scalar payload")?;
+        Ok(())
+    }
+
+    /// Replacing a saved reference updates the variable that holds it.
+    /// The actual typed store selects that receiving storage or one unchanged
+    /// incoming subject. Read targets alone neither prove the write's coverage
+    /// nor grant permission; every possible target must retain its carrier.
+    pub(in crate::descriptors::descriptor_results) fn unchanged_payload_store_targets(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        source: &DescriptorLocation,
+        destination: &DescriptorLocation,
+    ) -> Result<(Vec<DescriptorPayloadTarget>, StructuralTypeId), &'static str> {
+        self.replay
+            .prepare_states(identity)
+            .ok_or("the payload store has no current descriptor replay")?;
+        let machine = self
+            .replay
+            .machine(identity)
+            .ok_or("the payload store has no body")?;
+        let store = machine
+            .payload_stores
+            .get(&position)
+            .ok_or("the operation has no retained typed payload-store destination")?;
+        let step = machine
+            .flow
+            .get(&position)
+            .ok_or("the payload store has no operation cut")?;
+        let [(actual, target)] = step.derivations.as_slice() else {
+            return Err("the payload store is not the sole complete writer");
+        };
+        if &store.source != source
+            || &store.destination != destination
+            || actual != source
+            || target != destination
+            || step.may_escape
+            || machine.calls.contains_key(&position)
+            || machine.unresolved_contents_writes.contains(&position)
+            || machine
+                .payload_invalidations
+                .get(&position)
+                .is_some_and(|rows| !rows.is_empty())
+            || machine
+                .scalar_payload_writes
+                .get(&position)
+                .is_some_and(|rows| !rows.is_empty())
+        {
+            return Err("the payload store has another or unaccounted writer");
+        }
+        if store.destination_query.exact_location().as_ref() != Some(destination) {
+            return Err("the original store destination is not a static whole payload");
+        }
+        let receiving = machine
+            .place_types
+            .get(&destination.root)
+            .and_then(|root| descriptor_location_type(self.replay.types, *root, &destination.path))
+            .ok_or("the payload store destination has no typed receiving carrier")?;
+        if receiving != store.destination_carrier {
+            return Err("the payload store disagrees with its typed receiving carrier");
+        }
+        let states = self
+            .replay
+            .snapshots
+            .get(&identity)
+            .and_then(Option::as_ref)
+            .ok_or("the payload store has no current descriptor snapshots")?;
+        let before = states
+            .get(&position)
+            .ok_or("the payload store snapshot is absent")?;
+        if let Some(targets) =
+            self.replay
+                .unchanged_payload_targets(machine, before, &store.destination_query)
+        {
+            return Ok((
+                targets
+                    .into_iter()
+                    .map(DescriptorPayloadTarget::Storage)
+                    .collect(),
+                receiving,
+            ));
+        }
+        self.replay
+            .unchanged_incoming_payload_target(
+                machine,
+                before,
+                &store.destination_query,
+                store.destination_carrier,
+            )
+            .map(|query| (vec![DescriptorPayloadTarget::Incoming(query)], receiving))
+            .ok_or("the payload store has no complete unchanged whole-payload targets")
+    }
     /// Read-only payload alternatives at this exact pre-operation snapshot.
     /// This neither loads descriptor slots nor produces an address for writes.
     pub fn payload_targets(
@@ -384,6 +559,39 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay
             .contents_targets(machine, states.get(&position)?, query)
             .map(|targets| targets.into_iter().collect())
+    }
+
+    /// A typed store may use this coordinate as whole-payload evidence only
+    /// when its selected value and backing have unchanged presentation. Views,
+    /// symbolic ingress, runtime families and ambiguous alternatives refuse.
+    /// This does not grant access or prove the value being stored.
+    pub fn exact_payload_target(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        query: &DescriptorContentsQuery,
+    ) -> Option<DescriptorLocation> {
+        let targets = self.unchanged_payload_targets(identity, position, query)?;
+        let [target] = targets.as_slice() else {
+            return None;
+        };
+        Some(target.clone())
+    }
+
+    /// Complete alternative targets with unchanged whole-payload presentation.
+    /// This is not a single write address. A consumer must check every choice;
+    /// one missing, incoming or represented alternative refuses the whole set.
+    pub fn unchanged_payload_targets(
+        &mut self,
+        identity: MachineId,
+        position: DescriptorPosition,
+        query: &DescriptorContentsQuery,
+    ) -> Option<Vec<DescriptorLocation>> {
+        self.replay.prepare_states(identity)?;
+        let machine = self.replay.machine(identity)?;
+        let states = self.replay.snapshots.get(&identity)?.as_ref()?;
+        self.replay
+            .unchanged_payload_targets(machine, states.get(&position)?, query)
     }
 
     /// Value arrivals read after the predecessor's operation and before any
@@ -415,6 +623,19 @@ impl<'a> DescriptorAnalysis<'a> {
             .map(|origin| self.replay.flatten(machine, origin))
             .collect()
     }
+    /// Read a formal's original descriptor value before any body operation or
+    /// backedge. The joined entry block is not the invocation's initial state.
+    pub fn symbolic_entry_source_origins(
+        &self,
+        identity: MachineId,
+        location: &DescriptorLocation,
+    ) -> Option<Vec<DescriptorSourceOrigin>> {
+        let machine = self.replay.machine(identity)?;
+        let initial = self.replay.initial(machine)?;
+        self.replay
+            .symbolic(machine, self.replay.read(machine, &initial, location)?)
+    }
+
     /// Read the captured descriptor contents before this operation, retaining
     /// incoming slot symbols rather than confusing their payload with storage.
     pub fn symbolic_source_origins(

@@ -33,6 +33,7 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     supplied_permissions::validate_normal_output_completions(&facts.borrow, &facts.flow)?;
+    facts.borrow.retained_borrow_inputs.reset_retain_capacity();
     call_operands::install(program, facts);
     supplied_permissions::install(program, facts)?;
     stored_call_inputs::install(program, facts);

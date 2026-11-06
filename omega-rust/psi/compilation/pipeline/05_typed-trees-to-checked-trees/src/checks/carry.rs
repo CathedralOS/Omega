@@ -274,6 +274,7 @@ pub(super) fn check_suspension_carry(
     let mut suspension_crossings = Vec::new();
     let mut suspension_loans = arena::Arena::new();
     let mut suspension_value_loans = arena::Arena::new();
+    let mut suspension_loan_relations = arena::Arena::new();
     let mut loan_resources = None;
 
     for state_borrows in facts.borrow.states.iter().map(|(_, state)| state) {
@@ -326,8 +327,7 @@ pub(super) fn check_suspension_carry(
                 loan_resources.get_or_insert_with(|| loans::resource_bindings(&facts.borrow));
             let borrows = match loans::retain_call_frontier(
                 program,
-                &facts.borrow,
-                &facts.flow,
+                facts,
                 state_borrows,
                 call_flow,
                 &source_values,
@@ -391,6 +391,18 @@ pub(super) fn check_suspension_carry(
                     &mut suspension_value_loans,
                 );
             }
+            if let Err(diagnostic) = loans::publish_relations(
+                &facts.borrow,
+                &facts.flow,
+                state_borrows,
+                call_flow,
+                borrows,
+                &mut suspension_loans,
+                &mut suspension_loan_relations,
+            ) {
+                diagnostics.push(diagnostic);
+                continue;
+            }
             resolve_crossing_carry(
                 program,
                 &facts.borrow,
@@ -419,6 +431,7 @@ pub(super) fn check_suspension_carry(
     facts.carry.suspension_crossings = suspension_crossings;
     facts.carry.suspension_loans = suspension_loans;
     facts.carry.suspension_value_loans = suspension_value_loans;
+    facts.carry.suspension_loan_relations = suspension_loan_relations;
 
     crate::checks::finish(diagnostics)
 }

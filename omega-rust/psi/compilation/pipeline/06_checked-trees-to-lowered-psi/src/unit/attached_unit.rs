@@ -749,6 +749,8 @@ pub(crate) fn lower_unit_closure(
             callback_applications: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),
+            boundary_lender_preservation: Vec::new(),
+            boundary_reference_forwarding: Vec::new(),
             scalar_qualifications,
             scalar_block_invariants,
             operation_crash_contracts: Vec::new(),

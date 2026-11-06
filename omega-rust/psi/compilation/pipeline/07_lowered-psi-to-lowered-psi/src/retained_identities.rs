@@ -30,8 +30,8 @@ pub(crate) struct RecordNamedRows {
 
 /// Read the record carriers the low-level rewrites and the cleanup's evidence
 /// inventory share: quotient rows and their adaptations, boundary application
-/// demands, suspension call sites, suspension plans with their loan
-/// formations, and float-meaning projections. The cleanup keeps every named
+/// demands, lender-preservation requests, suspension call sites and plans with
+/// their loan formations, and float-meaning projections. The cleanup keeps every named
 /// row; each rewrite keeps the named value identities exact. One read serves
 /// all of them, so a carrier added here reaches every consumer at once.
 pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> RecordNamedRows {
@@ -56,6 +56,18 @@ pub(crate) fn record_named_rows(module: &terminal_psi::TerminalModule) -> Record
             .boundary_application_demands
             .iter()
             .map(|demand| demand.terminal_operation()),
+    );
+    rows.operations.extend(
+        module
+            .boundary_lender_preservation
+            .iter()
+            .map(|demand| demand.operation),
+    );
+    rows.operations.extend(
+        module
+            .boundary_reference_forwarding
+            .iter()
+            .map(|demand| demand.operation),
     );
     for site in &module.suspension_call_sites {
         rows.operations.insert(site.operation);

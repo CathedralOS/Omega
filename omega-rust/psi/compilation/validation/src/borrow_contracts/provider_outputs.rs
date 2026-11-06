@@ -48,6 +48,31 @@ pub struct ProviderOutputRelation {
     pub readiness: BorrowRelationReadiness,
 }
 
+/// A helper stores its output inside a borrowed destination or an owned
+/// carrier. Select that stored carrier without reading its previous contents;
+/// in particular, a write-only receiving reference needs no pointer load.
+/// This is type correspondence, not output permission or ownership evidence.
+pub fn installed_output_carrier_type(
+    program: &dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    carrier
+        .is_valid()
+        .then(|| crate::reference_shell(program, carrier).map_or(carrier, |outer| outer.referee))
+}
+
+/// Use the destination's complete applied declaration when selecting its
+/// installed field. Equal spelling or layout cannot relate two members.
+pub fn installed_output_path_type(
+    program: &dyn crate::CheckingInput,
+    carrier: TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<TypeReferenceHandle> {
+    let stored = installed_output_carrier_type(program, carrier)?;
+    let path = crate::corresponding_place_projection(program, stored, path)?;
+    crate::project_type_reference_from_segments(program, stored, &path)
+}
+
 /// Resolve every writable output leaf using the complete applied type frontier.
 /// This relation retains lifetimes only; provider admission separately supplies
 /// the reference's backing, access and stability promise.

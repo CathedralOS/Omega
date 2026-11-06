@@ -80,6 +80,14 @@ pub(in crate::checks::borrows::resources) fn install(
             .ok_or_else(|| diagnostic("completed output has no unique flow owner"))?;
         let inputs = super::inputs::plan(program, facts, state, call, sources, &ceilings)
             .map_err(diagnostic)?;
+        let performed = facts.flow.control.calls.get(call);
+        let parameters = validation::call_target_parameters(program, performed.target_symbol)
+            .ok_or_else(|| diagnostic("completed output has no applied parameter list"))?;
+        let parameter_index = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == identity.parameter_symbol)
+            .ok_or_else(|| diagnostic("completed output has no original output argument"))?;
+        let capture_path = validation::borrow_contracts::structural_owner_path(program, owner);
         let origin = facts
             .borrow
             .supplied_output_call(loan)
@@ -103,6 +111,8 @@ pub(in crate::checks::borrows::resources) fn install(
                 machine_symbol: incoming.machine_symbol,
                 state_symbol: incoming.state_symbol,
                 call,
+                parameter_index,
+                capture_path: None,
                 identity: row.incoming_reference,
                 lifetime_sources: sources,
                 inputs: HandleSpan::empty(),
@@ -113,13 +123,13 @@ pub(in crate::checks::borrows::resources) fn install(
             },
             inputs,
             debts,
+            capture_path,
         ));
     }
     facts
         .borrow
         .supplied_output_resources
         .reset_retain_capacity();
-    facts.borrow.supplied_output_inputs.reset_retain_capacity();
     facts
         .borrow
         .output_lifetime_dependencies
@@ -128,7 +138,9 @@ pub(in crate::checks::borrows::resources) fn install(
         .borrow
         .output_dependency_suppliers
         .reset_retain_capacity();
-    for (mut output, inputs, debts) in plans {
+    for (mut output, inputs, debts, capture_path) in plans {
+        output.capture_path =
+            capture_path.map(|path| facts.borrow.call_loan_paths.insert_many(path));
         let mut handles = Vec::with_capacity(inputs.resources.len());
         for input in inputs.resources {
             let (permission, capture_path) = match input.permission {
@@ -150,7 +162,7 @@ pub(in crate::checks::borrows::resources) fn install(
                                 diagnostic("completed input permission has no typed capture path")
                             })?;
                     (
-                        checked_trees::CheckedOutputBorrowInputPermission::Borrowed { resource },
+                        checked_trees::CheckedRetainedBorrowInputPermission::Borrowed { resource },
                         facts.borrow.call_loan_resources.get(resource).capture_path,
                     )
                 }
@@ -176,7 +188,7 @@ pub(in crate::checks::borrows::resources) fn install(
                             })?;
                     let capture_path = facts.borrow.call_loan_paths.insert_many(path);
                     (
-                        checked_trees::CheckedOutputBorrowInputPermission::Incoming {
+                        checked_trees::CheckedRetainedBorrowInputPermission::Incoming {
                             identity: place.incoming_reference,
                             access,
                             root: place.root,
@@ -193,14 +205,35 @@ pub(in crate::checks::borrows::resources) fn install(
                     )
                 }
             };
-            handles.push(checked_trees::CheckedOutputBorrowInput {
+            handles.push(checked_trees::CheckedRetainedBorrowInput {
+                machine_symbol: output.machine_symbol,
+                state_symbol: output.state_symbol,
+                origin: checked_trees::CheckedRetainedBorrowInputOrigin::Declared {
+                    source: input.source,
+                    stored: input.stored,
+                },
+                call: output.call,
+                parameter_index: facts
+                    .flow
+                    .control
+                    .operand_retained_suppliers
+                    .get(input.source)
+                    .contract
+                    .ok_or_else(|| diagnostic("completed input lost its original contract"))?
+                    .parameter_index,
+                source_kind: facts
+                    .flow
+                    .control
+                    .operand_retained_suppliers
+                    .get(input.source)
+                    .contract
+                    .ok_or_else(|| diagnostic("completed input lost its original contract"))?
+                    .source,
                 capture_path,
-                source: input.source,
-                stored: input.stored,
                 permission,
             });
         }
-        output.inputs = facts.borrow.supplied_output_inputs.insert_many(handles);
+        output.inputs = facts.borrow.retained_borrow_inputs.insert_many(handles);
         // The span belongs to loan_suppliers, which is never reset by resource
         // installation. Holder spans are installed later in resource_holders.
         output.debts = facts

@@ -35,6 +35,23 @@ macro_rules! r {
 pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), CodecError> {
     require_increasing(
         module
+            .boundary_reference_forwarding
+            .iter()
+            .map(|demand| (demand.machine, demand.operation, demand.output)),
+        "boundary reference forwarding demands",
+    )?;
+    for demand in &module.boundary_reference_forwarding {
+        require_increasing(
+            demand.sources.iter(),
+            "boundary reference forwarding sources",
+        )?;
+    }
+    require_increasing(
+        module.boundary_lender_preservation.iter(),
+        "boundary lender preservation demands",
+    )?;
+    require_increasing(
+        module
             .structural_referents
             .iter()
             .map(|referent| referent.id),

@@ -95,6 +95,7 @@ mod calling_policy_execution;
 pub mod host;
 pub mod settings;
 
+pub use activation::lender_preservation;
 pub use activation::scalar_completion;
 
 pub use activation::completed_pure_build::PureBuildCompilation;

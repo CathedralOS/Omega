@@ -9,6 +9,74 @@ use crate::machine_calls::calls::write_frames as frames;
 use symbols::JoinedPath;
 
 impl<'program> CallFrameResolver<'program> {
+    /// An evaluated operand keeps its captured pointer values, whether the
+    /// operand is one reference or a record containing references. Read that
+    /// completed value at its authenticated cut, retaining every storage
+    /// interpretation and unavailable alternative without granting permission.
+    /// Returned leaf selectors belong to `reference`, even when the supplying
+    /// declaration used separately prepared members. Source geometry is unchanged.
+    pub fn completed_operand_reference_sources(
+        &self,
+        machine: &'program Machine,
+        expected_state: symbols::SymbolHandle,
+        expected_statement: usize,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Result<Vec<frames::CapturedReferenceLeafSources>, &'static str> {
+        if !reference.is_valid() {
+            return Err("captured reference frontier requires a valid operand type");
+        }
+        let (state, statement, ordinal) = caller_statement_owner(
+            self.program,
+            machine,
+            CallerWriteSite::Expression(expression),
+        )
+        .ok_or("captured operand has no unique statement owner")?;
+        if state.symbol != expected_state || ordinal != expected_statement {
+            return Err("captured operand belongs to another statement cut");
+        }
+        let roots = frames::statement_value_expression_roots(self.program, statement);
+        let preceding = crate::queries::expression_traversal::expressions_before_occurrence(
+            self.program,
+            &roots,
+            expression,
+        )
+        .ok_or("captured operand has no complete operand order")?;
+        // The prefix owner does not retain substatement updates. Withhold
+        // geometry if earlier effects could change the value being selected.
+        for operand in preceding.into_iter().chain(std::iter::once(expression)) {
+            if self
+                .expression_write_frame(machine, operand)
+                .into_complete_paths()
+                .is_none_or(|writes| !writes.is_empty())
+            {
+                return Err("captured operand needs an unavailable substatement origin snapshot");
+            }
+        }
+        let prefix = frames::state_write_walk::collected_prefix_at(
+            &self.caches.state_write_shared_collections,
+            self.program,
+            machine,
+            state,
+            &self.tables.symbols,
+            ordinal,
+            true,
+        )
+        .ok_or("captured operand has no reached storage prefix")?;
+        let captured = frames::stored_calls::completed_value_reads(
+            self.program,
+            machine,
+            state,
+            statement,
+            expression,
+            reference,
+            &prefix,
+            &self.tables.symbols,
+        )
+        .ok_or("captured operand has no complete reference-source frontier")?;
+        captured.reference_leaf_sources(self.program)
+    }
+
     /// Capture one reference-valued operand with its full storage
     /// interpretation. Constructor projection selects the operand; this
     /// shared prefix/effect law still decides whether its source survived.

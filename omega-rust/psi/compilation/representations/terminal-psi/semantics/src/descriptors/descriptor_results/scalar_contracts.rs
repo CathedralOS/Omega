@@ -53,12 +53,95 @@ pub(super) struct TerminalPostconditions {
     pub stored: Vec<(super::DescriptorLocation, ScalarTerm)>,
 }
 
-pub(super) fn terminal_postconditions(
-    module: &terminal_psi::TerminalModule,
+/// An actual/formal binding is a coordinate, not a postcondition. Formal
+/// qualifications remain entry preconditions. Keep owned and unresolved actuals
+/// explicit so missing coordinates cannot be mistaken for absent duties.
+pub(super) struct TerminalCallParameterBinding {
+    pub position: usize,
+    pub formal: semantic_vocabulary::PlaceId,
+    pub carrier: semantic_vocabulary::StructuralTypeId,
+    pub access: terminal_psi::StructuralAccess,
+    pub actual: terminal_psi::StructuralArgument,
+    pub root_type: semantic_vocabulary::StructuralTypeId,
+    pub location: Option<super::DescriptorLocation>,
+    pub contents: Option<super::DescriptorContentsQuery>,
+}
+
+/// Keep the actual carrier, access and current coordinate join common to
+/// direct-body summaries and public normal contracts. This binds no fact.
+pub(super) fn terminal_structural_argument_binding(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    machine: &terminal_psi::TerminalMachine,
+    formal: &terminal_psi::StructuralParameterDeclaration,
+    actual: &terminal_psi::StructuralArgument,
+    position: usize,
+) -> Result<TerminalCallParameterBinding, &'static str> {
+    let root_type = machine
+        .structural_place_type(actual.place)
+        .ok_or("a structural actual has no unique current root carrier")?;
+    let selected = runtime_structural_path_tip(types.iter(), root_type, &actual.path);
+    if actual.access != formal.access
+        || (!selected.is_some_and(|selected| selected.id == formal.structural_type)
+            && crate::borrowed_primitive_projection_declaration(
+                types.iter(),
+                root_type,
+                &actual.path,
+                Some(formal.structural_type),
+            ) != Some(formal.structural_type))
+    {
+        return Err("a structural actual disagrees with its formal access or carrier");
+    }
+    Ok(TerminalCallParameterBinding {
+        position,
+        formal: formal.place,
+        carrier: formal.structural_type,
+        access: formal.access,
+        actual: actual.clone(),
+        root_type,
+        location: crate::descriptors::descriptor_lifetimes::descriptor_location(
+            types,
+            actual.place,
+            root_type,
+            &actual.path,
+            None,
+        ),
+        contents: super::contents::descriptor_contents_query(
+            types,
+            actual.place,
+            root_type,
+            &actual.path,
+            None,
+        ),
+    })
+}
+
+pub(super) struct TerminalCallBindings<'module> {
+    pub callee: &'module terminal_psi::TerminalMachine,
+    pub parameters: Vec<TerminalCallParameterBinding>,
+    scalar_bindings: Vec<(ValueId, ScalarTerm)>,
+    substitutions: BTreeMap<ValueId, ScalarTerm>,
+    storage: Vec<(
+        semantic_vocabulary::PlaceId,
+        semantic_vocabulary::StructuralTypeId,
+        super::DescriptorLocation,
+    )>,
+}
+
+impl TerminalCallBindings<'_> {
+    pub(super) fn scalar_substitutions(&self) -> &BTreeMap<ValueId, ScalarTerm> {
+        &self.substitutions
+    }
+}
+
+/// Bind a performed direct call once. Scalar ensures and normal-exit payload
+/// summaries share these type/access/tuple/result checks. Selecting a public
+/// body for effects is not permission to export its private postconditions.
+pub(super) fn terminal_call_bindings<'module>(
+    module: &'module terminal_psi::TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     operation: &terminal_psi::Operation,
     scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
-) -> Option<TerminalPostconditions> {
+) -> Result<TerminalCallBindings<'module>, &'static str> {
     use terminal_psi::{OperationKind, OperationResult, StructuralAccess, TerminalMachineResult};
     let (callee, arguments, structural_arguments): (_, &[_], &[_]) = match &operation.kind {
         OperationKind::Call {
@@ -87,20 +170,20 @@ pub(super) fn terminal_postconditions(
             structural_arguments,
             ..
         } => (*callee, &[], structural_arguments),
-        _ => return None,
+        _ => return Err("the operation is not an admitted direct call kind"),
     };
     let mut matching = module
         .machines
         .iter()
         .filter(|machine| machine.id == callee);
-    let callee = matching.next()?;
+    let callee = matching.next().ok_or("the called machine is absent")?;
     if matching.next().is_some()
         || arguments.len() != callee.parameters.len()
         || structural_arguments.len() != callee.structural_parameters.len()
         || !callee.contract.erased_scalar_formals.is_empty()
         || !callee.contract.erased_proof_formals.is_empty()
     {
-        return None;
+        return Err("the call signature, actual rosters or erased formals disagree");
     }
     let types = machine
         .parameters
@@ -121,42 +204,38 @@ pub(super) fn terminal_postconditions(
                 .iter()
                 .any(|value| value.id == *actual && value.scalar_type != formal.scalar_type)
         {
-            return None;
+            return Err("a scalar actual disagrees with its formal type");
         }
-        bindings.push((formal.id, scalar_expressions.expression(*actual)?));
+        bindings.push((
+            formal.id,
+            scalar_expressions
+                .expression(*actual)
+                .ok_or("a scalar actual has no current expression binding")?,
+        ));
     }
     let mut storage = Vec::new();
-    for (formal, actual) in callee
+    let mut parameters = Vec::new();
+    for (position, (formal, actual)) in callee
         .structural_parameters
         .iter()
         .zip(structural_arguments)
+        .enumerate()
     {
-        let root_type = machine.structural_place_type(actual.place)?;
-        let selected =
-            runtime_structural_path_tip(module.structural_types.iter(), root_type, &actual.path);
-        if actual.access != formal.access
-            || (!selected.is_some_and(|selected| selected.id == formal.structural_type)
-                && crate::borrowed_primitive_projection_declaration(
-                    module.structural_types.iter(),
-                    root_type,
-                    &actual.path,
-                    Some(formal.structural_type),
-                ) != Some(formal.structural_type))
-        {
-            return None;
-        }
-        // Owned inputs may be copied into the callee. Their post-state cannot
-        // describe the caller's original storage, even for equal carriers.
+        let binding = terminal_structural_argument_binding(
+            &module.structural_types,
+            machine,
+            formal,
+            actual,
+            position,
+        )?;
+        let location = binding.location.clone();
+        parameters.push(binding);
+        // An owned input can be copied. Keep its position above, but never
+        // map its callee post-state onto the caller's original storage.
         if actual.access == StructuralAccess::Owned {
             continue;
         }
-        if let Some(location) = crate::descriptors::descriptor_lifetimes::descriptor_location(
-            &module.structural_types,
-            actual.place,
-            root_type,
-            &actual.path,
-            None,
-        ) {
+        if let Some(location) = location {
             storage.push((formal.place, formal.structural_type, location));
         }
     }
@@ -182,12 +261,34 @@ pub(super) fn terminal_postconditions(
                 super::DescriptorLocation::whole(result.place),
             ));
         }
-        _ => return None,
+        _ => return Err("the performed call result disagrees with its signature"),
     }
     let substitutions = bindings.iter().cloned().collect::<BTreeMap<_, _>>();
     if substitutions.len() != bindings.len() {
-        return None;
+        return Err("the call has ambiguous scalar substitutions");
     }
+    Ok(TerminalCallBindings {
+        callee,
+        parameters,
+        scalar_bindings: bindings,
+        substitutions,
+        storage,
+    })
+}
+
+pub(super) fn terminal_postconditions(
+    module: &terminal_psi::TerminalModule,
+    machine: &terminal_psi::TerminalMachine,
+    operation: &terminal_psi::Operation,
+    scalar_expressions: &super::payload_predicates::TerminalScalarExpressions<'_>,
+) -> Option<TerminalPostconditions> {
+    let TerminalCallBindings {
+        callee,
+        scalar_bindings: bindings,
+        substitutions,
+        storage,
+        ..
+    } = terminal_call_bindings(module, machine, operation, scalar_expressions).ok()?;
     let mut postconditions = TerminalPostconditions {
         scalar: instantiate_payload_scalar_guarantees(&callee.contract, &bindings),
         stored: Vec::new(),

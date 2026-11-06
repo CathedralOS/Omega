@@ -40,7 +40,7 @@ pub(super) fn roster_at_expression(
         }
         Err(reason) => return Err(reason),
     };
-    let produced = from_effects(program, effects.clone(), incoming);
+    let produced = from_effects(program, state, statement_index, effects.clone(), incoming);
     let mut current = incoming
         .iter()
         .filter(|loan| {
@@ -209,6 +209,8 @@ pub(super) fn loans(
 
 pub(in crate::borrow) fn from_effects(
     program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
     effects: Vec<validation::StoredReferenceEffect>,
     loan_trackers: &[super::StateLoanTracker],
 ) -> Vec<StatementBorrowLoan> {
@@ -231,6 +233,14 @@ pub(in crate::borrow) fn from_effects(
                         &source.owner_path,
                     )
             }) {
+                if source.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+                    && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                {
+                    eprintln!(
+                        "CHECKSITE stored-input-debt-constructor phase=retained owner={owner:?} source={:?} owner_path={:?} place={:?}",
+                        source.handle, source.owner_path, source.place
+                    );
+                }
                 loans.push(StatementBorrowLoan {
                     formation_owner_path: None,
                     incoming_origin: None,
@@ -255,6 +265,17 @@ pub(in crate::borrow) fn from_effects(
             }
         }
         for source in &effect.sources {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE stored-input-source-constructor phase=entry owner={owner:?} owner_path={owner_path:?} carrier={:?} carrier_path={:?} backing={:?} carrier_backing={:?} lifetime_access={:?} reference_access={:?}",
+                    source.carrier_symbol,
+                    source.carrier_segments,
+                    source.backing,
+                    source.carrier_backing,
+                    source.lifetime_access,
+                    effect.reference_access()
+                );
+            }
             let Some(source_access) = source.lifetime_access.or(effect.reference_access()) else {
                 continue;
             };
@@ -274,7 +295,7 @@ pub(in crate::borrow) fn from_effects(
                 .flatten()
                 .and_then(|(machine, state)| {
                     let parameter = validation::invocation_output_parameter(program, identity)?;
-                    let reference = validation::project_type_reference_from_segments(
+                    let reference = validation::borrow_contracts::installed_output_path_type(
                         program,
                         parameter.type_reference,
                         &backing.segments,
@@ -283,6 +304,12 @@ pub(in crate::borrow) fn from_effects(
                     (shell.access == access).then_some((machine, state, parameter.type_reference))
                 });
                 if let Some((machine, state, carrier_type)) = supplied {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE stored-input-source-constructor phase=opaque owner={owner:?} owner_path={owner_path:?} identity={identity:?} lifetime_access={:?}",
+                            source.lifetime_access
+                        );
+                    }
                     loans.push(StatementBorrowLoan {
                         formation_owner_path: None,
                         incoming_origin: Some(super::PendingIncomingReference {
@@ -333,16 +360,22 @@ pub(in crate::borrow) fn from_effects(
                 // Keep its zero-root unknown alternative below; deleting it
                 // would let a sibling source falsely prove a complete result.
             }
-            let captured = super::call_views::rebase_borrow_places_through_local_loans(
-                program,
-                checked_trees::CapturedPlace {
-                    incoming_reference: Default::default(),
-                    incoming_owner_path: Default::default(),
-                    root: facts::PlaceRoot::Symbol(source.carrier_symbol),
-                    segments: source.carrier_segments.clone(),
-                },
-                loan_trackers,
-            );
+            let captured = match source_capture_place(program, state, statement_index, source) {
+                Ok(place) => super::call_views::rebase_borrow_places_through_local_loans(
+                    program,
+                    place,
+                    loan_trackers,
+                ),
+                Err(reason) => {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE stored-input-source-unavailable state={:?} statement={statement_index} carrier={:?} reason={reason}",
+                            state.symbol, source.carrier_symbol
+                        );
+                    }
+                    Vec::new()
+                }
+            };
             // A completed source records its input referent before deriving
             // the output view. Account for every actual carrier alternative
             // across the complete source roster, never a convenient subset.
@@ -382,6 +415,41 @@ pub(in crate::borrow) fn from_effects(
                         .map(|place| Some((candidate, place)))
                 })
                 .collect();
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE stored-input-source-constructor phase=resolved destination={owner:?} owner_path={owner_path:?} carrier={:?} carrier_path={:?} backing={backing:?} carrier_backing={:?} lifetime_access={:?} complete_carrier={complete_carrier} matched={} captured={:?} entry_descriptors={:?}",
+                    source.carrier_symbol,
+                    source.carrier_segments,
+                    source.carrier_backing,
+                    source.lifetime_access,
+                    matching.len(),
+                    captured
+                        .iter()
+                        .map(|candidate| (
+                            &candidate.place,
+                            &candidate.source_place,
+                            candidate.source_loan,
+                            candidate.parent_loan,
+                            &candidate.lifetime_access,
+                        ))
+                        .collect::<Vec<_>>(),
+                    loan_trackers
+                        .iter()
+                        .filter(|candidate| {
+                            candidate.storage_owner
+                                == facts::PlaceRoot::Symbol(source.carrier_symbol)
+                                || candidate.storage_owner == facts::PlaceRoot::Symbol(backing.root)
+                        })
+                        .map(|candidate| (
+                            candidate.handle,
+                            &candidate.owner_path,
+                            &candidate.place,
+                            &candidate.kind,
+                            &candidate.lineage,
+                        ))
+                        .collect::<Vec<_>>(),
+                );
+            }
             // Equal geometry can belong to several alternatives of the
             // actual descriptor. Preserve every supplier, never choose one
             // by position or erase their identities by deduplicating places.
@@ -440,30 +508,61 @@ pub(in crate::borrow) fn from_effects(
     loans
 }
 
-/// Rejoin the exact observed descriptor to its produced projection. The
-/// completed checking query has already crossed every real pointer load;
-/// `carrier_backing` names that final load's unprojected referent. Geometry
-/// alone, a common root, or another loan cannot establish this association.
-fn transferred_place(
-    backing: &validation::LocalWriteSource,
-    carrier_backing: Option<&validation::LocalWriteSource>,
-    lifetime_only: bool,
-    candidate: &super::RebasedBorrowPlace,
-) -> Option<checked_trees::CapturedPlace> {
-    if candidate.lifetime_access.is_some() && !lifetime_only {
-        return None;
+/// A record can keep a pointer that a call later replaces. Its lifetime debt
+/// follows that saved pointer, so select the field before reading the original
+/// loan. Projecting a whole-record observation afterward would name the slot
+/// itself and lose the data and loan it held at this call's entry.
+fn source_capture_place(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    source: &validation::StoredReferenceSource,
+) -> Result<checked_trees::CapturedPlace, &'static str> {
+    let mut place = checked_trees::CapturedPlace {
+        incoming_reference: Default::default(),
+        incoming_owner_path: Default::default(),
+        root: facts::PlaceRoot::Symbol(source.carrier_symbol),
+        segments: source.carrier_segments.clone(),
+    };
+    let Some(base) = source
+        .carrier_backing
+        .as_ref()
+        .filter(|_| source.lifetime_access.is_some())
+    else {
+        return Ok(place);
+    };
+    let projection = source_projection(&source.backing, base)
+        .ok_or("the lifetime source has no exact captured projection")?;
+    if projection.is_empty() {
+        return Ok(place);
     }
-    // Preserve the existing exact join, including its presentation metadata
-    // consumers. Only a genuinely derived output needs the additional base.
-    if (candidate.place.root == facts::PlaceRoot::Symbol(backing.root)
-        && candidate.place.segments == backing.segments)
-        || (candidate.place.incoming_reference.is_valid()
-            && candidate.source_place.root == facts::PlaceRoot::Symbol(backing.root)
-            && candidate.source_place.segments == backing.segments)
-    {
-        return Some(candidate.place.clone());
-    }
-    let base = carrier_backing?;
+    place.segments.extend_from_slice(projection);
+    let reference = validation::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index,
+        &validation::CanonicalPlace {
+            root: place.root,
+            segments: Vec::new(),
+        },
+    )
+    .ok_or("the lifetime source has no declared carrier type")?;
+    let selected = validation::corresponding_place_projection(program, reference, &place.segments)
+        .ok_or("the lifetime source projection has no exact applied member correspondence")?;
+    let leaf = validation::project_type_reference_from_segments(program, reference, &selected)
+        .ok_or("the lifetime source projection has no complete descriptor type")?;
+    validation::reference_shell(program, leaf)
+        .ok_or("the lifetime source projection does not select a reference descriptor")?;
+    // Keep the producer's selector identities for the captured source-place
+    // comparison. The typed correspondence above validates the full path;
+    // the loan owner query joins that same applied declaration's ledger path.
+    Ok(place)
+}
+
+fn source_projection<'source>(
+    backing: &'source validation::LocalWriteSource,
+    base: &validation::LocalWriteSource,
+) -> Option<&'source [facts::PlaceSegment]> {
     if !base.root.is_valid()
         || base.invocation_output.is_some()
         || backing.invocation_output.is_some()
@@ -478,7 +577,37 @@ fn transferred_place(
     {
         return None;
     }
-    let projection = &backing.segments[base.segments.len()..];
+    Some(&backing.segments[base.segments.len()..])
+}
+
+/// Rejoin the exact observed descriptor to its produced projection. The
+/// completed checking query has already crossed every real pointer load;
+/// `carrier_backing` names that final load's unprojected referent. Geometry
+/// alone, a common root, or another loan cannot establish this association.
+fn transferred_place(
+    backing: &validation::LocalWriteSource,
+    carrier_backing: Option<&validation::LocalWriteSource>,
+    lifetime_only: bool,
+    candidate: &super::RebasedBorrowPlace,
+) -> Option<checked_trees::CapturedPlace> {
+    if candidate.lifetime_access.is_some() && !lifetime_only {
+        return None;
+    }
+    // A saved pointer retains its original borrow after its variable changes.
+    // A lifetime obligation can follow that exact captured descriptor, while
+    // a physical projection still requires its own checked backing relation.
+    let captured_descriptor = candidate.place.incoming_reference.is_valid()
+        || (lifetime_only && candidate.source_loan.is_valid() && candidate.parent_loan.is_valid());
+    if (candidate.place.root == facts::PlaceRoot::Symbol(backing.root)
+        && candidate.place.segments == backing.segments)
+        || (captured_descriptor
+            && candidate.source_place.root == facts::PlaceRoot::Symbol(backing.root)
+            && candidate.source_place.segments == backing.segments)
+    {
+        return Some(candidate.place.clone());
+    }
+    let base = carrier_backing?;
+    let projection = source_projection(backing, base)?;
     if candidate.place.incoming_reference.is_valid() {
         // The checking coordinate keeps the formal's descriptor home prefix;
         // the incoming identity's pointee coordinate begins after that home.
@@ -503,5 +632,78 @@ fn transferred_place(
                 root: facts::PlaceRoot::Symbol(backing.root),
                 segments: backing.segments.clone(),
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arena::Handle;
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn lifetime_debt_follows_original_captured_descriptor() {
+        let slot = SymbolHandle::from_parts(1, 1);
+        let old_pointee = SymbolHandle::from_parts(2, 1);
+        let original_loan = Handle::from_parts(1, 1);
+        let backing = validation::LocalWriteSource {
+            invocation_output: None,
+            invocation_result: None,
+            is_image_storage: false,
+            recasts: Vec::new(),
+            representation: None,
+            path: String::new(),
+            collection_coarse: false,
+            root: slot,
+            segments: vec![facts::PlaceSegment::FixedIndex { index: 0 }],
+        };
+        let candidate = super::super::RebasedBorrowPlace {
+            source_place: checked_trees::CapturedPlace {
+                root: facts::PlaceRoot::Symbol(slot),
+                segments: backing.segments.clone(),
+                ..Default::default()
+            },
+            place: checked_trees::CapturedPlace {
+                root: facts::PlaceRoot::Symbol(old_pointee),
+                ..Default::default()
+            },
+            representation_address: None,
+            retained_operand: None,
+            source_owner_symbol: slot,
+            parent_loan: original_loan,
+            parent_lineage_is_retained: false,
+            source_loan: original_loan,
+            lifetime_access: None,
+        };
+        assert_eq!(
+            transferred_place(&backing, None, true, &candidate),
+            Some(candidate.place.clone()),
+            "the old descriptor's lifetime stays with its captured pointee",
+        );
+        assert_eq!(
+            transferred_place(&backing, None, false, &candidate),
+            None,
+            "this lifetime association cannot project physical permission",
+        );
+        for incomplete in [
+            super::super::RebasedBorrowPlace {
+                source_loan: Handle::invalid(),
+                ..candidate.clone()
+            },
+            super::super::RebasedBorrowPlace {
+                parent_loan: Handle::invalid(),
+                ..candidate.clone()
+            },
+            super::super::RebasedBorrowPlace {
+                source_place: checked_trees::CapturedPlace {
+                    root: facts::PlaceRoot::Symbol(slot),
+                    segments: vec![facts::PlaceSegment::FixedIndex { index: 1 }],
+                    ..Default::default()
+                },
+                ..candidate
+            },
+        ] {
+            assert_eq!(transferred_place(&backing, None, true, &incomplete), None);
+        }
     }
 }

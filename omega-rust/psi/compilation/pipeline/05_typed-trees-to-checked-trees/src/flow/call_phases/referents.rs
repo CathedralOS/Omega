@@ -25,6 +25,12 @@ use checked_trees::{BorrowCallFact, DomainFacts, FlowSemanticContextRef};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 
+#[derive(Default)]
+pub(in crate::flow) struct CallPreservationRequests {
+    pub lender: Vec<checked_trees::FlowLenderPreservation>,
+    pub forwarding: Vec<checked_trees::FlowReferenceForwarding>,
+}
+
 /// Re-seed the declared field facts of every exclusive borrowed referent the
 /// call hands back, on the referent's exact storage place.
 pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
@@ -40,7 +46,17 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     argument_sources: Option<&super::ArgumentSources<'_, '_>>,
     domains: &DomainFacts,
     writes: Option<&[ObservedCallMutation]>,
-) {
+) -> CallPreservationRequests {
+    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        eprintln!(
+            "CHECKSITE call-conservation-entry state={:?} statement={} target={:?} captured_arguments={} writes={:?}",
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.target_symbol,
+            argument_sources.is_some(),
+            writes.map(<[ObservedCallMutation]>::len),
+        );
+    }
     let key = (
         machine.symbol,
         state.symbol,
@@ -60,11 +76,13 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, borrow_call.target_symbol))
     else {
-        return;
+        return CallPreservationRequests::default();
     };
     let mut rows = Vec::new();
     let mut preserved = Vec::new();
     let mut guarantees = Vec::new();
+    let mut requested = Vec::new();
+    let mut forwarding = Vec::new();
     let param_key = (
         borrow_call.target_symbol,
         selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
@@ -108,6 +126,90 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             .clone()
             .unwrap_or_default();
         let mut paths = paths.as_ref().clone();
+        if !body_is_present
+            && let Some(sources) = argument_sources
+            && let Ok(contract) =
+                validation::structural_qualification_contract(program, parameter.type_reference)
+        {
+            for (path, domain, identity) in &paths {
+                let Ok((subject, qualified_path)) =
+                    sources.captured_lender_subject(&build.control, argument_position, path)
+                else {
+                    continue;
+                };
+                if !contract
+                    .projected_qualifications
+                    .iter()
+                    .any(|row| row.path == qualified_path && row.domain == *identity)
+                {
+                    continue;
+                }
+                let standing = validation::canonical_owned_place_type_reference(
+                    program,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    &subject,
+                )
+                .is_some_and(|reference| {
+                    validation::field_domains::declared_type_domain_rows(program, reference)
+                        .iter()
+                        .any(|row| {
+                            !row.transfer
+                                && row.path.is_empty()
+                                && row.domain_symbol == *domain
+                                && row.semantic_domain == *identity
+                        })
+                });
+                if !standing {
+                    continue;
+                }
+                let prior = build
+                    .contexts
+                    .semantic_context_refs
+                    .span_or_empty(pre_contexts)
+                    .iter()
+                    .find_map(|reference| {
+                        semantic
+                            .refs
+                            .span_or_empty(semantic.contexts.get(reference.context).facts)
+                            .iter()
+                            .find_map(|reference| {
+                                let fact = semantic.facts.get(reference.fact);
+                                let (_, _, old_domain, old_identity) =
+                                    fact.payload.domain_membership()?;
+                                if old_domain != *domain || old_identity != *identity {
+                                    return None;
+                                }
+                                let place = fact.place.as_place()?;
+                                (crate::flow::canonical_place_from_semantic_place(
+                                    program,
+                                    semantic,
+                                    semantic.places.get(place),
+                                )
+                                .as_ref()
+                                    == Some(&subject))
+                                .then_some(reference.fact)
+                            })
+                    });
+                if let Some(prior) = prior {
+                    let Ok(argument_position) = u32::try_from(argument_position) else {
+                        continue;
+                    };
+                    crate::shared::collections::push_unique(
+                        &mut requested,
+                        checked_trees::FlowLenderPreservation {
+                            argument_position,
+                            path: qualified_path,
+                            domain: *identity,
+                        },
+                    );
+                    // The declaration selects the duty; the retained request
+                    // requires the selected execution to fulfill it. Keep the
+                    // original fact identity, with no scalar or access grant.
+                    crate::shared::collections::push_unique(&mut preserved, (subject, prior));
+                }
+            }
+        }
         if argument_sources
             .is_some_and(|sources| sources.observation_survives(argument_position, &[]))
         {
@@ -176,8 +278,15 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 {
                     continue;
                 }
-                let Some(place) = crate::flow::project_captured_view_place(storage.clone(), path)
-                else {
+                // The helper and caller can have separately prepared members.
+                // Bind the promise to the actual record's corresponding field.
+                let Some(place) = validation::completed_storage::project_captured_storage_place(
+                    program,
+                    state.symbol,
+                    borrow_call.statement_index,
+                    storage.clone(),
+                    path,
+                ) else {
                     continue;
                 };
                 // A boundary's declared field contract restores an existing
@@ -243,32 +352,48 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             }
         }
     }
-    // The consumed holder returns its exact captured source. Pure declared
-    // predicates follow the normal typed handback; routed descendants also
-    // require every historical input supply's exact membership. The same
-    // immutable receipt is independently replayed by content admission.
+    // Ending a holder returns access only after its complete borrower cohort.
+    // Its old declarations identify the duties to preserve, but neither those
+    // declarations nor their earlier proof establishes the post-write value.
+    // Add candidates for the all-writers judgment below, never new facts here.
+    let mut retained_duties = Vec::new();
     for returned in crate::flow::retained_borrows::handbacks(
         program,
         borrow,
+        &build.contexts,
+        &build.borrow_lifetimes,
         &build.control,
         machine,
         state,
         borrow_call,
         argument_sources,
     ) {
-        for membership in crate::flow::retained_borrows::memberships(
+        retained_duties.extend(crate::flow::retained_borrows::declared_duties(
             program,
             semantic,
             &build.contexts,
             &build.control,
             &returned,
-        ) {
-            rows.push((
-                membership.place,
-                Vec::new(),
-                membership.domain,
-                membership.instance,
-            ));
+        ));
+    }
+    let mut writer_parameters = Vec::new();
+    for contribution in writes.into_iter().flatten() {
+        if let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
+            &contribution.write.source
+            && let Some(parameter) = source.root.as_symbol()
+        {
+            crate::shared::collections::push_unique(&mut writer_parameters, parameter);
+        }
+    }
+    for duty in retained_duties {
+        for &parameter in &writer_parameters {
+            guarantees.push(guarantees::ReturnedGuarantee {
+                parameter,
+                place: duty.place.clone(),
+                domain: duty.domain,
+                identity: duty.instance,
+                proven_at_exit: false,
+            });
         }
     }
     // Invalidation deliberately forgets which concrete element a runtime
@@ -282,21 +407,76 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         // the same reference/field/index geometry inside that join repeated
         // millions of type walks per call. Prepare only this static premise;
         // overlap and the all-writers restoration verdict stay pass-local.
-        let confined_writes: Vec<bool> = writes
+        let confined_writes: Vec<_> = writes
             .iter()
             .map(|contribution| {
+                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                    eprintln!(
+                        "CHECKSITE write-confinement-dispatch state={:?} statement={} target={:?} captured_arguments={} source={:?} region={:?} destination={:?} checked_type={:?}",
+                        state.symbol, borrow_call.statement_index, borrow_call.target_symbol,
+                        argument_sources.is_some(), contribution.write.source,
+                        contribution.write.region, contribution.write.destination,
+                        contribution.write.checked_write_type,
+                    );
+                }
                 let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
                     &contribution.write.source
                 else {
-                    return false;
+                    return (false, false, Vec::new(), false);
                 };
-                matches!(
+                if !matches!(
                     contribution.write.region,
                     crate::flow::mutation::StorageRegion::Declared(_)
-                ) && write_stays_in_captured_storage(program, parameters, source)
+                ) {
+                    return (false, false, Vec::new(), false);
+                }
+                let dependencies = argument_sources.and_then(|arguments| {
+                    arguments.captured_reference_confines_write(&build.control, &contribution.write)
+                });
+                let exact_presentation = dependencies.is_some();
+                let ordinary_confinement = write_stays_in_captured_storage(program, parameters, source);
+                (
+                    exact_presentation || ordinary_confinement,
+                    exact_presentation,
+                    dependencies.unwrap_or_default(),
+                    !ordinary_confinement,
+                )
             })
             .collect();
-        if confined_writes.iter().any(|&confined| confined) {
+        if confined_writes.iter().any(|(confined, ..)| *confined) {
+            // A checked whole replacement can keep an already-live fact even
+            // when this argument has no supplied-output handback. Prepare only
+            // the performed write's type constraints; every overlap and exact
+            // storage occurrence is still checked below for that particular fact.
+            let replacement_domains: Vec<_> = writes
+                .iter()
+                .zip(&confined_writes)
+                .map(|(contribution, (confined, ..))| {
+                    let reference = contribution.write.checked_write_type;
+                    if *confined && reference.is_valid() {
+                        validation::field_domains::domain_constraint_identities(program, reference)
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .collect();
+            if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                for ((contribution, confinement), write_domains) in writes
+                    .iter()
+                    .zip(&confined_writes)
+                    .zip(&replacement_domains)
+                {
+                    eprintln!(
+                        "CHECKSITE write-conservation-type state={:?} statement={} target={:?} source={:?} region={:?} checked_type={:?} confinement={confinement:?} domains={write_domains:?}",
+                        state.symbol,
+                        borrow_call.statement_index,
+                        borrow_call.target_symbol,
+                        contribution.write.source,
+                        contribution.write.region,
+                        contribution.write.checked_write_type,
+                    );
+                }
+            }
             let guarantees = guarantees::PreparedGuarantees::prepare(guarantees);
             let contexts = build
                 .contexts
@@ -328,7 +508,13 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 let is_subslice_byte_domain =
                     validation::field_domains::domain_byte_predicate(program, domain_symbol)
                         .is_some_and(|restriction| restriction.is_subslice_preserving());
+                let has_checked_replacement = replacement_domains.iter().zip(&confined_writes).any(
+                    |(domains, (_, exact_presentation, ..))| {
+                        *exact_presentation && domains.contains(&(domain_symbol, semantic_domain))
+                    },
+                );
                 if !is_subslice_byte_domain
+                    && !has_checked_replacement
                     && !guarantees.has_domain(domain_symbol, semantic_domain)
                 {
                     continue;
@@ -367,6 +553,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     continue;
                 }
                 if !is_subslice_byte_domain
+                    && !has_checked_replacement
                     && !guarantees.can_restore_place(
                         program,
                         &place,
@@ -377,69 +564,130 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     continue;
                 }
                 let mut affected = false;
-                let mut prepared_writes = writes.iter().zip(&confined_writes);
-                let restored = prepared_writes.all(|(contribution, confined)| {
-                    if contribution
-                        .write
-                        .region
-                        .preserves_owner_qualification(program, semantic, fact, handle)
-                    {
-                        return true;
-                    }
-                    let Some((mutated, _)) = crate::flow::domain::matching_mutation_for_fact_place(
-                        program,
-                        semantic,
-                        domains,
-                        fact,
-                        handle,
-                        &contribution.observations,
-                    ) else {
-                        return true;
-                    };
-                    affected = true;
-                    let write = &contribution.write;
-                    let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
-                        &write.source
-                    else {
-                        return false;
-                    };
-                    if !*confined {
-                        // A content guarantee does not restore an owner's
-                        // descriptor fact merely because the loan is anchored
-                        // there. Its own observation frontier must be proved.
-                        return false;
-                    }
-                    // A per-byte class is a property of every element. An indexed
-                    // store does not retire it when the callee's normal exits
-                    // still prove that class on the formal that was written.
-                    if is_subslice_byte_domain
-                        && element_store_keeps_byte_class(
+                let mut used_forwarding = Vec::new();
+                let mut prepared_writes = writes
+                    .iter()
+                    .zip(&confined_writes)
+                    .zip(&replacement_domains);
+                let restored = prepared_writes.all(
+                    |(
+                        (contribution, (confined, exact_presentation, dependencies, needs_exact)),
+                        write_domains,
+                    )| {
+                        if contribution
+                            .write
+                            .region
+                            .preserves_owner_qualification(program, semantic, fact, handle)
+                        {
+                            return true;
+                        }
+                        let Some((mutated, _)) =
+                            crate::flow::domain::matching_mutation_for_fact_place(
+                                program,
+                                semantic,
+                                domains,
+                                fact,
+                                handle,
+                                &contribution.observations,
+                            )
+                        else {
+                            return true;
+                        };
+                        affected = true;
+                        let write = &contribution.write;
+                        let Some(crate::flow::mutation::StorageRegion::Declared(source)) =
+                            &write.source
+                        else {
+                            return false;
+                        };
+                        if !*confined {
+                            // A content guarantee does not restore an owner's
+                            // descriptor fact merely because the loan is anchored
+                            // there. Its own observation frontier must be proved.
+                            return false;
+                        }
+                        // A per-byte class is a property of every element. An indexed
+                        // store does not retire it when the callee's normal exits
+                        // still prove that class on the formal that was written.
+                        if is_subslice_byte_domain
+                            && element_store_keeps_byte_class(
+                                program,
+                                semantic,
+                                build,
+                                borrow_call.target_symbol,
+                                source.root.as_symbol(),
+                                &place,
+                                mutated,
+                                domain_symbol,
+                            )
+                        {
+                            if *needs_exact {
+                                for dependency in dependencies {
+                                    if !used_forwarding.contains(dependency) {
+                                        used_forwarding.push(dependency.clone());
+                                    }
+                                }
+                            }
+                            return true;
+                        }
+                        let guaranteed = guarantees.restores(
                             program,
-                            semantic,
-                            build,
-                            borrow_call.target_symbol,
                             source.root.as_symbol(),
                             &place,
-                            mutated,
                             domain_symbol,
-                        )
-                    {
-                        return true;
-                    }
-                    guarantees.restores(
-                        program,
-                        source.root.as_symbol(),
-                        &place,
-                        domain_symbol,
-                        semantic_domain,
-                        match &write.region {
-                            crate::flow::mutation::StorageRegion::Declared(region) => Some(region),
-                            _ => None,
-                        },
-                        write.checked_write_type,
-                    )
-                });
+                            semantic_domain,
+                            match &write.region {
+                                crate::flow::mutation::StorageRegion::Declared(region) => {
+                                    Some(region)
+                                }
+                                _ => None,
+                            },
+                            write_domains,
+                        );
+                        let replacement = !guaranteed
+                            && *exact_presentation
+                            && guarantees::checked_whole_write_restores(
+                                program,
+                                &place,
+                                domain_symbol,
+                                semantic_domain,
+                                match &write.region {
+                                    crate::flow::mutation::StorageRegion::Declared(region) => {
+                                        Some(region)
+                                    }
+                                    _ => None,
+                                },
+                                write_domains,
+                            );
+                        if (guaranteed || replacement) && (*needs_exact || replacement) {
+                            for dependency in dependencies {
+                                if !used_forwarding.contains(dependency) {
+                                    used_forwarding.push(dependency.clone());
+                                }
+                            }
+                        }
+                        guaranteed || replacement
+                    },
+                );
+                if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+                    eprintln!(
+                        "CALL_WRITE membership-conservation machine={:?} state={:?} stmt={} ordinal={} target={:?} fact={fact_handle:?} fact_point={:?} place={:?} payload={:?} affected={affected} restored={restored}",
+                        machine.symbol,
+                        state.symbol,
+                        borrow_call.statement_index,
+                        borrow_call.call_ordinal,
+                        borrow_call.target_symbol,
+                        fact.point,
+                        fact.place,
+                        fact.payload
+                    );
+                }
                 if affected && restored {
+                    for dependency in used_forwarding {
+                        if !forwarding.contains(&dependency) {
+                            forwarding.push(dependency);
+                        }
+                    }
                     // This is a frame judgment about a pre-existing fact,
                     // not a new claim issued on this exact path by the call.
                     // Keep its original issuer and proof point for the
@@ -450,7 +698,10 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         }
     }
     if rows.is_empty() && preserved.is_empty() {
-        return;
+        return CallPreservationRequests {
+            lender: requested,
+            forwarding,
+        };
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
     let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
@@ -458,7 +709,13 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts = preserved;
     for (storage, path, domain_symbol, semantic_domain) in rows {
-        let Some(place) = crate::flow::project_captured_view_place(storage, &path) else {
+        let Some(place) = validation::completed_storage::project_captured_storage_place(
+            program,
+            state.symbol,
+            borrow_call.statement_index,
+            storage,
+            &path,
+        ) else {
             continue;
         };
         let place_handle =
@@ -477,7 +734,22 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         });
         contexts.push((place, fact));
     }
+    if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
+        let handles: Vec<_> = contexts.iter().map(|(_, fact)| *fact).collect();
+        eprintln!(
+            "CALL_WRITE membership-publication machine={:?} state={:?} stmt={} ordinal={} target={:?} context_point={point:?} facts={handles:?}",
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+            borrow_call.target_symbol
+        );
+    }
     batches::append_place_contexts(semantic, build, exit, point, contexts);
+    CallPreservationRequests {
+        lender: requested,
+        forwarding,
+    }
 }
 
 /// A callee-relative inline write stays within this captured occurrence.

@@ -32,6 +32,8 @@ pub struct CarryFacts {
     /// Per-value edges into the exact invocation's loan roster. Grouping
     /// records complete descriptor-leaf coverage, not parking permission.
     pub suspension_value_loans: Arena<Handle<SuspensionCrossingLoanFact>>,
+    /// Checked parent, supplier and input edges in each crossing's own roster.
+    pub suspension_loan_relations: Arena<Handle<SuspensionCrossingLoanFact>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
@@ -100,6 +102,49 @@ pub struct SuspensionCrossingLoanFact {
     /// This demand neither reactivates a descriptor nor establishes access.
     pub retained_for_crossing: bool,
     pub backing: SuspensionCrossingLoanBacking,
+    /// Published only after the whole retained dependency closure is joined.
+    pub relations: Option<SuspensionCrossingLoanRelations>,
+}
+
+/// A call must keep every borrowed source and its original obligations alive.
+/// The checker names those exact crossing rows once; lowering only translates
+/// these handles into the emitted plan's namespace.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct SuspensionCrossingLoanRelations {
+    pub resource: SuspensionCrossingLoanResource,
+    pub access: crate::BorrowAccessKind,
+    /// Preserve the original pointer-generation capture independently of resource kind.
+    pub descriptor_transfer: bool,
+    pub parent: Handle<SuspensionCrossingLoanFact>,
+    pub suppliers: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
+    pub inputs: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
+    pub backing: SuspensionCrossingLoanBackingPlan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum SuspensionCrossingLoanResource {
+    IncomingReference,
+    DirectRoot,
+    Reborrow,
+    CompletedOutput,
+    DescriptorTransfer,
+    OutputInput,
+    LifetimeDependency,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum SuspensionCrossingLoanBackingPlan {
+    StateValue {
+        origin: SuspensionCrossingValueOrigin,
+    },
+    IncomingReferent {
+        identity: Handle<crate::IncomingReferenceIdentity>,
+    },
+    CapturedInput,
+    CompletedOutput {
+        loan: Handle<SuspensionCrossingLoanFact>,
+    },
+    InputDependencies,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -115,6 +160,9 @@ pub enum SuspensionCrossingLoanSource {
     },
     CapturedActual {
         resource: Handle<crate::CheckedCallBorrowLoanResource>,
+        /// One authenticated terminal physical choice for this exact backing.
+        /// The constructor expands genuine alternatives before allocating rows.
+        selected: crate::CheckedBorrowSourceOccurrence,
     },
     /// An obligation carried beside a reference, not another pointer leaf.
     LifetimeDependency {
@@ -123,9 +171,9 @@ pub enum SuspensionCrossingLoanSource {
     },
     /// The exact input captured by an earlier normally completed output call.
     /// Its selected value survives replacement of the original input slot.
-    OutputInput {
+    RetainedInput {
         owner: Handle<crate::BorrowLoanFact>,
-        input: Handle<crate::CheckedOutputBorrowInput>,
+        input: Handle<crate::CheckedRetainedBorrowInput>,
     },
 }
 
@@ -144,7 +192,7 @@ impl SuspensionCrossingLoanFact {
             SuspensionCrossingLoanSource::Stored { loan, .. }
             | SuspensionCrossingLoanSource::LifetimeDependency { loan, .. } => loan,
             SuspensionCrossingLoanSource::CapturedActual { .. }
-            | SuspensionCrossingLoanSource::OutputInput { .. }
+            | SuspensionCrossingLoanSource::RetainedInput { .. }
             | SuspensionCrossingLoanSource::Incoming { .. } => Handle::invalid(),
         }
     }
@@ -169,7 +217,9 @@ pub enum SuspensionCrossingLoanBacking {
     CompletedOutput {
         resource: Handle<crate::CheckedSuppliedOutputBorrowResource>,
     },
-    /// Nonspatial obligations have no physical referent of their own.
+    /// Every checked input or supplier retains the backing lifetime. A
+    /// descriptor transfer keeps its own pointer identity; these edges grant
+    /// no new spatial parent or access.
     InputDependencies,
 }
 

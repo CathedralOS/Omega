@@ -267,7 +267,7 @@ pub(super) fn event_type_reference(
         }
         facts::PlaceRoot::InvocationOutput(identity) => {
             identity.is_valid().then_some(())?;
-            project_type_reference_from_segments(
+            validation::borrow_contracts::installed_output_path_type(
                 program,
                 validation::invocation_output_parameter(program, identity)?.type_reference,
                 segments,

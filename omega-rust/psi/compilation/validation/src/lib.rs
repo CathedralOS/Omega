@@ -17,6 +17,7 @@ pub mod compiler_evaluation;
 pub use queries::execution_projection;
 pub mod product_entries;
 pub use queries::product_queries;
+pub use queries::terminal_receiving::terminal_receiving_machines;
 // Shared by typed elaboration and compile-time evaluation, which depends on it.
 pub mod reflection;
 pub use declarations::operators::{
@@ -296,10 +297,11 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
-    ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
-    ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
-    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    CapturedReferenceLeafSources, InvocationResultHome, InvocationWriteFrame, LocalWriteOrigin,
+    LocalWriteSource, RecastSource, ReferenceResultLeafOrigin, ReferenceResultTransport,
+    ReferenceSlotContract, ReferenceViewFormation, ScalarStorageCoordinate,
+    StoredReferenceCallContext, StoredReferenceCallSchedule, StoredReferenceDestinationKind,
+    StoredReferenceEffect, StoredReferenceRelationRefusal, StoredReferenceSource,
     ValidatedSelfCallDescent, assignment_rebinds_parameter, assignment_stored_value_type,
     frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,

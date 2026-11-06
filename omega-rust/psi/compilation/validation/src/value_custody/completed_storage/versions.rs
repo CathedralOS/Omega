@@ -1,11 +1,11 @@
 //! Positions in a program's storage graph and preservation between them.
 //!
-//! A state's history starts at incoming storage: the invalid snapshot. Each
+//! A state's history starts at an explicit incoming-storage entry event. Each
 //! statement and each completed operand names the snapshot its effects reached.
 //! Observations of a place stay current from the snapshot that established
 //! them while no later event on every reaching path writes that place.
 
-use super::{StoredObservation, StoredOperand, at_snapshot, contents_preserved_from};
+use super::{StoredObservation, StoredOperand, contents_preserved_from, sources_at_snapshot};
 use crate::CanonicalPlace;
 use arena::Handle;
 use checked_trees::{
@@ -169,8 +169,9 @@ fn reaches(graph: &FlowControlFacts, start: Snapshot, target: Snapshot) -> bool 
     false
 }
 
-/// Whether an observation of `place` established at `anchor` (the invalid
-/// snapshot: incoming storage) still holds at `at`.
+/// Whether an observation of `place` established at `anchor` still holds at `at`.
+/// An unanchored entry fact survives only when every path reaches explicit Entry;
+/// missing graph edges cannot establish that correspondence.
 pub fn place_preserved_since(
     program: &dyn crate::CheckingInput,
     graph: &FlowControlFacts,
@@ -178,15 +179,14 @@ pub fn place_preserved_since(
     place: &CanonicalPlace,
     anchor: Snapshot,
 ) -> bool {
-    if anchor == at {
+    if anchor == at && graph.storage_snapshots.is_valid(anchor) {
         return true;
     }
     if !anchor.is_valid() {
-        return !at.is_valid()
-            || matches!(
-                at_snapshot(program, graph, at, place, StoredObservation::Contents),
-                None | Some(StoredOperand::Incoming(_))
-            );
+        return matches!(
+            sources_at_snapshot(program, graph, at, place, StoredObservation::Contents),
+            Some(StoredOperand::Incoming(_))
+        );
     }
     at.is_valid()
         && contents_preserved_from(

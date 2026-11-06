@@ -5,7 +5,10 @@
 use arena::Handle;
 use checked_trees::FlowOperandFact;
 mod query;
-pub use query::{at_snapshot, contents_preserved_from, sources_at_snapshot};
+pub use query::{
+    at_snapshot, at_typed_snapshot, contents_preserved_from, sources_at_snapshot,
+    sources_at_typed_snapshot,
+};
 pub mod versions;
 
 #[derive(Clone)]
@@ -108,5 +111,6 @@ pub use loan_homes::{
 mod call_stores;
 pub use call_stores::{
     CompletedCallDescriptor, CompletedCallDescriptorOrigin, CompletedCallDescriptorSource,
-    loan_call_descriptors, matches_call_descriptor_frontier,
+    descriptor_sources, loan_call_descriptors, loan_call_descriptors_at_calls,
+    matches_call_descriptor_frontier,
 };

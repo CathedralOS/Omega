@@ -76,11 +76,9 @@ pub(super) fn address_receiver(
             };
         }
         let Some(path) = row.address_projection else {
-            return if row.backing.is_valid() {
-                AddressReceiver::Unavailable
-            } else {
-                AddressReceiver::InlineValue
-            };
+            // Remembering another value does not redirect this value's home.
+            // The address owner separately authenticates its completed places.
+            return AddressReceiver::InlineValue;
         };
         let Some(path) = facts.flow.control.operand_child_paths.span(path) else {
             return AddressReceiver::Unavailable;
@@ -214,10 +212,140 @@ pub(super) fn argument_formation(
     Ok(selected)
 }
 
+/// Bind an observation to its immediate consumer's real evaluated operand.
+/// Equal expressions elsewhere, later stored-output metadata and historical
+/// supplier profiles cannot supply this receiving context.
+pub(super) fn observed_reference_formation(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    statement: &checked_trees::FlowStatementFact,
+    occurrence: &crate::checks::ownership_occurrences::StatementOccurrence,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Result<Option<ArgumentFormation>, &'static str> {
+    use crate::checks::ownership_occurrences::{
+        InvocationIdentity, InvocationOperandPosition, ObservationConsumer,
+    };
+    let control = &facts.flow.control;
+    let root = if let Some(ObservationConsumer::Invocation(consumer)) = occurrence.consumer {
+        let mut selected = None;
+        for call in state.calls.handles() {
+            let invocation = control.calls.get(call);
+            if invocation.statement_index != statement.statement_index {
+                continue;
+            }
+            let site = validation::find_call_site(
+                program,
+                state.machine_symbol,
+                state.state_symbol,
+                invocation.statement_index,
+                invocation.call_ordinal,
+            )
+            .ok_or("the observation's invocation has no source owner")?;
+            let target = validation::transition_call_target(
+                program,
+                program
+                    .machine_by_symbol(state.machine_symbol)
+                    .ok_or("the observation has no machine")?,
+                program
+                    .state_by_symbol(state.state_symbol)
+                    .ok_or("the observation has no state")?,
+                invocation.statement_index,
+                invocation.call_ordinal,
+            );
+            if InvocationIdentity::from_call_site(site, target) != Some(consumer.invocation) {
+                continue;
+            }
+            let borrowed = facts
+                .borrow
+                .call_at(
+                    state.machine_symbol,
+                    state.state_symbol,
+                    invocation.statement_index,
+                    invocation.call_ordinal,
+                )
+                .ok_or("the observation has no unique checked invocation")?;
+            let borrowed = facts.borrow.calls.get(borrowed);
+            if borrowed.target_symbol != invocation.target_symbol
+                || borrowed.accesses != invocation.accesses
+            {
+                return Err(
+                    "the observation's invocation has another selected target or access roster",
+                );
+            }
+            let (_, offset) =
+                crate::flow::captured_call_operands(program, &facts.flow, state, invocation)
+                    .ok_or("the observation's invocation lost its original actual tuple")?;
+            let actual = match consumer.position {
+                InvocationOperandPosition::Argument(position) => {
+                    invocation.argument_operands().handles().nth(position)
+                }
+                InvocationOperandPosition::Receiver if offset == 1 => {
+                    Some(invocation.operands.start())
+                }
+                InvocationOperandPosition::Receiver => None,
+            }
+            .ok_or("the observation has no evaluated receiving operand")?;
+            if selected.replace(actual).is_some() {
+                return Err("the observation has multiple consuming invocations");
+            }
+        }
+        selected.ok_or("the observation has no performed consuming invocation")?
+    } else {
+        match occurrence.consumer {
+            Some(ObservationConsumer::StoredValue) => statement.stored_value,
+            Some(ObservationConsumer::StoreTarget) => statement.store_target,
+            Some(ObservationConsumer::EvaluatedValue) => statement.evaluated_value,
+            Some(ObservationConsumer::OutgoingValue(target)) => {
+                let mut outgoing = control
+                    .outgoing
+                    .span(state.outgoing)
+                    .ok_or("the outgoing observation has no retained source roster")?
+                    .iter()
+                    .filter(|edge| {
+                        edge.statement_index == statement.statement_index
+                            && edge.transition_target == target
+                    });
+                let edge = outgoing
+                    .next()
+                    .ok_or("the outgoing observation has no evaluated value")?;
+                if outgoing.next().is_some() {
+                    return Err("the outgoing observation has multiple value consumers");
+                }
+                edge.returned_value
+            }
+            _ => return Err("the observation has no evaluated value consumer"),
+        }
+    };
+    if !control.operands.is_valid(root) {
+        return Err("the observation's value consumer has no completed capture");
+    }
+    let captures = evaluated_captures_on_route(program, facts, root, Some(&occurrence.route))?;
+    let mut matching = captures
+        .into_iter()
+        .filter(|capture| control.operands.get(*capture).expression == expression);
+    let capture = matching
+        .next()
+        .ok_or("the receiving operand has no matching evaluated observation")?;
+    if matching.next().is_some() {
+        return Err("the receiving operand has ambiguous evaluated observations");
+    }
+    reference_formation(program, facts, capture)
+}
+
 fn evaluated_captures(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     root: Handle<FlowOperandFact>,
+) -> Result<Vec<Handle<FlowOperandFact>>, &'static str> {
+    evaluated_captures_on_route(program, facts, root, None)
+}
+
+fn evaluated_captures_on_route(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    root: Handle<FlowOperandFact>,
+    route: Option<&[crate::checks::ownership_occurrences::EvaluationBranch]>,
 ) -> Result<Vec<Handle<FlowOperandFact>>, &'static str> {
     let control = &facts.flow.control;
     if !control.operands.is_valid(root) {
@@ -259,7 +387,32 @@ fn evaluated_captures(
         ) {
             continue;
         }
-        pending.extend(row.evaluated_inputs.handles().map(|value| (value, false)));
+        let mut input_limit = row.evaluated_inputs.len();
+        if let (Some(route), Some(conditional)) = (route, row.conditional_inputs_from) {
+            let follows = match program.expression_table.expression(row.expression) {
+                typed_trees::expression::ExpressionNode::Binary(binary) => {
+                    let selected = binary.operator == typed_trees::expression::BinaryOperator::And;
+                    route.iter().any(|branch| {
+                        branch.expression() == row.expression && branch.selected() == selected
+                    }) || crate::values::evaluate_closed_boolean_expression(
+                        program,
+                        &facts.operators,
+                        binary.left,
+                        &[],
+                    ) == Some(selected)
+                }
+                _ => false,
+            };
+            if !follows {
+                input_limit = conditional;
+            }
+        }
+        pending.extend(
+            row.evaluated_inputs
+                .handles()
+                .take(input_limit)
+                .map(|value| (value, false)),
+        );
         if row.backing.is_valid() {
             pending.push((row.backing, false));
         }
@@ -272,14 +425,76 @@ fn evaluated_captures(
                     .iter()
                     .map(|child| (child.value, false)),
             ),
-            checked_trees::FlowOperandCompletion::Selected(alternatives) => pending.extend(
-                control
+            checked_trees::FlowOperandCompletion::Selected(alternatives) => {
+                let alternatives = control
                     .operand_alternatives
                     .span(alternatives)
-                    .ok_or("the actual argument has an unavailable alternative roster")?
-                    .iter()
-                    .map(|alternative| (alternative.value, false)),
-            ),
+                    .ok_or("the actual argument has an unavailable alternative roster")?;
+                if route.is_some()
+                    && !matches!(
+                        program.expression_table.expression(row.expression),
+                        typed_trees::expression::ExpressionNode::Match(_)
+                    )
+                {
+                    // Reusing a selected value does not execute its choice
+                    // again. Its exact retained source owns the branch route;
+                    // the copied completion still describes the yielded data.
+                    if !control.operands.is_valid(row.backing) {
+                        return Err("the transported selection lost its evaluated source");
+                    }
+                    let source = control.operands.get(row.backing);
+                    if source.completion != row.completion
+                        || source.state_symbol != owner.state_symbol
+                        || source.statement_index != owner.statement_index
+                    {
+                        return Err("the transported selection has another completion owner");
+                    }
+                    continue;
+                }
+                for alternative in alternatives {
+                    if let Some(route) = route {
+                        let typed_trees::expression::ExpressionNode::Match(dispatch) =
+                            program.expression_table.expression(row.expression)
+                        else {
+                            return Err("the selected operand has no matching source selection");
+                        };
+                        let arms =
+                            crate::checks::multiplicity::reachable_arms(program, dispatch.arms);
+                        let position = arms
+                            .iter()
+                            .position(|(handle, _)| *handle == alternative.source_arm)
+                            .ok_or("the selected operand lost its original arm")?;
+                        let branches = route
+                            .iter()
+                            .filter(|branch| branch.expression() == row.expression)
+                            .collect::<Vec<_>>();
+                        let pattern_position = branches
+                            .iter()
+                            .find(|branch| branch.selected())
+                            .map(|branch| branch.decision())
+                            .unwrap_or_else(|| {
+                                branches
+                                    .iter()
+                                    .map(|branch| branch.decision() + 1)
+                                    .max()
+                                    .unwrap_or(0)
+                            });
+                        if position == pattern_position && alternative.pattern.is_valid() {
+                            pending.push((alternative.pattern, false));
+                        }
+                        if !branches.iter().all(|branch| {
+                            if branch.selected() {
+                                position == branch.decision()
+                            } else {
+                                position > branch.decision()
+                            }
+                        }) {
+                            continue;
+                        }
+                    }
+                    pending.push((alternative.value, false));
+                }
+            }
             _ => {}
         }
     }

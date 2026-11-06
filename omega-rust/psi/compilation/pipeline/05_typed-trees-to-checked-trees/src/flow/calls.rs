@@ -37,10 +37,13 @@ pub(super) fn build_call_flow_fact<'plans>(
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    completed_calls: arena::HandleSpan<FlowCallFact>,
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
     captured_operands: &[checked_trees::FlowOperandFact],
+    recorded_operands: HandleSpan<checked_trees::FlowOperandFact>,
+    invocation_storage: arena::Handle<checked_trees::FlowStorageSnapshot>,
     writes: Option<&super::call_phases::CallStorageWrites>,
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
@@ -83,12 +86,15 @@ pub(super) fn build_call_flow_fact<'plans>(
         || {
             let argument_sources = super::call_phases::ArgumentSources::new(
                 program,
+                borrow,
                 machine.symbol,
                 state.symbol,
                 borrow_call,
                 storage_writes,
                 &build.control,
-                captured_operands,
+                completed_calls,
+                recorded_operands,
+                invocation_storage,
             );
             let observed_writes =
                 writes.map(|writes| writes.with_captured_observations(argument_sources.as_ref()));
@@ -157,7 +163,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     );
     // Every exclusive borrowed referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
-    phase_profile::scope(
+    let preservation_requests = phase_profile::scope(
         "psi.05.build_check_facts.flow.call.referent_domains",
         || {
             append_call_referent_field_domain_facts(
@@ -173,7 +179,7 @@ pub(super) fn build_call_flow_fact<'plans>(
                 argument_sources.as_ref(),
                 domains,
                 writes.map(|writes| writes.contributions.as_slice()),
-            );
+            )
         },
     );
     let boundary_edges = phase_profile::scope(
@@ -222,10 +228,13 @@ pub(super) fn build_call_flow_fact<'plans>(
         build.append_origin_write(&mut normal_return_writes, place);
     }
     FlowCallFact {
+        lender_preservation: preservation_requests.lender,
+        reference_forwarding: preservation_requests.forwarding,
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
-        invocation_storage: Default::default(),
+        invocation_storage,
         completed_storage: Default::default(),
+        stored_outputs: HandleSpan::empty(),
         authored_expression: Default::default(),
         authored_site: Default::default(),
         authored_target: Default::default(),

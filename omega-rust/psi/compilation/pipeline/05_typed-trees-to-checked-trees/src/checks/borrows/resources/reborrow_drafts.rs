@@ -114,11 +114,12 @@ pub(crate) struct CheckedReborrowDispositionEventDraft {
     )>,
     pub(crate) final_target: DispositionTargetIndex,
     pub(crate) disposition: CheckedReborrowResourceDisposition,
-    /// Exact post-restoration mutating-call join; the three stay absent unless
+    /// Exact post-restoration mutating-call join; these remain absent unless
     /// `bind_restored_call_uses` certifies this event's boundary call.
     pub(crate) restored_call: arena::Handle<checked_trees::FlowCallFact>,
     pub(crate) restored_borrow_call: arena::Handle<checked_trees::BorrowCallFact>,
     pub(crate) restored_call_access: arena::Handle<checked_trees::BorrowArgumentAccessFact>,
+    pub(crate) restored_parent_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
 }
 
 impl CheckedReborrowDispositionEventDraft {
@@ -174,6 +175,7 @@ impl CheckedReborrowDispositionEventDraft {
             restored_call: self.restored_call,
             restored_borrow_call: self.restored_borrow_call,
             restored_call_access: self.restored_call_access,
+            restored_parent_weakening: self.restored_parent_weakening,
         }
     }
 }

@@ -10,6 +10,8 @@ use symbols::SymbolHandle;
 pub struct CompletedCallDescriptor {
     pub call: Handle<FlowCallFact>,
     pub loan: Handle<BorrowLoanFact>,
+    /// Exact evaluated destination published by this normal call's store.
+    pub capture: Handle<checked_trees::FlowCallStoredOutput>,
     pub source: CompletedCallDescriptorSource,
     pub origin: CompletedCallDescriptorOrigin,
 }
@@ -35,7 +37,39 @@ pub fn loan_call_descriptors(
     state: SymbolHandle,
     loan: Handle<BorrowLoanFact>,
 ) -> Result<Option<Vec<CompletedCallDescriptor>>, &'static str> {
-    let borrow = &facts.borrow;
+    let calls = facts
+        .flow
+        .control
+        .unique_state(machine, state)
+        .ok_or("the installed reference has no unique flow state")?
+        .calls;
+    loan_call_descriptors_at_calls(
+        program,
+        &facts.borrow,
+        &facts.flow.contexts,
+        &facts.flow.control,
+        machine,
+        state,
+        calls,
+        loan,
+    )
+}
+
+/// A helper may already have saved a pointer while its caller is still being
+/// checked. Use the caller's completed calls without pretending the whole state
+/// is finished. Its builder supplies the owning span; every original invocation,
+/// tuple, destination and storage-cut check still runs.
+#[allow(clippy::too_many_arguments)]
+pub fn loan_call_descriptors_at_calls(
+    program: &dyn crate::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
+    contexts: &checked_trees::FlowContextFacts,
+    control: &checked_trees::FlowControlFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    calls: arena::HandleSpan<FlowCallFact>,
+    loan: Handle<BorrowLoanFact>,
+) -> Result<Option<Vec<CompletedCallDescriptor>>, &'static str> {
     let owner = borrow
         .unique_state_borrow(machine, state)
         .ok_or("the installed reference has no unique borrowing state")?;
@@ -45,11 +79,9 @@ pub fn loan_call_descriptors(
     if borrow.loans.get(loan).formation != BorrowLoanFormation::ReturnedDescriptor {
         return Ok(None);
     }
-    let flow = &facts.flow;
-    let control = &flow.control;
-    let flow_state = control
-        .unique_state(machine, state)
-        .ok_or("the installed reference has no unique flow state")?;
+    if control.calls.span(calls).is_none() {
+        return Err("the installed reference has no complete owning call span");
+    }
     let mut pending = vec![(loan, false)];
     let mut active = Vec::new();
     let mut completed = Vec::new();
@@ -100,13 +132,13 @@ pub fn loan_call_descriptors(
         {
             return Err("the installed reference is not in its call's completed roster");
         }
-        let mut calls = flow_state.calls.handles().filter(|call| {
+        let mut calls = calls.handles().filter(|call| {
             let call = control.calls.get(*call);
             call.statement_index == source.statement_index
                 && call.call_ordinal == source.call_ordinal
                 && call.target_symbol == source.target_symbol
                 && call.authored_expression == source.authored_expression
-                && flow
+                && contexts
                     .borrow_loan_constraints(call.exit_constraints)
                     .any(|loan| loan == handle)
         });
@@ -133,6 +165,36 @@ pub fn loan_call_descriptors(
             )
             .ok_or("the installed descriptor lost its physical member correspondence")?,
         };
+        let mut captures = invocation.stored_outputs.handles().filter(|output| {
+            let output = control.call_stored_outputs.get(*output);
+            output.destination.root == destination.root
+                && control
+                    .operand_referent_segments
+                    .span(output.destination.segments)
+                    .is_some_and(|path| {
+                        path.len() == destination.segments.len()
+                            && path.iter().zip(&destination.segments).all(|(left, right)| {
+                                crate::storage_path_relations::canonical_place_segments_equal(
+                                    program, *left, *right,
+                                )
+                            })
+                    })
+        });
+        let capture = captures
+            .next()
+            .ok_or("the installed descriptor has no original evaluated destination")?;
+        if captures.next().is_some() {
+            return Err("the installed descriptor has ambiguous evaluated destinations");
+        }
+        let selected = control.call_stored_outputs.get(capture);
+        if !invocation
+            .argument_operands()
+            .handles()
+            .any(|actual| actual == selected.actual)
+            || control.operand_retained_paths.span(selected.path).is_none()
+        {
+            return Err("the installed descriptor destination is absent from its actual tuple");
+        }
         let stored = super::sources_at_snapshot(
             program,
             control,
@@ -203,6 +265,7 @@ pub fn loan_call_descriptors(
             output.push(CompletedCallDescriptor {
                 call,
                 loan: handle,
+                capture,
                 source,
                 origin,
             });
@@ -211,7 +274,9 @@ pub fn loan_call_descriptors(
     Ok(Some(output))
 }
 
-fn descriptor_sources(
+/// Keep every typed alternative in a completed descriptor frontier. An unknown
+/// or empty frontier supplies no source, including beside a valid alternative.
+pub fn descriptor_sources(
     program: &dyn crate::CheckingInput,
     stored: super::StoredOperand,
 ) -> Result<Vec<CompletedCallDescriptorSource>, &'static str> {

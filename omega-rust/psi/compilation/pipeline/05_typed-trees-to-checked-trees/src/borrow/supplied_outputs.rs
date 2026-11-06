@@ -86,10 +86,13 @@ pub(crate) fn captured_permission(
             .span(incoming.owner_path)
             .ok_or("the produced output lost its original field path")?,
     );
-    let supplied =
-        validation::project_type_reference_from_segments(program, incoming.carrier_type, &path)
-            .and_then(|reference| validation::reference_shell(program, reference))
-            .ok_or("the produced output has no declared reference leaf")?;
+    let supplied = validation::borrow_contracts::installed_output_path_type(
+        program,
+        incoming.carrier_type,
+        &path,
+    )
+    .and_then(|reference| validation::reference_shell(program, reference))
+    .ok_or("the produced output has no declared reference leaf")?;
     let presented = validation::reference_shell(program, capture.type_reference)
         .ok_or("the produced output capture is not a reference")?;
     if supplied.access != presented.access
@@ -99,4 +102,59 @@ pub(crate) fn captured_permission(
         return Err("the produced output differs from its checked reference type or access");
     }
     Ok(loan)
+}
+
+/// A saved copy still owes the inputs of the helper that produced it. Resolve
+/// that original completion through every recorded transfer source, without
+/// turning a transfer into a fresh supplied pointer or current call grant.
+pub(crate) fn completed_output_origins(
+    borrow: &BorrowFacts,
+    state: &checked_trees::StateBorrowFact,
+    current: Handle<BorrowLoanFact>,
+) -> Result<Vec<Handle<BorrowLoanFact>>, &'static str> {
+    let mut origins = Vec::new();
+    let mut completed = Vec::new();
+    let mut active = Vec::new();
+    let mut pending = vec![(current, false)];
+    while let Some((handle, closing)) = pending.pop() {
+        if closing {
+            if active.pop() != Some(handle) {
+                return Err("the output transfer has an inconsistent traversal");
+            }
+            completed.push(handle);
+            continue;
+        }
+        if completed.contains(&handle) {
+            continue;
+        }
+        if !borrow.loans.is_valid(handle) || !borrow.state_owns_loan(state, handle) {
+            return Err("the output transfer has an unavailable or foreign source");
+        }
+        if active.contains(&handle) {
+            return Err("the output transfer sources are cyclic");
+        }
+        match borrow.loans.get(handle).lineage {
+            checked_trees::BorrowLoanLineage::SuppliedOutput => {
+                borrow
+                    .supplied_output_call(handle)
+                    .ok_or("the output source has no original normal completion")?;
+                if !origins.contains(&handle) {
+                    origins.push(handle);
+                }
+                completed.push(handle);
+            }
+            checked_trees::BorrowLoanLineage::UnretainedDerived => {
+                let suppliers = super::transport_suppliers(borrow, state, handle)
+                    .ok_or("the output transfer has no complete original-source roster")?;
+                active.push(handle);
+                pending.push((handle, true));
+                pending.extend(suppliers.iter().rev().map(|source| (*source, false)));
+            }
+            _ => return Err("the current descriptor does not retain a completed output"),
+        }
+    }
+    if origins.is_empty() {
+        return Err("the output transfer has no supplied origin");
+    }
+    Ok(origins)
 }

@@ -2,10 +2,48 @@
 //! View backing analysis can complete a source after initial emission. References
 //! retain every exclusive preservation debt, constructors retain actual child
 //! rows, and detached moves select the exact declared window from their physical
-//! source. This fixed point adds only source evidence, never a receiving
-//! annotation, a current-value inference or a new qualification.
+//! source. Ordinary retention adds source evidence. Reference formation also
+//! proves explicitly requested predicate introductions at its exact source cut,
+//! independently of its complete original preservation duties.
 use super::*;
 use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
+
+/// Exclusive loans keep every installed source duty. Explicitly requested new
+/// predicates need a separate current-payload proof; an unknown preservation
+/// history cannot become an empty loan or an introduction premise.
+pub(super) fn reference_formation(
+    module: &TerminalModule,
+    operation: &terminal_psi::Operation,
+    position: (semantic_vocabulary::BlockId, u32),
+    analysis: &mut descriptors::DescriptorAnalysis<'_>,
+    preservation: &mut descriptors::PayloadMembershipHistory<'_>,
+) -> Result<Option<PayloadMembershipContract>, &'static str> {
+    let OperationKind::EstablishReference { source, storage } = &operation.kind else {
+        return Ok(None);
+    };
+    if source.access == terminal_psi::StructuralAccess::SharedBorrow || storage.is_some() {
+        return Ok(None);
+    }
+    let result = operation
+        .result
+        .structural()
+        .ok_or("reference has no structural result")?;
+    let projected_qualifications = preservation.reference_formation_memberships(
+        &module.identities,
+        analysis,
+        position,
+        source,
+        storage.as_ref(),
+        result,
+    )?;
+    Ok(Some(PayloadMembershipContract {
+        scalar_observations: Vec::new(),
+        scalar_requirements: Vec::new(),
+        carrier: result.structural_type,
+        qualifications: Vec::new(),
+        projected_qualifications,
+    }))
+}
 
 pub(super) fn retained(
     module: &TerminalModule,

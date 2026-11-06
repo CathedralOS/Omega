@@ -160,8 +160,11 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 240 keeps the binder-selected calling owner for inherited callbacks.
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
-// Provider instances distinguish declaration views from receiving applications.
-pub(crate) const FORMAT_MARKER: u16 = 247;
+// Saved programs keep both the provider's receiving application and its loan evidence.
+// Marker 249 combines upstream provider-instance applications with completed-output
+// captures, input-obligation links, lender guarantees and conditional forwarding.
+// The earlier 247 and 248 layouts are incompatible with this combined schema.
+pub(crate) const FORMAT_MARKER: u16 = 249;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -315,6 +318,8 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
 
 #[cfg(test)]
 mod normal_qualification_tests;
+#[cfg(test)]
+mod reference_forwarding_tests;
 
 #[cfg(test)]
 mod global_descriptor_table_tests;

@@ -66,23 +66,26 @@ pub(crate) use call_targets::free_machine_entry_state;
 pub(crate) use call_targets::machine_state_by_symbol;
 pub(crate) use caller_aliases::expression_has_calls;
 pub use caller_aliases::{
-    AssignmentStorageOrigins, AssignmentWriteTarget, CallWriteOrigins, InvocationResultHome,
-    LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceViewFormation,
+    AssignmentStorageOrigins, AssignmentWriteTarget, CallWriteOrigins,
+    CapturedReferenceLeafSources, InvocationResultHome, LocalWriteOrigin, LocalWriteSource,
+    RecastSource, ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceViewFormation,
 };
 pub use demand::CallFrameTables;
 pub(crate) use demand::CapturedStorageReadBacking;
 pub(crate) use demand::statement_value_expression_roots;
 pub(crate) use demand::{CallFrameCaches, InvocationEntrySubject};
-pub use demand::{CallFrameResolver, frame_paths_overlap, operand_call_plans};
+pub use demand::{
+    CallFrameResolver, InvocationWriteFrame, frame_paths_overlap, operand_call_plans,
+};
 pub use isolation::aggregate_storage_types_match as storage_origin_types_match;
 pub use place_paths::ScalarStorageCoordinate;
 pub use place_paths::{frame_coordinate_path, frame_length_coordinate_path};
 pub use reference_subjects::{assignment_rebinds_parameter, assignment_stored_value_type};
 pub(crate) use stored_calls::provider_completion_covers_writable_slots;
 pub use stored_calls::{
-    ReferenceSlotContract, StoredReferenceCallContext, StoredReferenceDestinationKind,
-    StoredReferenceEffect, StoredReferenceRelationRefusal,
+    ReferenceSlotContract, StoredReferenceCallContext, StoredReferenceCallSchedule,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    StoredReferenceSource,
 };
 pub(crate) use transition_topology::{
     named_state_transition_subgraph_is_acyclic, named_transition_target_state,

@@ -1079,7 +1079,12 @@ pub(super) fn retired_carrier_backing(
                 {
                     return None;
                 }
-                let LoanSource::CallAccess { access, parents } = resource.source else {
+                let LoanSource::CallAccess {
+                    access,
+                    selected: physical,
+                    parents,
+                } = resource.source
+                else {
                     return None;
                 };
                 if facts.borrow.argument_accesses.get(access).expression != capture.expression {
@@ -1087,6 +1092,40 @@ pub(super) fn retired_carrier_backing(
                 }
                 let parents = facts.borrow.call_loan_parents.span(parents)?;
                 let released = facts.borrow.loan_group(released)?.collect::<Vec<_>>();
+                let physical = crate::checks::resolve_physical_borrow_sources(
+                    program,
+                    facts,
+                    borrow_state,
+                    physical,
+                    checked_trees::CapturedPlace {
+                        root: resource.parent_lifetime.root,
+                        incoming_reference: resource.backing_incoming_reference,
+                        incoming_owner_path: facts
+                            .borrow
+                            .call_loan_backing_paths
+                            .span(resource.backing_incoming_owner_path)?
+                            .to_vec(),
+                        segments: facts
+                            .borrow
+                            .call_loan_backing_paths
+                            .span(resource.backing_path)?
+                            .to_vec(),
+                    },
+                    &resource.access,
+                )
+                .ok()?;
+                // Membership in the full duty list below is still required,
+                // but cannot identify the physical source being released.
+                // Every selected source alternative must be this released
+                // borrowing group; unrelated retained debts cannot select it.
+                if physical.iter().any(|source| match source.selected {
+                    checked_trees::CheckedBorrowSourceOccurrence::SelectedLoan { loan } => {
+                        !released.iter().any(|(released, _)| *released == loan)
+                    }
+                    _ => true,
+                }) {
+                    return None;
+                }
                 if released.is_empty()
                     || !released.iter().all(|(loan, _)| parents.contains(loan))
                     || parents.iter().any(|parent| {
