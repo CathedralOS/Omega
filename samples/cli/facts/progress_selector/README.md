@@ -143,3 +143,25 @@ execution is unverified. Generic/dispatched helpers, arbitrary recursive
 arrival shapes, additional access modes and broader ranking/cyclic-execution
 acceptance remain on the parent task. This finite-selector continuation does
 not close all of TPR6 or `TERMINATION-RANKING-CHECKS`.
+
+## Build-owned target-body migration
+
+The target-body place replaces the four target-prefixed `select` declarations
+with the `SelectedProgress` boundary requirement and ordinary named
+implementations chosen by explicit Build rows. This is the remaining
+**BUILD-OWNED-TARGET-SELECTION** transport for this existing fact. The other
+eight places keep their original programs.
+
+The requirement retains both exact `Token::Fair` input subjects, `index < 2`,
+and `terminates`. Every implementation performs the original array selection
+and `consume` call. The caller still observes 37 and 43 with exactly two calls.
+The twin removes only the right subject's qualification from the same public
+contract and its implementations; the caller's two granted tokens cannot
+justify that broader interface. Its original missing-subject diagnostic stays
+unchanged. Build chooses code and grants no progress qualification.
+
+Current qualification is pending. Historical prefix-family measurements above
+do not validate this migration or a newer compiler. Fresh checking, both-engine
+execution, rejection controls and ordinary sample observations must retain
+their actual producer, program source and matching target identities. This
+migration does not close the parent target-selection or termination task.
