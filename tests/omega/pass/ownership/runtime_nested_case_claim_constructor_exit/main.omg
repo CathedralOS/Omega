@@ -24,10 +24,14 @@ machine make(left: bool) -> Outer {
         choice: choice, neighbor: Token { value: 29 }
     } }
 }
+machine retire_right(token: Token) -> u64 {
+    let value: u64 = retire(token);
+    value ^ 100
+}
 machine consume(choice: Choice) -> u64 {
     transition choice {
         Choice::Left { token } -> retire(token)
-        Choice::Right { token } -> retire(token) ^ 100
+        Choice::Right { token } -> retire_right(token)
     }
 }
 machine check(left: bool, expected: u64) -> bool {
