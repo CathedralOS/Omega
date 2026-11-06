@@ -40,9 +40,7 @@ pass/arithmetic/integer_multiple_remainder_exit built 3001ms exit:0 @a92f1643104
 pass/arithmetic/mixed_len_compare checked 3000ms @a92f16431042
 pass/arithmetic/narrowing_flow_and_widen_permitted built 9798ms exit:5 @a92f16431042
 pass/arithmetic/negative_div_remainder checked 2805ms @a92f16431042
-pass/arithmetic/offset_integer_at rejected 2373ms regressed-from:checked @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/arithmetic/offset_integer_at checked 13076ms @0daa616486a6
 pass/arithmetic/qualified_cast_in_entry_body_exit built 3271ms exit:0 @a92f16431042
 pass/arithmetic/qualified_float_cast_abstract_prior_fact checked 5829ms @a92f16431042
 pass/arithmetic/qualified_float_cast_specification_declared_sources checked 6038ms @a92f16431042
@@ -132,9 +130,7 @@ pass/arrays/qualified_array_literal_retains_element_policy_exit built 3245ms exi
 pass/arrays/record_array_literal checked 3313ms @a92f16431042
 pass/arrays/runtime_completed_array_window_replacement_exit built 3664ms exit:0 stdout:match @a92f16431042
 pass/arrays/runtime_computed_float_element_store_exit built 16365ms exit:70 @a92f16431042
-pass/arrays/runtime_index_recast rejected 1863ms regressed-from:checked @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/arrays/runtime_index_recast checked 13075ms @0daa616486a6
 pass/arrays/subject_field_where_index checked 2496ms @a92f16431042
 pass/asm/atomic_release_boolean_disposition checked 2459ms @a92f16431042
 pass/asm/atomic_release_disposition_exit built 1904ms exit:0 @2e70a865669c+wt
@@ -5328,9 +5324,7 @@ pass/generics/unused_selected_value_carrier checked 3304ms @a92f16431042
 pass/generics/unused_selected_value_proved_where checked 2636ms @a92f16431042
 pass/host/console_exit_process_exit built 8660ms exit:70 stdout:match @a92f16431042
 pass/host/efi_vtable_entry checked 2940ms @a92f16431042
-pass/host/foreign_byte_recast rejected 2623ms regressed-from:checked @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/host/foreign_byte_recast checked 13246ms @0daa616486a6
 pass/host/foreign_multiregister checked 3523ms @a92f16431042
 pass/host/hfa_aggregate_entry checked 7332ms @a92f16431042
 pass/host/intrinsic_machine_param checked 3135ms @a92f16431042
@@ -5374,9 +5368,7 @@ pass/host/runtime_descriptor_record_loan_input_exit built 4552ms exit:0 stdout:m
 pass/host/runtime_descriptor_reference_record_prefix_exit built 2351ms exit:0 stdout:match @2e70a865669c+wt
 pass/host/runtime_descriptor_scalar_input_exit rejected 3613ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/host/runtime_encoded_record_view_observation_exit rejected 2724ms regressed-from:built+exit:0+stdout:match @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/host/runtime_encoded_record_view_observation_exit built 12627ms exit:0 stdout:match @0fab8dbb32c3
 pass/host/runtime_fixed_arithmetic_across_console_exit built 13084ms exit:0 stdout:match stderr:match @a92f16431042
 pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 17883ms regressed-from:built @a92f16431042
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
@@ -5439,9 +5431,7 @@ pass/layouts/bool_array_member_layout_compile checked 2103ms @a92f16431042
 pass/layouts/bool_member_layout_queries_compile checked 2436ms @a92f16431042
 pass/layouts/byte_array_then_wide_layout_compile checked 2456ms @a92f16431042
 pass/layouts/byte_then_double_layout_compile checked 6222ms @a92f16431042
-pass/layouts/byte_view_borrow_with_encoded_sibling rejected 1901ms regressed-from:checked @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/byte_view_borrow_with_encoded_sibling checked 12718ms @0daa616486a6
 pass/layouts/byte_wide_byte_byte_layout_compile checked 2196ms @a92f16431042
 pass/layouts/const_layout_query_compile checked 2443ms @a92f16431042
 pass/layouts/empty_cases_sum_layout_compile checked 2599ms @a92f16431042
@@ -5454,9 +5444,7 @@ pass/layouts/extent_view_external_write rejected 7078ms @a92f16431042
 pass/layouts/five_element_array_layout_compile checked 2477ms @a92f16431042
 pass/layouts/float_member_layout_queries_compile checked 140438ms @a92f16431042
 pass/layouts/guarded_policy_state_premise checked 141502ms @a92f16431042
-pass/layouts/integer_at_owned_local_borrow_call_exit rejected 2163ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/integer_at_owned_local_borrow_call_exit built 13339ms exit:0 @0daa616486a6
 pass/layouts/invariant_record_layout_compile checked 137828ms @a92f16431042
 pass/layouts/layout_queries checked 138398ms @a92f16431042
 pass/layouts/mixed_alignment_layout_queries_compile checked 2403ms @a92f16431042
@@ -5506,32 +5494,18 @@ pass/layouts/resident_signed_field_access checked 4587ms @a92f16431042
 pass/layouts/resident_unused_lifecycle_scope checked 1785ms @a92f16431042
 pass/layouts/resident_view_without_local_initialization checked 3334ms @a92f16431042
 pass/layouts/resident_whole_extraction checked 3339ms @a92f16431042
-pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 1732ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_callee_owned_local_origins_exit rejected 2255ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_captured_encoded_reference_replacement_exit rejected 2240ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_callee_integer_at_fitting_write_exit built 13894ms exit:0 @0daa616486a6
+pass/layouts/runtime_callee_owned_local_origins_exit built 13251ms exit:0 @0daa616486a6
+pass/layouts/runtime_captured_encoded_reference_replacement_exit built 13181ms exit:0 @0daa616486a6
 pass/layouts/runtime_constant_layout_contract_exit built 3094ms exit:0 @a92f16431042
-pass/layouts/runtime_encoded_physical_view_exit rejected 2060ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_foreign_encoded_reference_exit rejected 2040ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_encoded_physical_view_exit built 13064ms exit:0 @0daa616486a6
+pass/layouts/runtime_foreign_encoded_reference_exit built 12588ms exit:0 @0fab8dbb32c3
 pass/layouts/runtime_indexed_restricted_field_read built 2149ms exit:0 @a92f16431042
 pass/layouts/runtime_large_schema_field_exit built 2327ms exit:0 @a92f16431042
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 3952ms exit:0 @a92f16431042
-pass/layouts/runtime_multi_origin_encoded_reference_exit rejected 1650ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_multi_origin_encoded_reference_exit built 13147ms exit:0 @0daa616486a6
 pass/layouts/runtime_nested_restricted_field_read built 2175ms exit:0 @a92f16431042
-pass/layouts/runtime_offset_encoded_reference_exit rejected 1890ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_offset_encoded_reference_exit built 13153ms exit:0 @0daa616486a6
 pass/layouts/runtime_placed_accessor_writeback_exit built 13186ms exit:0 @941b89b6733b
 pass/layouts/runtime_placed_external_array_snapshot_exit built 6232ms exit:0 @a92f16431042
 pass/layouts/runtime_placed_external_nested_array_exit built 4898ms exit:0 @a92f16431042
@@ -5540,48 +5514,30 @@ pass/layouts/runtime_placed_outcome_nested_array_read_exit built 3688ms exit:0 @
 pass/layouts/runtime_plan_laid_compact_bits_exit rejected 9722ms regressed-from:built+exit:70 @a92f16431042
 	plan-laid value type `CompactBits<PackedFlags>`: error: policy `CompactBits::plan` produced an invalid plan: field `mode` source fragments end at bit 3, expected 8
 pass/layouts/runtime_plan_laid_erased_field_exit built 13532ms exit:70 @a92f16431042
-pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 12053ms regressed-from:built+exit:72 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 130043ms exit:72 @0daa616486a6
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit built 6951ms exit:70 @a92f16431042
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 6757ms exit:70 @a92f16431042
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit built 7456ms exit:70 @a92f16431042
 pass/layouts/runtime_plan_laid_value_field_exit built 8117ms exit:70 @a92f16431042
 pass/layouts/runtime_qualified_record_schema_geometry_exit built 2301ms exit:0 @a92f16431042
-pass/layouts/runtime_reborrow_preserves_store_origin_exit rejected 6799ms regressed-from:built+exit:70 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_reborrow_preserves_store_origin_exit built 117901ms exit:70 @0daa616486a6
 pass/layouts/runtime_recast_reference_captures_index_exit rejected 2181ms regressed-from:built+exit:0 @a92f16431042
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: effectful invocation has unknown writable storage
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_recursive_encoded_reference_exit rejected 1850ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_returned_encoded_reference_exit rejected 1755ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_selected_reference_parent_restoration_exit rejected 1890ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-pass/layouts/runtime_selected_scalar_reference_codec_exit rejected 1773ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_recursive_encoded_reference_exit built 12762ms exit:0 @0daa616486a6
+pass/layouts/runtime_returned_encoded_reference_exit built 13694ms exit:0 @0daa616486a6
+pass/layouts/runtime_selected_reference_parent_restoration_exit built 13030ms exit:0 @0daa616486a6
+pass/layouts/runtime_selected_scalar_reference_codec_exit built 13152ms exit:0 @0daa616486a6
 pass/layouts/runtime_size_of_align_of_exit rejected 6621ms regressed-from:built+exit:70 @a92f16431042
 	plan-laid value type `CompactBits<PackedFlags>`: error: policy `CompactBits::plan` produced an invalid plan: field `mode` source fragments end at bit 3, expected 8
 pass/layouts/runtime_sparse_fragmented_bits_exit rejected 3936ms regressed-from:built+exit:70 @a92f16431042
 	plan-laid value type `SparseBits<PackedFlags>`: error: policy `SparseBits::plan` produced an invalid plan: field `mode` source fragments end at bit 3, expected 8
-pass/layouts/runtime_stored_returned_encoded_reference_exit rejected 1930ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_stored_returned_encoded_reference_exit built 13480ms exit:0 @0daa616486a6
 pass/layouts/runtime_target_layout_byte_offset_exit built 2455ms exit:0 @a92f16431042
-pass/layouts/runtime_target_layout_forwarded_integer_exit rejected 1768ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_target_layout_forwarded_integer_exit built 13515ms exit:0 @0daa616486a6
 pass/layouts/runtime_target_layout_queries_exit built 3635ms exit:0 @a92f16431042
-pass/layouts/runtime_transition_scalar_reference_codec_exit rejected 1819ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_transition_scalar_reference_codec_exit built 12897ms exit:0 @0daa616486a6
 pass/layouts/single_bool_array_layout_compile checked 1431ms @a92f16431042
 pass/layouts/single_byte_member_layout_compile checked 1379ms @a92f16431042
 pass/layouts/single_float_member_layout_compile checked 4134ms @a92f16431042
@@ -6387,9 +6343,7 @@ pass/recast/runtime_bool_representation_recast_exit built 12669ms exit:70 @a92f1
 pass/recast/runtime_boolean_view_decision_exit built 3048ms exit:0 @a92f16431042
 pass/recast/runtime_byte_region_state_transfer_exit built 3138ms exit:0 @a92f16431042
 pass/recast/runtime_captured_guard_conjunction_exit built 3081ms exit:0 @a92f16431042
-pass/recast/runtime_encoded_record_view_loan_exit rejected 1797ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/recast/runtime_encoded_record_view_loan_exit built 11296ms exit:0 @0fab8dbb32c3
 pass/recast/runtime_field_precondition_capture_exit built 12161ms exit:70 @a92f16431042
 pass/recast/runtime_float_range_representation_recast_exit built 16597ms exit:70 @a92f16431042
 pass/recast/runtime_guarded_offset_recast_exit built 13283ms exit:70 @a92f16431042
@@ -6988,9 +6942,7 @@ pass/text/byte_content_store_continuation_exit built 6208ms exit:70 @a92f1643104
 pass/text/byte_view_element_read_without_byte_declaration_exit built 1949ms exit:0 @a92f16431042
 pass/text/copy_record_view_field_state_transfer_exit built 5778ms exit:70 @a92f16431042
 pass/text/declared_record_view_field_fill_exit built 5740ms exit:70 @a92f16431042
-pass/text/encoded_source_select rejected 1992ms regressed-from:checked @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/text/encoded_source_select checked 12847ms @0daa616486a6
 pass/text/incoming_bounded_byte_dynamic_call_exit built 2217ms exit:0 @a92f16431042
 pass/text/local_bounded_byte_indexed_write_exit built 5773ms exit:70 @a92f16431042
 pass/text/local_bounded_text_case_result_loan_exit built 6122ms exit:70 @a92f16431042

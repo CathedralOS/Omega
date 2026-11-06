@@ -198,6 +198,21 @@ impl<'program> StructuralJudge<'program> {
             let Some(coordinate) = self.captured_reference_subject(&subject.entry, scope.1) else {
                 continue;
             };
+            // A same-width view of an IntegerAt cell can write every stored bit
+            // pattern. The call does not publish a tighter ensures, but the
+            // encoding itself is the semantic value's domain afterward.
+            let scalar = subject.entry.scalar_storage_coordinate(program, scope.1);
+            let stored_cell = scalar.as_ref().and_then(|scalar| {
+                super::super::storage_effects::complete_stored_integer_cell(
+                    program,
+                    &scalar.place,
+                    scalar.view_primitive,
+                    scalar.source_primitive,
+                )
+            });
+            let stored_domain =
+                stored_cell.and_then(super::super::storage_effects::stored_integer_domain);
+            let restores_stored_domain = stored_domain.is_some();
             self.capture_sequence += 1;
             let value = StructuralTerm::CapturedValue {
                 statement,
@@ -205,7 +220,12 @@ impl<'program> StructuralJudge<'program> {
                 callable: owner_symbol(owner),
                 occurrence: self.capture_sequence,
                 result_type: subject.entry.type_reference,
-                integer_range: None,
+                integer_range: stored_domain.map(|(low, high)| {
+                    std::sync::Arc::new(checked_trees::IntegerRangeRecipe::bounds(
+                        numerics::bignum::BigInt::from_i128(low),
+                        numerics::bignum::BigInt::from_i128(high),
+                    ))
+                }),
             };
             let mut observed = if program
                 .primitive_type_reference(subject.entry.type_reference)
@@ -252,11 +272,15 @@ impl<'program> StructuralJudge<'program> {
                 coordinate,
                 value,
                 backing: None,
-                representation: subject
-                    .entry
-                    .scalar_storage_coordinate(program, scope.1)
-                    .filter(|scalar| !scalar.preserves_scalar_value)
-                    .map(|scalar| (scalar.view_primitive, scalar.source_primitive)),
+                // The stored-integer domain is already the semantic value.
+                // Reinterpreting those bits as the wide carrier would drop it.
+                representation: (!restores_stored_domain)
+                    .then(|| {
+                        scalar
+                            .filter(|scalar| !scalar.preserves_scalar_value)
+                            .map(|scalar| (scalar.view_primitive, scalar.source_primitive))
+                    })
+                    .flatten(),
             });
         }
         Some(CapturedCallBindings {

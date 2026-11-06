@@ -26077,9 +26077,7 @@ pass/host/runtime_descriptor_record_array_input_exit checked 16834ms check-targe
 pass/host/runtime_descriptor_record_loan_input_exit checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_reference_record_prefix_exit checked 3554ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_scalar_input_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_encoded_record_view_observation_exit rejected 3253ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	cannot establish assignment invariants: source storage interpretation is unavailable
-	cannot establish assignment invariants: source storage interpretation is unavailable
+pass/host/runtime_encoded_record_view_observation_exit checked 12498ms check-target:macos_arm64 @0fab8dbb32c3
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11523ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_foreign_scalar_loan_writeback_exit checked 86236ms check-target:windows_x86_64 @c989b75f08a9
 pass/host/runtime_foreign_zero_argument_import_exit checked 16999ms check-target:windows_x86_64 @ccdb99ca2214
@@ -26238,7 +26236,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit checked 3580ms check-target
 pass/layouts/runtime_captured_encoded_reference_replacement_exit checked 3045ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_constant_layout_contract_exit checked 1297ms check-target:macos_arm64 @8b519ca647cd+wt
 pass/layouts/runtime_encoded_physical_view_exit checked 4483ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/runtime_foreign_encoded_reference_exit checked 3498ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_foreign_encoded_reference_exit checked 12498ms check-target:macos_arm64 @0fab8dbb32c3
 pass/layouts/runtime_indexed_restricted_field_read checked 7942ms check-target:macos_arm64 @911f6617ba9e
 pass/layouts/runtime_large_schema_field_exit checked 3754ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_layout_arithmetic_value_flow_exit checked 2023ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
@@ -26262,8 +26260,7 @@ pass/layouts/runtime_placed_outcome_nested_array_read_exit rejected 3307ms check
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 95343ms check-target:macos_arm64 @911f6617ba9e
 pass/layouts/runtime_plan_laid_erased_field_exit rejected 14888ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot determine the dispatch subject storage type in `Main::main::main`
-pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 21801ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	IntegerAt store in machine `guarded_write` state `entry` assignment requires a value proven to fit 8-bit signed storage
+pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 110551ms check-target:macos_arm64 @9b40147d2440
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 11768ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 12103ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit checked 12605ms check-target:macos_arm64 @ccdb99ca2214
@@ -27264,7 +27261,7 @@ pass/recast/runtime_bool_representation_recast_exit checked 87338ms check-target
 pass/recast/runtime_boolean_view_decision_exit checked 11185ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_byte_region_state_transfer_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_captured_guard_conjunction_exit checked 4074ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_encoded_record_view_loan_exit checked 11683ms check-target:macos_arm64 @911f6617ba9e
+pass/recast/runtime_encoded_record_view_loan_exit checked 11265ms check-target:macos_arm64 @0fab8dbb32c3
 pass/recast/runtime_field_precondition_capture_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_float_range_representation_recast_exit checked 76361ms check-target:macos_arm64 @911f6617ba9e
 pass/recast/runtime_guarded_offset_recast_exit rejected 7660ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
