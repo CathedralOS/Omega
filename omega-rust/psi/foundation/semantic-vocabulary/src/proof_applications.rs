@@ -817,7 +817,7 @@ impl<Declaration: Copy + Ord + Default + 'static> ProofCallGraph<Declaration> {
             .enumerate()
             .map(|(position, (handle, row))| (row.machine, position, handle))
             .collect::<Vec<_>>();
-        index.sort_by(|left, right| (left.0, left.1).cmp(&(right.0, right.1)));
+        index.sort_by_key(|left| (left.0, left.1));
         self.machine_index = index
             .into_iter()
             .map(|(machine, _, handle)| (machine, handle))
