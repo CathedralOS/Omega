@@ -3,14 +3,9 @@
 // squaring keeps every intermediate small instead of forming the astronomically
 // large base^exponent. Here 3 ^ 7 mod 100 = 2187 mod 100 = 87.
 //
-// Showcases the full integer-arithmetic kit over a scalar state loop, FULLY
-// EXACT -- no Trapping, no Wrapping: each loop entry retains the accumulator
-// and base in 0..=99, so every product is verifiably bounded (result * base <=
-// 99*99 = 9801, far under i32::MAX) and every `% m` divisor is provably
-// nonzero, so the decision-17 obligations discharge by proof. When arithmetic
-// is verifiably bounded, no overflow domain is needed -- the avionics posture.
-// `% 2` / `/ 2` are constant divisors; the parity branch reads the exponent's
-// low bit.
+// Each loop entry keeps the accumulator and base in 0..=99. Their product
+// is at most 9801, so Exact multiplication fits i32. The constant divisors
+// 100 and 2 are nonzero; the parity branch tests the exponent's low bit.
 // Expected exit: 87.
 
 use omega_language_std::console;
