@@ -41,11 +41,16 @@ pub(crate) struct CaseGuaranteeEligibility {
 
 impl CaseGuaranteeEligibility {
     fn prepare(program: &dyn crate::CheckingInput) -> Self {
+        // Retired arena slots do not contribute to expression_count. Cover
+        // each live backing position, including gaps before a later slot.
+        let row_count = program
+            .expression_table
+            .iter_backing_expressions()
+            .map(|(expression, _)| expression.arena_index() as usize + 1)
+            .max()
+            .unwrap_or(0);
         let mut table = Self {
-            rows: vec![
-                CaseEligibilityRow::default();
-                program.expression_table.expression_count() + 1
-            ],
+            rows: vec![CaseEligibilityRow::default(); row_count],
         };
         for (expression, _) in program.expression_table.iter_backing_expressions() {
             table.rows[expression.arena_index() as usize].expression = expression;
