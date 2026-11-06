@@ -42,8 +42,10 @@ pub(super) fn settle_native_lifecycles<'execution>(
     let primitive_plans: std::collections::BTreeMap<
         semantic_vocabulary::BoundaryMachineId,
         &TerminalAccessLifecyclePlan,
-    > = module
-        .access_lifecycle_plans
+    > = input
+        .plan()
+        .structural_types
+        .access_lifecycles()
         .iter()
         .filter(|plan| {
             matches!(

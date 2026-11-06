@@ -64,6 +64,9 @@ pub struct TerminalAccessViewPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAccessLifecyclePlan {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
+    /// Checked representation input, not a claim about the executing host.
+    /// None retains a target-independent interpretation.
+    pub target: Option<crate::TargetLayoutInput>,
     pub operation: TerminalAccessLifecycleOperation,
     pub execution: TerminalAccessLifecycleExecution,
     pub storage: TerminalAccessStorage,

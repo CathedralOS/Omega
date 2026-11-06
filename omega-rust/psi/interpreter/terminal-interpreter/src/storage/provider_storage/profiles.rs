@@ -143,18 +143,17 @@ impl TerminalExecution<'_> {
         arguments: &[StructuralArgument],
         handler: &mut impl crate::TerminalEffectHandler,
     ) -> Result<Option<PendingResourceProfile>, TerminalInterpretError> {
-        let Some((plan, result_type)) = self
-            .program
-            .catalogs
-            .access_lifecycle_plans
-            .iter()
-            .find_map(|plan| match &plan.execution {
-                TerminalAccessLifecycleExecution::CompilerPrimitive {
-                    profile_type: Some(result_type),
-                    profile_requirement: Some(requirement),
-                } if requirement.boundary == boundary => Some((plan, *result_type)),
-                _ => None,
-            })
+        let Some((plan, result_type)) =
+            self.program
+                .access_lifecycle_plans()
+                .iter()
+                .find_map(|plan| match &plan.execution {
+                    TerminalAccessLifecycleExecution::CompilerPrimitive {
+                        profile_type: Some(result_type),
+                        profile_requirement: Some(requirement),
+                    } if requirement.boundary == boundary => Some((plan, *result_type)),
+                    _ => None,
+                })
         else {
             return Ok(None);
         };

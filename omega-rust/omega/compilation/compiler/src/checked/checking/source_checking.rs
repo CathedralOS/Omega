@@ -179,16 +179,9 @@ fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
 ) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {
-    if !typed_trees::references::collect_program_type_occurrences(typed)
-        .into_iter()
-        .any(|occurrence| {
-            typed
-                .layout_storage_arguments(occurrence.reference)
-                .is_some()
-        })
-    {
-        return Ok(Vec::new());
-    }
+    // Whole-value initialization can need target geometry without any
+    // FixedLayout type in source. Supply the checking context independently
+    // of which representation operation will consume it after specialization.
     let choices = build
         .provider_selections
         .iter()

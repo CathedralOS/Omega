@@ -190,6 +190,7 @@ pub enum TerminalInterpretError {
         diagnostic: access_plans::AccessPlanDiagnostic,
     },
     ValueImage(layout_plans::MaterializationDiagnostic),
+    ValueImageGeometry(terminal_semantics::StorageGeometryError),
     CompletionReceiptMismatch,
     ProviderInstallationIdentityMismatch,
     FoldedConstantClosure(&'static str),

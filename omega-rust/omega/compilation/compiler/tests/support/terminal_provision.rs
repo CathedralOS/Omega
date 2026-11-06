@@ -62,6 +62,19 @@ pub(super) fn admitted_supplies(
         })
         .collect::<Vec<_>>();
     let installed = admit_provider_installation(artifact.view(), &selections, &[]).unwrap();
+    // These provisions execute on this test host. Whole-value images require
+    // its explicit layout receipt just as the public interpreter driver does.
+    let target = target::TargetProfile::host();
+    let target_machines = terminal_interpreter::admit_target_machine_selections(
+        artifact.view(),
+        target.target_name(),
+    );
+    let target_layouts = terminal_interpreter::admit_target_layouts(
+        artifact.view(),
+        &target_machines,
+        &target.layout_target_facts().unwrap(),
+    )
+    .unwrap();
     program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             native_code_layouts: None,
@@ -70,8 +83,8 @@ pub(super) fn admitted_supplies(
             entry: None,
             installation: Some(&installed),
             host_imports: &[],
-            target_machines: None,
-            target_layouts: None,
+            target_machines: Some(&target_machines),
+            target_layouts: Some(&target_layouts),
         })
         .unwrap()
 }

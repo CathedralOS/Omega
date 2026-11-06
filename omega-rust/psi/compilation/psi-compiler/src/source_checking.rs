@@ -260,6 +260,7 @@ impl CheckRequest<'_> {
                 build_time_evaluation::retain_access_lifecycle_plans(
                     program,
                     self.admission.declarations,
+                    self.admission.layout_scopes,
                 )
             })?;
             let prior_dependency_bodies: Vec<_> = self

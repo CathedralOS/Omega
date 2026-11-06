@@ -930,6 +930,7 @@ fn image_fixture() -> (Vec<StructuralTypeDeclaration>, TerminalAccessLifecyclePl
         })
         .collect();
     let plan = TerminalAccessLifecyclePlan {
+        target: None,
         boundary: BoundaryMachineId::new(1).unwrap(),
         operation: TerminalAccessLifecycleOperation::Initialize,
         execution: TerminalAccessLifecycleExecution::CompilerPrimitive {
