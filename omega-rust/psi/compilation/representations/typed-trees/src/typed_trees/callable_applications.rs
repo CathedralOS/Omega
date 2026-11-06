@@ -23,7 +23,7 @@ mod selected_operands;
 mod signatures;
 mod table;
 mod trait_scopes;
-pub(super) use table::AppliedCallableTable;
+pub(crate) use table::AppliedCallableTable;
 
 pub use requirement_instances::{ClosedRequirementApplication, RequirementLocalArgument};
 
