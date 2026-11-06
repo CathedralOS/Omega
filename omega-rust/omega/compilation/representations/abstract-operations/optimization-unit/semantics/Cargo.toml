@@ -19,3 +19,7 @@ terminal-codec = { path = "../../../../../../psi/compilation/representations/ter
 terminal-fuel = { path = "../../../../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-semantics = { path = "../../../../../../psi/compilation/representations/terminal-psi/semantics" }
 
+
+[dev-dependencies]
+access-plans = { path = "../../../../../../psi/foundation/access-plans" }
+layout-plans = { path = "../../../../../../psi/foundation/layout-plans" }

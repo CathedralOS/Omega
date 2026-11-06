@@ -246,3 +246,6 @@ use graph::{external_root, is_entry_storage, output_graph};
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod result_composition_tests;
