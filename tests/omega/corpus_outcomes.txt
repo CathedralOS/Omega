@@ -15520,6 +15520,8 @@ fail/layouts/fixed_layout_policy_borrowed_content rejected 2240ms expected @dc98
 	specification call `policy` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/layouts/fixed_layout_policy_guarantee rejected 2698ms expected @dc9835be2e64
 	cannot prove ensures contract for exit from validate at statement 0: policy(result, storage, expected)
+fail/layouts/fixed_layout_runtime_alias_policy_rejected rejected 5817ms expected @af78fb7c30e4
+	data `LayoutStorage` cannot bind implementation `Policy`: conformance `Policy` parameter `Marker` requires a const argument, but `<structural type>` has another static category
 fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 3199ms expected @d68d95fa82f8
 	recast has no complete exact layout alternative roster
 fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 2019ms expected @d68d95fa82f8
