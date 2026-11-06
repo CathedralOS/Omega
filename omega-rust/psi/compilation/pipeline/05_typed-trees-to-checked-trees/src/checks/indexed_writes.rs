@@ -186,7 +186,7 @@ pub(super) fn record(
             } else if let Some(required) = missing_predicate {
                 diagnostics.push(
                     diagnostics::Diagnostic::error(format!(
-                        "cannot prove completed byte preserves {required:?} at the captured assignment destination in {}::{}",
+                        "primitive write lost its exact logical byte preservation judgment: cannot prove completed byte preserves {required:?} at the captured assignment destination in {}::{}",
                         program.symbols.name(state_flow.machine_symbol),
                         program.symbols.name(state.symbol),
                     ))

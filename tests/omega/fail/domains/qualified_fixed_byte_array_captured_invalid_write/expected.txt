@@ -1,1 +1,1 @@
-cannot prove completed byte preserves AsciiOnly at the captured assignment destination in write_selected::entry
+primitive write lost its exact logical byte preservation judgment

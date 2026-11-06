@@ -93,7 +93,8 @@ pub(crate) fn observe_inputs(
             &current,
             current_binding.domain,
             current_binding.semantic_domain,
-        ) {
+        ) && !completed_input_membership(program, facts, operand, &current, current_binding)
+        {
             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                 eprintln!(
                     "CHECKSITE content input current={current:?} binding={current_binding:?} completion={:?}",
@@ -176,6 +177,61 @@ pub(crate) fn observe_inputs(
             .collect::<Vec<_>>(),
     )?;
     Ok(inputs)
+}
+
+/// A move can leave the displayed membership on its earlier occurrence.
+/// Follow the recorded completed value; every possible predecessor must carry
+/// the same owned qualification. The caller still checks unique custody,
+/// projection preservation, selected cases and outstanding loans.
+fn completed_input_membership(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    at: &checked_trees::FlowOperandFact,
+    current: &CanonicalPlace,
+    binding: &ContentBodyClaimBinding,
+) -> bool {
+    let sources = if let Some(expression) = current.root.as_expression() {
+        validation::completed_storage::consumer_captures(
+            &facts.flow.control,
+            at.state_symbol,
+            at.statement_index,
+            expression,
+        )
+        .map(|captures| {
+            captures
+                .into_iter()
+                .map(|capture| (capture, current.segments.clone()))
+                .collect::<Vec<_>>()
+        })
+    } else {
+        validation::completed_storage::at_snapshot(
+            program,
+            &facts.flow.control,
+            at.storage_snapshot,
+            current,
+            validation::completed_storage::StoredObservation::InlineContents,
+        )
+        .and_then(|stored| stored.captures())
+        .map(|captures| {
+            captures
+                .into_iter()
+                .map(|capture| (capture.capture, capture.projection))
+                .collect()
+        })
+    };
+    sources.is_some_and(|sources| {
+        !sources.is_empty()
+            && sources.iter().all(|(capture, projection)| {
+                validation::completed_storage::completed_membership(
+                    program,
+                    facts,
+                    *capture,
+                    projection,
+                    binding.domain,
+                    binding.semantic_domain,
+                )
+            })
+    })
 }
 
 fn unique_live_input(

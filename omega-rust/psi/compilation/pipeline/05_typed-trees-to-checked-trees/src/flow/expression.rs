@@ -2253,6 +2253,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     expression,
                 ) == Some(cast.value)
                 {
+                    // Qualification changes preserve these completed bytes.
+                    // Retain the actual operand for storage and custody readers;
+                    // each membership consumer still checks its own authority.
+                    *value_source = evaluated_inputs.handles().next().unwrap_or_default();
                     *boolean_completion = evaluated.boolean_completion;
                     return evaluated.boolean;
                 }

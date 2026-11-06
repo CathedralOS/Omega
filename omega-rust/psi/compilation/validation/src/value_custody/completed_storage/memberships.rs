@@ -35,6 +35,9 @@ pub fn completed_membership(
         {
             return false;
         }
+        if captured_owned_membership(program, facts, value, path, domain, semantic_domain) {
+            return true;
+        }
         if facts
             .qualifications
             .content
@@ -70,4 +73,56 @@ pub fn completed_membership(
         semantic_domain,
         &mut Vec::new(),
     )
+}
+
+/// Owned content cannot disappear when its displayed qualification changes.
+/// Read the exact membership present at this capture, not a destination type
+/// or a claim identifier. Reference contents remain tied to their own epoch.
+fn captured_owned_membership(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    value: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+    domain: SymbolHandle,
+    semantic_domain: SemanticDomainId,
+) -> bool {
+    if !facts
+        .qualifications
+        .content
+        .for_semantic_domain(semantic_domain)
+        .is_some_and(|projection| projection.domain == domain)
+    {
+        return false;
+    }
+    let operand = facts.flow.control.operands.get(value);
+    for length in 0..=path.len() {
+        let Some(reference) = crate::project_type_reference_from_segments(
+            program,
+            operand.type_reference,
+            &path[..length],
+        ) else {
+            return false;
+        };
+        if crate::reference_shell(program, reference).is_some()
+            || (length == path.len()
+                && program.type_multiplicity(reference) != language_semantics::Multiplicity::Linear)
+        {
+            return false;
+        }
+    }
+    let Some(mut subject) = crate::canonical_place_from_expression_in_state(
+        program,
+        operand.state_symbol,
+        operand.statement_index,
+        operand.expression,
+    ) else {
+        return false;
+    };
+    subject.segments.extend_from_slice(path);
+    let contexts = facts
+        .flow
+        .semantic_constraint_contexts(operand.constraints)
+        .collect::<Vec<_>>();
+    crate::membership_evidence::MembershipEvidence::prepare(program, &facts.semantic, &contexts)
+        .contains(&subject, domain, semantic_domain)
 }
