@@ -730,9 +730,11 @@ mod resolution_payload_tests {
             value: Box::new(integer(7)),
             descriptor,
         };
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let carrier = identities.intern("Carrier");
         let nested = |value| StructuralTerm::Constructor {
             identity: super::super::ConstructorIdentity::Nominal {
-                carrier: typed_trees::type_identity::NormalizedTypeIdentity::from_arena_index(1),
+                carrier,
                 reference: TypeReferenceHandle::from_arena_index(1),
                 declaration: symbols::SymbolHandle::from_arena_index(1),
                 case: None,
