@@ -1,0 +1,76 @@
+{
+  "kind": "Exactly two nonignored Sem baselines for ordinary and selected-lender projected-duty preservation over overlaid storage",
+  "source": "6588aabd7336bd458e1db9b55f2969b868ee5851",
+  "expected_total_passes": 2,
+  "owner_source_map_sha256": "6d420bf68a4a062f32479106224dd43d8b6f303532f592b66fa5eb4760d7a419",
+  "groups": [
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::primitive_writes::scalar_field_preservation_proves_the_whole_rule_from_each_writers_actual_value",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::primitive_writes::scalar_field_preservation_proves_the_whole_rule_from_each_writers_actual_value"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/primitive_writes.rs",
+          "sha256": "8b0fd48acb6234f20556b1400b4b68327b39ee142d6b54e95c89a3c3a8155ae6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "60e9b5728c794d7e99202e9637eb6e80589e3c774f231eca83c6073cab17f719"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    },
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::selected_lender_geometry::selected_lender_cannot_assume_overlaid_sibling_fields_are_disjoint",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::selected_lender_geometry::selected_lender_cannot_assume_overlaid_sibling_fields_are_disjoint"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/selected_lender_geometry.rs",
+          "sha256": "b2404bd864929141e9ab12fc54f2db885d30f3becc82931cc7b149a345541154"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "60e9b5728c794d7e99202e9637eb6e80589e3c774f231eca83c6073cab17f719"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls.rs",
+          "sha256": "3764fda36069d9096a77071b285cc08f67d20bad84ffebd2103e2c267f3a8b5f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs",
+          "sha256": "4d126e534cc46c734a6d4fd64657c00eaab457c7d6e465891206b05c51253d3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
