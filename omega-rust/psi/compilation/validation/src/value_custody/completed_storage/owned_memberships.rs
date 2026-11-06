@@ -64,7 +64,6 @@ fn preserved_transfer(
     let completed = control.operands.get(value);
     let mut source = completed;
     let mut source_handle = value;
-    let mut visited = std::collections::HashSet::new();
     let mut transferred = false;
     while let Some(expression) = crate::value_preserving_cast_operand(
         program,
@@ -72,9 +71,6 @@ fn preserved_transfer(
         source.statement_index,
         source.expression,
     ) {
-        if !visited.insert(source_handle) {
-            return Err("owned transfer has a cyclic captured cast chain");
-        }
         let [input] = control
             .operands
             .span(source.evaluated_inputs)
@@ -93,11 +89,17 @@ fn preserved_transfer(
         {
             return Err("owned cast lost its exact evaluated operand");
         }
-        source_handle = source
+        let input_handle = source
             .evaluated_inputs
             .handles()
             .next()
             .ok_or("owned cast has no evaluated operand handle")?;
+        // Flow records a completed input before its enclosing cast. Require
+        // that order so the walk cannot cycle or read a future completion.
+        if input_handle.arena_index() >= source_handle.arena_index() {
+            return Err("owned cast input does not precede its completion");
+        }
+        source_handle = input_handle;
         source = input;
         transferred = true;
     }
