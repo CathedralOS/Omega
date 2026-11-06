@@ -118,6 +118,7 @@ pub(in crate::borrow) fn prepare(
                 // that slot is not a path inside the temporary pointer.
             }
             pending.push(StatementBorrowLoan {
+                retained_input_parameter: None,
                 incoming_origin: Some(PendingIncomingReference {
                     identity: IncomingReferenceIdentity {
                         machine_symbol: machine.symbol,

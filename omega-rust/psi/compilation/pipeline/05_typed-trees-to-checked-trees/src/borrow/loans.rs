@@ -108,6 +108,7 @@ pub(super) struct StatementBorrowLoan {
     pub(super) place: accesses::BorrowAccessPlace,
     pub(super) representation_address: Option<accesses::BorrowAccessPlace>,
     pub(super) retained_operand: Option<checked_trees::BorrowRetainedOperand>,
+    pub(super) retained_input_parameter: Option<usize>,
     pub(super) source_owner_symbol: SymbolHandle,
     pub(super) supplying_loans: Vec<Handle<checked_trees::BorrowLoanFact>>,
     pub(super) lineage: checked_trees::BorrowLoanLineage,

@@ -41,6 +41,7 @@ pub(super) fn form(
         let carrier_type =
             validation::project_type_reference_from_segments(program, result_type, &segments)?;
         Some(StatementBorrowLoan {
+            retained_input_parameter: None,
             formation_owner_path: Some(owner_path.clone()),
             incoming_origin: Some(PendingIncomingReference {
                 identity: IncomingReferenceIdentity {
@@ -246,6 +247,7 @@ pub(super) fn retain(
                 kind
             };
             Ok(StatementBorrowLoan {
+                retained_input_parameter: None,
                 incoming_origin: None,
                 formation_expression: local.initial_value,
                 formation_owner_path: Some(owner_path.clone()),

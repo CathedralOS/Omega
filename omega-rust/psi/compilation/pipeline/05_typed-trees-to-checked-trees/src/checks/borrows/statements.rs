@@ -237,6 +237,11 @@ pub(super) fn check_statement_borrows<'p>(
                     loan_occurrences,
                     loan_handle,
                     active_loan_handle,
+                ) || super::aliases::same_completed_input_debt(
+                    facts,
+                    state_flow,
+                    loan_handle,
+                    active_loan_handle,
                 ) {
                     continue;
                 }

@@ -196,6 +196,7 @@ pub(super) fn reference_local_borrow_loans(
     Ok(rebased
         .iter()
         .map(|source| StatementBorrowLoan {
+            retained_input_parameter: None,
             formation_owner_path: Some(Vec::new()),
             incoming_origin: None,
             formation_expression: local_data.initial_value,

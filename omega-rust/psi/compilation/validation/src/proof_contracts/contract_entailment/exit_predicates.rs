@@ -175,8 +175,15 @@ impl ExitPredicate<'_> {
                 Some(&path.value),
                 0,
             )?;
+            let trace_predicate = super::struct_trace().then(|| predicate.clone());
             let result = path.judge.judge_observed_predicate(predicate, 0);
             if !matches!(result, StructuralJudgment::Proven) {
+                if let Some(predicate) = trace_predicate {
+                    eprintln!(
+                        "STRUCT exit-predicate-refused machine={} state={} statement={} returned={:?} predicate={predicate:?} judgment={result:?}",
+                        machine.name, state.name, self.site.statement_index, path.value,
+                    );
+                }
                 return Some(false);
             }
         }

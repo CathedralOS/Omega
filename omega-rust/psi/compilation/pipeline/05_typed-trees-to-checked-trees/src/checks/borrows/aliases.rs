@@ -10,6 +10,9 @@ use checked_trees::{CapturedPlace, CheckFacts, FlowStateFact};
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
+mod completed_inputs;
+pub(in crate::checks::borrows) use completed_inputs::same_completed_input_debt;
+
 mod lineage;
 pub(in crate::checks) use lineage::transport_suppliers;
 pub(in crate::checks::borrows) use lineage::{formation_lineage, retained_lineage};

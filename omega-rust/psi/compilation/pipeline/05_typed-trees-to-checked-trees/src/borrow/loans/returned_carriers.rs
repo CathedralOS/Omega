@@ -176,6 +176,7 @@ impl CompletedReturnSource {
                 let mut path = owner_prefix.to_vec();
                 path.append(&mut owner_path);
                 Ok(vec![StatementBorrowLoan {
+                    retained_input_parameter: None,
                     formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: local.initial_value,
@@ -796,7 +797,8 @@ pub(super) fn relative_result_loans(
             }
             _ => return Ok(None),
         };
-        let contract = available!(call_view_return_contract(program, state_symbol, call));
+        let contract = call_view_return_contract(program, state_symbol, call)
+            .ok_or("the call has no resolved public signature for its returned references")?;
         let completed = TableLocalData {
             initial_value: expression,
             type_reference: contract.return_type_reference(program),
@@ -806,7 +808,24 @@ pub(super) fn relative_result_loans(
         {
             return Ok(Some(limit_access(loans, &access_limits)));
         }
-        if matches!(contract.source(program), ViewReturnSource::NotApplicable) {
+        let source = contract.source(program);
+        if let ViewReturnSource::Ambiguous(reason) = source {
+            return Err(match reason {
+                validation::borrow_contracts::ViewReturnAmbiguity::IncompleteStructure {
+                    ..
+                } => "the call's public signature does not identify every returned reference",
+                validation::borrow_contracts::ViewReturnAmbiguity::IncompatibleSourceAccess {
+                    ..
+                } => "an input does not grant the access promised for a returned reference",
+                validation::borrow_contracts::ViewReturnAmbiguity::ElidedMultipleInputs {
+                    ..
+                } => "the returned reference could come from more than one input",
+                validation::borrow_contracts::ViewReturnAmbiguity::LifetimeMatchesNoInput {
+                    ..
+                } => "the returned reference's lifetime does not match any input",
+            });
+        }
+        if matches!(source, ViewReturnSource::NotApplicable) {
             return Ok(super::invocation_results::form(
                 program,
                 state_symbol,

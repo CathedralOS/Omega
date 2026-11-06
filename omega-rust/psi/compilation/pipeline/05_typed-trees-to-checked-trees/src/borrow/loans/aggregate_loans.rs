@@ -129,6 +129,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    retained_input_parameter: None,
                     // This expression forms the descriptor root; owner_path
                     // is its later installation prefix, not its identity.
                     formation_owner_path: Some(Vec::new()),
@@ -286,6 +287,7 @@ pub(super) fn aggregate_expression_borrow_loans(
             rebased
                 .iter()
                 .map(|source| StatementBorrowLoan {
+                    retained_input_parameter: None,
                     formation_owner_path: Some(Vec::new()),
                     incoming_origin: None,
                     formation_expression: expression,
@@ -428,10 +430,17 @@ pub(super) fn result_source_loans(
         .collect::<Result<Vec<_>, _>>()?;
     let mut loans = Vec::new();
     for source in completed {
-        loans.extend(source.capture_loans(
-            local_data,
-            owner_path_prefix,
-            |field, projection| {
+        let input_parameter = match &source {
+            super::returned_carriers::CompletedReturnSource::DescriptorCandidate {
+                field, ..
+            }
+            | super::returned_carriers::CompletedReturnSource::LifetimeDependency { field } => {
+                Some(field.parameter_index)
+            }
+            _ => None,
+        };
+        let mut captured =
+            source.capture_loans(local_data, owner_path_prefix, |field, projection| {
                 let mut owner_path = owner_path_prefix.to_vec();
                 owner_path.extend(field.owner_path.iter().copied());
                 let Some(argument) = arguments.get(field.parameter_index).copied() else {
@@ -535,6 +544,7 @@ pub(super) fn result_source_loans(
                             place.segments.extend_from_slice(&projection);
                         }
                         StatementBorrowLoan {
+                            retained_input_parameter: None,
                             formation_owner_path: None,
                             incoming_origin: None,
                             formation_expression: argument,
@@ -592,8 +602,13 @@ pub(super) fn result_source_loans(
                         }
                     })
                     .collect::<Vec<_>>())
-            },
-        )?);
+            })?;
+        for loan in &mut captured {
+            if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
+                loan.retained_input_parameter = input_parameter;
+            }
+        }
+        loans.extend(captured);
     }
     Ok(loans)
 }
@@ -631,6 +646,7 @@ fn transferred_aggregate_loans<'loan>(
             let mut prefixed_owner_path = owner_path_prefix.to_vec();
             prefixed_owner_path.extend(owner_path);
             Some(StatementBorrowLoan {
+                retained_input_parameter: None,
                 formation_owner_path,
                 incoming_origin: None,
                 formation_expression: expression,

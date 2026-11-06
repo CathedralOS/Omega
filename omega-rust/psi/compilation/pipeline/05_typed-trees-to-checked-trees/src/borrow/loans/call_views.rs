@@ -218,7 +218,21 @@ pub(in crate::borrow) fn call_view_return_contract<'program>(
                     signature.return_type,
                     Some(signature),
                 )
+            } else if let Some(signature) = program.requirement_call_signature(caller.symbol, call)
+            {
+                // Returned references follow the public signature prepared for
+                // this invocation, just like its checked result type. A raw
+                // target lookup loses closed member applications and may name
+                // a selected body's private contract instead.
+                (
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    Some(signature),
+                )
             } else {
+                if call.static_requirement_dispatch.is_some() {
+                    return None;
+                }
                 call_view_signature(program, call.target_symbol)?
             };
             let substitutions = signature

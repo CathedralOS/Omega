@@ -404,6 +404,7 @@ pub(super) fn append_carrier_loans(
                     .as_ref()
                     .map(|path| arenas.owner_segments.insert_many(path.iter().copied())),
                 retained_operand: pending.retained_operand,
+                retained_input_parameter: pending.retained_input_parameter,
                 last_use_statement_index: statement_index,
                 owner_symbol: pending.owner_symbol,
                 storage_owner: pending.storage_owner,

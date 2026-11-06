@@ -345,6 +345,11 @@ pub struct BorrowLoanFact {
     /// Input storage held by the originating call, distinct from this leaf's
     /// exact referent. Transport keeps the occurrence and captured prefix.
     pub retained_operand: Option<BorrowRetainedOperand>,
+    /// Declared input ordinal retained by this normal call's result. Together
+    /// with established_by_call it selects the evaluated input and its saved
+    /// storage version. Different output leaves may hold that same restriction.
+    /// Transfers keep their suppliers instead of manufacturing a new call edge.
+    pub retained_input_parameter: Option<usize>,
     pub last_use_statement_index: usize,
     pub owner_symbol: SymbolHandle,
     /// Storage holding the descriptor, distinct from the lexical binding that

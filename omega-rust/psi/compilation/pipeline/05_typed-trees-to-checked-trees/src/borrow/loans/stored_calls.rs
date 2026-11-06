@@ -186,6 +186,7 @@ pub(super) fn loans(
         // including skipped-call alternatives. Merged effects select storage
         // slots only; they cannot reconstruct a pointer's supplying occurrence.
         output.push(StatementBorrowLoan {
+            retained_input_parameter: None,
             formation_owner_path: None,
             incoming_origin: None,
             formation_expression: Default::default(),
@@ -233,6 +234,7 @@ pub(in crate::borrow) fn from_effects(
                     )
             }) {
                 loans.push(StatementBorrowLoan {
+                    retained_input_parameter: None,
                     formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: Default::default(),
@@ -285,6 +287,7 @@ pub(in crate::borrow) fn from_effects(
                 });
                 if let Some((machine, state, carrier_type)) = supplied {
                     loans.push(StatementBorrowLoan {
+                        retained_input_parameter: None,
                         formation_owner_path: None,
                         incoming_origin: Some(super::PendingIncomingReference {
                             identity: checked_trees::IncomingReferenceIdentity {
@@ -398,6 +401,7 @@ pub(in crate::borrow) fn from_effects(
                 // authority; otherwise retain the backing conflict without
                 // inventing a parent.
                 loans.push(StatementBorrowLoan {
+                    retained_input_parameter: None,
                     formation_owner_path: None,
                     incoming_origin: None,
                     formation_expression: Default::default(),
