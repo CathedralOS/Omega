@@ -41,15 +41,17 @@ its exact policy application.
 The November 6 runs below executed all ten corpus positives with native and
 Terminal Psi exit 0. Each also ran the projects for another machine and the
 selected implementation through ordinary CLI package admission and
-`omega run --both`, with both engines exiting 0. The programs, Builds and expected results were frozen
-before execution and were unchanged between these producer revisions.
+`omega run --both`, with both engines exiting 0. The programs, Builds and expected
+results were frozen before execution and were unchanged between these producer
+revisions.
 
 | Native host | Producer revision | Run |
 | --- | --- | --- |
 | Linux x64 | `d06663879aa63b6bc34b3b7cb2ab49b3e3851ad7` | [42285229154](https://github.com/CathedralOS/Omega/actions/runs/42285229154) |
 | Linux ARM64 | `bc53b23707f6d8db0843cf7e4d65f8bae61fecc0` | [42289025627](https://github.com/CathedralOS/Omega/actions/runs/42289025627) |
+| Windows x64 | `bc53b23707f6d8db0843cf7e4d65f8bae61fecc0` | [42289030188](https://github.com/CathedralOS/Omega/actions/runs/42289030188) |
 
-Both full runs remain **failed**: all eleven invalid controls rejected, and all
+All three full runs remain **failed**: all eleven invalid controls rejected, and all
 ten lifetime controls matched their required diagnostics, but the policy control
 missed its required message fragment. Its pin says `PayloadLayout<const 8>`;
 the compiler reports `PayloadLayout<8>` in the same type-mismatch diagnostic.
