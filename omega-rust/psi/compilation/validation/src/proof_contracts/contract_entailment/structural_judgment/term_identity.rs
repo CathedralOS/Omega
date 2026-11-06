@@ -196,14 +196,6 @@ impl StructuralTerm {
         self.children().any(&mut predicate)
     }
 
-    /// Preserve callback order and stop immediately when a child matches.
-    fn visit_children<'term>(
-        &'term self,
-        visit: &mut impl FnMut(&'term StructuralTerm) -> bool,
-    ) -> bool {
-        self.children().any(visit)
-    }
-
     /// The one child-edge table. Its variants are the ones every earlier walk
     /// already descended: a constructor's fields, an application's arguments,
     /// indexed values, measures, projections, embeddings, binary operators and

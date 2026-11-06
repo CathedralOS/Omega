@@ -14,7 +14,6 @@ use typed_trees::expression::{
 #[derive(Clone, Copy)]
 enum MatchObservation<'scope> {
     Executed(ValueScope<'scope>),
-    Declaration,
     BoundDeclaration {
         scope: symbols::SymbolHandle,
         parameters: &'scope [typed_trees::signature::StateParameter],
@@ -67,11 +66,9 @@ impl<'program> StructuralJudge<'program> {
                 MatchObservation::Executed(scope) => subject
                     .judge
                     .complete_match_subject(expression, dispatch, value, scope),
-                MatchObservation::Declaration | MatchObservation::BoundDeclaration { .. } => {
-                    subject
-                        .judge
-                        .complete_declared_match_subject(expression, dispatch, value)
-                }
+                MatchObservation::BoundDeclaration { .. } => subject
+                    .judge
+                    .complete_declared_match_subject(expression, dispatch, value),
             }?;
         }
         for arm in program.expression_table.match_arms(dispatch.arms) {
@@ -80,7 +77,7 @@ impl<'program> StructuralJudge<'program> {
             // that decision with the same owner used by formation/coverage.
             let scope = match observation {
                 MatchObservation::Executed(scope) => Some(scope),
-                MatchObservation::Declaration | MatchObservation::BoundDeclaration { .. } => None,
+                MatchObservation::BoundDeclaration { .. } => None,
             };
             let case = scope
                 .filter(|_| matches!(arm.pattern, MatchPattern::Value(_)))
@@ -381,26 +378,6 @@ impl<'program> StructuralJudge<'program> {
     /// paths describe the question, not executed events or formation permission:
     /// total_specification still forms every subject and pattern independently.
     /// Only a common result escapes; branch premises and captures stay local.
-    pub(in crate::proof_contracts::contract_entailment) fn declaration_match_term(
-        &self,
-        expression: ExpressionHandle,
-        dispatch: &TableMatchExpression,
-        mut observe: impl FnMut(&Self, ExpressionHandle) -> Option<StructuralTerm>,
-    ) -> Option<StructuralTerm> {
-        let outcomes = self.clone().match_paths(
-            expression,
-            dispatch,
-            &[],
-            MatchObservation::Declaration,
-            NormalValueDemand::Value,
-            |judge, operand, _| {
-                let value = observe(&judge, operand)?;
-                Some(vec![NormalReturnPath::observed(value, judge)])
-            },
-        )?;
-        self.common_match_value(expression, outcomes)
-    }
-
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn bound_declaration_match_term(
         &self,
         expression: ExpressionHandle,
