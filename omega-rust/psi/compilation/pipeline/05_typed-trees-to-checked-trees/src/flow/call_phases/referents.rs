@@ -41,6 +41,8 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     domains: &DomainFacts,
     writes: Option<&[ObservedCallMutation]>,
 ) {
+    let trace = std::env::var("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
+        .is_ok_and(|selected| selected == "1" || selected == machine.name.as_str());
     let key = (
         machine.symbol,
         state.symbol,
@@ -60,6 +62,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         .map(|signature| program.state_signature_parameters(signature))
         .or_else(|| memoized_call_target_parameters(program, build, borrow_call.target_symbol))
     else {
+        if trace {
+            eprintln!(
+                "returned-field-contracts target={:?} parameters=unavailable",
+                borrow_call.target_symbol
+            );
+        }
         return;
     };
     let mut rows = Vec::new();
@@ -124,9 +132,15 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                 }
             }
         }
-        let Some(targets) =
-            argument_sources.and_then(|sources| sources.referent_places(argument_position))
-        else {
+        let targets =
+            argument_sources.and_then(|sources| sources.referent_places(argument_position));
+        if trace {
+            eprintln!(
+                "returned-field-contracts target={:?} argument={argument_position} parameter={:?} declared={paths:?} captured={targets:?}",
+                borrow_call.target_symbol, parameter.symbol
+            );
+        }
+        let Some(targets) = targets else {
             continue;
         };
         // Facts live on the evaluated reference's captured backing. A
@@ -476,6 +490,12 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts = preserved;
+    if trace {
+        eprintln!(
+            "returned-field-contracts target={:?} republished={rows:?}",
+            borrow_call.target_symbol
+        );
+    }
     for (storage, path, domain_symbol, semantic_domain) in rows {
         let Some(place) = crate::flow::project_captured_view_place(storage, &path) else {
             continue;

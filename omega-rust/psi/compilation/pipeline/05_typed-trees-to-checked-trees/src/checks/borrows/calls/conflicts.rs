@@ -193,13 +193,22 @@ pub(super) fn check_call_access_conflicts<'p>(
                     )
                 })
         })
-        .map(|loan| (loan, facts.borrow.loans.get(loan)))
+        .map(|loan| {
+            let row = facts.borrow.loans.get(loan);
+            let inputs = super::staging::returned_loan_input_range(
+                &facts.borrow,
+                row,
+                borrow_call,
+                &accesses,
+            );
+            (loan, row, inputs)
+        })
         .collect();
 
     for transferred in
         crate::flow::owned_call_operand_places(program, facts, state_flow, borrow_call)
     {
-        for (loan_handle, loan) in &active_loans {
+        for (loan_handle, loan, _) in &active_loans {
             if canonical_place_non_interfering(
                 program,
                 &transferred,
@@ -426,7 +435,15 @@ pub(super) fn check_call_access_conflicts<'p>(
             continue;
         }
 
-        for (loan_handle, loan) in &active_loans {
+        for (loan_handle, loan, producing_inputs) in &active_loans {
+            // This result did not exist while its own call's inputs ran.
+            // Keep it active against the result access and every later sibling.
+            if producing_inputs
+                .as_ref()
+                .is_some_and(|range| range.contains(&index))
+            {
+                continue;
+            }
             // An owned carrier retains its backing with the transferred loan.
             // A caller-owned slot instead needs exact intermediate retention:
             // follow copies/replacements through successor slots, reject escape

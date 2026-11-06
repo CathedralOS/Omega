@@ -15,6 +15,30 @@ use checked_trees::{
 };
 use typed_trees::expression::ExpressionNode;
 
+/// A returned loan cannot compete with inputs evaluated before it existed.
+/// The checked access range ends at this exact result, so later operands still
+/// compete with all of its input lifetime debts, including unselected inputs.
+pub(super) fn returned_loan_input_range(
+    borrow: &checked_trees::BorrowFacts,
+    loan: &checked_trees::BorrowLoanFact,
+    outer: &BorrowCallFact,
+    accesses: &[&BorrowArgumentAccessFact],
+) -> Option<std::ops::Range<usize>> {
+    if !borrow.is_call_result_loan(loan) || loan.statement_index != outer.statement_index {
+        return None;
+    }
+    let producer = borrow.calls.get(loan.established_by_call);
+    if producer.call_ordinal == outer.call_ordinal {
+        return None;
+    }
+    let mut results = accesses.iter().enumerate().filter_map(|(end, access)| {
+        let start = access.evaluation_start?;
+        (access.expression == producer.authored_expression && start < end).then_some(start..end)
+    });
+    let range = results.next()?;
+    results.next().is_none().then_some(range)
+}
+
 /// One exact invocation boundary in the shared evaluated occurrence schedule.
 /// This is borrowed-check construction scratch, not a new loan or cleanup plan.
 pub(in crate::checks::borrows) struct InvocationBoundary {
@@ -270,4 +294,64 @@ pub(super) fn completed_observation_before_terminal_transfer(
     )
     .and_then(|reference| validation::reference_shell(program, reference))
     .is_some_and(|reference| reference.access == language_semantics::ReferenceAccess::Mutable)
+}
+
+#[cfg(test)]
+mod returned_loan_tests {
+    use super::*;
+    use arena::Handle;
+    use checked_trees::{BorrowFacts, BorrowLoanFact};
+    use typed_trees::expression::ExpressionHandle;
+
+    #[test]
+    fn returned_debt_starts_after_its_inputs_and_still_constrains_later_siblings() {
+        let expression = ExpressionHandle::from_parts(10, 1);
+        let mut borrow = BorrowFacts::default();
+        let producer = BorrowCallFact {
+            authored_expression: expression,
+            call_ordinal: 1,
+            ..Default::default()
+        };
+        let call = borrow.calls.insert(producer.clone());
+        let loan = BorrowLoanFact {
+            storage_owner: facts::PlaceRoot::Expression(expression),
+            formation_expression: expression,
+            established_by_call: call,
+            ..Default::default()
+        };
+        let outer = BorrowCallFact::default();
+        let input = BorrowArgumentAccessFact::default();
+        let result = BorrowArgumentAccessFact {
+            expression,
+            evaluation_start: Some(0),
+            ..Default::default()
+        };
+        let sibling = BorrowArgumentAccessFact::default();
+        let accesses = [&input, &result, &sibling];
+        let range = returned_loan_input_range(&borrow, &loan, &outer, &accesses).unwrap();
+        assert!(range.contains(&0));
+        assert!(!range.contains(&1));
+        assert!(!range.contains(&2));
+        assert!(returned_loan_input_range(&borrow, &loan, &producer, &accesses).is_none());
+        assert!(
+            returned_loan_input_range(&borrow, &loan, &outer, &[&input, &result, &result])
+                .is_none()
+        );
+        for unavailable in [
+            BorrowLoanFact {
+                established_by_call: Handle::invalid(),
+                ..loan.clone()
+            },
+            BorrowLoanFact {
+                statement_index: 1,
+                ..loan.clone()
+            },
+            BorrowLoanFact {
+                storage_owner: facts::PlaceRoot::default(),
+                ..loan.clone()
+            },
+        ] {
+            assert!(returned_loan_input_range(&borrow, &unavailable, &outer, &accesses).is_none());
+        }
+    }
 }

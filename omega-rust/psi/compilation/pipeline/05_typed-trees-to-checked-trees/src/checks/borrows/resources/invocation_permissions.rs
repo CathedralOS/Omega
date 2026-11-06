@@ -64,6 +64,8 @@ fn resolve_opaque(
         .ok_or("the returned permission has no declared result field")?;
     let access = crate::borrow::reference_borrow_access_kind(program, selected)
         .ok_or("the returned permission does not name a reference field")?;
+    let expected = validation::reference_shell(program, selected)
+        .ok_or("the returned permission has no reference carrier")?;
     let mut permissions = checked.completed_reference_loans.handles().filter(|loan| {
         let row = facts.borrow.loans.get(*loan);
         let Some(formed) = row.formation_owner_path else {
@@ -75,7 +77,7 @@ fn resolve_opaque(
             || row.statement_index != invocation.statement_index
             || row.formation_expression != invocation.authored_expression
             || row.root != facts::PlaceRoot::Expression(invocation.authored_expression)
-            || row.kind != access
+            || row.kind.direct_reborrow_effect(&access).is_none()
             || !facts
                 .borrow
                 .incoming_references
@@ -100,8 +102,10 @@ fn resolve_opaque(
             && expression == invocation.authored_expression
             && validation::call_target_entry_symbol(program, target)
                 == validation::call_target_entry_symbol(program, invocation.target_symbol)
-            && program.normalized_type_identity(incoming.carrier_type)
-                == program.normalized_type_identity(selected)
+            && validation::reference_shell(program, incoming.carrier_type).is_some_and(|supplied| {
+                program.normalized_type_identity(supplied.referee)
+                    == program.normalized_type_identity(expected.referee)
+            })
             && facts
                 .borrow
                 .owner_segments
