@@ -32,7 +32,7 @@ pub(crate) fn prepare(
     machine_frontier: usize,
     completed_machines: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
-    let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
+    let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
     let mut calls = Vec::new();
 
     // Aggregate fields and value-call arguments carry their destination types
@@ -50,7 +50,7 @@ pub(crate) fn prepare(
                         literal,
                         field.field_symbol,
                     ) {
-                        destinations.push((field.value, field_type));
+                        destinations.push((field.value, field_type, literal.type_symbol));
                     }
                 }
             }
@@ -74,7 +74,7 @@ pub(crate) fn prepare(
         }
         for owned in program.machine_owned_data(machine) {
             if owned.initial_value.is_valid() && owned.type_reference.is_valid() {
-                destinations.push((owned.initial_value, owned.type_reference));
+                destinations.push((owned.initial_value, owned.type_reference, machine.symbol));
             }
         }
         for state in program.machine_states(machine) {
@@ -85,13 +85,21 @@ pub(crate) fn prepare(
                     StatementNode::LocalData(local)
                         if local.initial_value.is_valid() && local.type_reference.is_valid() =>
                     {
-                        destinations.push((local.initial_value, local.type_reference));
+                        destinations.push((
+                            local.initial_value,
+                            local.type_reference,
+                            machine.symbol,
+                        ));
                     }
                     StatementNode::Assignment(assignment) => {
                         if let Some(destination) = validation::assignment_stored_value_type(
                             program, machine, state, assignment,
                         ) {
-                            destinations.push((assignment.value, destination));
+                            destinations.push((
+                                assignment.value,
+                                destination,
+                                SymbolHandle::invalid(),
+                            ));
                         }
                     }
                     StatementNode::Call(call) => collect_call_destinations(
@@ -105,7 +113,7 @@ pub(crate) fn prepare(
                         if state.return_type.is_valid()
                             && statement_index + 1 == statements.len() =>
                     {
-                        destinations.push((*value, state.return_type));
+                        destinations.push((*value, state.return_type, machine.symbol));
                     }
                     StatementNode::Transition(transition) => {
                         for target in transition.targets() {
@@ -113,7 +121,7 @@ pub(crate) fn prepare(
                                 TransitionTargetNode::Value(value)
                                     if state.return_type.is_valid() =>
                                 {
-                                    destinations.push((*value, state.return_type));
+                                    destinations.push((*value, state.return_type, machine.symbol));
                                 }
                                 TransitionTargetNode::Named {
                                     path, arguments, ..
@@ -172,11 +180,11 @@ pub(crate) fn prepare(
                     .apply_callable_type(reference, &substitutions, &[], call.target)
                     .map_err(Diagnostic::error)?
             };
-            destinations.push((argument, reference));
+            destinations.push((argument, reference, call.target));
         }
     }
-    for (value, destination) in destinations {
-        land_one(program, value, destination)?;
+    for (value, destination, lifetime_owner) in destinations {
+        land_one(program, value, destination, lifetime_owner)?;
     }
     Ok(())
 }
@@ -217,6 +225,7 @@ fn land_one(
     program: &mut TypedTrees,
     value: ExpressionHandle,
     destination: TypeReferenceHandle,
+    mut lifetime_owner: SymbolHandle,
 ) -> Result<(), Diagnostic> {
     if !value.is_valid() || !destination.is_valid() {
         return Ok(());
@@ -224,9 +233,23 @@ fn land_one(
     if let Some(dispatch) = program.expression_table.match_node(value) {
         let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
         for arm in arms {
-            land_one(program, arm.value, destination)?;
+            land_one(program, arm.value, destination, lifetime_owner)?;
         }
         return Ok(());
+    }
+    // A destination copied from a declaration keeps that declaration's
+    // lifetime scope. A nested supplied operand overrides the enclosing scope.
+    // This admits the type's spelling, never a loan or an outlives relation.
+    let mut carrier = destination;
+    loop {
+        let supplied = program.type_reference_table.operand_lifetime_owner(carrier);
+        if supplied.is_valid() {
+            lifetime_owner = supplied;
+        }
+        match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Constrained { base_type, .. } => carrier = *base_type,
+            _ => break,
+        }
     }
     if let ExpressionNode::StructLiteral(literal) =
         program.expression_table.expression(value).clone()
@@ -237,9 +260,6 @@ fn land_one(
         // An open application can still determine the constructor's argument
         // tuple (including phantom parameters). Retain it before inference;
         // only prepared field views may supply child destinations below.
-        let carrier = program
-            .type_reference_table
-            .unconstrained_type_reference(destination);
         let exact_template = matches!(program.type_reference_table.type_reference(carrier),
             TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol);
         if !exact_template
@@ -250,6 +270,25 @@ fn land_one(
             return Ok(());
         }
         let prior = expression_table(program).construction_required_type_reference(value);
+        // Keep the shared declaration row unchanged. A missing construction
+        // application receives its own occurrence when the scope was implicit;
+        // repeated preparation does not allocate an unused copy.
+        let carrier = if (!prior.is_valid() || !literal.application_type.is_valid())
+            && lifetime_owner.is_valid()
+            && !program
+                .type_reference_table
+                .operand_lifetime_owner(carrier)
+                .is_valid()
+        {
+            let occurrence = program.type_reference_table.fresh_occurrence(carrier);
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(occurrence, lifetime_owner)
+                .map_err(Diagnostic::error)?;
+            occurrence
+        } else {
+            carrier
+        };
         if !prior.is_valid() {
             expression_table_mut(program).set_construction_required_type_reference(value, carrier);
         }
@@ -269,14 +308,11 @@ fn land_one(
             if let Some(field_type) =
                 selected_construction_field_type(program, value, &literal, field.field_symbol)
             {
-                land_one(program, field.value, field_type)?;
+                land_one(program, field.value, field_type, literal.type_symbol)?;
             }
         }
         return Ok(());
     }
-    let carrier = program
-        .type_reference_table
-        .unconstrained_type_reference(destination);
     if let (
         ExpressionNode::ArrayLiteral(elements),
         TypeReferenceNode::FixedArray { element_type, .. },
@@ -289,7 +325,7 @@ fn land_one(
             .to_vec();
         let element_type = *element_type;
         for element in elements {
-            land_one(program, element, element_type)?;
+            land_one(program, element, element_type, lifetime_owner)?;
         }
         return Ok(());
     }
