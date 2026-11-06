@@ -135,6 +135,19 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         &unit.dynamic_dispatch,
         &structural_types,
     );
+    let output_catalog = crate::reference_outputs::reconstruct_reference_output_catalog(
+        unit,
+        &unit
+            .functions
+            .iter()
+            .filter(|function| cycle_policy.admits(function.machine))
+            .map(|function| function.machine)
+            .collect::<Vec<_>>(),
+        |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
+    )?;
+    call_accesses
+        .references
+        .use_output_preparation(std::rc::Rc::new(std::cell::RefCell::new(output_catalog)));
     let reference_graph = unit
         .functions
         .iter()

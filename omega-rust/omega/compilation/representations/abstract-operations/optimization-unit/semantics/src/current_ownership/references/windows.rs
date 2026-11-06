@@ -248,10 +248,8 @@ pub(super) fn transfer(
     for (position, path) in relocations {
         if copies_storage {
             let mut copied = staged_live[position].clone();
-            copied.identity = ReferenceIdentity {
-                place: destination.place,
-                path: path.clone(),
-            };
+            copied.identity =
+                formed_identity(function, block, node, destination.place, path.clone())?;
             if staged_live
                 .iter()
                 .any(|reference| reference.identity == copied.identity)

@@ -40,7 +40,7 @@ pub(crate) struct CallAccesses<'unit> {
     /// completion; boundary bodies are not part of the unit.
     boundaries: Vec<&'unit BoundaryMachineDeclaration>,
     pub(crate) dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
-    pub(super) references: super::references::call_effects::ReferenceCallEffects,
+    pub(crate) references: super::references::call_effects::ReferenceCallEffects,
     view_graph: Option<Vec<DescriptorMachine>>,
     /// Origins prepared beside the mutation table, consumed by the ownership
     /// replay of each function; a taken entry falls back to reconstruction.

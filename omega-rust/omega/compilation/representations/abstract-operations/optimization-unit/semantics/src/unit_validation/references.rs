@@ -9,7 +9,7 @@ use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::ReferenceOriginExtent;
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::ReferenceOriginProjection;
 use terminal_psi::StructuralAccess;
@@ -25,12 +25,51 @@ pub(crate) use access_paths::{
     access_path_type, access_referent_tail, call_source_type, project_referent_tail,
 };
 
-/// Stable loan identity: the place and path where the carrier was formed.
-/// Owned moves relocate the carrier, never this identity.
+/// Exact reference-word storage. Replacing this coordinate does not reuse the
+/// permission occurrence that was previously stored there.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ReferenceIdentity {
-    pub(crate) place: PlaceId,
-    pub(crate) path: Vec<StructuralPathSegment>,
+pub struct ReferenceIdentity {
+    pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ReferenceFormation {
+    Entry,
+    Operation(OperationId),
+    ControlNode { block: BlockId, node: u32 },
+}
+
+/// One permission, independently of its current carrier. A new construction at
+/// the same storage coordinate is still a different formation; owned moves
+/// retain this identity rather than taking the destination's generation.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ReferenceOccurrenceIdentity {
+    pub place: PlaceId,
+    pub path: Vec<StructuralPathSegment>,
+    pub formation: ReferenceFormation,
+}
+
+impl ReferenceOccurrenceIdentity {
+    pub(crate) fn entry(place: PlaceId, path: Vec<StructuralPathSegment>) -> Self {
+        Self {
+            place,
+            path,
+            formation: ReferenceFormation::Entry,
+        }
+    }
+
+    pub(crate) fn operation(
+        place: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        operation: OperationId,
+    ) -> Self {
+        Self {
+            place,
+            path,
+            formation: ReferenceFormation::Operation(operation),
+        }
+    }
 }
 
 /// Provenance can name an element family at a call boundary. Carrier identity
@@ -39,10 +78,10 @@ pub(crate) struct ReferenceIdentity {
 /// Region extent belongs to each alternative: a join cannot turn an unknown
 /// subregion into an exact descriptor resource just because its path is empty.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ReferenceOriginIdentity {
-    pub(crate) place: PlaceId,
-    pub(crate) path: Vec<ReferenceOriginProjection>,
-    pub(crate) extent: ReferenceOriginExtent,
+pub struct ReferenceOriginIdentity {
+    pub place: PlaceId,
+    pub path: Vec<ReferenceOriginProjection>,
+    pub extent: ReferenceOriginExtent,
 }
 
 impl From<ReferenceIdentity> for ReferenceOriginIdentity {
@@ -56,6 +95,16 @@ impl From<ReferenceIdentity> for ReferenceOriginIdentity {
                 .map(ReferenceOriginProjection::Exact)
                 .collect(),
         }
+    }
+}
+
+impl From<ReferenceOccurrenceIdentity> for ReferenceOriginIdentity {
+    fn from(identity: ReferenceOccurrenceIdentity) -> Self {
+        ReferenceIdentity {
+            place: identity.place,
+            path: identity.path,
+        }
+        .into()
     }
 }
 
@@ -79,13 +128,13 @@ impl ReferenceOriginIdentity {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ReferenceParent {
+pub enum ReferenceParent {
     Root(ReferenceOrigin),
-    Reference(ReferenceIdentity),
+    Reference(ReferenceOccurrenceIdentity),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ReferenceOrigin {
+pub enum ReferenceOrigin {
     /// A completed invocation supplied external storage. The operation result
     /// identifies the actual permission; geometry never supplies an address.
     Invocation {
@@ -108,12 +157,12 @@ pub(crate) enum ReferenceOrigin {
 /// One outstanding loan: which carrier leaf holds it, which original referent
 /// root it suspends, and which parent it descends from.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LiveReference {
-    pub(crate) identity: ReferenceIdentity,
-    pub(crate) carrier: PlaceId,
-    pub(crate) carrier_path: Vec<StructuralPathSegment>,
-    pub(crate) root: ReferenceOrigin,
-    pub(crate) parent: ReferenceParent,
+pub struct LiveReference {
+    pub identity: ReferenceOccurrenceIdentity,
+    pub carrier: PlaceId,
+    pub carrier_path: Vec<StructuralPathSegment>,
+    pub root: ReferenceOrigin,
+    pub parent: ReferenceParent,
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.

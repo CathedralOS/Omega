@@ -35,7 +35,8 @@ pub(super) fn validate_return_cleanup_actions(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    reference_effects: &super::references::call_effects::ReferenceCallEffects,
+    reference_outputs: &crate::reference_outputs::ReferenceOutputBuilder,
+    returned: &[crate::unit_validation::references::LiveReference],
     block: BlockId,
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
@@ -60,13 +61,21 @@ pub(super) fn validate_return_cleanup_actions(
             block,
         });
     }
-    super::references::validate_normal_return(
-        function,
-        structural_types,
-        reference_effects,
-        block,
-        &remaining.live_references,
-    )?;
+    reference_outputs
+        .validate_exit(
+            function,
+            returned,
+            &remaining.live_references,
+            |place, path, case| membership(place, path, case, false),
+        )
+        .map_err(
+            |reason| OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
+                machine: function.machine,
+                block,
+                node: None,
+                reason,
+            },
+        )?;
     Ok(remaining)
 }
 

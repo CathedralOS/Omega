@@ -8,10 +8,20 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub(super) struct FunctionControlFlow<'a> {
+pub(crate) struct FunctionControlFlow<'a> {
     pub(super) blocks: BTreeMap<BlockId, &'a optimization_unit::OptimizationBlock>,
     pub(super) predecessors: BTreeMap<BlockId, BTreeSet<BlockId>>,
     pub(super) successors: BTreeMap<BlockId, Vec<BlockId>>,
+}
+
+impl<'a> FunctionControlFlow<'a> {
+    pub(crate) fn blocks(&self) -> &BTreeMap<BlockId, &'a optimization_unit::OptimizationBlock> {
+        &self.blocks
+    }
+
+    pub(crate) fn predecessors(&self) -> &BTreeMap<BlockId, BTreeSet<BlockId>> {
+        &self.predecessors
+    }
 }
 
 #[derive(Debug, Default)]

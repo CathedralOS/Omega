@@ -5,9 +5,10 @@
 use super::ReferenceOriginIdentity;
 use super::{
     BlockId, LiveReference, OptimizationUnitValidationError, PlaceId, PsiOptimizationFunction,
-    ReferenceIdentity, ReferenceOrigin, ReferenceParent, StructuralAccess, StructuralArgument,
-    StructuralTypeDeclaration, StructuralTypeId, access_path_type, access_referent_tail, invalid,
-    leaf_type, origin_place, origins_overlap, shared_source_compatible, structural_source_contract,
+    ReferenceIdentity, ReferenceOccurrenceIdentity, ReferenceOrigin, ReferenceParent,
+    StructuralAccess, StructuralArgument, StructuralTypeDeclaration, StructuralTypeId,
+    access_path_type, access_referent_tail, invalid, leaf_type, origin_place, origins_overlap,
+    shared_source_compatible, structural_source_contract,
 };
 use std::collections::BTreeMap;
 use terminal_psi::StructuralPathSegment;
@@ -267,7 +268,7 @@ pub(super) fn descriptor_storage_available(
     live: &[LiveReference],
     place: PlaceId,
     path: &[StructuralPathSegment],
-    ancestors: &[ReferenceIdentity],
+    ancestors: &[ReferenceOccurrenceIdentity],
     requested: StructuralAccess,
 ) -> bool {
     let storage = ReferenceOrigin::IngressLeaf(

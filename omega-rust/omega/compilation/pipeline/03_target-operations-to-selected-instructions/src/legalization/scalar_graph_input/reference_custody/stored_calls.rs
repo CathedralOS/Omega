@@ -10,6 +10,8 @@ use terminal_semantics::descriptor_results::{
     DescriptorAnalysis, DescriptorSlotKind, DescriptorStoredOrigin,
 };
 
+mod completed_outputs;
+
 type Location = (PlaceId, Vec<StructuralPathSegment>);
 
 /// A restored sum's catalogue contains guarded slots, not simultaneous values.
@@ -53,8 +55,10 @@ struct Effect {
     sources: Vec<Source>,
 }
 #[derive(Debug, Default)]
-pub(super) struct Effects {
+pub(in crate::legalization) struct Effects {
     pub(super) reference_catalog_available: bool,
+    outputs: Option<optimization_unit_semantics::reference_outputs::ReferenceOutputCatalog>,
+    output_failure: Option<String>,
     machines: BTreeMap<MachineId, Option<Vec<Effect>>>,
     boundaries: BTreeMap<BoundaryMachineId, Option<Vec<Effect>>>,
     pub(super) observations:
@@ -78,10 +82,11 @@ fn writable_slots(function: &PsiOptimizationFunction, types: &[StructuralTypeDec
     })
 }
 
-pub(super) fn prepare(
+pub(in crate::legalization) fn prepare(
     native: &target_operations::TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    admitted_cycle_machines: &[MachineId],
 ) -> Effects {
     let types = &plan.structural_types;
     let candidates = unit
@@ -89,8 +94,26 @@ pub(super) fn prepare(
         .iter()
         .filter(|function| writable_slots(function, types))
         .collect::<Vec<_>>();
+    let (outputs, output_failure) =
+        match optimization_unit_semantics::reference_outputs::reconstruct_reference_output_catalog(
+            unit,
+            admitted_cycle_machines,
+            |caller, node| {
+                super::super::call_origin::selected_boundary_operation(node, caller, native, plan)
+                    .ok()
+                    .map(|selected| match selected {
+                        Some((operation, _)) => Cow::Owned(operation),
+                        None => Cow::Borrowed(&node.operation),
+                    })
+            },
+        ) {
+            Ok(outputs) => (Some(outputs), None),
+            Err(error) => (None, Some(error.to_string())),
+        };
     let mut effects = Effects {
         reference_catalog_available: false,
+        outputs,
+        output_failure,
         boundaries: unit
             .boundary_machines
             .iter()
@@ -471,6 +494,56 @@ pub(super) struct Staged {
     replacements: Vec<(Location, Option<Leaf>)>,
     relocations: BTreeMap<Location, Location>,
     established: BTreeSet<Location>,
+    returned: Option<Vec<(Location, Leaf)>>,
+}
+
+impl Staged {
+    pub(super) fn reconcile_returned(
+        &self,
+        custody: &mut Custody,
+        result: Option<&StructuralOperationResult>,
+    ) -> Result<(), LegalizationError> {
+        let Some(returned) = &self.returned else {
+            return Ok(());
+        };
+        let place = result.map(|result| result.place);
+        let actual = custody
+            .leaves
+            .keys()
+            .filter(|(current, _)| Some(*current) == place)
+            .count();
+        if actual != returned.len() {
+            return Err(invalid());
+        }
+        for (location, proved) in returned {
+            let public = custody.leaves.get(location).ok_or_else(|| invalid())?;
+            let mut public_origins = public.root.origins();
+            let mut proved_origins = proved.root.origins();
+            public_origins.sort();
+            public_origins.dedup();
+            proved_origins.sort();
+            proved_origins.dedup();
+            if Some(location.0) != place
+                || public.referent != proved.referent
+                || public_origins != proved_origins
+                || (proved.placed.is_some() && public.placed != proved.placed)
+            {
+                return Err(invalid());
+            }
+            let mut proved = proved.clone();
+            proved.placed = public.placed.clone();
+            proved.backing.extend_from_slice(&public.backing);
+            proved.backing.sort();
+            proved.backing.dedup();
+            proved
+                .lifetime_debts
+                .extend_from_slice(&public.lifetime_debts);
+            proved.lifetime_debts.sort();
+            proved.lifetime_debts.dedup();
+            custody.leaves.insert(location.clone(), proved);
+        }
+        Ok(())
+    }
 }
 
 fn receiving_contract(
@@ -520,12 +593,14 @@ pub(super) fn stage(
     arguments: &[StructuralArgument],
     operation: OperationId,
     moved: &BTreeMap<Location, Leaf>,
+    result: Option<&StructuralOperationResult>,
 ) -> Result<Staged, LegalizationError> {
     let mut staged = Staged {
         operation,
         replacements: Vec::new(),
         relocations: BTreeMap::new(),
         established: BTreeSet::new(),
+        returned: None,
     };
     let Some(callee) = callee else {
         if arguments.iter().any(|argument| {
@@ -541,6 +616,37 @@ pub(super) fn stage(
         }
         return Ok(staged);
     };
+    if let Callee::Body(callee) = &callee {
+        let needs_outputs = writable_slots(callee, types)
+            || callee.structural_parameters.iter().any(|parameter| {
+                parameter.access == StructuralAccess::Owned
+                    && contains_reference(types, parameter.structural_type)
+            })
+            || result.is_some_and(|result| contains_reference(types, result.structural_type));
+        if needs_outputs {
+            let outputs = custody
+                .stored_calls
+                .outputs
+                .as_ref()
+                .and_then(|catalog| catalog.body(callee.machine))
+                .ok_or_else(|| LegalizationError::ReferenceOutputCompletion {
+                    machine: callee.machine,
+                    reason: custody
+                        .stored_calls
+                        .outputs
+                        .as_ref()
+                        .and_then(|catalog| catalog.unavailable_reason(callee.machine))
+                        .map(str::to_owned)
+                        .or_else(|| custody.stored_calls.output_failure.clone())
+                        .unwrap_or_else(|| {
+                            "no independently completed reference-output body".to_owned()
+                        }),
+                })?;
+            return completed_outputs::stage(
+                function, callee, &outputs, types, custody, arguments, operation, moved, result,
+            );
+        }
+    }
     let (parameters, effects) = match callee {
         Callee::Body(callee) => (
             &callee.structural_parameters,
@@ -843,11 +949,15 @@ pub(super) fn commit(
         if let (Some(old), Some(new)) = (custody.leaves.get(destination), replacement)
             && old.identity == new.identity
             && (staged.established.contains(destination) || old != new)
-            && staged
+            && (staged
                 .replacements
                 .iter()
                 .filter_map(|(_, leaf)| leaf.as_ref())
                 .any(|leaf| leaf.obligations().any(|parent| parent == &old.identity))
+                || custody.leaves.values().any(|child| {
+                    custody.descends_from(child, &old.identity)
+                        || custody.lifetime_depends_on(child, &old.identity)
+                }))
         {
             return Err(invalid());
         }
@@ -860,11 +970,39 @@ pub(super) fn commit(
             _ => None,
         }
     };
+    let mut ancestry = custody
+        .leaves
+        .values()
+        .chain(
+            staged
+                .replacements
+                .iter()
+                .filter_map(|(_, leaf)| leaf.as_ref()),
+        )
+        .chain(custody.retired.values().map(|retired| &retired.leaf))
+        .collect::<Vec<_>>();
+    ancestry.sort_by(|left, right| left.identity.cmp(&right.identity));
+    let ancestor = |ancestor: &OccurrenceIdentity, child: &Leaf| {
+        let mut pending = child.parents.iter().collect::<Vec<_>>();
+        let mut seen = BTreeSet::new();
+        while let Some(parent) = pending.pop() {
+            if parent == ancestor {
+                return true;
+            }
+            if !seen.insert(parent) {
+                continue;
+            }
+            if let Ok(index) = ancestry.binary_search_by(|leaf| leaf.identity.cmp(parent)) {
+                pending.extend(ancestry[index].parents.iter());
+            }
+        }
+        false
+    };
     let mut published = custody
         .leaves
         .iter()
         .filter(|((place, _), _)| Some(*place) == result)
-        .map(|(key, leaf)| Some((key.clone(), leaf.root.clone(), access_at(key)?)))
+        .map(|(key, leaf)| Some((key.clone(), leaf.clone(), access_at(key)?)))
         .collect::<Option<Vec<_>>>()
         .ok_or_else(|| invalid())?;
     for (destination, leaf) in &staged.replacements {
@@ -876,15 +1014,18 @@ pub(super) fn commit(
             .iter()
             .any(|(previous_destination, root, previous)| {
                 destinations_may_coexist(previous_destination, destination)
-                    && roots_overlap(root, &leaf.root)
+                    && roots_overlap(&root.root, &leaf.root)
                     && (access != StructuralAccess::SharedBorrow
                         || *previous != StructuralAccess::SharedBorrow)
+                    && !ancestor(&root.identity, leaf)
+                    && !ancestor(&leaf.identity, root)
             })
         {
             return Err(invalid());
         }
-        published.push((destination.clone(), leaf.root.clone(), access));
+        published.push((destination.clone(), leaf.clone(), access));
     }
+    drop(ancestry);
     for (destination, _) in &staged.replacements {
         if let Some(old) = custody.leaves.remove(destination)
             && !staged.replacements.iter().any(|(_, replacement)| {

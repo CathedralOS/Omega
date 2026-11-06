@@ -21,6 +21,10 @@ use crate::{PrePhysicalOptimizationManifest, PsiOptimizationUnit};
 pub struct OptimizedAbstractProgram {
     pub plan: Arc<AbstractOperationPlan>,
     pub unit: PsiOptimizationUnit,
+    /// These machines retain the control-cycle analysis already validated
+    /// against this unit. Body ownership replay uses that same context; the
+    /// roster grants no native execution or new cycle admission.
+    pub admitted_control_cycle_machines: Vec<semantic_vocabulary::MachineId>,
     pub selections: OptimizationSelections,
     pub budget_per_pass: OptimizationWorkBudget,
     pub identity_bundle: OptimizationIdentityBundle,
@@ -43,6 +47,10 @@ impl OptimizedAbstractProgram {
 
     pub const fn unit(&self) -> &PsiOptimizationUnit {
         &self.unit
+    }
+
+    pub fn admitted_control_cycle_machines(&self) -> &[semantic_vocabulary::MachineId] {
+        &self.admitted_control_cycle_machines
     }
 
     pub const fn selections(&self) -> &OptimizationSelections {

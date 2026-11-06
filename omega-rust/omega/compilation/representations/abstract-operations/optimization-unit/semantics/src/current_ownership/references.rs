@@ -9,10 +9,11 @@ use super::address_joins::borrowed_regions::BorrowedReferenceSources;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
-    LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
-    access_path_type, access_reference_source_compatible, access_referent_tail, contains_reference,
-    formal_origin, is_reference_projection, leaf_access_within, leaf_paths, leaf_referent,
-    leaf_type, reference_access, reference_source_type, storage_projection,
+    LiveReference, ReferenceFormation, ReferenceIdentity, ReferenceOccurrenceIdentity,
+    ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent, access_path_type,
+    access_reference_source_compatible, access_referent_tail, contains_reference, formal_origin,
+    is_reference_projection, leaf_access_within, leaf_paths, leaf_referent, leaf_type,
+    reference_access, reference_source_type, storage_projection,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -37,6 +38,7 @@ pub enum CallRegion {
 
 mod access_paths;
 pub(super) mod call_effects;
+mod call_outputs;
 mod windows;
 use crate::unit_validation::references::access_covers;
 use access_paths::{access_reference_custody, call_dependency_conflict};
@@ -292,10 +294,7 @@ pub(super) fn entry_references(
             )
         })?;
         for path in paths {
-            let identity = ReferenceIdentity {
-                place: parameter.place,
-                path: path.clone(),
-            };
+            let identity = ReferenceOccurrenceIdentity::entry(parameter.place, path.clone());
             let root = ReferenceOrigin::IngressLeaf(identity.clone().into());
             live.push(LiveReference {
                 identity,
@@ -545,6 +544,36 @@ fn shared_borrow_compatibility<'a>(
     }
 }
 
+fn formed_identity(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    node: u32,
+    place: PlaceId,
+    path: Vec<StructuralPathSegment>,
+) -> Result<ReferenceOccurrenceIdentity, OptimizationUnitValidationError> {
+    let operation = function
+        .block(block)
+        .and_then(|block| block.nodes.get(node as usize))
+        .ok_or_else(|| {
+            invalid(
+                function,
+                block,
+                Some(node),
+                "reference formation operation is absent",
+            )
+        })?
+        .operation
+        .psi_operation();
+    Ok(match operation {
+        Some(operation) => ReferenceOccurrenceIdentity::operation(place, path, operation),
+        None => ReferenceOccurrenceIdentity {
+            place,
+            path,
+            formation: ReferenceFormation::ControlNode { block, node },
+        },
+    })
+}
+
 /// Capture shared descriptor occurrences without moving their source carriers.
 /// The same storage read serves value copies and block-argument snapshots;
 /// backing and immediate-parent lineage survive, but each destination has its
@@ -615,10 +644,7 @@ pub(super) fn copy_reference_carriers(
             ));
         }
         copied.push(LiveReference {
-            identity: ReferenceIdentity {
-                place: destination,
-                path: relative.clone(),
-            },
+            identity: formed_identity(function, block, node, destination, relative.clone())?,
             carrier: destination,
             carrier_path: relative.clone(),
             root: source_leaf.root.clone(),
@@ -1717,7 +1743,7 @@ pub(super) fn apply_operation(
             ));
         }
     }
-    let stored = call_effects.stage(
+    let mut stored = call_effects.stage(
         function,
         functions,
         structural_types,
@@ -1728,6 +1754,12 @@ pub(super) fn apply_operation(
         live,
         &moved,
     )?;
+    if let Some(returned) = stored.returned.take() {
+        live.retain(|reference| !moved.contains(&reference.identity));
+        live.extend(returned);
+        stored.commit(function, structural_types, block, node, live)?;
+        return Ok(());
+    }
     let sources = match operation {
         O::EstablishReference { source, .. } | O::EstablishAccessReference { source, .. } => {
             let transferred = transferred_ingress_leaf(function, structural_types, live, source);
@@ -1862,7 +1894,13 @@ pub(super) fn apply_operation(
                             extent,
                         };
                         alternatives.push(LiveReference {
-                            identity,
+                            identity: formed_identity(
+                                function,
+                                block,
+                                node,
+                                result.place,
+                                path.clone(),
+                            )?,
                             carrier: result.place,
                             carrier_path: path.clone(),
                             parent: ReferenceParent::Root(root.clone()),
@@ -2000,10 +2038,13 @@ pub(super) fn apply_operation(
                         root = interpreted;
                     }
                     LiveReference {
-                        identity: ReferenceIdentity {
-                            place: result.place,
-                            path: path.clone(),
-                        },
+                        identity: formed_identity(
+                            function,
+                            block,
+                            node,
+                            result.place,
+                            path.clone(),
+                        )?,
                         carrier: result.place,
                         carrier_path: path.clone(),
                         root,
@@ -2049,7 +2090,7 @@ pub(super) fn transferred_ingress_leaf(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     live: &[LiveReference],
     source: &StructuralArgument,
-) -> Option<ReferenceIdentity> {
+) -> Option<ReferenceOccurrenceIdentity> {
     let parameter = function
         .structural_parameter(source.place)
         .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
@@ -2457,39 +2498,4 @@ pub(super) fn validate_return_coverage(
         }
     }
     Ok(())
-}
-
-/// Normal completion accounts for independently reconstructed stored effects,
-/// restores untouched borrowed ingress, and closes every local permission.
-pub(super) fn validate_normal_return(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    effects: &call_effects::ReferenceCallEffects,
-    block: BlockId,
-    live: &[LiveReference],
-) -> Result<(), OptimizationUnitValidationError> {
-    let mut expected = entry_references(function, types)?;
-    expected.retain(|reference| {
-        function.structural_parameters.iter().any(|parameter| {
-            parameter.place == reference.carrier && parameter.access != StructuralAccess::Owned
-        })
-    });
-    let mut ordered = effects.remaining_at_return(function, types, block, &mut expected, live)?;
-    expected.sort_by(|left, right| left.identity.cmp(&right.identity));
-    ordered.sort_by(|left, right| left.identity.cmp(&right.identity));
-    if expected.len() == ordered.len()
-        && expected
-            .iter()
-            .zip(ordered)
-            .all(|(expected, actual)| expected == actual)
-    {
-        Ok(())
-    } else {
-        Err(invalid(
-            function,
-            block,
-            None,
-            "normal completion does not restore borrowed reference custody",
-        ))
-    }
 }

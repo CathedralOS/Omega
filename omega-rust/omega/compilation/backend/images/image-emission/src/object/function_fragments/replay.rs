@@ -31,6 +31,7 @@ pub fn verify_retained_target_operations(
         current.target_operations(),
         optimized.plan(),
         optimized.unit(),
+        optimized.admitted_control_cycle_machines(),
         current.boundary_origins(),
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))

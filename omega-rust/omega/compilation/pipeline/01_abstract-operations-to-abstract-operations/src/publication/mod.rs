@@ -77,6 +77,7 @@ pub struct ValidatedOptimizedAbstractPlan {
     plan: Arc<AbstractOperationPlan>,
     replay_input: VerifiedPsiOptimizationInput,
     replay_unit: PsiOptimizationUnit,
+    admitted_control_cycle_machines: Vec<semantic_vocabulary::MachineId>,
     evidence: AbstractOptimizationEvidence,
     validation: ValidatedOptimizedAbstractPlanProjection,
     pre_physical_manifest: ValidatedPrePhysicalOptimizationManifest,
@@ -105,11 +106,20 @@ impl ValidatedOptimizedAbstractPlan {
         } = run;
         // The completed producer and its analyses end here. Only explicit
         // replay inputs and immutable evidence accompany the current program.
+        let mut admitted_control_cycle_machines = session
+            .cycle_components()
+            .components()
+            .iter()
+            .map(|component| component.id.machine)
+            .collect::<Vec<_>>();
+        admitted_control_cycle_machines.sort_unstable();
+        admitted_control_cycle_machines.dedup();
         let (replay_input, replay_unit) = session.into_parts();
         Self {
             plan: Arc::new(plan),
             replay_input,
             replay_unit,
+            admitted_control_cycle_machines,
             evidence: AbstractOptimizationEvidence {
                 selections,
                 psi_selections,
@@ -195,6 +205,7 @@ impl ValidatedOptimizedAbstractPlan {
         let program = optimization_unit::OptimizedAbstractProgram {
             plan: self.plan,
             unit: self.replay_unit,
+            admitted_control_cycle_machines: self.admitted_control_cycle_machines,
             selections: self.evidence.selections,
             budget_per_pass: self.evidence.budget_per_pass,
             identity_bundle: self.evidence.identity_bundle,
