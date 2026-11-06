@@ -11,15 +11,20 @@ pub(crate) fn build_termination_facts(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::TerminationFacts, Vec<diagnostics::Diagnostic>> {
     let rank_arrivals = crate::checks::termination::admit_machine_rankings(program, call_frames);
-    let summaries = crate::checks::termination::analyze_checked_progress(
-        program,
-        flow,
-        semantic,
-        cleanup_dependencies,
-        &validation.proof_recursive_components,
-        &validation.self_call_descents,
-        call_frames,
-        &rank_arrivals,
+    let summaries = phase_profile::scope(
+        "psi.05.build_check_facts.post_flow_facts.termination.progress",
+        || {
+            crate::checks::termination::analyze_checked_progress(
+                program,
+                flow,
+                semantic,
+                cleanup_dependencies,
+                &validation.proof_recursive_components,
+                &validation.self_call_descents,
+                call_frames,
+                &rank_arrivals,
+            )
+        },
     )?;
     let mut summary_by_machine = symbols::SymbolKeyMap::<
         symbols::SymbolHandle,
