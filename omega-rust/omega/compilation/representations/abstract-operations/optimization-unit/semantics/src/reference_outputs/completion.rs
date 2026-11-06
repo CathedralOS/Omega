@@ -122,18 +122,21 @@ impl ReferenceOutputBuilder {
                 Err("unknown writable reference outputs require exact unchanged ingress custody")
             };
         }
-        let location = |slot: &ReferenceOutputSlot| {
+        fn location<'slot>(
+            function: &PsiOptimizationFunction,
+            slot: &'slot ReferenceOutputSlot,
+        ) -> (PlaceId, &'slot [StructuralPathSegment]) {
             (
                 function.structural_parameters[slot.parameter].place,
-                slot.path.as_slice(),
+                &slot.path,
             )
-        };
+        }
         let mut residents = live.iter().collect::<Vec<_>>();
         residents.sort_by(|left, right| {
             (left.carrier, &left.carrier_path).cmp(&(right.carrier, &right.carrier_path))
         });
         for slot in &self.slots {
-            let (place, path) = location(slot);
+            let (place, path) = location(function, slot);
             let first = residents.partition_point(|reference| {
                 (reference.carrier, reference.carrier_path.as_slice()) < (place, path)
             });
@@ -156,7 +159,7 @@ impl ReferenceOutputBuilder {
         let is_output = |reference: &LiveReference| {
             self.slot_order
                 .binary_search_by(|index| {
-                    location(&self.slots[*index])
+                    location(function, &self.slots[*index])
                         .cmp(&(reference.carrier, reference.carrier_path.as_slice()))
                 })
                 .is_ok()
