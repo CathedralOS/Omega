@@ -5368,9 +5368,7 @@ pass/host/runtime_descriptor_record_loan_input_exit built 4552ms exit:0 stdout:m
 pass/host/runtime_descriptor_reference_record_prefix_exit built 2351ms exit:0 stdout:match @2e70a865669c+wt
 pass/host/runtime_descriptor_scalar_input_exit rejected 3613ms regressed-from:built+exit:0+stdout:match+stderr:match @a92f16431042
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
-pass/host/runtime_encoded_record_view_observation_exit rejected 2724ms regressed-from:built+exit:0+stdout:match @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/host/runtime_encoded_record_view_observation_exit built 12627ms exit:0 stdout:match @0fab8dbb32c3
 pass/host/runtime_fixed_arithmetic_across_console_exit built 13084ms exit:0 stdout:match stderr:match @a92f16431042
 pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 17883ms regressed-from:built @a92f16431042
 	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
@@ -5501,9 +5499,7 @@ pass/layouts/runtime_callee_owned_local_origins_exit built 13251ms exit:0 @0daa6
 pass/layouts/runtime_captured_encoded_reference_replacement_exit built 13181ms exit:0 @0daa616486a6
 pass/layouts/runtime_constant_layout_contract_exit built 3094ms exit:0 @a92f16431042
 pass/layouts/runtime_encoded_physical_view_exit built 13064ms exit:0 @0daa616486a6
-pass/layouts/runtime_foreign_encoded_reference_exit rejected 2040ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_foreign_encoded_reference_exit built 12588ms exit:0 @0fab8dbb32c3
 pass/layouts/runtime_indexed_restricted_field_read built 2149ms exit:0 @a92f16431042
 pass/layouts/runtime_large_schema_field_exit built 2327ms exit:0 @a92f16431042
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 3952ms exit:0 @a92f16431042
@@ -6347,9 +6343,7 @@ pass/recast/runtime_bool_representation_recast_exit built 12669ms exit:70 @a92f1
 pass/recast/runtime_boolean_view_decision_exit built 3048ms exit:0 @a92f16431042
 pass/recast/runtime_byte_region_state_transfer_exit built 3138ms exit:0 @a92f16431042
 pass/recast/runtime_captured_guard_conjunction_exit built 3081ms exit:0 @a92f16431042
-pass/recast/runtime_encoded_record_view_loan_exit rejected 1797ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/recast/runtime_encoded_record_view_loan_exit built 11296ms exit:0 @0fab8dbb32c3
 pass/recast/runtime_field_precondition_capture_exit built 12161ms exit:70 @a92f16431042
 pass/recast/runtime_float_range_representation_recast_exit built 16597ms exit:70 @a92f16431042
 pass/recast/runtime_guarded_offset_recast_exit built 13283ms exit:70 @a92f16431042
