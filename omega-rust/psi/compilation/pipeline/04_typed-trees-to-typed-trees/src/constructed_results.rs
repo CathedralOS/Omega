@@ -4,8 +4,9 @@
 //! value type. Ownership needs the latter: an array's authored extent and a
 //! constructor's applied declaration determine each child's claim path. Derive
 //! compound values from completed children and exact Prop identity peers as
-//! calls bind, never from a same-shaped declaration or the consumer's formal
-//! type. A peer contributes only the selected constructor's argument tuple.
+//! calls bind, never from a same-shaped declaration. An exact source-selected
+//! application or identity peer contributes only the constructor's argument
+//! tuple, not the consumer's qualifications or ownership evidence.
 //! Child-before-parent
 //! preparation gives nested constructors the same ordinary result-type route.
 //! No ownership, membership or loan permission is established by this derivation.
@@ -512,7 +513,7 @@ fn constructor_byte_literal_observations(
 }
 
 /// A constructor's selected declaration supplies its telescope; completed
-/// child types and exact Prop peers supply arguments. Conflicting tuples stay
+/// child types, the source application and exact Prop peers supply arguments. Conflicting tuples stay
 /// unresolved. This establishes a type, never a resource claim or field proof.
 fn retain_constructor_result_type(
     program: &mut TypedTrees,
@@ -572,8 +573,17 @@ fn retain_constructor_result_type(
         0,
     );
     let mut inferred = crate::monomorphization::StaticProposals::default();
-    for arguments in
-        identity_context::argument_tuples(program, scope, expression, owner.symbol, peers)
+    let source_arguments =
+        identity_context::application_arguments(program, literal.application_type, owner.symbol);
+    for arguments in source_arguments
+        .into_iter()
+        .chain(identity_context::argument_tuples(
+            program,
+            scope,
+            expression,
+            owner.symbol,
+            peers,
+        ))
     {
         if arguments.len() != parameters.len() {
             continue;
@@ -698,24 +708,34 @@ fn retain_constructor_result_type(
     }
     let base_symbol = owner.symbol;
     let base_name = owner.name.clone();
-    // Static inference revisits this same postorder as calls specialize. Keep
-    // an unchanged application rather than growing type vocabulary each round.
-    let retained = expressions_of(program).constructed_value_type_reference(expression);
-    if retained.is_valid()
-        && let TypeReferenceNode::Generic {
+    // Keep the source application's scope and occurrence metadata when its
+    // arguments agree with inference. Repeated preparation likewise reuses
+    // its prior result instead of growing equivalent type vocabulary.
+    for retained in [
+        literal.application_type,
+        expressions_of(program).constructed_value_type_reference(expression),
+    ] {
+        if !retained.is_valid() {
+            continue;
+        }
+        let retained = program
+            .type_reference_table
+            .unconstrained_type_reference(retained);
+        if let TypeReferenceNode::Generic {
             base_symbol: previous_base,
             lifetime_arguments: previous_lifetimes,
             arguments: previous_arguments,
             ..
         } = program.type_reference_table.type_reference(retained)
-        && *previous_base == base_symbol
-        && *previous_lifetimes == lifetime_arguments
-        && program
-            .type_reference_table
-            .type_reference_handles(*previous_arguments)
-            == arguments.as_slice()
-    {
-        return Some(retained);
+            && *previous_base == base_symbol
+            && *previous_lifetimes == lifetime_arguments
+            && program
+                .type_reference_table
+                .type_reference_handles(*previous_arguments)
+                == arguments.as_slice()
+        {
+            return Some(retained);
+        }
     }
     let arguments = program
         .type_reference_table
