@@ -1871,7 +1871,7 @@ pass/layouts/runtime_indexed_restricted_field_read built 4209ms exit:0 interpret
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 2009ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b519ca647cd+wt
 pass/layouts/runtime_nested_restricted_field_read built 3782ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
 pass/layouts/runtime_placed_external_array_snapshot_exit built 7572ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
-pass/layouts/runtime_placed_external_nested_array_exit built 5834ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
+pass/layouts/runtime_placed_external_nested_array_exit built 8296ms exit:0 interpreter-exit:0 interpreter:agrees @f78a4fddea0b
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 23147ms interpreter:unchecked @0d0998b4be90
 	cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `Main::main` state `main` statement 1, source `main`, path [Field { symbol: Handle { arena_index: 17939, generation: 1 } }, FixedIndex { index: 0 }, Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 0 }], view Some(("MatrixView", [Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 0 }])))
 	cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `Main::main` state `main` statement 2, source `main`, path [Field { symbol: Handle { arena_index: 17939, generation: 1 } }, FixedIndex { index: 0 }, Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 1 }], view Some(("MatrixView", [Field { symbol: Handle { arena_index: 17937, generation: 1 } }, Field { symbol: Handle { arena_index: 17934, generation: 1 } }, FixedIndex { index: 0 }, FixedIndex { index: 1 }])))
@@ -5010,7 +5010,7 @@ pass/host/std_clock_sleep_exit built 14521ms exit:70 interpreter-exit:70 interpr
 pass/inline_asm/target_family_instruction_exit built 837ms exit:0 interpreter-exit:0 interpreter:agrees @a8fbfdfa4d11
 pass/layouts/completed_integer_at_result_snapshot_exit built 2680ms exit:0 interpreter-exit:0 interpreter:agrees @6bbc0c024e25+wt
 pass/layouts/direct_encoded_assignment_preserves_descriptor_exit built 880ms exit:0 interpreter-exit:0 interpreter:agrees @477082ca1580
-pass/layouts/placed_primitive_aligned_backing built 60162ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
+pass/layouts/placed_primitive_aligned_backing built 9162ms exit:0 interpreter-exit:0 interpreter:agrees @f78a4fddea0b
 pass/layouts/placed_primitive_authored_name built 19716ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback built 50141ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_generic_concrete built 46236ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
