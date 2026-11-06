@@ -980,7 +980,7 @@ fail/borrow/write_only_observation rejected 785ms expected @ccdb99ca2214
 	machine `observe_record` state `entry` reads field `code` from write-only parameter `source`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/borrow/write_only_predicate_argument_dependency rejected 810ms expected @911f6617ba9e
 	machine `test` state `entry` forms `&write` from an unsupported projection or computed expression; the current checked slice supports explicit attenuation of a whole parameter, an exact direct-reborrow local, or a content-independent path through eligible relevant record fields and proven-in-bounds fixed-array indexes with non-observing selectors whose declared `&write` referee carries exactly the same type
-fail/borrow/write_only_reference_aggregate_conditional_replacement_loan rejected 1860ms expected @ccdb99ca2214
+fail/borrow/write_only_reference_aggregate_conditional_replacement_loan rejected 3559ms expected @7df56d785346
 	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6)
 fail/borrow/write_only_reference_aggregate_replacement_detached_loan rejected 2250ms expected @ccdb99ca2214
 	statement 6 mutates `main.left.value` while local borrow `old` is still active (borrowed at statement 4; its last use is at statement 7)
@@ -1868,9 +1868,10 @@ fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 2795ms 
 	linear value `receipt` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/borrows/shared_record_byte_write_before_last_observation rejected 2777ms expected @ccdb99ca2214
 	statement 2 mutates `row.text` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/shared_reference_carrier_writable_call rejected 1281ms expected @ccdb99ca2214
+fail/borrows/shared_reference_carrier_writable_call rejected 2197ms expected @7df56d785346
 	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
+	unreachable branch: the `true` arm of a transition in machine `Main::main` state `main` can never run; its guard contradicts the facts in force here: neighbor >= 99
 fail/borrows/slice_descriptor_is_not_fixed_array_reference rejected 748ms expected @ccdb99ca2214
 	machine `view` state `entry` local `fixed` expects `&[u8; 4]`, but the value is delivered as `&[u8]`
 fail/borrows/state_argument_borrows_forwarded_reference rejected 2954ms expected @ccdb99ca2214
@@ -19362,6 +19363,7 @@ pass/borrows/borrow_returned_window_write_and_call checked 3267ms check-target:m
 pass/borrows/borrow_stated_index_disequality_mut checked 2488ms @ccdb99ca2214
 pass/borrows/borrowed_array_loop checked 3310ms @ccdb99ca2214
 pass/borrows/borrowed_case_leaf_copy_exit checked 15634ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/borrowed_field_helper_output_exit checked 5694ms check-target:macos_arm64 @7df56d785346
 pass/borrows/borrowed_literal_backing_releases_input_loan_exit checked 9268ms check-target:macos_arm64 @accfac32d2bd
 pass/borrows/borrowed_record_descriptor_carriers checked 4540ms check-target:macos_arm64 @46cad3817d2f
 pass/borrows/borrowed_record_reference_field_state_writeback_exit checked 3753ms check-target:macos_arm64 @ccdb99ca2214
