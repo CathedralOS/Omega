@@ -26203,8 +26203,7 @@ pass/layouts/runtime_placed_outcome_nested_array_read_exit rejected 3307ms check
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 95343ms check-target:macos_arm64 @911f6617ba9e
 pass/layouts/runtime_plan_laid_erased_field_exit rejected 14888ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	cannot determine the dispatch subject storage type in `Main::main::main`
-pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 21801ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	IntegerAt store in machine `guarded_write` state `entry` assignment requires a value proven to fit 8-bit signed storage
+pass/layouts/runtime_plan_laid_integer_at_proved_write_exit checked 110551ms check-target:macos_arm64 @9b40147d2440
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit checked 11768ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit checked 12103ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit checked 12605ms check-target:macos_arm64 @ccdb99ca2214
