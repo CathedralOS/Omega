@@ -90,7 +90,7 @@ interpretation based on their name or result type.
 Repeated admitted pure comparisons with the same selected operation and exact
 unchanged arguments have the same Boolean denotation. Thus `requires a == b`
 can establish a body's unchanged `a == b` result as true without either identity
-bridge. Mutations, observation-dependent inputs, different operation selections
+bridge. Changed argument values, observation-dependent inputs, different operation selections
 or failed invocation admission invalidate that reasoning. This is call
 congruence, not a general assertion that every comparison is reflexive.
 

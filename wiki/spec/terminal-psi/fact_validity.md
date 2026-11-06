@@ -56,8 +56,9 @@ Synthesized structural comparison evidence retains field selections and active
 case guards; float leaves retain IEEE truth conditions. Raw float identity
 preserves representation bits and cannot be inferred from payload-erased
 meaning equality. Pure call congruence requires the same admitted operation and
-unchanged argument values, including any observed referent versions. No result
-from another call frame, version or selected implementation supplies that fact.
+unchanged argument values, including any observed referent versions. Results
+from other call frames require checked exact substitution; a different value
+version or selected implementation supplies no interchangeable fact.
 
 ## Restored scalar values
 
