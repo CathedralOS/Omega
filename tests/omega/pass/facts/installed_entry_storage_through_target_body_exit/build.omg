@@ -4,4 +4,8 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, start);
     Build::bind(builder, linux_arm64::ProgramEntry, start);
     Build::bind(builder, windows_x86_64::ProgramEntry, start);
+    Build::select_provider<SelectedWritten, MacosWritten>(builder, macos_arm64);
+    Build::select_provider<SelectedWritten, LinuxX86Written>(builder, linux_x86_64);
+    Build::select_provider<SelectedWritten, LinuxArmWritten>(builder, linux_arm64);
+    Build::select_provider<SelectedWritten, WindowsWritten>(builder, windows_x86_64);
 }

@@ -88,8 +88,20 @@ machine finish(view: &mut Access<RegPlacement, Registers>, code: u8) requires co
     }
     machine bad() { crash Trap; }
 }
-macos_arm64 machine written() -> u8 ensures result == 9u8 { 9u8 }
-linux_x86_64 machine written() -> u8 ensures result == 9u8 { 9u8 }
-linux_arm64 machine written() -> u8 ensures result == 9u8 { 9u8 }
-windows_x86_64 machine written() -> u8 ensures result == 9u8 { 9u8 }
-machine start(view: &mut Access<RegPlacement, Registers>) crashes Trap { let code: u8 = written(); finish(view, code); }
+boundary trait SelectedWritten {
+    machine written() -> u8 reaches ensures result == 9u8;
+}
+MacosWritten satisfies SelectedWritten {
+    machine written() -> u8 ensures result == 9u8 { 9u8 }
+}
+LinuxX86Written satisfies SelectedWritten {
+    machine written() -> u8 ensures result == 9u8 { 9u8 }
+}
+LinuxArmWritten satisfies SelectedWritten {
+    machine written() -> u8 ensures result == 9u8 { 9u8 }
+}
+WindowsWritten satisfies SelectedWritten {
+    machine written() -> u8 ensures result == 9u8 { 9u8 }
+}
+machine start(view: &mut Access<RegPlacement, Registers>)
+    reaches SelectedWritten invokes SelectedWritten crashes Trap { let code: u8 = SelectedWritten::written(); finish(view, code); }
