@@ -275,12 +275,21 @@ fn prepare_arm<'program>(
     let guard_display = match arm.guard {
         Some(guard) => guard_display_name(program, guard, true),
         None if preceding.is_empty() => "<always>".to_owned(),
-        None => preceding
-            .iter()
-            .filter_map(|arm| arm.guard)
-            .map(|guard| guard_display_name(program, guard, false))
-            .collect::<Vec<_>>()
-            .join(" && "),
+        None => {
+            let conditions = preceding
+                .iter()
+                .filter_map(|arm| arm.guard)
+                .map(|guard| guard_display_name(program, guard, false))
+                .collect::<Vec<_>>();
+            match conditions.as_slice() {
+                [condition] => condition.clone(),
+                _ => conditions
+                    .iter()
+                    .map(|condition| format!("({condition})"))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            }
+        }
     };
 
     let mut engine = Engine::with_result_atom(program, machine, root)?;
