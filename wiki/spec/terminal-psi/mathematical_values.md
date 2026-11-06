@@ -149,5 +149,32 @@ Equality is structural equality of the payload-erased `FloatMeaning` sum,
 not IEEE comparison. NaN is reflexive and positive/negative zero differ.
 Distinct terms require an explicit theorem.
 
+### Float equality and source identity
+
+Ratified 2026-11-06: keep these three relations distinct in the proposition
+vocabulary, checked evidence and receiving verifier:
+
+| Relation | NaN with itself | Different NaN payloads | Positive and negative zero |
+| --- | --- | --- | --- |
+| IEEE value `==` | False | False | Equal |
+| `core::Identity<f32>` or `core::Identity<f64>` on raw values | Identical | Different | Different |
+| Identity/equality of `FloatMeaning` projections | Identical | Equal | Different |
+
+Raw float identity compares exact same-format representations, preserving all
+bits observable by a legal bit operation. It is not a hardware IEEE comparison
+and must not be reconstructed from the payload-erased projection. Any separately
+selected executable equality on `FloatMeaning` must be checked against that
+sum's meaning; naming the type supplies no implementation or identity bridge.
+
+IEEE equality implies neither general raw identity nor its converse: signed
+zeros refute the first direction, and NaN refutes the second. Equal meaning
+projections do not imply equal source bits. Preserve these distinctions for
+scalar values, aggregate leaves, captured results and cross-package evidence.
+Identity of complete aggregates remains typed value identity, not equality of
+padding bytes or storage addresses. Existing opaque identity metadata alone
+does not establish the new raw-carrier interpretation. Carrier semantics,
+evidence construction, validation and any codec changes must migrate together
+under the [explicit-identity plan](../../drafts/designs/explicit_identity.md).
+
 The meaning and its evidence are erased proof metadata. They add no runtime
 value, conversion, comparison, or native check.

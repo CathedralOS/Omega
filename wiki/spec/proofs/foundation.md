@@ -59,11 +59,11 @@ Nonempty A = squash A          existence without ordinary witness extraction
 Id A x y                       proof-relevant mathematical identity
 ```
 
-Source elaboration supplies one existing spelling for this kernel form: in a
-fact or proposition context, `left == right` over one identical non-primitive
-data type elaborates to `Id T left right` under
-[data identity in facts](contracts.md#data-identity-in-facts). This adds no
-kernel equality rule and does not reinterpret executable `==`.
+The sealed core mathematical declaration `core::Identity<T>(left, right)`
+exposes `Id T left right` explicitly under
+[data identity in facts](contracts.md#data-identity-in-facts). Value `==` retains
+its selected comparison in all contexts. Its relation to identity requires
+the appropriate checked bridge law; no contextual conversion supplies one.
 
 Sort formation and elimination determine the distinction. Compiler-generated
 versus handwritten, runtime versus erased, and a domain's weakening class do not.
@@ -81,6 +81,15 @@ making every proof-relevant equality proof irrelevant. Systems type identity,
 IEEE comparisons, and mathematical identity retain their separate meanings.
 An arithmetic certificate must interpret an existing operation's actual meaning;
 it cannot replace floating-point comparison with reflexive mathematical equality.
+
+Ratified 2026-11-06: identity of a raw IEEE `f32` or `f64` value preserves its
+exact format and every representation bit, including signed zero and NaN sign,
+payload and encoding distinctions. The carrier model and identity eliminator
+must justify substitution in bit-observing operations. Equality of payload-erased
+`FloatMeaning` projections is weaker and cannot establish this source identity.
+Aggregate identity remains typed value identity, not bytewise equality of
+record padding, addresses or unrelated storage. Its float component identities
+follow the raw-carrier rule. See [float relations](../terminal-psi/mathematical_values.md#float-equality-and-source-identity).
 
 Strict elimination uses the selected calculus's exact rules. Neither "no strict
 proof ever eliminates into Type" nor "one constructor permits elimination" is

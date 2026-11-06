@@ -908,9 +908,11 @@ owns evaluation eligibility.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums need an explicit named conformance. Adding a payload case
-therefore makes existing executable equality uses require that declaration.
-Identity `==` in a fact or proposition is separate and never requires
-`Equatable`. Domain membership (`in`) also remains separate.
+therefore makes value equality uses require that declaration in contracts too.
+Explicit `core::Identity<T>(a, b)` names the proof relation without requiring
+`Equatable`. Domain membership (`in`) also remains separate. Checked bridge
+evidence can connect a selected comparison to identity in either direction;
+each direction is independent and must bind that exact comparison row.
 
 An authored `equals` member overrides synthesis.
 Synthesized equality compares record fields, or a sum's tag and selected
@@ -918,6 +920,11 @@ payload fields. Prerequisites are checked at the conformance: each field must
 be a primitive, a payload-less sum, text compared by content, or another
 type covered by an explicitly selected equality implementation. Recursive
 expansion rejects.
+In facts, the checked synthesized body exposes its component comparisons.
+Identity bridge synthesis additionally needs the corresponding component laws;
+an IEEE float field does not receive them automatically. User comparisons gain
+consequences through their checked evidence rather than assumed fieldwise
+behavior. See [equality bridges](../spec/proofs/contracts.md#equality-bridges-and-comparison-facts).
 
 The sealed core equality operator route selects at most one named
 `Equatable<T>` implementation for an operand signature. Data does not own or
