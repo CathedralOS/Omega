@@ -283,6 +283,7 @@ pub(crate) fn instantiate_requirement_applications(
     // Retain each copy's exact selected row before closing its public result;
     // the shared public requirement alone cannot distinguish equal-endpoint
     // maps, and a private target is not selection authority.
+    let mut last_round_wrote;
     loop {
         let signature_count = program.prepared_callable_signatures().count();
         crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
@@ -293,13 +294,14 @@ pub(crate) fn instantiate_requirement_applications(
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        let signatures = program
-            .prepare_applied_callable_signatures()
+        let (signatures, wrote) = program
+            .prepare_applied_callable_signatures_reporting_change()
             .map_err(|message| {
                 vec![Diagnostic::error(format!(
                     "applied logical signatures: {message}"
                 ))]
             })?;
+        last_round_wrote = wrote;
         super::finalize_callable_signature_identities(program, signatures)
             .map_err(|diagnostic| vec![diagnostic])?;
         if program.prepared_callable_signatures().count() == signature_count {
@@ -308,11 +310,16 @@ pub(crate) fn instantiate_requirement_applications(
     }
     // New executable projections retain their own logical refined views before
     // calls borrow them; the shared nominal contract is never strengthened.
-    let signatures = program
-        .prepare_applied_callable_signatures()
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-    super::finalize_callable_signature_identities(program, signatures)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    // The last round above prepared views on this same program; when it wrote
+    // nothing, nothing has changed since and this preparation would write
+    // nothing either, so its empty result passes forward.
+    if last_round_wrote {
+        let signatures = program
+            .prepare_applied_callable_signatures()
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        super::finalize_callable_signature_identities(program, signatures)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    }
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())
