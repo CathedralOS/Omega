@@ -31,8 +31,8 @@ fn authored_machine(program: &dyn CheckingInput, mut symbol: SymbolHandle) -> Op
     None
 }
 
-pub(super) fn is_root(program: &dyn CheckingInput, machine: &Machine, root: &Machine) -> bool {
-    authored_machine(program, machine.symbol) == Some(root.symbol)
+pub(super) fn is_root(program: &dyn CheckingInput, machine: &Machine, root: SymbolHandle) -> bool {
+    authored_machine(program, machine.symbol) == Some(root)
 }
 
 /// Extracted regions retain their source activation as explicit custody.
@@ -55,10 +55,7 @@ pub fn private_invocation_entry_is_closed(program: &dyn CheckingInput, machine: 
         .is_some_and(|root| closed_arrivals(program, root, machine).is_ok())
 }
 
-pub(super) fn lexical_root<'program>(
-    program: &'program dyn CheckingInput,
-    machine: &Machine,
-) -> Option<&'program Machine> {
+pub(super) fn lexical_root(program: &dyn CheckingInput, machine: &Machine) -> Option<SymbolHandle> {
     let declaration = authored_machine(program, machine.symbol)?;
     let mut current = enclosing_declaration(program, declaration);
     let mut root = None;
@@ -69,11 +66,29 @@ pub(super) fn lexical_root<'program>(
         }
         seen.push(current);
         if let Some(owner) = program.machine_by_symbol(current) {
-            root = Some(owner);
+            root = Some(owner.symbol);
         }
         current = enclosing_declaration(program, current);
     }
-    root
+    // Ordinary private declarations share their semantic declaration owner.
+    // Source admission must first provide the complete independent entry list;
+    // a preparatory query without it retains the nested-only route.
+    root.or_else(|| {
+        program.external_invocation_roots()?;
+        seen.last().copied()
+    })
+}
+
+fn externally_invocable(program: &dyn CheckingInput, machine: &Machine) -> bool {
+    let declaration = authored_machine(program, machine.symbol);
+    program.external_invocation_roots().is_some_and(|roots| {
+        roots.iter().any(|&root| {
+            Some(root) == declaration
+                || program
+                    .machine_by_own_or_state_symbol(root)
+                    .is_some_and(|owner| authored_machine(program, owner.symbol) == declaration)
+        })
+    })
 }
 
 fn belongs_to(program: &dyn CheckingInput, mut symbol: SymbolHandle, root: SymbolHandle) -> bool {
@@ -97,7 +112,7 @@ fn belongs_to(program: &dyn CheckingInput, mut symbol: SymbolHandle, root: Symbo
     false
 }
 
-fn enclosing_machine_roots(program: &dyn CheckingInput, machine: &Machine) -> Vec<SymbolHandle> {
+fn enclosing_invocation_roots(program: &dyn CheckingInput, machine: &Machine) -> Vec<SymbolHandle> {
     let mut symbol = machine.symbol;
     let mut seen = Vec::new();
     let mut roots = Vec::new();
@@ -113,11 +128,17 @@ fn enclosing_machine_roots(program: &dyn CheckingInput, machine: &Machine) -> Ve
         }
         seen.push(symbol);
         if let Some(root) = program.machine_by_symbol(symbol)
-            && !is_root(program, machine, root)
+            && !is_root(program, machine, root.symbol)
         {
             roots.push(symbol);
         }
         symbol = enclosing_declaration(program, symbol);
+    }
+    if program.external_invocation_roots().is_some()
+        && let Some(&owner) = seen.last()
+        && program.machine_by_symbol(owner).is_none()
+    {
+        roots.push(owner);
     }
     roots
 }
@@ -139,8 +160,10 @@ pub(crate) struct ProgramPrivateArrivalIndex {
     call_sites_by_root: SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>>,
     unclosed_symbols: SymbolSet,
     private_targets: SymbolSet,
+    called_targets: SymbolSet,
     private_callees: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
     callable_use_owners: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+    state_owners: SymbolKeyMap<SymbolHandle, Option<usize>>,
 }
 
 impl ProgramPrivateArrivalIndex {
@@ -152,14 +175,20 @@ impl ProgramPrivateArrivalIndex {
         machine: &Machine,
     ) -> bool {
         self.private_targets.contains(&machine.symbol)
+            && self.called_targets.contains(&machine.symbol)
             && !machine.is_public
             && !machine.target_family_interface
+            && !externally_invocable(program, machine)
             && program.machine_trait_conformances(machine).is_empty()
             && !self.unclosed_symbols.contains(&machine.symbol)
             && program
                 .machine_states(machine)
                 .iter()
                 .all(|state| !self.unclosed_symbols.contains(&state.symbol))
+    }
+
+    fn caller_owner_is_unique(&self, state: SymbolHandle, owner: usize) -> bool {
+        self.state_owners.get(&state) == Some(&Some(owner))
     }
 
     pub(crate) fn private_callees(&self, caller: SymbolHandle) -> &[SymbolHandle] {
@@ -171,8 +200,21 @@ impl ProgramPrivateArrivalIndex {
         let mut members_by_root: SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
         let mut target_roots: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();
         let mut all_private_targets = SymbolSet::default();
+        let mut state_owners: SymbolKeyMap<SymbolHandle, Option<usize>> = Default::default();
+        for (owner, machine) in machines.iter().enumerate() {
+            for state in program.machine_states(machine) {
+                state_owners
+                    .entry(state.symbol)
+                    .and_modify(|prior| {
+                        if *prior != Some(owner) {
+                            *prior = None;
+                        }
+                    })
+                    .or_insert(Some(owner));
+            }
+        }
         for (machine_index, machine) in machines.iter().enumerate() {
-            let roots = enclosing_machine_roots(program, machine);
+            let roots = enclosing_invocation_roots(program, machine);
             if roots.is_empty() {
                 continue;
             }
@@ -192,6 +234,7 @@ impl ProgramPrivateArrivalIndex {
         let mut call_sites_by_root: SymbolKeyMap<SymbolHandle, Vec<SubordinateCallSite>> =
             Default::default();
         let mut private_callees: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();
+        let mut called_targets = SymbolSet::default();
         if !target_roots.is_empty() {
             for (caller_machine_index, caller) in machines.iter().enumerate() {
                 for state in program.machine_states(caller) {
@@ -214,6 +257,7 @@ impl ProgramPrivateArrivalIndex {
                             let Some(roots) = target_roots.get(&target.symbol) else {
                                 continue;
                             };
+                            called_targets.insert(target.symbol);
                             let callees = private_callees.entry(caller.symbol).or_default();
                             if !callees.contains(&target.symbol) {
                                 callees.push(target.symbol);
@@ -269,8 +313,10 @@ impl ProgramPrivateArrivalIndex {
             call_sites_by_root,
             unclosed_symbols: uses.unclosed_symbols,
             private_targets: uses.target_symbols,
+            called_targets,
             private_callees,
             callable_use_owners: uses.callable_use_owners,
+            state_owners,
         }
     }
 }
@@ -300,12 +346,12 @@ pub(crate) struct ClosedArrivals {
 
 pub(super) fn closed_arrivals(
     program: &dyn CheckingInput,
-    root: &Machine,
+    root: SymbolHandle,
     callee: &Machine,
 ) -> Result<std::sync::Arc<ClosedArrivals>, &'static str> {
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
         && let Ok(guard) = memos.private_closed_arrivals.lock()
-        && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+        && let Some(cached) = guard.get(&(root, callee.symbol))
     {
         return cached.clone();
     }
@@ -315,28 +361,33 @@ pub(super) fn closed_arrivals(
     if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
         && let Ok(mut guard) = memos.private_closed_arrivals.lock()
     {
-        guard.insert((root.symbol, callee.symbol), result.clone());
+        guard.insert((root, callee.symbol), result.clone());
     }
     result
 }
 
 fn compute_closed_arrivals(
     program: &dyn CheckingInput,
-    root: &Machine,
+    root: SymbolHandle,
     callee: &Machine,
 ) -> Result<ClosedArrivals, &'static str> {
     let index = private_invocation_index(program);
     let machines = program.machines();
-    let Some(member_indices) = index.members_by_root.get(&root.symbol) else {
+    let Some(member_indices) = index.members_by_root.get(&root) else {
         return Err("the callable is not a private member of the enclosing declaration");
     };
     let members: Vec<_> = member_indices.iter().map(|&idx| &machines[idx]).collect();
-    let destination = members
-        .iter()
-        .position(|member| member.symbol == callee.symbol)
+    let mut member_positions: SymbolKeyMap<SymbolHandle, usize> = Default::default();
+    for (position, member) in members.iter().enumerate() {
+        member_positions.insert(member.symbol, position);
+    }
+    let destination = member_positions
+        .get(&callee.symbol)
+        .copied()
         .ok_or("the callable is not a private member of the enclosing declaration")?;
     if callee.is_public
         || callee.target_family_interface
+        || externally_invocable(program, callee)
         || !program.machine_trait_conformances(callee).is_empty()
     {
         return Err("the private declaration group has an exposed callable");
@@ -344,29 +395,38 @@ fn compute_closed_arrivals(
     let mut expected_owners: Vec<(Arrival, usize)> = Vec::new();
     let mut caller_ownership_is_unique = true;
     let mut edges = vec![Vec::new(); members.len()];
+    let mut predecessors = vec![Vec::new(); members.len()];
+    let mut incoming_owners = vec![Vec::new(); machines.len()];
+    let mut incoming_ownership_is_unique = vec![true; machines.len()];
+    let mut machine_positions: SymbolKeyMap<SymbolHandle, usize> = Default::default();
+    for (position, machine) in machines.iter().enumerate() {
+        machine_positions.insert(machine.symbol, position);
+    }
     let mut outside = Vec::new();
     let mut declared_entries = Vec::new();
-    if let Some(sites) = index.call_sites_by_root.get(&root.symbol) {
+    if let Some(sites) = index.call_sites_by_root.get(&root) {
         for site in sites {
-            let Some(destination) = members
-                .iter()
-                .position(|member| member.symbol == site.target_machine)
-            else {
+            let Some(destination) = member_positions.get(&site.target_machine).copied() else {
                 continue;
             };
             let caller = &machines[site.caller_machine_index];
-            if !belongs_to(program, caller.symbol, root.symbol) {
+            if !belongs_to(program, caller.symbol, root) {
                 outside.push(destination);
             }
             if is_root(program, caller, root) && !declared_entries.contains(&destination) {
                 declared_entries.push(destination);
             }
-            if let Some(source) = members
-                .iter()
-                .position(|member| member.symbol == caller.symbol)
+            let target_index = machine_positions[&site.target_machine];
+            incoming_ownership_is_unique[target_index] &=
+                index.caller_owner_is_unique(site.caller_state, site.caller_machine_index);
+            if !incoming_owners[target_index].contains(&site.caller_machine_index) {
+                incoming_owners[target_index].push(site.caller_machine_index);
+            }
+            if let Some(source) = member_positions.get(&caller.symbol).copied()
                 && !edges[source].contains(&destination)
             {
                 edges[source].push(destination);
+                predecessors[destination].push(source);
             }
             if site.target_machine == callee.symbol {
                 let arrival = Arrival {
@@ -391,7 +451,7 @@ fn compute_closed_arrivals(
     for (arrival, owner) in expected_owners {
         // The graph carries the owner; validate uniqueness once while forming
         // this cached plan rather than rebuilding ownership for each query.
-        if !caller_owner_is_unique(program, arrival.caller, owner) {
+        if !index.caller_owner_is_unique(arrival.caller, owner) {
             caller_ownership_is_unique = false;
         }
         expected.push(arrival);
@@ -404,16 +464,13 @@ fn compute_closed_arrivals(
     // that cannot reach it is independent; an escaping ancestor still matters.
     let mut needed = vec![false; members.len()];
     needed[destination] = true;
-    loop {
-        let mut changed = false;
-        for (source, successors) in edges.iter().enumerate() {
-            if !needed[source] && successors.iter().any(|&successor| needed[successor]) {
+    let mut pending = vec![destination];
+    while let Some(successor) = pending.pop() {
+        for &source in &predecessors[successor] {
+            if !needed[source] {
                 needed[source] = true;
-                changed = true;
+                pending.push(source);
             }
-        }
-        if !changed {
-            break;
         }
     }
     // Openness withdraws a declaration's direct-caller premises, not the facts
@@ -426,6 +483,7 @@ fn compute_closed_arrivals(
         .filter_map(|(member_index, member)| {
             let exposed = member.is_public
                 || member.target_family_interface
+                || externally_invocable(program, member)
                 || !program.machine_trait_conformances(member).is_empty();
             let open_use = std::iter::once(member.symbol)
                 .chain(
@@ -442,11 +500,15 @@ fn compute_closed_arrivals(
                             .is_some_and(|owners| {
                                 owners
                                     .iter()
-                                    .any(|&owner| !belongs_to(program, owner, root.symbol))
+                                    .any(|&owner| !belongs_to(program, owner, root))
                             })
                 });
-            (needed[member_index] && (exposed || open_use || outside.contains(&member_index)))
-                .then_some(member_index)
+            (needed[member_index]
+                && (exposed
+                    || open_use
+                    || outside.contains(&member_index)
+                    || incoming_owners[member_indices[member_index]].is_empty()))
+            .then_some(member_index)
         })
         .collect::<Vec<_>>();
     // The queried body itself has unknown arrivals when it escapes. Its local
@@ -512,24 +574,17 @@ fn compute_closed_arrivals(
     let mut caller_frontiers = progressive_caller_frontiers(
         program,
         root,
-        index
-            .call_sites_by_root
-            .get(&root.symbol)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]),
+        &incoming_owners,
+        &incoming_ownership_is_unique,
         caller_machine_indices.clone(),
         &open_boundaries,
     );
     if contracted_entry_boundaries != entry_boundaries {
-        let sites = index
-            .call_sites_by_root
-            .get(&root.symbol)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
         let mut contracted_frontiers = progressive_caller_frontiers(
             program,
             root,
-            sites,
+            &incoming_owners,
+            &incoming_ownership_is_unique,
             caller_machine_indices.clone(),
             &contracted_entry_boundaries,
         );
@@ -558,30 +613,11 @@ fn compute_closed_arrivals(
     })
 }
 
-/// The graph already knows the executable owner. Check ambiguous storage
-/// membership once in the cached plan; never resolve an owner by spelling.
-fn caller_owner_is_unique(program: &dyn CheckingInput, state: SymbolHandle, owner: usize) -> bool {
-    let machines = program.machines();
-    let Some(caller) = machines.get(owner) else {
-        return false;
-    };
-    program
-        .machine_states(caller)
-        .iter()
-        .any(|entry| entry.symbol == state)
-        && !machines.iter().enumerate().any(|(other, machine)| {
-            other != owner
-                && program
-                    .machine_states(machine)
-                    .iter()
-                    .any(|entry| entry.symbol == state)
-        })
-}
-
 fn progressive_caller_frontiers(
     program: &dyn CheckingInput,
-    root: &Machine,
-    sites: &[SubordinateCallSite],
+    root: SymbolHandle,
+    incoming_owners: &[Vec<usize>],
+    incoming_ownership_is_unique: &[bool],
     immediate: Option<Vec<usize>>,
     entry_boundaries: &[SymbolHandle],
 ) -> Vec<Vec<usize>> {
@@ -618,27 +654,18 @@ fn progressive_caller_frontiers(
         frontiers.push(frontier.clone());
         let mut expanded = Vec::new();
         for &owner in &frontier {
-            let Some(machine) = machines.get(owner) else {
-                return frontiers;
-            };
             if anchors[owner] {
                 expanded.push(owner);
                 continue;
             }
-            let mut has_incoming = false;
-            for site in sites
-                .iter()
-                .filter(|site| site.target_machine == machine.symbol)
-            {
-                if !caller_owner_is_unique(program, site.caller_state, site.caller_machine_index) {
-                    return frontiers;
-                }
-                has_incoming = true;
-                expanded.push(site.caller_machine_index);
+            if !incoming_ownership_is_unique[owner] {
+                return frontiers;
             }
+            let incoming = &incoming_owners[owner];
+            expanded.extend_from_slice(incoming);
             // An unknown or absent incoming roster cannot be dropped from a
             // cut. Keep the previous cuts and use the original final frontier.
-            if !has_incoming {
+            if incoming.is_empty() {
                 return frontiers;
             }
         }

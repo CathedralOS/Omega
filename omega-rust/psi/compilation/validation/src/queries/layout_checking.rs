@@ -27,6 +27,10 @@ impl<'a> LayoutCheckingContext<'a> {
 }
 
 impl CheckingInput for LayoutCheckingContext<'_> {
+    fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
+        self.input.external_invocation_roots()
+    }
+
     fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
         self.input.has_active_completed_case_population(machine)
     }

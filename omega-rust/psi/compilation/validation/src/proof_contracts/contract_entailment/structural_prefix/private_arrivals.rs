@@ -1,5 +1,5 @@
 //! Private entry facts are proved from actual arrivals, never lexical scope.
-//! The enclosing declaration starts with arbitrary inputs and its own contract.
+//! Every independent entry starts with arbitrary inputs and its own contract.
 //! Its ordinary path owner substitutes completed actuals and retains guards and
 //! prior citations. Every admissible private arrival must be observed; an opaque
 //! call or escaping selection cannot donate a convenient premise. Recurrent

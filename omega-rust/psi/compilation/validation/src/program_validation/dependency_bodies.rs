@@ -26,6 +26,7 @@ use typed_trees::signature::SignatureContractKind;
 
 use super::ProvenContractExpressions;
 use super::statements::statement_source_span;
+use crate::proof_contracts::contract_entailment::structural_prefix::private_invocation_index;
 
 /// One strict check's entailment judgment for a single non-instance machine.
 /// Ordinals index that machine's expression `ensures` list, which is stable
@@ -170,6 +171,19 @@ impl DependencyBodyIndex {
                 )
             });
             admissions.push(admission);
+        }
+        // A private body may be checked from all of its actual callers. Keep
+        // that same caller context in its portable correspondence; equal body
+        // text and callees alone cannot reuse an inferred input requirement.
+        let caller_contexts = private_caller_contexts(program, &identities, &admissions, &callees);
+        for (admission, context) in admissions.iter_mut().zip(caller_contexts) {
+            *admission = admission.and_then(|mut admission| {
+                let mut hash = semantic_vocabulary::Fnv1a::resume(admission.dependency_context);
+                hash.byte(10);
+                hash.u64(context?);
+                admission.dependency_context = hash.finish();
+                Some(admission)
+            });
         }
         Self {
             active: true,
@@ -513,6 +527,112 @@ fn substitution_context(
         body_hash: admission.body_hash,
         dependency_context: hash.finish(),
     })
+}
+
+/// A private proof may depend on all actual callers, recursively. Prepare one
+/// caller graph for the body roster instead of rebuilding each caller cone.
+/// Independent entries cut incoming premises; recursive components retain all
+/// member bodies and all external arrivals in one portable correspondence.
+fn private_caller_contexts(
+    program: &dyn crate::CheckingInput,
+    identities: &[Option<String>],
+    admissions: &[Option<BodyAdmission>],
+    callees: &[Vec<u32>],
+) -> Vec<Option<u64>> {
+    let index = private_invocation_index(program);
+    let closed = program
+        .machines()
+        .iter()
+        .map(|machine| index.has_closed_private_uses(program, machine))
+        .collect::<Vec<_>>();
+    let successors = callees
+        .iter()
+        .map(|targets| {
+            let mut targets = targets
+                .iter()
+                .map(|&target| target as usize)
+                .filter(|&target| closed[target])
+                .collect::<Vec<_>>();
+            targets.sort_unstable();
+            targets.dedup();
+            targets
+        })
+        .collect::<Vec<_>>();
+    let components =
+        crate::machine_calls::graph_components::strongly_connected_components(&successors);
+    let mut component_of = vec![0; closed.len()];
+    for (component, members) in components.iter().enumerate() {
+        for &member in members {
+            component_of[member] = component;
+        }
+    }
+    let mut incoming = vec![Vec::new(); components.len()];
+    let mut outgoing = vec![Vec::new(); components.len()];
+    for (source, targets) in successors.iter().enumerate() {
+        let source = component_of[source];
+        for &target in targets {
+            let target = component_of[target];
+            if source != target {
+                incoming[target].push(source);
+            }
+        }
+    }
+    for (target, sources) in incoming.iter_mut().enumerate() {
+        sources.sort_unstable();
+        sources.dedup();
+        for &source in sources.iter() {
+            outgoing[source].push(target);
+        }
+    }
+    let mut remaining = incoming.iter().map(Vec::len).collect::<Vec<_>>();
+    let mut ready = remaining
+        .iter()
+        .enumerate()
+        .filter_map(|(component, &count)| (count == 0).then_some(component))
+        .collect::<Vec<_>>();
+    let mut contexts = vec![None; components.len()];
+    while let Some(component) = ready.pop() {
+        contexts[component] = (|| {
+            let mut rows = components[component]
+                .iter()
+                .map(|&member| {
+                    Some((
+                        identities.get(member)?.as_deref()?,
+                        member,
+                        admissions.get(member)?.as_ref()?,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            rows.sort_unstable_by(|left, right| left.0.cmp(right.0));
+            let mut hash = semantic_vocabulary::Fnv1a::new();
+            hash.byte(1);
+            for (identity, member, admission) in rows {
+                hash.string_terminated(identity);
+                hash.u64(admission.body_hash);
+                hash.u64(admission.dependency_context);
+                hash.byte(u8::from(closed[member]));
+            }
+            let mut callers = incoming[component]
+                .iter()
+                .map(|&caller| contexts[caller])
+                .collect::<Option<Vec<_>>>()?;
+            callers.sort_unstable();
+            for caller in callers {
+                hash.u64(caller);
+            }
+            Some(hash.finish())
+        })();
+        for &next in &outgoing[component] {
+            remaining[next] -= 1;
+            if remaining[next] == 0 {
+                ready.push(next);
+            }
+        }
+    }
+    component_of
+        .into_iter()
+        .map(|component| contexts[component])
+        .collect()
 }
 
 fn dependency_context(
