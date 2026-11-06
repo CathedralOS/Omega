@@ -61,6 +61,9 @@ impl CaseGuaranteeEligibility {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> bool {
+        if !expression.is_valid() {
+            return true;
+        }
         let position = expression.arena_index() as usize;
         let Some(row) = self.rows.get(position) else {
             return true;
@@ -94,6 +97,9 @@ impl CaseGuaranteeEligibility {
     }
 
     fn contains_case(&self, expression: ExpressionHandle) -> Option<bool> {
+        if !expression.is_valid() {
+            return None;
+        }
         let row = self.rows.get(expression.arena_index() as usize)?;
         if row.expression != expression {
             return None;
