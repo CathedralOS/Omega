@@ -160,18 +160,18 @@ pub(crate) fn validate_scalar_loan_handbacks(
                 encoded.segments.push(PlaceSegment::Field { symbol });
                 let encoding_preserves = variant.is_none()
                     && program
-                    .primitive_type_reference(shell.referee)
-                    .zip(program.primitive_type_reference(field.type_reference))
-                    .is_some_and(|(view, source)| {
-                        super::structural_judgment::stored_encoding_preserves_field(
-                            program,
-                            &encoded,
-                            view,
-                            source,
-                            definition,
-                            field.symbol,
-                        )
-                    });
+                        .primitive_type_reference(shell.referee)
+                        .zip(program.primitive_type_reference(field.type_reference))
+                        .is_some_and(|(view, source)| {
+                            super::structural_judgment::stored_encoding_preserves_field(
+                                program,
+                                &encoded,
+                                view,
+                                source,
+                                definition,
+                                field.symbol,
+                            )
+                        });
                 let preserved = encoding_preserves
                     || receiver.is_some_and(|receiver| {
                         program
