@@ -56,6 +56,62 @@ impl LinuxFilesystem {
         }
     }
 
+    /// Reposition one guest descriptor. The offset is the kernel `off_t`, not
+    /// a narrowed `i32`, and a failure stays the negated errno the POSIX
+    /// trait already returns. Standard streams are not guest resources.
+    pub fn lseek(&self, descriptor: i32, offset: i64, whence: i32) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            kernel_status(unsafe { libc::syscall(libc::SYS_lseek, descriptor, offset, whence) })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, offset, whence);
+            Err(unsupported())
+        }
+    }
+
+    /// Remove one directory entry. `AT_FDCWD` stays the host's current
+    /// directory; every other directory is a guest descriptor. The path is
+    /// the caller's already-terminated buffer.
+    pub fn unlinkat(&mut self, directory: i32, path: &CStr, flags: i32) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let directory = if directory == libc::AT_FDCWD {
+                directory
+            } else {
+                self.descriptor(directory)?
+            };
+            kernel_status(unsafe {
+                libc::syscall(libc::SYS_unlinkat, directory, path.as_ptr(), flags)
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (directory, path, flags);
+            Err(unsupported())
+        }
+    }
+
+    /// Read into the caller's already-bounded window. A short count, EOF, or
+    /// negated errno is the kernel status; this table does not retry or fill
+    /// past that window. Standard streams are not guest resources.
+    pub fn read(&self, descriptor: i32, bytes: &mut [u8]) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            kernel_status(unsafe {
+                libc::syscall(libc::SYS_read, descriptor, bytes.as_mut_ptr(), bytes.len())
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, bytes);
+            Err(unsupported())
+        }
+    }
+
     pub fn write(&self, descriptor: i32, bytes: &[u8]) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
