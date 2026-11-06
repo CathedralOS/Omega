@@ -70,12 +70,12 @@ pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: Pla
 /// A declared home supplies no value, including for a zero-byte type. A
 /// nominal owner encapsulates its descendants; transparent aggregates instead
 /// retain each selected child's existing claim without a fabricated root.
-pub(crate) fn require_owned_value_claims(
+pub(crate) fn require_owned_value_claims<'claims>(
     structural_types: &crate::embedding::program::ProgramDeclarations<
         '_,
         StructuralTypeDeclaration,
     >,
-    live_claims: &BTreeMap<ClaimId, LiveClaim>,
+    live_claims: impl Iterator<Item = &'claims LiveClaim> + Clone,
     root_type: StructuralTypeId,
     argument: &StructuralArgument,
     selected_case: &dyn Fn(&[StructuralPathSegment], semantic_vocabulary::StructuralCaseId) -> bool,
@@ -91,7 +91,7 @@ pub(crate) fn require_owned_value_claims(
         path_prefix: argument.path.iter().take(4).cloned().collect(),
         reason,
     };
-    let claims = live_claims.values().filter(|claim| {
+    let claims = live_claims.filter(|claim| {
         claim.place == Some(argument.place)
             && (claim.path.starts_with(&argument.path) || argument.path.starts_with(&claim.path))
     });
@@ -151,7 +151,7 @@ impl crate::engine::execution::TerminalExecution<'_> {
         }
         require_owned_value_claims(
             &self.structural_types(),
-            &self.live_claims,
+            self.live_claims.values(),
             root_type,
             argument,
             &|path, case| {

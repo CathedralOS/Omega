@@ -53,23 +53,7 @@ pub fn contains_owned_boundary(
     active: &mut BTreeSet<StructuralTypeId>,
     structural_type: StructuralTypeId,
 ) -> Option<bool> {
-    contains_boundary(
-        &|identity| types.get(&identity).copied(),
-        &|identity| boundaries.contains(&identity),
-        cache,
-        active,
-        structural_type,
-    )
-}
-
-fn contains_boundary<'types>(
-    declaration: &dyn Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
-    boundary: &dyn Fn(StructuralTypeId) -> bool,
-    cache: &mut BTreeMap<StructuralTypeId, bool>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    structural_type: StructuralTypeId,
-) -> Option<bool> {
-    if boundary(structural_type) {
+    if boundaries.contains(&structural_type) {
         return Some(true);
     }
     if let Some(result) = cache.get(&structural_type) {
@@ -79,8 +63,8 @@ fn contains_boundary<'types>(
         return None;
     }
     let mut result = false;
-    for child in child_types(declaration(structural_type)?) {
-        result |= contains_boundary(declaration, boundary, cache, active, child)?;
+    for child in child_types(types.get(&structural_type)?) {
+        result |= contains_owned_boundary(types, boundaries, cache, active, child)?;
     }
     active.remove(&structural_type);
     cache.insert(structural_type, result);
@@ -242,7 +226,7 @@ pub fn selected_contains_owned_boundary(
 /// not independently excluded at this occurrence. This check introduces no tag
 /// evidence or storage authority.
 pub fn validate_owned_claim_frontier<'types>(
-    declaration: &dyn Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
+    declaration: &impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
     selected_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     accounted: impl IntoIterator<Item = Vec<StructuralPathSegment>>,
@@ -271,7 +255,7 @@ pub fn validate_owned_claim_frontier<'types>(
         },
     }
     let mut pending = vec![Pending::Value(path.to_vec(), selected_type)];
-    let mut cache = BTreeMap::new();
+    let mut possible = complete_claims::ClaimTypes::default();
     while let Some(occurrence) = pending.pop() {
         let (path, current) = match occurrence {
             Pending::Value(path, current) => (path, current),
@@ -302,16 +286,7 @@ pub fn validate_owned_claim_frontier<'types>(
             }
             continue;
         }
-        let nominal = |identity| declaration(identity).is_some_and(|value| value.owns_linear_claim);
-        if !contains_boundary(
-            declaration,
-            &nominal,
-            &mut cache,
-            &mut BTreeSet::new(),
-            current,
-        )
-        .ok_or("owned value claim graph is unresolved")?
-        {
+        if !complete_claims::contains_claim(declaration, current, &mut possible)? {
             continue;
         }
         // A selected empty case can owe no claim. Stream relevant arrays
@@ -352,14 +327,8 @@ pub fn validate_owned_claim_frontier<'types>(
                     .filter(|field| !field.relevance.is_erased())
                     .filter_map(|field| field.field_type.as_structural())
                 {
-                    payload_required |= contains_boundary(
-                        declaration,
-                        &nominal,
-                        &mut cache,
-                        &mut BTreeSet::new(),
-                        child,
-                    )
-                    .ok_or("owned value payload claim graph is unresolved")?;
+                    payload_required |=
+                        complete_claims::contains_claim(declaration, child, &mut possible)?;
                 }
                 if payload_required {
                     let mut admitted = false;
