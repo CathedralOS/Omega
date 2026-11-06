@@ -994,10 +994,11 @@ impl TerminalExecution<'_> {
             && access != StructuralAccess::SharedBorrow
             && !predicate_introductions.is_empty()
         {
-            // EstablishReference independently proves these explicitly
-            // requested predicates at its current source cut. Host output
-            // completion supplies no introduction roster. Existing duties
-            // still pass the unchanged exact-roster conservation check below.
+            // Static formation checking proves these requested predicates
+            // at the current source cut. This runtime branch attaches that
+            // allowed roster; it does not reprove the value predicates.
+            // Host output completion supplies no introduction roster. Existing
+            // duties still pass the unchanged exact-roster conservation check.
             let types = self
                 .structural_types()
                 .values()

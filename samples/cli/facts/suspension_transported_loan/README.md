@@ -44,7 +44,7 @@ A helper can leave an output pointing at its original cell or install a
 reference to another cell. Saving that reference must keep the chosen cell
 usable after a call that may pause, even when the output variable changes later.
 The [conditional helper fixture](../../../../tests/omega/pass/borrows/supplied_output_conditional_helper_keeps_reference_exit/main.omg)
-reads 11 when the helper keeps the reference and 73 when it replaces it.
+expects 11 when the helper keeps the reference and 73 when it replaces it.
 Its [policy twin](../../../../tests/omega/fail/borrows/supplied_output_conditional_helper_keeps_reference_forbidden/main.omg)
 forbids both backings from surviving the pause, so either choice retains the
 same suspension obligation.
@@ -54,7 +54,16 @@ also keeps the helper's original input borrowed until the saved reference's
 last use. The [shared containing-record fixture](../../../../tests/omega/pass/borrows/supplied_output_shared_stored_input_ceiling_exit/main.omg)
 reads a stored reference without acquiring mutable access to its cell. Their
 Build companions explicitly select `Immediate` for `Scheduler` on each hosted
-target; a requirement alone does not select an implementation.
+target; a requirement alone does not select an implementation. These two
+source checks already pass the pinned `a2855f01` baseline with those explicit
+selections, so they provide coverage rather than the demonstrated repair.
+
+Earlier notes describe the [stored-reference recast](https://github.com/CathedralOS/Omega/blob/d31209ea0d20231819cedbc47442baa3335792a5/samples/cli/facts/suspension_transported_loan/recast/README.md),
+[copied source](https://github.com/CathedralOS/Omega/blob/d31209ea0d20231819cedbc47442baa3335792a5/samples/cli/facts/suspension_transported_loan/copied_source/README.md)
+and [helper-returned projection](https://github.com/CathedralOS/Omega/blob/d31209ea0d20231819cedbc47442baa3335792a5/samples/cli/facts/suspension_transported_loan/projected_call_source/README.md).
+Those links point to the retained historical inputs: upstream removed their
+folders from the current sample tree. Their frozen acceptance remains separate
+from the surviving permanent fixtures above.
 
 Checking records the completed output's actual suppliers and their full loan
 obligations. Copies keep that association, and lowering transports each
