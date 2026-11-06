@@ -1627,8 +1627,8 @@ impl<'program> Engine<'program> {
                             } else {
                                 self.captured_record_call_input(
                                     *argument,
-                                    &parameters,
-                                    &supplied_arguments,
+                                    parameters,
+                                    supplied_arguments,
                                 )
                             }
                         })

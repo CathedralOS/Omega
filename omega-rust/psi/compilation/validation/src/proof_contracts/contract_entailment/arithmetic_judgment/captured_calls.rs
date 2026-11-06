@@ -126,7 +126,7 @@ impl Engine<'_> {
                         .then_some(())?;
                     IntegerApplicationInput::Scalar(self.normalize(*argument)?)
                 } else {
-                    self.captured_record_call_input(*argument, &parameters, &arguments)?
+                    self.captured_record_call_input(*argument, parameters, arguments)?
                 };
                 if !crate::has_anonymous_numeric_results(self.program, *argument) {
                     let actual = match &input {
