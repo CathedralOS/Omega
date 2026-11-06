@@ -94,7 +94,7 @@ impl Fixture {
             place: place(raw),
             position,
             structural_type: ty(3),
-            multiplicity: StructuralMultiplicity::Affine,
+            multiplicity: StructuralMultiplicity::Unrestricted,
             access: StructuralAccess::MutableBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
@@ -445,6 +445,7 @@ fn owned_ingress_formation_keeps_the_parent_until_the_child_ends() {
         ],
     );
     body.structural_parameters[0].access = StructuralAccess::Owned;
+    body.structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
     let Some(O::ReturnUnit {
         cleanup_actions, ..
     }) = body.operations.last_mut()
