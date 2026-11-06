@@ -5,6 +5,7 @@
 //! without pinning payloads; a changed COW owner or expired handle misses.
 
 use super::{ExpressionHandle, StructuralJudge, SymbolHandle};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Weak};
 
 // Erasure keeps allocation identity, not a type-dependent value operation.
@@ -15,6 +16,10 @@ impl<T: Send + Sync> InputAllocation for T {}
 pub(super) struct InputOwner<'program>(Weak<dyn InputAllocation + 'program>);
 
 impl<'program> InputOwner<'program> {
+    fn allocation_address(&self) -> usize {
+        self.0.as_ptr().cast::<()>() as usize
+    }
+
     pub(super) fn new<T: Send + Sync + 'program>(value: &Arc<T>) -> Self {
         let erased: Arc<dyn InputAllocation + 'program> = value.clone();
         Self(Arc::downgrade(&erased))
@@ -36,11 +41,16 @@ impl PartialEq for InputOwner<'_> {
 /// The current question already keeps these allocations alive. Borrow them for
 /// comparison; only a published completed answer needs retained weak owners.
 trait LiveInputOwner<'program> {
+    fn allocation_address(&self) -> usize;
     fn retain(&self) -> InputOwner<'program>;
     fn same_retained_allocation(&self, retained: &InputOwner<'program>) -> bool;
 }
 
 impl<'program, T: Send + Sync + 'program> LiveInputOwner<'program> for Arc<T> {
+    fn allocation_address(&self) -> usize {
+        Arc::as_ptr(self).cast::<()>() as usize
+    }
+
     fn retain(&self) -> InputOwner<'program> {
         InputOwner::new(self)
     }
@@ -137,6 +147,10 @@ pub(super) struct CurrentResolutionInputs<'current, 'program> {
 }
 
 impl<'program> ResolutionInputs<'program> {
+    pub(super) fn allocation_fingerprint(&self) -> u64 {
+        allocation_fingerprint(self.owners.iter().map(InputOwner::allocation_address))
+    }
+
     pub(super) fn same_inputs(&self, other: &Self) -> bool {
         std::ptr::eq(self.program, other.program)
             && self.machine_symbol == other.machine_symbol
@@ -178,6 +192,10 @@ impl<'program> ResolutionInputs<'program> {
 }
 
 impl<'program> CurrentResolutionInputs<'_, 'program> {
+    pub(super) fn allocation_fingerprint(&self) -> u64 {
+        allocation_fingerprint(self.owners.iter().map(|owner| owner.allocation_address()))
+    }
+
     fn retain(self) -> ResolutionInputs<'program> {
         ResolutionInputs {
             program: self.program,
@@ -289,4 +307,14 @@ impl<'program> StructuralJudge<'program> {
             },
         }
     }
+}
+
+// Equal input owners always share this filter. Hash collisions and expired
+// allocations still need the complete input and live-owner comparisons.
+fn allocation_fingerprint(owners: impl Iterator<Item = usize>) -> u64 {
+    let mut hash = DefaultHasher::new();
+    for owner in owners {
+        owner.hash(&mut hash);
+    }
+    hash.finish()
 }

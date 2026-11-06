@@ -28,7 +28,7 @@ pub(super) struct ApplicationResolution<'program> {
 #[derive(Default)]
 pub(super) struct CompletedResolutions<'program> {
     entries: Vec<CompletedResolution<'program>>,
-    buckets: HashMap<u64, Vec<usize>>,
+    buckets: HashMap<ResolutionBucket, Vec<usize>>,
     ages: Vec<u64>,
     clock: u64,
 }
@@ -89,6 +89,14 @@ enum StructuralQueryAnswer {
     Predicate(StructuralJudgment),
 }
 
+// One expression can occur under many proof contexts. Keep those candidates
+// apart before comparing their full inputs, values and dependency reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ResolutionBucket {
+    term: u64,
+    input_allocations: u64,
+}
+
 struct CompletedResolution<'program> {
     fingerprint: u64,
     kind: StructuralQueryKind,
@@ -100,6 +108,15 @@ struct CompletedResolution<'program> {
     depth: usize,
     resolution_depth: usize,
     value: StructuralQueryAnswer,
+}
+
+impl CompletedResolution<'_> {
+    fn bucket(&self) -> ResolutionBucket {
+        ResolutionBucket {
+            term: self.fingerprint,
+            input_allocations: self.inputs.allocation_fingerprint(),
+        }
+    }
 }
 
 // A bucket is not an identity judgment. Recurrence and completed reuse below
@@ -181,9 +198,13 @@ impl<'program> CompletedResolutions<'program> {
         fingerprint: u64,
     ) -> Option<(StructuralQueryAnswer, CompletedReads)> {
         let current_inputs = judge.current_resolution_inputs();
+        let bucket = ResolutionBucket {
+            term: fingerprint,
+            input_allocations: current_inputs.allocation_fingerprint(),
+        };
         let index = self
             .buckets
-            .get(&fingerprint)?
+            .get(&bucket)?
             .iter()
             .rev()
             .copied()
@@ -216,7 +237,7 @@ impl<'program> CompletedResolutions<'program> {
 
     fn insert(&mut self, entry: CompletedResolution<'program>) {
         self.clock = self.clock.wrapping_add(1);
-        let fingerprint = entry.fingerprint;
+        let bucket = entry.bucket();
         let position = if self.entries.len() < 8192 {
             let position = self.entries.len();
             self.entries.push(entry);
@@ -226,7 +247,7 @@ impl<'program> CompletedResolutions<'program> {
             let position = (0..self.ages.len())
                 .min_by_key(|&position| self.ages[position])
                 .expect("a full cache has an eviction candidate");
-            let previous = self.entries[position].fingerprint;
+            let previous = self.entries[position].bucket();
             if let Some(bucket) = self.buckets.get_mut(&previous) {
                 bucket.retain(|&index| index != position);
                 if bucket.is_empty() {
@@ -237,7 +258,7 @@ impl<'program> CompletedResolutions<'program> {
             self.ages[position] = self.clock;
             position
         };
-        self.buckets.entry(fingerprint).or_default().push(position);
+        self.buckets.entry(bucket).or_default().push(position);
     }
 }
 
@@ -1418,9 +1439,9 @@ mod work_domain_tests {
             .lock()
             .unwrap();
         assert_eq!(cache.entries.len(), 8192);
-        for (fingerprint, indices) in &cache.buckets {
+        for (bucket, indices) in &cache.buckets {
             for &index in indices {
-                assert_eq!(cache.entries[index].fingerprint, *fingerprint);
+                assert_eq!(cache.entries[index].bucket(), *bucket);
             }
         }
         assert_eq!(cache.buckets.values().map(Vec::len).sum::<usize>(), 8192);
