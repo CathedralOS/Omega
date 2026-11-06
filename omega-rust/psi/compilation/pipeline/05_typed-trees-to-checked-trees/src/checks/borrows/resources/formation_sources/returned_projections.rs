@@ -126,6 +126,12 @@ pub(super) fn validate(
                 continue;
             }
             if descriptor_profile.reborrow_sources.is_empty() {
+                // A literal image is a separate alternative and has no
+                // evaluated input borrow. It must not erase the reference a
+                // sibling alternative actually read.
+                if descriptor_profile.immutable_image {
+                    continue;
+                }
                 return refusal("returned projection lost its actual borrowing source");
             }
             for source in facts

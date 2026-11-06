@@ -231,7 +231,7 @@ impl Execution<'_, '_, '_> {
                 .immutable_image = image;
             if let Some((operand, projection)) = supplier {
                 let value = *self.context.control.operands.get(operand);
-                let reborrow_sources = if self
+                let copied_sources = if self
                     .context
                     .control
                     .operand_retentions
@@ -244,6 +244,32 @@ impl Execution<'_, '_, '_> {
                         .reborrow_sources
                 } else {
                     Default::default()
+                };
+                // A direct input reference has no earlier helper projection, so
+                // its retention carries no reborrow row. The field or window
+                // taken from it is still that reference. Record the input and
+                // the new suffix; an empty copy is missing evidence, not an
+                // image or an unknown source.
+                let reborrow_sources = if has_exact_projection
+                    && !image
+                    && copied_sources.is_empty()
+                    && !projection.is_empty()
+                    && validation::reference_shell(self.program, value.type_reference).is_some()
+                {
+                    let suffix = self
+                        .context
+                        .control
+                        .operand_retained_paths
+                        .insert_many(projection.iter().copied());
+                    self.context.control.operand_reborrow_sources.insert_many([
+                        checked_trees::FlowOperandReborrowSource {
+                            operand,
+                            source_path: Default::default(),
+                            projection: suffix,
+                        },
+                    ])
+                } else {
+                    copied_sources
                 };
                 let projection = self
                     .context
