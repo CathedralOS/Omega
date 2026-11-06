@@ -108,3 +108,59 @@ its rejection is not evidence that those equations should suffice.
 
 Neither option changes dense payloads, allocator ownership or the requirement to
 transfer actual cells rather than recreate authority from their type and count.
+
+### Q2 - Can one Build call select one provider for many slots or targets?
+
+Decision name: `bulk-provider-selection`.
+
+**Customer.** Every compile checks and runs core's
+[build program](source/library/core/build.omg) before anything that depends on
+it can start. That program makes 104 `Build::select_provider` calls. 98 of them
+sit in `configure_float_defaults`, which runs once for each of five targets,
+and 6 in `configure_directed_fma_defaults`. Every call names `NativeFloats`.
+On the quiet Mac (release, one-line `--check`, 8 alternating rounds at
+`ccc4a7caa6f`), swapping that file for one with a single selection cut median
+`build.resolve_sources` from 1,098 ms to 856 ms and whole-process wall from
+3,154 ms to 2,860 ms (-9%). That swap is a lower bound on the saving, not a
+configuration anyone could ship.
+
+**Gap.** [Provider selection](wiki/spec/build/provider_selection.md#declaration-and-choice)
+resolves `Slot` to one exact boundary trait or one package-qualified
+boundary-operator family, and keys each row to one target. Its
+[operator-family rule](wiki/spec/build/provider_selection.md#operator-families-and-indexed-requirements)
+covers every overload of one family, such as `Float::add`, atomically. It also
+rules out hidden per-coordinate overrides. No contract lets one selection cover
+several distinct requirements (`F32::negate`, `F64::square_root_toward_zero`,
+...) or several targets. `NativeFloats satisfies FloatNativeOperations`, but
+`FloatNativeOperations` is an ordinary trait whose requirements are separate
+slots, so selecting it would not record the `Float::*` rows. The spec also says
+that overrides "retain authored selection identity/order". A bulk form would
+therefore need a defined expansion order.
+
+**Audit.** The typed lowering
+(`03_.../expressions/build_selections.rs`) accepts only
+`select_provider<Slot, Provider>(builder, target[, mode])`. Each call lowers to
+three checked calls: `prepare`, `build_selection_target` and `select_provider`.
+Omega has no loop that iterates static slot operands. A generic helper over
+`Op` would still need one call site per operation. No ordinary rewrite of the
+file records the same rows with fewer checked calls.
+
+**Options.**
+
+- Add a target-set form, for example
+  `Build::select_provider<Slot, Provider>(builder, [targets])`. It records the
+  same per-target rows in the listed order and cuts the target dimension only.
+  The 98 operation calls already appear once in source, so most of the measured
+  saving remains unreached.
+- Let a selection name the provider for every boundary requirement it
+  satisfies, for example `Build::select_satisfied<NativeFloats>(builder, target)`.
+  This expands to one row per `satisfies` clause, in canonical requirement
+  order. It reaches nearly all of the measured saving, but adds a rule that
+  derives slots from a provider's declarations.
+- Keep the surface and make each `select_provider` call cheaper to check. This
+  is implementation work and needs no ruling. Answering "no" to both forms
+  above leaves only this route.
+
+Under any option, each requirement still records its own row for each target.
+No option changes `Float` meaning or lets a provider replace primitive operator
+semantics.
