@@ -3,6 +3,7 @@ use crate::data::{MachineParameterContract, TypeParameterKind};
 use crate::name::Identifier;
 use crate::signature::StateSignature;
 use crate::{FrozenTypedTrees, TypedTrees};
+use symbols::SymbolHandle;
 
 fn parameter(symbol: SymbolHandle, name: &str, kind: TypeParameterKind) -> TypeParameter {
     TypeParameter {
