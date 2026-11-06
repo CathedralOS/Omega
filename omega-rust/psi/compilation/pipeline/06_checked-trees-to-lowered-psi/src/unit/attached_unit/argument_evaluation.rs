@@ -903,20 +903,16 @@ impl Evaluation {
             let producer = producers.next().ok_or(LoweringError::Unsupported(
                 "linear local has no exact completed call result",
             ))?;
-            if producers.next().is_some() {
-                return unsupported("linear local has more than one emitted value producer");
-            }
-            if produced.claims.is_empty() {
-                return unsupported("linear call result has no recorded ownership claims");
-            }
-            if !operations.source_calls.iter().any(|occurrence| {
-                occurrence.origin.statement().is_some_and(|site| {
-                    site.state == state && site.statement_index == result.statement_index as usize
-                }) && occurrence.terminal_site.operation() == Some(producer.id)
-            }) {
-                return unsupported(
-                    "linear local has no completed source call matching its emitted value",
-                );
+            if producers.next().is_some()
+                || produced.claims.is_empty()
+                || !operations.source_calls.iter().any(|occurrence| {
+                    occurrence.origin.statement().is_some_and(|site| {
+                        site.state == state
+                            && site.statement_index == result.statement_index as usize
+                    }) && occurrence.terminal_site.operation() == Some(producer.id)
+                })
+            {
+                return unsupported("linear local lost its exact call result custody");
             }
         }
         self.current_claims

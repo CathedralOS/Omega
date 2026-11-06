@@ -162,8 +162,7 @@ fn claim_path_is_inactive(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
-    identities: &terminal_psi::TerminalIdentityTable,
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    unit: &optimization_unit::PsiOptimizationUnit,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -174,12 +173,14 @@ pub(super) fn validate_current_ownership_cfg(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &mut super::CallAccesses,
     entry: CurrentOwnership,
-    psi: terminal_psi::TerminalPsiIdentity,
     facts: &mut Vec<OwnershipFrontierFact>,
 ) -> Result<
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
 > {
+    let identities = &unit.identities;
+    let dynamic_dispatch = &unit.dynamic_dispatch;
+    let psi = unit.psi;
     let pins = super::address_joins::AddressJoinPins::new(
         function,
         functions,
@@ -229,7 +230,7 @@ pub(super) fn validate_current_ownership_cfg(
             };
             let value_use = super::value_custody::ValueUse {
                 function,
-                types: structural_types,
+                types: &unit.structural_types,
                 block: block_id,
                 node: node_index,
                 admitted_case: &admitted_case,

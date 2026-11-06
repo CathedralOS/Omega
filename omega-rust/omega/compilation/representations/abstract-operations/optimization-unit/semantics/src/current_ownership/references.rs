@@ -7,6 +7,7 @@
 
 use super::address_joins::borrowed_regions::BorrowedReferenceSources;
 use crate::OptimizationUnitValidationError;
+use crate::structural_types::StructuralTypes;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
@@ -330,7 +331,7 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
 /// contract rejects that shape separately.
 pub(super) fn window_hole(
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &(impl StructuralTypes + ?Sized),
     place: PlaceId,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -349,7 +350,7 @@ pub(super) fn window_hole(
         (root, path)
     };
     let projection = terminal_semantics::structural_window_projection(
-        types.values().copied(),
+        types.declarations(),
         geometry_root,
         suffix,
         field,

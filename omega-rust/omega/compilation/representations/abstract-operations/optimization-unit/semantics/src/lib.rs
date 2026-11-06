@@ -25,6 +25,7 @@ mod current_ownership;
 mod current_value_ranges;
 pub mod descriptor_results;
 mod error;
+mod structural_types;
 mod unit_validation;
 
 pub use error::{OperationSite, OptimizationUnitValidationError};

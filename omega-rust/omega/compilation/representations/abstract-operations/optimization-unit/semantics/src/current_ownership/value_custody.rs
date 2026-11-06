@@ -2,13 +2,13 @@
 //! the owned value installed there. Observation can use an enclosing nominal
 //! owner; moving a subtree must transfer that subtree's exact identities.
 use super::{CurrentOwnership, LiveClaim};
+use crate::structural_types::StructuralTypes;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::StructuralWindowRoot;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralTypeId};
-use std::collections::BTreeMap;
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeDeclaration,
@@ -16,7 +16,7 @@ use terminal_psi::{
 
 pub(super) struct ValueUse<'a> {
     pub function: &'a PsiOptimizationFunction,
-    pub types: &'a BTreeMap<StructuralTypeId, &'a StructuralTypeDeclaration>,
+    pub types: &'a [StructuralTypeDeclaration],
     pub block: BlockId,
     pub node: u32,
     pub admitted_case: &'a dyn Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
@@ -76,7 +76,7 @@ impl ValueUse<'_> {
             return Err(self.refusal(place, "owned value claim has no exact linear multiplicity"));
         }
         terminal_semantics::owned_structure::validate_owned_claim_frontier(
-            &|identity| self.types.get(&identity).copied(),
+            &|identity| self.types.declaration(identity),
             selected,
             path,
             claims.map(|claim| claim.path.clone()),
@@ -95,7 +95,7 @@ impl ValueUse<'_> {
         })?;
         if root.access != StructuralAccess::Owned
             || !terminal_semantics::projection_stays_in_inline_storage(
-                self.types.values().copied(),
+                self.types.iter(),
                 root.structural_type,
                 &argument.path,
             )
@@ -121,7 +121,7 @@ impl ValueUse<'_> {
             ));
         }
         let selected = terminal_semantics::runtime_structural_path_tip(
-            self.types.values().copied(),
+            self.types.iter(),
             root.structural_type,
             &argument.path,
         )
@@ -177,7 +177,7 @@ impl ValueUse<'_> {
                 continue;
             }
             if !terminal_semantics::projection_stays_in_inline_storage(
-                self.types.values().copied(),
+                self.types.iter(),
                 root.structural_type,
                 prefix,
             ) {
@@ -186,7 +186,7 @@ impl ValueUse<'_> {
                 return Ok(());
             }
             let Some(selected) = terminal_semantics::runtime_structural_path_tip(
-                self.types.values().copied(),
+                self.types.iter(),
                 root.structural_type,
                 prefix,
             ) else {
@@ -349,7 +349,7 @@ impl ValueUse<'_> {
         .ok_or_else(|| self.refusal(destination.place(), "store has no exact receiving window"))?;
         let owned = destination.parameter().is_none()
             && terminal_semantics::projection_stays_in_inline_storage(
-                self.types.values().copied(),
+                self.types.iter(),
                 destination.structural_type(),
                 &hole,
             );
