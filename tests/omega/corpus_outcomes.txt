@@ -18284,8 +18284,9 @@ fail/termination/increasing_unbounded_rejected rejected 3651ms expected @898dd1b
 	machine call cycle: `Main::climb` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/joint_machine_call_cycle_stalled rejected 1990ms expected @ccdb99ca2214
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/joint_rankless_finish_reenters_component rejected 2051ms unexpected @ccdb99ca2214
-	machine call cycle: `left`, `finish`, `right` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/joint_rankless_finish_reenters_component rejected 6121ms expected @115214e561b4
+	terminating machine left: cannot prove rank range `0..=9` for the rank produced by the selected view
+	machine call cycle: `left`, `finish`, `right` -- a private member has no compatible natural rank input; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/lexicographic_component_zero_step_rejected rejected 2176ms expected @ccdb99ca2214
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- ranking preservation or strict DECREASE is unproven at a call site; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/measure_field_arrival_contract rejected 4978ms expected @8ff88b9df484
