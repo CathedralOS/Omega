@@ -2363,7 +2363,7 @@ fail/build/retired_service_exclusion_receiver rejected 2ms expected @ccdb99ca221
 	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
 fail/build/retired_wire_compatibility_receiver rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
-fail/build/root_binding_descriptor_helper_invocation rejected 161ms expected @2fc408782574
+fail/build/root_binding_descriptor_helper_invocation rejected 104ms expected @45a5c677e255
 	machine `choose` omits `invokes Probe` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 	machine `choose` omits `invokes BuildProductOperations` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [])
 fail/build/root_binding_fabricated_receiver rejected 68ms expected @ccdb99ca2214
@@ -18832,7 +18832,7 @@ fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c7
 	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
 fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
 	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
-fail/traits/inherited_nominal_requirement_wrong_application rejected 544ms expected @26231d1dbd74+wt
+fail/traits/inherited_nominal_requirement_wrong_application rejected 448ms expected @45a5c677e255
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
@@ -19885,7 +19885,7 @@ pass/build/provider_nested_type_application_exit checked 4739ms check-target:mac
 pass/build/provider_package_default_exit checked 3805ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match provider-choice-controls:match terminal-inspections:match @867738eb9535+wt
 pass/build/provider_package_default_override_exit checked 4951ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_package_generated_owner_exit checked 5691ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/build/provider_package_helper_exit checked 4672ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/build/provider_package_helper_exit checked 4626ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45a5c677e255
 pass/build/provider_selection_cross_file_author_exit checked 4881ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_structural_type_application_exit checked 5285ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/build/provider_target_value_forwarding_exit checked 3407ms check-target:macos_arm64 @ccdb99ca2214
@@ -28034,9 +28034,9 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/inherited_nominal_requirement_application_exit checked 3538ms check-target:macos_arm64 @26231d1dbd74+wt
+pass/traits/inherited_nominal_requirement_application_exit checked 2542ms check-target:macos_arm64 @45a5c677e255
 pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
-pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_exit checked 2546ms check-target:macos_arm64 @45a5c677e255
 pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214

@@ -2021,6 +2021,8 @@ pass/text/state_parameter_byte_replacement_exit built 4541ms exit:70 interpreter
 pass/time/runtime_fs_mtime_system_time_interop_exit timeout 120002ms @0d0998b4be90
 pass/time/runtime_time_elapsed_since_exit timeout 120003ms @0d0998b4be90
 pass/time/static_duration_accessors timeout 120005ms @0d0998b4be90
+pass/traits/inherited_nominal_requirement_application_exit built 2678ms exit:0 interpreter-exit:0 interpreter:agrees @45a5c677e255
+pass/traits/inherited_nominal_requirement_exit built 2755ms exit:0 interpreter-exit:0 interpreter:agrees @45a5c677e255
 pass/traits/private_generic_requirement_owned_exit built 2366ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/traits/public_method_callback_prefix_inference_exit built 2181ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/traits/public_method_const_prefix_inference_exit built 2458ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
@@ -2353,7 +2355,7 @@ pass/build/product_selection_helper_exit built 1003ms exit:0 interpreter-exit:0 
 pass/build/provider_package_default_exit built 2559ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
 pass/build/provider_package_default_override_exit built 2488ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
 pass/build/provider_package_generated_owner_exit built 2550ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
-pass/build/provider_package_helper_exit built 2303ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
+pass/build/provider_package_helper_exit built 4593ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @45a5c677e255
 pass/build/provider_selection_cross_file_author_exit built 2064ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @85ebedb7befa
 pass/build/provider_target_value_forwarding_exit built 2937ms exit:0 interpreter-exit:0 interpreter:agrees @13c576a20f04
 pass/build/receiver_view_writeback_exit built 4759ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.configure_build_boundary:unrequested terminal-inspections:match @5f1191d43438+wt
