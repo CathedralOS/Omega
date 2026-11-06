@@ -200,6 +200,8 @@ jobs:
                           process.wait(timeout=1800)
                   summary['compiler_check_exit'] = process.returncode
                   assert process.returncode == 0, 'standard compiler-check failed'
+                  with Path(os.environ['GITHUB_OUTPUT']).open('a') as output_record:
+                      output_record.write('compiler_checked=true\n')
                   producer = compiler_pilot.prepare_producer(output, need_runner=True)
                   summary.update(candidate=producer.revision, tree=producer.tree, target=producer.target,
                                  toolchain=producer.toolchain, producer=producer.record(), passed=True)
@@ -278,7 +280,7 @@ jobs:
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
       - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && (steps.compiler-check.outcome == 'success' || steps.source-diagnostic-chain.outputs.compiler_checked == 'true') && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
