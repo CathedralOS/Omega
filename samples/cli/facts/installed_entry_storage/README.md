@@ -118,9 +118,10 @@ after four register arguments. Only occurrence four changes its transmit byte to
 Linux ARM64 uses the same exact-allocation lifecycle and AAPCS64 X0–X7 pointer
 placement, with Linux write and exit-group syscalls and an independent final-byte
 reader. Qualification records distinguish named QEMU/PRoot execution on Linux x86-64
-from physical ARM hardware execution. The current macOS ARM64 run below validates this row. Current Windows x86-64
-and Linux ARM64 migration execution remains unverified. Unsupported native placements still refuse explicitly. This
-is private hosted RAM, not a device-provider or Atomic establishment claim.
+from physical ARM hardware execution. The current macOS ARM64 run below observes these
+existing programs. Current Windows x86-64 and Linux ARM64 migration execution remains
+unverified. Unsupported native placements still refuse explicitly. This is private
+hosted RAM, not a device-provider or Atomic establishment claim.
 
 The companion [free local-state row](../free_entry_local_state/README.md) proves
 ordinary local ownership and executable cleanup without supplied parameters. [Applied
@@ -142,20 +143,20 @@ original compiler preparation. These are measurements of the listed compiler
 and program sources, rather than execution of a newer main revision.
 
 The qualification runs keep the 120-second corpus limit and the ordinary sample gate's
-300-second limit per CLI call, with one worker and profiling off. All nine Mac invalid samples
-reject at the consuming `code == 9` requirement. The diagnostic repair adds
+300-second limit per CLI call, with one worker and profiling off. All nine Mac invalid
+samples reject at the consuming `code == 9` requirement. The diagnostic repair adds
 requires-contract context without changing any checking decision or removing the
 previous message.
 
 For Linux x86-64, the other eight places and storage controls retain their actual
-original baseline observations. Their authored inputs are unchanged; the compiler change only adds text to
-a diagnostic after a precondition is already refuted. It changes no accepted result,
-storage geometry, access, runtime code or backing observation. These retained
-measurements remain measurements of compiler `0b53c8a4e109`, rather than execution of
-the final source.
+original baseline observations. Their authored inputs are unchanged; the compiler change
+only adds text to a diagnostic after a precondition is already refuted. It changes no
+accepted result, storage geometry, access, runtime code or backing observation. These
+retained measurements remain measurements of compiler `0b53c8a4e109`, rather than
+execution of the final source.
 
 Current matching-host validation of this migration on Windows x86-64 and Linux ARM64
-remains open. The historical host observations above do not establish
-current execution. The invalid examples still lack corresponding corpus tests. The
-broader Build-owned selection requirement, including distinct per-target behavior from
-one portable artifact, also remains open.
+remains open. The historical host observations above do not establish current execution.
+The invalid examples still lack corresponding corpus tests. The broader Build-owned
+selection requirement, including distinct per-target behavior from one portable
+artifact, also remains open.
