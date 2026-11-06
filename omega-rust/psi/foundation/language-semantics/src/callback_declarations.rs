@@ -73,6 +73,10 @@ pub struct CallbackDeclaration<'usage> {
 /// boundary projections retain a refusal until an ABI application is requested.
 pub const BOUNDARY_NATIVE_PARAMETER_CAPACITY: usize = 32;
 
+/// A single runtime argument can contain several private callback slots. Keep
+/// their calling-policy capacity independent of the native argument limit.
+pub const BOUNDARY_CALLBACK_CAPACITY: usize = 64;
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct BoundaryTelescope {
     pub parameters: Vec<BoundaryRuntimeFormal>,
