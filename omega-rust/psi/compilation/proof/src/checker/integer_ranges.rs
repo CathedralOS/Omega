@@ -8,8 +8,8 @@ use crate::checker::guards::{
 use crate::checker::requires_conditions;
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
-    BoundedTransitionArgumentObligation, IntegerRange, ProofConstraint, ProofPlan,
-    declared_integer_range, integer_binary_range,
+    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
+    ProofConstraint, ProofPlan, declared_integer_range, integer_binary_range,
 };
 use crate::typed_expressions::{dehoisted_operand, expression_table};
 use arena::HandleSpan;
