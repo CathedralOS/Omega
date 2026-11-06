@@ -343,8 +343,8 @@ fn structural_frontier_return_source(
             }
             if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(
-                    "STRUCT returned-lifetime-unmatched result_type={} result_path={:?} result_region={:?} inputs={:?}",
-                    program.type_reference_table.display_name(output.reference),
+                    "STRUCT returned-lifetime-unmatched result_reference={:?} result_path={:?} result_region={:?} inputs={:?}",
+                    output.reference,
                     output.owner_path,
                     output.lifetime,
                     inputs
