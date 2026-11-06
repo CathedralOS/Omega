@@ -1,0 +1,28 @@
+// Expected exit: 0. A public disjunction yields its case only when the scalar sibling is false.
+public data Choice { case Cell(value: u32); case Empty; }
+
+public machine choose(flag: bool) -> Choice
+ensures ((result in Choice::Cell) || flag) || (flag && false)
+{
+    transition flag {
+        true -> Choice::Empty {}
+        false -> Choice::Cell { value: 3 }
+    }
+}
+
+public machine demand_cell(choice: &Choice) -> u32
+requires choice in Choice::Cell
+{
+    choice.value
+}
+
+machine main() crashes Trap {
+    let choice: Choice = choose(true);
+    let value: u32 = demand_cell(&choice);
+    transition value == 3 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
