@@ -66,18 +66,17 @@ pub fn normal_exit_proves(
                     )
                 }
                 NormalExitCompletion::Transition(target) => {
-                    let Some(typed_trees::statement::StatementNode::Transition(transition)) =
-                        program.statement_table.statement_at(state, statement_index)
-                    else {
-                        return false;
-                    };
-                    if transition.exit != typed_trees::statement::TransitionExit::Ordinary
-                        || target != transition.target
-                        || !program.statement_table.transition_target_is_valid(target)
-                    {
-                        return false;
+                    match program.statement_table.statement_at(state, statement_index) {
+                        Some(typed_trees::statement::StatementNode::Transition(transition))
+                            if transition.exit
+                                == typed_trees::statement::TransitionExit::Ordinary
+                                && target == transition.target
+                                && program.statement_table.transition_target_is_valid(target) =>
+                        {
+                            true
+                        }
+                        _ => return false,
                     }
-                    true
                 }
             },
         },
