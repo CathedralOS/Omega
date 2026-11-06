@@ -3,12 +3,14 @@
 A match selects one of two references, the join records that reference, and the consumer reads
 through the recorded reference.
 
-The current compiler rejects this row's root and all nine positive places at
+The baseline compiler rejects this row's root and all nine positive places at
 `read_through`'s `place == 17` requirement. These refusals were observed on
 2026-11-05 with optimized macOS ARM64 producer
 `64376af6ae978b4ddb2d2d50874724226ccb0646`; the sources still use 17 and 5.
-The execution claims below describe earlier observations, not current validation.
-The repair and the Build-selection migration remain under validation.
+The compiler change and the Build-selection migration remain under validation.
+The nested-machine twin also retains an older diagnostic expectation naming
+`main`/`pick`; this producer reports `pick`/`entry`. That mismatch remains open,
+and the twin does not count as passing.
 
 `choose()` is declared `ensures result == true`, so the join is taken on its true arm, and the
 consumer `read_through` requires `place == 17`. Exit 0 therefore holds exactly when the join
@@ -19,6 +21,11 @@ Every place copies that fact and performs the same operation on the same bound �
 two candidate references followed by `read_through(joined)`, transitioning to `done()` only when
 the observed value is 17. Only the transport of the two candidate references, and of the values
 they name, changes.
+
+The four target providers perform the same operation. They demonstrate reference
+transport through Build-selected implementations. Distinct operating-system
+behavior remains outside this row's evidence.
+
 ## Places
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
@@ -38,8 +45,8 @@ they name, changes.
 
 Every positive place, and the row's root `main.omg`, binds `ProgramEntry` for all four hosted
 targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and declares
-`Expected exit: 0`. `omega run --both` reports Terminal Psi interpreter and native agreement
-(`interp exit: 0` and `native exit 0`) for each:
+`Expected exit: 0`. Acceptance requires `omega run --both` to report Terminal Psi
+interpreter and native agreement (`interp exit: 0` and `native exit 0`) for each:
 
 ```sh
 omega run --both samples/cli/facts/match_reference_referent/main.omg
@@ -73,7 +80,7 @@ construct's own input or selection, and checking fails closed during compile-tim
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the join selects `spare_ref` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare_ref, false => chosen_ref } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 | a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `pick`'s join selects `spare` on the true arm | `cannot prove requires contract for call read_through from main: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `pick`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `apply`'s join selects `spare` on the true arm | `cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body's join selects `spare` on the true arm | `cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | the selected provider passes both references to `apply`, whose join selects `spare` on the true arm | `cannot prove requires contract for call read_through from apply: match choose() { true => spare, false => chosen } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`` |
 
 ## Pinned Fixtures
 
@@ -99,32 +106,32 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
   with interpreter agreement. This row supplies the reference-referent part of that acceptance.
 
 1. **Establishment:** `choose()`'s `ensures result == true` establishes which arm of the join is
-   taken; the referee's value is established where it originates (`let chosen: i64 = 17`, a
+   taken; the referent's value is established where it originates (`let chosen: i64 = 17`, a
    `measure_chosen()` call result whose contract carries `17`, a `CHOSEN` constant, or a
    `match true` join) and is never established by a caller equality guard.
 2. **Identity and lifetime:** the join records one exact referent; the recorded reference is read
-   through once, before any write to the referee, and the twin shows that the *other* candidate
+   through once, before any write to the referent, and the twin shows that the *other* candidate
    cannot satisfy the consumer's requirement.
 3. **Composition:** the join composes with local bindings, record fields, parameters, call
-   results, match joins, constants, a successor machine, a forwarding machine and four target
-   bodies; `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the construct's own
+   results, match joins, constants, a nested helper, a forwarding helper and four Build-selected
+   providers; `<place>/main.omg` and `<place>/invalid/main.omg` differ only in the construct's own
    selection (which candidate the true arm names).
 4. **Soundness boundaries:** every twin rejects during proof checking with
    ``cannot prove requires contract for call read_through …``; the recorded referent is not
-   widened to "either candidate", and ownership/access of the borrowed referees is preserved.
-5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the join, the borrow of each candidate and
-   the consumer call lower without loss into Terminal Psi; the Terminal interpreter agrees with
-   native execution on all nine places plus the root (`omega run --both`).
+   widened to "either candidate", and ownership/access of the borrowed referents is preserved.
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** acceptance requires the join, both candidate
+   borrows and the consumer call to reach Terminal Psi, with interpreter and native agreement on
+   all nine places plus the root (`omega run --both`).
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** each place
    binds `ProgramEntry` for the four hosted targets and passes the reference (a single machine
    word) through the calling plan; the root and all places declare `Expected exit: 0`.
 7. **Instruction selection, register homes, activation frame realization (`Omega 03–06`):** the
-   join's arm selection and the recorded reference lower to target instructions per target body
-   family with register homes for the reference and the read-through result.
+   join's arm selection and the recorded reference must reach target instructions in each
+   selected implementation, with register homes for the reference and the read-through result.
 8. **Form encoding, branch relaxation, relocations, native image emission (`Omega 07–09` +
-   emission):** the fixtures publish PE/ELF/Mach-O images that execute with exit 0 and agree with
-   Terminal Psi; `tests/omega/pass/facts/match_reference_referent_through_*_exit`
-   carry `expected_native_exit.txt` `0` and are recorded in the host's native golden.
+   emission):** acceptance requires actual PE/ELF/Mach-O execution with exit 0 and agreement with
+   Terminal Psi. The existing `tests/omega/pass/facts/match_reference_referent_through_*_exit`
+   fixtures retain `expected_native_exit.txt` `0`; current execution records remain pending.
 
 ## Open items
 
