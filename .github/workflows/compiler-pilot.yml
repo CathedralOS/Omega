@@ -1,4 +1,4 @@
-name: Qualify integrated installed-entry copies and query effects on four hosts
+name: Qualify shared observed-value comparisons for installed-entry on Linux
 on:
   workflow_dispatch:
 permissions:
@@ -10,20 +10,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - host: linux_arm64
-            runner: ubuntu-24.04-arm
-            minutes: 90
-            target_dir: /tmp/ot
           - host: linux_x86_64
             runner: ubuntu-24.04
-            minutes: 90
-            target_dir: /tmp/ot
-          - host: windows_x86_64
-            runner: windows-2022
-            minutes: 120
-            target_dir: D:/ot
-          - host: macos_arm64
-            runner: macos-15
             minutes: 90
             target_dir: /tmp/ot
     runs-on: ${{ matrix.runner }}
@@ -72,7 +60,7 @@ jobs:
               'matched_key':'${{ steps.build-cache.outputs.cache-matched-key }}',
               'exact_hit':'${{ steps.build-cache.outputs.cache-hit }}',
               'policy':'Normal current-ref/default-main lookup only. A miss permits the explicitly declared fresh hosted build; no retained binary is relabeled.'},indent=2)+chr(10))
-      - name: Build one optimized producer and retain the six prior backend test observations
+      - name: Build one optimized compiler and retain prior instruction-selection and spill observations
         id: producer-preparation
         run: python .github/run_installed_entry_missing_hosts.py prepare
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -92,13 +80,13 @@ jobs:
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
-      - name: Observe all thirty-one source checks and twenty real engine pairs
+      - name: Observe forty-six source checks and twenty real engine pairs
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: python .github/run_installed_entry_missing_hosts.py corpus
       - name: Grade the original limit for every source and execution observation
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: python .github/run_installed_entry_missing_hosts.py budgets
-      - name: Observe ten ordinary sample programs and nine unchanged reject controls
+      - name: Observe installed-entry and saved-byte sample programs and reject controls
         if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
         run: python .github/run_installed_entry_missing_hosts.py samples
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

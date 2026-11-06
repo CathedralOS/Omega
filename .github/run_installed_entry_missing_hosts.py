@@ -36,9 +36,11 @@ assert os.environ['OMEGA_CORPUS_FIXTURE_SECS'] == '120'
 assert os.environ['OMEGA_CORPUS_JOBS'] == '1'
 assert not os.environ.get('OMEGA_PHASE_PROFILE')
 positive, negative = select_fixtures(','.join(recipe['source_checks']))
-assert len(positive) == 20 and len(negative) == 11
-assert positive == tuple(recipe['both'])
-assert len(recipe['samples']) == 19
+assert len(positive) == 26 and len(negative) == 20
+checking_only = tuple(fixture for fixture in positive if fixture not in recipe['both'])
+positive = tuple(recipe['both'])
+assert len(positive) == 20 and checking_only == tuple(recipe['checking_only']) and len(checking_only) == 6
+assert len(recipe['samples']) == 37
 assert set(select_samples(manifest['sample_root'])) == set(recipe['samples'])
 name = 'installed-entry-' + host
 output = R / 'build' / name
@@ -62,7 +64,7 @@ if args.phase == 'preflight':
 elif args.phase == 'prepare':
     import build_slot
     with build_slot.hold(R):
-        result = run_suite(name, positive, negative, checking_only=(), phase='prepare')
+        result = run_suite(name, positive, negative, checking_only=checking_only, phase='prepare')
         if result == 0:
             # Preserve a useful successful compiler/cache even if a later unit
             # command fails. Consumers still require the whole step to pass.
@@ -71,13 +73,13 @@ elif args.phase == 'prepare':
             (output / 'retained-structural-tests.json').write_text(json.dumps(recipe['retained_test_execution'], indent=2) + '\n')
     raise SystemExit(result)
 elif args.phase == 'corpus':
-    raise SystemExit(run_suite(name, positive, negative, checking_only=(), phase='consume'))
+    raise SystemExit(run_suite(name, positive, negative, checking_only=checking_only, phase='consume'))
 elif args.phase == 'budgets':
     checking = json.loads((output / 'checking.json').read_text())
     both = json.loads((output / 'both.json').read_text())
     assert {row['fixture'] for row in checking['observations']} == set(recipe['source_checks'])
     assert {row['fixture'] for row in both['observations']} == set(recipe['both'])
-    assert len(checking['observations']) == 31 and len(both['observations']) == 20
+    assert len(checking['observations']) == 46 and len(both['observations']) == 20
     passed = all(type(row.get('millis')) is int and 0 <= row['millis'] <= 120000
                  for report in (checking, both) for row in report['observations'])
     (output / 'budgets.json').write_text(json.dumps(dict(
@@ -92,7 +94,7 @@ else:
                '--output', str(output / 'samples')]
     result = subprocess.run(command, stdin=subprocess.DEVNULL)
     rows = json.loads((output / 'samples/samples.json').read_text())
-    assert len(rows) == 19 and {row['sample'] for row in rows} == set(recipe['samples'])
+    assert len(rows) == 37 and {row['sample'] for row in rows} == set(recipe['samples'])
     assert all(row['state'] == ('rejected' if row['sample'].endswith('/invalid') else 'pass')
                for row in rows)
     raise SystemExit(result.returncode)

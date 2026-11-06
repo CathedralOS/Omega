@@ -1,24 +1,9 @@
 {
-  "schema": "omega-installed-entry-integrated-query-copy-validation-v1",
+  "schema": "omega-installed-entry-shared-guard-linux-validation-v1",
   "fixed_published_source": "43c8f36b15697ba9db3bec4cb6f7c8ee9dd9d5df",
   "hosts": {
-    "linux_arm64": {
-      "runner": "ubuntu-24.04-arm",
-      "job_minutes": 90,
-      "target_dir": "/tmp/ot"
-    },
     "linux_x86_64": {
       "runner": "ubuntu-24.04",
-      "job_minutes": 90,
-      "target_dir": "/tmp/ot"
-    },
-    "windows_x86_64": {
-      "runner": "windows-2022",
-      "job_minutes": 120,
-      "target_dir": "D:/ot"
-    },
-    "macos_arm64": {
-      "runner": "macos-15",
       "job_minutes": 90,
       "target_dir": "/tmp/ot"
     }
@@ -54,7 +39,22 @@
     "pass/types/storage_address_core_name_shadowed_exit",
     "fail/slices/saved_byte_predicate_operand_overlap",
     "fail/layouts/data_layout_query_value_argument",
-    "fail/types/storage_address_not_portable_boolean"
+    "fail/types/storage_address_not_portable_boolean",
+    "fail/contracts/scalar_copy_guard_after_selector_write",
+    "fail/contracts/scalar_copy_guard_after_source_restore",
+    "fail/contracts/scalar_copy_guard_after_source_write",
+    "fail/contracts/scalar_copy_guard_shadowed_const",
+    "fail/contracts/scalar_copy_guard_shadowed_const_expression",
+    "fail/contracts/scalar_copy_guard_shadowed_const_selector",
+    "fail/contracts/scalar_field_copy_guard_after_destination_write",
+    "fail/contracts/scalar_index_copy_guard_after_destination_selector_write",
+    "fail/slices/saved_byte_predicate_alias_overlap",
+    "pass/proofs/scalar_copy_guard_const_forwarding",
+    "pass/proofs/scalar_copy_guard_disjoint_write",
+    "pass/proofs/scalar_field_copy_guard",
+    "pass/slices/saved_byte_predicate_alias_disjoint_exit",
+    "pass/slices/saved_byte_predicate_boolean_snapshot_exit",
+    "pass/slices/saved_byte_predicate_fields_disjoint_exit"
   ],
   "both": [
     "pass/facts/installed_entry_storage_through_call_result_exit",
@@ -97,7 +97,25 @@
     "samples/cli/facts/installed_entry_storage/parameter",
     "samples/cli/facts/installed_entry_storage/parameter/invalid",
     "samples/cli/facts/installed_entry_storage/target_body",
-    "samples/cli/facts/installed_entry_storage/target_body/invalid"
+    "samples/cli/facts/installed_entry_storage/target_body/invalid",
+    "samples/cli/facts/saved_byte_predicate/call_result",
+    "samples/cli/facts/saved_byte_predicate/call_result/invalid",
+    "samples/cli/facts/saved_byte_predicate/const_name",
+    "samples/cli/facts/saved_byte_predicate/const_name/invalid",
+    "samples/cli/facts/saved_byte_predicate/field",
+    "samples/cli/facts/saved_byte_predicate/field/invalid",
+    "samples/cli/facts/saved_byte_predicate/local",
+    "samples/cli/facts/saved_byte_predicate/local/invalid",
+    "samples/cli/facts/saved_byte_predicate/match_join",
+    "samples/cli/facts/saved_byte_predicate/match_join/invalid",
+    "samples/cli/facts/saved_byte_predicate/other_machine",
+    "samples/cli/facts/saved_byte_predicate/other_machine/invalid",
+    "samples/cli/facts/saved_byte_predicate/other_state",
+    "samples/cli/facts/saved_byte_predicate/other_state/invalid",
+    "samples/cli/facts/saved_byte_predicate/parameter",
+    "samples/cli/facts/saved_byte_predicate/parameter/invalid",
+    "samples/cli/facts/saved_byte_predicate/target_body",
+    "samples/cli/facts/saved_byte_predicate/target_body/invalid"
   ],
   "limits": {
     "corpus_fixture_seconds": 120,
@@ -105,13 +123,13 @@
     "workers": 1,
     "phase_profile": false
   },
-  "producer_policy": "Exactly one optimized producer per listed native host. Normal current-ref/default-main cache lookup; ARM remains a normal descendant of the existing f717 evidence ref. Actual miss explicitly permits the necessary fresh hosted build. No active-ref borrowing, forced cross-ref cache lookup or old-producer relabel.",
-  "stopping_point": "One integrated four-host qualification: same31Source/20BOTH/19samples and395inputs, only two authored Build entry rosters corrected. Preserve every prior and current failure separately; no automatic retry or parent closure. No extra fixture or test matrix.",
-  "build_estimate": "One hosted optimized CLI+runner preparation per host, each under one build-slot hold. Original90-minute Linux/Mac and120-minute Windows outer job bounds; original120-second corpus and300-second sample-call limits. Six unchanged source-free backend units retained at actual ee357, not repeated per host.",
-  "build_budget_note": "Four necessary matching producers cover the new cross-ISA copy path and actual incoming common ownership/return consumers; no standalone check, unrelated workload or local Rust build.",
-  "semantic_source": "8e2d8b56d56533828054418405fef3fd2c26725f",
-  "observer_parent": "8e2d8b56d56533828054418405fef3fd2c26725f",
-  "warm_cache_parent": "f717f306c0c99d3d71d498d8c1d9a33ab313fb4a",
+  "producer_policy": "One optimized Linux x86-64 producer. Normal current-evidence/default-main cache lookup only; actual miss permits the explicitly declared fresh hosted build. No active-ref borrowing, old executable reuse, or cross-ref cache lookup.",
+  "stopping_point": "One Linux qualification of 46 Source checks, 20 real native/Terminal pairs and 37 existing sample projects; all original 120/300-second limits remain. Preserve every result, including failure; no automatic retry or parent closure.",
+  "build_estimate": "One hosted optimized CLI+runner preparation under one build-slot hold, estimated 15\u201325 minutes plus 25\u201340 minutes consumers inside the original 90-minute outer Linux bound. Use existing permitted caches; no local build.",
+  "build_budget_note": "The changed shared proof comparison and immutable Boolean query require a new producer. Existing installed-entry and saved-byte fact projects qualify this same outcome, with focused scalar-copy invalid controls. No Rust unit repetition or other-host build is covered.",
+  "semantic_source": "2293cc77cc659f0f3a405172d84afdff07736cfa",
+  "observer_parent": "2293cc77cc659f0f3a405172d84afdff07736cfa",
+  "warm_cache_parent": "f8a4f68a8709f3d0b00d0754a8ad78328a50d971",
   "operation_controls": {
     "positive": [
       "pass/layouts/portable_layout_constant_composition_exit",
@@ -160,8 +178,16 @@
     "source": "ee357443d61244a8a5f27b29383f912e97fc6cbd",
     "audit_sha256": "a283eadac1b3a586b82a9f851941010e16b5152726abfbc5fc69afa8b6798d64",
     "root_review_sha256": "81b3372a79a655cae35b64bcca91092854987b19d4238ecdc50f56dc99aafdef",
-    "claim": "Six backend tests passed only at actual ee357. These direct source-free emission/spill harnesses and all called register/operand consumers remain unchanged; they never call changed Psi or abstract-operation ownership/Terminal return validation. Current integrated compilation is fresh, and runtime common-consumer coverage is fresh on all four hosts. No fresh unit execution is claimed."
+    "claim": "Six instruction-selection and spill checks passed only at actual ee357. Their source-free harnesses and called instruction/register/operand consumers remain unchanged and never call the changed Psi proof comparison or bound Boolean judgment. No fresh unit execution is claimed. Four-host f8 engine observations remain separately retained at actual f8; only this Linux program replay is fresh."
   },
   "rust_tests": [],
-  "original_defect_source": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30"
+  "original_defect_source": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+  "checking_only": [
+    "pass/proofs/scalar_copy_guard_const_forwarding",
+    "pass/proofs/scalar_copy_guard_disjoint_write",
+    "pass/proofs/scalar_field_copy_guard",
+    "pass/slices/saved_byte_predicate_alias_disjoint_exit",
+    "pass/slices/saved_byte_predicate_boolean_snapshot_exit",
+    "pass/slices/saved_byte_predicate_fields_disjoint_exit"
+  ]
 }
