@@ -348,7 +348,10 @@ fn comparison_application(
             ..
         },
         StructuralTerm::Constructor {
-            declaration: Some(declaration),
+            identity:
+                super::structural_judgment::ConstructorIdentity::Nominal {
+                    declaration, case, ..
+                },
             fields,
             ..
         },
@@ -360,8 +363,8 @@ fn comparison_application(
         && result_type.is_valid()
         && selections.is_empty()
         && arguments.len() == 2
-        && declaration.data == carrier.declaration
-        && declaration.case == Some(carrier.base)
+        && *declaration == carrier.declaration
+        && *case == Some(carrier.base)
         && fields.is_empty())
     .then_some((*target, *result_type))
 }
@@ -369,7 +372,7 @@ fn comparison_application(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proof_contracts::contract_entailment::structural_judgment::ConstructorDeclaration;
+    use crate::proof_contracts::contract_entailment::structural_judgment::ConstructorIdentity;
 
     fn comparison() -> (OrdinalCarrier, StructuralTerm, StructuralTerm) {
         let carrier = OrdinalCarrier {
@@ -388,10 +391,13 @@ mod tests {
             ],
         };
         let zero = StructuralTerm::Constructor {
-            declaration: Some(ConstructorDeclaration {
-                data: carrier.declaration,
+            identity: ConstructorIdentity::Nominal {
+                carrier: carrier.identity,
+                reference: carrier.reference,
+                declaration: carrier.declaration,
                 case: Some(carrier.base),
-            }),
+                member: Some(0),
+            },
             data: "Nat".into(),
             case: "Zero".into(),
             fields: Vec::new(),
@@ -432,26 +438,31 @@ mod tests {
     #[test]
     fn computed_order_request_rejects_an_unowned_constructor() {
         let (carrier, application, zero) = comparison();
-        for declaration in [
-            None,
-            Some(ConstructorDeclaration {
-                data: SymbolHandle::from_arena_index(5),
+        for identity in [
+            ConstructorIdentity::Boolean(false),
+            ConstructorIdentity::Nominal {
+                carrier: carrier.identity,
+                reference: carrier.reference,
+                declaration: SymbolHandle::from_arena_index(5),
                 case: Some(carrier.base),
-            }),
-            Some(ConstructorDeclaration {
-                data: carrier.declaration,
+                member: Some(0),
+            },
+            ConstructorIdentity::Nominal {
+                carrier: carrier.identity,
+                reference: carrier.reference,
+                declaration: carrier.declaration,
                 case: Some(SymbolHandle::from_arena_index(6)),
-            }),
+                member: Some(1),
+            },
         ] {
             let mut foreign = zero.clone();
             let StructuralTerm::Constructor {
-                declaration: selected,
-                ..
+                identity: selected, ..
             } = &mut foreign
             else {
                 unreachable!()
             };
-            *selected = declaration;
+            *selected = identity;
             // All variants retain identical printed Nat/Zero names.
             assert!(comparison_application(&application, &foreign, &carrier).is_none());
         }
