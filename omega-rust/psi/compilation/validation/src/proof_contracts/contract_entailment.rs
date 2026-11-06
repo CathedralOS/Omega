@@ -170,7 +170,7 @@ pub(crate) use ranking_range::{
     call_member_premise_symbols, prove_captured_rank_call, prove_ranking_range_call,
 };
 
-pub(crate) use refuted_requires::reject_refuted_value_call_requires;
+pub(crate) use refuted_requires::{CallerEntryJudge, reject_refuted_value_call_requires};
 
 pub(crate) use scoped_arithmetic::{
     ScopedArithmeticBinding, ScopedArithmeticExpression, ScopedArithmeticValue,
