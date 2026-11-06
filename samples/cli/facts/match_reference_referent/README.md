@@ -7,17 +7,26 @@ The baseline compiler rejects this row's root and all nine positive places at
 `read_through`'s `place == 17` requirement. These refusals were observed on
 2026-11-05 with optimized macOS ARM64 producer
 `64376af6ae978b4ddb2d2d50874724226ccb0646`; the sources still use 17 and 5.
-The repaired Linux producer
-`195774d028943e0adfc06e7bee331a9a187da740` runs the root and all nine places
-with native and Terminal Psi exit 0 in
-[run 42138842550](https://github.com/CathedralOS/Omega/actions/runs/42138842550).
-The ordinary target-provider project also passes package admission and both
-engines. All 29 focused negative controls reject, and 28 match their pins.
+Repaired producers run the root and all nine places with native and Terminal
+Psi exit 0 on every hosted target. Each run also observes all 15 corpus
+positives and the ordinary target-provider project at exit 0 on both engines.
+All 29 focused negative controls reject in every run, and 28 match their pins.
+
+| Target | Actual producer | Run |
+| --- | --- | --- |
+| Linux x86-64 | `195774d028943e0adfc06e7bee331a9a187da740` | [42138842550](https://github.com/CathedralOS/Omega/actions/runs/42138842550) |
+| Linux ARM64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145265423](https://github.com/CathedralOS/Omega/actions/runs/42145265423) |
+| macOS ARM64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145219092](https://github.com/CathedralOS/Omega/actions/runs/42145219092) |
+| Windows x86-64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145268258](https://github.com/CathedralOS/Omega/actions/runs/42145268258) |
+
+Both producer revisions use the reviewed compiler source `bb51de149e26`; their
+workflow cache settings differ. The compiler files in this PR differ from the
+tested source only in explanatory comments.
 The nested-machine twin retains an older expectation naming `main`/`pick`;
 the compiler reports `pick`/`entry` for the same missing 17 requirement.
 That expectation is unchanged, the twin does not count as passing, and the row
-remains open. Execution on the other three hosted targets and final review are
-still required.
+remains open. Each run remains failed because of this expectation. Final review
+and normal landing are still required.
 
 `choose()` is declared `ensures result == true`, so the join is taken on its true arm, and the
 consumer `read_through` requires `place == 17`. Exit 0 therefore holds exactly when the join
@@ -147,8 +156,9 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
 8. **Form encoding, branch relaxation, relocations, native image emission (`Omega 07–09` +
    emission):** acceptance requires actual PE/ELF/Mach-O execution with exit 0 and agreement with
    Terminal Psi. The existing `tests/omega/pass/facts/match_reference_referent_through_*_exit`
-   fixtures retain `expected_native_exit.txt` `0`. Linux execution is recorded
-   at producer `195774d02894`; the other hosted executions remain required.
+   fixtures retain `expected_native_exit.txt` `0`. The four matching-host runs
+   above observe native/Terminal agreement for all places. Their failed nested
+   expectation remains unresolved, so these runtime results do not close the row.
 
 ## Open items
 
@@ -191,7 +201,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
   Copying the join result first (`let joined: &i64 = chosen_ref;`) accepts. The `match_join` place
   transports the referent values through joins and keeps the join over local borrows, which is the
   same transport the landed sibling row `facts/match_join_place_read` uses.
-- No requirement above is claimed closed beyond the nine places and nine twins of this row; the
-  parent task's remaining acceptance (write-only joins, runtime-sized element-view selections,
-  computed roots, borrowed-result successor lifecycle) stays open on the board.
+- This row remains open while its nested twin expectation is unresolved. The parent task also
+  retains write-only joins, runtime-sized element-view selections, computed roots and the
+  borrowed-result successor lifecycle on the board.
 
