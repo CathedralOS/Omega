@@ -15054,10 +15054,10 @@ fail/generics/qualified_closed_equation_nominal_conflict rejected 934ms expected
 	generic machine `capacity` requires equation on `Payload` does not hold: the supplied `Payload` argument is not `models::Token`
 fail/generics/qualified_closed_equation_open_constructor rejected 1005ms expected @b23365ced206+wt
 	generic machine `recovered` requires type equation requires a complete constructor argument tuple
-fail/generics/qualified_closed_equation_value_operand rejected 685ms unexpected @b23365ced206+wt
-	static type equality cannot mix a type operand with a runtime value
-fail/generics/qualified_closed_equation_value_reconstruction rejected 535ms unexpected @b23365ced206+wt
-	static type equality cannot mix a type operand with a runtime value
+fail/generics/qualified_closed_equation_value_operand rejected 3000ms expected @84eadc5f4749
+	generic machine `capacity` requires type equation operand `models::COUNT` does not name a closed type
+fail/generics/qualified_closed_equation_value_reconstruction rejected 3014ms expected @84eadc5f4749
+	generic machine `recovered` requires type equation operand `models::COUNT` does not name a closed type
 fail/generics/record_const_distinct_completed_calls rejected 3416ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from selected at statement 0: result >= Required.minimum
 	cannot prove ensures contract for exit from misplaced at statement 1: result >= 7
