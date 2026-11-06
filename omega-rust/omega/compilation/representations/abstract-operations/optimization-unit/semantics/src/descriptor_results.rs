@@ -566,17 +566,32 @@ fn adapt(
                     .payload_scalar_postconditions
                     .insert(position, guarantees);
             }
-            if let O::StructuralScalarFieldStore {
-                destination,
-                path,
-                field,
-                value,
-                ..
-            } = operation
-                && let Some(value) = scalar_expressions.expression(value.value)
+            let scalar_store = match operation {
+                O::WriteOnlyPrimitiveStore {
+                    destination,
+                    path,
+                    value,
+                    ..
+                } => Some((destination.place(), path.as_slice(), None, value.value)),
+                O::StructuralScalarFieldStore {
+                    destination,
+                    path,
+                    field,
+                    value,
+                    ..
+                } => Some((
+                    destination.place(),
+                    path.as_slice(),
+                    Some(*field),
+                    value.value,
+                )),
+                _ => None,
+            };
+            if let Some((destination, path, field, value)) = scalar_store
+                && let Some(value) = scalar_expressions.expression(value)
                 // Runtime selectors keep their typed invalidation below; only
                 // an exact coordinate establishes a new stored scalar fact.
-                && let Some(destination) = location(destination.place(), path, Some(*field))
+                && let Some(destination) = location(destination, path, field)
             {
                 graph
                     .scalar_payload_writes

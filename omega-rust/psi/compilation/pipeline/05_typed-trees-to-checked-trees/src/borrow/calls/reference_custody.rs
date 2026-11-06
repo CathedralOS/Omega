@@ -16,6 +16,7 @@ pub(in crate::borrow) fn append_reference_custody(
     state: &typed_trees::state::State,
     statement_index: usize,
     frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &crate::borrow::loans::ParameterReferentGrants,
     arenas: &mut BorrowFactArenas<'_>,
     calls: arena::HandleSpan<BorrowCallFact>,
     loans: &mut arena::HandleSpan<BorrowLoanFact>,
@@ -176,6 +177,7 @@ pub(in crate::borrow) fn append_reference_custody(
                     statement_index,
                     effects,
                     incoming,
+                    parameter_referents,
                 );
                 for loan in &mut produced {
                     loan.formation_expression = expression;
