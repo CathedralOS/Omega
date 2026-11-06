@@ -540,10 +540,10 @@ fn carried_exclusive_referents(
     Some(referents)
 }
 
-/// Ending an exclusive retained debt exposes storage that its opaque provider
-/// could modify during the loan. Expire old observations at that boundary,
-/// independently of the carrier's reference-free representation or the final
-/// callee's visible descriptor frame. These are invalidation coordinates only.
+/// Completing an opaque retained carrier may expose writes to its backing.
+/// Ending an ordinary reference's input lifetime creates no write: the call's
+/// actual writes have their own frame. Unknown carriers retain the conservative
+/// closing effect. These are invalidation coordinates only.
 pub(super) fn retained_loan_write_regions(
     program: &dyn validation::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -589,6 +589,18 @@ pub(super) fn retained_loan_write_regions(
         if !loan.root.is_valid() {
             return None;
         }
+        let carrier = canonical_place_type_reference(
+            program,
+            state_symbol,
+            call.statement_index,
+            &CanonicalPlace {
+                root: loan.storage_owner,
+                segments: crate::borrow::owner_place_segments(borrow.loan_owner_path(loan)),
+            },
+        );
+        if !carrier_retirement_may_write(program, carrier) {
+            continue;
+        }
         let region = loan_write_region(CanonicalPlace {
             root: loan.root,
             segments: borrow.loan_segments(loan).to_vec(),
@@ -596,6 +608,20 @@ pub(super) fn retained_loan_write_regions(
         push_unique(&mut regions, region);
     }
     Some(regions)
+}
+
+fn carrier_retirement_may_write(
+    program: &dyn validation::CheckingInput,
+    carrier: Option<TypeReferenceHandle>,
+) -> bool {
+    let Some(carrier) = carrier else {
+        return true;
+    };
+    if reference_shell(program, carrier).is_some() {
+        return false;
+    }
+    validation::borrow_contracts::retained_lifetime_owner_paths(program, carrier)
+        .is_none_or(|paths| paths.iter().any(Vec::is_empty))
 }
 
 /// A checked provider-output loan retains its performed identity but names no
@@ -648,4 +674,121 @@ fn owner_path_overlaps(
             ) => true,
             _ => false,
         })
+}
+
+#[cfg(test)]
+mod retirement_effect_tests {
+    use super::*;
+    use arena::HandleSpan;
+    use language_semantics::content::{
+        ContentAlgebraIdentity, ContentPlaceRoot, ContentPlaceVersion, ContentProjectionExpression,
+        ContentProjectionPlan, ContentStructuralPlace,
+    };
+    use language_semantics::{ReferenceAccess, SemanticDomainId};
+    use std::sync::Arc;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::name::Identifier;
+
+    #[test]
+    fn reference_retirement_does_not_invent_an_opaque_carriers_closing_write() {
+        let mut symbols = SymbolTableBuilder::default();
+        let token = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Token"));
+        let domain = symbols.insert_root(SymbolKind::Domain, SymbolNameRef::Static("Retained"));
+        let issuer = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("register"));
+        let unknown = symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
+        let mut program = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let definition = program
+            .data_definitions
+            .insert(typed_trees::data::DataDefinition {
+                symbol: token,
+                name: Identifier::from("Token"),
+                lifetime_parameters: vec![Identifier::from("source")],
+                ..Default::default()
+            });
+        program.roots.data_definitions = HandleSpan::from_parts(definition, 1);
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol: token,
+                base_name: Identifier::from("Token"),
+                lifetime_arguments: vec![Identifier::from("source")],
+                arguments: HandleSpan::empty(),
+            });
+        let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        let unknown = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: unknown,
+                name: Identifier::from("T"),
+            });
+        let references = [
+            ReferenceAccess::Shared,
+            ReferenceAccess::Mutable,
+            ReferenceAccess::WriteOnly,
+        ]
+        .map(|access| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: carrier,
+                    access,
+                    lifetime: Some(Identifier::from("source")),
+                })
+        });
+        let projection = ContentProjectionPlan {
+            domain,
+            semantic_domain: SemanticDomainId::NULL,
+            carrier_identity: "Token".to_owned(),
+            machine: issuer,
+            algebra: ContentAlgebraIdentity::IntervalSet {
+                coordinate_space: "bytes".to_owned(),
+            },
+            expression: ContentProjectionExpression::IntervalSet {
+                members: Vec::new(),
+            },
+            report_fingerprint: 0,
+        };
+        let context =
+            validation::CheckingContext::new(&program).with_retained_borrow_custodies(Arc::from([
+                checked_trees::RetainedBorrowCustodyFact {
+                    callable: issuer,
+                    source: ContentStructuralPlace {
+                        version: ContentPlaceVersion::Entry,
+                        root: ContentPlaceRoot::Parameter {
+                            position: 0,
+                            symbol: token,
+                            name: "source".to_owned(),
+                        },
+                        segments: Vec::new(),
+                    },
+                    result: ContentStructuralPlace {
+                        version: ContentPlaceVersion::Current,
+                        root: ContentPlaceRoot::Result,
+                        segments: Vec::new(),
+                    },
+                    access: ReferenceAccess::Mutable,
+                    lifetime: Identifier::from("source"),
+                    callable_lifetime_parameter_ordinal: 0,
+                    result_data: token,
+                    result_lifetime_argument_ordinal: 0,
+                    retained_semantic_domain: SemanticDomainId::NULL,
+                    source_projection: projection.clone(),
+                    result_projection: projection,
+                },
+            ]));
+        assert_eq!(
+            validation::borrow_contracts::retained_lifetime_owner_paths(&context, carrier),
+            Some(vec![Vec::new()])
+        );
+        assert!(carrier_retirement_may_write(&context, Some(carrier)));
+        for reference in references {
+            assert!(!carrier_retirement_may_write(&context, Some(reference)));
+        }
+        assert!(!carrier_retirement_may_write(&context, Some(unit)));
+        assert!(carrier_retirement_may_write(&context, Some(unknown)));
+        assert!(carrier_retirement_may_write(&context, None));
+    }
 }
