@@ -704,7 +704,7 @@ pass/borrows/runtime_state_arrival_recast_footprint_exit built 1928ms exit:0 int
 pass/borrows/runtime_state_boolean_reference_exit built 7857ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_state_fixed_element_reference_exit built 7732ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_state_mut_formal_borrow_exit built 8030ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
-pass/borrows/runtime_static_callback_snapshot_exit built 10728ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
+pass/borrows/runtime_static_callback_snapshot_exit built 1981ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_stored_boolean_reference_exit built 1902ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/borrows/runtime_stored_carrier_exchange_exit rejected 1597ms interpreter:unchecked @6e42425cd720
 	state `unchanged` receives `second_retired.values` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 12)

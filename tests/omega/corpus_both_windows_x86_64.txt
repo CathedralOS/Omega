@@ -520,7 +520,6 @@ pass/borrows/runtime_state_arrival_recast_footprint_exit built 2475ms exit:0 int
 pass/borrows/runtime_state_boolean_reference_exit built 7207ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_state_fixed_element_reference_exit built 7202ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_state_mut_formal_borrow_exit built 7201ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
-pass/borrows/runtime_static_callback_snapshot_exit built 11528ms exit:0 interpreter-exit:0 interpreter:agrees @e9afae5fccb7
 pass/borrows/runtime_stored_boolean_reference_exit built 2345ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_stored_carrier_exchange_exit built 2823ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrows/runtime_stored_reference_array_constructor_transfer_exit built 6561ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt

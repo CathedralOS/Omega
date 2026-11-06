@@ -19751,7 +19751,7 @@ pass/borrows/runtime_state_arrival_recast_footprint_exit checked 3665ms check-ta
 pass/borrows/runtime_state_boolean_reference_exit checked 18197ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_fixed_element_reference_exit checked 15170ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_state_mut_formal_borrow_exit checked 18286ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_static_callback_snapshot_exit checked 10390ms check-target:macos_arm64 @e9afae5fccb7
+pass/borrows/runtime_static_callback_snapshot_exit checked 3670ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_stored_boolean_reference_exit checked 3833ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_stored_carrier_exchange_exit rejected 3323ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	state `unchanged` receives `second_retired.values` while local borrow `windows` is still active (borrowed at statement 5; its last use is at statement 12)
