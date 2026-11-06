@@ -158,7 +158,7 @@ machine reject_malformed<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
     }
 }
 
-machine consume(value: Pair) -> bool {
+machine consume(value: Pair, expected_first: u8, expected_last: u8) -> bool {
     let first: FirstFrame = FirstFrame { tag: 165u8, first: value.first, last: value.last };
     let second: SecondFrame = SecondFrame { tag: 90u8, first: value.last, last: value.first };
     let malformed_first: FirstFrame = FirstFrame { tag: 0u8, first: value.first, last: value.last };
@@ -167,16 +167,18 @@ machine consume(value: Pair) -> bool {
     use_agreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity, SecondAgreement>(value, second, malformed_second);
     let first_ok: bool = observe<FirstFrame, WriteFirst, ReadFirst>(value, malformed_first);
     let second_ok: bool = observe<SecondFrame, WriteSecond, ReadSecond>(value, malformed_second);
-    first_ok && second_ok
+    first_ok && second_ok && value.first == expected_first && value.last == expected_last
 }
 
-machine forward(value: Pair) -> bool { consume(value) }
+machine forward(value: Pair, expected_first: u8, expected_last: u8) -> bool {
+    consume(value, expected_first, expected_last)
+}
 
 machine main() crashes Trap {
     let saved: Pair = Pair { first: 17u8, last: 42u8 };
     let edge: Pair = Pair { first: 0u8, last: 255u8 };
-    let observed: bool = forward(saved);
-    let endpoint: bool = forward(edge);
+    let observed: bool = forward(saved, 17u8, 42u8);
+    let endpoint: bool = forward(edge, 0u8, 255u8);
     transition observed && endpoint { true -> done() false -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
