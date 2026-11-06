@@ -376,6 +376,24 @@ and macOS ARM64. Those results retain `18 <= result <= 20` or
 `19 <= result <= 21` as `ensures`. Its count is not the original 16-parameter
 inventory; its additional callback parameter is outside both filesystem counts.
 
+On Linux x86_64 and ARM64, the existing `dir_walk_wrappers_exit` program now
+creates a nested tree, counts two files, removes the tree and returns 70 in
+native and Terminal execution. It exercises the shared `rds_*` operations
+above without changing their `name_len <= 255` requirements. The Linux host
+uses captured path/output windows and private descriptors; array captures
+preserve the original backing owner's qualifications. ARM64 keeps its public
+128-byte metadata window and the complete shared raw binding schema.
+
+The x86_64 observations are [run 42300697162](https://github.com/CathedralOS/Omega/actions/runs/42300697162)
+at `c0c5b49589b1`, including 0/0 for `create_dir_all_existing_file_exit`.
+ARM64 is [run 42312446103](https://github.com/CathedralOS/Omega/actions/runs/42312446103)
+at `42274da231be`. Later ARM entry/binding rows and refusal text leave the
+qualified x86_64 declarations, selected rows and execution paths unchanged.
+Seven source/control rows retain their actual `e40519df616f` and `c0c5b49589b1`
+stamps. The extra legacy array-loan fixture's missing-provider refusal and
+earlier corpus runtime timeouts are not passing evidence. These observations
+do not qualify Windows or macOS execution or close the parent migration.
+
 This reconciles source positions, not complete filesystem execution acceptance.
 Matching-host native/Terminal service and occurrence-bound release obligations
 remain under **FILESYSTEM-PLATFORM-SERVICES**. Historical compile/native records
