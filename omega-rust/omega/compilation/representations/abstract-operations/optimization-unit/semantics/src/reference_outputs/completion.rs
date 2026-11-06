@@ -175,7 +175,7 @@ impl ReferenceOutputBuilder {
         let unchanged = actual_entry == expected_entry;
         if self.incomplete_slots.is_some() {
             return if unchanged {
-                Ok(())
+                Ok(None)
             } else {
                 Err("unknown writable reference outputs require exact unchanged ingress custody")
             };
@@ -247,9 +247,6 @@ impl ReferenceOutputBuilder {
         if remaining != expected {
             return Err("normal completion does not restore borrowed reference custody");
         }
-        if unchanged {
-            return Ok(());
-        }
         let mut current = returned.iter().chain(live).collect::<Vec<_>>();
         current.sort_by(|left, right| left.identity.cmp(&right.identity));
         if current
@@ -270,7 +267,7 @@ impl ReferenceOutputBuilder {
         let mut complete = vec![false; current.len()];
         let mut active = vec![false; current.len()];
         for index in 0..current.len() {
-            self.validate_parent(
+            if let Err(reason) = self.validate_parent(
                 function,
                 &current,
                 &entry,
@@ -278,7 +275,9 @@ impl ReferenceOutputBuilder {
                 index,
                 &mut active,
                 &mut complete,
-            )?;
+            ) {
+                return if unchanged { Ok(None) } else { Err(reason) };
+            }
         }
         Ok(Some(cleared))
     }

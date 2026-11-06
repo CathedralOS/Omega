@@ -311,7 +311,7 @@ pub(super) fn bind(
         }
         completed = Some(current);
     }
-    let (replacements, returned, established) =
+    let (replacements, returned, established, _) =
         completed.ok_or_else(|| fail("reference-output body has no completed normal exit"))?;
     Ok(call_effects::StoredReferences {
         replacements,
