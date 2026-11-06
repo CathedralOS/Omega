@@ -1,4 +1,4 @@
-name: Compiler queue pilot
+name: Attribute saved byte predicates on retained published main
 
 on:
   pull_request:
@@ -80,6 +80,7 @@ jobs:
       # Large calling-policy checks use about 2.8 GiB each. Run one fixture
       # at a time to reduce concurrent memory pressure.
       OMEGA_CORPUS_JOBS: '1'
+      OMEGA_CORPUS_FIXTURE_SECS: '120'
       RUST_MIN_STACK: '67108864'
       # Match Linux/macOS post-merge storage; Windows keeps its short target path.
       CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
@@ -146,6 +147,7 @@ jobs:
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Check the exact integration candidate
         id: compiler-check
+        if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         run: cargo check --locked -p omega
       - name: Prepare and retain the optimized producer
         id: producer-preparation
@@ -162,6 +164,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         with:
           name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: build/compiler-pilot/
           if-no-files-found: warn
           compression-level: 0
@@ -205,6 +208,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: |
             build/compiler-pilot/
             !build/compiler-pilot/producer-*/**
@@ -217,6 +221,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: build/compiler-pilot/*.json
           if-no-files-found: warn
           retention-days: 7
