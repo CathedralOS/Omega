@@ -705,6 +705,12 @@ pub(super) fn validate_operation(
             && source == expected_source
             && path == expected_path => {}
         (
+            TargetUnitOperation::StructuralLeafCopy { .. },
+            AbstractOperation::BoundaryCall { .. },
+        ) => {
+            aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
+        }
+        (
             _,
             AbstractOperation::EstablishStructuralArray { .. }
             | AbstractOperation::EstablishScalarArray { .. }

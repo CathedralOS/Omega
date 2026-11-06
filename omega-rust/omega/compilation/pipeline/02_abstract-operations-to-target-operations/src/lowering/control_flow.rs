@@ -47,6 +47,7 @@ mod program_image;
 mod records;
 pub(crate) mod references;
 mod row;
+mod run_custody;
 pub(super) mod scalar_arrays;
 pub(super) mod scalar_sources;
 mod selected_boundary_calls;

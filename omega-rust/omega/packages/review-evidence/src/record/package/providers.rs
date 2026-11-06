@@ -6,6 +6,7 @@ use crate::record::accessors::field_projection_accessors;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewCompilerIntrinsicExecution {
     AccessLifecycle(terminal_psi::TerminalAccessLifecycleOperation),
+    EmptyRunRelease,
     HostedExitProcessI32,
     HostedWriteByteI32,
     HostedReadByte,

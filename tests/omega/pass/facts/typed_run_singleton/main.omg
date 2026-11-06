@@ -139,9 +139,19 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    // Process exit abandons both backing claims. This exercises construction
-    // and transport, not empty-run disposal or return to an allocator.
-    machine finish(storage: Extent in Granted & Vacant, value: Word, empty: Run<WordPlacement, Word> in Live<WordPlacement, Word>) {
+    // Empty release returns the same backing descriptor. Process exit still
+    // abandons the returned extents; this is not allocator-return evidence.
+    machine finish(storage: Extent in Granted & Vacant, value: Word, empty: Run<WordPlacement, Word> in Live<WordPlacement, Word>)
+        requires empty.count == 0, empty.storage.length == 0
+    {
+        let original_base: addr = empty.storage.base;
+        let reclaimed: Extent in Granted & Vacant = Run::release_empty<WordPlacement, Word>(empty);
+        transition reclaimed.length == 0 && reclaimed.base == original_base {
+            true -> released(storage, value, reclaimed)
+            false -> bad()
+        }
+    }
+    machine released(storage: Extent in Granted & Vacant, value: Word, reclaimed: Extent in Granted & Vacant) {
         Console::write_byte(77);
         drop(value);
         ProcessExit::exit_process(0);
