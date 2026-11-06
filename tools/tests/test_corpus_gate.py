@@ -347,6 +347,26 @@ class RunnerInputSelection(unittest.TestCase):
             expected = "".join((chatter + panic).splitlines(keepends=True)[-200:]) if status == "crashed" else ""
             self.assertEqual(output.getvalue(), expected)
 
+    def test_requested_check_sites_keep_bounded_rejection_stderr(self):
+        chatter = "".join(f"compiler detail {index}\n" for index in range(350))
+        site = "optimizer structural catalog mismatch MachineId(86) at function_catalog.rs:147:24\n"
+        for status in ("rejected", "built"):
+            rows = [record("pass/borrows/original", status, diagnostics=["structural catalog mismatch"])]
+            rendered = corpus_records.render(rows)
+            for setting in (None, "", "0", "1"):
+                environment = {} if setting is None else {"OMEGA_COMPILER_CHECK_SITES": setting}
+                output = io.StringIO()
+                with self.subTest(status=status, setting=setting), \
+                        patch.dict(os.environ, environment, clear=True), \
+                        patch.object(corpus_gate.subprocess, "Popen", side_effect=
+                                     fake_runner(rendered, stderr=chatter + site)), \
+                        contextlib.redirect_stderr(output):
+                    measured = corpus_gate.run_runner(Path("corpus_runner"))
+                self.assertEqual(measured, corpus_records.parse(rendered))
+                expected = ("".join((chatter + site).splitlines(keepends=True)[-200:])
+                            if status == "rejected" and setting is not None else "")
+                self.assertEqual(output.getvalue(), expected)
+
     def test_fixture_root_follows_the_measured_checkout_over_a_stale_environment(self):
         measured = Path(tempfile.gettempdir()) / "measured-omega-checkout"
         environment = self.runner_environment(
