@@ -66,6 +66,8 @@ pub(super) fn roster_at_expression(
         kind: loan.kind,
         lineage: loan.lineage,
         formation: loan.formation,
+        formation_expression: loan.formation_expression,
+        formation_owner_path: loan.formation_owner_path,
         permission_sources: Vec::new(),
         owner_path: loan.owner_path,
         place: loan.place,
@@ -152,10 +154,9 @@ pub(super) fn loans(
     };
     let effects = match frames.stored_reference_fallthrough_effects(machine, statement) {
         Ok(effects) => effects,
+        // Concrete types are needed to publish the whole set of slot loans.
+        // Each selected closed instance checks that set, as for operand loans.
         Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
-            // No successor generation is established by a pending relation.
-            // Keep incoming debts active; the selected closed body rechecks
-            // this statement before it can publish concrete descriptor loans.
             return Ok(Vec::new());
         }
         Err(validation::StoredReferenceRelationRefusal::Unavailable(reason)) => {

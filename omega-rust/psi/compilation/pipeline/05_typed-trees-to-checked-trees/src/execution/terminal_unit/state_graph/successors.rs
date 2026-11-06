@@ -665,8 +665,14 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                 target_parameters.get(target.position as usize)?.type_reference,
                                 &super::super::types::machine_binders(program, machine),
                             )?;
+                            let (backing_type, source_contract) = crate::values::reference_sources::qualification_contract_at_site(
+                                program, source.symbol, ordinal as usize, expression,
+                                target_parameters.get(target.position as usize)?.type_reference,
+                                subject.type_identity,
+                            );
                             return structural_transfer_plan(
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    backing_type, source_contract,
                                     retired_carrier_backing: super::loan_backing::retired_carrier_backing(
                                         program, records, machine.symbol, source.symbol,
                                         ordinal as usize, arrival.target, arguments,
@@ -1400,8 +1406,19 @@ fn projected_loan_transfer(
             None => return None,
         }
     };
+    let (backing_type, source_contract) =
+        crate::values::reference_sources::qualification_contract_at_site(
+            program,
+            source,
+            ordinal as usize,
+            formation_expression,
+            target_type_reference,
+            target.type_identity,
+        );
     structural_transfer_plan(
         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            backing_type,
+            source_contract,
             retired_carrier_backing: None,
             formation_expression,
             carrier_type_identity,

@@ -26,6 +26,7 @@ use terminal_semantics::runtime_structural_path_tip;
 pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    transfers: &mut super::storage_foundations::StructuralTransferInputs<'_>,
 ) -> Result<(), CodecError> {
     if let Err(reason) = machine.validate_parameter_order() {
         return malformed(reason);
@@ -68,9 +69,11 @@ pub(super) fn validate_machine(
     validate_loan_completions(module, machine)?;
     for block in &machine.blocks {
         for operation in &block.operations {
-            validate_operation_foundation(module, machine, operation).map_err(|error| {
-                super::operation_foundation_error(module, machine, block.id, operation, error)
-            })?;
+            validate_operation_foundation(module, machine, operation, transfers).map_err(
+                |error| {
+                    super::operation_foundation_error(module, machine, block.id, operation, error)
+                },
+            )?;
         }
     }
     for invocation in machine.module_invocations() {

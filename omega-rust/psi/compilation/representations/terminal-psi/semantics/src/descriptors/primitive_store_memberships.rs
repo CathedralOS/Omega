@@ -63,6 +63,7 @@ pub fn primitive_store_restriction<'types, 'domain>(
     root: StructuralTypeId,
     whole: &[StructuralDomainId],
     projected: &[StructuralPathQualification],
+    additional_input: &[StructuralPathQualification],
     written: &[StructuralPathSegment],
 ) -> Option<Option<StructuralFieldType>> {
     let mut scalar = crate::primitive_projection_restriction(types.clone(), root, written).cloned();
@@ -72,12 +73,20 @@ pub fn primitive_store_restriction<'types, 'domain>(
         root,
         whole,
         projected,
+        additional_input,
         written,
     )? {
         scalar = scalar::receive(scalar, scalar::refinement(types.clone(), domain)?)?;
     }
-    let predicates =
-        enclosing_byte_predicates(types.clone(), domains, root, whole, projected, written)?;
+    let predicates = enclosing_byte_predicates(
+        types.clone(),
+        domains,
+        root,
+        whole,
+        projected,
+        additional_input,
+        written,
+    )?;
     let mut ascii = ByteSequencePredicateSet::EMPTY;
     ascii.insert(ByteSequencePredicate::AsciiOnly);
     // UTF-8 stores additionally require current ASCII backing. Source checking,
@@ -111,6 +120,7 @@ fn enclosing_byte_predicates<'types, 'domain>(
     root: StructuralTypeId,
     whole: &[StructuralDomainId],
     projected: &[StructuralPathQualification],
+    additional_input: &[StructuralPathQualification],
     written: &[StructuralPathSegment],
 ) -> Option<ByteSequencePredicateSet> {
     let mut predicates = ByteSequencePredicateSet::EMPTY;
@@ -120,6 +130,16 @@ fn enclosing_byte_predicates<'types, 'domain>(
             .map(|row| (row.path.as_slice(), row.domain)),
     );
     for (path, domain) in memberships {
+        if expiring_input_predicate(
+            types.clone(),
+            domains.clone(),
+            root,
+            path,
+            domain,
+            additional_input,
+        ) {
+            continue;
+        }
         if !crate::structural_paths_may_overlap(path, written) {
             continue;
         }
@@ -164,9 +184,18 @@ pub fn primitive_store_byte_predicates<'types, 'domain>(
     root: StructuralTypeId,
     whole: &[StructuralDomainId],
     projected: &[StructuralPathQualification],
+    additional_input: &[StructuralPathQualification],
     written: &[StructuralPathSegment],
 ) -> Option<ByteSequencePredicateSet> {
-    enclosing_byte_predicates(types, domains, root, whole, projected, written)
+    enclosing_byte_predicates(
+        types,
+        domains,
+        root,
+        whole,
+        projected,
+        additional_input,
+        written,
+    )
 }
 
 fn exact_domain<'domain>(
@@ -187,6 +216,7 @@ fn whole_scalar_domains<'types, 'domain>(
     root: StructuralTypeId,
     whole: &[StructuralDomainId],
     projected: &[StructuralPathQualification],
+    additional_input: &[StructuralPathQualification],
     written: &[StructuralPathSegment],
 ) -> Option<Vec<&'domain StructuralDomainDeclaration>> {
     let mut result = Vec::new();
@@ -195,6 +225,16 @@ fn whole_scalar_domains<'types, 'domain>(
             .iter()
             .map(|row| (row.path.as_slice(), row.domain)),
     ) {
+        if expiring_input_predicate(
+            types.clone(),
+            domains.clone(),
+            root,
+            path,
+            identity,
+            additional_input,
+        ) {
+            continue;
+        }
         if path.len() != written.len() || !crate::structural_paths_may_overlap(path, written) {
             continue;
         }
@@ -219,6 +259,7 @@ pub fn primitive_store_preserves_scalar_memberships<'types, 'domain>(
     root: StructuralTypeId,
     whole: &[StructuralDomainId],
     projected: &[StructuralPathQualification],
+    additional_input: &[StructuralPathQualification],
     written: &[StructuralPathSegment],
     value: &terminal_psi::ValueDeclaration,
 ) -> bool {
@@ -228,6 +269,7 @@ pub fn primitive_store_preserves_scalar_memberships<'types, 'domain>(
         root,
         whole,
         projected,
+        additional_input,
         written,
     ) else {
         return false;
@@ -326,4 +368,26 @@ pub fn primitive_scalar_memberships<'types, 'domain>(
     memberships.sort();
     memberships.dedup();
     Some(memberships)
+}
+
+/// Entry predicates can expire when the storage does not owe them. This never
+/// forgets an issuer, required membership, content projection or access role;
+/// those keep their existing receiving checks independently of predicate facts.
+fn expiring_input_predicate<'types, 'domain>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domain StructuralDomainDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    membership: StructuralDomainId,
+    additional: &[StructuralPathQualification],
+) -> bool {
+    if !additional
+        .iter()
+        .any(|row| row.domain == membership && row.path == path)
+    {
+        return false;
+    }
+    crate::qualification_path_carrier(types, root, path)
+        .and_then(|carrier| exact_domain(domains, carrier, membership))
+        .is_some_and(StructuralDomainDeclaration::is_pure_predicate)
 }

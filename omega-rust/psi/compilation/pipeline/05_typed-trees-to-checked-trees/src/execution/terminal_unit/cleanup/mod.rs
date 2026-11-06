@@ -40,11 +40,10 @@ pub(crate) use nominal_requirements::{
 pub(crate) use partial_affine_cleanup::partial_affine_residuals;
 
 use super::{
-    BTreeMap, CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
+    CheckFacts, CheckedNominalAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan, Diagnostic, MachineSupplyMode, Multiplicity,
-    PermissionEventSource, TypeReferenceNode,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment, Diagnostic,
+    MachineSupplyMode, Multiplicity, PermissionEventSource, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::calls::{entry_claims, free_structural_scalar_signature};
 use crate::execution::terminal_unit::types::{

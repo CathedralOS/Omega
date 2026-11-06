@@ -361,6 +361,11 @@ pub struct BorrowLoanFact {
     /// its borrowing parent. These descriptor edges are not reborrow events.
     /// The shared graph keeps every supplier without expanding whole histories.
     pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Complete input lifetime debts for a directly returned reference.
+    /// Normal-call publication records Some(empty) when no input is retained;
+    /// None supplies no completed inventory. These keepalive edges cannot act
+    /// as spatial suppliers or confer the returned pointer's permission.
+    pub retained_input_lifetimes: Option<HandleSpan<Handle<BorrowLoanFact>>>,
     /// Checked formation lineage for this loan occurrence.
     ///
     /// An explicit reborrow with one exact prior source occurrence names a
@@ -918,10 +923,10 @@ pub struct BorrowFacts {
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
     pub incoming_compatibility: Arena<BorrowIncomingCompatibilityRequirement>,
-    /// `(machine, state) -> state rows` grouping owned by this ledger. The
-    /// grouping carries the `states` arena's exact revision, so a mutation
-    /// rebuilds it on the next query; the ledger's lifetime bounds it.
-    pub state_index: KeyedRows<(SymbolHandle, SymbolHandle), StateBorrowFact>,
+    /// State-symbol grouping owned by this ledger. Machine-specific readers
+    /// select their exact machine within that state's rows. The grouping
+    /// carries the arena's exact revision and retains every duplicate.
+    pub state_index: KeyedRows<SymbolHandle, StateBorrowFact>,
     /// Non-authorizing direct-root resource closures reconstructed from the
     /// exact loan activation/weakening ledger. Reborrow parent identity is
     /// retained separately.
@@ -1065,14 +1070,26 @@ impl BorrowFacts {
             .map(|handle| (handle, self.loans.get(handle)))
     }
 
-    /// Exact state membership and the statement-resource role share one
-    /// constant-time predicate. Invocation associations remain provenance.
+    /// A returned value keeps its own permission and input lifetimes after the
+    /// call completes. Slot-replacement associations have a separate role.
+    pub fn is_call_result_loan(&self, loan: &BorrowLoanFact) -> bool {
+        matches!(loan.storage_owner, Expression(expression)
+            if expression == loan.formation_expression
+                && self.calls.is_valid(loan.established_by_call)
+                && self.calls.get(loan.established_by_call).authored_expression == expression
+                && self.calls.get(loan.established_by_call).statement_index == loan.statement_index)
+    }
+
+    /// Locally formed and returned-value loans both owe a complete lifetime.
+    /// Temporary associations used to replace stored references are excluded.
     pub fn state_owns_statement_resource(
         &self,
         state: &StateBorrowFact,
         loan: Handle<BorrowLoanFact>,
     ) -> bool {
-        self.state_owns_loan(state, loan) && !self.loans.get(loan).established_by_call.is_valid()
+        self.state_owns_loan(state, loan)
+            && (!self.loans.get(loan).established_by_call.is_valid()
+                || self.is_call_result_loan(self.loans.get(loan)))
     }
 
     /// A flow cut can retain only an entry permission published for this
@@ -1288,9 +1305,37 @@ impl BorrowFacts {
     ) -> Result {
         self.state_index.with_rows(
             &self.states,
-            |state| (state.machine_symbol, state.state_symbol),
-            &(machine_symbol, state_symbol),
-            read,
+            |state| state.state_symbol,
+            &state_symbol,
+            |rows| {
+                if rows
+                    .iter()
+                    .all(|handle| self.states.get(*handle).machine_symbol == machine_symbol)
+                {
+                    read(rows)
+                } else {
+                    let selected = rows
+                        .iter()
+                        .copied()
+                        .filter(|handle| self.states.get(*handle).machine_symbol == machine_symbol)
+                        .collect::<Vec<_>>();
+                    read(&selected)
+                }
+            },
+        )
+    }
+
+    /// The unique row for an exact state symbol, across all recorded machines.
+    /// Missing and duplicate symbols both withhold the return capture.
+    pub fn unique_state_borrow_by_symbol(&self, state: SymbolHandle) -> Option<&StateBorrowFact> {
+        self.state_index.with_rows(
+            &self.states,
+            |row| row.state_symbol,
+            &state,
+            |rows| match rows {
+                [handle] => Some(self.states.get(*handle)),
+                _ => None,
+            },
         )
     }
 
@@ -1323,6 +1368,55 @@ impl BorrowFacts {
 #[cfg(test)]
 mod index_tests {
     use super::{BorrowFacts, StateBorrowFact, SymbolHandle};
+
+    #[test]
+    fn unique_state_borrow_symbol_keeps_foreign_machine_duplicates_visible() {
+        let mut facts = BorrowFacts::default();
+        let machine = SymbolHandle::from_parts(1, 1);
+        let other = SymbolHandle::from_parts(2, 1);
+        let state = SymbolHandle::from_parts(3, 1);
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: machine,
+            state_symbol: state,
+            ..StateBorrowFact::default()
+        });
+        assert!(facts.unique_state_borrow_by_symbol(state).is_some());
+        assert!(
+            facts
+                .unique_state_borrow_by_symbol(SymbolHandle::from_parts(3, 2))
+                .is_none()
+        );
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: other,
+            state_symbol: state,
+            ..StateBorrowFact::default()
+        });
+        let other_generation = SymbolHandle::from_parts(3, 2);
+        facts.states.insert(StateBorrowFact {
+            machine_symbol: machine,
+            state_symbol: other_generation,
+            ..StateBorrowFact::default()
+        });
+        assert_eq!(
+            facts
+                .unique_state_borrow_by_symbol(other_generation)
+                .map(|row| row.state_symbol),
+            Some(other_generation)
+        );
+        assert!(facts.unique_state_borrow_by_symbol(state).is_none());
+        assert_eq!(
+            facts
+                .unique_state_borrow(machine, state)
+                .map(|row| row.machine_symbol),
+            Some(machine)
+        );
+        assert_eq!(
+            facts
+                .unique_state_borrow(other, state)
+                .map(|row| row.machine_symbol),
+            Some(other)
+        );
+    }
 
     #[test]
     fn unique_state_borrow_preserves_duplicates_and_mutation_visibility() {

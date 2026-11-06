@@ -50,7 +50,7 @@ pub(super) fn source_owner(
     }
 }
 
-fn captured_destination(
+fn receiving_place(
     program: &dyn validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
     machine: SymbolHandle,
@@ -61,27 +61,46 @@ fn captured_destination(
     let flow = facts.flow.control.state(machine, state.symbol)?;
     let statement = facts.flow.state_statement(flow, statement_index as usize)?;
     let control = &facts.flow.control;
-    if !control.operands.is_valid(statement.store_target) {
+    if !control.operands.is_valid(statement.stored_value) {
         return None;
     }
-    let captured = control.operands.get(statement.store_target);
-    let [destination] = control.operand_referents.span(captured.referents)? else {
-        // Several possible destinations do not identify one replaced holder.
+    let value = control.operands.get(statement.stored_value);
+    if !value.type_reference.is_valid() {
         return None;
+    }
+    // An initializer moves into a new home. Its completed store records that
+    // home; a replacement records its address before evaluating the value.
+    // Both carry the receiving type, so retirement follows those records
+    // without reconstructing a destination from assignment syntax.
+    let destination = if control.operands.is_valid(statement.store_target) {
+        let captured = control.operands.get(statement.store_target);
+        let [destination] = control.operand_referents.span(captured.referents)? else {
+            // Several possible destinations do not identify one receiving holder.
+            return None;
+        };
+        validation::CanonicalPlace {
+            root: destination.root,
+            segments: control
+                .operand_referent_segments
+                .span(destination.segments)?
+                .to_vec(),
+        }
+    } else {
+        if !facts.semantic.places.is_valid(statement.stored_destination) {
+            return None;
+        }
+        validation::membership_evidence::canonical_place_from_semantic_place(
+            program,
+            &facts.semantic,
+            facts.semantic.places.get(statement.stored_destination),
+        )?
     };
-    let captured_segments = control
-        .operand_referent_segments
-        .span(destination.segments)?;
     let selection = validation::reference_result_custody::loan_place_segments(
         program,
-        program
-            .statement_table
-            .statement_at(state, statement_index as usize)?
-            .as_assignment()?
-            .receiving_type,
+        value.type_reference,
         selection,
     )?;
-    let segments = facts::project_captured_view_segments(captured_segments, &selection)?;
+    let segments = facts::project_captured_view_segments(&destination.segments, &selection)?;
     Some(validation::CanonicalPlace {
         root: destination.root,
         segments,
@@ -96,8 +115,7 @@ pub(super) fn destination(
     statement_index: u32,
     selection: &[PathSegment],
 ) -> Option<(SymbolHandle, Vec<PathSegment>)> {
-    let destination =
-        captured_destination(program, facts, machine, state, statement_index, selection)?;
+    let destination = receiving_place(program, facts, machine, state, statement_index, selection)?;
     let owner = destination.root.as_symbol()?;
     let path = owner_path_from_place_segments(program, &destination.segments);
     let reference = validation::reference_result_custody::storage_owner_type_reference(
@@ -119,19 +137,19 @@ pub(super) fn receiver(
     state: &typed_trees::state::State,
     operation: &OperationPlan,
 ) -> Option<(SymbolHandle, u32, Vec<PathSegment>)> {
-    let OperationPlan::Store(store) = operation else {
+    operation.installed_value()?;
+    let statement = operation.source_statement_index()?;
+    let selection = operation
+        .store()
+        .map_or(&[][..], |store| store.captured_selection.as_slice());
+    let (symbol, path) = destination(program, facts, machine, state, statement, selection)?;
+    if operation
+        .structural_result_binding()
+        .is_some_and(|result| result.local.symbol != symbol)
+    {
         return None;
-    };
-    store.installed_value()?;
-    let (symbol, path) = destination(
-        program,
-        facts,
-        machine,
-        state,
-        store.statement_index,
-        &store.captured_selection,
-    )?;
-    Some((symbol, store.statement_index, path))
+    }
+    Some((symbol, statement, path))
 }
 
 pub(super) fn loans(
@@ -198,7 +216,7 @@ pub(super) fn replaces(
         {
             return None;
         }
-        let destination = captured_destination(
+        let destination = receiving_place(
             retirement.program,
             retirement.facts,
             retirement.machine,
@@ -328,6 +346,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     let owner_source = storage_source(retirement.program, retirement.state, owner)?;
     let mut output = Vec::new();
     for (source, group) in groups.into_iter().rev() {
+        let selected = validation::reference_result_custody::loan_place_segments(
+            retirement.program,
+            reference,
+            &source.path,
+        )?;
+        if !retirement.storage_borrowers_retired(facts::PlaceRoot::Symbol(owner), &selected)? {
+            continue;
+        }
         let moved = transfers::from_storage(
             retirement.program,
             retirement.facts,
@@ -361,6 +387,16 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
                 })
         }) {
             continue;
+        }
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE stored-reference-release state={:?} owner={owner:?} formation={formation} statement={} source={owner_source:?} path={:?} loans={group:?} at_exit={} pending_owner={:?}",
+                retirement.state.symbol,
+                retirement.statement_index,
+                source.path,
+                retirement.at_exit,
+                retirement.uncommitted_owner,
+            );
         }
         output.push(OperationPlan::ReleaseReference {
             statement_index: retirement.statement_index,

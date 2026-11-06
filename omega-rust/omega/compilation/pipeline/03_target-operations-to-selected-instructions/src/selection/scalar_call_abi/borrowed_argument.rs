@@ -161,6 +161,7 @@ pub(super) fn validate_borrowed_argument(
             access: StructuralAccess::Owned,
             qualifications: result.qualifications.clone(),
             projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
         });
     // An address join lends from its joined referent through the address
     // its block entry loaded; it is neither a home nor a descriptor view, yet

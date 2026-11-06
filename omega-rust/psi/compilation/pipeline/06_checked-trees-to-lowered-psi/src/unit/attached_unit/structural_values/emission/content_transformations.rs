@@ -111,7 +111,7 @@ impl Emission<'_, '_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "content payload has no completed custody",
                 ))?;
-        let (whole, projected) =
+        let (whole, projected, _) =
             self.completed_memberships(source.place)
                 .ok_or(LoweringError::Unsupported(
                     "content payload lacks its completed membership roster",
@@ -302,6 +302,7 @@ impl Emission<'_, '_, '_> {
                 multiplicity: self.multiplicity,
                 qualifications,
                 projected_qualifications,
+                additional_input_qualifications: Vec::new(),
                 qualification_establishments: Vec::new(),
                 claims,
             }),

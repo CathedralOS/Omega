@@ -10,11 +10,11 @@
 //! exclusive child suspends the branch it captured for any other access until
 //! its last use, and a shared child freezes that branch's mutation.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::flow::expressions;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
-    BorrowAccessKind, BorrowFacts, BorrowLoanFact, CapturedPlace, CheckFacts, FlowConstraintRef,
-    FlowStateFact,
+    BorrowAccessKind, BorrowLoanFact, CapturedPlace, CheckFacts, FlowConstraintRef, FlowStateFact,
 };
 
 use super::access_sources;
@@ -29,6 +29,7 @@ use super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 pub(super) fn place_backings(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     live_loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
@@ -47,6 +48,7 @@ pub(super) fn place_backings(
     access_sources::resolve_captured_with_loans(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         live_loans.into_iter(),
@@ -85,6 +87,7 @@ impl ArgumentBackings {
 pub(super) fn argument_backings(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
     entry_constraints: HandleSpan<FlowConstraintRef>,
@@ -149,6 +152,7 @@ pub(super) fn argument_backings(
         let places = access_sources::metadata_storage(
             program,
             facts,
+            loan_occurrences,
             state,
             call.statement_index,
             observed,
@@ -181,8 +185,13 @@ pub(super) fn argument_backings(
                 super::formation_captures::argument_formation(program, facts, state, selected)?
             && formation.storage
         {
-            let resolved =
-                super::completed_backings::resolve(program, facts, state, formation.value)?;
+            let resolved = super::completed_backings::resolve(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                formation.value,
+            )?;
             return Ok(ArgumentBackings {
                 places: resolved.places,
                 capture: formation.value,
@@ -192,6 +201,7 @@ pub(super) fn argument_backings(
         return place_backings(
             program,
             facts,
+            loan_occurrences,
             state,
             call.statement_index,
             facts.flow.borrow_loan_constraints(entry_constraints),
@@ -210,7 +220,8 @@ pub(super) fn argument_backings(
         }
         "the access has no unique completed operand"
     })?;
-    let resolved = super::completed_backings::resolve(program, facts, state, selected)?;
+    let resolved =
+        super::completed_backings::resolve(program, facts, loan_occurrences, state, selected)?;
     Ok(ArgumentBackings {
         places: resolved.places,
         capture: selected,
@@ -422,13 +433,15 @@ fn trace_argument_capture_refusal(
 /// loan `loan_handle`.
 pub(super) fn access_interferes<'p>(
     program: &'p dyn ::validation::CheckingInput,
-    borrow: &BorrowFacts,
+    facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     backings: &[ResolvedAlias],
     kind: &BorrowAccessKind,
     loan_handle: Handle<BorrowLoanFact>,
     premises: &[StatedOrderingPremise],
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
+    let borrow = &facts.borrow;
     let loan = borrow.loans.get(loan_handle);
     !backings.iter().all(|backing| {
         if let Some(non_interfering) = super::overlap::retained_debt_non_interfering(
@@ -436,7 +449,7 @@ pub(super) fn access_interferes<'p>(
         ) {
             return non_interfering;
         }
-        if backing.retains_loan(borrow, loan_handle) {
+        if backing.retains_loan(facts, loan_occurrences, loan_handle) {
             return true;
         }
         // Distinct leaves returned together share an input lifetime, not

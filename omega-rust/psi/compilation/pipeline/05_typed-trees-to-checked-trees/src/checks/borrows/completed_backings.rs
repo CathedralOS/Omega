@@ -10,6 +10,7 @@
 //! Copied descriptors follow their earlier producer rather than rereading a
 //! source slot that later operands may have replaced.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{
@@ -36,6 +37,7 @@ pub(super) struct CompletedDescriptorBackings {
 pub(in crate::checks::borrows) fn incoming_sources(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
@@ -53,6 +55,7 @@ pub(in crate::checks::borrows) fn incoming_sources(
     super::access_sources::resolve_descriptor_all(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         constraints,
@@ -68,15 +71,17 @@ pub(in crate::checks::borrows) fn incoming_sources(
 pub(super) fn resolve(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: Handle<FlowOperandFact>,
 ) -> Result<CompletedDescriptorBackings, &'static str> {
-    resolve_at_path(program, facts, state, capture, &[])
+    resolve_at_path(program, facts, loan_occurrences, state, capture, &[])
 }
 
 pub(super) fn resolve_at_path(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: Handle<FlowOperandFact>,
     path: &[PlaceSegment],
@@ -92,6 +97,7 @@ pub(super) fn resolve_at_path(
     let resolved = Resolver {
         program,
         facts,
+        loan_occurrences,
         state,
     }
     .retained_descriptor(descriptor, path, &mut Vec::new(), &mut forwarded_inputs)?;
@@ -178,6 +184,7 @@ impl BackingFrontier {
 struct Resolver<'input> {
     program: &'input dyn validation::CheckingInput,
     facts: &'input CheckFacts,
+    loan_occurrences: &'input LoanOccurrences<'input>,
     state: &'input FlowStateFact,
 }
 
@@ -633,6 +640,7 @@ impl Resolver<'_> {
                 return super::access_sources::stored_address(
                     self.program,
                     self.facts,
+                    self.loan_occurrences,
                     self.state,
                     formation.target,
                     true,
@@ -650,6 +658,7 @@ impl Resolver<'_> {
             super::access_sources::resolve_captured_all(
                 self.program,
                 self.facts,
+                self.loan_occurrences,
                 self.state,
                 operand.statement_index,
                 operand.constraints,
@@ -697,6 +706,32 @@ impl Resolver<'_> {
             || invocation.authored_target != call.target_symbol
         {
             return Err("the completed result disagrees with its checked invocation");
+        }
+        if let Some(permission) = super::resources::invocation_permissions::resolve(
+            self.program,
+            self.facts,
+            self.state,
+            invocation,
+            operand,
+            result_type,
+            path,
+        ) {
+            let handle = permission?;
+            let loan = self.facts.borrow.loans.get(handle);
+            return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span_or_empty(loan.incoming_owner_path)
+                        .to_vec(),
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                },
+                lineage: vec![handle],
+            }]));
         }
         let sources = crate::borrow::completed_call_reference_sources(
             self.program,
@@ -830,6 +865,7 @@ impl Resolver<'_> {
         if let Some(places) = super::access_sources::resolve_descriptor_all(
             self.program,
             self.facts,
+            self.loan_occurrences,
             self.state,
             operand.statement_index,
             operand.constraints,
@@ -887,6 +923,7 @@ impl Resolver<'_> {
             StoredOperand::Incoming(source) => incoming_sources(
                 self.program,
                 self.facts,
+                self.loan_occurrences,
                 self.state,
                 operand.statement_index,
                 operand.constraints,
@@ -1037,6 +1074,7 @@ impl Resolver<'_> {
                     segments: self.facts.borrow.loan_segments(loan).to_vec(),
                 },
                 local_loan: handle,
+                consumed_segments: slot.segments.len(),
             });
         }
         if candidates.is_empty() {
@@ -1054,6 +1092,7 @@ impl Resolver<'_> {
         let mut places = super::access_sources::retain_captured_lineage(
             self.program,
             self.facts,
+            self.loan_occurrences,
             self.state,
             observation.statement_index,
             CapturedPlace {

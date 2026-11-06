@@ -207,15 +207,16 @@ pub(super) fn prepare(
                     };
                     let mut sources = Vec::new();
                     for origin in row.origins {
+                        if let Some((position, path)) = origin.captured_entry_slot() {
+                            let parameter = function.structural_parameters.get(position)?;
+                            sources.push(Source::IncomingSlot(StructuralArgument {
+                                place: parameter.place,
+                                path: descriptor_path(types, parameter.structural_type, &path)?,
+                                access: parameter.access,
+                            }));
+                            continue;
+                        }
                         match origin {
-                            DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                let parameter = function.structural_parameters.get(position)?;
-                                sources.push(Source::IncomingSlot(StructuralArgument {
-                                    place: parameter.place,
-                                    path: descriptor_path(types, parameter.structural_type, &path)?,
-                                    access: parameter.access,
-                                }));
-                            }
                             DescriptorStoredOrigin::Empty => {}
                             DescriptorStoredOrigin::Parameter {
                                 position,
@@ -257,6 +258,7 @@ pub(super) fn prepare(
                                 )?);
                             }
                             DescriptorStoredOrigin::Invocation { .. }
+                            | DescriptorStoredOrigin::IncomingSlot { .. }
                             | DescriptorStoredOrigin::IncomingContents { .. }
                             | DescriptorStoredOrigin::Literal { .. }
                             | DescriptorStoredOrigin::AccessFormation { .. } => return None,

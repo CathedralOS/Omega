@@ -21,6 +21,7 @@ use checked_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
+use typed_trees::machine::Machine;
 
 /// The saved subject expressions and cases a transition arm's guard selected.
 #[derive(Default, Clone)]
@@ -93,6 +94,7 @@ impl DispatchExtraction {
     /// Read the case tests of the transition arm at `statement_index`.
     pub fn of_transition_arm(
         program: &dyn crate::CheckingInput,
+        machine: &Machine,
         state: &typed_trees::state::State,
         statement_index: usize,
     ) -> Self {
@@ -114,16 +116,20 @@ impl DispatchExtraction {
             };
             match binary.operator {
                 BinaryOperator::And => conjuncts.extend([binary.left, binary.right]),
-                BinaryOperator::Equal => {
-                    let Some(case) = expression_table(program).name_path_node(binary.right) else {
-                        continue;
-                    };
-                    if crate::exact_case_reference_owner(program, binary.right).is_none() {
-                        continue;
+                _ => {
+                    // Generated pattern guards use the explicit tag operation.
+                    // Reuse its checked meaning and prepared case namespace;
+                    // ordinary value equality does not select a payload copy.
+                    if let Some(case) = crate::applied_case_membership_variant(
+                        program,
+                        machine,
+                        Some(state),
+                        conjunct,
+                        binary,
+                    ) {
+                        extraction.selected_cases.push((binary.left, case));
                     }
-                    extraction.selected_cases.push((binary.left, case.symbol));
                 }
-                _ => {}
             }
         }
         extraction

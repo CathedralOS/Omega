@@ -48,6 +48,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: vec![],
         projected_qualifications: vec![],
+        additional_input_qualifications: Vec::new(),
         claims: vec![],
     };
     let existing = [AbstractOperation::BooleanConstant {
@@ -70,6 +71,7 @@ fn replay_requirement_is_specific_to_primitive_storage_operations() {
                     access: StructuralAccess::MutableBorrow,
                     qualifications: vec![],
                     projected_qualifications: vec![],
+                    additional_input_qualifications: Vec::new(),
                 },
             ),
             value: scalar,
@@ -175,6 +177,7 @@ fn concatenation_publication_retains_ordered_sources_result_and_bound() {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         claims: Vec::new(),
     };
     let left = ByteSequenceOperand::Whole {

@@ -2,7 +2,6 @@
 //! capabilities each normalized region supplies, and the validated profile
 //! with its restriction to a child interval.
 
-use crate::access_fields::diagnostic::reject_when;
 use crate::validate_resource_profile;
 use crate::{AccessPlanDiagnostic, AtomicPermissions, BoundaryReach};
 
@@ -150,7 +149,6 @@ impl ValidatedResourceProfile {
         length: u64,
         permitted_reach: &BoundaryReach,
     ) -> Result<Self, AccessPlanDiagnostic> {
-        reject_when! { length == 0 => "resource-profile restriction cannot be empty" }
         let end = offset.checked_add(length).ok_or_else(|| {
             AccessPlanDiagnostic("resource-profile restriction range overflows".into())
         })?;

@@ -33,6 +33,7 @@ pub(super) fn requires_ascii(
         destination.structural_type(),
         whole,
         projected,
+        destination.additional_input_qualifications(),
         path,
     )?;
     Some(

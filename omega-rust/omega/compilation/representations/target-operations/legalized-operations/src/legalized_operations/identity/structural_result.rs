@@ -15,6 +15,7 @@ pub(super) fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOp
         result.qualifications.iter().map(|domain| domain.get()),
     );
     encode_projected_qualifications(bytes, &result.projected_qualifications);
+    encode_projected_qualifications(bytes, &result.additional_input_qualifications);
     encode_len(bytes, result.claims.len());
     for claim in &result.claims {
         crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());

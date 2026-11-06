@@ -48,31 +48,6 @@ pub(super) fn reference_local_borrow_loans(
     else {
         return Ok(Vec::new());
     };
-    // Saving a completed pointer retains that pointer's permission. Its
-    // receiver supplied the slot read, never a spatial parent of the pointee.
-    if let Some(source) = loan_trackers.iter().find(|loan| {
-        loan.storage_owner == facts::PlaceRoot::Expression(local_data.initial_value)
-            && loan.owner_path.is_empty()
-            && loan.place.incoming_reference.is_valid()
-    }) {
-        return Ok(vec![StatementBorrowLoan {
-            incoming_origin: None,
-            formation_expression: local_data.initial_value,
-            formation_owner_path: Some(Vec::new()),
-            owner_symbol: local_data.symbol,
-            storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
-            owner_name: local_data.name.clone(),
-            owner_path: Vec::new(),
-            place: source.place.clone(),
-            representation_address: None,
-            retained_operand: None,
-            source_owner_symbol: Default::default(),
-            supplying_loans: vec![source.handle],
-            lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
-            kind: local_access,
-            formation: super::BorrowFormation::Ordinary,
-        }]);
-    }
     if let Some(mut loans) = super::returned_carriers::result_loans(
         program,
         state.symbol,

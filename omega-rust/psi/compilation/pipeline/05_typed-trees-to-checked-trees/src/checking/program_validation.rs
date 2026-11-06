@@ -89,8 +89,8 @@ pub(crate) fn prepare_typed_program<'program>(
 
 /// Report the failure that prevented storage tracking from completing. Rechecking
 /// contracts without that history can blame valid code for losing facts after
-/// unrelated writes and hide the original error. Once storage history exists,
-/// contract diagnostics can still explain a later failure more directly.
+/// unrelated writes. With storage history available, show contract errors first
+/// while retaining the original failure that stopped checking.
 pub(crate) fn entailment_errors_first(
     program: &dyn ::validation::CheckingInput,
     deferred: validation::DeferredEntailment,
@@ -101,7 +101,10 @@ pub(crate) fn entailment_errors_first(
     }
     match validation::judge_contract_entailment(program, deferred) {
         Ok(_) => errors,
-        Err(entailment) => entailment,
+        Err(mut entailment) => {
+            entailment.extend(errors);
+            entailment
+        }
     }
 }
 

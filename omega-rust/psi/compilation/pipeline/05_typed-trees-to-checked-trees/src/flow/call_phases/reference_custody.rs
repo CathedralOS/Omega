@@ -1,9 +1,8 @@
-//! Normal invocation completion installs descriptor occurrences before the
-//! next operand. The source relation names definite replaced slots and exact
-//! transferred permissions. These associations transport existing custody;
-//! they do not establish a second local borrow resource. Published local loan
-//! lifetimes retain their complete statement-join ledger. Neither a may-write
-//! footprint nor a coincident address supplies a transfer.
+//! Normal completion makes returned permissions and slot replacements current
+//! before the next operand. Returned values keep their ordinary loan lifetime;
+//! temporary slot associations last through this invocation's transport only.
+//! Exact source relationships own both roles; equal addresses and may-write
+//! footprints cannot supply either permission or a replacement value.
 
 use super::super::FlowBuildContext;
 use super::super::append_constraint_ref;
@@ -106,9 +105,9 @@ fn incoming_reference_survives_call(
         })
 }
 
-/// The successor receives its published joined descriptor roster. Temporary
-/// call-transport associations do not mint or dispose local loan resources;
-/// their exact call entry/exit constraints authenticate current custody only.
+/// Remove only temporary slot-transport associations. A returned value's
+/// permission and input lifetimes remain until their actual holders end;
+/// named bindings have already retained the same evaluated result.
 pub(in crate::flow) fn finish_statement_reference_custody(
     borrow: &BorrowFacts,
     build: &mut FlowBuildContext<'_>,
@@ -119,7 +118,8 @@ pub(in crate::flow) fn finish_statement_reference_custody(
         *constraints,
         |reference| match reference.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
-                !borrow.loans.get(loan).established_by_call.is_valid()
+                let row = borrow.loans.get(loan);
+                !row.established_by_call.is_valid() || borrow.is_call_result_loan(row)
             }
             _ => true,
         },

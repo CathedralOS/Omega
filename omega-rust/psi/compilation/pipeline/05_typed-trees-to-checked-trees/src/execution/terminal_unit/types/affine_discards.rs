@@ -20,7 +20,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     source_parameters: &[StateParameter],
     operations: &[CheckedUnitEffectOperationPlan],
     admitted_local_symbols: &[SymbolHandle],
-    structural_types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    structural_types: &crate::execution::terminal_unit::types::TypeCatalog,
 ) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
     // A checked selection owns the complete conditional disposition of each
     // source, including parameter roots. normal_edges publishes its selected
@@ -244,7 +244,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
 /// reconstruct its residual. Case identities select payload namespaces; a
 /// bare Case is not a value. No reference or runtime-index inference occurs.
 fn projected_type(
-    types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    types: &crate::execution::terminal_unit::types::TypeCatalog,
     mut current: TypeIdentityId,
     mut path: &[CheckedUnitStructuralPathSegment],
 ) -> Option<TypeIdentityId> {

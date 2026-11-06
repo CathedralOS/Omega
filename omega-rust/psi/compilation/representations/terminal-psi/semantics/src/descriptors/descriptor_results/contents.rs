@@ -41,7 +41,9 @@ pub fn descriptor_contents_transfers(
     value_type: StructuralTypeId,
     removes_source: bool,
 ) -> Option<Vec<DescriptorContentsTransfer>> {
-    let slots = slot_kind.slots(types, source.root, value_type)?;
+    // A value transfer copies its resident descriptor words. Following those
+    // pointers would invent writes to the referents they merely point at.
+    let slots = slot_kind.owned_slots(types, source.root, value_type)?;
     if slots.is_empty() {
         return Some(Vec::new());
     }

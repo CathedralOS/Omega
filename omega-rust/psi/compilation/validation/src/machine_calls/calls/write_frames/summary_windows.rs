@@ -1,6 +1,7 @@
 //! Call summaries keep window coordinates without exporting callee expressions.
-//! Unresolved builtin ranges become opaque windows; local operand evaluation
-//! and bounds remain with the checked body. Adjacent windows compose in their
+//! Unresolved builtin ranges become opaque windows, while an unknown element
+//! keeps one element dimension without exporting the callee's expression.
+//! Operand evaluation and bounds remain with the checked body. Adjacent windows compose in their
 //! original collection dimension, preserving every field, element, reference
 //! crossing and recast issuer. Opaque coordinates supply no pointer equality.
 
@@ -53,12 +54,7 @@ fn coarsen_path(path: &mut Vec<PlaceSegment>, is_range: impl Fn(ExpressionHandle
     let mut written = 0;
     for read in 0..path.len() {
         let original = path[read];
-        let part = match original {
-            PlaceSegment::Index { expression } if expression.is_valid() && is_range(expression) => {
-                PlaceSegment::OpaqueRange
-            }
-            _ => original,
-        };
+        let part = original.erase_runtime_selector(&is_range);
         changed |= part != original;
         if written > 0 && is_window(path[written - 1]) && is_window(part) {
             // Compose fixed geometry when both windows prove it; otherwise

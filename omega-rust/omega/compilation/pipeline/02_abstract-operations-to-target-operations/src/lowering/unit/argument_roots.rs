@@ -61,6 +61,7 @@ pub(in crate::lowering) fn resolve<'parameter>(
                     multiplicity: result.multiplicity,
                     qualifications: result.qualifications.clone(),
                     projected_qualifications: result.projected_qualifications.clone(),
+                    additional_input_qualifications: result.additional_input_qualifications.clone(),
                 }
             }
             TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => declaration.clone(),

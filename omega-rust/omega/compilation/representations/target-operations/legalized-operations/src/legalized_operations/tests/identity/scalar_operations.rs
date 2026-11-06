@@ -52,6 +52,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
                 multiplicity: terminal_psi::StructuralMultiplicity::Affine,
                 qualifications: vec![],
                 projected_qualifications: vec![],
+                additional_input_qualifications: Vec::new(),
                 qualification_establishments: vec![],
                 claims: vec![],
             },

@@ -46,6 +46,28 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableCall};
 use typed_trees::types::TypeReferenceHandle;
 
+enum StatementReferenceTransferRefusal {
+    StatementSite,
+    EntryPrefix,
+    StatementEffects,
+}
+
+impl StatementReferenceTransferRefusal {
+    fn reason(&self) -> &'static str {
+        match self {
+            Self::StatementSite => {
+                "stored call has no complete statement-successor effects: owning statement is unavailable"
+            }
+            Self::EntryPrefix => {
+                "stored call has no complete statement-successor effects: entry reference-slot prefix is unavailable"
+            }
+            Self::StatementEffects => {
+                "stored call has no complete statement-successor effects: statement evaluation transfer is unavailable"
+            }
+        }
+    }
+}
+
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
 /// requires consumers to invalidate every fact they cannot otherwise prove.
@@ -399,7 +421,7 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Statement(statement),
         )
         .ok_or(Unavailable(
-            "stored call has no complete statement-successor effects: owning statement is unavailable",
+            StatementReferenceTransferRefusal::StatementSite.reason(),
         ))?;
         let empty = CollectedStatementPrefix {
             isolated_locals: Vec::new(),
@@ -436,8 +458,6 @@ impl<'program> CallFrameResolver<'program> {
                 .as_ref()
                 .is_none_or(CollectedStatementPrefix::is_complete)
             {
-                // A symbolic call installs no concrete loan yet. Keep that
-                // obligation pending until its closed instance is checked.
                 return if transfer.template_dependent {
                     Err(TemplateDependent)
                 } else {
@@ -445,36 +465,21 @@ impl<'program> CallFrameResolver<'program> {
                 };
             }
         }
+        // The statement can still depend on a type parameter when the prefix
+        // stops at its binding fence. Concrete failed calls remain failures;
+        // only the unresolved structure is deferred to closed instances.
+        let template_statement = unbound.as_ref().is_some_and(|transfer| {
+            transfer.template_dependent && transfer.incomplete_calls.is_empty()
+        });
         let (_, _, _, transfers) = self
             .statement_reference_transfer(machine, statement)
-            .map_err(Unavailable)?;
-        let transfer = transfers.fallthrough();
-        // A call that installs no caller reference needs no slot relation.
-        // Required suppliers and unknown writes still refuse; an open type
-        // parameter remains pending rather than proving an empty relation.
-        if transfer.effects.is_empty()
-            && transfer
-                .incomplete_calls
-                .iter()
-                .all(|failure| !failure.requires_relation)
-        {
-            return if transfer.template_dependent {
-                Err(TemplateDependent)
-            } else {
-                Ok(Vec::new())
-            };
-        }
-        if !transfer.incomplete_calls.is_empty() {
-            return Err(Unavailable(
-                "stored call has no complete statement-successor effects: an invocation relation is unavailable",
-            ));
-        }
-        if transfer.template_dependent {
-            return Err(TemplateDependent);
-        }
-        super::stored_calls::public_effects(transfer.effects).ok_or(Unavailable(
-            "stored call has no complete statement-successor effects: a descriptor source is unavailable",
-        ))
+            .map_err(|refusal| match refusal {
+                StatementReferenceTransferRefusal::EntryPrefix if template_statement => {
+                    TemplateDependent
+                }
+                refusal => Unavailable(refusal.reason()),
+            })?;
+        transfers.fallthrough().into_complete_effects()
     }
 
     /// Each normal invocation establishes its own slot contents before the
@@ -530,7 +535,7 @@ impl<'program> CallFrameResolver<'program> {
         statement_index: usize,
         expression: ExpressionHandle,
     ) -> Result<Vec<super::StoredReferenceEffect>, super::StoredReferenceRelationRefusal> {
-        use super::StoredReferenceRelationRefusal::{TemplateDependent, Unavailable};
+        use super::StoredReferenceRelationRefusal::Unavailable;
         let statement = self
             .program
             .statement_table
@@ -609,17 +614,7 @@ impl<'program> CallFrameResolver<'program> {
         .ok_or(Unavailable(
             "operand evaluation has no reference-slot transfer",
         ))?;
-        if !transfer.incomplete_calls.is_empty() {
-            return Err(Unavailable("operand invocation relation is unavailable"));
-        }
-        // A relation that still depends on a type parameter is unknown
-        // structure, not a proved failure; the selected closed instances
-        // publish it with concrete types.
-        if transfer.template_dependent {
-            return Err(TemplateDependent);
-        }
-        super::stored_calls::public_effects(transfer.effects)
-            .ok_or(Unavailable("operand descriptor source is unavailable"))
+        transfer.into_complete_effects()
     }
 
     /// Failures belong to actual invocations, not a target-wide classification.
@@ -725,7 +720,7 @@ impl<'program> CallFrameResolver<'program> {
             CollectedStatementPrefix,
             super::stored_calls::StatementSlotTransfers,
         ),
-        &'static str,
+        StatementReferenceTransferRefusal,
     > {
         let trace_refusal = |phase: &str, state: SymbolHandle, index: Option<usize>| {
             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
@@ -742,9 +737,7 @@ impl<'program> CallFrameResolver<'program> {
             CallerWriteSite::Statement(statement),
         ) else {
             trace_refusal("statement-site", SymbolHandle::invalid(), None);
-            return Err(
-                "stored call has no complete statement-successor effects: owning statement is unavailable",
-            );
+            return Err(StatementReferenceTransferRefusal::StatementSite);
         };
         let Some(prefix) = super::state_write_walk::collected_prefix_with_readiness_at(
             &self.caches.state_write_shared_collections,
@@ -756,9 +749,7 @@ impl<'program> CallFrameResolver<'program> {
             true,
         ) else {
             trace_refusal("entry-prefix", state.symbol, Some(index));
-            return Err(
-                "stored call has no complete statement-successor effects: entry reference-slot prefix is unavailable",
-            );
+            return Err(StatementReferenceTransferRefusal::EntryPrefix);
         };
         let Some(effects) = super::stored_calls::statement_effects(
             self.program,
@@ -770,9 +761,7 @@ impl<'program> CallFrameResolver<'program> {
             &mut FrameInference::for_state(state.symbol),
         ) else {
             trace_refusal("statement-effects", state.symbol, Some(index));
-            return Err(
-                "stored call has no complete statement-successor effects: statement evaluation transfer is unavailable",
-            );
+            return Err(StatementReferenceTransferRefusal::StatementEffects);
         };
         Ok((state, index, prefix, effects))
     }
@@ -1614,20 +1603,20 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
-    /// An external call can replace a stored pointer without changing a
-    /// separate local. Compute its writes after capturing the arguments;
-    /// the whole-statement query also fences those pointers' future replacement.
-    /// Unknown arguments or changed contained-reference inventories stay opaque.
-    pub fn boundary_invocation_write_frame(
+    /// Determine what a signature-only call can change after its arguments
+    /// have been evaluated. Direct machines and trait requirements use the
+    /// same captured inputs and exact call rules as ordinary frame inference.
+    /// Unknown arguments or changed reference slots remain opaque.
+    pub fn signature_invocation_write_frame(
         &self,
         current_machine: &'program Machine,
         site: &crate::CallSite<'program>,
     ) -> NormalizedWriteFrame {
-        let written = (|| -> Result<Vec<String>, &'static str> {
+        let written = (|| -> Result<Vec<String>, String> {
             let machine_symbols = self
                 .machine_symbols(current_machine)
                 .ok_or("caller symbols unavailable")?;
-            let (site, receiver, target, arguments) = match site {
+            let (site, receiver, target, target_symbol, arguments) = match site {
                 crate::CallSite::Statement(call) => (
                     CallerWriteSite::Call(call),
                     crate::machine_calls::calls::signature_queries::call_receiver_member_names(
@@ -1635,6 +1624,7 @@ impl<'program> CallFrameResolver<'program> {
                         call,
                     ),
                     call.target.as_str(),
+                    call.target_symbol,
                     self.program
                         .statement_table
                         .expression_handles(call.arguments),
@@ -1653,17 +1643,32 @@ impl<'program> CallFrameResolver<'program> {
                         CallerWriteSite::Expression(*expression),
                         receiver,
                         call.target.as_str(),
+                        call.target_symbol,
                         expression_table(self.program).expression_handles(call.arguments),
                     )
                 }
                 crate::CallSite::TransitionNamed { .. } => {
-                    return Err("named transition has no boundary invocation capture");
+                    return Err("named transition has no boundary invocation capture".to_owned());
                 }
             };
+            // This existing catalog authenticates the generated target, exact
+            // field policy and scalar signature. An authored opaque boundary
+            // cannot acquire scalar-access effects through its spelling.
+            let scalar_accessor =
+                typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(
+                    self.program,
+                    target_symbol,
+                )
+                .map_err(|diagnostic| diagnostic.message)?;
             let captured = self
                 .invocation_write_origins(current_machine, site)
                 .ok_or("invocation inputs unavailable")?;
-            captured.receiver.ok_or("receiver origin unavailable")?;
+            let receiver_origins = captured
+                .receiver
+                .ok_or("receiver origin unavailable")?
+                .iter()
+                .map(LocalWriteSource::frame_origin)
+                .collect::<Vec<_>>();
             // The storage adapter closes writable reference fields through
             // this inventory. A known outer address does not freeze its contents.
             captured
@@ -1685,29 +1690,63 @@ impl<'program> CallFrameResolver<'program> {
                 &self.caches.state_write_shared_collections,
                 |inference, prefix| {
                     let prefix = prefix?;
-                    let written = known_boundary_call_written_paths_for_parts(
+                    let written = known_call_written_paths_for_parts(
                         self.program,
+                        target_symbol,
+                        target,
+                        &receiver,
+                        &receiver_origins,
+                        None,
+                        arguments,
                         current_machine,
                         &machine_symbols,
                         &self.tables.symbols,
-                        &receiver,
-                        target,
-                        site,
-                        arguments,
                         inference,
                         Some(&argument_origins),
-                    )?;
-                    prefix.close_observed_paths(self.program, written)
+                    )
+                    .or_else(|| {
+                        known_boundary_call_written_paths_for_parts(
+                            self.program,
+                            current_machine,
+                            &machine_symbols,
+                            &self.tables.symbols,
+                            &receiver,
+                            target,
+                            site,
+                            arguments,
+                            inference,
+                            Some(&argument_origins),
+                        )
+                    })
+                    .or_else(|| {
+                        super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                            self.program,
+                            current_machine,
+                            &machine_symbols,
+                            &self.tables.symbols,
+                            &receiver,
+                            target,
+                            site,
+                            arguments,
+                            inference,
+                            Some(&argument_origins),
+                        )
+                    })?;
+                    if scalar_accessor.is_some() {
+                        Some(prefix.close_scalar_access_paths(written))
+                    } else {
+                        prefix.close_observed_paths(self.program, written)
+                    }
                 },
             )
-            .ok_or("boundary input write closure unavailable")
+            .ok_or_else(|| "signature input write closure unavailable".to_owned())
         })();
         match written {
             Ok(paths) => NormalizedWriteFrame::complete(paths),
             Err(reason) => {
                 if std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some() {
                     eprintln!(
-                        "CALLWRITE boundary-invocation-unavailable caller={} reason={reason}",
+                        "CALLWRITE signature-invocation-unavailable caller={} reason={reason}",
                         current_machine.name
                     );
                 }

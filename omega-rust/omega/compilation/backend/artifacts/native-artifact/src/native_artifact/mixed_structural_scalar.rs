@@ -131,6 +131,7 @@ mod tests {
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             }],
             ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {

@@ -116,6 +116,55 @@ pub(super) fn append_state_borrow_facts(
             statement_index,
             Default::default(),
         );
+        let replacement = super::loans::capture_replacement(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            call_frames,
+            &current_loans,
+        );
+        let mut call_ordinal = 0usize;
+        collect_statement_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            &mut call_ordinal,
+            arenas.access_segments,
+            arenas.argument_accesses,
+            arenas.calls,
+            &mut calls_span,
+        );
+        let completed_references = super::calls::append_reference_custody(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_frames,
+            arenas,
+            calls_span,
+            &mut loans_span,
+            state_loan_trackers,
+            &statement_entry_loans,
+        )?;
+        if let Some(completed) = &completed_references {
+            // Only immutable result homes join this statement's entry roster.
+            // Named slots retain their earlier snapshots during RHS formation.
+            current_loans.extend(
+                completed
+                    .iter()
+                    .filter(|tracker| {
+                        let row = arenas.loans.get(tracker.handle);
+                        row.statement_index == statement_index
+                            && matches!(row.storage_owner, PlaceRoot::Expression(expression)
+                        if expression == row.formation_expression)
+                    })
+                    .cloned(),
+            );
+        }
         // Capture result leaves against the same current roster as a local or
         // store. Reconstructing them later from historical loans loses entry
         // referents and revives overwritten carrier contents.
@@ -160,40 +209,6 @@ pub(super) fn append_state_borrow_facts(
                 },
             );
         }
-        let replacement = super::loans::capture_replacement(
-            program,
-            machine,
-            state,
-            statement_index,
-            statement,
-            call_frames,
-            &current_loans,
-        );
-        let mut call_ordinal = 0usize;
-        collect_statement_borrow_calls(
-            program,
-            machine,
-            state,
-            statement_index,
-            statement,
-            &mut call_ordinal,
-            arenas.access_segments,
-            arenas.argument_accesses,
-            arenas.calls,
-            &mut calls_span,
-        );
-        let completed_references = super::calls::append_reference_custody(
-            program,
-            machine,
-            state,
-            statement_index,
-            call_frames,
-            arenas,
-            calls_span,
-            &mut loans_span,
-            state_loan_trackers,
-            &statement_entry_loans,
-        )?;
         let pending_loans = statement_borrow_loans(
             program,
             state,
@@ -381,15 +396,16 @@ pub(super) fn append_carrier_loans(
                 owner_path,
                 source_owner_symbol: pending.source_owner_symbol,
                 supplying_loans: arenas.loan_suppliers.insert_many(pending.supplying_loans),
+                retained_input_lifetimes: None,
                 lineage: pending.lineage.clone(),
                 root: pending.place.root,
                 segments,
                 kind: pending.kind.clone(),
             },
         );
-        // An independent result owns its invocation's permission. A returned
-        // descriptor that forwards caller input still follows that input.
-        let independent_return = pending.lineage == checked_trees::BorrowLoanLineage::DirectRoot
+        // A completed invocation owns this result permission. Its input
+        // lifetimes remain separate from the pointer's access and address.
+        let completed_return = pending.lineage == checked_trees::BorrowLoanLineage::DirectRoot
             && arenas
                 .incoming_references
                 .is_valid(pending.place.incoming_reference)
@@ -402,7 +418,7 @@ pub(super) fn append_carrier_loans(
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
         ) && (pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
-            || independent_return)
+            || completed_return)
         {
             permission_sources.push(super::tracker::RetainedBorrowSource {
                 loan: handle,
@@ -418,6 +434,8 @@ pub(super) fn append_carrier_loans(
             kind: pending.kind,
             lineage: pending.lineage,
             formation: pending.formation,
+            formation_expression: pending.formation_expression,
+            formation_owner_path: pending.formation_owner_path,
             owner_path: pending.owner_path,
             place: pending.place,
             representation_address: pending.representation_address,
@@ -524,6 +542,7 @@ fn retire_replaced_carrier_loans(
     replacement: Option<&super::loans::CarrierReplacement>,
     current: &mut Vec<StateLoanTracker>,
 ) {
+    // Unresolved or unavailable effects cannot end an earlier backing loan.
     if let Some(effects) = call_frames.and_then(|frames| {
         frames
             .stored_reference_fallthrough_effects(machine, statement)
@@ -599,6 +618,8 @@ fn append_incoming_reference_trackers(
                     lineage: BorrowLoanLineage::LifetimeDependency,
                     representation_address: None,
                     formation: super::loans::BorrowFormation::Ordinary,
+                    formation_expression: Default::default(),
+                    formation_owner_path: None,
                     permission_sources: Vec::new(),
                     owner_path,
                     retained_operand: None,
@@ -674,6 +695,8 @@ fn append_incoming_reference_trackers(
                 kind,
                 lineage: BorrowLoanLineage::UnretainedDerived,
                 formation: super::loans::BorrowFormation::Ordinary,
+                formation_expression: Default::default(),
+                formation_owner_path: None,
                 permission_sources: Vec::new(),
                 owner_path,
                 retained_operand: None,

@@ -13,6 +13,7 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use validation::peel_declared_constraints;
 use validation::project_type_reference_from_segments;
+use validation::reference_result_custody::result_multiplicity;
 use validation::reference_shell;
 use validation::type_requires_establishment;
 
@@ -118,8 +119,11 @@ impl ConstructionFrontier {
         program: &dyn ::validation::CheckingInput,
         path: &[PlaceSegment],
     ) -> bool {
+        // A copied record still holds descriptors whose lifetimes must end.
+        // Test the stored value's custody, as local cleanup does, before
+        // excluding this region from disposal as an empty home.
         project_type_reference_from_segments(program, self.reference, path).is_some_and(
-            |reference| program.type_multiplicity(reference) == Multiplicity::Unrestricted,
+            |reference| result_multiplicity(program, reference) == Multiplicity::Unrestricted,
         )
     }
 

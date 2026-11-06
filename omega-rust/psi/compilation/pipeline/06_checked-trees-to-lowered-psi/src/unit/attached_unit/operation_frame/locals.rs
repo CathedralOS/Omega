@@ -49,7 +49,7 @@ impl OperationFrame<'_, '_> {
                 self.establish_structural_value(identities, operation)
             }
             checked_trees::CheckedUnitLocalBindingPlan::Structural { .. } => {
-                self.establish_structural_local(operation)
+                self.establish_structural_local(identities, operation)
             }
             // Primitive and affine storage belong to the ordinary machine's
             // statement sequence, never an operation frame.
@@ -701,17 +701,18 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Establish one declared structural local's home as an operation result
-    /// place. Member stores and borrows rejoin the local through the binding
-    /// the result registration publishes; the home itself has no contents
-    /// until member operations establish them.
+    /// Establish a local's stable home by reserving storage or receiving its
+    /// completed initializer. Later stores and borrows name the place this
+    /// binding publishes; only a reservation still needs its contents filled.
     pub(super) fn establish_structural_local(
         &mut self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishLocal(
             checked_trees::CheckedUnitLocalBindingPlan::Structural {
                 result,
+                initial_value,
                 qualifications,
                 discard_result_on_return,
                 ..
@@ -722,6 +723,14 @@ impl OperationFrame<'_, '_> {
         };
         self.results
             .require_next(result, "structural local result binding is not dense")?;
+        if let Some(value) = initial_value {
+            return self.initialize_owned_local(
+                identities,
+                result,
+                value,
+                *discard_result_on_return,
+            );
+        }
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let multiplicity =
             crate::shared::terminal_identities::structural_multiplicity(result.multiplicity);
@@ -855,6 +864,7 @@ impl OperationFrame<'_, '_> {
                     (
                         parameter.qualifications.clone(),
                         parameter.projected_qualifications.clone(),
+                        parameter.additional_input_qualifications.clone(),
                     )
                 })
                 .or_else(|| {
@@ -867,6 +877,7 @@ impl OperationFrame<'_, '_> {
                                 (
                                     result.qualifications.clone(),
                                     result.projected_qualifications.clone(),
+                                    result.additional_input_qualifications.clone(),
                                 )
                             })
                     })
@@ -880,6 +891,8 @@ impl OperationFrame<'_, '_> {
                     &source_contract.1,
                     &path,
                 );
+            let additional_input_qualifications =
+                terminal_psi::StructuralPathQualification::select_rows(&source_contract.2, &path);
             if multiplicity == language_semantics::Multiplicity::Unrestricted {
                 // Copy permission belongs to the selected child, not its
                 // enclosing owner. Passing this path as an owned argument
@@ -894,6 +907,7 @@ impl OperationFrame<'_, '_> {
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         qualifications,
                         projected_qualifications,
+                        additional_input_qualifications,
                         qualification_establishments: Vec::new(),
                         claims: Vec::new(),
                     }),
@@ -917,6 +931,7 @@ impl OperationFrame<'_, '_> {
                     access: StructuralAccess::Owned,
                     qualifications,
                     projected_qualifications,
+                    additional_input_qualifications,
                 };
                 let mut arguments = vec![terminal_psi::StructuralArgument {
                     place: repair.place,
@@ -1200,7 +1215,11 @@ impl OperationFrame<'_, '_> {
                             // Referent memberships stay on the referent. Moving
                             // them onto the descriptor root would invent a new
                             // qualified carrier and lose projected identities.
-                            for row in &mut parameter.projected_qualifications {
+                            for row in parameter
+                                .projected_qualifications
+                                .iter_mut()
+                                .chain(&mut parameter.additional_input_qualifications)
+                            {
                                 row.path
                                     .insert(0, terminal_psi::StructuralPathSegment::Referent);
                             }

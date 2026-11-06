@@ -131,7 +131,10 @@ fn declared_call_result<'program>(
     super::call_target_return_type(program, call.target_symbol).map(DeclaredCallResult::Signature)
 }
 
-pub(in crate::machine_calls::calls) fn call_returns_unit(
+/// Query the logical result without granting a statement or argument position.
+/// Reference custody uses this to distinguish known Unit work from a missing
+/// value contract, including authenticated compiler-owned Build operations.
+pub fn call_returns_unit(
     program: &dyn CheckingInput,
     machine: &Machine,
     expression: ExpressionHandle,

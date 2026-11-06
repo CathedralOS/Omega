@@ -239,7 +239,7 @@ data Buffer {
     bytes: [u8; 4];
 }
 
-machine [] Buffer::at(buffer: &Buffer, index: u64) -> u8
+machine [] at(buffer: &Buffer, index: u64) -> u8
 requires index < 4
 {
     buffer.bytes[index]
@@ -250,14 +250,14 @@ machine first(buffer: &Buffer) -> u8 {
 }
 ```
 
-`buffer[0]` supplies the shared collection loan required by `Buffer::at`;
+`buffer[0]` supplies the shared collection loan required by `at`;
 no `(&buffer)[0]` spelling is required. A mutable collection parameter requires
 exclusive access and forms the corresponding loan. Conflicting loans still
 reject. The index itself follows its parameter's ordinary ownership rules.
 
 This is token-specific collection adaptation for `[]` and `[..]`, not receiver
 syntax or automatic borrowing of every operator operand. The named call remains
-`Buffer::at(&buffer, 0)`; a mutable named call requires an explicit `&mut` argument.
+`at(&buffer, 0)`; a mutable named call requires an explicit `&mut` argument.
 Index machines may return computed values, as above, or borrowed views; a
 value-returning getter does not by itself provide an assignable indexed place.
 
@@ -266,23 +266,47 @@ let item: InventoryItem = items[index];
 let first: InventoryItem = items[0];
 ```
 
-Both accesses need bounds evidence; `[0]` needs a nonempty view. Indexing and
-slicing are ordinary operators, with browsable contracts such as:
+Both accesses need bounds evidence; `[0]` needs a nonempty view. Copying an
+element also requires an unrestricted element type; borrowing an element has
+its own access and lifetime obligations.
+
+Core indexing and slicing select ordinary contracted operations supplied by
+sealed compiler primitives. Their declarations directly carry the operator
+token, so indexing does not require a forwarding call or an inlining pass.
+For example, the authorized core by-copy read has this declaration shape:
 
 ```omega
-boundary machine [] Slice::index<T>(items: &[T], index: u64) -> T
-requires
-    index < items.len;
-
-boundary machine [..] Slice::range<T>(items: &[T], start: u64, end: u64) -> &[T]
-requires
-    start <= end && end <= items.len;
+machine [] read<Element [copy]>(items: &[Element], index: u64) -> Element
+requires index < items.len;
 ```
 
-The checker establishes bounds; the selected implementation constructs the
-descriptor. Mutable indexing adds the appropriate exclusive loan—it does not
-replace the bounds proof. A live `items[1..]` need not prevent a write to
+A caller can establish that requirement through its own contract:
+
+```omega
+machine read_at(items: &[u8], index: u64) -> u8
+requires index < items.len {
+    items[index]
+}
+```
+
+The bracket call selects the core read, substitutes `u8` and the two arguments,
+and proves its complete contract through ordinary call checking. Here the
+caller's precondition supplies the bound; a branch or checked theorem can do
+the same. Every caller of `read_at` must establish that precondition in turn.
+The primitive lowers directly to a memory read with evidence for this exact
+access. Copying the declaration into a user package does not grant primitive
+supply. See [generic sealed primitives](../spec/language/machines.md#generic-sealed-primitives).
+
+Ranges similarly require ordered endpoints within the source's live extent and
+retain the result's length, backing and lifetime. Mutable indexing adds the
+appropriate exclusive loan; it does not replace the bounds proof. A live
+`items[1..]` need not prevent a write to
 `items[0]`, but an overlapping write to `items[1]` conflicts.
+
+This architecture is ratified. The reference compiler's declaration-free
+indexing fallback and separate bounds checker are migration work under
+**CORE-INDEXING-CONTRACTS** in [TASKS.md](../../TASKS.md); the bodyless generic
+declaration above describes the accepted core surface, not completed delivery.
 
 `a..b` excludes `b`; `a..=b` includes it. Open forms are `a..`, `..b`, and `..`.
 An inclusive end is an indexed position, so it needs `b < len`, rather than

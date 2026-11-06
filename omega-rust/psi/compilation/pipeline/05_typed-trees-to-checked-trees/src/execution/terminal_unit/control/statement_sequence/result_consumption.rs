@@ -574,8 +574,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         at_exit: false,
         uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
-        scalar_completion: None,
+        completion: None,
         transported_loans: &transported_loans,
+        storage_borrowers: &owner_candidates.storage_borrowers,
     };
     // Receiving carriers retire before their retained supplying descriptors.
     // Call inputs have the same statement boundaries as standalone producers;
@@ -1008,7 +1009,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
-    scalar_control: Option<&checked_trees::CheckedUnitScalarControlPlan>,
+    completion: crate::execution::terminal_unit::storage_transfers::CompletionPlan<'_>,
     results: &[(BindingPlan, PlaceRoot)],
     operations: &mut Vec<OperationPlan>,
     trace: &super::super::LocalConstructionTrace,
@@ -1032,32 +1033,19 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     {
         return Some(());
     }
-    // The final use of a local must finish before exit releases it. Select
-    // those return paths once, and preserve a malformed plan's reason in the
-    // construction diagnostic instead of hiding it in a retirement refusal.
-    let scalar_paths = match scalar_control {
-        Some(control)
-            if !matches!(
-                control.terminator,
-                checked_trees::CheckedScalarStateTerminator::Crash { .. }
-            ) =>
-        {
-            match control
-                .terminator
-                .returning_paths(&facts.flow.guarded_exits)
-            {
-                Ok(paths) => Some(paths),
-                Err(reason) => {
-                    trace.phase(reason);
-                    return None;
-                }
-            }
+    // No normal completion means no lexical cleanup successor. Prepare the
+    // selected paths once; every pending holder uses this same source plan.
+    let prepared_completion = match completion.prepare(program, facts, machine, authored_state) {
+        Ok(prepared) => prepared,
+        Err(reason) => {
+            trace.phase(reason);
+            return None;
         }
-        _ => None,
     };
-    let scalar_completion = scalar_paths.as_deref().map(|paths| {
-        crate::execution::terminal_unit::storage_transfers::ScalarCompletion { state, paths }
-    });
+    if !prepared_completion.has_normal_completion() {
+        return Some(());
+    }
+    let completion = Some(&prepared_completion);
     let order = program
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);
@@ -1216,8 +1204,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         at_exit: false,
         uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
-        scalar_completion,
+        completion,
         transported_loans: &transported_loans,
+        storage_borrowers: &owner_candidates.storage_borrowers,
     };
     // Lexical last use does not order descriptor death: a parent's last
     // authored use can form a child that lives until this same completion.
@@ -1233,6 +1222,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             returned,
             ..statement_retirement
         };
+        trace.phase("statement sequence: completion reference complements");
         let complements = complement_completions(&retirement)?;
         if !complements.is_empty() {
             for (position, complement) in complements {
@@ -1247,6 +1237,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             }
             continue;
         }
+        trace.phase("statement sequence: completion reference carrier dependencies");
         let mut next = None;
         for (index, (_, operation, storage_loans)) in pending.iter().enumerate() {
             let OperationPlan::ReleaseReference { loans, source, .. } = operation else {
@@ -1259,7 +1250,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .iter()
                 .find(|(result, _)| result.binding_ordinal == *binding_ordinal)?;
             if !retirement.carrier_children_retired(result) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=carrier-children scheduled={} loans={loans:?}",
                         result.binding_ordinal,
@@ -1276,7 +1269,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 retired
             }) {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
                         result.binding_ordinal,
@@ -1291,7 +1286,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 .loan_group(*loans)?
                 .all(|(loan, _)| retirement.children_retired(loan))
             {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     eprintln!(
                         "CHECKSITE exit-reference-pending state={state:?} result={} reason=loan-children scheduled={} rows={:?}",
                         result.binding_ordinal,
@@ -1313,12 +1310,14 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
             scheduled.push(pending.remove(index).1);
             continue;
         }
+        trace.phase("statement sequence: completion reference backing dependencies");
         let mut releases = retirement.backing_releases()?;
         // A final store can establish a new named descriptor after the last
         // ordinary statement boundary. Its RHS transferred into that home;
         // retiring only result carriers would strand the receiving occurrence
         // until after its backing's source-state death. Reuse the same exact
         // formation groups and dependency checks at this selected completion.
+        trace.phase("statement sequence: completion stored reference dependencies");
         for operation in operations
             .iter()
             .rev()
@@ -1331,7 +1330,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
-                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+                    || std::env::var_os("OMEGA_PHASE_PROFILE").is_some()
+                {
                     for (_, operation, storage_loans) in &pending {
                         let OperationPlan::ReleaseReference {
                             source: SourcePlan::StructuralResult { binding_ordinal },
@@ -1450,7 +1451,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         authored_state,
         statement_index,
         returned,
-        scalar_completion,
+        completion,
         true,
         trace,
         results,
@@ -1709,8 +1710,8 @@ pub(in crate::execution::terminal_unit) fn consume_results(
             consume_result(operations, binding_ordinal, access, projected)?;
         }
     }
-    // A whole-result field store consumes the minted binding the same way a
-    // call argument does: Owned access retires the producer's disposal debt.
+    // Installing a completed value into a local home or field consumes it as
+    // an owned call argument does, retiring the producer's disposal debt.
     if let Some(value) = consumer.installed_value()
         && let Some(binding_ordinal) = value.source_structural_result_binding_ordinal()
     {

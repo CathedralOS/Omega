@@ -414,6 +414,7 @@ impl TerminalExecution<'_> {
                 multiplicity: parameter.multiplicity,
                 qualifications: whole.to_vec(),
                 projected_qualifications: projected.to_vec(),
+                additional_input_qualifications: Vec::new(),
                 qualification_establishments: Vec::new(),
                 claims: source_claims
                     .iter()

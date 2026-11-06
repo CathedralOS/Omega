@@ -264,6 +264,7 @@ mod tests {
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         }
     }
 
@@ -391,6 +392,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             }],
         };
         assert!(source_slot_matches(

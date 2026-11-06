@@ -3,6 +3,7 @@
 //! own backing. Preserve every frozen member and its declared access ceiling.
 use super::super::call_operands::ResourceDraft;
 use super::super::permission_sources;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, CapturedPlace, CheckFacts, CheckedCallBorrowLoanResource,
@@ -32,6 +33,7 @@ pub(super) struct InputPlan {
 pub(super) fn plan(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     sources: HandleSpan<FlowOperandRetainedSupplier>,
@@ -91,6 +93,7 @@ pub(super) fn plan(
                 append_borrowed(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     handle,
@@ -140,6 +143,7 @@ pub(super) fn plan(
                         append_borrowed(
                             program,
                             facts,
+                            loan_occurrences,
                             state,
                             call,
                             handle,
@@ -158,6 +162,7 @@ pub(super) fn plan(
                         let aliases = crate::checks::borrows::completed_backings::incoming_sources(
                             program,
                             facts,
+                            loan_occurrences,
                             state,
                             call_row.statement_index,
                             call_row.entry_constraints,
@@ -243,6 +248,7 @@ pub(super) fn plan(
 fn append_borrowed(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     source: Handle<FlowOperandRetainedSupplier>,
@@ -267,7 +273,7 @@ fn append_borrowed(
     let lending_call = original.unwrap_or(call);
     let (suppliers, captured_parents) = permission_sources::lending_sources(
         program,
-        facts,
+        facts, loan_occurrences,
         state,
         lending_call,
         operand,

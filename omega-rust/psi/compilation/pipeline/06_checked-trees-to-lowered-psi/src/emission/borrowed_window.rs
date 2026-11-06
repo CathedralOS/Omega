@@ -239,6 +239,7 @@ struct ResolvedStorageAddress {
     restoration_required: bool,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
+    additional_input_qualifications: Vec<terminal_psi::StructuralPathQualification>,
 }
 
 impl ResolvedStorageAddress {
@@ -413,6 +414,10 @@ impl BorrowedWindowLedger {
                     &place.projected_qualifications,
                     &path,
                 );
+            let additional = terminal_psi::StructuralPathQualification::select_rows(
+                &place.additional_input_qualifications,
+                &path,
+            );
             // An indexed destination keeps the view's current pointer and
             // length before the RHS runs. Borrowing its descriptor slot would
             // allow a later replacement of that slot to redirect the store.
@@ -426,7 +431,7 @@ impl BorrowedWindowLedger {
             } else {
                 super::completed_place::Capture::Address(capture_type)
             };
-            let (capture_type, qualifications, projected_qualifications) =
+            let (capture_type, qualifications, projected_qualifications, additional) =
                 super::completed_place::present_capture(
                     &capture,
                     access,
@@ -434,6 +439,7 @@ impl BorrowedWindowLedger {
                     environment.structural_domains(),
                     qualifications,
                     projected_qualifications,
+                    additional,
                 )?;
             let source = super::completed_address::capture(
                 place.source,
@@ -442,6 +448,7 @@ impl BorrowedWindowLedger {
                 access,
                 qualifications,
                 projected_qualifications,
+                additional,
                 evaluation.evaluation,
                 values,
                 next_value,
@@ -836,6 +843,7 @@ impl BorrowedWindowLedger {
                 multiplicity: terminal_multiplicity(result.multiplicity),
                 qualifications,
                 projected_qualifications,
+                additional_input_qualifications: Vec::new(),
                 claims: result_claims,
             }),
             OperationKind::MoveStructuralField {
@@ -1342,6 +1350,7 @@ fn resolve_storage_address(
         restoration_required,
         qualifications,
         projected_qualifications,
+        additional_input_qualifications,
         alias_prefix,
         path_root,
     ) = match plan.source {
@@ -1378,6 +1387,7 @@ fn resolve_storage_address(
                 parameter.access != StructuralAccess::Owned,
                 parameter.qualifications.clone(),
                 parameter.projected_qualifications.clone(),
+                parameter.additional_input_qualifications.clone(),
                 Vec::new(),
                 parameter.structural_type,
             )
@@ -1413,6 +1423,7 @@ fn resolve_storage_address(
                 root.argument.access != StructuralAccess::Owned,
                 root.qualifications.to_vec(),
                 root.projected_qualifications.to_vec(),
+                root.additional_input_qualifications.to_vec(),
                 root.argument.path.clone(),
                 root.selected_type,
             )
@@ -1462,6 +1473,7 @@ fn resolve_storage_address(
             restoration_required,
             qualifications,
             projected_qualifications,
+            additional_input_qualifications,
         });
     }
     let (lowered_steps, leaf, borrowed_backing) =
@@ -1513,6 +1525,7 @@ fn resolve_storage_address(
         restoration_required,
         qualifications,
         projected_qualifications,
+        additional_input_qualifications,
     })
 }
 
