@@ -19,6 +19,8 @@ use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 use validation::CanonicalPlace;
 
 mod arguments;
+mod callable_inputs;
+pub(super) use callable_inputs::seed_contract_inputs;
 pub(super) mod lexical_regions;
 mod parameter_bounds;
 mod predicates;
@@ -722,9 +724,9 @@ fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
         .collect()
 }
 
-/// A non-exported body with a known caller roster. Its entry may use the
-/// completed scalars and cases those callers actually pass. A public or
-/// target-family body stays on its declared premises.
+/// Caller facts can enter a body only when every possible invocation is known.
+/// Public entries, escaped callables and provider bodies use their declared
+/// input conditions, even when the visible callers happen to pass one value.
 pub(super) fn caller_roster_supplies_entry(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,
@@ -732,8 +734,7 @@ pub(super) fn caller_roster_supplies_entry(
     !machine.is_public
         && !machine.target_family_interface
         && machine.supplies_checked_body()
-        && (validation::private_invocation_entry_is_closed(program, machine)
-            || !lexically_nested_machine(program, machine.symbol))
+        && validation::with_private_invocation_inputs(program, machine, |_| ()).is_some()
 }
 /// An authored machine nested inside an enclosing machine's scope belongs to
 /// that activation: its declaration-scope parent is a machine lexical scope.

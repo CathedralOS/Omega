@@ -41,12 +41,31 @@ fn deduplicate(memberships: &mut Vec<LiveMembership>) {
 
 pub(super) fn retain_common(memberships: &mut Vec<LiveMembership>, incoming: &[LiveMembership]) {
     let buckets = membership_buckets(incoming);
-    memberships.retain(|membership| {
+    memberships.retain_mut(|membership| {
         let key =
             facts::places::place_bucket_hash(membership.place.root, &membership.place.segments);
-        buckets
-            .candidates(key)
-            .any(|position| incoming[position] == *membership)
+        let mut common: Option<QualificationEvidence> = None;
+        for position in buckets.candidates(key) {
+            let next = &incoming[position];
+            if membership.place != next.place
+                || membership.domain != next.domain
+                || membership.instance != next.instance
+            {
+                continue;
+            }
+            let Some(evidence) = membership.evidence.common_consequence(next.evidence) else {
+                continue;
+            };
+            common = match common {
+                Some(retained) => retained.available_alternative(evidence),
+                None => Some(evidence),
+            };
+        }
+        let Some(evidence) = common else {
+            return false;
+        };
+        membership.evidence = evidence;
+        true
     });
 }
 

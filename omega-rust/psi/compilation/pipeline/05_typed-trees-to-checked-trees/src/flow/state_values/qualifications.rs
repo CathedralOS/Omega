@@ -111,6 +111,26 @@ impl CarriedPredicate {
 }
 
 impl QualifiedInput {
+    /// A selected callable's admitted entry condition, already substituted to
+    /// the selected body's parameter. It inherits authority; it mints none.
+    pub(super) fn declared_contract(
+        place: validation::CanonicalPlace,
+        domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
+        entry: SymbolHandle,
+    ) -> Self {
+        Self {
+            subject: place.root,
+            segments: place.segments,
+            predicate: CarriedPredicate::Domain {
+                domain: HandleSpan::empty(),
+                domain_symbol,
+                semantic_domain,
+            },
+            evidence: crate::published::facts::propagated_evidence(entry),
+        }
+    }
+
     /// One integer per storage place, folded from the root's and segments'
     /// integer keys: equal subjects get equal keys. Distinct places may share
     /// a key, so `same_subject` still decides every match.
@@ -131,11 +151,12 @@ impl QualifiedInput {
     fn same_subject(&self, other: &Self) -> bool {
         self.subject == other.subject
             && self.segments == other.segments
-            && self.evidence == other.evidence
+            && self.evidence.same_authority(other.evidence)
     }
 
     fn same_claim(&self, other: &Self) -> bool {
         self.same_subject(other)
+            && self.evidence == other.evidence
             && self.predicate.implies(other.predicate)
             && other.predicate.implies(self.predicate)
     }
@@ -196,7 +217,7 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
     let mut changed = false;
     let positions = subject_positions(incoming);
     previous.retain_mut(|claim| {
-        let mut common: Option<CarriedPredicate> = None;
+        let mut common: Option<(CarriedPredicate, QualificationEvidence)> = None;
         for next in matching_positions(&positions, claim.subject_key())
             .iter()
             .map(|(_, position)| &incoming[*position])
@@ -205,15 +226,31 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
             let Some(candidate) = claim.predicate.common_consequence(next.predicate) else {
                 continue;
             };
-            if common.is_none_or(|retained| candidate.implies(retained)) {
-                common = Some(candidate);
+            let Some(evidence) = claim.evidence.common_consequence(next.evidence) else {
+                continue;
+            };
+            match common {
+                Some((retained, retained_evidence))
+                    if candidate.implies(retained) && retained.implies(candidate) =>
+                {
+                    if let Some(evidence) = retained_evidence.available_alternative(evidence) {
+                        common = Some((retained, evidence));
+                    }
+                }
+                _ if common.is_none_or(|(retained, _)| candidate.implies(retained)) => {
+                    common = Some((candidate, evidence));
+                }
+                _ => {}
             }
         }
-        let Some(common) = common else {
+        let Some((common, evidence)) = common else {
             return false;
         };
-        changed |= !claim.predicate.implies(common) || !common.implies(claim.predicate);
+        changed |= !claim.predicate.implies(common)
+            || !common.implies(claim.predicate)
+            || claim.evidence != evidence;
         claim.predicate = common;
+        claim.evidence = evidence;
         true
     });
     changed || previous.len() != before
@@ -221,7 +258,8 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
 
 /// A membership can only disappear. A float predicate can additionally
 /// weaken among the five positive comparisons at authored endpoints, then
-/// non-NaN, then absence. Joins never manufacture new numeric endpoints.
+/// non-NaN, then absence. Provenance can additionally weaken from independent
+/// to one input, mixed inputs, then unknown. No join creates an endpoint or receipt.
 pub(super) fn height(
     program: &dyn ::validation::CheckingInput,
     inputs: &[QualifiedInput],
@@ -231,10 +269,13 @@ pub(super) fn height(
         .saturating_mul(5)
         .saturating_add(2);
     inputs.iter().fold(0usize, |height, input| {
-        height.saturating_add(match input.predicate {
-            CarriedPredicate::Domain { .. } => 1,
-            CarriedPredicate::Float(_) => float_height,
-        })
+        height.saturating_add(
+            match input.predicate {
+                CarriedPredicate::Domain { .. } => 1,
+                CarriedPredicate::Float(_) => float_height,
+            }
+            .saturating_mul(4),
+        )
     })
 }
 
@@ -345,6 +386,7 @@ pub(super) fn capture_completed_argument(
     flow_context: &FlowBuildContext,
     operand: &checked_trees::FlowOperandFact,
     completed: &super::CompletedArgumentFacts,
+    destination_state: SymbolHandle,
     destination: SymbolHandle,
 ) -> Vec<QualifiedInput> {
     let Some(frames) = flow_context.call_frames else {
@@ -391,7 +433,9 @@ pub(super) fn capture_completed_argument(
                     subject: facts::PlaceRoot::Symbol(destination),
                     segments: segments.to_vec(),
                     predicate,
-                    evidence: fact.evidence,
+                    evidence: fact
+                        .evidence
+                        .at_invocation_input(destination_state, destination),
                 });
             }
         }
