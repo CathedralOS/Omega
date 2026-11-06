@@ -162,3 +162,48 @@ fn record_recovery_budgets_association_before_allocating_for_handles() {
     .unwrap_err();
     assert!(error.reason.contains("allocation"));
 }
+
+#[test]
+fn small_record_recovery_charges_every_preallocated_association_buffer() {
+    let mut arena = Arena::default();
+    arena.insert(selection(StaticMachineApplicationHandle::from_parts(1, 1)));
+    let bytes =
+        compiler_storage::encode(&arena, compiler_storage::RecordLimits::default()).unwrap();
+    // Find the actual arena decoder's allocation requirement, independently
+    // of this table's association accounting and nested signature layout.
+    let mut low = 0;
+    let mut high = compiler_storage::RecordLimits::default().allocation;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let limits = compiler_storage::RecordLimits {
+            allocation: middle,
+            ..Default::default()
+        };
+        if compiler_storage::decode::<Arena<AppliedCallableSignature>>(&bytes, limits).is_ok() {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    let association = AssociationLayout::measure(&arena)
+        .unwrap()
+        .allocation_bytes()
+        .unwrap();
+    assert!(association > 0);
+    let tight = compiler_storage::RecordLimits {
+        allocation: low + association - 1,
+        ..Default::default()
+    };
+    assert!(compiler_storage::decode::<Arena<AppliedCallableSignature>>(&bytes, tight).is_ok());
+    let error = compiler_storage::decode::<AppliedCallableTable>(&bytes, tight).unwrap_err();
+    assert!(error.reason.contains("allocation"));
+    let exact = compiler_storage::RecordLimits {
+        allocation: low + association,
+        ..Default::default()
+    };
+    let restored: AppliedCallableTable = compiler_storage::decode(&bytes, exact).unwrap();
+    assert_eq!(
+        rows(&restored, StaticMachineApplicationHandle::from_parts(1, 1)).len(),
+        1
+    );
+}

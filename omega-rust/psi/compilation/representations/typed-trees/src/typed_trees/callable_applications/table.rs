@@ -35,21 +35,9 @@ pub(crate) struct AppliedCallableTable {
 
 impl From<Arena<AppliedCallableSignature>> for AppliedCallableTable {
     fn from(arena: Arena<AppliedCallableSignature>) -> Self {
-        let rows = arena
-            .iter()
-            .filter_map(|(handle, row)| {
-                matches!(&row.owner, AppliedCallableOwner::MachineSelection { .. })
-                    .then_some(handle)
-            })
-            .collect::<Vec<_>>();
-        let mut table = Self {
-            arena,
-            ..Self::default()
-        };
-        for row in rows {
-            table.publish_row(row);
-        }
-        table
+        let layout = AssociationLayout::measure(&arena)
+            .expect("produced callable association must fit the host's storage sizes");
+        Self::recover(arena, layout)
     }
 }
 
@@ -84,37 +72,80 @@ impl compiler_storage::Record for AppliedCallableTable {
         input: &mut compiler_storage::RecordReader<'_, Context>,
     ) -> Result<Self, compiler_storage::RecordError> {
         let arena = <Arena<AppliedCallableSignature> as compiler_storage::Record>::read(input)?;
-        let allocation = association_allocation_bound(&arena)
+        let layout = AssociationLayout::measure(&arena)
+            .ok_or_else(|| input.error("applied callable association size overflow"))?;
+        let allocation = layout
+            .allocation_bytes()
             .ok_or_else(|| input.error("applied callable association allocation overflow"))?;
         input.allocate(allocation)?;
-        Ok(Self::from(arena))
+        Ok(Self::recover(arena, layout))
     }
 }
 
-// Association buffers can grow geometrically during production. Charge their
-// upper bound before recovering a table from untrusted record bytes; a large
-// encoded handle must not turn a small row into an unbudgeted dense allocation.
-fn association_allocation_bound(arena: &Arena<AppliedCallableSignature>) -> Option<usize> {
-    let mut invocation_slots = 0usize;
-    let mut row_slots = 0usize;
-    let mut count = 0usize;
-    for (handle, row) in arena.iter() {
-        if let AppliedCallableOwner::MachineSelection { invocation, .. } = &row.owner {
-            invocation_slots =
-                invocation_slots.max((invocation.arena_index() as usize).checked_add(1)?);
-            row_slots = row_slots.max((handle.arena_index() as usize).checked_add(1)?);
-            count = count.checked_add(1)?;
+// Recovery measures every association buffer before allocating. Exact initial
+// capacities avoid both geometric growth and Vec's minimum growth capacity.
+struct AssociationLayout {
+    invocation_slots: usize,
+    row_slots: usize,
+    selections: usize,
+}
+
+impl AssociationLayout {
+    fn measure(arena: &Arena<AppliedCallableSignature>) -> Option<Self> {
+        let mut layout = Self {
+            invocation_slots: 0,
+            row_slots: 0,
+            selections: 0,
+        };
+        for (handle, row) in arena.iter() {
+            if let AppliedCallableOwner::MachineSelection { invocation, .. } = &row.owner {
+                layout.invocation_slots = layout
+                    .invocation_slots
+                    .max((invocation.arena_index() as usize).checked_add(1)?);
+                layout.row_slots = layout
+                    .row_slots
+                    .max((handle.arena_index() as usize).checked_add(1)?);
+                layout.selections = layout.selections.checked_add(1)?;
+            }
         }
+        Some(layout)
     }
-    invocation_slots
-        .checked_mul(std::mem::size_of::<Handle<InvocationGroup>>())?
-        .checked_add(row_slots.checked_mul(std::mem::size_of::<RowLink>())?)?
-        .checked_add(count.checked_mul(std::mem::size_of::<InvocationGroup>())?)?
-        .checked_add(count.checked_mul(std::mem::size_of::<CallableRow>())?)?
-        .checked_mul(2)
+
+    fn allocation_bytes(&self) -> Option<usize> {
+        self.invocation_slots
+            .checked_mul(std::mem::size_of::<Handle<InvocationGroup>>())?
+            .checked_add(self.row_slots.checked_mul(std::mem::size_of::<RowLink>())?)?
+            .checked_add(
+                self.selections
+                    .checked_mul(std::mem::size_of::<InvocationGroup>())?,
+            )?
+            .checked_add(
+                self.selections
+                    .checked_mul(std::mem::size_of::<CallableRow>())?,
+            )
+    }
 }
 
 impl AppliedCallableTable {
+    fn recover(arena: Arena<AppliedCallableSignature>, layout: AssociationLayout) -> Self {
+        let mut rows = Vec::with_capacity(layout.selections);
+        for (handle, row) in arena.iter() {
+            if matches!(&row.owner, AppliedCallableOwner::MachineSelection { .. }) {
+                rows.push(handle);
+            }
+        }
+        let mut table = Self {
+            arena,
+            invocation_heads: vec![Handle::default(); layout.invocation_slots],
+            invocation_groups: Arena::with_capacity(layout.selections),
+            row_links: vec![RowLink::default(); layout.row_slots],
+        };
+        for row in rows {
+            table.publish_row(row);
+        }
+        table
+    }
+
     pub(super) fn insert(&mut self, row: AppliedCallableSignature) -> CallableRow {
         let handle = self.arena.insert(row);
         self.publish_row(handle);
