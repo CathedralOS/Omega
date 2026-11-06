@@ -1,5 +1,5 @@
 // Expected exit: 0
-// Calling executes against two exact inline private-slot paths. The checked
+// Calling executes against 33 exact inline private-slot paths. The checked
 // registrar exercises the callback's logical contract; this is not an oracle
 // for a foreign registrar loading and invoking a stored native pointer.
 use omega_language_std::calling;
@@ -41,12 +41,74 @@ public data Envelope {
     before: u64;
     first: LayoutStorage<Payload, Fixed>;
     second: LayoutStorage<Payload, Variable>;
+    slot2: LayoutStorage<Payload, Fixed>;
+    slot3: LayoutStorage<Payload, Fixed>;
+    slot4: LayoutStorage<Payload, Fixed>;
+    slot5: LayoutStorage<Payload, Fixed>;
+    slot6: LayoutStorage<Payload, Fixed>;
+    slot7: LayoutStorage<Payload, Fixed>;
+    slot8: LayoutStorage<Payload, Fixed>;
+    slot9: LayoutStorage<Payload, Fixed>;
+    slot10: LayoutStorage<Payload, Fixed>;
+    slot11: LayoutStorage<Payload, Fixed>;
+    slot12: LayoutStorage<Payload, Fixed>;
+    slot13: LayoutStorage<Payload, Fixed>;
+    slot14: LayoutStorage<Payload, Fixed>;
+    slot15: LayoutStorage<Payload, Fixed>;
+    slot16: LayoutStorage<Payload, Fixed>;
+    slot17: LayoutStorage<Payload, Fixed>;
+    slot18: LayoutStorage<Payload, Fixed>;
+    slot19: LayoutStorage<Payload, Fixed>;
+    slot20: LayoutStorage<Payload, Fixed>;
+    slot21: LayoutStorage<Payload, Fixed>;
+    slot22: LayoutStorage<Payload, Fixed>;
+    slot23: LayoutStorage<Payload, Fixed>;
+    slot24: LayoutStorage<Payload, Fixed>;
+    slot25: LayoutStorage<Payload, Fixed>;
+    slot26: LayoutStorage<Payload, Fixed>;
+    slot27: LayoutStorage<Payload, Fixed>;
+    slot28: LayoutStorage<Payload, Fixed>;
+    slot29: LayoutStorage<Payload, Fixed>;
+    slot30: LayoutStorage<Payload, Fixed>;
+    slot31: LayoutStorage<Payload, Fixed>;
+    slot32: LayoutStorage<Payload, Fixed>;
     after: u64;
 }
 public boundary trait Registrar: Calling<SlotCalling> {
-    machine register<machine First, machine Second>(envelope: &Envelope) -> u64
+    machine register<machine First, machine Second, machine Extra2, machine Extra3, machine Extra4, machine Extra5, machine Extra6, machine Extra7, machine Extra8, machine Extra9, machine Extra10, machine Extra11, machine Extra12, machine Extra13, machine Extra14, machine Extra15, machine Extra16, machine Extra17, machine Extra18, machine Extra19, machine Extra20, machine Extra21, machine Extra22, machine Extra23, machine Extra24, machine Extra25, machine Extra26, machine Extra27, machine Extra28, machine Extra29, machine Extra30, machine Extra31, machine Extra32>(envelope: &Envelope) -> u64
     requires machine First satisfies FixedCallback::call;
     requires machine Second satisfies VariableCallback::call;
+    requires machine Extra2 satisfies FixedCallback::call;
+    requires machine Extra3 satisfies FixedCallback::call;
+    requires machine Extra4 satisfies FixedCallback::call;
+    requires machine Extra5 satisfies FixedCallback::call;
+    requires machine Extra6 satisfies FixedCallback::call;
+    requires machine Extra7 satisfies FixedCallback::call;
+    requires machine Extra8 satisfies FixedCallback::call;
+    requires machine Extra9 satisfies FixedCallback::call;
+    requires machine Extra10 satisfies FixedCallback::call;
+    requires machine Extra11 satisfies FixedCallback::call;
+    requires machine Extra12 satisfies FixedCallback::call;
+    requires machine Extra13 satisfies FixedCallback::call;
+    requires machine Extra14 satisfies FixedCallback::call;
+    requires machine Extra15 satisfies FixedCallback::call;
+    requires machine Extra16 satisfies FixedCallback::call;
+    requires machine Extra17 satisfies FixedCallback::call;
+    requires machine Extra18 satisfies FixedCallback::call;
+    requires machine Extra19 satisfies FixedCallback::call;
+    requires machine Extra20 satisfies FixedCallback::call;
+    requires machine Extra21 satisfies FixedCallback::call;
+    requires machine Extra22 satisfies FixedCallback::call;
+    requires machine Extra23 satisfies FixedCallback::call;
+    requires machine Extra24 satisfies FixedCallback::call;
+    requires machine Extra25 satisfies FixedCallback::call;
+    requires machine Extra26 satisfies FixedCallback::call;
+    requires machine Extra27 satisfies FixedCallback::call;
+    requires machine Extra28 satisfies FixedCallback::call;
+    requires machine Extra29 satisfies FixedCallback::call;
+    requires machine Extra30 satisfies FixedCallback::call;
+    requires machine Extra31 satisfies FixedCallback::call;
+    requires machine Extra32 satisfies FixedCallback::call;
     reaches FixedCallback + VariableCallback
     invokes FixedCallback invokes VariableCallback;
 }
@@ -58,18 +120,49 @@ public boundary trait IndirectRegistrar: Calling<SlotCalling> {
 machine fixed_callback(value: u64) -> u64 satisfies FixedCallback::call { value ^ 13u64 }
 machine variable_callback(value: u64) -> u64 satisfies VariableCallback::call { value ^ 13u64 }
 RegistrarImpl satisfies Registrar {
-    machine register<machine First, machine Second>(envelope: &Envelope) -> u64
+    machine register<machine First, machine Second, machine Extra2, machine Extra3, machine Extra4, machine Extra5, machine Extra6, machine Extra7, machine Extra8, machine Extra9, machine Extra10, machine Extra11, machine Extra12, machine Extra13, machine Extra14, machine Extra15, machine Extra16, machine Extra17, machine Extra18, machine Extra19, machine Extra20, machine Extra21, machine Extra22, machine Extra23, machine Extra24, machine Extra25, machine Extra26, machine Extra27, machine Extra28, machine Extra29, machine Extra30, machine Extra31, machine Extra32>(envelope: &Envelope) -> u64
     requires machine First satisfies FixedCallback::call;
     requires machine Second satisfies VariableCallback::call;
+    requires machine Extra2 satisfies FixedCallback::call;
+    requires machine Extra3 satisfies FixedCallback::call;
+    requires machine Extra4 satisfies FixedCallback::call;
+    requires machine Extra5 satisfies FixedCallback::call;
+    requires machine Extra6 satisfies FixedCallback::call;
+    requires machine Extra7 satisfies FixedCallback::call;
+    requires machine Extra8 satisfies FixedCallback::call;
+    requires machine Extra9 satisfies FixedCallback::call;
+    requires machine Extra10 satisfies FixedCallback::call;
+    requires machine Extra11 satisfies FixedCallback::call;
+    requires machine Extra12 satisfies FixedCallback::call;
+    requires machine Extra13 satisfies FixedCallback::call;
+    requires machine Extra14 satisfies FixedCallback::call;
+    requires machine Extra15 satisfies FixedCallback::call;
+    requires machine Extra16 satisfies FixedCallback::call;
+    requires machine Extra17 satisfies FixedCallback::call;
+    requires machine Extra18 satisfies FixedCallback::call;
+    requires machine Extra19 satisfies FixedCallback::call;
+    requires machine Extra20 satisfies FixedCallback::call;
+    requires machine Extra21 satisfies FixedCallback::call;
+    requires machine Extra22 satisfies FixedCallback::call;
+    requires machine Extra23 satisfies FixedCallback::call;
+    requires machine Extra24 satisfies FixedCallback::call;
+    requires machine Extra25 satisfies FixedCallback::call;
+    requires machine Extra26 satisfies FixedCallback::call;
+    requires machine Extra27 satisfies FixedCallback::call;
+    requires machine Extra28 satisfies FixedCallback::call;
+    requires machine Extra29 satisfies FixedCallback::call;
+    requires machine Extra30 satisfies FixedCallback::call;
+    requires machine Extra31 satisfies FixedCallback::call;
+    requires machine Extra32 satisfies FixedCallback::call;
     reaches FixedCallback + VariableCallback
     invokes FixedCallback invokes VariableCallback {
-        First(envelope.first.value) ^ Second(envelope.second.value)
+        First(envelope.first.value) ^ Second(envelope.second.value) ^ Extra32(envelope.slot32.value)
     }
 }
 public SlotCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.parameter_count == 1 && signature.has_result
-            && signature.callback_binder_count <= 2 && signature.callback_demand_count <= 2 {
+            && signature.callback_binder_count <= 33 && signature.callback_demand_count <= 33 {
             true -> select(signature, signature.parameters[0], signature.result)
             _ -> reject()
         }
@@ -96,18 +189,8 @@ public SlotCalling satisfies CallingPolicy {
             plan.call.result.location_count = 1;
             plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8 };
             plan.call.callback_materialization_count = signature.callback_demand_count;
-            // Binder declaration order and native-place order are independent.
-            // Join the exact required contract, never their array positions.
-            plan.call.callback_materializations[0].binder = match signature.callback_binders[0].requirement == signature.callback_demands[0].requirement {
-                true -> signature.callback_binders[0].binder
-                _ -> signature.callback_binders[1].binder
-            };
-            plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
-            plan.call.callback_materializations[1].binder = match signature.callback_binders[0].requirement == signature.callback_demands[1].requirement {
-                true -> signature.callback_binders[0].binder
-                _ -> signature.callback_binders[1].binder
-            };
-            plan.call.callback_materializations[1].destination = signature.callback_demands[1].destination;
+            // Match exact requirements and give each binder one destination.
+            fill_materializations(&mut plan, &signature, 0, 33);
             plan.call.stack_alignment = 16;
             plan.call.entry_control = EntryControl::CallReturn;
             plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
@@ -118,19 +201,66 @@ public SlotCalling satisfies CallingPolicy {
             BoundaryPlanResult::Accepted { plan: plan }
         }
         machine reject() -> BoundaryPlanResult {
-            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one parameter, one result, and at most two private destinations required" } }
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one parameter, one result, and at most 33 private destinations required" } }
         }
     }
 }
+
+machine fill_materializations(plan: &mut BoundaryEntryPlan, signature: &BoundarySignature, index: u64, remaining: u64)
+terminates by remaining
+{
+    transition index < 33 && remaining > 0 {
+        true -> put(plan, signature, index, remaining)
+        _ -> {}
+    }
+    machine put(plan: &mut BoundaryEntryPlan, signature: &BoundarySignature, index: u64, remaining: u64)
+    requires index < 33 && remaining > 0 {
+        plan.call.callback_materializations[index].binder = slot_binder(signature, index);
+        plan.call.callback_materializations[index].destination = signature.callback_demands[index].destination;
+        fill_materializations(plan, signature, index + 1, remaining - 1)
+    }
+}
+
+// The roster has one variable contract. Its demand may occur anywhere: swap
+// that binder with the fixed binder at its actual position, leaving all other
+// matching positions alone. Native validation checks every resulting join.
+machine slot_binder(signature: &BoundarySignature, index: u64) -> u64
+requires index < 33 {
+    transition {
+        signature.callback_binders[index].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[index].binder
+        signature.callback_binders[1].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[1].binder
+        _ -> variable_position_binder(signature, 0, 33)
+    }
+}
+machine variable_position_binder(signature: &BoundarySignature, index: u64, remaining: u64) -> u64
+terminates by remaining
+{
+    transition index < 33 && remaining > 0 {
+        true -> inspect(signature, index, remaining)
+        _ -> signature.callback_binders[0].binder
+    }
+    machine inspect(signature: &BoundarySignature, index: u64, remaining: u64) -> u64
+    requires index < 33 && remaining > 0 {
+        transition signature.callback_demands[index].requirement == signature.callback_binders[1].requirement {
+            true -> signature.callback_binders[index].binder
+            _ -> variable_position_binder(signature, index + 1, remaining - 1)
+        }
+    }
+}
+
 machine main() reaches Registrar + FixedCallback + VariableCallback invokes Registrar invokes FixedCallback invokes VariableCallback crashes Trap {
-    let mut first: LayoutStorage<Payload, Fixed>;
-    first.value = 11;
-    let mut second: LayoutStorage<Payload, Variable>;
-    second.value = 37;
-    let envelope: Envelope = Envelope { before: 101, first: first, second: second, after: 203 };
-    let answer: u64 = Registrar::register<fixed_callback, variable_callback>(&envelope);
-    transition answer == 46 && envelope.before == 101 && envelope.first.value == 11
-        && envelope.second.value == 37 && envelope.after == 203 {
+    let mut envelope: Envelope;
+    envelope.before = 101;
+    envelope.first.value = 11;
+    envelope.second.value = 37;
+    envelope.slot31.value = 131;
+    envelope.slot32.value = 132;
+    envelope.after = 203;
+    let answer: u64 = Registrar::register<fixed_callback, variable_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback>(&envelope);
+    transition answer == 167 && envelope.before == 101 && envelope.first.value == 11
+        && envelope.second.value == 37
+        && envelope.slot31.value == 131
+        && envelope.slot32.value == 132 && envelope.after == 203 {
         true -> done()
         _ -> bad()
     }

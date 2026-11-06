@@ -78,6 +78,10 @@ pub struct StructuralParameterDeclaration {
     /// row here must carry a nonempty path whose resolved structural type is
     /// the declared domain carrier.
     pub projected_qualifications: Vec<StructuralPathQualification>,
+    /// Exact memberships observed on input rather than owed by this storage.
+    /// Empty paths select the root. Writes may invalidate their predicates;
+    /// ownership, access policy and declared field requirements remain separate.
+    pub additional_input_qualifications: Vec<StructuralPathQualification>,
 }
 
 impl StructuralParameterDeclaration {

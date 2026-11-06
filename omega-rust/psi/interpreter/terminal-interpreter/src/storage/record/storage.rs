@@ -91,10 +91,10 @@ impl<'execution> ConstructorValue<'execution> {
         }
     }
 
-    /// Snapshot a scalar tree and resolve its receiving cells in the original
-    /// owner before any store. Packed arrays and placed values differ only in
-    /// how their completed payload is read, never in where replacement writes.
-    /// Non-scalar subtrees retain their descriptor/case transplant transaction.
+    /// Snapshot source scalars and stage writes to the destination's existing
+    /// cells. A borrowed array may still belong to a suspended caller; replacing
+    /// its contents must keep that backing. Other value shapes use the
+    /// constructor's storage transaction.
     pub(crate) fn replacement_writes(
         &self,
         execution: &TerminalExecution,
@@ -115,17 +115,9 @@ impl<'execution> ConstructorValue<'execution> {
             // home. It needs the same constructor transaction as other payloads.
             return Ok(None);
         }
-        // A fixed `u8` array keeps one byte backing. Rewriting it as scalar
-        // cells would leave that backing on the source identity, so a later
-        // byte view of the stored local finds no payload.
-        if terminal_semantics::fixed_byte_extent(
-            execution.structural_types().values(),
-            self.structural_type(),
-        )
-        .is_some()
-        {
-            return Ok(None);
-        }
+        // New homes are installed by the store's constructor transaction.
+        // Replacement instead writes through each original endpoint, including
+        // a byte array pinned in a suspended caller's activation.
         let mut writes = crate::storage::primitive_storage::PrimitiveStorageWrites::default();
         let supported =
             self.visit_scalar_leaves(execution, source, |selectors, scalar_type, value| {

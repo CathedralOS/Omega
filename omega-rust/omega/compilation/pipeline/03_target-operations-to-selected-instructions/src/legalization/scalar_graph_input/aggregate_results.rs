@@ -374,6 +374,7 @@ pub(in crate::legalization) fn block_home_layout(
             multiplicity: parameter.multiplicity,
             qualifications: parameter.qualifications.clone(),
             projected_qualifications: parameter.projected_qualifications.clone(),
+            additional_input_qualifications: parameter.additional_input_qualifications.to_vec(),
             claims: Vec::new(),
         },
         plan,

@@ -138,3 +138,6 @@ pub(crate) fn value_successor(edge: EdgeId, target: BlockId) -> SuccessorEdge {
         cleanup_actions: Vec::new(),
     }
 }
+
+pub(crate) mod reference_backings;
+pub(crate) mod reference_formations;

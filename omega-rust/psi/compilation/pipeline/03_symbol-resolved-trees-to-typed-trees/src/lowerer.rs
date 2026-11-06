@@ -385,7 +385,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
     )?;
-    crate::expressions::fixed_byte_array_literals::land_exact_fixed_byte_array_literals(
+    crate::expressions::construction_destinations::prepare(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
         cohort.typed_machines,

@@ -69,10 +69,10 @@ def select_fixtures(request):
     groups = set()
     for fixture in fixtures:
         path = PurePosixPath(fixture)
-        if (len(path.parts) < 3 or path.parts[0] not in ("pass", "fail")
+        if (len(path.parts) < 3 or path.parts[0] not in ("pass", "run", "fail")
                 or any(part in (".", "..") for part in path.parts)
                 or "\\" in fixture or path.as_posix() != fixture):
-            raise ValueError(f"not a normalized pass/... or fail/... fixture ID: {fixture!r}")
+            raise ValueError(f"not a normalized pass/..., run/... or fail/... fixture ID: {fixture!r}")
         directory = root.joinpath(*path.parts)
         if not directory.resolve().is_relative_to(root) or not (directory / "main.omg").is_file():
             raise ValueError(f"fixture has no existing main.omg inside tests/omega: {fixture}")
@@ -84,7 +84,7 @@ def select_fixtures(request):
     if matched != set(fixtures):
         raise ValueError("corpus substring filter would also select unrequested fixtures: "
                          + ", ".join(sorted(matched - set(fixtures))))
-    return (tuple(fixture for fixture in fixtures if fixture.startswith("pass/")),
+    return (tuple(fixture for fixture in fixtures if not fixture.startswith("fail/")),
             tuple(fixture for fixture in fixtures if fixture.startswith("fail/")))
 
 
@@ -425,6 +425,9 @@ def prepare_producer(output, *, need_runner=True):
 def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None, samples=(), cli_fixtures=()):
     if not (positives or negatives or checking_only or samples or cli_fixtures):
         raise ValueError("pilot requires at least one fixture")
+    record_results = os.environ.get("OMEGA_COMPILER_PILOT_RECORD_RESULTS") == "true"
+    if record_results and not (positives or negatives or checking_only):
+        raise ValueError("recording requires an exact corpus fixture selection")
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
         raise ValueError("pilot requires a clean candidate")
@@ -471,19 +474,34 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
 
     def corpus(name, fixtures, both=False):
         report_path = output / f"{name}.json"
+        baseline = observation_golden(output, both=both, target=summary["target"])
+        recording = record_results and not both
+        golden = output / "recorded-corpus-outcomes.txt" if recording else baseline
+        if recording and golden.exists():
+            raise ValueError("recorded corpus output already exists; preserve the earlier measurement")
         arguments = [sys.executable, "tools/corpus_gate.py", "--runner", str(retained),
                      "--filter", ",".join(fixtures), "--json", str(report_path),
-                     "--golden", str(observation_golden(
-                         output, both=both, target=summary["target"]))]
+                     "--golden", str(golden)]
+        if recording:
+            arguments.append("--record")
         if both:
             arguments.append("--both")
+        environment = dict(os.environ, OMEGA_CORPUS_SWEEP="1",
+                           OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(captures / name))
+        if recording:
+            # Record only the measured rows outside the checkout's published
+            # golden. Keep its existing adaptive time limits for this run.
+            environment["OMEGA_CORPUS_TIMINGS"] = str(baseline)
         result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
-                                env=dict(os.environ, OMEGA_CORPUS_SWEEP="1",
-                                         OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(captures / name)))
+                                env=environment)
         if result.returncode not in (0, 1):
             raise ValueError(f"{name}: corpus gate exited {result.returncode}")
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
+        if recording:
+            if result.returncode != 0 or not golden.is_file():
+                raise ValueError("corpus did not complete the requested recording")
+            summary["recorded_corpus"] = str(golden)
 
     refusals = []
 
@@ -592,6 +610,8 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
     try:
         if phase not in ("all", "prepare", "consume") or (phase != "all" and producer is not None):
             raise ValueError("separate phases require their recorded producer, not an in-memory override")
+        if os.environ.get("OMEGA_COMPILER_PILOT_RECORD_RESULTS") == "true" and not fixtures:
+            raise ValueError("recording requires exact fixture IDs or a replay plan")
         selected, replay = selected_consumers(positives, negatives, checking_only, fixtures=fixtures,
                                              samples=samples, cli_fixtures=cli_fixtures, check_only=check_only)
         if replay is not None:

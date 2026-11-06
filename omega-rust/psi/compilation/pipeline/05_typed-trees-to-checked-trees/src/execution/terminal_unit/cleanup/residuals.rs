@@ -10,13 +10,13 @@
 //! A moved subtree transfers whole with its own custody, so its shape (references included) is the
 //! consumer's concern, not this discard roster's.
 use super::{
-    BTreeMap, CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
+    CheckedUnitStructuralPathSegment,
 };
 use typed_trees::type_identity::TypeIdentityId;
 
 pub(super) fn reconstruct(
-    types: &BTreeMap<TypeIdentityId, CheckedUnitStructuralTypePlan>,
+    types: &crate::execution::terminal_unit::types::TypeCatalog,
     source: &CheckedUnitStructuralArgumentSourcePlan,
     root_type: TypeIdentityId,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], TypeIdentityId)],

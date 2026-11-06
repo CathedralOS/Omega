@@ -6,12 +6,65 @@
 use checked_trees::{CheckFacts, FlowClaimJoinExit};
 use symbols::SymbolHandle;
 
+struct StateExit {
+    exit: FlowClaimJoinExit,
+    completed_storage: arena::Handle<checked_trees::FlowStorageSnapshot>,
+}
+
 pub(in crate::execution::terminal_unit) fn state_exits(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
     state: &typed_trees::state::State,
 ) -> Result<Vec<FlowClaimJoinExit>, &'static str> {
+    let mut exits = Vec::new();
+    for row in state_exit_rows(program, facts, machine, state)? {
+        if !exits.contains(&row.exit) {
+            exits.push(row.exit);
+        }
+    }
+    Ok(exits)
+}
+
+/// Named transitions return no value, but cleanup still needs the storage
+/// left by their operands. Keep every storage snapshot for the exact selected edge; an
+/// unavailable alternative cannot borrow another alternative's snapshot.
+pub(in crate::execution::terminal_unit) fn state_exit_storage(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    exit: FlowClaimJoinExit,
+) -> Result<Vec<arena::Handle<checked_trees::FlowStorageSnapshot>>, &'static str> {
+    let mut snapshots = Vec::new();
+    for row in state_exit_rows(program, facts, machine, state)? {
+        if row.exit != exit {
+            continue;
+        }
+        if !facts
+            .flow
+            .control
+            .storage_snapshots
+            .is_valid(row.completed_storage)
+        {
+            return Err("completion cleanup: the selected exit has no completed storage snapshot");
+        }
+        if !snapshots.contains(&row.completed_storage) {
+            snapshots.push(row.completed_storage);
+        }
+    }
+    if snapshots.is_empty() {
+        return Err("completion cleanup: the selected exit has no retained flow occurrence");
+    }
+    Ok(snapshots)
+}
+
+fn state_exit_rows(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+) -> Result<Vec<StateExit>, &'static str> {
     let flow_state = facts
         .flow
         .control
@@ -46,9 +99,10 @@ pub(in crate::execution::terminal_unit) fn state_exits(
             statement_index: outgoing.statement_index,
             kind,
         };
-        if !rows.contains(&exit) {
-            rows.push(exit);
-        }
+        rows.push(StateExit {
+            exit,
+            completed_storage: outgoing.completed_storage,
+        });
     }
     // Machine-boundary exits live in a second channel: a nested machine
     // transfer records its edge here rather than in the same-machine
@@ -86,9 +140,10 @@ pub(in crate::execution::terminal_unit) fn state_exits(
             statement_index: outgoing.statement_index,
             kind,
         };
-        if !rows.contains(&exit) {
-            rows.push(exit);
-        }
+        rows.push(StateExit {
+            exit,
+            completed_storage: outgoing.completed_storage,
+        });
     }
     Ok(rows)
 }

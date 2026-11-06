@@ -266,6 +266,40 @@ pub(super) fn transferred_paths(
     )
 }
 
+/// State-local membership only. Holder readiness is evaluated against each
+/// statement's current operations and pending releases, never cached here.
+pub(super) struct StorageBorrowers {
+    rows: Option<Vec<(PlaceRoot, Handle<BorrowLoanFact>)>>,
+}
+
+impl StorageBorrowers {
+    fn new(facts: &CheckFacts, machine: SymbolHandle, state: SymbolHandle) -> Self {
+        let rows = (|| {
+            let borrowing = unique_borrow_state(facts, machine, state)?;
+            let mut rows = if let Some(borrowing) = borrowing {
+                facts
+                    .borrow
+                    .statement_resource_loans(borrowing)?
+                    .map(|(handle, loan)| (loan.root, handle))
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
+            rows.sort_by_key(|(root, _)| root.group_key());
+            Some(rows)
+        })();
+        Self { rows }
+    }
+
+    fn for_owner(&self, owner: PlaceRoot) -> Option<&[(PlaceRoot, Handle<BorrowLoanFact>)]> {
+        let rows = self.rows.as_ref()?;
+        let key = owner.group_key();
+        let first = rows.partition_point(|(root, _)| root.group_key() < key);
+        let count = rows[first..].partition_point(|(root, _)| root.group_key() == key);
+        Some(&rows[first..first + count])
+    }
+}
+
 /// One statement's retirement view. Every query over the same statement
 /// shares these fields; a `Copy` value lets a caller rebind only the prefix,
 /// pending set, exit flag and returned holder it distinguishes.
@@ -297,9 +331,10 @@ pub(super) struct Retirement<'a> {
     pub(super) returned: Option<&'a CheckedUnitStructuralReturnPlan>,
     /// A function's final expression can still use its local values. Exit
     /// cleanup must wait for those uses before releasing the data they need.
-    pub(super) scalar_completion:
-        Option<crate::execution::terminal_unit::storage_transfers::ScalarCompletion<'a>>,
+    pub(super) completion:
+        Option<&'a crate::execution::terminal_unit::storage_transfers::PreparedCompletion<'a>>,
     pub(super) transported_loans: &'a transport::TransportedLoans,
+    pub(super) storage_borrowers: &'a StorageBorrowers,
 }
 
 /// One retirement query follows both logical loan occurrences and physical
@@ -318,6 +353,35 @@ impl Retirement<'_> {
     ) -> Option<impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)>> {
         let state = unique_borrow_state(self.facts, self.machine, self.state.symbol)??;
         self.facts.borrow.statement_resource_loans(state)
+    }
+
+    /// Releasing a stored descriptor changes the bytes of its home. A view of
+    /// that home must end first, even when it is not a child of the reference
+    /// stored there. Disjoint fields keep their independent release schedules.
+    fn storage_borrowers_retired(
+        &self,
+        owner: PlaceRoot,
+        selection: &[PlaceSegment],
+    ) -> Option<bool> {
+        for (root, handle) in self.storage_borrowers.for_owner(owner)? {
+            let loan = self.facts.borrow.loans.get(*handle);
+            // Group keys narrow the candidates; complete root identity remains
+            // necessary for namespaces whose keys can legitimately collide.
+            if *root == owner
+                && self
+                    .order
+                    .precedes(loan.statement_index, self.statement_index as usize)
+                && crate::flow::canonical_place_segments_may_overlap(
+                    self.program,
+                    self.facts.borrow.access_segments.span(loan.segments)?,
+                    selection,
+                )
+                && !self.holder_retired(*handle)
+            {
+                return Some(false);
+            }
+        }
+        Some(true)
     }
 
     /// Computed homes have no independent statement-result binding. Their
@@ -340,6 +404,7 @@ impl Retirement<'_> {
         let mut owners = Vec::new();
         for (_, loan) in self.facts.borrow.statement_resource_loans(state)? {
             if matches!(loan.storage_owner, PlaceRoot::Expression(_))
+                && !crate::borrow::is_descriptor_load_observation(&self.facts.borrow, loan)
                 && self
                     .order
                     .precedes(loan.statement_index, self.statement_index as usize)
@@ -350,20 +415,11 @@ impl Retirement<'_> {
         }
         let mut releases = Vec::new();
         for (owner, formation) in owners.into_iter().rev() {
-            if self
-                .facts
-                .borrow
-                .statement_resource_loans(state)?
-                .any(|(handle, loan)| {
-                    loan.root == owner
-                        && self
-                            .order
-                            .precedes(loan.statement_index, self.statement_index as usize)
-                        && !self.holder_retired(handle)
-                })
-            {
+            if !self.storage_borrowers_retired(owner, &[])? {
                 continue;
             }
+            self.trace
+                .phase("statement sequence: completion backing source type");
             let reference = canonical_place_type_reference(
                 self.program,
                 self.state.symbol,
@@ -384,7 +440,9 @@ impl Retirement<'_> {
             ) {
                 continue;
             }
-            for (source, loans) in storage_place_loans(
+            self.trace
+                .phase("statement sequence: completion backing descriptor loans");
+            let groups = match storage_place_loans(
                 self.program,
                 self.facts,
                 self.machine,
@@ -393,7 +451,22 @@ impl Retirement<'_> {
                 reference,
                 u32::try_from(formation).ok()?,
                 &[],
-            )? {
+            ) {
+                Ok(groups) => groups,
+                Err(reason) => {
+                    self.trace.phase(reason);
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE backing-storage-retirement state={:?} current_statement={} formation={formation} owner={owner:?} reference={reference:?} refusal={reason}",
+                            self.state.symbol, self.statement_index,
+                        );
+                    }
+                    return None;
+                }
+            };
+            for (source, loans) in groups {
+                self.trace
+                    .phase("statement sequence: completion backing descriptor transfers");
                 let transfers = transfers::from_storage(
                     self.program,
                     self.facts,
@@ -414,6 +487,8 @@ impl Retirement<'_> {
                     continue;
                 }
                 let mut ready = true;
+                self.trace
+                    .phase("statement sequence: completion backing descriptor group");
                 for (handle, _) in self.facts.borrow.loan_group(loans)? {
                     if self.disposed(handle)
                         || !self.children_retired(handle)
@@ -583,12 +658,11 @@ impl Retirement<'_> {
                     self.results,
                 )
             } else {
-                // Stores select their receiving leaf inside the existing exact
-                // construction query. Keep every possible child for a store
-                // that installs a value; ordinary releases and scalar stores
-                // cannot produce a descriptor.
-                if matches!(operation, CheckedUnitEffectOperationPlan::Store(store)
-                    if store.installed_value().is_some())
+                // Installation selects its receiving holder in the exact
+                // construction query, including a completed initializer's new
+                // home. Keep all possible children for that query to check;
+                // releases and scalar stores do not install descriptors.
+                if operation.installed_value().is_some()
                     && let Some(loans) = self.facts.borrow.loan_group(state.loans)
                 {
                     for (child, _) in loans {
@@ -926,6 +1000,22 @@ impl Retirement<'_> {
             // alive when selecting that backing's pending owner disposition.
             return self.uncommitted_owner == PlaceRoot::Symbol(Default::default());
         }
+        // A loaded input descriptor has no owned carrier to dispose. Its
+        // permission still ends only at the checked release boundary; callers
+        // separately verify that every retained child has ended as well.
+        if crate::borrow::is_descriptor_load_observation(&self.facts.borrow, loan) {
+            return release_boundary(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                handle,
+            )
+            .is_some_and(|boundary| {
+                self.order
+                    .at_or_before(boundary as usize, self.statement_index as usize)
+            });
+        }
         // Last use at this exit ends a descriptor only when its owner is an
         // established local home. A weakening by itself does not invent that
         // home: lowering still has to resolve the same symbol.
@@ -1134,7 +1224,18 @@ impl Retirement<'_> {
             }
             found = true;
             let (destination, mut path) = match &transfer.destination {
-                Destination::Unknown => return false,
+                Destination::Unknown | Destination::RetainedBySuccessor => return false,
+                Destination::Outgoing => {
+                    // The completion captures this descriptor before cleanup.
+                    // Its backing still belongs to the outgoing loan, so a
+                    // pending backing-owner death cannot use this as release.
+                    if exit.is_none()
+                        || self.uncommitted_owner != PlaceRoot::Symbol(Default::default())
+                    {
+                        return false;
+                    }
+                    continue;
+                }
                 Destination::Backing(value, path) => {
                     let mut path = path.clone();
                     path.extend_from_slice(&owner_path[selected.len()..]);
@@ -1537,32 +1638,26 @@ impl Retirement<'_> {
                         return false;
                     };
                     if self.operations.iter().any(|operation| {
-                        let CheckedUnitEffectOperationPlan::Store(store) = operation else {
+                        let Some((owner, formation, selection)) = stores::receiver(
+                            self.program,
+                            self.facts,
+                            self.machine,
+                            self.state,
+                            operation,
+                        ) else {
                             return false;
                         };
                         self.order
-                            .precedes(loan.statement_index, store.statement_index as usize)
-                            && self
-                                .order
-                                .precedes(store.statement_index as usize, statement as usize)
-                            && store.installed_value().is_some()
-                            && stores::receiver(
+                            .precedes(loan.statement_index, formation as usize)
+                            && self.order.precedes(formation as usize, statement as usize)
+                            && owner == loan.owner_symbol
+                            && validation::reference_result_custody::loan_owner_path(
                                 self.program,
-                                self.facts,
-                                self.machine,
-                                self.state,
-                                operation,
+                                reference,
+                                &selection,
                             )
-                            .is_some_and(|(owner, _, selection)| {
-                                owner == loan.owner_symbol
-                                    && validation::reference_result_custody::loan_owner_path(
-                                        self.program,
-                                        reference,
-                                        &selection,
-                                    )
-                                    .is_some_and(|path| {
-                                        self.facts.borrow.loan_owner_path(loan).starts_with(&path)
-                                    })
+                            .is_some_and(|path| {
+                                self.facts.borrow.loan_owner_path(loan).starts_with(&path)
                             })
                     }) {
                         // A later replacement receipt settles the installed

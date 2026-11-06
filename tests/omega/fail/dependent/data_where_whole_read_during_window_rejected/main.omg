@@ -1,4 +1,5 @@
-data Map
+// A whole-record copy must prove the predicate at the read.
+data Map [copy]
 requires
     start <= end,
 {

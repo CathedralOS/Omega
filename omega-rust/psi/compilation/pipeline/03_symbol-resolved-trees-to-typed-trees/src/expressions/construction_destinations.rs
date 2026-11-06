@@ -1,42 +1,39 @@
-//! Contextual quoted-byte literal landing for owned fixed byte arrays.
+//! Retain exact construction destinations before result-type inference.
 //!
-//! A quoted literal remains the ordinary dynamically-sized byte/string value
-//! everywhere else.  Only an owned `[u8; N]` destination with a resolved,
-//! literal extent may copy it into an ordinary array value, and that copy is
-//! exact-width: neither truncation nor zero padding is language semantics.
+//! A constructor's selected declaration and receiving application determine
+//! otherwise unobservable generic arguments. Retain that source type without
+//! granting its fields or qualifiers. The same destination walk lands quoted
+//! bytes into owned fixed arrays: exact width, no truncation or zero padding.
 
 use crate::tables::{expression_table, expression_table_mut};
 use diagnostics::Diagnostic;
-use symbols::{SymbolHandle, SymbolKeyMap};
+use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::state::State;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::selected_construction_field_type;
 
-/// Land exact-width quoted-byte literals into the owned fixed byte array
-/// destinations this run produced: those of machines appended after
+struct ConstructionCall {
+    target: SymbolHandle,
+    static_arguments: Vec<StaticMachineArgument>,
+    arguments: Vec<ExpressionHandle>,
+}
+
+/// Prepare constructors and exact-width byte literals at destinations produced
+/// by this run: those of machines appended after
 /// `machine_frontier`, plus any retained machine named in `completed_machines`
 /// whose body this run completed in place. Base literals have already been
 /// contextualized, so expression discovery also starts past
 /// `expression_frontier`; a whole program passes zeroes.
-pub(crate) fn land_exact_fixed_byte_array_literals(
+pub(crate) fn prepare(
     program: &mut TypedTrees,
     expression_frontier: usize,
     machine_frontier: usize,
     completed_machines: &[SymbolHandle],
 ) -> Result<(), Diagnostic> {
     let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle)>::new();
-
-    // Call-argument destinations resolve their callee state by symbol; one
-    // index over the frozen machine/state table replaces a per-call scan.
-    let mut state_targets = SymbolKeyMap::<SymbolHandle, &State>::default();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            state_targets.entry(state.symbol).or_insert(state);
-        }
-    }
+    let mut calls = Vec::new();
 
     // Aggregate fields and value-call arguments carry their destination types
     // in the typed expression graph itself.
@@ -59,10 +56,10 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
             }
             ExpressionNode::Call(call) => collect_call_destinations(
                 program,
-                &state_targets,
                 call.target_symbol,
+                &call.machine_arguments,
                 program.expression_table.expression_handles(call.arguments),
-                &mut destinations,
+                &mut calls,
             ),
             _ => {}
         }
@@ -99,10 +96,10 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
                     }
                     StatementNode::Call(call) => collect_call_destinations(
                         program,
-                        &state_targets,
                         call.target_symbol,
+                        &call.machine_arguments,
                         program.statement_table.expression_handles(call.arguments),
-                        &mut destinations,
+                        &mut calls,
                     ),
                     StatementNode::Expression(value)
                         if state.return_type.is_valid()
@@ -123,10 +120,10 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
                                 } => {
                                     collect_call_destinations(
                                         program,
-                                        &state_targets,
                                         path.symbol,
+                                        &[],
                                         program.statement_table.expression_handles(*arguments),
-                                        &mut destinations,
+                                        &mut calls,
                                     );
                                 }
                                 TransitionTargetNode::Value(_) | TransitionTargetNode::Terminal => {
@@ -142,6 +139,42 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
         }
     }
 
+    for call in calls {
+        let binders = program.declaration_type_parameters(call.target).to_vec();
+        // An unapplied generic signature belongs to the callee, not this
+        // constructor's lexical scope. Inferred calls wait for specialization;
+        // explicit operands use the same simultaneous callable substitution.
+        if binders.len() != call.static_arguments.len() {
+            continue;
+        }
+        let mut substitutions = Vec::with_capacity(binders.len());
+        for (binder, argument) in binders.iter().zip(&call.static_arguments) {
+            let actual = program
+                .static_operand_type_reference(argument)
+                .map_err(Diagnostic::error)?;
+            substitutions.push((binder.symbol, actual));
+        }
+        let Some(parameters) = validation::call_target_parameters(program, call.target) else {
+            continue;
+        };
+        let required: Vec<_> = parameters
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect();
+        for (argument, reference) in call.arguments.into_iter().zip(required) {
+            if !needs_destination(program, argument) {
+                continue;
+            }
+            let reference = if substitutions.is_empty() {
+                reference
+            } else {
+                program
+                    .apply_callable_type(reference, &substitutions, &[], call.target)
+                    .map_err(Diagnostic::error)?
+            };
+            destinations.push((argument, reference));
+        }
+    }
     for (value, destination) in destinations {
         land_one(program, value, destination)?;
     }
@@ -150,23 +183,34 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
 
 fn collect_call_destinations(
     program: &TypedTrees,
-    state_targets: &SymbolKeyMap<SymbolHandle, &State>,
     target_symbol: SymbolHandle,
+    static_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
-    destinations: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
+    calls: &mut Vec<ConstructionCall>,
 ) {
-    if !target_symbol.is_valid() {
+    if !target_symbol.is_valid()
+        || !arguments
+            .iter()
+            .any(|argument| needs_destination(program, *argument))
+    {
         return;
     }
-    let Some(target) = state_targets.get(&target_symbol).copied() else {
-        return;
-    };
-    let parameters = program.state_parameters(target).iter();
-    for (parameter, argument) in parameters.zip(arguments.iter().copied()) {
-        if parameter.type_reference.is_valid() {
-            destinations.push((argument, parameter.type_reference));
-        }
-    }
+    calls.push(ConstructionCall {
+        target: target_symbol,
+        static_arguments: static_arguments.to_vec(),
+        arguments: arguments.to_vec(),
+    });
+}
+
+fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {
+    value.is_valid()
+        && matches!(
+            program.expression_table.expression(value),
+            ExpressionNode::StructLiteral(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Match(_)
+        )
 }
 
 fn land_one(
@@ -190,18 +234,33 @@ fn land_one(
         // Destination is a receiving obligation, never the constructor's
         // produced type. The shared join checks its exact authored owner and
         // selected case before exposing an applied field telescope.
-        // An open template field is not the receiving application. Late
-        // ordinary application preparation will revisit its exact children.
-        if program
-            .closed_data_constructor_definition(destination, literal.type_symbol)
-            .is_none()
+        // An open application can still determine the constructor's argument
+        // tuple (including phantom parameters). Retain it before inference;
+        // only prepared field views may supply child destinations below.
+        let carrier = program
+            .type_reference_table
+            .unconstrained_type_reference(destination);
+        let exact_template = matches!(program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol);
+        if !exact_template
+            && program
+                .closed_data_constructor_definition(destination, literal.type_symbol)
+                .is_none()
         {
             return Ok(());
         }
         let prior = expression_table(program).construction_required_type_reference(value);
         if !prior.is_valid() {
-            expression_table_mut(program)
-                .set_construction_required_type_reference(value, destination);
+            expression_table_mut(program).set_construction_required_type_reference(value, carrier);
+        }
+        // An inferred constructor application is source type information and
+        // must travel with the literal when its generic body is specialized.
+        // Receiving obligations are separate, and are recomputed for each use.
+        if !literal.application_type.is_valid()
+            && let ExpressionNode::StructLiteral(retained) =
+                expression_table_mut(program).expression_mut(value)
+        {
+            retained.application_type = carrier;
         }
         let fields = expression_table(program)
             .struct_fields(literal.fields)

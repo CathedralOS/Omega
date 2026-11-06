@@ -94,7 +94,7 @@ impl Query<'_> {
         Some(output)
     }
 
-    fn scalar(&self, operand: &ScalarArgument) -> Option<Transfers> {
+    pub(super) fn scalar(&self, operand: &ScalarArgument) -> Option<Transfers> {
         match operand {
             ScalarArgument::Pure(_) => Some(Transfers::default()),
             ScalarArgument::Computation(root) => self.computation(*root),

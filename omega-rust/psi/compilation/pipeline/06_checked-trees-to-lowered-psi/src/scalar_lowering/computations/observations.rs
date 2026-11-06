@@ -431,6 +431,7 @@ impl Expansion<'_> {
                     access: capture.access,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
                 });
             continuation = self.push(LoweredScalarBranchState::continuing(
                 prefixes[ordinal].clone(),

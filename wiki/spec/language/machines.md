@@ -171,6 +171,31 @@ assemble provider-plan rows or reauthor inherited ceilings in a binding.
 reference compiler and source migration; `via` parsing is not an accepted
 binding form.
 
+### Generic sealed primitives
+
+Compiler-supplied primitives may bind types, const parameters and lifetimes,
+including the generic and borrowed-result families required by
+[core indexing](expressions.md#contract-gated-core-operations). Admission
+identifies an authorized declaration by sealed source/package custody and its
+normalized generic signature and complete contract. Binder renaming does not
+create another identity. Binder kinds, bounds, lifetime relationships, domains,
+access, operational clauses and result obligations remain part of the admitted
+schema; matching a name or parameter count is insufficient.
+
+Each application substitutes its exact arguments through the admitted schema
+using ordinary generic-machine rules. The compiler supplies only the operation
+authorized for that instantiation and target. A user declaration with copied
+spelling or signature, or an altered contract in an unauthorized source, cannot
+acquire primitive supply. Closed-catalog admission is not user registration or
+Build provider selection.
+
+A token-bearing primitive can directly own an operation such as `[]` or `[..]`.
+Its full contract is checked at each use before intrinsic realization, without
+requiring a checked forwarding wrapper or relying on inlining for ordinary
+access cost. This supply extension is ratified; generic catalog admission and
+its indexing consumers are pending **CORE-INDEXING-CONTRACTS** in
+[TASKS.md](../../../TASKS.md).
+
 ### Target-scoped families
 
 Target-prefixed machine declarations and implicit same-path target-body families

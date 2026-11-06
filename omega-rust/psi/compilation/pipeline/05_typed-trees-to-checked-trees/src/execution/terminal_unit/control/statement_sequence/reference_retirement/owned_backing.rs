@@ -27,6 +27,8 @@ struct OwnerCandidate {
 /// It names issued source/value relationships, never a second liveness ledger.
 pub(in crate::execution::terminal_unit) struct OwnerCandidates {
     owners: Vec<OwnerCandidate>,
+    pub(in crate::execution::terminal_unit::control::statement_sequence) storage_borrowers:
+        super::StorageBorrowers,
 }
 
 impl OwnerCandidates {
@@ -122,7 +124,10 @@ impl OwnerCandidates {
                 }
             }
         }
-        Some(Self { owners })
+        Some(Self {
+            owners,
+            storage_borrowers: super::StorageBorrowers::new(facts, machine, state),
+        })
     }
 }
 
@@ -143,9 +148,7 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
     state: &typed_trees::state::State,
     statement_index: u32,
     returned: Option<&checked_trees::CheckedUnitStructuralReturnPlan>,
-    scalar_completion: Option<
-        crate::execution::terminal_unit::storage_transfers::ScalarCompletion<'_>,
-    >,
+    completion: Option<&crate::execution::terminal_unit::storage_transfers::PreparedCompletion<'_>>,
     at_exit: bool,
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
     results: &Results,
@@ -261,8 +264,9 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn prepare_
                 at_exit,
                 uncommitted_owner: owner.row.root,
                 returned,
-                scalar_completion,
+                completion,
                 transported_loans: &transported_loans,
+                storage_borrowers: &candidates.storage_borrowers,
             };
             let loans = validation::reference_result_custody::storage_loans(
                 facts,

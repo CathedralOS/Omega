@@ -30,15 +30,24 @@ pub(in crate::flow) struct CallStorageWrites {
     /// observer of that owner can read the content.
     pub(in crate::flow) observation_places: Vec<CanonicalPlace>,
     pub(in crate::flow) contributions: Vec<ObservedCallMutation>,
+    // Observation aliases can name a pointee through its descriptor. Keep the
+    // physical store list before adding those aliases: they cannot replace slots.
+    binding_places: Option<Vec<CanonicalPlace>>,
 }
 
 impl CallStorageWrites {
     /// Authenticated separately backed content does not store into its inline
     /// owner. Retain its observation invalidation separately; an unresolved
     /// content capability still supplies no complete inline-store footprint.
-    pub(in crate::flow) fn descriptor_stores(&self) -> Option<Vec<CanonicalPlace>> {
+    pub(in crate::flow) fn descriptor_stores(&self) -> Option<&[CanonicalPlace]> {
+        self.binding_places.as_deref()
+    }
+
+    fn physical_binding_places(
+        contributions: &[ObservedCallMutation],
+    ) -> Option<Vec<CanonicalPlace>> {
         let mut stores = Vec::new();
-        for contribution in &self.contributions {
+        for contribution in contributions {
             match &contribution.write.region {
                 crate::flow::mutation::StorageRegion::Declared(place) => stores.push(place.clone()),
                 crate::flow::mutation::StorageRegion::ResidentContent { .. }
@@ -76,6 +85,39 @@ impl CallStorageWrites {
     ) -> Self {
         let mut observed = self.clone();
         if let Some(arguments) = arguments {
+            // A source summary can still name a selector that changed after
+            // capture. Bound that writer by its evaluated pointer, preserving
+            // other aliases and the original effect when any actual is unknown.
+            observed.contributions = observed
+                .contributions
+                .into_iter()
+                .flat_map(|contribution| {
+                    let Some(enclosures) = arguments.captured_write_enclosures(&contribution.write)
+                    else {
+                        return vec![contribution];
+                    };
+                    enclosures
+                        .into_iter()
+                        .map(|(region, enclosure)| {
+                            let mut refined = contribution.clone();
+                            refined.write.region =
+                                crate::flow::mutation::StorageRegion::Declared(region);
+                            for observation in &mut refined.observations {
+                                if let Some(place) =
+                                    super::copied_guarantees::intersect_captured_enclosure(
+                                        observation,
+                                        &enclosure,
+                                    )
+                                {
+                                    *observation = place;
+                                }
+                            }
+                            refined
+                        })
+                        .collect()
+                })
+                .collect();
+            observed.binding_places = Self::physical_binding_places(&observed.contributions);
             for contribution in &mut observed.contributions {
                 for alias in arguments.mutation_observation_aliases(&contribution.write) {
                     crate::shared::collections::push_unique(&mut contribution.observations, alias);
@@ -118,6 +160,7 @@ pub(in crate::flow) fn call_storage_writes(
     let writes = call_storage_mutations(program, borrow, build, machine, state, borrow_call).map(
         |contributions| {
             std::rc::Rc::new(CallStorageWrites {
+                binding_places: CallStorageWrites::physical_binding_places(&contributions),
                 observation_places: contributions
                     .iter()
                     .flat_map(|contribution| contribution.observations.iter().cloned())

@@ -882,6 +882,19 @@ impl CallOriginContext<'_> {
         close_over_origins(program, paths, self.aliases, self.divergent, self.stored)
     }
 
+    /// A scalar accessor changes its selected contents, not pointers hidden
+    /// inside its opaque capability. Its captured origins already name the
+    /// write; retain observer aliases without following the capability again.
+    pub fn close_scalar_access_paths(&self, paths: Vec<String>) -> Vec<String> {
+        close_observer_aliases(
+            paths.clone(),
+            paths,
+            self.aliases,
+            self.divergent,
+            self.stored,
+        )
+    }
+
     /// Expand finite local referents before a state summary filters private
     /// roots. Do not back-map canonical writes to coarse aggregate aliases;
     /// that observer-only closure belongs to the public demand boundary.
@@ -1151,6 +1164,18 @@ fn close_over_origins(
                 .collect::<Vec<_>>()
         }))
         .collect::<Vec<_>>();
+    Some(close_observer_aliases(
+        written, canonical, aliases, divergent, stored,
+    ))
+}
+
+fn close_observer_aliases(
+    written: Vec<String>,
+    canonical: Vec<String>,
+    aliases: &[(String, FramePlaceOrigin)],
+    divergent: &[(String, Vec<FramePlaceOrigin>)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<String> {
     let mut closed = written;
     for path in canonical {
         if !closed.contains(&path) {
@@ -1214,7 +1239,7 @@ fn close_over_origins(
             }
         }
     }
-    Some(closed)
+    closed
 }
 
 /// The prefix evidence a boundary site established: the enclosing state plus

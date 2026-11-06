@@ -314,6 +314,9 @@ pub(crate) fn validate(
                         multiplicity: result.multiplicity,
                         qualifications: result.qualifications.clone(),
                         projected_qualifications: result.projected_qualifications.clone(),
+                        additional_input_qualifications: result
+                            .additional_input_qualifications
+                            .clone(),
                     },
                     !result.claims.is_empty() || !result.qualification_establishments.is_empty(),
                 )

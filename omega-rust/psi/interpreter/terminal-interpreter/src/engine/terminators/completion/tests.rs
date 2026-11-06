@@ -52,6 +52,7 @@ fn check_refused_return(retain_header: bool) {
         multiplicity: StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
         qualification_establishments: Vec::new(),
         claims: claims.clone(),
     };

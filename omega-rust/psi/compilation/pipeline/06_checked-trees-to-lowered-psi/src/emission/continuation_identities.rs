@@ -113,7 +113,11 @@ impl IdentityMap {
         }
         for parameter in &mut block.structural_parameters {
             parameter.place = self.place(parameter.place);
-            for qualification in &mut parameter.projected_qualifications {
+            for qualification in parameter
+                .projected_qualifications
+                .iter_mut()
+                .chain(&mut parameter.additional_input_qualifications)
+            {
                 self.path(&mut qualification.path);
             }
         }
@@ -141,7 +145,11 @@ impl IdentityMap {
             OperationResult::Scalar(value) => value.id = self.value(value.id),
             OperationResult::Structural(result) => {
                 result.place = self.place(result.place);
-                for row in &mut result.projected_qualifications {
+                for row in result
+                    .projected_qualifications
+                    .iter_mut()
+                    .chain(&mut result.additional_input_qualifications)
+                {
                     self.path(&mut row.path);
                 }
                 for row in &mut result.claims {

@@ -75,6 +75,38 @@ pub enum DescriptorStoredOrigin {
         place: PlaceId,
     },
 }
+impl DescriptorStoredOrigin {
+    /// Identify the descriptor value captured from one exact input slot. This
+    /// is not its current address or permission to read it: each call consumer
+    /// still resolves the actual pointer traversal against its pre-call state.
+    pub fn captured_entry_slot(
+        &self,
+    ) -> Option<(usize, std::borrow::Cow<'_, [DescriptorPathSegment]>)> {
+        match self {
+            Self::IncomingSlot { position, path } => {
+                Some((*position, std::borrow::Cow::Borrowed(path)))
+            }
+            Self::IncomingContents {
+                position,
+                steps,
+                projection,
+            } if *projection == Projection::new(&[]) => Some((
+                *position,
+                std::borrow::Cow::Owned(
+                    steps
+                        .iter()
+                        .map(|step| match step {
+                            DescriptorContentsStep::Address(segment) => Some(segment.clone()),
+                            DescriptorContentsStep::AnyElement { .. } => None,
+                        })
+                        .collect::<Option<Vec<_>>>()?,
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct DescriptorStoredEffect {
     pub parameter: usize,

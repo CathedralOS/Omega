@@ -1230,6 +1230,7 @@ mod structural_result_tests {
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: vec![],
             projected_qualifications: vec![],
+            additional_input_qualifications: Vec::new(),
             qualification_establishments: vec![],
             claims: vec![],
         }

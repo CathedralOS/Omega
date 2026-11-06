@@ -154,6 +154,17 @@ impl TargetStructuralHomeRequirement {
         }
     }
 
+    pub fn additional_input_qualifications(&self) -> &[StructuralPathQualification] {
+        match &self.origin {
+            TargetStructuralHomeOrigin::OperationResult { result, .. } => {
+                &result.additional_input_qualifications
+            }
+            TargetStructuralHomeOrigin::BlockParameter { declaration, .. } => {
+                &declaration.additional_input_qualifications
+            }
+        }
+    }
+
     /// Result-local claim bindings only. Block declarations have no claim field;
     /// their claim-free eligibility must be rejoined to current ownership input.
     pub fn has_claims(&self) -> bool {
