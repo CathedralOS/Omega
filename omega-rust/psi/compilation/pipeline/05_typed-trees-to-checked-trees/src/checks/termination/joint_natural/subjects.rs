@@ -55,27 +55,23 @@ impl Subject {
             return Some(Self::Scalar(coordinate.clone()));
         }
         let shape = application.shape(program)?;
-        let reads = shape
-            .reads
-            .iter()
-            .map(|read| {
-                let path = values.declared_read_path(root, read)?;
-                available
-                    .iter()
-                    .find(|coordinate| {
-                        coordinate.parameter == root.parameter
-                            && coordinate.primitive == read.primitive_type
-                            && coordinate.observation == validation::RankPremiseObservation::Value
-                            && values.same_scalar_projection(&coordinate.path, &path)
-                    })
-                    .cloned()
-            })
-            .collect::<Option<Vec<_>>>()?;
+        let mut reads = Vec::with_capacity(shape.reads.len());
+        for read in &shape.reads {
+            let path = values.declared_read_path(root, read)?;
+            let coordinate = available.iter().find(|coordinate| {
+                coordinate.parameter == root.parameter
+                    && coordinate.primitive == read.primitive_type
+                    && coordinate.observation == validation::RankPremiseObservation::Value
+                    && values.same_scalar_projection(&coordinate.path, &path)
+            })?;
+            reads.push(coordinate.clone());
+        }
+        let entry_indexes = values.entry_projection_indexes(root.parameter, &root.path)?;
         Some(Self::Record {
             root: root.clone(),
             position,
             input_type,
-            entry_indexes: values.entry_projection_indexes(root.parameter, &root.path)?,
+            entry_indexes,
             reads,
         })
     }

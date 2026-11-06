@@ -41,8 +41,7 @@ pub(super) use binary::{
 };
 pub(super) use constructors::{
     admitted_const_value_term, captured_constructor_term, case_classifier, case_guard_classifier,
-    case_value_term, constructed_term, constructor_declaration, constructor_literal_term,
-    constructor_matches_case, is_case_observation, same_constructor_data,
+    case_value_term, constructed_term, constructor_literal_term, is_case_observation,
     zero_constructor_operands, zero_value_structural_term,
 };
 pub(super) use equality::{
@@ -193,12 +192,7 @@ pub(super) fn builtin_anonymous_comparison_term(
                 || crate::value_custody::literals::has_anonymous_operator_meaning(program, source)
         },
     )
-    .map(|value| StructuralTerm::Constructor {
-        declaration: None,
-        data: "bool".to_owned(),
-        case: value.to_string(),
-        fields: Vec::new(),
-    })
+    .map(StructuralTerm::boolean)
 }
 
 /// Whether `haystack` contains `needle` as a subterm (occurs check for the
@@ -582,12 +576,7 @@ pub(super) fn static_type_predicate_term(
         program.applied_static_type_predicate_value(expression, substitutions)
     };
     if let Some(value) = value {
-        return Some(StructuralTerm::Constructor {
-            declaration: None,
-            data: "bool".to_owned(),
-            case: value.to_string(),
-            fields: Vec::new(),
-        });
+        return Some(StructuralTerm::boolean(value));
     }
     static_type_equation_term(program, left, right, negate, substitutions)
 }
@@ -854,12 +843,7 @@ pub(super) fn structural_term(
                 expression_table(program).display_name(expression),
             ))
         }
-        ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
-            declaration: None,
-            data: "bool".to_owned(),
-            case: value.to_string(),
-            fields: Vec::new(),
-        }),
+        ExpressionNode::Boolean(value) => Some(StructuralTerm::boolean(*value)),
         ExpressionNode::Member(member) => {
             // Contract projections can retain an unresolved member handle even
             // when the receiver's declared record fixes the field. Rejoin that

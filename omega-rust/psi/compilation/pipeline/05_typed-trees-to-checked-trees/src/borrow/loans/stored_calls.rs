@@ -17,12 +17,29 @@ pub(super) fn roster_at_expression(
     frames: &validation::CallFrameResolver<'_>,
     incoming: &[super::StateLoanTracker],
 ) -> Result<Vec<super::StateLoanTracker>, validation::StoredReferenceRelationRefusal> {
-    let effects = frames.stored_reference_effects_at_expression(
+    let effects = match frames.stored_reference_effects_at_expression(
         machine,
         state,
         statement_index,
         expression,
-    )?;
+    ) {
+        Ok(effects) => effects,
+        Err(validation::StoredReferenceRelationRefusal::TemplateDependent)
+            if independent_owned_formation(
+                program,
+                machine,
+                state,
+                statement_index,
+                expression,
+            ) =>
+        {
+            // An owned address needs no loaded descriptor or previous parent.
+            // Ordinary formation still records and checks its loan; no incoming
+            // descriptor source is made current by this empty source roster.
+            return Ok(Vec::new());
+        }
+        Err(reason) => return Err(reason),
+    };
     let produced = from_effects(program, effects.clone(), incoming);
     let mut current = incoming
         .iter()
@@ -57,6 +74,68 @@ pub(super) fn roster_at_expression(
     Ok(current)
 }
 
+/// A declared owned address can be borrowed even while unrelated descriptor
+/// transfers remain pending. Use the ordinary geometry and type projection;
+/// a loaded pointer, incoming referent or unavailable type still needs its
+/// current source roster. Case, index and access admission remain with their
+/// ordinary formation owners; this establishes neither contents nor permission.
+fn independent_owned_formation(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let Some(reference) =
+        validation::expression_result_type_reference(program, machine, state, expression)
+    else {
+        return false;
+    };
+    if validation::reference_shell(program, reference).is_none()
+        && validation::slice_view_shell(program, reference, &[]).is_none()
+    {
+        return false;
+    }
+    let Some(geometry) = super::call_views::argument_borrow_loan_geometry(
+        program,
+        state.symbol,
+        statement_index,
+        machine.symbol,
+        expression,
+    ) else {
+        return false;
+    };
+    let owned = |place: &super::accesses::BorrowAccessPlace| {
+        if place.incoming_reference.is_valid() || !place.incoming_owner_path.is_empty() {
+            return false;
+        }
+        if super::accesses::is_image_storage_root(program, place.root) {
+            return true;
+        }
+        if !matches!(
+            place.root,
+            facts::PlaceRoot::Symbol(_) | facts::PlaceRoot::Expression(_)
+        ) {
+            return false;
+        }
+        // Owner paths describe the storage containing a range as element
+        // storage. The original geometry retains its full interval/footprint;
+        // this projection establishes only that no pointer was crossed.
+        let owner_path = super::owner_path_from_place_segments(program, &place.segments);
+        validation::canonical_owned_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &validation::CanonicalPlace {
+                root: place.root,
+                segments: super::owner_place_segments(&owner_path),
+            },
+        )
+        .is_some()
+    };
+    owned(&geometry.place) && geometry.representation_address.as_ref().is_none_or(owned)
+}
+
 pub(super) fn loans(
     program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
@@ -71,9 +150,17 @@ pub(super) fn loans(
     let Some(frames) = call_frames else {
         return Ok(Vec::new());
     };
-    let effects = frames
-        .stored_reference_fallthrough_effects(machine, statement)
-        .ok_or("stored call has no complete statement-successor effects")?;
+    let effects = match frames.stored_reference_fallthrough_effects(machine, statement) {
+        Ok(effects) => effects,
+        // Concrete types are needed to publish the whole set of slot loans.
+        // Each selected closed instance checks that set, as for operand loans.
+        Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
+            return Ok(Vec::new());
+        }
+        Err(validation::StoredReferenceRelationRefusal::Unavailable(reason)) => {
+            return Err(reason);
+        }
+    };
     if effects.is_empty() {
         return Ok(Vec::new());
     }

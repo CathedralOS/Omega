@@ -294,24 +294,41 @@ class CompilerPilotTests(unittest.TestCase):
             library = root / "source/library/std/last.omg"
             library.parent.mkdir(parents=True)
             library.write_text("data Last {}")
-            paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg"]
+            dependency = "pass/packages/input_library"
+            self.fixture_root(root, dependency)
+            dependency_path = root / "tests/omega" / dependency
+            (dependency_path / "build.omg").write_text("library Build")
+            paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg",
+                     "tests/omega/" + dependency + "/main.omg",
+                     "tests/omega/" + dependency + "/build.omg"]
             output = root / "observation"
             producer = Mock(cli=Path("/retained/omega"), target="windows_x86_64")
             producer.record.return_value = {"revision": "a" * 40}
-            expected_project = output / "workspace" / sample
+            for index, diagnostics in enumerate(({}, {"OMEGA_PROVIDER_DEBUG": "1",
+                                                       "OMEGA_COMPILER_CHECK_SITES": "1"})):
+                output = root / f"observation-{index}"
+                expected_project = output / "workspace" / sample
 
-            def refuse_update(arguments, **kwargs):
-                self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
-                self.assertTrue((expected_project / "build.omg").is_file())
-                self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
-                return Mock(returncode=1)
+                def refuse_update(arguments, **kwargs):
+                    self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
+                    self.assertTrue((expected_project / "build.omg").is_file())
+                    self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
+                    self.assertEqual(
+                        (output / "workspace/tests/omega" / dependency / "main.omg").read_bytes(),
+                        (dependency_path / "main.omg").read_bytes())
+                    for name in ("OMEGA_PROVIDER_DEBUG", "OMEGA_COMPILER_CHECK_SITES"):
+                        self.assertEqual(kwargs["env"].get(name), diagnostics.get(name))
+                    return Mock(returncode=1)
 
-            with patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
-                    patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
-                row = pilot.ordinary_cli_fixture.observe(root, producer, sample, output)
-                run.assert_called_once()
-                self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
-                self.assertFalse(row["passed"])
+                with self.subTest(diagnostics=diagnostics), patch.dict(os.environ, diagnostics, clear=True), \
+                        patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
+                        patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
+                    row = pilot.ordinary_cli_fixture.observe(
+                        root, producer, sample, output, dependency_projects=(dependency,))
+                    self.assertEqual(row["dependency_projects"], ["tests/omega/" + dependency])
+                    run.assert_called_once()
+                    self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
+                    self.assertFalse(row["passed"])
 
     def test_ordinary_cli_uses_exact_product_sample_and_its_authored_exit(self):
         sample = "samples/cli/systems/journal"
@@ -662,6 +679,31 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(pilot.select_fixtures(f" {negative}, {positive} "),
                                  ((positive,), (negative,)))
 
+    def test_run_fixture_keeps_exact_selection_and_requires_both_engines(self):
+        fixture = "run/borrows/conditional_origins"
+        negative = "fail/borrows/local_escape"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture, negative)
+            (root / "tests/omega" / fixture / "expected_native_exit.txt").write_text("0\n")
+            with patch.object(pilot, "ROOT", root), \
+                    patch.object(pilot, "prepare_producer") as build:
+                self.assertEqual(pilot.select_fixtures(fixture + "," + negative),
+                                 ((fixture,), (negative,)))
+                report = self.report(both=True)
+                report["observations"] = [dict(fixture=fixture, status="built",
+                    facts={"exit": "0", "interpreter-exit": "0", "interpreter": "agrees"})]
+                pilot.validate_report(report, (fixture,), both=True,
+                                      revision="a" * 40, target="linux_x86_64")
+                report["observations"][0]["facts"]["interpreter"] = "unchecked"
+                with self.assertRaisesRegex(ValueError, "missing native/Terminal agreement"):
+                    pilot.validate_report(report, (fixture,), both=True,
+                                          revision="a" * 40, target="linux_x86_64")
+                self.fixture_root(root, fixture + "_extra")
+                with self.assertRaisesRegex(ValueError, "unrequested fixtures"):
+                    pilot.select_fixtures(fixture)
+                build.assert_not_called()
+
     def test_nested_fact_ids_keep_exact_selection_and_refusals(self):
         positive = "pass/facts/invocation_lifetime/local"
         negative = "fail/facts/invocation_lifetime/local"
@@ -774,6 +816,72 @@ class CompilerPilotTests(unittest.TestCase):
             self.assertEqual([row["passed"] for row in report["observations"]], [False, False, True])
             self.assertEqual(report["observations"][0]["error"], "native timeout")
             self.assertEqual(report["observations"][1]["error"], "provider unavailable")
+
+    def test_recording_uses_the_corpus_command_and_keeps_the_published_golden(self):
+        for intended_rejection in (True, False):
+            with self.subTest(intended_rejection=intended_rejection), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                baseline = output / "published.txt"
+                baseline.write_text("published results remain unchanged\n")
+                recorded = output / "recorded-corpus-outcomes.txt"
+                producer = Mock(consumer_revision=None, revision="a" * 40, target="linux_x86_64",
+                                runner_profile={"sha256": "b" * 64})
+                fixture = "fail/example/intended_rejection"
+
+                def corpus(arguments, **kwargs):
+                    self.assertIn("--record", arguments)
+                    self.assertNotIn("--both", arguments)
+                    self.assertEqual(arguments[arguments.index("--filter") + 1], fixture)
+                    self.assertEqual(arguments[arguments.index("--golden") + 1], str(recorded))
+                    self.assertEqual(kwargs["env"]["OMEGA_CORPUS_TIMINGS"], str(baseline))
+                    report = self.report()
+                    report["observations"] = [dict(fixture=fixture, status="rejected",
+                                                   expected_satisfied=intended_rejection)]
+                    Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                    recorded.write_text("runner-produced record\n")
+                    return Mock(returncode=0)
+
+                with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                     patch.dict(os.environ, {"GITHUB_SHA": "a" * 40, "OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}), \
+                     patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                     patch.object(pilot, "observation_golden", return_value=baseline), \
+                     patch.object(pilot.subprocess, "run", side_effect=corpus) as execute:
+                    summary = {}
+                    if intended_rejection:
+                        pilot.execute(output, summary, positives=(), negatives=(fixture,), producer=producer)
+                        self.assertEqual(summary["recorded_corpus"], str(recorded))
+                    else:
+                        with self.assertRaisesRegex(ValueError, "missing intended rejection"):
+                            pilot.execute(output, summary, positives=(), negatives=(fixture,), producer=producer)
+                        self.assertNotIn("recorded_corpus", summary)
+                    execute.assert_called_once()
+                    with self.assertRaisesRegex(ValueError, "already exists"):
+                        pilot.execute(output, {}, positives=(), negatives=(fixture,), producer=producer)
+                    execute.assert_called_once()
+                self.assertEqual(baseline.read_text(), "published results remain unchanged\n")
+
+    def test_recording_without_corpus_fixtures_refuses_before_building(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.dict(os.environ, {"OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}), \
+             patch.object(pilot, "prepare_producer") as build, \
+             patch.object(pilot.subprocess, "run") as consume:
+            with self.assertRaisesRegex(ValueError, "exact corpus fixture selection"):
+                pilot.execute(Path(temporary), {}, positives=(), negatives=(),
+                              cli_fixtures=("pass/example/exit",))
+            build.assert_not_called()
+            consume.assert_not_called()
+
+    def test_recording_without_an_explicit_selection_does_not_build_the_smoke(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(pilot, "ROOT", Path(temporary)), \
+             patch.dict(os.environ, {"OMEGA_COMPILER_PILOT_RECORD_RESULTS": "true"}), \
+             patch.object(pilot, "prepare_producer") as build, \
+             patch.object(pilot, "execute") as consume:
+            self.assertEqual(pilot.run_suite("record", pilot.POSITIVES, pilot.NEGATIVES, phase="prepare"), 1)
+            build.assert_not_called()
+            consume.assert_not_called()
+            report = json.loads((Path(temporary) / "build/record/preparation.json").read_text())
+            self.assertIn("exact fixture IDs or a replay plan", report["error"])
 
     def test_rejection_only_run_never_launches_an_empty_runtime_filter(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -1066,6 +1174,45 @@ class CompilerPilotTests(unittest.TestCase):
                                        if row["fixture"] != fixture]
             with self.subTest(fixture=fixture), self.assertRaises(ValueError):
                 validate(missing)
+
+
+    def test_ordinary_cli_honors_both_numeric_engine_oracles_before_build(self):
+        fixture = "pass/borrows/saved_reference"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            project = root / "tests/omega" / fixture
+            (project / "build.omg").write_text("ProgramEntry")
+            (project / "expected_native_exit.txt").write_text("70")
+            interpreter = project / "expected_interpreter_exit.txt"
+            interpreter.write_text("70")
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.select_cli_fixtures(fixture), (fixture,))
+                self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, fixture, "linux_x86_64"), 70)
+                for unsupported in ("", "trap", "70 trailing text", "71"):
+                    interpreter.write_text(unsupported)
+                    with self.subTest(oracle=unsupported):
+                        self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
+                                                        cli_fixtures=fixture), 1)
+                    execute.assert_not_called()
+                interpreter.write_text("70")
+                (project / "expected_native_exit.linux_x86_64.txt").write_text("0")
+                with self.assertRaisesRegex(ValueError, "matching native and interpreter"):
+                    pilot.ordinary_cli_fixture.expected_exit(root, fixture, "linux_x86_64")
+
+    def test_ordinary_cli_sample_header_must_match_its_interpreter_oracle(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            project = root / sample
+            (project / "main.omg").write_text("// Expected exit: 7\nmachine main() {}")
+            interpreter = project / "expected_interpreter_exit.txt"
+            interpreter.write_text("7")
+            self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, sample, "linux_x86_64"), 7)
+            interpreter.write_text("0")
+            with self.assertRaisesRegex(ValueError, "matching native and interpreter"):
+                pilot.ordinary_cli_fixture.expected_exit(root, sample, "linux_x86_64")
 
 
 if __name__ == "__main__":

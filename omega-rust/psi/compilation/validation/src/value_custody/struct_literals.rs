@@ -213,10 +213,67 @@ pub(crate) fn validate_struct_literal_fields(
         stored_integer_writes.extend(machine_writes);
         pending_predicates.extend(machine_predicates);
     }
+    if let Some((machine, state)) = const_declaration_probe(program) {
+        for declaration in program.const_declarations() {
+            let initializer = if program
+                .expression_table
+                .expression_is_valid(declaration.authored_initializer)
+            {
+                declaration.authored_initializer
+            } else {
+                declaration.materialized_initializer
+            };
+            if !program.expression_table.expression_is_valid(initializer) {
+                continue;
+            }
+            if !matches!(
+                program.expression_table.expression(initializer),
+                ExpressionNode::StructLiteral(_)
+            ) {
+                continue;
+            }
+            let mut const_diagnostics = Vec::new();
+            let observations = &ConstructionObservations::new(program, machine, state, initializer);
+            scan_expression(
+                program,
+                machine,
+                state,
+                observations,
+                initializer,
+                &mut const_diagnostics,
+                &mut Vec::new(),
+                0,
+                &mut Vec::new(),
+            );
+            // Unknown declaration predicates stay with their existing owner.
+            // Only a literal that evaluates FALSE is a construction refusal.
+            diagnostics.extend(
+                const_diagnostics
+                    .into_iter()
+                    .filter(|diagnostic| diagnostic.message.contains("evaluates FALSE")),
+            );
+        }
+    }
     StructLiteralValidation {
         stored_integer_writes,
         pending_predicates,
     }
+}
+
+/// Declaration-site literals are not statements of any caller. Judge them
+/// against a contract-free machine so that machine's requirements cannot
+/// prove the declaration's own fields.
+fn const_declaration_probe(program: &dyn crate::CheckingInput) -> Option<(&Machine, &State)> {
+    let quiet = program.machines().iter().find(|machine| {
+        program.machine_contracts(machine).is_empty()
+            && program
+                .machine_states(machine)
+                .iter()
+                .all(|state| program.state_contracts(state).is_empty())
+    });
+    let machine = quiet.or_else(|| program.machines().first())?;
+    let state = program.machine_states(machine).first()?;
+    Some((machine, state))
 }
 
 fn scan_transition_target(
@@ -559,7 +616,7 @@ fn validate_literal_field_names(
     let Some(data_definition) =
         field_obligations::selected_construction_definition(program, expression, literal)
     else {
-        diagnostics.push(Diagnostic::error("constructor obligations have no exact prepared application; unresolved generic members cannot waive field or case checking"));
+        diagnostics.push(Diagnostic::error(format!("constructor obligations have no exact prepared application for `{type_name}`; unresolved generic members cannot waive field or case checking")));
         return;
     };
     for field in program.expression_table.struct_fields(literal.fields) {

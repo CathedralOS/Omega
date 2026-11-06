@@ -268,7 +268,10 @@ impl<'program> StructuralJudge<'program> {
 }
 
 impl StructuralJudge<'_> {
-    pub(super) fn intake_normal_call_equations(&mut self, equations: Vec<CapturedResultEquation>) {
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn intake_normal_call_equations(
+        &mut self,
+        equations: Vec<CapturedResultEquation>,
+    ) {
         for equation in equations {
             if equation.is_data_identity() {
                 // A public data Id relates complete values. Keep its meaning

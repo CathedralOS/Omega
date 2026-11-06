@@ -21,7 +21,7 @@ use super::{
     SymbolKind, TypeReferenceHandle, TypeReferenceNode, TypedTrees, failed,
 };
 use crate::monomorphization::body_rewriting::{
-    cloned_expression_roots, rebind_state_value_parameters,
+    cloned_expression_roots, drop_refuted_closed_transition_arms, rebind_state_value_parameters,
     reject_runtime_bound_static_occurrences, rewrite_cloned_calls, statement_span_handles,
     substitute_cloned_type_parameters,
 };
@@ -744,8 +744,14 @@ pub(super) fn clone_single_specialized_machine(
                 };
                 call.machine_arguments = arguments;
                 for application in applications {
-                    expressions_of_mut(program)
-                        .remap_static_application_operands(application, realized);
+                    // The retained actuals include symbol-only Value bindings,
+                    // not just the authored argument rows. Keep the statement
+                    // call in the same realized scope as its emitted operands.
+                    expressions_of_mut(program).remap_call_static_applications(
+                        application,
+                        None,
+                        realized,
+                    );
                 }
             }
             for statement in program
@@ -1079,6 +1085,7 @@ pub(super) fn clone_single_specialized_machine(
         expression_start,
         cloned.states,
     )?;
+    drop_refuted_closed_transition_arms(program, candidate, &cloned);
     let instance_symbol = cloned.symbol;
     let authored_service_reach_rows = source
         .unwrap_or(program)
@@ -1253,6 +1260,26 @@ pub(super) fn copy_cloned_expression_type_payloads<'scope>(
     for (expression, carrier) in query_carriers {
         let carrier = copy_type_reference(source, program, carrier, symbols)?;
         expressions_of_mut(program).set_constructed_value_type_reference(expression, carrier);
+    }
+    // Constructor applications can contain caller binders even when no field
+    // mentions them. Copy their type graph before substituting this instance;
+    // sharing the template's graph would rewrite other instantiations too.
+    let constructors = expressions_of(program)
+        .iter_expressions_from(expression_start)
+        .filter_map(|(handle, expression)| match expression {
+            ExpressionNode::StructLiteral(literal) if literal.application_type.is_valid() => {
+                Some((handle, literal.application_type))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (handle, application) in constructors {
+        let application = copy_type_reference(source, program, application, symbols)?;
+        if let ExpressionNode::StructLiteral(literal) =
+            expressions_of_mut(program).expression_mut(handle)
+        {
+            literal.application_type = application;
+        }
     }
     // Index authority is copied before ordinary type-parameter substitution,
     // just like cast types. The clone cannot mutate its template's contract.

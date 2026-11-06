@@ -2070,6 +2070,20 @@ impl StructuralJudge<'_> {
     /// Atomic cells are storage, not such values; classify their sealed atoms
     /// independently of the primitive width they use.
     pub(super) fn immutable_scalar_binding(&self, symbol: SymbolHandle) -> bool {
+        self.immutable_scalar_place(&CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(symbol),
+            segments: Vec::new(),
+        })
+    }
+
+    /// A call can change storage reached through an owned value without
+    /// replacing its immutable inline scalar fields. Follow only owned
+    /// projections: a stored reference, atomic cell or opaque projection
+    /// cannot acquire this exemption from observation invalidation.
+    pub(super) fn immutable_scalar_place(&self, place: &CanonicalPlace) -> bool {
+        let Some(symbol) = place.root.as_symbol() else {
+            return false;
+        };
         if !symbol.is_valid() {
             return false;
         }
@@ -2092,6 +2106,13 @@ impl StructuralJudge<'_> {
                 Some((local.is_mutable, local.type_reference))
             });
         let Some((false, reference)) = declaration else {
+            return false;
+        };
+        let Some(reference) = crate::value_custody::places::owned_projection_type_reference(
+            program,
+            reference,
+            &place.segments,
+        ) else {
             return false;
         };
         let reference = program

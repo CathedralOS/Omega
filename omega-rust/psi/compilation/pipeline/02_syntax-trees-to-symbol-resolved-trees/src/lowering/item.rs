@@ -386,9 +386,9 @@ fn lower_closed_machine_row(
     // A member belongs to the implementation's map, not to any data
     // declaration; its parameters name every data type explicitly.
     realization.attached_data = None;
-    // An inline member can also name independent exact requirements. Keep
-    // every authored clause for typed validation; candidate emission later
-    // suppresses only the exact duplicate of this implementation's map row.
+    // Inline members may also satisfy independent exact requirements. Keep
+    // those authored relations. Once the inherited row is resolved, only its
+    // redundant disambiguating edge is removed by conformance normalization.
     realization.satisfies = if source == ConformanceRowSource::Inline {
         machine.satisfies
     } else {

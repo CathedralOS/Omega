@@ -122,7 +122,7 @@ pub enum CheckedUnitStructuralArgumentSourcePlan {
     ScalarParameter { parameter_index: u32 },
     /// Exact initialized mutable primitive storage in the caller state.
     PrimitiveLocal { symbol: SymbolHandle },
-    /// Exact immutable structural declaration; the operation sequence owns its slot.
+    /// Exact current declared structural home; the operation sequence owns its slot.
     StructuralLocal { symbol: SymbolHandle },
     /// A loan whose path starts at the checked logical referent of a local.
     /// Publication may retain a reference descriptor or present its referent

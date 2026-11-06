@@ -43,6 +43,11 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         reason: &'static str,
     },
+    IncompleteValueClaimFrontier {
+        site: crate::OperationSite,
+        place: PlaceId,
+        reason: &'static str,
+    },
     InvalidOwnedValueTransfer {
         machine: MachineId,
         operation: OperationId,

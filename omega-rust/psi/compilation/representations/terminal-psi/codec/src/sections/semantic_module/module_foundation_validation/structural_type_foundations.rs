@@ -108,6 +108,11 @@ pub(super) fn validate_catalog_type_shape(
             }
         }
         StructuralTypeShape::PrimitiveScalar(_) => {}
+        StructuralTypeShape::AtomicCell(cell) => {
+            if !cell.is_supported() || declaration.scalar_restriction.is_some() {
+                return malformed("atomic storage has an invalid resident contract");
+            }
+        }
         // Completed owned concatenations retain their bounded carrier here.
         // Formation and readers independently validate result custody; the
         // carrier declaration alone creates no source or borrowing authority.
@@ -596,6 +601,7 @@ pub(super) fn attachment_storage_types(
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::AtomicCell(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => {}

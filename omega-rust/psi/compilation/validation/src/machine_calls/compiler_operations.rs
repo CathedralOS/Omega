@@ -72,7 +72,7 @@ pub fn static_argument_role(
     }
 }
 
-fn static_call_intrinsic(
+pub(crate) fn static_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
@@ -305,6 +305,25 @@ pub fn storage_address_operand(
     .map(|arguments| arguments[0])
 }
 
+/// These operations do not replace references stored in caller data. Provider
+/// selection requires its retained declaration operation; spelling alone cannot
+/// supply that record. Byte and address observations keep their selected meaning.
+/// Arguments still execute first, and their effects remain.
+pub(crate) fn call_preserves_reference_slots(
+    program: &dyn crate::CheckingInput,
+    call: StaticArgumentCall<'_>,
+) -> bool {
+    authored_call_intrinsic(program, call)
+        == Some(AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection)
+        || matches!(
+            static_call_intrinsic(program, call),
+            Some(
+                AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
+                    | AuthoredDeclarationSelectionIntrinsic::StorageAddress
+            )
+        )
+}
+
 /// These resolved observations neither write caller storage nor install
 /// reference slots. Their runtime operands still execute with their ordinary
 /// effects; an ordinary same-spelled declaration does not select this rule.
@@ -317,27 +336,14 @@ pub(crate) fn expression_call_only_observes_operands(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    // Provider selection records a build fact. The provider home is an empty
-    // carrier, so the call does not install a caller reference slot.
-    // `Owner::select_provider<Slot, Product>(defaults)` inside a provider
-    // default is that same fact with one carrier argument, not a machine call.
     call.layout_query.is_some()
         || matches!(
             classify_expression_call_intrinsic(program, call),
             Some(
                 AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(_)
                     | AuthoredDeclarationSelectionIntrinsic::StorageAddress
-                    | AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
             )
         )
-        || (BuildOperation::from_call_target(call.target.as_str())
-            == Some(BuildOperation::ProviderSelection)
-            && !call.target_symbol.is_valid()
-            && call.machine_arguments.len() == 2
-            && expression_table(program)
-                .expression_handles(call.arguments)
-                .len()
-                == 1)
 }
 
 /// A descriptor instruction borrows exactly ten bytes. Hardware-written bytes

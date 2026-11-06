@@ -1179,15 +1179,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     .flatten();
                 if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
                     let (next_judge, next_contra_state) = if let Some(truth) = truth {
-                        let skipped_eq = [(
-                            subject.clone(),
-                            StructuralTerm::Constructor {
-                                declaration: None,
-                                data: "bool".to_owned(),
-                                case: (!truth).to_string(),
-                                fields: Vec::new(),
-                            },
-                        )];
+                        let skipped_eq = [(subject.clone(), StructuralTerm::boolean(!truth))];
                         let next_judge =
                             structural_arm_judge(program, &outcome.judge, &[], &skipped_eq);
                         if next_judge.hypotheses_contradictory {
@@ -2002,15 +1994,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     // leaves all remaining cases available to later arms.
                     if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
                         let next_judge = if let Some(truth) = truth {
-                            let skipped_eq = (
-                                subject.clone(),
-                                StructuralTerm::Constructor {
-                                    declaration: None,
-                                    data: "bool".to_owned(),
-                                    case: (!truth).to_string(),
-                                    fields: Vec::new(),
-                                },
-                            );
+                            let skipped_eq = (subject.clone(), StructuralTerm::boolean(!truth));
                             let next_judge = structural_arm_judge(
                                 program,
                                 &outcome.judge,
@@ -2933,15 +2917,7 @@ fn guard_observation(
             && let ExpressionNode::Boolean(truth) =
                 program.expression_table.expression(comparison.right)
         {
-            return Some((
-                comparison.left,
-                StructuralTerm::Constructor {
-                    declaration: None,
-                    data: "bool".to_owned(),
-                    case: truth.to_string(),
-                    fields: Vec::new(),
-                },
-            ));
+            return Some((comparison.left, StructuralTerm::boolean(*truth)));
         }
         if super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)
             .is_some()
@@ -2957,15 +2933,7 @@ fn guard_observation(
     {
         return None;
     }
-    Some((
-        guard,
-        StructuralTerm::Constructor {
-            declaration: None,
-            data: "bool".to_owned(),
-            case: "true".to_owned(),
-            fields: Vec::new(),
-        },
-    ))
+    Some((guard, StructuralTerm::boolean(true)))
 }
 
 /// Check the guard before adding its own arm assumptions. A checked call can
@@ -3038,9 +3006,16 @@ fn guard_case_value(
             (field, StructuralTerm::Variable(variable))
         })
         .collect();
-    Some(super::structural_terms::constructed_term(
+    fields.sort_by(|(left, _), (right, _)| left.cmp(right));
+    let identity = super::structural_judgment::ConstructorIdentity::nominal(
+        program,
         definition,
         Some(variant),
+    )?;
+    Some(StructuralTerm::Constructor {
+        identity,
+        data,
+        case,
         fields,
-    ))
+    })
 }

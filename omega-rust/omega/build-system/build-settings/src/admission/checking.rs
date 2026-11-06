@@ -4,10 +4,10 @@
 //! authority is an additional obligation, not the switch that enables checking.
 //! Transfer the prepared and checked typed program: checking one clone and
 //! interpreting a separately specialized clone would not bind execution to
-//! the admitted bodies. Provider planning uses the Build declaration context
-//! and admitted execution profile, never the current product's unfinished
-//! provider choices. Only comparison execution facts enter the interpreter;
-//! runtime adapter dispatch does not grant Build host-service authority.
+//! the admitted bodies. Provider planning uses the Build declaration context,
+//! its completed defaults and admitted execution profile. The checked program
+//! and selected provider plans pass together to interpreter installation;
+//! host services still require this activation's own authority.
 //!
 //! Product declarations remain a frozen selection view. The complete Build
 //! dependency context goes through ordinary checking, including helper bodies;
@@ -34,7 +34,14 @@ pub(crate) fn prepare_checked_build(
     timings: &mut artifacts::compile_timings::CompileTimings,
     priors: &[&RetainedCheck],
     retain: bool,
-) -> Result<(PreparedBuildMachineProgram, Option<RetainedCheck>), Vec<Diagnostic>> {
+) -> Result<
+    (
+        PreparedBuildMachineProgram,
+        super::provider_execution::BuildProviderPlans,
+        Option<RetainedCheck>,
+    ),
+    Vec<Diagnostic>,
+> {
     // Retained applications belong to the canonical typed owner. Rejoin before
     // projecting so pending evaluation and every later projection retain the
     // same exact closed declarations and type arguments.
@@ -220,5 +227,14 @@ pub(crate) fn prepare_checked_build(
         .iter()
         .map(|continuation| continuation.exclude_completed_work(typed, &checked))
         .collect::<Result<_, _>>()?;
-    Ok((PreparedBuildMachineProgram::from_checked(checked), retained))
+    let providers = super::provider_execution::BuildProviderPlans::capture(
+        &checked,
+        selected_provider_plan_facts,
+        &provenance,
+    )?;
+    Ok((
+        PreparedBuildMachineProgram::from_checked(checked),
+        providers,
+        retained,
+    ))
 }

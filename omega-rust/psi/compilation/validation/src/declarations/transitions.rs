@@ -7,11 +7,26 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
+use typed_trees::statement::{
+    StatementNode, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
+};
 
 mod evaluation;
 mod terminal_results;
 pub(crate) use evaluation::TransitionValueEnvironments;
+
+/// An exhaustive dispatch cannot fall through after its last arm. Typed
+/// admission already proves coverage, including case groups without an Always
+/// guard. Consumers still inspect every target before using this run boundary.
+pub(crate) fn admitted_dispatch_ends(
+    transition: &TableTransition,
+    following_statement: Option<&StatementNode>,
+) -> bool {
+    transition.guard == TransitionGuardNode::Always
+        || transition.continuation.is_valid()
+        || !matches!(following_statement, Some(StatementNode::Transition(_)))
+}
 
 /// Resolve a named transfer's exact declaration, retaining its owning machine.
 /// Machine declarations select entry; internal control symbols select their exact body.

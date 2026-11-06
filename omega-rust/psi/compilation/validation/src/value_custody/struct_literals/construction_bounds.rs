@@ -647,7 +647,21 @@ fn validate_literal_facts(
                             "{subject} literal violates {fact_label}: a `requires` \
                          fact evaluates FALSE at this construction (ch12: construction is \
                          the gate)"
-                        )))
+                        )));
+                        // A case literal that refutes its data domain also
+                        // fails that case's construction obligation. The data
+                        // sentence stays; the case sentence names the arm.
+                        if fact_label == "the default domain"
+                            && let Some(case_name) = literal.case_name.as_ref()
+                        {
+                            predicate_diagnostics.push(Diagnostic::error(format!(
+                                "data `{}` case `{}` literal violates the case constraint: a \
+                                 `requires` fact evaluates FALSE at this construction (ch12: \
+                                 construction is the gate)",
+                                literal.type_name.as_str(),
+                                case_name.as_str()
+                            )));
+                        }
                     }
                     StructuralJudgment::Unknown
                         if super::deferred_predicates::construction_conditions(
@@ -755,8 +769,8 @@ fn validate_literal_facts(
             }
         }
     }
-    if !pending_predicates.is_empty() {
-        if let Err(unretained) =
+    if !pending_predicates.is_empty()
+        && let Err(unretained) =
             observations.retain_pending_predicates(super::PendingConstructionPredicates {
                 machine: machine.symbol,
                 state: state.symbol,
@@ -765,14 +779,13 @@ fn validate_literal_facts(
                 parameters,
                 predicates: pending_predicates,
             })
-        {
-            predicate_diagnostics.extend(
-                unretained
-                    .predicates
-                    .into_iter()
-                    .map(|obligation| Diagnostic::error(obligation.diagnostic)),
-            );
-        }
+    {
+        predicate_diagnostics.extend(
+            unretained
+                .predicates
+                .into_iter()
+                .map(|obligation| Diagnostic::error(obligation.diagnostic)),
+        );
     }
     let source_span = expression_table(program).source_span(expression);
     diagnostics.extend(

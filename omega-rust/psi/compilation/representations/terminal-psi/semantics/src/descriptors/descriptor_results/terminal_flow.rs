@@ -404,13 +404,9 @@ pub(super) fn adapt(
                     }
                 }
                 OperationKind::AtomicAccess {
-                    place,
-                    path,
-                    field,
-                    event,
-                    ..
+                    place, path, event, ..
                 } if event.modifies_resident() => {
-                    payload_writes.push(payload_query(*place, path, Some(*field)));
+                    payload_writes.push(payload_query(*place, path, None));
                 }
                 _ => {}
             }
@@ -1434,6 +1430,9 @@ enum CapturedBacking {
     StorageAddress,
     ElementViewPayload,
     AccessInterpretation,
+    /// An index selects bytes the sequence already names. The element has no
+    /// structural declaration, and the sequence cell is not a pointer slot.
+    ByteWindow,
 }
 
 fn captured_storage_source(
@@ -1458,12 +1457,16 @@ fn captured_storage_source(
         return Some((location, None, CapturedBacking::StorageAddress));
     }
     let prefix_type = descriptor_location_type(types, root_type, &location.path)?;
-    let capture = if plain_owned_shape(types.iter(), prefix_type) {
+    let suffix = &source.path[prefix_length..];
+    let prefix_shape = &find_structural_type(types, prefix_type)?.shape;
+    // A byte index is classified before plain ownership. An owned byte
+    // sequence is plain storage, but its element still has no declared tip,
+    // and treating the sequence cell as a captured pointer would invent a slot.
+    let capture = if matches!(prefix_shape, StructuralTypeShape::ByteSequence(_)) {
+        CapturedBacking::ByteWindow
+    } else if plain_owned_shape(types.iter(), prefix_type) {
         CapturedBacking::StorageAddress
-    } else if matches!(
-        find_structural_type(types, prefix_type)?.shape,
-        StructuralTypeShape::ElementView { .. }
-    ) {
+    } else if matches!(prefix_shape, StructuralTypeShape::ElementView { .. }) {
         // A view index captures its current payload lineage, including any
         // prior window. Reading the descriptor's established origins and
         // appending this position-bound projection preserves both; capturing
@@ -1474,10 +1477,21 @@ fn captured_storage_source(
     } else {
         return None;
     };
-    crate::runtime_structural_path_tip(types.iter(), prefix_type, &source.path[prefix_length..])?;
+    if matches!(capture, CapturedBacking::ByteWindow) {
+        if suffix.iter().any(|segment| {
+            !matches!(
+                segment,
+                StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
+            )
+        }) {
+            return None;
+        }
+    } else {
+        crate::runtime_structural_path_tip(types.iter(), prefix_type, suffix)?;
+    }
     Some((
         location,
-        Some(Projection::new(&source.path[prefix_length..]).at(position)),
+        Some(Projection::new(suffix).at(position)),
         capture,
     ))
 }

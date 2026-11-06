@@ -181,7 +181,7 @@ impl StateGraphEmission<'_, '_> {
             structural_locals: Vec::new(),
             completed_cleanup_homes: Vec::new(),
             retired_structural_bindings: Vec::new(),
-            retired_structural_homes: Vec::new(),
+            retired_structural_homes: Default::default(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             place_observations:
@@ -238,6 +238,7 @@ impl StateGraphEmission<'_, '_> {
                 .collect(),
             erased_scalar_formals: self.state_erased[position].clone(),
             erased_proof_formals: state.erased_proof_parameters.clone(),
+            completion_proof_formals: Vec::new(),
             entry: self.state_ids[position],
             block_structural_parameters: Vec::new(),
             current: self.state_ids[position],

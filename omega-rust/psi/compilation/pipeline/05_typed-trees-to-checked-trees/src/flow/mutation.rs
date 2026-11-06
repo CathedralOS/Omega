@@ -25,8 +25,8 @@ mod receiver;
 mod regions;
 mod summary;
 
+pub(crate) use ceiling::linear_restoration_ceiling_regions;
 pub(crate) use ceiling::signature_ceiling_places;
-pub(crate) use ceiling::signature_ceiling_regions;
 pub(crate) use local_origins::close_storage_places_over_aliases;
 pub(crate) use local_origins::close_storage_places_over_origins;
 pub(crate) use local_origins::place_from_origin_path;
@@ -504,7 +504,7 @@ fn shared_call_storage_regions(
         borrow_call.call_ordinal,
     )?;
     let resolver = call_frames?;
-    let frame = resolver.boundary_invocation_write_frame(machine, &site);
+    let frame = resolver.signature_invocation_write_frame(machine, &site);
     let trace = std::env::var_os("OMEGA_CALL_WRITE_TRACE").is_some();
     if trace {
         eprintln!(

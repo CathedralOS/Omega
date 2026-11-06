@@ -19,9 +19,10 @@ pub(crate) fn call_target_label(
         .iter()
         .find_map(|machine| {
             let state = program.state_in_machine(machine, target_symbol)?;
+            let machine = authored_machine(program, machine);
             // A FREE machine's implicit entry state carries the generated name
             // `entry`; the call is spelled with the machine name, so label it
-            // that way.
+            // that way. A specialization instance keeps that authored name.
             if machine.attached_data.is_none() && state.name.as_str() == "entry" {
                 Some(machine.name.as_str().to_owned())
             } else {
@@ -29,6 +30,21 @@ pub(crate) fn call_target_label(
             }
         })
         .unwrap_or_else(|| symbol_name(program, target_symbol))
+}
+
+/// The declaration the author named. Specialization clones are instances of
+/// that declaration; diagnostics name the template, not the clone.
+fn authored_machine<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    machine: &'program typed_trees::machine::Machine,
+) -> &'program typed_trees::machine::Machine {
+    program
+        .machine_specializations
+        .iter()
+        .find(|specialization| specialization.instance == machine.symbol)
+        .and_then(|specialization| program.machine_by_symbol(specialization.template))
+        .filter(|template| template.symbol != machine.symbol)
+        .unwrap_or(machine)
 }
 
 pub(crate) fn symbol_name(

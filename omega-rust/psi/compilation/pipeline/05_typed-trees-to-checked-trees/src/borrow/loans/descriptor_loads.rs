@@ -60,8 +60,10 @@ pub(in crate::borrow) fn prepare(
             ) else {
                 return;
             };
-            // Owned carried leaves already have a permission producer. This
-            // inventory ends at a reference; a deeper load needs its own row.
+            // A containing loan owns the descriptors inside its referent
+            // transitively, and an incoming entry leaf already owns its exact
+            // slot through the incoming constraints. This inventory ends at a
+            // reference; a deeper load needs its own row.
             if current.iter().any(|loan| {
                 loan.storage_owner == source.root
                     && loan.owner_path.len() == source.segments.len()
@@ -81,22 +83,39 @@ pub(in crate::borrow) fn prepare(
                 },
                 current,
             );
-            if !rebased.is_empty()
-                && rebased.iter().all(|source| {
-                    current.iter().any(|supplier| {
-                        supplier.handle.is_valid()
-                            && supplier.handle == source.parent_loan
-                            && supplier.storage_owner == source.source_place.root
-                            && supplier.owner_path.len() == source.source_place.segments.len()
-                            && super::owner_path_matches(
-                                program,
-                                &supplier.owner_path,
-                                &source.source_place.segments,
-                            )
-                    })
+            // A supplier owns a resolved slot when its own owner path ends
+            // at or above that slot's stored path. Minted rows keep strict
+            // rebase-parent identity; an incoming leaf owns its place at
+            // entry and never joins the minted-loan arena, so there the
+            // covering slot is the supplier's identity.
+            let cover = |source: &super::RebasedBorrowPlace| {
+                current.iter().find(|supplier| {
+                    supplier.storage_owner == source.source_place.root
+                        && super::owner_path_matches(
+                            program,
+                            &supplier.owner_path,
+                            &source.source_place.segments,
+                        )
+                        && (supplier.handle == source.parent_loan || !supplier.handle.is_valid())
                 })
-            {
-                return;
+            };
+            if !rebased.is_empty() && rebased.iter().all(|source| cover(source).is_some()) {
+                // An exact-path cover already owns the requested slot: a
+                // minted rebase parent is itself a retained occurrence, and an
+                // incoming leaf resolves the slot through the incoming
+                // constraints. Only a load that lands inside a leaf's referent
+                // — deeper than every covering path — needs a prepared row;
+                // the leaf cannot stand in for the deeper pointer's slot.
+                if rebased.iter().all(|source| {
+                    cover(source).is_some_and(|loan| {
+                        loan.owner_path.len() == source.source_place.segments.len()
+                    })
+                }) {
+                    return;
+                }
+                // A deeper read still owns a new temporary descriptor. Its
+                // original source slot is retained by the completed read;
+                // that slot is not a path inside the temporary pointer.
             }
             pending.push(StatementBorrowLoan {
                 incoming_origin: Some(PendingIncomingReference {

@@ -322,28 +322,43 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
         for (slot, (requirement_identity, family_tuple)) in
             index.slots[interface_id as usize].iter().enumerate()
         {
-            let mut matching = slot_plans.iter().filter(|plan| {
+            let matching = slot_plans.iter().filter(|plan| {
                 plan.interface_identity == *interface_identity
                     && plan.requirement_identity == *requirement_identity
                     && plan.family_tuple == *family_tuple
             });
-            let Some(plan) = matching.next() else {
-                return unsupported("dynamic family tuple has no checked public call shape");
-            };
-            if matching.next().is_some() {
-                return unsupported("dynamic family tuple has multiple checked public call shapes");
+            let mut published_contract: Option<(&CheckedDynamicSlotPlan, TerminalDynamicSlot)> =
+                None;
+            for plan in matching {
+                // Scalar qualifications still use each plan's own symbol.
+                // Lower every plan before sharing the row's public contract.
+                let lowered = lower_slot(
+                    identities,
+                    checked,
+                    plan,
+                    u32::try_from(slot)
+                        .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
+                    family_tuple,
+                    &type_ids,
+                    &module.structural_types,
+                    &domain_ids,
+                    &module.scalar_qualifications,
+                )?;
+                if let Some((previous_plan, previous_slot)) = &published_contract {
+                    // Private call symbols may differ. Everything published by
+                    // checking and lowering must agree before rows can share.
+                    if !same_checked_slot_contract(previous_plan, plan) || previous_slot != &lowered
+                    {
+                        return unsupported(
+                            "dynamic family tuple has conflicting public call contracts",
+                        );
+                    }
+                } else {
+                    published_contract = Some((plan, lowered));
+                }
             }
-            slots.push(lower_slot(
-                identities,
-                checked,
-                plan,
-                u32::try_from(slot)
-                    .map_err(|_| LoweringError::Unsupported("dynamic slot id overflows"))?,
-                family_tuple,
-                &type_ids,
-                &module.structural_types,
-                &domain_ids,
-                &module.scalar_qualifications,
+            slots.push(published_contract.map(|(_, slot)| slot).ok_or(
+                LoweringError::Unsupported("dynamic family tuple has no checked public call shape"),
             )?);
         }
         catalog.interfaces.push(TerminalDynamicInterface {
@@ -422,6 +437,54 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
     }
     module.dynamic_dispatch = catalog;
     Ok(())
+}
+
+/// Compare the complete checked contract while keeping each call's private
+/// symbol separate. Exhaustive destructuring makes new plan fields require
+/// an explicit decision here rather than silently omitting an obligation.
+fn same_checked_slot_contract(
+    left: &CheckedDynamicSlotPlan,
+    right: &CheckedDynamicSlotPlan,
+) -> bool {
+    let CheckedDynamicSlotPlan {
+        slot: _,
+        interface_identity,
+        declaring_trait,
+        requirement,
+        requirement_identity,
+        family_tuple,
+        structural_parameters,
+        entry_claim_paths,
+        scalar_parameters,
+        result,
+        result_claim_paths,
+        result_reference_sources,
+    } = left;
+    (
+        interface_identity,
+        declaring_trait,
+        requirement,
+        requirement_identity,
+        family_tuple,
+        structural_parameters,
+        entry_claim_paths,
+        scalar_parameters,
+        result,
+        result_claim_paths,
+        result_reference_sources,
+    ) == (
+        &right.interface_identity,
+        &right.declaring_trait,
+        &right.requirement,
+        &right.requirement_identity,
+        &right.family_tuple,
+        &right.structural_parameters,
+        &right.entry_claim_paths,
+        &right.scalar_parameters,
+        &right.result,
+        &right.result_claim_paths,
+        &right.result_reference_sources,
+    )
 }
 
 /// One slot's call shape from its checked plan. The selector is operand 0

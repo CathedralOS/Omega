@@ -269,14 +269,12 @@ impl StructuralJudge<'_> {
         let term = self.resolve(predicate.clone());
         match term.semantic_value() {
             StructuralTerm::Constructor {
-                data, case, fields, ..
-            } if data == "bool" && fields.is_empty() => {
-                match language_semantics::const_value::boolean_literal_spelling(case) {
-                    Some(true) => Some(StructuralJudgment::Proven),
-                    Some(false) => Some(StructuralJudgment::Refuted),
-                    None => None,
-                }
-            }
+                identity, fields, ..
+            } if identity.boolean().is_some() && fields.is_empty() => match identity.boolean() {
+                Some(true) => Some(StructuralJudgment::Proven),
+                Some(false) => Some(StructuralJudgment::Refuted),
+                None => None,
+            },
             _ => {
                 // An admitted call and an inline Boolean operation share this
                 // judgment. Keep the original term so operand formation and
@@ -853,12 +851,7 @@ impl StructuralJudge<'_> {
 }
 
 pub(super) fn boolean_term(value: bool) -> StructuralTerm {
-    StructuralTerm::Constructor {
-        declaration: None,
-        data: "bool".to_owned(),
-        case: value.to_string(),
-        fields: Vec::new(),
-    }
+    StructuralTerm::boolean(value)
 }
 
 pub(super) fn boolean_value(value: &StructuralTerm) -> Option<bool> {

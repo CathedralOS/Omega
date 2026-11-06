@@ -104,6 +104,17 @@ fn report_bodyless_boundary_symbol_call(
                 return;
             }
         };
+    let compiler_empty_run_release =
+        match typed_trees::typed_trees::EmptyRunReleaseDeclaration::authenticate(
+            program,
+            callee_machine.symbol,
+        ) {
+            Ok(contract) => contract.is_some(),
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                return;
+            }
+        };
     let compiler_layout_snapshot = match program.layout_target_facts_result(callee_machine.symbol) {
         Ok(result) => result.is_some(),
         Err(reason) => {
@@ -139,6 +150,7 @@ fn report_bodyless_boundary_symbol_call(
     ) && !compiler_accessor
         && !compiler_access_factory
         && !compiler_access_execution
+        && !compiler_empty_run_release
         && !descriptor_realization
         && !activation_realization
         && !compiler_layout_snapshot

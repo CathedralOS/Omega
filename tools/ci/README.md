@@ -8,7 +8,12 @@ authors do not rebuild or repeat review just because main advances.
 
 `.github/workflows/compiler.yml` runs on main PRs, `merge_group`, and manual
 dispatch. Its only required status, **compiler-check**, runs
-`cargo check --locked -p omega` on Linux. Default checkout selects the PR merge
+`python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
+on Linux. Clippy type-checks the same crates `cargo check -p omega` did and
+rejects warnings in them. `.github/workflows/repository-lint.yml` runs the full
+`--workspace --all-targets` clippy, which also covers test and example targets,
+after each main push and nightly. It is not required, so a red run there is a
+main regression to repair rather than a refused PR. Default checkout selects the PR merge
 candidate or merge-group commit, not just the source head. No path filters leave
 the required status absent. Permissions are read-only; checkout credentials are
 not retained. Compilation runs on ephemeral GitHub-hosted runners, not the owner's

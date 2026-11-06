@@ -4,6 +4,7 @@
 
 use super::super::super::formation_captures::formation_capture;
 use super::{nearest_parents, refusal};
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{
     BorrowLoanFact, BorrowLoanFormation, BorrowLoanLineage, CheckFacts, FlowOperandFact,
@@ -13,6 +14,7 @@ use diagnostics::Diagnostic;
 pub(super) fn validate(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &checked_trees::StateBorrowFact,
     flow_state: &checked_trees::FlowStateFact,
     loan: Handle<BorrowLoanFact>,
@@ -134,8 +136,16 @@ pub(super) fn validate(
                 .operand_reborrow_sources
                 .span_or_empty(descriptor_profile.reborrow_sources)
             {
-                selected |=
-                    validate_source(program, facts, state, flow_state, invocation, row, source)?;
+                selected |= validate_source(
+                    program,
+                    facts,
+                    loan_occurrences,
+                    state,
+                    flow_state,
+                    invocation,
+                    row,
+                    source,
+                )?;
             }
         } else if !profile.alternatives.is_empty() {
             pending.extend(
@@ -157,6 +167,7 @@ pub(super) fn validate(
 fn validate_source(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &checked_trees::StateBorrowFact,
     flow_state: &checked_trees::FlowStateFact,
     call: Handle<checked_trees::FlowCallFact>,
@@ -192,6 +203,7 @@ fn validate_source(
     let (suppliers, parent_rows) = super::super::permission_sources::lending_sources(
         program,
         facts,
+        loan_occurrences,
         flow_state,
         call,
         source.operand,
@@ -219,7 +231,7 @@ fn validate_source(
                 {
                     return refusal("returned projection source was not available at capture");
                 }
-                nearest_parents(&facts.borrow, state, loan)?
+                nearest_parents(facts, loan_occurrences, state, loan)?
             }
             checked_trees::CheckedCallBorrowLoanSource::CallAccess {
                 access: argument,
@@ -233,7 +245,7 @@ fn validate_source(
                 }
                 let mut roots = Vec::new();
                 for parent in parent_rows.span_or_empty(parents) {
-                    for parent in nearest_parents(&facts.borrow, state, *parent)? {
+                    for parent in nearest_parents(facts, loan_occurrences, state, *parent)? {
                         crate::shared::collections::push_unique(&mut roots, parent);
                     }
                 }
@@ -246,7 +258,8 @@ fn validate_source(
                         .filter(|other| *other != candidate)
                         .any(|other| {
                             crate::checks::borrows::aliases::retained_lineage(
-                                &facts.borrow,
+                                facts,
+                                loan_occurrences,
                                 state,
                                 *other,
                             )

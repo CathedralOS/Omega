@@ -77,10 +77,10 @@ fn retained_primitive(
         .and_then(|reference| program.primitive_type_reference(reference))
 }
 
-/// Check scalar pattern compatibility, coverage, and every result arm before
-/// an early evaluator erases the dispatch. The caller supplies a valid acyclic
-/// expression graph; this check does not evaluate landed arm operations.
-pub fn validate_match_dispatch(
+/// Check coverage and structural selector identities independently of execution
+/// representation. Proof expressions use mathematical operands which need not
+/// have a runtime scalar carrier or a common materialized result layout.
+pub fn validate_match_coverage(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -133,38 +133,9 @@ pub fn validate_match_dispatch(
                 .with_source_span(arm.source_span),
             ),
             MatchPattern::Value(pattern) => {
-                if matches!(
-                    expression_table(program).expression(pattern),
-                    ExpressionNode::ArrayLiteral(_)
-                        | ExpressionNode::StructLiteral(_)
-                        | ExpressionNode::Range(_)
-                        | ExpressionNode::Borrow(_)
-                ) {
-                    diagnostics.push(Diagnostic::error(
-                        "match structural, range, and binding patterns are not supported by value dispatch yet",
-                    ).with_source_span(arm.source_span));
-                    continue;
-                }
                 if let Some(value) = expression_table(program).boolean_node(pattern) {
                     boolean_values[usize::from(*value)] = true;
                 }
-                if !is_scalar_value(program, machine, state, dispatch.subject)
-                    || !is_scalar_value(program, machine, state, pattern)
-                {
-                    diagnostics.push(Diagnostic::error(
-                        "match value patterns require scalar subjects and scalar pattern values; structural, domain, and case patterns are not supported yet",
-                    ).with_source_span(arm.source_span));
-                    continue;
-                }
-                check_compatible_values(
-                    program,
-                    machine,
-                    state,
-                    dispatch.subject,
-                    pattern,
-                    "match pattern is incompatible with its subject",
-                    diagnostics,
-                );
             }
         }
     }
@@ -177,6 +148,56 @@ pub fn validate_match_dispatch(
         diagnostics.push(Diagnostic::error(
             "match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm",
         ).with_source_span(expression_table(program).source_span(expression)));
+    }
+}
+
+/// Check runtime pattern and result carriers as well as shared coverage before
+/// an early evaluator erases the dispatch. This does not evaluate arm operands.
+pub fn validate_match_dispatch(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    dispatch: &TableMatchExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    validate_match_coverage(program, machine, state, expression, dispatch, diagnostics);
+    let arms = expression_table(program).match_arms(dispatch.arms);
+    if structural_match_subject_type(program, machine, state, dispatch).is_none() {
+        for arm in arms {
+            let MatchPattern::Value(pattern) = arm.pattern else {
+                continue;
+            };
+            if matches!(
+                expression_table(program).expression(pattern),
+                ExpressionNode::ArrayLiteral(_)
+                    | ExpressionNode::StructLiteral(_)
+                    | ExpressionNode::Range(_)
+                    | ExpressionNode::Borrow(_)
+            ) {
+                diagnostics.push(Diagnostic::error(
+                    "match structural, range, and binding patterns are not supported by value dispatch yet",
+                ).with_source_span(arm.source_span));
+                continue;
+            }
+            if !is_scalar_value(program, machine, state, dispatch.subject)
+                || !is_scalar_value(program, machine, state, pattern)
+            {
+                diagnostics.push(Diagnostic::error(
+                    "match value patterns require scalar subjects and scalar pattern values; structural, domain, and case patterns are not supported yet",
+                ).with_source_span(arm.source_span));
+                continue;
+            }
+            check_compatible_values(
+                program,
+                machine,
+                state,
+                dispatch.subject,
+                pattern,
+                "match pattern is incompatible with its subject",
+                diagnostics,
+            );
+        }
     }
     if arms.is_empty() {
         return;

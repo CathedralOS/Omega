@@ -135,19 +135,19 @@ pub(in crate::machine_calls::calls::write_frames) struct SlotInventory {
     pub(in crate::machine_calls::calls::write_frames) ancestors: Vec<Vec<PlaceSegment>>,
 }
 
-/// Why one operand's completed slot relation cannot be published. Unknown
+/// Why a completed slot relation cannot be published at this evaluation. Unknown
 /// template structure is not a proved failure: a template body defers it and
 /// every selected closed instance re-checks the same operand with concrete
 /// types, while an unavailable relation stays an obligation of this body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoredReferenceRelationRefusal {
-    Unavailable,
+    Unavailable(&'static str),
     TemplateDependent,
 }
 
 /// A failed invocation remains an obligation even if a later call overwrites
 /// every affected slot. Declaration dependence is recorded separately.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StoredReferenceCallFailure {
     pub target: SymbolHandle,
     pub requires_relation: bool,
@@ -173,6 +173,24 @@ impl SlotRelationTransfer {
 
     pub fn is_complete(&self) -> bool {
         !self.template_dependent && self.incomplete_calls.is_empty()
+    }
+
+    /// A type parameter can leave slot structure unresolved. A failed call still
+    /// refuses, including beside that unresolved structure.
+    pub fn into_complete_effects(
+        self,
+    ) -> Result<Vec<StoredReferenceEffect>, StoredReferenceRelationRefusal> {
+        if !self.incomplete_calls.is_empty() {
+            return Err(StoredReferenceRelationRefusal::Unavailable(
+                "stored call has no complete statement-successor effects: an invocation relation is unavailable",
+            ));
+        }
+        if self.template_dependent {
+            return Err(StoredReferenceRelationRefusal::TemplateDependent);
+        }
+        super::public_effects(self.effects).ok_or(StoredReferenceRelationRefusal::Unavailable(
+            "stored call has no complete statement-successor effects: a descriptor source is unavailable",
+        ))
     }
 
     /// Unknown reach cannot preserve any possibly aliased incoming origin.

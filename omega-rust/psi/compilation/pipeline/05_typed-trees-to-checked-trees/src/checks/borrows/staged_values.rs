@@ -9,6 +9,7 @@
 //! descriptor stays potentially interfering, including a known-static opaque one.
 
 use super::overlap::StatedOrderingPremise;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::checks::ownership_occurrences::{InvocationIdentity, StatementOccurrence};
 use checked_trees::{CheckFacts, FlowCallDispatchRole, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -26,6 +27,7 @@ mod conflicts;
 pub(super) fn check<'program>(
     program: &'program dyn CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: usize,
     occurrences: &[StatementOccurrence],
@@ -89,6 +91,7 @@ pub(super) fn check<'program>(
             captures::append(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 operand,
                 until,

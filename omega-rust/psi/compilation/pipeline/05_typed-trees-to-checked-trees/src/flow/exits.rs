@@ -60,6 +60,7 @@ pub(super) fn append_outgoing_state_fact(
     operand_entry_constraints: HandleSpan<FlowConstraintRef>,
     constraints: HandleSpan<FlowConstraintRef>,
     returned_value: arena::Handle<checked_trees::FlowOperandFact>,
+    completed_storage: arena::Handle<checked_trees::FlowStorageSnapshot>,
     cannot_return_normally: bool,
     copied_payloads: HandleSpan<checked_trees::FlowOperandFact>,
 ) {
@@ -73,6 +74,7 @@ pub(super) fn append_outgoing_state_fact(
             statement_index,
             transition_target,
             returned_value,
+            completed_storage,
             cannot_return_normally,
             operand_entry_constraints,
             copied_payloads,
@@ -112,14 +114,15 @@ pub(super) fn append_state_exit_facts(
                     && outgoing.state_symbol == state_symbol
                     && outgoing.statement_index == contract_exit.statement_index
                     && outgoing.transition_target == transition_target)
-                    .then_some(outgoing.returned_value)
+                    .then_some((outgoing.returned_value, outgoing.completed_storage))
             })
             .collect::<Vec<_>>();
-        // The capture belongs to one selected exit, not an expression-keyed
-        // cache. Ambiguous or absent publication supplies no result evidence.
-        let returned_value = match outgoing.as_slice() {
+        // Named transfers still need storage evidence when they return no
+        // value. Copy both from this exact outgoing occurrence; an absent or
+        // ambiguous occurrence establishes neither association.
+        let (returned_value, completed_storage) = match outgoing.as_slice() {
             [capture] => *capture,
-            _ => arena::Handle::invalid(),
+            _ => (arena::Handle::invalid(), arena::Handle::invalid()),
         };
         if !transition_target.is_valid() && outgoing.is_empty() {
             append_outgoing_state_fact(
@@ -130,6 +133,7 @@ pub(super) fn append_state_exit_facts(
                 transition_target,
                 active_constraints,
                 active_constraints,
+                arena::Handle::invalid(),
                 arena::Handle::invalid(),
                 false,
                 HandleSpan::empty(),
@@ -197,6 +201,7 @@ pub(super) fn append_state_exit_facts(
                 transition_target,
                 is_continuation,
                 returned_value,
+                completed_storage,
                 parameter_origins,
                 entry_semantic_contexts: entry_exit_contexts,
                 entry_constraints,

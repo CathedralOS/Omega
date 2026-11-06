@@ -8,6 +8,9 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 10, "jobs": "3", "load1_end": 11.76, "load1_start": 11.65, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/atomics/runtime_atomic_branch_frontier_exit built 2672ms exit:0 @af2161892dff
+pass/atomics/runtime_atomic_loop_frontier_exit built 2666ms exit:0 @af2161892dff
+pass/borrows/ordinary_select_provider_reference_exit built 2587ms exit:0 @bd7aab375c7a
 pass/borrows/resident_view_borrowed_helper_exit built 12141ms exit:0 @74d6d6b03c6b
 pass/borrows/runtime_case_reference_mixed_state_returns_exit built 1602ms exit:0 @66bc5becc69e
 pass/borrows/runtime_case_reference_reordered_state_returns_exit built 1496ms exit:0 @66bc5becc69e
@@ -4041,7 +4044,7 @@ pass/layouts/byte_view_borrow_with_encoded_sibling checked 702ms @693920652f41
 pass/layouts/fixed_layout_policy_value_exit built 3073ms exit:0 @dc9835be2e64
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/layout_queries checked 9935ms @5041ef1af684+wt
-pass/layouts/private_callback_descriptor_fragments_exit built 49157ms exit:0 @72079e22578e+wt
+pass/layouts/private_callback_descriptor_fragments_exit built 116369ms exit:0 @6685712c7bf8
 pass/layouts/private_callback_inherited_policy_exit built 52786ms exit:0 @26231d1dbd74+wt
 pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
@@ -4465,7 +4468,7 @@ pass/providers/occurrence_region_binding_projected_type_exit built 3995ms exit:0
 pass/providers/owned_array_operand_epochs_exit built 1562ms exit:0 @c27519066a03+wt
 pass/providers/portable_contract checked 9492ms @5041ef1af684+wt
 pass/providers/provider_const_endpoint checked 19171ms @5041ef1af684+wt
-pass/providers/provider_type_target_default_override built 257ms
+pass/providers/provider_type_target_default_override built 2610ms @bd7aab375c7a
 pass/providers/qualified_foreign_structural_arguments built 14991ms exit:70 @d75fe4ba5012+wt
 pass/providers/resource_profile_initialization_coverage_exit built 18446ms exit:0 @e2a6d051c734
 pass/providers/resource_profile_supply_observation built 4455ms exit:0 @e2a6d051c734

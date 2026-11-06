@@ -63,12 +63,15 @@ impl SourceBuild {
         child.admit_package_inputs()?;
         let core_root = package_compilation::source_imports::bundled_core_root()?;
         let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
+        // The supplier is an independent source invocation. Its coordinates and
+        // retained frontends must not include the requesting application's
+        // earlier declarations; completed choices rejoin by captured anchors.
         let core_source = prepare_checked_source(
             &core_root,
             None,
             Some(&capture),
             false,
-            source.preparation(),
+            compilation_products::SourcePreparation::default(),
         )?;
         let core_child = CheckedExecutionRequest {
             selected_target_profile: None,

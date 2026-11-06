@@ -103,7 +103,9 @@ fn validate_type(
             }
         }
         // The host field carrier supplies no selected case discriminator.
-        terminal_psi::sum_or_mixed_shape_pattern!() | StructuralTypeShape::Reference { .. } => {
+        terminal_psi::sum_or_mixed_shape_pattern!()
+        | StructuralTypeShape::Reference { .. }
+        | StructuralTypeShape::AtomicCell(_) => {
             return Err(malformed());
         }
         StructuralTypeShape::PrimitiveScalar(_)
@@ -129,7 +131,9 @@ fn requires_contents(
         };
         let mut fields = Vec::new();
         match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => return true,
+            StructuralTypeShape::Reference { .. } | StructuralTypeShape::AtomicCell(_) => {
+                return true;
+            }
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
                 continue;
             }

@@ -186,6 +186,22 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             self.proven = false;
             return;
         };
+        let Some(successor) = super::structural_judgment::ConstructorIdentity::nominal(
+            program,
+            self.relation.carrier,
+            Some(self.relation.successor),
+        ) else {
+            self.proven = false;
+            return;
+        };
+        let Some(zero) = super::structural_judgment::ConstructorIdentity::nominal(
+            program,
+            self.relation.carrier,
+            Some(self.relation.zero),
+        ) else {
+            self.proven = false;
+            return;
+        };
         let left = StructuralTerm::Application {
             result_type: crate::call_target_return_type(program, self.relation.symbol)
                 .unwrap_or_default(),
@@ -194,6 +210,7 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
             machine: self.relation.name.to_owned(),
             arguments: vec![
                 constructed_term(
+                    successor,
                     self.relation.carrier,
                     Some(self.relation.successor),
                     vec![(
@@ -204,7 +221,12 @@ impl StructuralPrefixVisitor for StrictDecrease<'_> {
                 StructuralTerm::Variable(self.measure.clone()),
             ],
         };
-        let right = constructed_term(self.relation.carrier, Some(self.relation.zero), Vec::new());
+        let right = constructed_term(
+            zero,
+            self.relation.carrier,
+            Some(self.relation.zero),
+            Vec::new(),
+        );
         let judgment = judge.judge_equation(judge.resolve(left), judge.resolve(right), 0);
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
             eprintln!(

@@ -303,12 +303,15 @@ pub enum CheckedBoundaryExecution {
     AccessInitialize,
     AccessMoveOut,
     AccessView,
+    /// Consume a live zero-cell run and return its existing vacant backing.
+    /// This is a core custody operation, never a host-supplied completion.
+    EmptyRunRelease,
 }
 
 impl CheckedBoundaryExecution {
     pub const fn placement_operation(self) -> Option<crate::TerminalAccessLifecycleOperation> {
         match self {
-            Self::Provider => None,
+            Self::Provider | Self::EmptyRunRelease => None,
             Self::AccessInitialize => Some(crate::TerminalAccessLifecycleOperation::Initialize),
             Self::AccessMoveOut => Some(crate::TerminalAccessLifecycleOperation::MoveOut),
             Self::AccessView => Some(crate::TerminalAccessLifecycleOperation::View),

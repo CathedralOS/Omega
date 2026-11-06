@@ -22,7 +22,7 @@ use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern, TableCallExpression,
 };
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContractKind, StateParameter, StateSignature};
@@ -132,6 +132,7 @@ impl<'program> SpecificationCaller<'program> {
         self,
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
+        captures: &[(ExpressionHandle, StructuralTerm)],
     ) -> Option<StructuralTerm> {
         let parameters = self
             .parameters(program)
@@ -144,7 +145,20 @@ impl<'program> SpecificationCaller<'program> {
                 .map(|(machine, state)| (machine, state, Default::default())),
             Some((self.symbol(), &parameters)),
             expression,
-            None,
+            Some(&|expression| {
+                let ExpressionNode::SavedSubject(saved) =
+                    expression_table(program).expression(expression)
+                else {
+                    return None;
+                };
+                program.saved_value_source(saved)?;
+                let capture = expression_table(program).value_capture(saved.capture);
+                captures
+                    .iter()
+                    .rev()
+                    .find(|(anchor, _)| *anchor == capture.value_anchor)
+                    .map(|(_, value)| value.clone())
+            }),
         )
     }
 }
@@ -406,6 +420,7 @@ pub(crate) fn validate_proof_body_formation(
 struct SpecificationPremises<'scope> {
     asserted: &'scope [ExpressionHandle],
     denied: &'scope [ExpressionHandle],
+    captures: &'scope [(ExpressionHandle, StructuralTerm)],
 }
 
 impl SpecificationPremises<'_> {
@@ -447,7 +462,7 @@ impl SpecificationPremises<'_> {
         }
         let eligible = |fact: &ExpressionHandle| {
             structurally_substitutable_fact(program, *fact, &|expression| {
-                caller.term(program, expression)
+                caller.term(program, expression, self.captures)
             })
         };
         // One formed condition can carry both a structural case fact and an
@@ -496,6 +511,7 @@ impl SpecificationPremises<'_> {
             &asserted,
             true,
         );
+        judge.bind_formed_match_subjects(self.captures);
         for expression in asserted {
             judge.intake_formed_condition(expression, true);
         }
@@ -637,7 +653,7 @@ fn validate_specification_payload_projection(
         return;
     }
     let proven = caller
-        .term(program, member.receiver)
+        .term(program, member.receiver, premises.captures)
         .is_some_and(|subject| {
             premises
                 .structural_judge(program, caller, &[member.receiver])
@@ -677,6 +693,7 @@ fn validate_specification_expression(
         SpecificationPremises {
             asserted: prior_facts,
             denied: &[],
+            captures: &[],
         },
         owner,
         diagnostics,
@@ -752,6 +769,7 @@ fn validate_specification_expression_in_scope(
             SpecificationPremises {
                 asserted: &asserted,
                 denied: &denied,
+                captures: prior_facts.captures,
             },
             owner,
             diagnostics,
@@ -759,6 +777,103 @@ fn validate_specification_expression_in_scope(
             visited,
             formation_obligations,
         );
+    } else if let ExpressionNode::Match(dispatch) = node {
+        if let Some((machine, state)) = caller.state_scope() {
+            crate::value_custody::expression_types::validate_match_coverage(
+                program,
+                machine,
+                state,
+                expression,
+                dispatch,
+                diagnostics,
+            );
+        }
+        // A payload is readable only on the arm that selected its case. Form
+        // the subject and each condition before admitting that condition, and
+        // keep earlier failures scoped to the remaining arms.
+        let debts_before = formation_obligations.len();
+        validate_specification_expression_in_scope(
+            program,
+            caller,
+            dispatch.subject,
+            false,
+            prior_facts,
+            owner,
+            diagnostics,
+            content_formation,
+            visited,
+            formation_obligations,
+        );
+        let subject_formed =
+            diagnostics.len() == diagnostics_before && formation_obligations.len() == debts_before;
+        let mut captures = prior_facts.captures.to_vec();
+        if subject_formed
+            && crate::expression_has_closed_value_captures(program, expression)
+            && expression_table(program).contains_value_capture(dispatch.capture)
+            && let Some(subject) = caller.term(program, dispatch.subject, &captures)
+        {
+            let capture = expression_table(program).value_capture(dispatch.capture);
+            if capture.definition == expression && capture.subject == dispatch.subject {
+                captures.push((capture.value_anchor, subject));
+            }
+        }
+        let mut denied = prior_facts.denied.to_vec();
+        for arm in expression_table(program).match_arms(dispatch.arms) {
+            let mut asserted = prior_facts.asserted.to_vec();
+            let condition = match arm.pattern {
+                MatchPattern::Destructure(pattern) => Some((pattern.condition, true)),
+                MatchPattern::Value(pattern) => Some((pattern, false)),
+                MatchPattern::Wildcard => None,
+            };
+            let mut formed_predicate = None;
+            if let Some((condition, predicate)) = condition {
+                let diagnostics_before = diagnostics.len();
+                let debts_before = formation_obligations.len();
+                validate_specification_expression_in_scope(
+                    program,
+                    caller,
+                    condition,
+                    predicate,
+                    SpecificationPremises {
+                        asserted: &asserted,
+                        denied: &denied,
+                        captures: &captures,
+                    },
+                    owner,
+                    diagnostics,
+                    content_formation,
+                    visited,
+                    formation_obligations,
+                );
+                if subject_formed
+                    && predicate
+                    && diagnostics.len() == diagnostics_before
+                    && formation_obligations.len() == debts_before
+                {
+                    asserted.push(condition);
+                    formed_predicate = Some(condition);
+                }
+            }
+            validate_specification_expression_in_scope(
+                program,
+                caller,
+                arm.value,
+                proposition_context,
+                SpecificationPremises {
+                    asserted: &asserted,
+                    denied: &denied,
+                    captures: &captures,
+                },
+                owner,
+                diagnostics,
+                content_formation,
+                visited,
+                formation_obligations,
+            );
+            if let Some(condition) = formed_predicate {
+                denied.push(condition);
+            }
+        }
     } else {
         let proposition_children = crate::contextual_proposition_children(program, expression);
         children(program, node, |child| {
@@ -1130,7 +1245,7 @@ fn validate_specification_expression_in_scope(
         .map(|(parameter, argument)| {
             Some((
                 parameter.name.as_str().to_owned(),
-                caller.term(program, *argument)?,
+                caller.term(program, *argument, prior_facts.captures)?,
             ))
         })
         .collect::<Option<Vec<_>>>();
@@ -1229,6 +1344,7 @@ fn validate_specification_expression_in_scope(
                                                 .expect("complete application")
                                                 .types,
                                             caller.state_scope(),
+                                            false,
                                         ),
                                         StructuralJudgment::Proven
                                     )
@@ -2096,12 +2212,9 @@ fn term_has_complete_substitution(
         }
         StructuralTerm::Variable(_) | StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
         StructuralTerm::Constructor {
-            declaration,
-            data,
-            case,
-            fields,
+            identity, fields, ..
         } => {
-            constructor_fields_are_complete(program, *declaration, data, case, fields)
+            constructor_fields_are_complete(program, *identity, fields)
                 && fields
                     .iter()
                     .all(|(_, value)| term_has_complete_substitution(program, value))
@@ -2111,22 +2224,17 @@ fn term_has_complete_substitution(
 
 fn constructor_fields_are_complete(
     program: &dyn crate::CheckingInput,
-    declaration: Option<super::structural_judgment::ConstructorDeclaration>,
-    data: &str,
-    case: &str,
+    identity: super::structural_judgment::ConstructorIdentity,
     fields: &[(String, StructuralTerm)],
 ) -> bool {
     use typed_trees::data::DataMember;
-    if data == "bool" {
-        return language_semantics::const_value::boolean_literal_spelling(case).is_some()
-            && fields.is_empty();
+    if identity.boolean().is_some() {
+        return fields.is_empty();
     }
-    let Some(selected) =
-        super::structural_terms::constructor_declaration(program, declaration, data, case)
+    let Some(definition) = identity
+        .declaration()
+        .and_then(|symbol| program.data_definition_by_symbol(symbol))
     else {
-        return false;
-    };
-    let Some(definition) = program.data_definition_by_symbol(selected.data) else {
         return false;
     };
     let mut declared = program
@@ -2137,13 +2245,17 @@ fn constructor_fields_are_complete(
             DataMember::Variant(_) => None,
         })
         .collect::<Vec<_>>();
-    if !case.is_empty() {
+    if let super::structural_judgment::ConstructorIdentity::Nominal { case: Some(_), .. } = identity
+    {
         let Some(variant) =
             program
                 .data_members(definition)
                 .iter()
                 .find_map(|member| match member {
-                    DataMember::Variant(variant) if Some(variant.symbol) == selected.case => {
+                    DataMember::Variant(variant)
+                        if identity.matches_case(program, definition.symbol, variant.symbol)
+                            == Some(true) =>
+                    {
                         Some(variant)
                     }
                     _ => None,

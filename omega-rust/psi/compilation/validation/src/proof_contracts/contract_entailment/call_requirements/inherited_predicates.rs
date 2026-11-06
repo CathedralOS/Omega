@@ -316,12 +316,7 @@ pub(super) fn inherited_predicate(
                 if program.primitive_type_reference(required_type)
                     == Some(typed_trees::types::PrimitiveType::Bool) =>
             {
-                StructuralTerm::Constructor {
-                    declaration: None,
-                    data: "bool".to_owned(),
-                    case: value.to_string(),
-                    fields: Vec::new(),
-                }
+                StructuralTerm::boolean(value)
             }
             None if {
                 let forwarded =

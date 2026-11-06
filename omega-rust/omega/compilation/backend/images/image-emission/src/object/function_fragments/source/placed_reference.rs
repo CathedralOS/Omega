@@ -99,7 +99,7 @@ fn all_instructions(selected: &SelectedFunction) -> impl Iterator<Item = &Select
     })
 }
 
-fn precedes(
+pub(super) fn precedes(
     selected: &SelectedFunction,
     producer: selected_instructions::SelectedInstructionId,
     consumer: selected_instructions::SelectedInstructionId,
@@ -143,7 +143,7 @@ fn precedes(
     true
 }
 
-fn source_value(
+pub(super) fn source_value(
     selected: &SelectedFunction,
     register: VirtualRegisterId,
     consumer: &SelectedInstruction,
@@ -267,6 +267,7 @@ fn scaled_index(
 
 fn address(
     selected: &SelectedFunction,
+    target: &TargetFunction,
     operation: OperationId,
     register: VirtualRegisterId,
     remaining: usize,
@@ -306,6 +307,9 @@ fn address(
             indices: Vec::new(),
         });
     }
+    if let Some(address) = block_entry_pointer(target, selected, register, consumer) {
+        return Some(address);
+    }
     let row = definition(selected, operation, register)?;
     if !precedes(selected, row.id, consumer.id) {
         return None;
@@ -321,15 +325,34 @@ fn address(
             indices: Vec::new(),
         }),
         SelectedInstructionKind::AddressOffset { byte_offset } => {
-            let mut result = address(selected, operation, operand(row, 0)?, remaining - 1, row)?;
+            let mut result = address(
+                selected,
+                target,
+                operation,
+                operand(row, 0)?,
+                remaining - 1,
+                row,
+            )?;
             result.offset = result.offset.checked_add(u64::from(byte_offset))?;
             Some(result)
         }
-        SelectedInstructionKind::CopyI64 => {
-            address(selected, operation, operand(row, 0)?, remaining - 1, row)
-        }
+        SelectedInstructionKind::CopyI64 => address(
+            selected,
+            target,
+            operation,
+            operand(row, 0)?,
+            remaining - 1,
+            row,
+        ),
         SelectedInstructionKind::Load64 { byte_offset } => {
-            let mut result = address(selected, operation, operand(row, 0)?, remaining - 1, row)?;
+            let mut result = address(
+                selected,
+                target,
+                operation,
+                operand(row, 0)?,
+                remaining - 1,
+                row,
+            )?;
             result.offset = result.offset.checked_add(u64::from(byte_offset))?;
             result
                 .loads
@@ -338,7 +361,14 @@ fn address(
             Some(result)
         }
         SelectedInstructionKind::ByteViewAddress => {
-            let mut result = address(selected, operation, operand(row, 0)?, remaining - 1, row)?;
+            let mut result = address(
+                selected,
+                target,
+                operation,
+                operand(row, 0)?,
+                remaining - 1,
+                row,
+            )?;
             result
                 .indices
                 .push(scaled_index(selected, operation, operand(row, 1)?, row)?);
@@ -361,80 +391,7 @@ pub(super) fn retained(
         .proves(target.machine, result.place, source, correspondence)
         .ok()?;
     let types = &target.graph.structural_types;
-    let mut roots = target
-        .graph
-        .operations()
-        .filter_map(|row| {
-            row.structural_result_home()
-                .filter(|(_, home)| home.place() == source.place)
-                .map(|(producer, home)| {
-                    (
-                        Some(LocalStorageSlotId::Structural {
-                            operation: producer,
-                            place: source.place,
-                        }),
-                        home.structural_type(),
-                    )
-                })
-        })
-        .chain(
-            target
-                .graph
-                .parameters
-                .iter()
-                .filter(|row| row.place == source.place)
-                .map(|row| {
-                    (
-                        (row.access == terminal_psi::StructuralAccess::Owned).then_some(
-                            LocalStorageSlotId::StructuralParameter {
-                                place: source.place,
-                            },
-                        ),
-                        row.structural_type,
-                    )
-                }),
-        )
-        .chain(target.graph.blocks.iter().flat_map(|block| {
-            block
-                .structural_parameters
-                .iter()
-                .filter(|row| row.place == source.place)
-                .map(|row| {
-                    (
-                        Some(LocalStorageSlotId::StructuralBlockParameter {
-                            block: block.block,
-                            place: row.place,
-                        }),
-                        row.structural_type,
-                    )
-                })
-        }));
-    let (Some((producer, root)), None) = (roots.next(), roots.next()) else {
-        return None;
-    };
-    let mut allocations = selected
-        .local_storage_slots
-        .iter()
-        .filter(|slot| slot.id.structural_place() == Some(source.place));
-    let (allocation, None) = (allocations.next(), allocations.next()) else {
-        return None;
-    };
-    let base = if let Some(allocation) = allocation {
-        if Some(allocation.id) != producer {
-            return None;
-        }
-        AddressBase::Allocation(allocation.id)
-    } else {
-        let parameter = target
-            .graph
-            .parameters
-            .iter()
-            .find(|row| row.place == source.place)?;
-        if producer.is_some() || parameter.access == terminal_psi::StructuralAccess::Owned {
-            return None;
-        }
-        AddressBase::BorrowedFormal(source.place)
-    };
+    let (base, root) = address_root(target, selected, source)?;
     let mut destinations = selected
         .local_storage_slots
         .iter()
@@ -467,43 +424,7 @@ pub(super) fn retained(
     {
         return None;
     }
-    let selectors = |range: std::ops::Range<usize>| -> Option<Vec<(ValueId, u64)>> {
-        Some(
-            native
-                .elements
-                .get(range)?
-                .iter()
-                .map(|element| (element.index, u64::from(element.stride)))
-                .collect(),
-        )
-    };
-    let mut loads = Vec::new();
-    let mut first_leaf = 0;
-    for slot in &native.pointer_slots {
-        loads.push((
-            u64::from(slot.byte_offset),
-            selectors(slot.indices.clone())?,
-        ));
-        first_leaf = slot.indices.end;
-    }
-    let (offset, indices) = if correspondence.resident_source().is_some() {
-        loads.push((
-            u64::from(native.byte_offset),
-            selectors(first_leaf..native.elements.len())?,
-        ));
-        (0, Vec::new())
-    } else {
-        (
-            u64::from(native.byte_offset),
-            selectors(first_leaf..native.elements.len())?,
-        )
-    };
-    let expected = Address {
-        base,
-        loads,
-        offset,
-        indices,
-    };
+    let expected = geometry_address(base, &native, correspondence.resident_source().is_some())?;
     let mut stores = selected.memory_accesses.iter().filter(|row| {
         row.origin == SelectedMemoryAccessOrigin::Operation(operation)
             && row.place == result.place
@@ -554,6 +475,7 @@ pub(super) fn retained(
     }
     let captured = address(
         selected,
+        target,
         operation,
         operand(instruction, 1)?,
         selected.virtual_registers.len() + 1,
@@ -565,6 +487,7 @@ pub(super) fn retained(
     }
     let destination = address(
         selected,
+        target,
         operation,
         operand(instruction, 0)?,
         4,
@@ -589,4 +512,290 @@ pub(super) fn retained(
         return None;
     }
     Some(())
+}
+
+fn address_root(
+    target: &TargetFunction,
+    selected: &SelectedFunction,
+    source: &StructuralArgument,
+) -> Option<(Address, semantic_vocabulary::StructuralTypeId)> {
+    use super::structural_homes::{SourceHome, resolve};
+    let (root, home) = resolve(target, selected, source.place).ok()?;
+    let (base, loads) = match home {
+        SourceHome::Allocation { slot, indirect } => (
+            AddressBase::Allocation(slot),
+            if indirect {
+                vec![(0, Vec::new())]
+            } else {
+                Vec::new()
+            },
+        ),
+        SourceHome::BorrowedFormal(place) => (AddressBase::BorrowedFormal(place), Vec::new()),
+    };
+    Some((
+        Address {
+            base,
+            loads,
+            offset: 0,
+            indices: Vec::new(),
+        },
+        root,
+    ))
+}
+
+fn unique_definition(
+    selected: &SelectedFunction,
+    register: VirtualRegisterId,
+) -> Option<&SelectedInstruction> {
+    let mut definitions = all_instructions(selected).filter(|row| {
+        row.operands.iter().any(|operand| {
+            operand.virtual_register == register
+                && matches!(
+                    operand.access,
+                    RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                )
+        })
+    });
+    let (Some(row), None) = (definitions.next(), definitions.next()) else {
+        return None;
+    };
+    Some(row)
+}
+
+/// Authenticate the block-owned pointer load; an arbitrary source-free load
+/// must not gain permission to stand in for a borrowed parameter.
+fn block_entry_pointer(
+    target: &TargetFunction,
+    selected: &SelectedFunction,
+    register: VirtualRegisterId,
+    consumer: &SelectedInstruction,
+) -> Option<Address> {
+    let load = unique_definition(selected, register)?;
+    if load.kind != (SelectedInstructionKind::Load64 { byte_offset: 0 })
+        || load.provenance != Default::default()
+        || operand(load, 1) != Some(register)
+        || !precedes(selected, load.id, consumer.id)
+    {
+        return None;
+    }
+    let pointer = operand(load, 0)?;
+    let frame = unique_definition(selected, pointer)?;
+    let SelectedInstructionKind::FrameAddress {
+        slot:
+            FrameStorageSlotId::Local(
+                slot @ LocalStorageSlotId::StructuralBlockParameter { block, place },
+            ),
+        byte_offset: 0,
+    } = frame.kind
+    else {
+        return None;
+    };
+    if !super::structural_homes::thin_address_join(target, slot)?
+        || frame.provenance != Default::default()
+        || operand(frame, 0) != Some(pointer)
+        || !precedes(selected, frame.id, load.id)
+    {
+        return None;
+    }
+    for (register, instruction) in [(register, load.id), (pointer, frame.id)] {
+        if selected.virtual_register(register)?.origin
+            != (VirtualRegisterOrigin::AbiTransport {
+                instruction,
+                place,
+                byte_offset: 0,
+            })
+        {
+            return None;
+        }
+    }
+    let owner = selected
+        .blocks
+        .iter()
+        .find(|row| row.instruction_index(load.id).is_some())?;
+    if owner.origin != selected_instructions::SelectedBlockOrigin::Source(block)
+        || owner.instruction_index(frame.id).is_none()
+    {
+        return None;
+    }
+    let mut allocations = selected
+        .local_storage_slots
+        .iter()
+        .filter(|row| row.id == slot);
+    let (Some(allocation), None) = (allocations.next(), allocations.next()) else {
+        return None;
+    };
+    if allocation.byte_size != 8 || allocation.alignment != 8 {
+        return None;
+    }
+    for (instruction, role) in [
+        (frame.id, SelectedMemoryAccessRole::AddressLocal { slot }),
+        (load.id, SelectedMemoryAccessRole::ReadPlace),
+    ] {
+        let mut accesses = selected
+            .memory_accesses
+            .iter()
+            .filter(|row| row.instruction == instruction);
+        let (Some(access), None) = (accesses.next(), accesses.next()) else {
+            return None;
+        };
+        if access.origin != SelectedMemoryAccessOrigin::Block(block)
+            || access.place != place
+            || access.byte_offset != 0
+            || access.byte_count != 8
+            || access.role != role
+        {
+            return None;
+        }
+    }
+    Some(Address {
+        base: AddressBase::Allocation(slot),
+        loads: vec![(0, Vec::new())],
+        offset: 0,
+        indices: Vec::new(),
+    })
+}
+
+fn geometry_address<T>(
+    base: Address,
+    native: &target_operations_to_selected_instructions::ReferenceSourceGeometry<T>,
+    resident: bool,
+) -> Option<Address> {
+    let selectors = |range: std::ops::Range<usize>| -> Option<Vec<(ValueId, u64)>> {
+        Some(
+            native
+                .elements
+                .get(range)?
+                .iter()
+                .map(|element| (element.index, u64::from(element.stride)))
+                .collect(),
+        )
+    };
+    let mut loads = base.loads;
+    let mut first_leaf = 0;
+    for slot in &native.pointer_slots {
+        loads.push((
+            u64::from(slot.byte_offset),
+            selectors(slot.indices.clone())?,
+        ));
+        first_leaf = slot.indices.end;
+    }
+    let (offset, indices) = if resident {
+        loads.push((
+            u64::from(native.byte_offset),
+            selectors(first_leaf..native.elements.len())?,
+        ));
+        (0, Vec::new())
+    } else {
+        (
+            u64::from(native.byte_offset),
+            selectors(first_leaf..native.elements.len())?,
+        )
+    };
+    Some(Address {
+        base: base.base,
+        loads,
+        offset,
+        indices,
+    })
+}
+
+/// Reconstruct the selected pointer from its original borrowed place and path.
+pub(super) fn borrowed_address_matches(
+    operation: OperationId,
+    source: &StructuralArgument,
+    target: &TargetFunction,
+    selected: &SelectedFunction,
+    consumer: &SelectedInstruction,
+    register: VirtualRegisterId,
+) -> Result<u32, String> {
+    let (base, root) = address_root(target, selected, source).ok_or_else(|| {
+        format!("borrowed pointer {:?} for {:?} has no unique source home; parameter={:?}; allocation={:?}", register, source,
+            target.graph.parameters.iter().find(|row| row.place == source.place),
+            selected.local_storage_slots.iter().find(|row| row.id.structural_place() == Some(source.place)))
+    })?;
+    let native = target_operations_to_selected_instructions::reference_formation_geometry(
+        root,
+        &source.path,
+        &target.graph.structural_types,
+    )
+    .ok_or_else(|| {
+        format!(
+            "borrowed pointer {:?} for {:?} has no address geometry at root {:?}",
+            register, source, root
+        )
+    })?;
+    let expected = geometry_address(base, &native, false).ok_or_else(|| {
+        format!(
+            "borrowed pointer {:?} for {:?} has inconsistent pointer-region indices",
+            register, source
+        )
+    })?;
+    let actual = address(
+        selected,
+        target,
+        operation,
+        register,
+        selected.virtual_registers.len() + 1,
+        consumer,
+    );
+    if actual.as_ref() != Some(&expected) {
+        return Err(format!(
+            "borrowed pointer {:?} for {:?}: expected {:?}; reconstructed {:?}; definitions: {}",
+            register,
+            source,
+            expected,
+            actual,
+            pointer_definitions(selected, register, consumer)
+        ));
+    }
+    Ok(native.byte_offset)
+}
+
+/// Include only the failed pointer's bounded defining chain in diagnostics.
+/// This makes missing transport distinct from a different base or projection.
+fn pointer_definitions(
+    selected: &SelectedFunction,
+    mut register: VirtualRegisterId,
+    consumer: &SelectedInstruction,
+) -> String {
+    let mut chain = Vec::new();
+    for _ in 0..8 {
+        let origin = selected.virtual_register(register).map(|row| row.origin);
+        let mut definitions = all_instructions(selected).filter(|row| {
+            row.operands.iter().any(|operand| {
+                operand.virtual_register == register
+                    && matches!(
+                        operand.access,
+                        RegisterOperandAccess::Def | RegisterOperandAccess::UseDef
+                    )
+            })
+        });
+        let first = definitions.next();
+        let second = definitions.next();
+        let Some(row) = first else {
+            chain.push(format!(
+                "{register:?} origin={origin:?}, no instruction definition"
+            ));
+            break;
+        };
+        chain.push(format!("{register:?} origin={origin:?}, definition={:?} {:?}, source={:?}, precedes={}, duplicate={}",
+            row.id, row.kind, row.provenance.operations, precedes(selected, row.id, consumer.id), second.is_some()));
+        if second.is_some() {
+            break;
+        }
+        if !matches!(
+            row.kind,
+            SelectedInstructionKind::CopyI64
+                | SelectedInstructionKind::AddressOffset { .. }
+                | SelectedInstructionKind::Load64 { .. }
+                | SelectedInstructionKind::ByteViewAddress
+        ) {
+            break;
+        }
+        let Some(input) = operand(row, 0) else {
+            break;
+        };
+        register = input;
+    }
+    chain.join("; ")
 }

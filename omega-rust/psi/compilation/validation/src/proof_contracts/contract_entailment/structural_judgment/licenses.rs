@@ -934,7 +934,8 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
 /// reinterprets the residue under the result signedness; Saturating clamps.
 /// Comparisons fold to the bool constructor. Division/remainder refuse a zero
 /// divisor outright rather than manufacture a value; mixed operand primitives
-/// and non-integer primitives never fold.
+/// and non-integer arithmetic never fold. Address equality also folds when
+/// both operands name the same completed observation.
 pub(super) fn fold_scalar_binary(
     operator: BinaryOperator,
     meaning: [(PrimitiveType, numerics::arithmetic::ArithmeticDomain); 2],
@@ -945,6 +946,21 @@ pub(super) fn fold_scalar_binary(
     let right_observation = right;
     let left = left.semantic_value();
     let right = right.semantic_value();
+    // Addresses have equality without integer-polynomial semantics. Comparing
+    // the same completed address observation needs no width or backing fact;
+    // it grants no access to the addressed storage. Floats deliberately do not
+    // share this reflexivity rule because their observation may be NaN.
+    if meaning
+        .iter()
+        .all(|(primitive, _)| *primitive == PrimitiveType::Addr)
+        && left == right
+    {
+        match operator {
+            BinaryOperator::Equal => return Some(super::value_predicates::boolean_term(true)),
+            BinaryOperator::NotEqual => return Some(super::value_predicates::boolean_term(false)),
+            _ => {}
+        }
+    }
     if meaning
         .iter()
         .all(|(primitive, _)| *primitive == PrimitiveType::Bool)
@@ -992,12 +1008,7 @@ pub(super) fn fold_scalar_binary(
             let verdict = operator
                 .evaluate_comparison(&left, &right)
                 .expect("comparison operator");
-            return Some(StructuralTerm::Constructor {
-                declaration: None,
-                data: "bool".to_owned(),
-                case: verdict.to_string(),
-                fields: Vec::new(),
-            });
+            return Some(StructuralTerm::boolean(verdict));
         }
         _ => {}
     }
@@ -1125,4 +1136,56 @@ fn completed_integer_comparison(
         .sub(&polynomial(right, primitive)?)
         .constant_value()?;
     operator.evaluate_comparison(&difference, &BigInt::zero())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BinaryOperator, PrimitiveType, StructuralTerm, fold_scalar_binary};
+    use numerics::arithmetic::ArithmeticDomain;
+
+    #[test]
+    fn completed_address_equality_does_not_assume_distinct_addresses_or_float_reflexivity() {
+        let address = StructuralTerm::Variable("address".to_owned());
+        let other_address = StructuralTerm::Variable("other_address".to_owned());
+        let address_meaning = [(PrimitiveType::Addr, ArithmeticDomain::Exact); 2];
+        assert_eq!(
+            fold_scalar_binary(BinaryOperator::Equal, address_meaning, &address, &address)
+                .and_then(|value| value.boolean_constructor()),
+            Some(true),
+        );
+        assert_eq!(
+            fold_scalar_binary(
+                BinaryOperator::NotEqual,
+                address_meaning,
+                &address,
+                &address
+            )
+            .and_then(|value| value.boolean_constructor()),
+            Some(false),
+        );
+        assert!(
+            fold_scalar_binary(
+                BinaryOperator::Equal,
+                address_meaning,
+                &address,
+                &other_address,
+            )
+            .is_none()
+        );
+        for other in [PrimitiveType::F32, PrimitiveType::F64, PrimitiveType::U64] {
+            let meaning = [
+                (PrimitiveType::Addr, ArithmeticDomain::Exact),
+                (other, ArithmeticDomain::Exact),
+            ];
+            assert!(
+                fold_scalar_binary(BinaryOperator::Equal, meaning, &address, &address).is_none()
+            );
+        }
+        for primitive in [PrimitiveType::F32, PrimitiveType::F64] {
+            let meaning = [(primitive, ArithmeticDomain::Exact); 2];
+            assert!(
+                fold_scalar_binary(BinaryOperator::Equal, meaning, &address, &address).is_none()
+            );
+        }
+    }
 }

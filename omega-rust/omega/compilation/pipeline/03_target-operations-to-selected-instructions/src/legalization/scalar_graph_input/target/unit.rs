@@ -535,7 +535,6 @@ pub(super) fn validate_operation(
             TargetUnitOperation::AtomicAccess {
                 psi_operation,
                 location,
-                field,
                 scalar_type,
                 field_byte_offset,
                 event,
@@ -559,7 +558,6 @@ pub(super) fn validate_operation(
             // ordering, operands and observed result independently below.
             if psi_operation != expected_operation
                 || location != &expected.location
-                || *field != expected.field
                 || *scalar_type != expected.scalar_type
                 || *field_byte_offset != expected.field_byte_offset
                 || *event != expected.event
@@ -706,6 +704,12 @@ pub(super) fn validate_operation(
         ) if psi_operation == expected_operation
             && source == expected_source
             && path == expected_path => {}
+        (
+            TargetUnitOperation::StructuralLeafCopy { .. },
+            AbstractOperation::BoundaryCall { .. },
+        ) => {
+            aggregate_results::validate(target, abstracted, sources, optimized, plan, unit)?;
+        }
         (
             _,
             AbstractOperation::EstablishStructuralArray { .. }

@@ -412,7 +412,7 @@ pub(super) fn overlaps(
     machine: semantic_vocabulary::MachineId,
     place: PlaceId,
     path: &[StructuralPathSegment],
-    activation_local: bool,
+    independent_carrier: bool,
     origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
 ) -> bool {
     match backing {
@@ -427,27 +427,19 @@ pub(super) fn overlaps(
                         .collect::<Vec<_>>(),
                 )
         }
-        Backing::Source(Root::Alternatives(origins)) => {
-            origins.iter().any(|origin| match origin.base {
-                target_operations::TargetReferenceOriginBase::Storage { root } => {
-                    root == place && origin_overlaps(&origin.path)
-                }
-                target_operations::TargetReferenceOriginBase::IncomingContents { .. } => {
-                    !activation_local
-                }
-                target_operations::TargetReferenceOriginBase::Invocation { .. }
-                | target_operations::TargetReferenceOriginBase::Provider { .. } => true,
-            })
-        }
-        // The captured value is outside this activation's owned inline homes.
-        // Keep its conservative geometry for accesses to external storage;
-        // ordinary in-body backing still protects its actual owned region.
+        Backing::Source(Root::Alternatives(origins)) => origins.iter().any(|origin| {
+            origin_overlaps_storage(origin, place, independent_carrier, origin_overlaps)
+        }),
+        // Captured input contents are separate from admitted inline carrier
+        // storage, including a carrier lent at machine entry. Actual-call
+        // compatibility still owns pointee aliasing; this grants no pointer
+        // inequality or authority through a descriptor crossing.
         Backing::Descriptor {
             origin:
                 DescriptorSourceOrigin::IncomingSlot(_)
                 | DescriptorSourceOrigin::IncomingContents { .. },
             ..
-        } if activation_local => false,
+        } if independent_carrier => false,
         Backing::Descriptor { geometry, .. } => match geometry {
             // Formation tokens carry no disjoint physical storage evidence.
             DescriptorCallOrigin::Invocation { .. }
@@ -466,6 +458,55 @@ pub(super) fn overlaps(
                 projection: Projection::new(path),
             }),
         },
+    }
+}
+
+/// The ordinary overlap judgment for one captured origin. Filtering one
+/// independent origin never discards a real-storage alternative beside it.
+pub(super) fn origin_overlaps_storage(
+    origin: &target_operations::TargetReferenceOrigin,
+    place: PlaceId,
+    independent_carrier: bool,
+    origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
+) -> bool {
+    match origin.base {
+        target_operations::TargetReferenceOriginBase::Storage { root } => {
+            root == place && origin_overlaps(&origin.path)
+        }
+        target_operations::TargetReferenceOriginBase::IncomingContents { .. } => {
+            !independent_carrier
+        }
+        target_operations::TargetReferenceOriginBase::Invocation { .. }
+        | target_operations::TargetReferenceOriginBase::Provider { .. } => true,
+    }
+}
+
+/// Read the inline carrier whose original machine-entry permission was checked
+/// by the caller. Incoming pointees are not that pointer's stored bytes. This
+/// is only spatial interference: lifetime debts, children, and all write or
+/// disposal queries continue to use the ordinary overlap judgment.
+pub(super) fn overlaps_inline_carrier_read(
+    backing: &Backing,
+    machine: semantic_vocabulary::MachineId,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+    origin_overlaps: &impl Fn(&[terminal_psi::ReferenceOriginProjection]) -> bool,
+) -> bool {
+    match backing {
+        Backing::Source(Root::Alternatives(origins)) => origins.iter().any(|origin| {
+            !matches!(
+                origin.base,
+                target_operations::TargetReferenceOriginBase::IncomingContents { .. }
+                    | target_operations::TargetReferenceOriginBase::Provider { .. }
+            ) && origin_overlaps_storage(origin, place, false, origin_overlaps)
+        }),
+        Backing::Descriptor {
+            origin:
+                DescriptorSourceOrigin::IncomingSlot(_)
+                | DescriptorSourceOrigin::IncomingContents { .. },
+            ..
+        } => false,
+        _ => overlaps(backing, machine, place, path, false, origin_overlaps),
     }
 }
 

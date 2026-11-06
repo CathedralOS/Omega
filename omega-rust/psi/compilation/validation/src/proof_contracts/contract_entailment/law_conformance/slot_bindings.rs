@@ -230,21 +230,15 @@ pub(crate) fn diagnostic_shape_match(
         }
         (
             StructuralTerm::Constructor {
-                declaration,
-                data,
-                case,
-                fields,
+                identity, fields, ..
             },
             StructuralTerm::Constructor {
-                declaration: declaration_t,
-                data: data_t,
-                case: case_t,
+                identity: identity_t,
                 fields: fields_t,
+                ..
             },
         ) => {
-            declaration == declaration_t
-                && data == data_t
-                && case == case_t
+            identity == identity_t
                 && fields.len() == fields_t.len()
                 && fields
                     .iter()

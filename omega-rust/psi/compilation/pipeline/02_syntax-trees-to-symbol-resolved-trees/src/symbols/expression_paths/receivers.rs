@@ -48,6 +48,26 @@ pub(in crate::symbols) fn pattern_field_symbol(
     }
 }
 
+/// Retain the field identities selected by a resolved pattern head. Contracts
+/// and executable matches carry the same selectors into type checking.
+pub(in crate::symbols) fn assign_pattern_field_symbols(
+    symbols: &SymbolTable,
+    expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    pattern: symbol_resolved_trees::expression::TableDestructurePattern,
+) {
+    let head = expression_table
+        .name_path_node(pattern.head)
+        .map(|path| path.symbol)
+        .unwrap_or_default();
+    for field_handle in pattern.fields.handles() {
+        let field = expression_table.match_fields(pattern.fields)
+            [(field_handle.arena_index() - pattern.fields.start().arena_index()) as usize]
+            .clone();
+        expression_table.match_field_mut(field_handle).field_symbol =
+            pattern_field_symbol(symbols, head, field.member.as_str());
+    }
+}
+
 pub(in crate::symbols) fn resolve_expression_table_member_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,

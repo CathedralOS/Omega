@@ -25,6 +25,9 @@ pub struct CheckedProviderClosedRequirement {
     pub selecting_declaration: SymbolHandle,
     pub template: SymbolHandle,
     pub closed_requirement: SymbolHandle,
+    /// Interface application under the selecting declaration's own public
+    /// binders, before its checked receiving-region substitution.
+    pub declaration_application: NormalizedTypeIdentity,
     /// Complete receiving trait application already retained by the typed
     /// requirement instance. Zero denotes a top-level requirement with no
     /// trait application, never an application wildcard.

@@ -211,15 +211,9 @@ pub(crate) fn requires_value_environment(
         );
     }
     requirements::seed_state_requirements(program, machine, entry_state, None, &mut environment);
-    // Nested machines are separate machines. Their entry is this state's
-    // body, so caller guards and closed by-value arguments have to land here
-    // and not only on a later state's incoming join.
-    arrivals::apply_cross_machine_reference_arrivals(
-        program,
-        machine,
-        entry_state,
-        &mut environment,
-    );
+    // A declaration starts under its own requirements. Private callers may
+    // supply more facts only through the complete arrival observer at the
+    // consuming operation; a partial caller scan cannot seed body assumptions.
     environment
 }
 

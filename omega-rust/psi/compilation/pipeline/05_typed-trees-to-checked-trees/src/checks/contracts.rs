@@ -193,6 +193,11 @@ pub(super) fn check_flow_call_contracts(
         state_flows
             .par_iter()
             .map(|&state_flow| {
+                // States run on parallel workers; subject times overlap.
+                let _subject = phase_profile::subject(
+                    "psi.05.check_checked_facts.check_flow_call_contracts",
+                    || program.symbols.profile_label(state_flow.machine_symbol),
+                );
                 let mut state_decided = Vec::new();
                 let mut state_constant_obligations = Vec::new();
                 let mut state_recipe_obligations = Vec::new();
@@ -217,6 +222,20 @@ pub(super) fn check_flow_call_contracts(
                     }
                     let _s = phase_profile::guard(
                         "psi.05.check_checked_facts.check_flow_call_contracts.calls",
+                    );
+                    // One subject per call site, so a slow caller's cost can be
+                    // traced to the callee whose requires it proves and to the
+                    // call's position in the caller's statement list.
+                    let _call_subject = phase_profile::subject(
+                        "psi.05.check_checked_facts.check_flow_call_contracts.calls",
+                        || {
+                            format!(
+                                "{} -> {} @{}",
+                                program.symbols.profile_label(state_flow.machine_symbol),
+                                program.symbols.display_path(call_flow.target_symbol, "::"),
+                                call_flow.statement_index
+                            )
+                        },
                     );
                     exits::check_state_transfer_result_domains(
                         program,

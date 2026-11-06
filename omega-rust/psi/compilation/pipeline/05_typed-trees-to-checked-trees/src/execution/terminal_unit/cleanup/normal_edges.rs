@@ -2,7 +2,7 @@
 //! The shared ownership selection supplies order and exact outgoing coordinates;
 //! hook requirements remain obligations at that edge, never new unconditional facts.
 mod exits;
-pub(in crate::execution::terminal_unit) use exits::state_exits;
+pub(in crate::execution::terminal_unit) use exits::{state_exit_storage, state_exits};
 
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{

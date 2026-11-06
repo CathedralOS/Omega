@@ -9,6 +9,7 @@ use super::receiver::explicit_jump_data_access;
 use super::staging::InvocationBoundary;
 use super::staging::access_released_in_prefix;
 use super::staging::completed_observation_before_terminal_transfer;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -28,6 +29,7 @@ use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
     program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
     statement: &checked_trees::FlowStatementFact,
@@ -96,7 +98,15 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 let moved = match &moved_source {
                     Some(place) => place,
                     None => {
-                        match owned_storage_source(program, facts, state, statement, event, path) {
+                        match owned_storage_source(
+                            program,
+                            facts,
+                            loan_occurrences,
+                            state,
+                            statement,
+                            event,
+                            path,
+                        ) {
                             Ok(Some(source)) => moved_source.insert(source.place),
                             Ok(None) => return,
                             Err(diagnostic) => {
@@ -109,6 +119,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 let backings = place_access::argument_backings(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     statement.entry_constraints,
@@ -146,6 +157,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
 pub(super) fn check_call_access_conflicts<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
@@ -230,6 +242,7 @@ pub(super) fn check_call_access_conflicts<'p>(
         let backings = place_access::argument_backings(
             program,
             facts,
+            loan_occurrences,
             state_flow,
             borrow_call,
             entry_constraints,
@@ -493,7 +506,8 @@ pub(super) fn check_call_access_conflicts<'p>(
             // formed through it, suspends that backing for the invocation.
             if !place_access::access_interferes(
                 program,
-                &facts.borrow,
+                facts,
+                loan_occurrences,
                 &operand_backings[index].places,
                 &access.kind,
                 *loan_handle,

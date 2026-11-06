@@ -158,7 +158,7 @@ fn atomic_forms_require_indivisible_memory_and_exact_operand_custody() {
 }
 
 #[test]
-fn retry_control_is_required_for_bitwise_atomic_updates() {
+fn retry_control_matches_the_target_atomic_realization() {
     for form in AtomicForm::ALL {
         let (constraint, mut declared) = declaration(form);
         let bitwise = matches!(
@@ -172,7 +172,7 @@ fn retry_control_is_required_for_bitwise_atomic_updates() {
         );
         assert_eq!(
             validate_declaration(Aarch64, &constraint, &declared).is_ok(),
-            !bitwise
+            !form.operation.retries_until_commit(Aarch64)
         );
         declared.alternatives[0].encoded.control =
             MachineEncodedControlEffect::AtomicRetryUntilCommitV1;
@@ -182,7 +182,7 @@ fn retry_control_is_required_for_bitwise_atomic_updates() {
         );
         assert_eq!(
             validate_declaration(Aarch64, &constraint, &declared).is_ok(),
-            bitwise
+            form.operation.retries_until_commit(Aarch64)
         );
     }
 }

@@ -1,6 +1,7 @@
 use crate::borrow::argument_borrow_loan_place;
 use crate::borrow::calls::replaces_reference_loan;
 use crate::borrow::view_link::substituted_result_is_view_free;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::checks::ownership_occurrences::SelectedEvaluation;
 use crate::checks::ownership_occurrences::statement_steps;
 use crate::flow::FlowOwnershipEventSource;
@@ -24,6 +25,7 @@ use super::overlap::{
 pub(super) fn check_statement_borrows<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
     incoming_backing: &super::incoming_backing::IncomingBackingCalls<'_>,
@@ -113,12 +115,17 @@ pub(super) fn check_statement_borrows<'p>(
             let supplying_accesses = super::access_sources::resolve_all(
                 program,
                 facts,
+                loan_occurrences,
                 state_flow,
                 statement,
                 loan.formation_expression,
             );
-            let retained_lineage =
-                super::aliases::formation_lineage(&facts.borrow, borrow_state, loan_handle);
+            let retained_lineage = super::aliases::formation_lineage(
+                facts,
+                loan_occurrences,
+                borrow_state,
+                loan_handle,
+            );
             let formation_constraints = if loan.established_by_call.is_valid() {
                 if !facts.borrow.calls.is_valid(loan.established_by_call) {
                     diagnostics.push(Diagnostic::error(
@@ -225,7 +232,12 @@ pub(super) fn check_statement_borrows<'p>(
                 statement.entry_constraints
             };
             for active_loan_handle in facts.flow.borrow_loan_constraints(formation_constraints) {
-                if super::aliases::same_descriptor(&facts.borrow, loan_handle, active_loan_handle) {
+                if super::aliases::same_descriptor(
+                    facts,
+                    loan_occurrences,
+                    loan_handle,
+                    active_loan_handle,
+                ) {
                     continue;
                 }
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
@@ -268,7 +280,7 @@ pub(super) fn check_statement_borrows<'p>(
                         && active_loan.kind.direct_reborrow_effect(&loan.kind).is_some()
                         && retained_lineage.as_ref().is_some_and(|lineage| {
                             super::aliases::formation_preserves_loan(
-                                program, &facts.borrow, borrow_state, lineage, active_loan_handle,
+                                program, facts, loan_occurrences, borrow_state, lineage, active_loan_handle,
                             )
                         }))
                     || supplying_accesses.as_ref().is_some_and(|sources| {
@@ -345,6 +357,7 @@ pub(super) fn check_statement_borrows<'p>(
         super::staged_values::check(
             program,
             facts,
+            loan_occurrences,
             state_flow,
             statement.statement_index,
             &occurrences,
@@ -401,6 +414,7 @@ pub(super) fn check_statement_borrows<'p>(
                     super::reads::check_storage_read(
                         program,
                         facts,
+                        loan_occurrences,
                         super::reads::StatementRead {
                             state: state_flow,
                             statement,
@@ -500,6 +514,7 @@ pub(super) fn check_statement_borrows<'p>(
                     super::calls::check_staged_operand_move(
                         program,
                         facts,
+                        loan_occurrences,
                         state_flow,
                         borrow_state,
                         statement,
@@ -521,6 +536,7 @@ pub(super) fn check_statement_borrows<'p>(
                     super::moves::check_storage_move(
                         program,
                         facts,
+                        loan_occurrences,
                         state_flow,
                         statement,
                         event,
@@ -556,6 +572,7 @@ pub(super) fn check_statement_borrows<'p>(
         let destinations = super::access_sources::stored_address(
             program,
             facts,
+            loan_occurrences,
             state_flow,
             statement.store_target,
             binding_replacement,
@@ -641,7 +658,8 @@ pub(super) fn check_statement_borrows<'p>(
             }
             if !super::place_access::access_interferes(
                 program,
-                &facts.borrow,
+                facts,
+                loan_occurrences,
                 &destinations,
                 &checked_trees::BorrowAccessKind::Mutable,
                 loan_handle,
@@ -653,6 +671,7 @@ pub(super) fn check_statement_borrows<'p>(
             let compatibility = incoming_backing.require(
                 program,
                 facts,
+                loan_occurrences,
                 state_flow,
                 statement,
                 loan_handle,
@@ -700,6 +719,7 @@ pub(super) fn check_statement_borrows<'p>(
     check_call_mutation_borrows(
         program,
         facts,
+        loan_occurrences,
         state_flow,
         borrow_state,
         stated_premises,
@@ -735,6 +755,7 @@ pub(super) fn check_statement_borrows<'p>(
 fn check_call_mutation_borrows<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
     stated_premises: &[StatedOrderingPremise],
@@ -788,6 +809,7 @@ fn check_call_mutation_borrows<'p>(
         super::calls::check_receiver_footprint_against_argument_loans(
             program,
             facts,
+            loan_occurrences,
             state_flow,
             borrow_call,
             stated_premises,
@@ -925,10 +947,9 @@ fn loans_live_at_call(
         .collect()
 }
 
-/// A jump to a sibling state: the transition's own target invocation enters a
-/// state of the caller's own machine or a machine nested directly inside it,
-/// with no receiver operand. Calls in the transition's guard or arguments are
-/// ordinary calls, not the jump.
+/// A transfer to a non-entry block retained by the caller's own machine.
+/// Machine-entry calls keep their caller's live loans through completion;
+/// nesting and recursive graph fusion do not change that lifetime boundary.
 pub(super) use crate::flow::LocalJump;
 
 pub(super) fn local_jump<'program>(

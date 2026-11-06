@@ -258,11 +258,10 @@ fn validate_unresolved_erased_generic_uses(
         }
     }
 
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| program.machine_type_parameters(machine).is_empty())
-    {
+    for machine in program.machines().iter().filter(|machine| {
+        program.machine_type_parameters(machine).is_empty()
+            && !crate::mathematical_applications::is_indexed_logical_machine(program, machine)
+    }) {
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
                 if parameter.relevance.is_erased()
@@ -292,11 +291,12 @@ fn validate_unresolved_erased_generic_uses(
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
-                if local.relevance.is_erased()
+                if (local.relevance.is_erased()
                     && crate::mathematical_applications::is_source_evidence_carrier(
                         program,
                         local.type_reference,
-                    )
+                    ))
+                    || super::dispatch_subject_of_erased_binding(program, state, local)
                 {
                     continue;
                 }

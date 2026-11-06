@@ -91,7 +91,11 @@ pub(super) fn prepare_normal_exits<'program>(
         symbols,
     };
     let mut context = context.clone();
-    let mut effects = SlotRelationTransfer::default();
+    let mut effects = SlotRelationTransfer {
+        template_dependent: context.template_dependent,
+        incomplete_calls: context.incomplete_calls.clone(),
+        ..SlotRelationTransfer::default()
+    };
     let empty = SlotRelationTransfer::default();
     let mut capture = Capture::default();
     if let TransitionGuardNode::When(guard) = transition.guard {
@@ -381,7 +385,11 @@ fn evaluate_statement(
         symbols,
     };
     let mut context = context.clone();
-    let mut effects = SlotRelationTransfer::default();
+    let mut effects = SlotRelationTransfer {
+        template_dependent: context.template_dependent,
+        incomplete_calls: context.incomplete_calls.clone(),
+        ..SlotRelationTransfer::default()
+    };
     let mut fallthrough = None;
     let empty_prefix = SlotRelationTransfer::default();
     if let StatementNode::Transition(transition) = statement {
@@ -772,19 +780,6 @@ impl Evaluation<'_, '_> {
             if let Some(output) = observed.as_mut() {
                 output.call_entry = Some((context.clone(), inference.clone()));
             }
-            // Primitive queries observe operands without installing reference
-            // slots. Their operands have already executed above, including any
-            // calls that do install slots. The declaration classifier keeps a
-            // same-spelled ordinary callable on its own inferred effect route.
-            if crate::compiler_operations::expression_call_only_observes_operands(
-                self.program,
-                call,
-            ) {
-                if let Some(output) = observed {
-                    output.operands = completed_inputs;
-                }
-                return Some(());
-            }
             let called = super::invocation_effects(
                 self.program,
                 self.machine,
@@ -856,6 +851,10 @@ fn install(
     next: SlotRelationTransfer,
     inference: &mut FrameInference,
 ) {
+    context.template_dependent |= next.template_dependent;
+    context
+        .incomplete_calls
+        .extend(next.incomplete_calls.iter().cloned());
     super::apply_transfer(
         program,
         &mut context.stored,

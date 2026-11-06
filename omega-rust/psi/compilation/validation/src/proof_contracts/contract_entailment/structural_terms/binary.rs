@@ -43,12 +43,7 @@ pub(crate) fn logical_not_term_in_scope(
         operator: BinaryOperator::Equal,
         meaning: [meaning; 2],
         left: Box::new(operand),
-        right: Box::new(StructuralTerm::Constructor {
-            declaration: None,
-            data: "bool".to_owned(),
-            case: "false".to_owned(),
-            fields: Vec::new(),
-        }),
+        right: Box::new(StructuralTerm::boolean(false)),
     })
 }
 

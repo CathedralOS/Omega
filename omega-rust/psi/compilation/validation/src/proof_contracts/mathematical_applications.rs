@@ -31,9 +31,11 @@ pub use prepared::{
 pub use scalar_predicates::scalar_predicate;
 
 use symbols::SymbolHandle;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use typed_trees::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
+};
 use typed_trees::mathematical::{MathematicalDefinition, MathematicalType};
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub fn selected_definition<'program>(
     program: &'program dyn crate::CheckingInput,
@@ -142,12 +144,18 @@ fn applied_result_reference(
         match slot.kind {
             MathematicalBinderKind::Level => continue,
             MathematicalBinderKind::Term => {
-                // Runtime/constant term application remains the kernel's job.
-                // A result depending on it needs a represented dependent type,
-                // not a reinterpretation of that term as a Type operand.
-                if dependencies.contains(&slot.binder.symbol) {
-                    return None;
+                // A value index is already a type-level operand when this
+                // program retains its const or named reference. Substituting
+                // that reference instantiates `Vector<Length, Total>` to the
+                // same application the caller wrote. A runtime term with no
+                // such reference stays unresolved; it is not reclassified as
+                // a Type, and the kernel still checks the term itself.
+                if !dependencies.contains(&slot.binder.symbol) {
+                    continue;
                 }
+                let argument = slot.argument?;
+                let actual = value_index_reference(program, argument)?;
+                substitutions.push((slot.binder.symbol, actual));
                 continue;
             }
             MathematicalBinderKind::Type => {}
@@ -198,6 +206,44 @@ fn applied_result_reference(
         .type_reference_rows()
         .find_map(|(candidate, _)| {
             (program.normalized_type_identity(candidate) == identity).then_some(candidate)
+        })
+}
+
+/// The type-level reference a value-index argument already has. Integer
+/// literals on a call (`f<1, 7>`) keep the number and no reference of their
+/// own; the same literal's const expression, written on the instantiated
+/// carrier, is the reference identity substitution already understands.
+fn value_index_reference(
+    program: &dyn crate::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> Option<TypeReferenceHandle> {
+    if argument.application.is_some() || argument.evidence_projection.is_some() {
+        return None;
+    }
+    if program
+        .type_reference_table
+        .contains_type_reference(argument.type_reference)
+    {
+        return Some(argument.type_reference);
+    }
+    if argument.symbol.is_valid() {
+        return program
+            .type_reference_table
+            .find_named_type_reference(argument.symbol);
+    }
+    let literal = argument.const_literal.as_ref()?;
+    program
+        .type_reference_table
+        .type_reference_rows()
+        .find_map(|(handle, node)| {
+            let TypeReferenceNode::ConstExpression(expression) = node else {
+                return None;
+            };
+            matches!(
+                program.expression_table.expression(*expression),
+                ExpressionNode::Integer(value) if value == literal
+            )
+            .then_some(handle)
         })
 }
 

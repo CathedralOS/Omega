@@ -28,6 +28,9 @@ pub struct RequiredProviderInstance {
     /// Zero is a requirement-only obligation. Otherwise the checked
     /// satisfaction also records the exact closed realization it requires.
     pub candidate_identity: TerminalIdentityIndex,
+    /// Interface application under the selecting declaration's public binders.
+    /// The receiving application retains the actual substituted caller regions.
+    pub declaration_application: TerminalIdentityIndex,
     pub receiving_application: TerminalIdentityIndex,
     pub receiving_region_arguments: Vec<TerminalIdentityIndex>,
 }
@@ -48,6 +51,10 @@ pub struct ProviderCandidateConformance {
     /// association belongs to the canonical catalog, not a public proposal:
     /// receivers enumerate the complete instance roster without source replay.
     pub source_requirement_identity: TerminalIdentityIndex,
+    /// Interface application under the selecting declaration's public binders,
+    /// before the checked receiving-region substitution. Selection compares
+    /// this complete view; installation keeps the actual application below.
+    pub declaration_application: TerminalIdentityIndex,
     /// Complete checked receiving trait application. Zero means this row has
     /// no closed trait application; it never means any application may match.
     /// This association supplies no loan or provider-selection authority.

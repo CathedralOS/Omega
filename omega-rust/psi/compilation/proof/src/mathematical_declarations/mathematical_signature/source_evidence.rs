@@ -378,6 +378,35 @@ impl Elaborator<'_> {
                     (binder.symbol, binder.name.clone(), reference)
                 })
                 .collect::<Vec<_>>();
+            // Nested steps carry family indices as ordinary integer parameters.
+            // Those names are the index telescope for this state's evidence.
+            for parameter in self.program.state_parameters(entry) {
+                if parameter.is_mutable
+                    || parameter.is_const
+                    || telescope
+                        .iter()
+                        .any(|(symbol, _, _)| *symbol == parameter.symbol)
+                    || !arguments.iter().any(|argument| {
+                        matches!(
+                            self.program.type_reference_table.type_reference(*argument),
+                            TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol
+                        )
+                    })
+                    || !self
+                        .program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_some_and(|primitive| {
+                            primitive == PrimitiveType::Bool || primitive.integer_bounds().is_some()
+                        })
+                {
+                    continue;
+                }
+                telescope.push((
+                    parameter.symbol,
+                    parameter.name.clone(),
+                    Some(parameter.type_reference),
+                ));
+            }
             // A runtime Value instance realizes its original scalar binders as
             // ordinary entry parameters. Reconstruct only that authenticated
             // telescope, and only when the exact parameter is a family index.
@@ -554,7 +583,7 @@ impl Elaborator<'_> {
                     body: proposition,
                 });
                 self.scope.clear();
-                let theorem = self.source_family_induction(symbol, invariant)?;
+                let theorem = self.source_family_induction(symbol, invariant, &actuals)?;
                 let signature = Signature::from_declarations(self.declarations.clone());
                 let closure = judgment_assumption_closure(
                     &self.arena,

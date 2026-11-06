@@ -184,28 +184,44 @@ fn pure_build_accounting() {
 
     let mut session = CompilationSession::default();
     let shared_sponsor = sponsor(limits(2 * fuel));
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     build_sequence::print_execution_counts("before repeated Pure source requests");
     check(&mut session, &shared_sponsor, "windows_x86_64")
         .result
         .expect("first row");
-    let builds_after_first = counters::build_execution_count();
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
+    let after_first = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     check(&mut session, &shared_sponsor, "linux_x86_64")
         .result
         .expect("second row");
     assert_eq!(
-        counters::build_execution_count(),
-        builds_after_first,
-        "warm source reuse must not restart the root or its core supplier"
+        (
+            counters::build_execution_count(),
+            counters::source_build_execution_count(),
+            counters::provider_defaults_execution_count(),
+        ),
+        after_first,
+        "the second request must reuse both completed Builds"
     );
-    let executions = before_source_counts.source_build_delta();
+    let executions = counters::build_execution_count() - before;
     println!(
         "two_rows_executions={executions} charged_fuel={} charged_cells={}",
         shared_sponsor.consumed_fuel_units(),
         shared_sponsor.consumed_result_storage_cells()
     );
     build_sequence::print_execution_counts("two Pure source requests completed");
-    assert_eq!(executions, 1);
+    assert_eq!(executions, 2);
     assert_eq!(
         shared_sponsor.consumed_fuel_units(),
         2 * fuel,
@@ -223,8 +239,8 @@ fn pure_build_accounting() {
     );
     assert_eq!(fresh.consumed_fuel_units(), fuel);
     assert_eq!(fresh.consumed_result_storage_cells(), cells);
-    assert_eq!(before_source_counts.source_build_delta(), 1);
-    println!("fresh_account_charged_without_source_execution");
+    assert_eq!(counters::build_execution_count() - before, 2);
+    println!("fresh_account_charged_without_execution");
 
     let mut limited_session = CompilationSession::default();
     let limited = sponsor(limits(2 * fuel - 1));
@@ -257,7 +273,11 @@ fn pure_build_accounting() {
     check(&mut CompilationSession::default(), &cold, "windows_x86_64")
         .result
         .expect("affordable cold row");
-    let before_cold_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before_cold = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let failure = check(&mut CompilationSession::default(), &cold, "linux_x86_64")
         .result
         .expect_err("cold occurrence must reject the same allowance");
@@ -270,7 +290,15 @@ fn pure_build_accounting() {
         }),
         "{diagnostics:?}"
     );
-    assert_eq!(before_cold_source_counts.source_build_delta(), 1);
+    build_sequence::print_execution_counts("cold source fuel refusal");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before_cold.0,
+            counters::source_build_execution_count() - before_cold.1,
+            counters::provider_defaults_execution_count() - before_cold.2
+        ),
+        (2, 1, 1)
+    );
     println!("cold_and_warm_hard_ceiling_decisions_agree");
 
     // A later-axis refusal must not partially spend fuel on the cached path.
@@ -953,7 +981,10 @@ fn terminal_build_filesystem() {
         request
     };
     let mut session = CompilationSession::default();
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
+    build_sequence::print_execution_counts("before captured generator admission");
     let guard_dropped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut first_request = request();
     first_request.build.restricted_grants = Some(Box::new(RefusingGrantGuard {
@@ -1035,7 +1066,13 @@ fn terminal_build_filesystem() {
             .filesystem_operation_attempts,
         6
     );
-    assert_eq!(before_source_counts.source_build_delta(), 1);
+    build_sequence::print_execution_counts("captured generator settled its output");
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
     let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
@@ -2375,7 +2412,8 @@ fn foreign_source_return_refuses() {
     let request = package_invocation_requests("pass/build/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let mut first = session
         .begin_source_compilation(request())
         .expect("first source admission");
@@ -2398,7 +2436,15 @@ fn foreign_source_return_refuses() {
                 .contains("completion belongs to another invocation")
         }));
     }
-    assert_eq!(before_source_counts.source_build_delta(), 2);
+    build_sequence::print_execution_counts("swapped source returns refused");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before,
+            counters::source_build_execution_count() - sources_before,
+            counters::provider_defaults_execution_count() - suppliers_before
+        ),
+        (4, 2, 2)
+    );
     println!("source_continuations_rejected_swapped_normal_returns_without_replay");
 }
 
@@ -2412,13 +2458,24 @@ fn source_native_roundtrip() {
         vec![Some(target::TargetProfile::host_if_supported().unwrap())],
     )
     .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let report = orchestration::compile_sources(&mut CompilationSession::default(), request)
         .expect("source admission")
         .into_single_report()
         .expect("source native product");
-    assert_eq!(before_source_counts.source_build_delta(), 1);
-    assert_eq!(before_source_counts.provider_defaults_delta(), 1);
+    build_sequence::print_execution_counts("source native roundtrip admitted");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2
+        ),
+        (2, 1, 1)
+    );
     execute_report(report, &directory);
     println!("source_native_and_reloaded_terminal_exit_zero_after_one_build");
 }
@@ -2428,7 +2485,8 @@ fn interleaved_build_invocations() {
     let request = package_invocation_requests("pass/build/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let products_before = counters::product_source_completion_count();
     let mut first = session
         .begin_package_build(request())
@@ -2475,9 +2533,14 @@ fn interleaved_build_invocations() {
         let mut second = session
             .begin_package_build(request())
             .expect("second admission while paused");
-        assert_eq!(before_source_counts.source_build_delta(), 1);
+        assert_eq!(counters::build_execution_count(), before + 2);
+        assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+        assert_eq!(
+            counters::provider_defaults_execution_count() - suppliers_before,
+            1
+        );
         let second_returned = return_build(&mut second);
-        assert_eq!(before_source_counts.source_build_delta(), 2);
+        assert_eq!(counters::source_build_execution_count() - sources_before, 2);
         let builds_after_starts = counters::build_execution_count();
         let second = session
             .complete_package_build(second, second_returned)
@@ -2511,6 +2574,12 @@ fn interleaved_build_invocations() {
         .expect("first completion");
     session.check_package_build(first).expect("first Product");
     assert_eq!(counters::build_execution_count(), builds_after_starts);
+    assert_eq!(counters::build_execution_count(), before + 3);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 2);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
     println!("paused_build_survived_another_package_product_without_replay");
 }
 
@@ -2581,12 +2650,23 @@ fn sliced_build_retains_effects() {
     let account = sponsor(limits(1_000_000));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(account.clone());
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("sliced Build completes");
     build_sequence::print_execution_counts("sliced source Build completed");
-    assert_eq!(before_source_counts.source_build_delta(), 1);
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2,
+        ),
+        (2, 1, 1)
+    );
     let fuel = account.consumed_fuel_units();
     assert!(
         fuel > 1024,
@@ -2598,7 +2678,11 @@ fn sliced_build_retains_effects() {
     let limited = sponsor(limits(fuel - 1));
     let mut request = CheckedCompileRequest::new(&root, Some("linux_x86_64"));
     request.build.evaluation_sponsor = Some(limited.clone());
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let failure = orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect_err("slice replenishment must not enlarge the invocation allowance");
@@ -2610,7 +2694,14 @@ fn sliced_build_retains_effects() {
         "{diagnostics:?}"
     );
     build_sequence::print_execution_counts("sliced source Build refused for fuel");
-    assert_eq!(before_source_counts.source_build_delta(), 1);
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2,
+        ),
+        (2, 1, 1)
+    );
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);
     println!("sliced_build_short_allowance_refused_and_storage_retired");
@@ -2631,7 +2722,9 @@ fn anonymous_build_completes_before_product() {
         targets,
     )
     .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact);
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let outcomes =
         orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .expect("anonymous multi-target request");
@@ -2649,16 +2742,21 @@ fn anonymous_build_completes_before_product() {
                 .invocation_scope()
                 .is_none()
         );
-        let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
-            .expect("anonymous Product reload");
+        let reloaded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes());
+        let reloaded = reloaded.expect("anonymous Product reload");
         assert_eq!(artifact.view().identity(), reloaded.view().identity());
         match identity {
             Some(previous) => assert_eq!(previous, artifact.view().identity()),
             None => identity = Some(artifact.view().identity()),
         }
     }
-    assert_eq!(before_source_counts.source_build_delta(), 1);
-    assert_eq!(before_source_counts.provider_defaults_delta(), 1);
+    build_sequence::print_execution_counts("anonymous Build after both target products");
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
     println!("anonymous_build_executed_once_before_two_portable_products");
 }
 
@@ -2686,7 +2784,11 @@ fn logged_build_reuse() {
     };
     let mut session = CompilationSession::default();
     let account = sponsor(limits(1_000_000));
-    let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let mut cold_fuel = 0;
     let mut builds_after_first = None;
     for target in ["windows_x86_64", "linux_x86_64"] {
@@ -2717,7 +2819,15 @@ fn logged_build_reuse() {
             assert_eq!(usage.fuel_units, cold_fuel);
         }
     }
-    assert_eq!(before_source_counts.source_build_delta(), 1);
+    build_sequence::print_execution_counts("two logged source requests completed");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before.0,
+            counters::source_build_execution_count() - before.1,
+            counters::provider_defaults_execution_count() - before.2
+        ),
+        (2, 1, 1)
+    );
     assert_eq!(account.consumed_fuel_units(), 2 * cold_fuel);
     assert_eq!(account.live_storage_cells(), 0);
     assert_eq!(account.live_payload_bytes(), 0);
@@ -2757,7 +2867,11 @@ fn logged_build_reuse() {
     assert_eq!(limited.consumed_fuel_units(), cold_fuel);
     println!("warm_log_limit_rejected_atomically_without_execution");
 
-    let before_cold_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let before_cold = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     let failure = check(&mut CompilationSession::default(), &limited, "linux_x86_64")
         .result
         .expect_err("executed logging must reject the same remaining byte allowance");
@@ -2768,7 +2882,15 @@ fn logged_build_reuse() {
             .contains("evaluation BuildLog allowance exhausted")),
         "{diagnostics:?}"
     );
-    assert_eq!(before_cold_source_counts.source_build_delta(), 1);
+    build_sequence::print_execution_counts("cold source log refusal");
+    assert_eq!(
+        (
+            counters::build_execution_count() - before_cold.0,
+            counters::source_build_execution_count() - before_cold.1,
+            counters::provider_defaults_execution_count() - before_cold.2
+        ),
+        (2, 1, 1)
+    );
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);
     println!("cold_log_limit_rejected_and_live_storage_retired");

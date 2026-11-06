@@ -2,6 +2,7 @@
 //! Resolve every possible source at its recorded read or call-entry snapshot.
 //! A recast may identify only an enclosing storage region; keep that whole
 //! region unless checked field/index coordinates identify a smaller projection.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{
     CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact, IncomingReferenceOrigin,
@@ -210,6 +211,7 @@ pub(super) fn actual_for(
 pub(super) fn collect_backings(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     source: StoredOperand,
     output: &mut Vec<Backing>,
@@ -221,7 +223,7 @@ pub(super) fn collect_backings(
                 return Err("an actual's descriptor source alternatives are empty");
             }
             for alternative in alternatives {
-                collect_backings(program, facts, state, alternative, output)?;
+                collect_backings(program, facts, loan_occurrences, state, alternative, output)?;
             }
         }
         StoredOperand::Incoming(slot) => {
@@ -270,6 +272,7 @@ pub(super) fn collect_backings(
             let places = super::super::captured_descriptors::places(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 capture,
                 &projection,
@@ -328,6 +331,7 @@ pub(super) fn collect_backings(
 pub(super) fn actual_storage(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     actual: Handle<FlowOperandFact>,
     path: &[PlaceSegment],
@@ -354,6 +358,7 @@ pub(super) fn actual_storage(
         collect_backings(
             program,
             facts,
+            loan_occurrences,
             state,
             StoredOperand::Value {
                 capture: actual,
@@ -371,7 +376,14 @@ pub(super) fn actual_storage(
             &path[..crossing],
             current,
         );
-        collect_backings(program, facts, state, selected, &mut backings)?;
+        collect_backings(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            selected,
+            &mut backings,
+        )?;
     }
     let mut output = Vec::new();
     for backing in backings {

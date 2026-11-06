@@ -78,41 +78,43 @@ impl Builder<'_, '_> {
         if call.receiver.is_valid()
             && !program.call_has_no_runtime_receiver_for_target(&selected_call)
         {
-            let mut owners = program.traits().iter().filter(|owner| {
-                owner.is_boundary
-                    && program
-                        .executable_trait_machine_instances(owner)
-                        .any(|signature| signature.symbol == authored_target)
-            });
-            let owner = owners.next()?;
-            if owners.next().is_some() {
-                return None;
-            }
-            let state = validation::find_state_in_machine(program, self.machine, self.state)?;
-            let (source, _) = self.call_ordinal(expression, authored_target)?;
-            let source = self.flow.control.calls.get(source);
-            let site = validation::CallSite::Expression { expression, call };
-            if !crate::execution::terminal_unit::calls::boundary_trait_receiver_is_namespace(
-                program,
-                state,
-                source,
-                &site,
-                owner.symbol,
-            ) {
-                return None;
-            }
             let machine = program.machine_by_symbol(self.machine)?;
-            let reference = validation::expression_result_type_reference(
-                program,
-                machine,
-                state,
-                call.receiver,
-            )?;
-            if place_at(program, self.state, self.statement_index, call.receiver)
-                .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
-            {
-                authority_value = self.structural_value(call.receiver, reference)?;
-                self.retain_structural_value_root(authority_value, reference)?;
+            let state = validation::find_state_in_machine(program, self.machine, self.state)?;
+            if !is_sealed_accessor_call(program, machine, state, call, authored_target) {
+                let mut owners = program.traits().iter().filter(|owner| {
+                    owner.is_boundary
+                        && program
+                            .executable_trait_machine_instances(owner)
+                            .any(|signature| signature.symbol == authored_target)
+                });
+                let owner = owners.next()?;
+                if owners.next().is_some() {
+                    return None;
+                }
+                let (source, _) = self.call_ordinal(expression, authored_target)?;
+                let source = self.flow.control.calls.get(source);
+                let site = validation::CallSite::Expression { expression, call };
+                if !crate::execution::terminal_unit::calls::boundary_trait_receiver_is_namespace(
+                    program,
+                    state,
+                    source,
+                    &site,
+                    owner.symbol,
+                ) {
+                    return None;
+                }
+                let reference = validation::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    call.receiver,
+                )?;
+                if place_at(program, self.state, self.statement_index, call.receiver)
+                    .is_some_and(|place| matches!(place.root, facts::PlaceRoot::Expression(_)))
+                {
+                    authority_value = self.structural_value(call.receiver, reference)?;
+                    self.retain_structural_value_root(authority_value, reference)?;
+                }
             }
         }
         let operands = expressions(program)
@@ -309,4 +311,35 @@ fn policy_carrier(
         })
         .then(|| program.primitive_type_reference(*base_type))
         .flatten()
+}
+
+/// An accessor is selected by its compiler-owned plan, not by methods on a
+/// data type. When a placed-field accessor call qualifies the operation on
+/// the field place while passing its explicit reference operand in `arguments`,
+/// the receiver only selects that sealed accessor declaration.
+fn is_sealed_accessor_call(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    call: &typed_trees::expression::TableCallExpression,
+    authored_target: symbols::SymbolHandle,
+) -> bool {
+    typed_trees::typed_trees::ScalarAccessorDeclaration::authenticate(
+        program.typed_program(),
+        authored_target,
+    )
+    .ok()
+    .flatten()
+    .is_some()
+        && validation::declared_place_type_raw(program, machine, Some(state), call.receiver)
+            .or_else(|| {
+                validation::expression_result_type_reference(program, machine, state, call.receiver)
+            })
+            .and_then(|reference| program.access_view_field_plan_for_type_reference(reference))
+            .is_some_and(|(_, field)| {
+                field.accessor_targets.iter().any(|target| {
+                    target.state_symbol == authored_target
+                        && target.operation == call.target.as_str()
+                })
+            })
 }

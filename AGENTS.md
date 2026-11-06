@@ -46,6 +46,14 @@ result they qualify. Put validation and detailed provenance afterward, retaining
 exact commands, source/host identities, failures and unverified cases. Historical
 results remain tied to their recorded sources, not promoted to fresh validation.
 
+End every PR description with one line naming the agent that wrote it:
+`Agent: <name>`, where the name is `Claude Code`, `Codex`, `Cursor`, `Devin`,
+`Antigravity`, `Dot` or `Human`, then a comma and its session link or worktree
+when there is one (`Agent: Codex, /root/target_selection_frontier`). Commits
+carry no tool attribution, squash merges drop the description from main, and
+several agents share each GitHub account, so this line is the only record of
+who did the work. `check_rules.py --body-file` checks it on every PR.
+
 ## Law of completion
 
 We are capable of taking an uncompilable sample through every necessary compiler
@@ -92,12 +100,17 @@ roles below. Close a PR only for a recorded withdrawal or supersession, not age.
 
 ## The sample loop
 
-When validating a language mechanism across value placements, verify it across
-the nine orthogonal transport places: `local`, `field`, `parameter`,
-`call_result`, `match_join`, `const_name`, nested `machine` (`other_state/`),
-another `machine` (`other_machine/`), and a `Build`-selected target
-implementation (`target_body/`), with `ProgramEntry` bound for all four hosted
-targets and passing `omega run --both` (exit 0) alongside its negative twin.
+When validating a language mechanism across value placements, you are carrying
+one object through the compiler. Verify that same object across the nine
+orthogonal transport places: `local`, `field`, `parameter`, `call_result`,
+`match_join`, `const_name`, nested `machine` (`other_state/`), another
+`machine` (`other_machine/`), and a `Build`-selected target implementation
+(`target_body/`), with `ProgramEntry` bound for all four hosted targets and
+passing `omega run --both` (exit 0) alongside its negative twin. The pinned
+diagnostic, and the finite `tests/omega` facts fixture, is a photograph of that
+object. Done means the compiler still holds that same object. Changing the fact,
+the bound, or the operation so a place passes is repainting that photograph:
+a different object, and a green check on it does not count.
 
 ### No new `samples/cli/facts` folder bloat
 
@@ -122,8 +135,13 @@ with at most a single focused positive/negative fixture pair under
    - Third, remaining `TASKS.md` items and failing `samples/` programs.
 2. **Execute `/advance` and chain on the warm worktree:** Follow the 5-step
    workflow in [.agents/skills/advance/SKILL.md](.agents/skills/advance/SKILL.md).
-   After landing or handing off a slice, continue the next requirement of the
-   same capability on the warm worktree.
+   When running with subagents, the coordinator runs Step 1 (triage from
+   `TASKS.md` and `tests/omega/corpus_outcomes.txt`, worktree creation, and
+   claim registration) and dispatches workers immediately so each worker owns
+   Steps 2–5 (all `omega-rust/` source reading, root-cause tracing, repair,
+   validation, and draft PR) in its own context window. After landing or
+   handing off a slice, continue the next requirement of the same capability on
+   the warm worktree.
 
 ### Requirements and evidence
 
@@ -144,6 +162,9 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 ## Commands
 
+On a fresh Linux host or cloud container, `bash tools/agent_setup.sh` installs
+the pinned toolchain, `mbx`, `cargo-nextest` and `zstd`, and fetches crates;
+`python3 tools/doctor.py` then confirms the host is ready.
 See [tools/testing.md](tools/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` / `corpus_runner` invocations so
 background processes never hang on open stdin:
@@ -200,15 +221,23 @@ locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
 
 ## Sessions and subagents
 
-- **Coordinator vs. Standalone landing boundary:**
-  - **Under a coordinator session (local or cloud swarm):** Workers push their
+- **Division of labor (Coordinator vs. Worker):**
+  - **Coordinator owns triage and review; workers own investigation and implementation:**
+    Subagents exist so each capability outcome or diagnostic cluster gets its
+    own isolated worktree and clean context window for compiler reading and
+    root-cause tracing. When running with subagents, the coordinator selects
+    outcomes from `TASKS.md` and `tests/omega/corpus_outcomes.txt` (by board
+    item and diagnostic cluster, without reading `omega-rust/` source files to
+    pre-diagnose the bug), creates the worktrees and claims, and dispatches
+    workers immediately. Workers execute Steps 2–5 of `/advance`, push their
     branch, open a **draft** PR (`gh pr create --draft`), and stop
     (`candidate_ready`). Workers never mark a PR ready or run `tools/landing.py`
     themselves. The coordinator audits `gh pr diff <pr>` with
     [.agents/skills/coordinator-review/SKILL.md](.agents/skills/coordinator-review/SKILL.md)
     before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
-  - **Standalone single-agent session:** Self-review against
-    `coordinator-review`, then run `python3 tools/landing.py land <pr> --expected-head <sha>`.
+  - **Standalone single-agent session:** One agent executes Steps 1–5 of
+    `/advance`, self-reviews against `coordinator-review`, and runs
+    `python3 tools/landing.py land <pr> --expected-head <sha>`.
 - **Reactive wakeup only:** Never poll in loops, `sleep`, or schedule periodic
   timers waiting on subagents or background tasks; end the turn and let completion
   notifications wake the session.

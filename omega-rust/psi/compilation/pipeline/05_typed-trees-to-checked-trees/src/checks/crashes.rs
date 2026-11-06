@@ -643,6 +643,19 @@ pub(crate) fn check_published_ceiling_coverage(
                     call.location().call_ordinal(),
                     surviving.cause(),
                 )));
+                // A generated transition-subject local is not an authored
+                // statement. The ceiling failure belongs to the transition
+                // the author wrote, which is the statement these pins name.
+                let statement = authored_crash_statement_ordinal(
+                    program,
+                    caller.machine,
+                    call.location().state(),
+                    call.location().statement_ordinal(),
+                );
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{caller_name}` has an uncovered {:?} crash at statement {statement}; publish a same-cause `crashes` route whose guard covers this site",
+                    surviving.cause(),
+                )));
             }
         }
         for invocation in caller.crash.checked_operators() {
@@ -674,6 +687,49 @@ pub(crate) fn check_published_ceiling_coverage(
         }
     }
     crate::checks::finish(diagnostics)
+}
+
+/// Statement ordinal in the authored body. A compiler-generated transition
+/// subject local occupies a source slot ahead of the transition it captures,
+/// and that slot is not a statement the author wrote.
+fn authored_crash_statement_ordinal(
+    program: &dyn ::validation::CheckingInput,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    source_ordinal: u32,
+) -> u32 {
+    // The call is already keyed by its caller machine. Resolving the state
+    // through that machine matches the call inventory; a program-wide state
+    // owner query misses this nested body and would keep the source ordinal.
+    let Some(state) = validation::find_state_in_machine(program, machine, state) else {
+        return source_ordinal;
+    };
+    let mut authored = 0u32;
+    for (index, statement) in program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+    {
+        if index == source_ordinal as usize {
+            return authored;
+        }
+        if !is_generated_transition_subject(statement) {
+            authored = authored.saturating_add(1);
+        }
+    }
+    source_ordinal
+}
+
+/// Preparation rewrites a dispatch-subject capture to an ordinary value
+/// binding, and keeps the parser's generated name. That local is the slot
+/// ahead of the transition the author wrote.
+fn is_generated_transition_subject(statement: &typed_trees::statement::StatementNode) -> bool {
+    let Some(local) = statement.as_local_data() else {
+        return false;
+    };
+    local.role == language_core::LocalBindingRole::DispatchSubject
+        || local.name.as_str().starts_with("__transition_subject#")
 }
 
 /// Compare one surviving route with a permitted alternative. Invocation callers

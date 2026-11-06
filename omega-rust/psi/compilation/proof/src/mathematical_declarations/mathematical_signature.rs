@@ -215,6 +215,9 @@ struct Elaborator<'a> {
     source_invocations: Vec<source_domains::SourceInvocation>,
     indexed_families: HashMap<SymbolHandle, source_families::SourceFamily>,
     indexed_family_stack: Vec<SymbolHandle>,
+    /// Value parameter symbol to its leading descriptor field. Predicate
+    /// names use the parameter; the case telescope binds the field.
+    source_index_aliases: Vec<(SymbolHandle, SymbolHandle)>,
     integer_theory: Option<proof_admission::SourceIntegerTheory>,
     integer_multiply: Option<u32>,
     prepared: PreparedMathematicalApplications,
@@ -278,6 +281,7 @@ pub(crate) fn check_mathematical_signature(
         source_invocations: Vec::new(),
         indexed_families: HashMap::new(),
         indexed_family_stack: Vec::new(),
+        source_index_aliases: Vec::new(),
         integer_theory: None,
         integer_multiply: None,
         prepared: PreparedMathematicalApplications::default(),
@@ -615,6 +619,16 @@ impl<'a> Elaborator<'a> {
                 }
             }
             ExpressionNode::ZeroValue(reference) => self.zero_value_term(*reference),
+            // `self.head` is the case telescope's field, not an opaque
+            // projection. The predicate is checked after that telescope is
+            // applied to the constructor's operands.
+            ExpressionNode::Member(member) => {
+                let member_symbol = member.member_symbol;
+                if let Some(term) = self.scope_term_for_symbol(member_symbol) {
+                    return Ok(term);
+                }
+                self.open_term(handle)
+            }
             _ => self.open_term(handle),
         }
     }

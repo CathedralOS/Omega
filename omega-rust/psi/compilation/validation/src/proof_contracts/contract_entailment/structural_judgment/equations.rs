@@ -49,6 +49,7 @@ impl StructuralJudge<'_> {
         let left = self.resolve_with_at(left, resolution_depth, purpose);
         let right = self.resolve_with_at(right, resolution_depth, purpose);
         self.intake_equation_fact_with_purpose(left, right, depth, purpose);
+        self.activate_conditional_guarantees();
     }
 
     /// Shared fact storage after the producer has selected its value inputs.
@@ -62,6 +63,7 @@ impl StructuralJudge<'_> {
         depth: usize,
     ) {
         self.intake_equation_fact_with_purpose(left, right, depth, ResolutionPurpose::General);
+        self.activate_conditional_guarantees();
     }
 
     fn equation_inputs_are_observed(
@@ -136,24 +138,17 @@ impl StructuralJudge<'_> {
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
-                    declaration: _,
-                    data: _,
-                    case: case_l,
+                    identity: identity_l,
                     fields: fields_l,
+                    ..
                 },
                 StructuralTerm::Constructor {
-                    declaration: _,
-                    data: _,
-                    case: case_r,
+                    identity: identity_r,
                     fields: fields_r,
+                    ..
                 },
-            ) if super::super::structural_terms::same_constructor_data(
-                self.program,
-                &left,
-                &right,
-            ) =>
-            {
-                if case_l != case_r {
+            ) if identity_l.same_carrier(*identity_r) => {
+                if identity_l != identity_r {
                     self.hypotheses_contradictory = true;
                     return;
                 }

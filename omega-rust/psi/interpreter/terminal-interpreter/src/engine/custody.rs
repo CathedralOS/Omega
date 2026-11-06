@@ -8,6 +8,7 @@
 //! which children owe cleanup. Captured outgoing projections retain their
 //! backing independently of that obsolete root binding.
 
+mod complete_values;
 mod field_stores;
 mod windows;
 
@@ -1302,6 +1303,7 @@ pub(crate) fn split_affine_frontier_at_projection(
             selected
         }
         StructuralTypeShape::PrimitiveScalar(_)
+        | StructuralTypeShape::AtomicCell(_)
         | StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::ElementView { .. }

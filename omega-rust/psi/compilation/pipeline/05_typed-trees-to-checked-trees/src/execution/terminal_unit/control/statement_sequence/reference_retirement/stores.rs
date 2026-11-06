@@ -346,6 +346,14 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
     let owner_source = storage_source(retirement.program, retirement.state, owner)?;
     let mut output = Vec::new();
     for (source, group) in groups.into_iter().rev() {
+        let selected = validation::reference_result_custody::loan_place_segments(
+            retirement.program,
+            reference,
+            &source.path,
+        )?;
+        if !retirement.storage_borrowers_retired(facts::PlaceRoot::Symbol(owner), &selected)? {
+            continue;
+        }
         let moved = transfers::from_storage(
             retirement.program,
             retirement.facts,
@@ -379,6 +387,16 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
                 })
         }) {
             continue;
+        }
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE stored-reference-release state={:?} owner={owner:?} formation={formation} statement={} source={owner_source:?} path={:?} loans={group:?} at_exit={} pending_owner={:?}",
+                retirement.state.symbol,
+                retirement.statement_index,
+                source.path,
+                retirement.at_exit,
+                retirement.uncommitted_owner,
+            );
         }
         output.push(OperationPlan::ReleaseReference {
             statement_index: retirement.statement_index,

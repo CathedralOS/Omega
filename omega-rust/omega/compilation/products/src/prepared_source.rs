@@ -122,7 +122,17 @@ pub struct PreparedCheckedSource {
     preparation: SourcePreparation,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
-    frontiers: Arc<Mutex<Vec<(SourceAssemblyInputs, TypedCompilationFrontier)>>>,
+    toolchain_defaults: Option<package_compilation::CompletedProviderDefaults>,
+    frontiers: Arc<Mutex<Vec<(SourceFrontierInputs, TypedCompilationFrontier)>>>,
+}
+
+/// A changed completed supplier must not reuse an earlier declaration view.
+/// Equal suppliers retain the original frontend coordinates instead of
+/// rebuilding them after Product preparation has extended the catalogue.
+#[derive(Clone, PartialEq, Eq)]
+struct SourceFrontierInputs {
+    assembly: SourceAssemblyInputs,
+    toolchain_defaults: Option<package_compilation::CompletedProviderDefaults>,
 }
 
 /// Reuse is a product-selection decision, not a hidden frontend execution path.
@@ -138,8 +148,8 @@ pub enum PreparedSourceFrontier {
 /// One pending child's exact retention slot. No callback or compiler entrypoint
 /// is stored here; the coordinator supplies the completed frontend product.
 pub struct TypedFrontierRetention {
-    inputs: SourceAssemblyInputs,
-    frontiers: Arc<Mutex<Vec<(SourceAssemblyInputs, TypedCompilationFrontier)>>>,
+    inputs: SourceFrontierInputs,
+    frontiers: Arc<Mutex<Vec<(SourceFrontierInputs, TypedCompilationFrontier)>>>,
 }
 
 impl PreparedCheckedSource {
@@ -152,6 +162,7 @@ impl PreparedCheckedSource {
             preparation: self.preparation.clone(),
             source_checkpoint: self.source_checkpoint.fork(),
             shared_timings: self.shared_timings.clone(),
+            toolchain_defaults: self.toolchain_defaults.clone(),
             frontiers: self.frontiers.clone(),
         }
     }
@@ -165,6 +176,7 @@ impl PreparedCheckedSource {
             preparation,
             source_checkpoint,
             shared_timings,
+            toolchain_defaults: None,
             frontiers: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -176,7 +188,7 @@ impl PreparedCheckedSource {
         defaults: &package_compilation::CompletedProviderDefaults,
     ) -> Result<Self, Vec<Diagnostic>> {
         self.source_checkpoint = self.source_checkpoint.with_toolchain_defaults(defaults)?;
-        self.frontiers = Arc::new(Mutex::new(Vec::new()));
+        self.toolchain_defaults = Some(defaults.clone());
         Ok(self)
     }
 
@@ -192,7 +204,10 @@ impl PreparedCheckedSource {
         package_inputs: Option<&PackageCompilationInputs>,
         build_execution_profile: Option<target::TargetProfile>,
     ) -> Result<PreparedSourceFrontier, Vec<Diagnostic>> {
-        let inputs = SourceAssemblyInputs::new(package_inputs, build_execution_profile);
+        let inputs = SourceFrontierInputs {
+            assembly: SourceAssemblyInputs::new(package_inputs, build_execution_profile),
+            toolchain_defaults: self.toolchain_defaults,
+        };
         let retain = Arc::strong_count(&self.frontiers) > 1;
         let retained = self
             .frontiers

@@ -312,8 +312,8 @@ fn declaration_input_value(
     match value {
         StructuralTerm::Integer(_) => true,
         StructuralTerm::Constructor {
-            data, case, fields, ..
-        } => data == "bool" && matches!(case.as_str(), "true" | "false") && fields.is_empty(),
+            identity, fields, ..
+        } => identity.boolean().is_some() && fields.is_empty(),
         StructuralTerm::Variable(name) => input(name).is_some(),
         StructuralTerm::Projection { subject, path } => {
             let StructuralTerm::Variable(name) = subject.as_ref() else {

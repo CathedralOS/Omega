@@ -403,15 +403,25 @@ impl super::TypedTrees {
         )
     }
 
+    /// Borrow the matching coordinates while the existing state index is held.
+    /// Full-symbol equality and authored duplicate order remain in the index;
+    /// readers that need only one result need not copy the coordinate list.
+    pub(super) fn with_state_positions_for_symbol<R>(
+        &self,
+        symbol: SymbolHandle,
+        read: impl FnOnce(&[(SymbolHandle, (u32, u32))]) -> R,
+    ) -> R {
+        self.with_state_position_index(|index| {
+            read(relationships::symbol_rows(&index.rows, symbol))
+        })
+    }
+
     /// All stored occurrences, in authored traversal order. Copy only matching
     /// coordinates so consumers can query declarations without retaining an
     /// index lock. Symbol-table parent edges are not storage membership.
     pub(crate) fn state_positions_for_symbol(&self, symbol: SymbolHandle) -> Vec<(u32, u32)> {
-        self.with_state_position_index(|index| {
-            relationships::symbol_rows(&index.rows, symbol)
-                .iter()
-                .map(|(_, position)| *position)
-                .collect()
+        self.with_state_positions_for_symbol(symbol, |positions| {
+            positions.iter().map(|(_, position)| *position).collect()
         })
     }
 

@@ -148,7 +148,12 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                             .any(|arg| contains_reachable_construction(program, *arg))
                         {
                             machine_has_struct_destination_or_call = true;
-                            calls.push((machine.symbol, call.target_symbol, arguments.to_vec()));
+                            calls.push((
+                                machine.symbol,
+                                call.target_symbol,
+                                call.machine_arguments.to_vec(),
+                                arguments.to_vec(),
+                            ));
                         }
                     }
                     StatementNode::Transition(transition) => {
@@ -178,6 +183,7 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                                         calls.push((
                                             machine.symbol,
                                             path.symbol,
+                                            Vec::new(),
                                             arguments.to_vec(),
                                         ));
                                     }
@@ -201,7 +207,12 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
                             .any(|arg| contains_reachable_construction(program, *arg))
                         {
                             machine_has_struct_destination_or_call = true;
-                            calls.push((machine.symbol, call.target_symbol, arguments.to_vec()));
+                            calls.push((
+                                machine.symbol,
+                                call.target_symbol,
+                                call.machine_arguments.to_vec(),
+                                arguments.to_vec(),
+                            ));
                         }
                     }
                 }
@@ -254,13 +265,30 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
     }
     drop(frames);
     drop(checking_context);
-    for (caller, target, arguments) in calls {
+    for (caller, target, static_arguments, arguments) in calls {
         let effects = &caller_effects[*caller_effects_by_machine
             .get(&caller)
             .expect("collected caller effects")];
+        let binders = program.declaration_type_parameters(target).to_vec();
+        // Original generic bodies can retain an explicitly applied call even
+        // after their executable instances have specialized. Its formal types
+        // still belong to the callee: apply the actuals before recording a
+        // constructor destination in the caller. Inferred open calls await
+        // their selected signature rather than leaking foreign binders.
+        if binders.len() != static_arguments.len() {
+            continue;
+        }
+        let mut type_arguments = Vec::with_capacity(binders.len());
+        for (binder, argument) in binders.iter().zip(&static_arguments) {
+            let actual = program
+                .static_operand_type_reference(argument)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            type_arguments.push((binder.symbol, actual));
+        }
         let Some(parameters) = validation::call_target_parameters(program, target) else {
             continue;
         };
+        let parameters = parameters.to_vec();
         let substitutions: Substitutions = if has_value_parameter_data {
             let can_reobserve = arguments
                 .iter()
@@ -287,20 +315,19 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic
         } else {
             Vec::new()
         };
-        destinations.extend(
-            parameters
-                .iter()
-                .zip(arguments)
-                .filter(|(_, argument)| contains_reachable_construction(program, *argument))
-                .map(|(parameter, argument)| {
-                    (
-                        caller,
-                        argument,
-                        parameter.type_reference,
-                        substitutions.clone(),
-                    )
-                }),
-        );
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            if !contains_reachable_construction(program, argument) {
+                continue;
+            }
+            let reference = if type_arguments.is_empty() {
+                parameter.type_reference
+            } else {
+                program
+                    .apply_callable_type(parameter.type_reference, &type_arguments, &[], target)
+                    .map_err(|message| vec![Diagnostic::error(message)])?
+            };
+            destinations.push((caller, argument, reference, substitutions.clone()));
+        }
     }
     let mut diagnostics = Vec::new();
     for (caller, expression, reference, substitutions) in destinations {
@@ -437,9 +464,15 @@ fn fill(
                 let prior =
                     expressions_of(program).construction_required_type_reference(expression);
                 if prior.is_valid() {
-                    if program.normalized_type_identity(prior)
-                        != program.normalized_type_identity(reference)
-                    {
+                    if program.normalized_type_identity(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(prior),
+                    ) != program.normalized_type_identity(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(reference),
+                    ) {
                         diagnostics.push(Diagnostic::error(format!("constructor occurrence has conflicting receiving applications; preserve separate evaluation contexts: {} vs {}", program.normalized_type_identity_text(prior), program.normalized_type_identity_text(reference))));
                         return;
                     }

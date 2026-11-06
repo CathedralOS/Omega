@@ -538,6 +538,21 @@ macro_rules! frame_field_mut {
 pub(crate) use frame_field_mut;
 
 impl<'artifact> TerminalExecution<'artifact> {
+    /// Diagnose wrong results using actual interpreter values, without editing
+    /// the program. The trace is opt-in and bounds each frame's printed values.
+    fn trace_scalar_state(&self, event: std::fmt::Arguments<'_>) {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if !*ENABLED.get_or_init(|| std::env::var_os("OMEGA_TERMINAL_TRACE").is_some()) {
+            return;
+        }
+        eprintln!(
+            "Terminal trace machine={:?} block={:?} {event} scalar_values(first 128)={:?}",
+            self.current_machine,
+            self.current,
+            self.values.iter().take(128).collect::<Vec<_>>(),
+        );
+    }
+
     /// The admitted program's structural catalog, including the selected target
     /// closure's declaration overlays.
     pub(crate) fn structural_types(&self) -> ProgramDeclarations<'_, StructuralTypeDeclaration> {
@@ -1058,12 +1073,14 @@ impl<'artifact> TerminalExecution<'artifact> {
                     .machines()
                     .get(&self.current_machine)
                     .and_then(|machine| machine.block(&self.current))
-                    .and_then(|block| block.operations.get(self.next_operation))
-                    .map(|operation| operation.id);
+                    .and_then(|block| block.operations.get(self.next_operation));
                 TerminalInterpretError::ExecutionSite {
                     machine: self.current_machine,
                     block: self.current,
-                    operation,
+                    operation: operation.map(|operation| operation.id),
+                    operation_tag: operation.map(|operation| {
+                        terminal_semantics::OperationSemanticTag::for_operation(&operation.kind)
+                    }),
                     cause: Box::new(error),
                 }
             });
@@ -1159,6 +1176,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                     &selected
                 };
                 self.validate_case_projections(operation)?;
+                self.trace_scalar_state(format_args!("before operation {:?}", operation.kind));
                 let flow = dispatch_operations!(self, operation, operation.kind;
                                     literal {
                                     OperationKind::ReadScalarApplication { application } => {
@@ -1309,11 +1327,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                                     OperationKind::AtomicAccess {
                                         place,
                                         ref path,
-                                        field,
                                         event,
                                         ..
                                     } => {
-                                        self.execute_atomic_access(operation, place, path, field, event)?;
+                                        self.execute_atomic_access(operation, place, path, event)?;
                                         OperationFlow::Advance
                                     }
                                         }
@@ -1405,6 +1422,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .block(&self.current)
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .terminator;
+            self.trace_scalar_state(format_args!("before terminator {terminator:?}"));
             let flow = match &terminator {
                 Terminator::InvokeNoNormal { .. } => {
                     self.settle_invoke_no_normal(terminator, meter)?

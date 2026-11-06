@@ -13,12 +13,15 @@
 //! formation and the returned live association own its access authority.
 //! Forwarded descriptors still retain their exact existing interpretation.
 
+mod completion_calls;
+mod completions;
 mod descriptor_sources;
 mod incoming_origins;
 mod input_views;
 mod invocation_returns;
 mod loaded_origins;
 mod presence;
+mod relations;
 
 use super::{
     StoredCarrierSource, is_mutable_structural_parameter, loan_owner_path, loan_place_segments,
@@ -44,7 +47,9 @@ pub fn returned_sources(
     facts: &CheckFacts,
     state: &State,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-    Captures { program, facts }.returned(state, &mut Vec::new())
+    relations::complete(program, facts, |captures| {
+        captures.returned(state, &mut Vec::new())
+    })
 }
 
 pub fn call_sources(
@@ -52,7 +57,9 @@ pub fn call_sources(
     facts: &CheckFacts,
     target: SymbolHandle,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-    Captures { program, facts }.target_sources(target, &mut Vec::new())
+    relations::complete(program, facts, |captures| {
+        captures.target_sources(target, &mut Vec::new())
+    })
 }
 
 /// A terminal call has no expression-local holder. Its normal-return capture
@@ -64,30 +71,31 @@ pub(super) fn terminal_call_sources(
     state: &State,
     call: &checked_trees::FlowCallFact,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-    let captures = Captures { program, facts };
-    let flow = captures.flow(state.symbol)?;
-    let machine = program.machine_by_symbol(flow.machine_symbol)?;
-    let target = crate::transition_call_target(
-        program,
-        machine,
-        state,
-        call.statement_index,
-        call.call_ordinal,
-    )?;
-    if captures.return_call(
-        state,
-        call.statement_index,
-        target,
-        ExpressionHandle::invalid(),
-    )? != call
-    {
-        return None;
-    }
-    captures.normal_returns(
-        state,
-        &mut vec![state.symbol],
-        Some((call.statement_index, target)),
-    )
+    relations::complete(program, facts, |captures| {
+        let flow = captures.flow(state.symbol)?;
+        let machine = program.machine_by_symbol(flow.machine_symbol)?;
+        let target = crate::transition_call_target(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        if captures.return_call(
+            state,
+            call.statement_index,
+            target,
+            ExpressionHandle::invalid(),
+        )? != call
+        {
+            return None;
+        }
+        captures.normal_returns(
+            state,
+            &mut vec![state.symbol],
+            Some((call.statement_index, target)),
+        )
+    })
 }
 
 /// Actual captures can remove inactive formal case slots, never create loans.
@@ -96,12 +104,17 @@ pub(super) fn call_result_paths(
     facts: &CheckFacts,
     occurrence: &checked_trees::FlowCallFact,
 ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
-    Captures { program, facts }.call_paths(occurrence, &mut Vec::new())
+    relations::complete(program, facts, |captures| {
+        captures.call_paths(occurrence, &mut Vec::new())
+    })
 }
 
 struct Captures<'capture> {
     program: &'capture dyn crate::CheckingInput,
     facts: &'capture CheckFacts,
+    calls: &'capture completion_calls::CompletionCalls<'capture>,
+    relations: Option<&'capture relations::ReturnRelations>,
+    observed: Option<&'capture relations::EquationObservations>,
 }
 
 /// A formed interpretation can present a different type without renaming its
@@ -131,6 +144,7 @@ struct CapturedReturnPresentation {
     source_type: typed_trees::type_identity::TypeIdentityId,
     endpoint_type: typed_trees::type_identity::TypeIdentityId,
     result_type: typed_trees::type_identity::TypeIdentityId,
+    extent: ReferenceOriginExtent,
 }
 
 impl Captures<'_> {
@@ -150,7 +164,7 @@ impl Captures<'_> {
     fn target_sources(
         &self,
         target: SymbolHandle,
-        active: &mut Vec<SymbolHandle>,
+        _active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         if !crate::call_target_has_checked_body_contract(self.program, target) {
             // An abstract invocation owns its public lifetime relation. Its
@@ -158,14 +172,22 @@ impl Captures<'_> {
             // return graph to inspect. The same declared frontier serves
             // direct requirements, static callbacks and dynamic slots; it
             // neither chooses a provider nor invents a concrete backing.
-            return super::declared_returns::returned_sources(
+            let sources = super::declared_returns::returned_sources(
                 self.program,
                 crate::call_target_parameters(self.program, target)?,
                 crate::call_target_return_type(self.program, target)?,
             )
-            .ok();
+            .ok()?;
+            return Some(sources);
         }
-        self.returned(crate::call_target_state(self.program, target)?, active)
+        let state = crate::call_target_state(self.program, target)?;
+        if let Some(relations) = self.relations {
+            let observed = self.observed?;
+            return Some(relations.approximation(state.symbol, observed));
+        }
+        // Candidate extraction reads only frozen return captures. It cannot
+        // recursively invent another callee's candidate frontier.
+        None
     }
 
     fn returned(
@@ -173,7 +195,13 @@ impl Captures<'_> {
         state: &State,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
+        // A return already on this stack is the same result this frame is
+        // defining. It contributes no second origin set; the active frame
+        // records the non-recursive arms. Depth exhaustion still fails closed.
+        if active.contains(&state.symbol) {
+            return Some(Vec::new());
+        }
+        if active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
         }
         if !crate::normal_completion_possible(self.program, state)? {
@@ -184,9 +212,11 @@ impl Captures<'_> {
             // proof follows completion through nested and other machines, so
             // the declaration owner of a crash-only destination does not
             // matter. Potentially returning machines keep the full capture.
+            if let Some(observed) = self.observed {
+                observed.nonreturning();
+            }
             return Some(Vec::new());
         }
-        active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
         if self.trace_return_state(state) {
             eprintln!(
@@ -194,7 +224,6 @@ impl Captures<'_> {
                 state.symbol, active, result
             );
         }
-        active.pop();
         result
     }
 
@@ -204,18 +233,10 @@ impl Captures<'_> {
         active: &mut Vec<SymbolHandle>,
         selected_site: Option<(usize, typed_trees::statement::TransitionTargetHandle)>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        let mut states = self
+        let borrowed = self
             .facts
             .borrow
-            .states
-            .iter()
-            .filter_map(|(_, candidate)| {
-                (candidate.state_symbol == state.symbol).then_some(candidate)
-            });
-        let borrowed = states.next()?;
-        if states.next().is_some() {
-            return None;
-        }
+            .unique_state_borrow_by_symbol(state.symbol)?;
         let loans = self
             .facts
             .borrow
@@ -331,6 +352,7 @@ impl Captures<'_> {
                             }
                         }
                     }
+                    self.observe_return_invocation(call)?;
                     continue;
                 }
                 let expression = expression?;
@@ -394,9 +416,82 @@ impl Captures<'_> {
                         }
                     }
                 }
+                if let Some(observed) = self.observed {
+                    let value = self.completed_return_value(
+                        state,
+                        statement_index,
+                        transition_target,
+                        expression,
+                    )?;
+                    observed.completed(completions::ReturnCoverage::captured(
+                        &self.facts.flow.control,
+                        value,
+                        |operand| self.completion_calls(operand),
+                    )?);
+                }
             }
         }
         completed.then_some(output)
+    }
+
+    /// A forwarded result also needs the actual operands to complete. A
+    /// constructor around a recursive child cannot establish an empty result.
+    fn observe_return_invocation(&self, call: &checked_trees::FlowCallFact) -> Option<()> {
+        if let Some(observed) = self.observed {
+            observed.completed(completions::ReturnCoverage::invocation(
+                &self.facts.flow.control,
+                call,
+                self.completion_target(call)?,
+                |operand| self.completion_calls(operand),
+            )?);
+        }
+        Some(())
+    }
+
+    fn completion_target(
+        &self,
+        call: &checked_trees::FlowCallFact,
+    ) -> Option<Option<SymbolHandle>> {
+        self.calls.target(call.target_symbol, || {
+            if crate::call_target_has_checked_body_contract(self.program, call.target_symbol) {
+                let state = crate::call_target_state(self.program, call.target_symbol)?;
+                // Exact type-proven absence uses no recursive origin seed;
+                // it does not prove termination or omit evaluated inputs.
+                if self.reference_leaves(state)?.is_empty() {
+                    Some(None)
+                } else {
+                    Some(Some(state.symbol))
+                }
+            } else {
+                Some(None)
+            }
+        })
+    }
+
+    /// Retain the performed occurrence without repeatedly scanning a state's
+    /// calls. Descriptor projections keep their original invocation handle.
+    fn completion_calls(
+        &self,
+        operand: &checked_trees::FlowOperandFact,
+    ) -> Option<Vec<SymbolHandle>> {
+        let control = &self.facts.flow.control;
+        let call =
+            if let checked_trees::FlowOperandCompletion::InvocationResult { invocation, .. } =
+                operand.completion
+            {
+                Some(self.calls.invocation(operand.state_symbol, invocation)?)
+            } else {
+                self.calls
+                    .ordinary(operand)?
+                    .map(|call| control.calls.get(call))
+            };
+        let mut targets = Vec::new();
+        if let Some(call) = call
+            && let Some(target) = self.completion_target(call)?
+        {
+            targets.push(target);
+        }
+        Some(targets)
     }
 
     /// Input-relative results consume the callee's checked or public relation.
@@ -420,7 +515,12 @@ impl Captures<'_> {
         // formation route. An abstract callable has a public signature even
         // without an executable state; its region cannot become an exact
         // pointer merely because the endpoint types happen to match.
+        // A dynamic slot is that same public frontier: its selector is not a
+        // private body whose return occurrence can be matched.
         let callable = crate::call_target_symbol(self.program, call);
+        if self.program.dynamic_slot_by_symbol(callable).is_some() {
+            return Some(None);
+        }
         if crate::call_target_parameters(self.program, callable).is_none()
             || crate::call_target_return_type(self.program, callable).is_none()
         {
@@ -936,8 +1036,13 @@ impl Captures<'_> {
                     let mut source_identity =
                         self.program.normalized_type_identity(captured.backing);
                     let extent = if let Some(presentation) = &origin.presentation
-                        && !presentation.path.is_empty()
+                        && (!presentation.path.is_empty()
+                            || presentation.extent == ReferenceOriginExtent::WithinRegion)
                     {
+                        // A completed call can return a different referent
+                        // family from within its declared input region. Keep
+                        // that checked relation even without a field path;
+                        // the returned descriptor still owns the address.
                         if self.program.normalized_type_identity(captured.presentation)
                             != presentation.source_type
                             || presentation.result_type != leaf.source.type_identity
@@ -1282,15 +1387,7 @@ impl Captures<'_> {
     }
 
     fn flow(&self, state: SymbolHandle) -> Option<&checked_trees::FlowStateFact> {
-        let mut states = self
-            .facts
-            .flow
-            .control
-            .states
-            .iter()
-            .filter_map(|(_, flow)| (flow.state_symbol == state).then_some(flow));
-        let flow = states.next()?;
-        states.next().is_none().then_some(flow)
+        self.facts.flow.control.unique_state_by_symbol(state)
     }
 
     /// Compare every returned loan in the declared result owner's coordinates.

@@ -197,12 +197,7 @@ fn read_term(
                     Some(binary(
                         BinaryOperator::Equal,
                         operand,
-                        StructuralTerm::Constructor {
-                            declaration: None,
-                            data: "bool".to_owned(),
-                            case: "false".to_owned(),
-                            fields: Vec::new(),
-                        },
+                        StructuralTerm::boolean(false),
                     ))
                 }
                 // Opaque and source-selected operations have no builtin
@@ -222,10 +217,5 @@ fn binary(operator: BinaryOperator, left: StructuralTerm, right: StructuralTerm)
 }
 
 fn boolean(value: bool) -> StructuralTerm {
-    StructuralTerm::Constructor {
-        declaration: None,
-        data: "bool".to_owned(),
-        case: value.to_string(),
-        fields: Vec::new(),
-    }
+    StructuralTerm::boolean(value)
 }

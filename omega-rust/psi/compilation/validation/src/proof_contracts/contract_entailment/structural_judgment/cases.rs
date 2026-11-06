@@ -79,12 +79,7 @@ impl StructuralJudge<'_> {
         let Some(subject) = self.declaration_term(binary.left) else {
             return;
         };
-        Arc::make_mut(&mut self.case_facts).push(CaseFact {
-            subject: subject.clone(),
-            data: definition.symbol,
-            case: variant.symbol,
-            holds,
-        });
+        self.intake_observed_case(subject.clone(), definition.symbol, variant.symbol, holds);
         // Only a successful tag test on a carrier without common or payload
         // fields describes a whole value. Exclusion never constructs a value.
         if !holds
@@ -96,7 +91,17 @@ impl StructuralJudge<'_> {
         {
             return;
         }
-        let value = structural_terms::constructed_term(definition, Some(variant), Vec::new());
+        let Some(identity) =
+            super::ConstructorIdentity::nominal(program, definition, Some(variant))
+        else {
+            return;
+        };
+        let value = StructuralTerm::Constructor {
+            identity,
+            data: definition.name.as_str().to_owned(),
+            case: variant.name.as_str().to_owned(),
+            fields: Vec::new(),
+        };
         self.intake_case_equation(subject.clone(), value.clone(), 0);
         self.intake_equation(subject, value, 0);
     }
@@ -308,12 +313,28 @@ impl StructuralJudge<'_> {
         &mut self,
         guarantee: &CaseGuarantee,
     ) {
+        self.intake_observed_case(
+            guarantee.subject.clone(),
+            guarantee.data,
+            guarantee.case,
+            true,
+        );
+    }
+
+    pub(super) fn intake_observed_case(
+        &mut self,
+        subject: StructuralTerm,
+        data: SymbolHandle,
+        case: SymbolHandle,
+        holds: bool,
+    ) {
         Arc::make_mut(&mut self.case_facts).push(CaseFact {
-            subject: guarantee.subject.clone(),
-            data: guarantee.data,
-            case: guarantee.case,
-            holds: true,
+            subject,
+            data,
+            case,
+            holds,
         });
+        self.activate_conditional_guarantees();
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn judge_case(
@@ -338,37 +359,10 @@ impl StructuralJudge<'_> {
         } else {
             subject
         };
-        if let StructuralTerm::Constructor {
-            declaration,
-            data,
-            case,
-            ..
-        } = &subject
-        {
-            // Construction already selected this exact data and case. Legacy
-            // name-only values still require a unique owner; another checked
-            // context with the same spelling cannot choose it for them.
-            let Some(observed) =
-                structural_terms::constructor_declaration(self.program, *declaration, data, case)
-            else {
-                if super::super::struct_trace() {
-                    eprintln!(
-                        "STRUCT constructor-case-refused data={data} case={case} declaration={declaration:?} classifier_data={data_symbol:?} classifier_case={case_symbol:?}"
-                    );
-                }
-                return StructuralJudgment::Unknown;
-            };
-            if super::super::struct_trace() {
-                eprintln!(
-                    "STRUCT constructor-case selected={observed:?} classifier_data={data_symbol:?} classifier_case={case_symbol:?}"
-                );
-            }
-            if observed.data != data_symbol {
-                return StructuralJudgment::Unknown;
-            }
-            return match observed.case {
-                Some(observed) if observed == case_symbol => StructuralJudgment::Proven,
-                Some(_) => StructuralJudgment::Refuted,
+        if let StructuralTerm::Constructor { identity, .. } = &subject {
+            return match identity.matches_case(self.program, data_symbol, case_symbol) {
+                Some(true) => StructuralJudgment::Proven,
+                Some(false) => StructuralJudgment::Refuted,
                 None => StructuralJudgment::Unknown,
             };
         }
@@ -459,21 +453,16 @@ impl StructuralJudge<'_> {
             }
             (
                 StructuralTerm::Constructor {
-                    data: _,
-                    case: left_case,
+                    identity: left_identity,
                     fields: left_fields,
                     ..
                 },
                 StructuralTerm::Constructor {
-                    data: _,
-                    case: right_case,
+                    identity: right_identity,
                     fields: right_fields,
                     ..
                 },
-            ) if structural_terms::same_constructor_data(self.program, &left, &right)
-                && left_case == right_case
-                && left_fields.len() == right_fields.len() =>
-            {
+            ) if left_identity == right_identity && left_fields.len() == right_fields.len() => {
                 for (name, left) in left_fields {
                     if let Some((_, right)) = right_fields.iter().find(|(field, _)| field == name) {
                         self.intake_case_equation(left.clone(), right.clone(), depth + 1);
@@ -678,12 +667,14 @@ mod constructor_identity_tests {
             .is_none()
         );
         let mut invalid = value.clone();
-        if let StructuralTerm::Constructor {
-            declaration: Some(declaration),
-            ..
-        } = &mut invalid
-        {
-            declaration.case = Some(cases[1].handle_at(0));
+        if let StructuralTerm::Constructor { identity, .. } = &mut invalid {
+            let definition = context.data_definition_by_symbol(owners[1]).unwrap();
+            let DataMember::Variant(variant) = &context.data_members(definition)[0] else {
+                unreachable!()
+            };
+            *identity =
+                super::super::ConstructorIdentity::nominal(&context, definition, Some(variant))
+                    .unwrap();
         }
         assert!(matches!(
             judge.judge_case(invalid, owners[0], cases[0].handle_at(0)),
@@ -695,14 +686,14 @@ mod constructor_identity_tests {
         else {
             panic!("zero representation lost its constructor");
         };
-        let legacy = StructuralTerm::Constructor {
-            declaration: None,
+        let display_only = StructuralTerm::Constructor {
+            identity: super::super::ConstructorIdentity::Boolean(false),
             data,
             case,
             fields,
         };
         assert!(matches!(
-            judge.judge_case(legacy, owners[0], cases[0].handle_at(0)),
+            judge.judge_case(display_only, owners[0], cases[0].handle_at(0)),
             StructuralJudgment::Unknown
         ));
     }

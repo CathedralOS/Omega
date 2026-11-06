@@ -182,6 +182,22 @@ impl TerminalExecution<'_> {
         structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Result<StructuralAccess, TerminalInterpretError> {
+        let authority = self.storage_carrier_access(place, structural_type, path)?;
+        // Following a stored pointer observes its carrier. A write-only entry
+        // may lend its own array cells, but cannot reveal a stored descriptor.
+        (authority != StructuralAccess::WriteOnlyBorrow)
+            .then_some(authority)
+            .ok_or_else(malformed)
+    }
+
+    /// Retaining backing metadata needs the exact live subtree and its access
+    /// ceiling, without observing payload or consuming the owning claim.
+    pub(crate) fn storage_carrier_access(
+        &self,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Result<StructuralAccess, TerminalInterpretError> {
         let machine = self.program.machine(self.current_machine)?;
         let mut authority = StructuralAccess::Owned;
         if let Some(parameter) = machine
@@ -192,7 +208,9 @@ impl TerminalExecution<'_> {
                 || parameter.multiplicity == StructuralMultiplicity::Linear
                 || !matches!(
                     parameter.access,
-                    terminal_psi::reading_borrow_pair_pattern!()
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
                 )
             {
                 return Err(malformed());
@@ -426,7 +444,8 @@ impl TerminalExecution<'_> {
                 &argument,
                 identity_cursor,
                 &mut RuntimeRows::new(self.account.as_ref()),
-            )?
+            )
+            .map_err(|error| error.in_reference_formation("capture collection backing"))?
         } else {
             None
         };
@@ -533,7 +552,9 @@ impl TerminalExecution<'_> {
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
             };
-            let mut loan = self.capture_primitive_loan(&parameter, source, identity_cursor)?;
+            let mut loan = self
+                .capture_primitive_loan(&parameter, source, identity_cursor)
+                .map_err(|error| error.in_reference_formation("capture scalar backing"))?;
             if let Some(storage) = storage {
                 let stored_scalar = storage.stored_scalar.ok_or_else(malformed)?;
                 let crate::boundary::values::TerminalScalarValue::Integer {
@@ -564,7 +585,8 @@ impl TerminalExecution<'_> {
                     usize::try_from(byte_offset).map_err(|_| malformed())?,
                     stored_scalar,
                     logical_scalar,
-                )?;
+                )
+                .map_err(|error| error.in_reference_formation("position scalar storage view"))?;
                 loan.referent.structural_type = referent_type;
             }
             loan.access = access;
@@ -661,7 +683,13 @@ impl TerminalExecution<'_> {
                     || offset_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
                     || !compatible
                 {
-                    return Err(malformed());
+                    return Err(TerminalInterpretError::ReferenceFormation {
+                        stage: "validate aggregate storage view",
+                        detail: format!(
+                            "source_type={original_type:?}, reference={reference_type:?}, offset_type={offset_type:?}, compatible={compatible}: {:?}",
+                            malformed()
+                        ),
+                    });
                 }
                 let byte_length = usize::try_from(
                     terminal_semantics::reference_storage_size(
@@ -693,7 +721,12 @@ impl TerminalExecution<'_> {
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
                     };
-                    Some(self.capture_primitive_loan(&parameter, source, identity_cursor)?)
+                    Some(
+                        self.capture_primitive_loan(&parameter, source, identity_cursor)
+                            .map_err(|error| {
+                                error.in_reference_formation("capture byte endpoint")
+                            })?,
+                    )
                 } else {
                     None
                 };
@@ -705,12 +738,16 @@ impl TerminalExecution<'_> {
                         access,
                         ..backing_source.clone()
                     };
-                    collection_loan = self.prepare_scalar_array_reference(
-                        original_type,
-                        &argument,
-                        identity_cursor,
-                        &mut RuntimeRows::new(self.account.as_ref()),
-                    )?;
+                    collection_loan = self
+                        .prepare_scalar_array_reference(
+                            original_type,
+                            &argument,
+                            identity_cursor,
+                            &mut RuntimeRows::new(self.account.as_ref()),
+                        )
+                        .map_err(|error| {
+                            error.in_reference_formation("capture aggregate collection backing")
+                        })?;
                 }
                 let (projected, projected_view) = match &byte_loan {
                     Some(loan) => (loan.referent.clone(), None),
@@ -741,7 +778,33 @@ impl TerminalExecution<'_> {
                     .checked_add(usize::try_from(array_offset).map_err(|_| malformed())?)
                     .ok_or_else(malformed)?;
                 let captured = self.reference_byte_region(&projected)?;
-                if captured.is_none() && !byte_endpoint {
+                let resident_array = if captured.is_none()
+                    && let Some(loan) = byte_loan.as_ref().filter(|loan| {
+                        loan.storage.encoding.is_none()
+                            && matches!(
+                                loan.storage.endpoint,
+                                crate::storage::primitive_storage::PrimitiveStorageEndpoint::Scalar(
+                                    _
+                                )
+                            )
+                    }) {
+                    self.capture_resident_array_region(
+                        source,
+                        loan,
+                        referent_type,
+                        byte_offset,
+                        byte_length,
+                        access,
+                        identity_cursor,
+                    )?
+                } else {
+                    None
+                };
+                if let Some((backing, loan, region)) = resident_array {
+                    collection_loan = Some((backing.clone(), loan));
+                    aggregate_view = Some(region);
+                    region_referent = Some(backing);
+                } else if captured.is_none() && !byte_endpoint {
                     // Aggregate storage with identical geometry keeps its own
                     // typed cells: the view names that whole backing under
                     // its declaration, and crossings retain the selected window.
@@ -801,7 +864,10 @@ impl TerminalExecution<'_> {
                         )
                     } else {
                         let mut loan = byte_loan.ok_or_else(malformed)?;
-                        self.position_reference_storage(&mut loan, byte_offset, byte_length)?;
+                        self.position_reference_storage(&mut loan, byte_offset, byte_length)
+                            .map_err(|error| {
+                                error.in_reference_formation("position aggregate byte region")
+                            })?;
                         (
                             loan.referent,
                             ReferenceByteRegion {
@@ -993,11 +1059,156 @@ impl TerminalExecution<'_> {
                     reference_type,
                 ))
         {
+            // Distinguish a missing emitted membership from a different runtime
+            // source. Inspect bounded metadata only after the original refusal.
+            let summarize_memberships =
+                |whole: &[semantic_vocabulary::StructuralDomainId],
+                 paths: &[terminal_psi::StructuralPathQualification]| {
+                    (
+                        whole.len(),
+                        whole.iter().take(4).copied().collect::<Vec<_>>(),
+                        paths.len(),
+                        paths
+                            .iter()
+                            .take(4)
+                            .map(|row| {
+                                (
+                                    row.domain,
+                                    row.path.len(),
+                                    row.path.iter().take(4).cloned().collect::<Vec<_>>(),
+                                )
+                            })
+                            .collect::<Vec<_>>(),
+                    )
+                };
+            let describe_declaration = |machine: &terminal_psi::TerminalMachine, place| {
+                machine
+                    .structural_parameter(place)
+                    .map(|parameter| {
+                        (
+                            "parameter",
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                            None,
+                            summarize_memberships(
+                                &parameter.qualifications,
+                                &parameter.projected_qualifications,
+                            ),
+                        )
+                    })
+                    .or_else(|| {
+                        let (operation, _) = machine.producing_operation(place)?;
+                        let result = operation.result.structural()?;
+                        Some((
+                            terminal_semantics::OperationSemanticTag::for_operation(
+                                &operation.kind,
+                            )
+                            .name(),
+                            result.structural_type,
+                            result.multiplicity,
+                            Some(operation.id),
+                            summarize_memberships(
+                                &result.qualifications,
+                                &result.projected_qualifications,
+                            ),
+                        ))
+                    })
+            };
+            let machine = self.program.machine(self.current_machine).ok();
+            let declared_source =
+                machine.and_then(|machine| describe_declaration(machine, source.place));
+            // These are catalogued store candidates, not a replay of the path
+            // taken. Their coordinates identify the supplying initializer.
+            let mut whole_store_count = 0usize;
+            let mut whole_stores = Vec::new();
+            if let Some(machine) = machine {
+                for block in &machine.blocks {
+                    for (ordinal, operation) in block.operations.iter().enumerate() {
+                        if let terminal_psi::OperationKind::StoreStructuralField {
+                            destination,
+                            path,
+                            field: None,
+                            value,
+                            ..
+                        } = &operation.kind
+                            && *destination == source.place
+                            && path.is_empty()
+                        {
+                            whole_store_count += 1;
+                            if whole_stores.len() < 4 {
+                                whole_stores.push((
+                                    block.id,
+                                    ordinal,
+                                    operation.id,
+                                    value.place,
+                                    value.access,
+                                    value.path.len(),
+                                    value.path.iter().take(4).cloned().collect::<Vec<_>>(),
+                                    describe_declaration(machine, value.place),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            let runtime_source = self.structural_values.get(&source.place).map(|value| {
+                (
+                    value.opaque_identity,
+                    value.structural_type,
+                    value.path.len(),
+                    summarize_memberships(&value.qualifications, &value.projected_qualifications),
+                )
+            });
+            let packed_source = self.scalar_array_values.get(&source.place).map(|array| {
+                (
+                    array.structural_type,
+                    array.len(),
+                    array.qualifications.len(),
+                    array
+                        .qualifications
+                        .iter()
+                        .take(4)
+                        .copied()
+                        .collect::<Vec<_>>(),
+                )
+            });
+            let captured_array_home = collection_loan.as_ref().map(|(_, loan)| {
+                (
+                    loan.len(),
+                    loan.access(),
+                    loan.descriptor_home().map(|home| {
+                        (
+                            home.opaque_identity,
+                            home.structural_type,
+                            home.path.len(),
+                            summarize_memberships(
+                                &home.qualifications,
+                                &home.projected_qualifications,
+                            ),
+                        )
+                    }),
+                )
+            });
+            let source_array_home = self
+                .element_view_values
+                .get(&source.place)
+                .and_then(|loan| loan.descriptor_home())
+                .map(|home| {
+                    (
+                        home.opaque_identity,
+                        home.structural_type,
+                        home.path.len(),
+                        summarize_memberships(&home.qualifications, &home.projected_qualifications),
+                    )
+                });
             return Err(TerminalInterpretError::ReferenceFormation {
                 stage: "validate captured reference contract",
                 detail: format!(
-                    "source={source:?}, referent={:?}, reference={reference_type:?}, required={required_projected:?}, observed={projected:?}",
-                    referent.structural_type
+                    "source={source:?}, referent={:?}, reference={reference_type:?}, required={required_projected:?}, observed={projected:?}; declared_source={declared_source:?}, runtime_source={runtime_source:?}, packed_source={packed_source:?}, source_has_array_companion={}, source_has_aggregate_backing={}, requested_roster={:?}, captured_array_home={captured_array_home:?}, source_array_home={source_array_home:?}, static_whole_store_count={whole_store_count}, first_static_whole_stores={whole_stores:?}",
+                    referent.structural_type,
+                    self.element_view_values.contains_key(&source.place),
+                    self.aggregate_argument_backings.contains_key(&source.place),
+                    summarize_memberships(&[], projected_qualifications),
                 ),
             });
         }
@@ -1015,6 +1226,107 @@ impl TerminalExecution<'_> {
                 aggregate_view,
             },
         })
+    }
+
+    /// An indexed byte can belong to a resident array whose initialized cells
+    /// are stored separately. Keep that array's own extent and identity for a
+    /// wider reborrow; the selected scalar cell remains exactly one byte.
+    fn capture_resident_array_region(
+        &self,
+        source: &StructuralArgument,
+        byte_loan: &crate::storage::primitive_storage::PrimitiveLoan,
+        referent_type: StructuralTypeId,
+        byte_offset: usize,
+        byte_length: usize,
+        access: StructuralAccess,
+        identity_cursor: &mut Option<u64>,
+    ) -> Result<
+        Option<(
+            TerminalStructuralValue,
+            crate::storage::element_views::ElementView,
+            AggregateViewRegion,
+        )>,
+        TerminalInterpretError,
+    > {
+        let Some((StructuralPathSegment::FixedIndex(index), prefix)) = source.path.split_last()
+        else {
+            return Ok(None);
+        };
+        let types = self.structural_types();
+        let Some(array) = terminal_semantics::runtime_structural_path_tip(
+            types.values(),
+            self.live_structural_type(source.place)?,
+            prefix,
+        ) else {
+            return Ok(None);
+        };
+        let StructuralTypeShape::FixedArray {
+            element,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        } = array.shape
+        else {
+            return Ok(None);
+        };
+        if element != byte_loan.referent.structural_type
+            || !matches!(
+                self.structural_declaration(element)?.shape,
+                StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
+                    if integer.bits() == 8
+                        && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                        && !integer.is_address()
+            )
+        {
+            return Ok(None);
+        }
+        let parent = StructuralArgument {
+            place: source.place,
+            path: prefix.to_vec(),
+            access,
+        };
+        let Some((backing, loan)) = self.prepare_scalar_array_reference(
+            array.id,
+            &parent,
+            identity_cursor,
+            &mut RuntimeRows::new(self.account.as_ref()),
+        )?
+        else {
+            return Ok(None);
+        };
+        let offset = usize::try_from(*index)
+            .ok()
+            .and_then(|index| index.checked_add(byte_offset))
+            .ok_or_else(malformed)?;
+        let mut region = AggregateViewRegion::whole(&types, referent_type).ok_or_else(malformed)?;
+        region.byte_offset = u64::try_from(offset).map_err(|_| malformed())?;
+        let mut selected = StructuralRuntimePlace::from(&backing);
+        selected
+            .path
+            .push(StructuralPathSegment::FixedIndex(*index));
+        if !matches!(
+            &byte_loan.storage.endpoint,
+            crate::storage::primitive_storage::PrimitiveStorageEndpoint::Scalar(cell)
+                if *cell == selected && selected == StructuralRuntimePlace::from(&byte_loan.referent)
+        ) {
+            return Err(TerminalInterpretError::ReferenceFormation {
+                stage: "capture resident array region",
+                detail: "the selected byte does not belong to the captured array".into(),
+            });
+        }
+        // A previously captured byte window cannot be widened by rediscovering
+        // its array declaration. Its own region must supply the reborrow.
+        if *index >= length
+            || u64::try_from(loan.len()).ok() != Some(length)
+            || region.byte_length != u64::try_from(byte_length).map_err(|_| malformed())?
+            || !region.fits(&types, backing.structural_type)
+            || self.reference_byte_region(&backing)?.is_some()
+        {
+            return Err(TerminalInterpretError::ReferenceFormation {
+                stage: "capture resident array region",
+                detail: "the selected region exceeds its original array or retains a narrower byte window"
+                    .into(),
+            });
+        }
+        Ok(Some((backing, loan, region)))
     }
 
     pub(crate) fn establish_reference(
@@ -1043,7 +1355,9 @@ impl TerminalExecution<'_> {
             )
             .map_err(|error| TerminalInterpretError::ReferenceFormation {
                 stage: "establish reference",
-                detail: format!("source={source:?} result={result:?}: {error:?}"),
+                detail: format!(
+                    "source={source:?} result={result:?} storage={storage:?}: {error:?}"
+                ),
             })?;
         self.local_structural_identities
             .commit_cursor(identity_cursor);
@@ -1213,6 +1527,36 @@ impl TerminalExecution<'_> {
         argument: &StructuralArgument,
         expected: StructuralTypeId,
     ) -> Result<(TerminalStructuralValue, Option<AggregateBacking>), TerminalInterpretError> {
+        // Presentation cannot turn a reserved home into a completed value.
+        // Check the exact owned region before crossing into borrowed backing.
+        // An unresolved selector conservatively requires the containing array,
+        // rather than treating a dynamic coordinate as a missing claim.
+        let owned_prefix = &argument.path[..argument
+            .path
+            .iter()
+            .position(|step| {
+                !matches!(
+                    step,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::Case(_)
+                )
+            })
+            .unwrap_or(argument.path.len())];
+        let machine = self.program.verified_machine(self.current_machine)?;
+        let caller_owned_borrow = argument.access != StructuralAccess::Owned
+            && terminal_semantics::arrival_parameter(machine, argument.place)
+                .is_some_and(|parameter| parameter.access != StructuralAccess::Owned);
+        if !caller_owned_borrow {
+            self.validate_complete_owned_value_claims(
+                argument.place,
+                self.live_structural_type(argument.place)?,
+                owned_prefix,
+            )?;
+        }
+        // Borrowed ingress may lend the caller's resident value without
+        // acquiring its claims in this frame. This exemption applies only to
+        // a borrowed presentation, never to owned transport or return.
         let projected = self.resolve_live_projection_with_leaf_type(
             argument.place,
             &argument.path,

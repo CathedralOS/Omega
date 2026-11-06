@@ -76,11 +76,11 @@ pub(crate) use result_type::{
 mod scalar_observations;
 
 pub use match_dispatch::match_subject_primitive_type;
-pub use match_dispatch::validate_match_dispatch;
 pub use match_dispatch::{
     structural_match_cases_are_covered, structural_match_pattern_case,
     structural_match_pattern_is_total, structural_match_subject_type,
 };
+pub use match_dispatch::{validate_match_coverage, validate_match_dispatch};
 pub use result_type::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,

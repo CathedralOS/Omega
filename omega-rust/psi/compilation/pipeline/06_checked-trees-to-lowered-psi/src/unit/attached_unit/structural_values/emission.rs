@@ -854,7 +854,7 @@ fn prepare_owners(
         if evaluation
             .retired_structural_bindings
             .iter()
-            .any(|binding| binding.symbol == symbol)
+            .any(|binding| binding.root == facts::PlaceRoot::Symbol(symbol))
         {
             return Ok(false);
         }
@@ -1159,7 +1159,7 @@ fn prepare_owners(
                 .retired_structural_bindings
                 .iter()
                 .any(|retired| {
-                    retired.symbol == local.symbol
+                    retired.root == facts::PlaceRoot::Symbol(local.symbol)
                         && retired.statement == Some(local.statement_index)
                         && retired.end == argument_evaluation::StructuralBindingEnd::RetiredHome
                 })

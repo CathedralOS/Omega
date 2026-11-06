@@ -6,8 +6,7 @@ description: Audit worker, subagent, and cloud-session diffs before marking any 
 # Coordinator Review Gate
 
 When one coordinator session controls threads, subagents, sub-sessions, or cloud
-sessions (`local-swarm`, `dot-swarm`, `claude-swarm`, `codex-swarm`,
-`cursor-swarm`, `devin-swarm`), the coordinator is not a passive message router.
+sessions ([`swarm`](../swarm/SKILL.md)), the coordinator is not a passive message router.
 **The coordinator is the mandatory code-review and landing gate.**
 
 Workers (especially fast/lightweight models or parallel sessions racing to close
@@ -126,6 +125,16 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 - **Stage 05/06 ratchets:** Confirm no new shape gates or source-context reads
   were added in violation of stage ratchets, and no production boundary checks
   were bypassed.
+- **Capability notices:** `check_rules.py` prints a notice when compiler Rust
+  closes nothing that existed at the base (no row turned green, no control newly
+  rejecting for its pin or changing its diagnostic, no `TASKS.md` line deleted).
+  - `… pinned only on N row(s) it adds`: the PR body names the existing failing
+    row, sample or acceptance it closes, or the behavior no existing fixture
+    covered. A repair whose only customer is its own new fixture is per-case
+    glue: return it to the worker.
+  - `… changes no corpus outcome`: accept it only as performance or
+    restructuring work with its measurement in the PR body. Any other repair
+    with no observable outcome goes back to the worker.
 - **Monotonic `TASKS.md` closure:** Confirm a `TASKS.md` bullet is deleted only
   when all nine places and nine reject twins pass and are pinned under
   `tests/omega/{pass,fail}/facts/`, and never rewritten into `"preserving /
@@ -158,10 +167,10 @@ recurring agent failure pattern along the path to compiler completion
    Put shared rules and decision-making framing in `AGENTS.md` so every agent in
    the repository inherits them, and keep [advance](../advance/SKILL.md) focused
    strictly on the step-by-step execution workflow.
-2. **Keep swarm skills thin:** Never copy workflow patches into the six platform
-   swarm skills (`local-swarm`, `dot-swarm`, `claude-swarm`, `codex-swarm`,
-   `cursor-swarm`, `devin-swarm`). Those skills only describe platform session
-   mechanics and point to `/advance` and `coordinator-review`.
+2. **Keep the swarm skill thin:** Never copy workflow patches into
+   [`swarm`](../swarm/SKILL.md) or its platform setup references. Those files
+   only describe platform session mechanics and point to `/advance` and
+   `coordinator-review`.
 3. **Prefer mechanical admission checks where possible:** When a recurring
    mistake can be detected deterministically (such as `+wt` stamps or `unexpected`
    rows in `corpus_outcomes.txt`), enforce it in `tools/check_rules.py` as well as

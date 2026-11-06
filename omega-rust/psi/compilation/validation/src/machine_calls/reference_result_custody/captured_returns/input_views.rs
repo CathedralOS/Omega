@@ -200,6 +200,7 @@ impl Captures<'_> {
                         source_type: self.program.normalized_type_identity(backing_type),
                         endpoint_type: presentation.endpoint_type,
                         result_type: presentation.result_type,
+                        extent: presentation.extent,
                     };
                     let mut physical_relative = relative.clone();
                     physical_relative.segments.clear();

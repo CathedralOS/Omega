@@ -471,8 +471,10 @@ pub(super) fn validate<'a, 'p>(
                 diagnostics,
             );
         }
-        // A plain record can restore its predicate over several stores.
-        // Atomic residents must remain valid after each individual event.
+        // Ordinary record writes may open a restoration window; the whole
+        // predicate is proved before the next consumption. An atomic update
+        // publishes its resident immediately and must preserve it at this event.
+        // The field's own range and physical storage fit were checked above.
         if atomic.is_some()
             && let Some(stated) = current_state.and_then(|state| {
                 crate::proof_contracts::default_domains::stored_field_where_interval(

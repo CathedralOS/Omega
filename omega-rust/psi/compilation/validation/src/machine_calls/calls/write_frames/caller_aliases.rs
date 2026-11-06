@@ -4,6 +4,7 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
+use super::isolation::local_storage_is_caller_isolated;
 pub use super::place_paths::{RecastSource, ReferenceViewFormation};
 use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix};
 use super::{
@@ -881,6 +882,19 @@ impl CallOriginContext<'_> {
         close_over_origins(program, paths, self.aliases, self.divergent, self.stored)
     }
 
+    /// A scalar accessor changes its selected contents, not pointers hidden
+    /// inside its opaque capability. Its captured origins already name the
+    /// write; retain observer aliases without following the capability again.
+    pub fn close_scalar_access_paths(&self, paths: Vec<String>) -> Vec<String> {
+        close_observer_aliases(
+            paths.clone(),
+            paths,
+            self.aliases,
+            self.divergent,
+            self.stored,
+        )
+    }
+
     /// Expand finite local referents before a state summary filters private
     /// roots. Do not back-map canonical writes to coarse aggregate aliases;
     /// that observer-only closure belongs to the public demand boundary.
@@ -1111,7 +1125,7 @@ fn preceding_isolated_locals(
         .iter()
         .filter_map(|statement| match statement {
             StatementNode::LocalData(local)
-                if type_is_caller_isolated_local(program, local.type_reference) =>
+                if local_storage_is_caller_isolated(program, local.type_reference) =>
             {
                 Some(local.name.as_str().to_owned())
             }
@@ -1150,6 +1164,18 @@ fn close_over_origins(
                 .collect::<Vec<_>>()
         }))
         .collect::<Vec<_>>();
+    Some(close_observer_aliases(
+        written, canonical, aliases, divergent, stored,
+    ))
+}
+
+fn close_observer_aliases(
+    written: Vec<String>,
+    canonical: Vec<String>,
+    aliases: &[(String, FramePlaceOrigin)],
+    divergent: &[(String, Vec<FramePlaceOrigin>)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<String> {
     let mut closed = written;
     for path in canonical {
         if !closed.contains(&path) {
@@ -1213,7 +1239,7 @@ fn close_over_origins(
             }
         }
     }
-    Some(closed)
+    closed
 }
 
 /// The prefix evidence a boundary site established: the enclosing state plus

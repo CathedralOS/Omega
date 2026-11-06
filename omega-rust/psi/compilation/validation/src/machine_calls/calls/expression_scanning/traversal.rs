@@ -61,6 +61,109 @@ pub(super) fn is_declaration_namespace(
             .all(is_namespace)
 }
 
+/// Reject a name that is not a value, type, or declaration in this state.
+///
+/// The scan and the dispatch-subject completion fence share this check. A
+/// missing root leaves the surrounding comparison without a storage type;
+/// the fence must report this obligation rather than that consequence.
+pub(crate) fn report_unresolved_name_use(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    prior_statements: &[StatementNode],
+    symbols: &TopLevelSymbols<'_>,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
+    // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
+    // as 0/garbage. Reject it when it is none of the legal bare-name forms. The scope
+    // is the current state; retained foreign binding identities cannot be
+    // replaced by a coincidentally matching spelling. Qualified paths check
+    // their root too, so member access cannot hide an implicit capture.
+    if let Some(path) = expression_table(program).name_path_node(expression)
+        && let Some(first) = expression_table(program)
+            .name_path_members(path.members)
+            .first()
+    {
+        let name = first.as_str();
+        let root = if path.head_symbol.is_valid() {
+            path.head_symbol
+        } else {
+            path.symbol
+        };
+        let bare_identity_matches = expression_table(program)
+            .name_path_members(path.members)
+            .len()
+            != 1
+            || !path.head_symbol.is_valid()
+            || path.head_symbol == path.symbol;
+        if language_semantics::const_value::boolean_literal_spelling(name).is_none()
+            && (!bare_identity_matches
+                || !crate::value_custody::locals::state_value_root_is_known(
+                    program,
+                    machine,
+                    state,
+                    prior_statements,
+                    symbols,
+                    root,
+                    name,
+                ))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` uses `{name}`, which is not a declared local, parameter, field, or type in this state (check the spelling)",
+                machine.name.as_str(),
+                state.name.as_str(),
+            )));
+        }
+        // Static paths cannot continue through a runtime binding. Dot fields
+        // remain Member expressions; synthesized runtime Names have one member.
+        // Reuse the exact root reconstructed above, including a retained leaf
+        // when the head is absent, so malformed custody cannot hide the binding.
+        if expression_table(program)
+            .name_path_members(path.members)
+            .len()
+            > 1
+            && crate::value_custody::locals::state_binding_type(
+                program,
+                state,
+                prior_statements,
+                root,
+            )
+            .is_some()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
+                 use `.` to select a field or callable through a value",
+                machine.name.as_str(),
+                state.name.as_str(),
+            )));
+        }
+    }
+    // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
+    // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
+    // substituted const resolves to a valid symbol before this stage; an
+    // unresolved `Scope::tail` -- a bogus case (`Signal::Blue`) or a typo -- keeps BOTH the
+    // head and leaf symbols invalid and would silently read 0 (ZII) in value
+    // position (native AND interpreter agree, so the differential cannot catch
+    // it). Reject exactly that shape: both symbols unresolved.
+    if let Some(path) = expression_table(program).name_path_node(expression)
+        && let [scope, tail] = expression_table(program).name_path_members(path.members)
+        && !path.head_symbol.is_valid()
+        && !path.symbol.is_valid()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` uses `{}::{}`, which resolves to no case or \
+             constant -- it would silently read 0 (ZII). Check the spelling and \
+             ensure the declaration is imported",
+            machine.name.as_str(),
+            state.name.as_str(),
+            scope.as_str(),
+            tail.as_str(),
+        )));
+    }
+}
+
 /// FROZEN DECISION 13 residue (value-position complement of `validate_call_node`).
 ///
 /// Walk every expression in every statement of `state` and enforce
@@ -387,92 +490,15 @@ impl ScanContext<'_> {
                 primitive.name(),
             )));
         }
-        // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
-        // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
-        // as 0/garbage. Reject it when it is none of the legal bare-name forms. The scope
-        // is the current state; retained foreign binding identities cannot be
-        // replaced by a coincidentally matching spelling. Qualified paths check
-        // their root too, so member access cannot hide an implicit capture.
-        if let Some(path) = expression_table(program).name_path_node(expression)
-            && let Some(first) = expression_table(program)
-                .name_path_members(path.members)
-                .first()
-        {
-            let name = first.as_str();
-            let root = if path.head_symbol.is_valid() {
-                path.head_symbol
-            } else {
-                path.symbol
-            };
-            let bare_identity_matches = expression_table(program)
-                .name_path_members(path.members)
-                .len()
-                != 1
-                || !path.head_symbol.is_valid()
-                || path.head_symbol == path.symbol;
-            if language_semantics::const_value::boolean_literal_spelling(name).is_none()
-                && (!bare_identity_matches
-                    || !crate::value_custody::locals::state_value_root_is_known(
-                        program,
-                        machine,
-                        state,
-                        writable_roots.statements,
-                        symbols,
-                        root,
-                        name,
-                    ))
-            {
-                self.diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` uses `{name}`, which is not a declared local, parameter, field, or type in this state (check the spelling)",
-                machine.name.as_str(), state.name.as_str(),
-            )));
-            }
-            // Static paths cannot continue through a runtime binding. Dot fields
-            // remain Member expressions; synthesized runtime Names have one member.
-            // Reuse the exact root reconstructed above, including a retained leaf
-            // when the head is absent, so malformed custody cannot hide the binding.
-            if expression_table(program)
-                .name_path_members(path.members)
-                .len()
-                > 1
-                && crate::value_custody::locals::state_binding_type(
-                    program,
-                    state,
-                    writable_roots.statements,
-                    root,
-                )
-                .is_some()
-            {
-                self.diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` uses a static path through runtime binding `{name}`; \
-                 use `.` to select a field or callable through a value",
-                    machine.name.as_str(),
-                    state.name.as_str(),
-                )));
-            }
-        }
-        // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
-        // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
-        // substituted const resolves to a valid symbol before this stage; an
-        // unresolved `Scope::tail` -- a bogus case (`Signal::Blue`) or a typo -- keeps BOTH the
-        // head and leaf symbols invalid and would silently read 0 (ZII) in value
-        // position (native AND interpreter agree, so the differential cannot catch
-        // it). Reject exactly that shape: both symbols unresolved.
-        if let Some(path) = expression_table(program).name_path_node(expression)
-            && let [scope, tail] = expression_table(program).name_path_members(path.members)
-            && !path.head_symbol.is_valid()
-            && !path.symbol.is_valid()
-        {
-            self.diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` uses `{}::{}`, which resolves to no case or \
-             constant -- it would silently read 0 (ZII). Check the spelling and \
-             ensure the declaration is imported",
-                machine.name.as_str(),
-                state.name.as_str(),
-                scope.as_str(),
-                tail.as_str(),
-            )));
-        }
+        report_unresolved_name_use(
+            program,
+            machine,
+            state,
+            writable_roots.statements,
+            symbols,
+            expression,
+            self.diagnostics,
+        );
         match expression_table(program).expression(expression) {
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {

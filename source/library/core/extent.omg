@@ -26,7 +26,7 @@ public data Extent [linear] {
 // the routes alone supply neither actual backing nor a Stable access profile.
 public domain Extent::Vacant
 established by VacantContentTransfer::transfer, AccessLifecycle::move_out,
-    Access::extract_resident, Run::extract_from_profile;
+    Access::extract_resident, Run::extract_from_profile, Run::retire_empty;
 public domain<P, T> Extent::Resident<P, T>
 established by ResidentContentTransfer::transfer, AccessLifecycle::initialize,
     Access::initialize_from_profile;
@@ -63,6 +63,7 @@ public data VacantExtentParts {
 
 // Keep the prefix base explicit in the contract: an empty interval has no
 // location, so content equality alone cannot recover its representable base.
+// A zero-byte cut also leaves the suffix at the original base.
 public machine split_vacant_extent(whole: Extent in Granted & Vacant, requested: u64)
     -> VacantExtentParts
 requires requested <= whole.length
@@ -70,6 +71,7 @@ ensures
     result.taken.base == whole.base,
     result.taken.length == requested,
     result.rest.length == whole.length - requested,
+    requested != 0 || result.rest.base == whole.base,
     result.rest.length == 0 || embed(result.rest.base) == embed(whole.base) + embed(requested),
     Granted::content(old(&whole)) == separate(
         Granted::content(&result.taken), Granted::content(&result.rest)),

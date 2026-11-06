@@ -849,7 +849,10 @@ pub(super) fn validate(
             }
             continue;
         }
-        if matches!(node.operation, AbstractOperation::PortWrite { .. }) {
+        if matches!(
+            node.operation,
+            AbstractOperation::PortWrite { .. } | AbstractOperation::GlobalDescriptorTable { .. }
+        ) {
             if result.is_some() || !node.definitions.is_empty() {
                 return Err(LegalizationError::custody());
             }
@@ -887,6 +890,33 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
         let expected_type = match &node.operation {
+            AbstractOperation::ReadTaskRegister { result, .. }
+            | AbstractOperation::ReadSegmentSelector { result, .. } => {
+                let selector_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).expect("U16"));
+                if result.scalar_type != selector_type {
+                    return Err(LegalizationError::custody());
+                }
+                selector_type
+            }
+            AbstractOperation::ActivateTaskRegister {
+                result, selector, ..
+            }
+            | AbstractOperation::ReloadSegmentDescriptors {
+                result, selector, ..
+            } => {
+                // The primitive returns a byte; the library wrapper compares
+                // it with one to produce its public Boolean result.
+                if result.scalar_type != ScalarType::Integer(u8_type())
+                    || value_type(optimized, *selector)
+                        != Some(ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 16).expect("U16"),
+                        ))
+                {
+                    return Err(LegalizationError::custody());
+                }
+                ScalarType::Integer(u8_type())
+            }
             AbstractOperation::RegisterAccess {
                 result: Some(result),
                 ..
@@ -1161,7 +1191,12 @@ pub(super) fn validate(
                 }
                 ScalarType::Integer(*target_type)
             }
-            _ => return Err(LegalizationError::custody()),
+            _ => {
+                return Err(LegalizationError::UnsupportedScalarOperation {
+                    machine: optimized.machine,
+                    operation: node.operation.clone(),
+                });
+            }
         };
         if definition.scalar_type != expected_type {
             return Err(LegalizationError::custody());
