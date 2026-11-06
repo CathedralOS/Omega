@@ -732,6 +732,9 @@ pub struct ProofCallGraph<Declaration: 'static> {
     /// over every program machine quadratic. It is derived from `machines`,
     /// so equality ignores it.
     machine_index: Vec<(Declaration, arena::Handle<ProofCallMachine<Declaration>>)>,
+    /// The `machines` revision and length the index was built at; any later
+    /// mutation retires it.
+    indexed_at: Option<(u64, usize)>,
 }
 
 impl<Declaration: PartialEq> PartialEq for ProofCallGraph<Declaration> {
@@ -819,12 +822,13 @@ impl<Declaration: Copy + Ord + Default + 'static> ProofCallGraph<Declaration> {
             .into_iter()
             .map(|(machine, _, handle)| (machine, handle))
             .collect();
+        self.indexed_at = Some((self.machines.revision(), self.machines.len()));
     }
 
     /// The first row for `machine`, through the published index when it
-    /// still covers every row.
+    /// is current.
     fn machine_row(&self, machine: Declaration) -> Option<&ProofCallMachine<Declaration>> {
-        if self.machine_index.len() != self.machines.len() {
+        if self.indexed_at != Some((self.machines.revision(), self.machines.len())) {
             return self
                 .machines
                 .iter()

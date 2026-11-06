@@ -107,7 +107,7 @@ impl CheckedDeclarationDescription {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, compiler_storage::Record)]
 pub struct CheckedDeclarationDescriptions {
     pub selections: Arena<CheckedSelectionRequirement>,
     pub evaluation_dependencies: CheckedCompilerEvaluationDependencies,
@@ -119,8 +119,26 @@ pub struct CheckedDeclarationDescriptions {
     /// every row is in place (`index_machines`). Ties keep arena order.
     /// Each lowered declaration asks for its own description; scanning every
     /// machine row per question made lowering quadratic in the machine count.
-    pub machine_index: Vec<((u32, u32), arena::Handle<CheckedDeclarationDescription>)>,
+    /// Derived from `machines`: never recorded, never compared, and trusted
+    /// only while `machines` keeps the revision and length it was built at.
+    #[record(skip)]
+    machine_index: Vec<((u32, u32), arena::Handle<CheckedDeclarationDescription>)>,
+    #[record(skip)]
+    indexed_at: Option<(u64, usize)>,
 }
+
+impl PartialEq for CheckedDeclarationDescriptions {
+    fn eq(&self, other: &Self) -> bool {
+        self.selections == other.selections
+            && self.evaluation_dependencies == other.evaluation_dependencies
+            && self.headers == other.headers
+            && self.invocation_targets == other.invocation_targets
+            && self.machines == other.machines
+            && self.parameters == other.parameters
+    }
+}
+
+impl Eq for CheckedDeclarationDescriptions {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedSelectionRequirement {
@@ -156,6 +174,7 @@ impl Default for CheckedDeclarationDescriptions {
             machines: Arena::new(),
             parameters: Arena::new(),
             machine_index: Vec::new(),
+            indexed_at: None,
         }
     }
 }
@@ -186,9 +205,9 @@ impl CheckedDeclarationDescriptions {
         if !machine.is_valid() {
             return None;
         }
-        // The published index covers every row only when no row was added
-        // after it; otherwise read the rows themselves.
-        if self.machine_index.len() != self.machines.len() {
+        // The published index is exact only while the rows are unchanged since
+        // it was built; otherwise read the rows themselves.
+        if self.indexed_at != Some((self.machines.revision(), self.machines.len())) {
             return self
                 .machines
                 .iter()
@@ -216,6 +235,7 @@ impl CheckedDeclarationDescriptions {
             .into_iter()
             .map(|(key, _, handle)| (key, handle))
             .collect();
+        self.indexed_at = Some((self.machines.revision(), self.machines.len()));
     }
 
     pub fn for_machine(&self, machine: SymbolHandle) -> Result<&CheckedMachineDescription, &str> {

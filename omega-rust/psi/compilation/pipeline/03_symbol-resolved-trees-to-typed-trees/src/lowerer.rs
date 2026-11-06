@@ -375,7 +375,15 @@ fn complete_retained_machine_body(
         )
     };
     let ordinal = position.ok_or_else(lost_base)?;
-    let mut declaration = lowerer.typed_trees.machines()[ordinal].clone();
+    // The position was found before earlier bodies were rewritten in place;
+    // a row that no longer names this machine is a lost base, not a target.
+    let mut declaration = lowerer
+        .typed_trees
+        .machines()
+        .get(ordinal)
+        .filter(|declaration| declaration.symbol == symbol)
+        .ok_or_else(lost_base)?
+        .clone();
     let implementation = lowerer.source_trees.machine(symbol).ok_or_else(lost_base)?;
     crate::declarations::machine::complete_machine_body(lowerer, implementation, &mut declaration)?;
     lowerer.typed_trees.machines_mut()[ordinal] = declaration;
