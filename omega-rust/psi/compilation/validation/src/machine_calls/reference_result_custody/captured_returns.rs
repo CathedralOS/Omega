@@ -863,7 +863,6 @@ impl Captures<'_> {
                     entry_reference_hops: 0,
                     path: descriptor_path
                         .into_iter()
-                        .map(CheckedReferenceOriginProjection::Exact)
                         .chain(prefix)
                         .chain(suffix)
                         .collect(),

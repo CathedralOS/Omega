@@ -197,10 +197,7 @@ impl Captures<'_> {
                     }
                     let (invocation_carrier, descriptor_path) =
                         self.invocation_carrier(state, incoming)?;
-                    let prefix: Vec<_> = descriptor_path
-                        .into_iter()
-                        .map(CheckedReferenceOriginProjection::Exact)
-                        .collect();
+                    let prefix = descriptor_path;
                     if self.program.normalized_type_identity(invocation_carrier) != *carrier_type
                         || !candidate.source.path.starts_with(&prefix)
                     {

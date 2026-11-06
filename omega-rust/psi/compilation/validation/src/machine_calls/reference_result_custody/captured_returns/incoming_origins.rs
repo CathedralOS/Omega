@@ -23,7 +23,7 @@ impl Captures<'_> {
         incoming: &checked_trees::IncomingReferenceIdentity,
     ) -> Option<(
         TypeReferenceHandle,
-        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        Vec<checked_trees::CheckedReferenceOriginProjection>,
     )> {
         let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } =
             incoming.origin
@@ -40,31 +40,15 @@ impl Captures<'_> {
         let carrier =
             crate::expression_result_type_reference(self.program, machine, state, expression)?;
         let owner = self.facts.borrow.owner_segments.span(incoming.owner_path)?;
-        let mut matches = super::super::record_carrier_sources(
+        let leaf = super::super::declared_input_reference(self.program, carrier, owner, 0)?;
+        let mut selected = super::super::origin_place_projection(
             self.program,
             carrier,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: 0,
-            },
-        )?
-        .into_iter()
-        .filter(|leaf| {
-            if super::super::loan_owner_path(self.program, carrier, &leaf.path).as_deref()
-                != Some(owner)
-            {
-                return false;
-            }
-            super::super::loan_place_segments(self.program, carrier, &leaf.path)
-                .and_then(|path| {
-                    crate::project_type_reference_from_segments(self.program, carrier, &path)
-                })
-                .is_some_and(|leaf| {
-                    self.program.normalized_type_identity(leaf)
-                        == self.program.normalized_type_identity(incoming.carrier_type)
-                })
-        });
-        let leaf = matches.next()?;
-        if matches.next().is_some() {
+            leaf.path.iter().cloned(),
+        )?;
+        if selected.type_identity(self.program)
+            != self.program.normalized_type_identity(incoming.carrier_type)
+        {
             return None;
         }
         Some((carrier, leaf.path))

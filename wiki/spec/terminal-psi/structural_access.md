@@ -457,9 +457,9 @@ record field identities for array positions.
 
 ## Store vocabulary
 
-`EstablishStructuralLocal` reserves a declared storage home, including for a
-linear carrier. Its empty claim roster establishes neither a semantic value nor
-a live obligation. A checked store installs the exact source value and its
+`EstablishStructuralLocal` reserves a declared storage home. For a linear
+carrier, its empty claim roster establishes neither a semantic value nor a live
+obligation. A checked whole-value store installs the exact source value and its
 existing claims. Reading or forwarding that value requires its established
 contents and custody; retiring an empty home releases no linear claim.
 
