@@ -1,0 +1,62 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "0b53c8a4e109e8d6ef3a9bbabc29c52529317a48",
+    "tree": "b13669de903b194901f453186dc7a75e7a3fab37",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "ac71fb9b3017cc55fc15bdd88a070eb77f6a8d95",
+      "source/library": "d8f5fade211c574016dc76a4dbc44bbfc2d10817",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+      "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+      "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+      "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": null
+    },
+    "executables": {
+      "cli": {
+        "sha256": "7deb7448da801a633acb034fbcfefa927ec87f1a4b365b8988777670ff13c806",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "99a0317457a9d76d59f747e04bc3c34d4bd6984ff6846fa996366d9b4274a309",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42159698659,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-0b53c8a4e109e8d6ef3a9bbabc29c52529317a48"
+  },
+  "fixtures": [
+    "pass/facts/match_computed_root_through_local_exit",
+    "fail/facts/match_computed_root_through_local_rejected",
+    "pass/facts/match_computed_root_through_field_exit",
+    "fail/facts/match_computed_root_through_field_rejected",
+    "pass/facts/match_computed_root_through_parameter_exit",
+    "fail/facts/match_computed_root_through_parameter_rejected",
+    "pass/facts/match_computed_root_through_call_result_exit",
+    "fail/facts/match_computed_root_through_call_result_rejected",
+    "pass/facts/match_computed_root_through_match_join_exit",
+    "fail/facts/match_computed_root_through_match_join_rejected",
+    "pass/facts/match_computed_root_through_const_name_exit",
+    "fail/facts/match_computed_root_through_const_name_rejected",
+    "pass/facts/match_computed_root_through_other_state_exit",
+    "fail/facts/match_computed_root_through_other_state_rejected",
+    "pass/facts/match_computed_root_through_other_machine_exit",
+    "fail/facts/match_computed_root_through_other_machine_rejected",
+    "pass/facts/match_computed_root_through_target_body_exit",
+    "fail/facts/match_computed_root_through_target_body_rejected"
+  ],
+  "source_only": true,
+  "samples": [],
+  "cli_fixtures": []
+}
