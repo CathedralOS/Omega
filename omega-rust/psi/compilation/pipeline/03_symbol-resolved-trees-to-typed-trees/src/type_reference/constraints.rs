@@ -121,12 +121,12 @@ fn lower_domain_constraint_node(
         subject: classify_domain_constraint_subject(name.as_str(), arguments.len()),
         name,
         arguments,
-        authored_selection: exposure
-            .filter(|_| domain_name.is_source_backed())
-            .map(|exposure| typed::types::AuthoredDomainConstraintSelection {
+        source_selection: domain_name.is_source_backed().then(|| {
+            typed::types::DomainConstraintSource {
                 source_span: domain_name.source_span(),
-                exposure,
-            }),
+                authored_exposure: exposure,
+            }
+        }),
         ..Default::default()
     })
 }

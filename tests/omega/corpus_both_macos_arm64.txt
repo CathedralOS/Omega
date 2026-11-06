@@ -61,6 +61,7 @@ pass/borrows/suspension_saved_reference_view_shared_cohort_source_replaced_exit 
 pass/borrows/suspension_saved_reference_view_source_replaced_exit built 4241ms exit:0 interpreter-exit:0 interpreter:agrees @24e82dfa56fd
 pass/build/activation_borrowed_field_rebind_exit built 4978ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
 pass/build/build_log_line_written built 3939ms @0d0998b4be90
+pass/build/copied_domain_source_exit built 5933ms exit:0 interpreter-exit:0 interpreter:agrees @b634da7b0ea2
 pass/build/crash_exclusion_untrapping_provider_exit built 4597ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
 pass/build/default_component_abi_extents built 11808ms exit:0 interpreter-exit:0 interpreter:agrees @7ebdc5f3adcb
 pass/build/described_runner_entry_left_exit built 92202ms exit:11 interpreter-exit:11 interpreter:agrees @0d0998b4be90
