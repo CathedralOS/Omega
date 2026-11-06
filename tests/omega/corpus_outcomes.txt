@@ -23289,7 +23289,7 @@ pass/facts/installed_entry_storage_through_match_join_exit checked 4513ms check-
 pass/facts/installed_entry_storage_through_other_machine_exit checked 4081ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_other_state_exit checked 4608ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/installed_entry_storage_through_parameter_exit checked 4575ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/installed_entry_storage_through_target_body_exit checked 4410ms check-target:macos_arm64 @ab235e9fbe19
+pass/facts/installed_entry_storage_through_target_body_exit checked 22386ms check-target:macos_arm64 @ab235e9fbe19
 pass/facts/integer_multiple_remainder_through_call_result_exit checked 4953ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/integer_multiple_remainder_through_const_name_exit checked 5790ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/integer_multiple_remainder_through_field_exit checked 5733ms check-target:macos_arm64 @911f6617ba9e
