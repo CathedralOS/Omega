@@ -2876,7 +2876,7 @@ fail/calls/terminal_return_type_mismatch_rejected rejected 904ms expected @ccdb9
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 fail/calls/terminal_state_jump_block_acknowledgement rejected 2043ms unexpected @ccdb99ca2214
 	call to `done` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
-fail/calls/unit_normal_completion_false_contract rejected 3337ms expected @ccdb99ca2214
+fail/calls/unit_normal_completion_false_contract rejected 3264ms expected @323727c404b9
 	cannot prove ensures contract for exit from forwarded at statement 0: value == 8
 fail/calls/unresolved_value_call_rejected rejected 9139ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: value call `bogus_fn(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
@@ -16022,7 +16022,7 @@ fail/ownership/borrowed_storage_stale_read_in_hole rejected 1784ms expected @ccd
 fail/ownership/borrowed_window_changed_selector rejected 10367ms expected @ee4dbb4b2d56
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 2 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
-fail/ownership/borrowed_window_crash_does_not_repair_return rejected 7807ms expected @ee4dbb4b2d56
+fail/ownership/borrowed_window_crash_does_not_repair_return rejected 2904ms expected @323727c404b9
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `leave_empty`, state `entry` (statement 0): `token` must hold a value again before this state's exits consume the borrow
 fail/ownership/borrowed_window_mutable_selector_observes_hole rejected 7701ms expected @ee4dbb4b2d56
 	cannot use `tokens[index].byte` while `tokens[index]` is absent from borrowed storage: the value moved out at statement 2 must be restored first
@@ -16578,6 +16578,8 @@ fail/proofs/entry_comparison_not_inherited_by_state rejected 2219ms expected @cc
 	cannot prove ensures contract for exit from wrong at statement 0: result > 0
 fail/proofs/exact_widening_without_source_bound rejected 6482ms expected @46cdd6b85b82+wt
 	data `Reading` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/proofs/exhaustive_nonreturn_contract rejected 41585ms expected @323727c404b9
+	cannot prove ensures contract for exit from work at statement 0: false
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4036ms expected @ccdb99ca2214
 	linear value `value::Node.token` reaches scope exit without being consumed or transferred in machine `reflexive` state `entry`
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 2548ms expected @ccdb99ca2214
@@ -17332,7 +17334,7 @@ fail/providers/occurrence_region_binding_conflicting_inputs rejected 5754ms expe
 fail/providers/operator_specialized_realization_selection_not_retained rejected 2104ms expected @ccdb99ca2214
 	machine `Provider` does not match one exact overload of operator requirement `Policy::convert`; its entry parameter and result types must equal one declared requirement signature
 	machine `Provider$specialized$10334b0381d4aecf$0` operator realization `Policy::convert` does not retain the exact selected overload
-fail/providers/ordinary_exit_name_preserves_return_obligations rejected 3657ms expected @ccdb99ca2214
+fail/providers/ordinary_exit_name_preserves_return_obligations rejected 3294ms expected @323727c404b9
 	cannot prove ensures contract for exit from impossible at statement 1: false
 fail/providers/ordinary_provider_call_graph_ambiguous rejected 4721ms expected @ddc17fff6a3c
 	no provider is selected for boundary requirement `Choice::choose`, which the program entry reaches on target `windows_x86_64`
@@ -26798,6 +26800,7 @@ pass/proofs/embedded_successor_call_requirement_exit checked 3945ms check-target
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
 pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
+pass/proofs/exhaustive_nonreturn_contract checked 86686ms check-target:macos_arm64 @77212783a73c
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
 pass/proofs/field_view_index_contract checked 10931ms @93ac4da811fe

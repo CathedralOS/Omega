@@ -109,6 +109,7 @@ pass/calls/runtime_guarded_reference_return_machine_crash built 6678ms exit:sign
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/runtime_owned_state_scalar_field_store_exit built 13934ms exit:70 interpreter-exit:70 interpreter:agrees @33b180036351
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
+pass/calls/unit_normal_completion_contract_exit built 4415ms exit:0 interpreter-exit:0 interpreter:agrees @323727c404b9
 pass/capabilities/alternative_synchronous_provider_exit built 6469ms exit:0 interpreter-exit:0 interpreter:agrees synchronous-provider-controls:match terminal-inspections:match @c8f27239e5d4
 pass/capabilities/selected_applied_synchronous_chain_exit built 6463ms exit:0 interpreter-exit:0 interpreter:agrees declared-invocation-controls:match terminal-inspections:match @c8f27239e5d4
 pass/capabilities/selected_synchronous_chain_exit built 3447ms exit:0 interpreter-exit:0 interpreter:agrees @c8f27239e5d4
@@ -1902,6 +1903,7 @@ pass/ownership/runtime_nonreturning_claim_alternative_exit built 3365ms exit:0 i
 pass/proofs/completed_guard_converted_snapshot built 2954ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/proofs/completed_guard_private_boolean built 3165ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/proofs/completed_guard_two_call_identities built 2863ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
+pass/proofs/exhaustive_nonreturn_contract built 86065ms exit:0 interpreter-exit:0 interpreter:agrees @77212783a73c
 pass/proofs/finite_boolean_policy_exit built 26321ms exit:0 interpreter-exit:0 interpreter:agrees @bf5cc360e384
 pass/proofs/short_circuit_rhs_entry_bound built 4549ms exit:0 interpreter-exit:0 interpreter:agrees @bf5cc360e384
 pass/providers/applied_calling_surface_exit built 8085ms exit:0 interpreter-exit:0 interpreter:agrees @d9073fc2214b
