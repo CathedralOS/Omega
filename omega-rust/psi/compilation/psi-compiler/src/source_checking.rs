@@ -119,6 +119,9 @@ pub struct CheckRequest<'request> {
 /// Successful language judgment, before optional whole-product root selection.
 pub struct CheckedSource {
     pub program: Arc<checked_trees::CheckedTrees>,
+    /// Exact Product entries admitted by checking, including generated bodies
+    /// selected by Build rather than by an ordinary source call.
+    pub execution_roots: Vec<symbols::SymbolHandle>,
     pub retained: Option<RetainedCheck>,
     pub reused: bool,
 }
@@ -290,6 +293,7 @@ impl CheckRequest<'_> {
         let (outcome, layout_evaluation) = outcome;
         Ok(CheckedSource {
             program: outcome.checked,
+            execution_roots: self.admission.external_roots.to_vec(),
             retained: outcome.retained.map(|judgment| RetainedCheck {
                 judgment,
                 layout_evaluation,
@@ -310,7 +314,10 @@ impl CheckedSource {
         // Defaults describe every authored target, including declarations root
         // pruning may remove. Decode them from the checked source before pruning;
         // realization later chooses a row without reading declaration bodies.
-        let program = typed_trees_to_checked_trees::project_checked_product_context(self.program);
+        let program = typed_trees_to_checked_trees::project_checked_product_context(
+            self.program,
+            &self.execution_roots,
+        );
         let provider_defaults =
             build_time_evaluation::provider_declarations::retain_provider_defaults(
                 build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
@@ -342,6 +349,7 @@ pub struct ProductSelections {
 
 struct SelectedProduct {
     input: Arc<checked_trees::CheckedTrees>,
+    execution_roots: Vec<symbols::SymbolHandle>,
     roots: Option<Vec<symbols::SymbolHandle>>,
     output: SelectedCheckedSource,
 }
@@ -357,19 +365,21 @@ impl ProductSelections {
         checked: CheckedSource,
         roots: Option<Vec<symbols::SymbolHandle>>,
     ) -> Result<SelectedCheckedSource, Vec<Diagnostic>> {
-        if let Some(prior) = self
-            .entries
-            .iter()
-            .find(|prior| Arc::ptr_eq(&prior.input, &checked.program) && prior.roots == roots)
-        {
+        if let Some(prior) = self.entries.iter().find(|prior| {
+            Arc::ptr_eq(&prior.input, &checked.program)
+                && prior.execution_roots == checked.execution_roots
+                && prior.roots == roots
+        }) {
             let mut selected = prior.output.clone();
             selected.retained = checked.retained;
             return Ok(selected);
         }
         let input = checked.program.clone();
+        let execution_roots = checked.execution_roots.clone();
         let output = checked.select_product(roots.clone())?;
         self.entries.push(SelectedProduct {
             input,
+            execution_roots,
             roots,
             output: output.clone(),
         });

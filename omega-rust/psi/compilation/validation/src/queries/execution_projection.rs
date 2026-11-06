@@ -305,8 +305,12 @@ pub fn project_selected_program(
 /// Build-only declarations remain in their checked owner; completed constants
 /// and shared generated dependencies retain their original handles and values.
 /// This separates execution contexts, independently of optional root pruning.
-pub fn project_product_program(original: &dyn crate::CheckingInput) -> TypedTrees {
+pub fn project_product_program(
+    original: &dyn crate::CheckingInput,
+    execution_roots: &[SymbolHandle],
+) -> TypedTrees {
     let instances = instantiated_declarations(original);
+    let execution_roots = DeclarationSelection::from_symbols(execution_roots.iter().copied());
     let derived = |symbol| is_derived_declaration(original, &instances, symbol);
     let product = |symbol| {
         original
@@ -327,7 +331,10 @@ pub fn project_product_program(original: &dyn crate::CheckingInput) -> TypedTree
         .collect::<Vec<_>>();
     project_declarations(
         original,
-        |symbol| !derived(symbol) && (product(symbol) || unknown(symbol)),
+        |symbol| {
+            execution_roots.contains(symbol)
+                || (!derived(symbol) && (product(symbol) || unknown(symbol)))
+        },
         |symbol| derived(symbol) || product(symbol) || unknown(symbol),
         &generated_methods,
         None,

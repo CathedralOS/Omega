@@ -14,7 +14,10 @@ use typed_trees::references::{DeclarationSelection, collect_program_declarations
 use super::checked_projection::retain_facts;
 use super::product_pruning::dependencies::MachineIndex;
 
-pub fn project_checked_product_context(checked: Arc<CheckedTrees>) -> Arc<CheckedTrees> {
+pub fn project_checked_product_context(
+    checked: Arc<CheckedTrees>,
+    execution_roots: &[SymbolHandle],
+) -> Arc<CheckedTrees> {
     let original_roots = collect_program_declarations(&checked.typed);
     if original_roots.iter().all(|symbol| {
         checked
@@ -27,7 +30,8 @@ pub fn project_checked_product_context(checked: Arc<CheckedTrees>) -> Arc<Checke
     }) {
         return checked;
     }
-    let typed = validation::execution_projection::project_product_program(&*checked);
+    let typed =
+        validation::execution_projection::project_product_program(&*checked, execution_roots);
     let original = DeclarationSelection::from_symbols(original_roots);
     let selected = DeclarationSelection::from_program(&typed);
     let index = MachineIndex::build(&*checked);

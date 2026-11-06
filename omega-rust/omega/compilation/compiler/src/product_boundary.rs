@@ -159,6 +159,7 @@ fn reused_product_selection_shares_the_checked_program() {
         .select(
             psi_compiler::CheckedSource {
                 program: Arc::clone(&program),
+                execution_roots: Vec::new(),
                 retained: None,
                 reused: false,
             },
@@ -169,6 +170,7 @@ fn reused_product_selection_shares_the_checked_program() {
         .select(
             psi_compiler::CheckedSource {
                 program: Arc::clone(&program),
+                execution_roots: Vec::new(),
                 retained: None,
                 reused: true,
             },
