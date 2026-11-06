@@ -1,11 +1,10 @@
-//! Internal arrival follows argument capture and the selected residual cleanup.
-//! A lexical last-use row cannot close a reference stored inside a nominal
-//! receiver: the hook runs before structural field cleanup. Join the loan home
-//! to that exact edge's disposition, excluding transferred or inactive leaves.
-//! The caller separately rules out carrying local loans into the successor.
+//! Cleanup before an internal block transfer can end a stored loan.
+//! A named cleanup hook runs before its fields are released, so a last-use
+//! marker alone cannot prove that release. Use the selected edge's checked
+//! cleanup and exclude fields that move or belong to inactive cases.
+//! Machine-entry calls keep the caller's loans until completion.
 use checked_trees::{BorrowCallFact, BorrowLoanFact, CheckFacts, FlowStateFact};
 use language_semantics::PermissionEventSource;
-use typed_trees::statement::TransitionTargetNode;
 
 pub(super) fn disposes_loan(
     program: &dyn validation::CheckingInput,
@@ -15,9 +14,6 @@ pub(super) fn disposes_loan(
     loan: &BorrowLoanFact,
 ) -> bool {
     let Some(jump) = super::statements::local_jump(program, flow, call) else {
-        return false;
-    };
-    let validation::CallSite::TransitionNamed { path, .. } = jump.site else {
         return false;
     };
     let Some(source) = program.state_by_symbol(flow.state_symbol) else {
@@ -34,13 +30,10 @@ pub(super) fn disposes_loan(
         .into_iter()
         .filter(|target| target.is_valid())
         .any(|target| {
-            let TransitionTargetNode::Named { path: selected, .. } =
-                program.statement_table.transition_target(target)
-            else {
-                return false;
-            };
-            // Exact immutable source occurrence, not an equal callee label.
-            std::ptr::eq(path, selected)
+            // Match the invocation that completes this block-transfer arm.
+            // Argument calls finish before cleanup and keep their ordinary
+            // call lifetimes.
+            jump.site.completes_transition(program, target)
                 && disposes_loan_on_target(program, facts, flow, call.statement_index, target, loan)
         })
 }

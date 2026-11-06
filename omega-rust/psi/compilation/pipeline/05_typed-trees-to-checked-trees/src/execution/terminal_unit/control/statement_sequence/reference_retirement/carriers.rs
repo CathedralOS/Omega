@@ -41,9 +41,16 @@ impl Retirement<'_> {
                 },
             ) = operation
             {
-                if result.binding_ordinal == parent.binding_ordinal
-                    || self.carrier_retired(result, &mut Vec::new())
-                {
+                if result.binding_ordinal == parent.binding_ordinal {
+                    return true;
+                }
+                if self.carrier_retired(result, &mut Vec::new()) {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE carrier-child-settled state={:?} parent={} child={result:?} value={value:?} at_exit={} pending_owner={:?}",
+                            self.state.symbol, parent.binding_ordinal, self.at_exit, self.uncommitted_owner,
+                        );
+                    }
                     return true;
                 }
                 let values = &self.facts.values.structural_values;
@@ -191,6 +198,12 @@ impl Retirement<'_> {
             )
             .is_some_and(|loans| loans.is_empty())
         {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE carrier-frame-completion state={:?} result={result:?} pending_owner={:?} reason=no-local-loans",
+                    self.state.symbol, self.uncommitted_owner,
+                );
+            }
             return true;
         }
         let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

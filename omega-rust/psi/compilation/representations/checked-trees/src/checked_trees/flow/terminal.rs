@@ -52,7 +52,7 @@ pub use affine_cleanup_plans::{
 };
 pub use atomic_plans::{CheckedAtomicAccessPlan, CheckedAtomicEvent, CheckedAtomicReadModifyWrite};
 pub use boundary_machine_plans::{
-    CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
+    CheckedBoundaryExecutionPlan, CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryReferenceDestination,
     CheckedBoundaryReferenceOutput, CheckedBoundaryScalarDomainRequirementPlan,
     CheckedBoundaryScalarGuarantee,
@@ -117,10 +117,10 @@ pub use unit_call_plans::{
 };
 pub use unit_effect_plans::{
     CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralInvocation,
-    CheckedStructuralValueCall, CheckedUnitCallableEntry, CheckedUnitCleanupBoundary,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan, CheckedUnitPlanGap,
-    CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
+    CheckedStructuralLocalInitialization, CheckedStructuralValueCall, CheckedUnitCallableEntry,
+    CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan,
+    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
     CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

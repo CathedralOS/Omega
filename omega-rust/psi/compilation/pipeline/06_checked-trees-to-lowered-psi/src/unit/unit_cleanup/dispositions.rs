@@ -168,9 +168,12 @@ pub(crate) fn outstanding_actions<'a>(
                     && case_conditions.is_empty()
                     && !select_evaluated_storage
                     && homes.same_storage(action.source(), *local, source, release_local)
-                    && action.path().is_empty()
                     && !matches!(action, CheckedNormalCleanupAction::InvokeNominal(_)) =>
                 {
+                    // Whole-home disposal also completes its field discards.
+                    // Leaving one pending would look up an already retired
+                    // home. Nominal hooks retain their independent obligation;
+                    // a later store re-establishes the affected actions.
                     *retained = false;
                 }
                 _ => {}

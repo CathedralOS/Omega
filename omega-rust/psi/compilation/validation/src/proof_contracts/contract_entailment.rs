@@ -118,6 +118,7 @@ pub(crate) mod refuted_requires;
 mod result_bounds;
 pub(crate) mod scoped_arithmetic;
 mod self_induction;
+pub(crate) mod shared_proof_walks;
 pub(crate) mod specification_calls;
 pub(crate) mod static_applications;
 pub(crate) use captured_predicates::{

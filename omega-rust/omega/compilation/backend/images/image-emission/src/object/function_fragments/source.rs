@@ -1,5 +1,7 @@
 //! Admission predicates and immutable inputs shared by construction and replay.
 
+mod descriptor_tables;
+
 use super::Error;
 use abstract_operations::{
     AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
@@ -15,6 +17,7 @@ mod primitive_accesses;
 mod stack_calls;
 mod structural_case;
 mod structural_fields;
+mod structural_homes;
 pub(super) use stack_calls::{CallStackEdge, stack_calls};
 #[cfg(test)]
 mod tests;
@@ -58,6 +61,11 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 }
                 | AbstractOperation::AtomicEvent { .. }
                 | AbstractOperation::RegisterAccess { .. }
+                | AbstractOperation::ReadSegmentSelector { .. }
+                | AbstractOperation::ReadTaskRegister { .. }
+                | AbstractOperation::ReloadSegmentDescriptors { .. }
+                | AbstractOperation::ActivateTaskRegister { .. }
+                | AbstractOperation::GlobalDescriptorTable { .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. }
                 | abstract_operations::establish_record_or_case_pattern!(..)
@@ -192,6 +200,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             .selected_plan()
             .function(fragment.machine)
             .ok_or(Error::Mismatch("missing selected function"))?;
+        let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
+            .map_err(Error::Mismatch)?;
         let structural = selected.structural.as_ref();
         let graph_result = aggregate_results::header(abstracted, targeted, selected);
         // A provider service ceiling is declaration metadata, not a structural
@@ -287,6 +297,18 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         }
         for (operation_ordinal, operation) in abstracted.operations.iter().enumerate() {
             let admitted = match operation {
+                AbstractOperation::ReadSegmentSelector { .. }
+                | AbstractOperation::ReadTaskRegister { .. }
+                | AbstractOperation::ReloadSegmentDescriptors { .. }
+                | AbstractOperation::ActivateTaskRegister { .. }
+                | AbstractOperation::GlobalDescriptorTable { .. } => {
+                    descriptor_replay.validate(operation).map_err(|reason| Error::UnaccountedOperation {
+                        machine: fragment.machine,
+                        operation_ordinal,
+                        operation_description: format!("{operation:?}: {reason}"),
+                    })?;
+                    true
+                }
                 AbstractOperation::RegisterAccess { psi_operation, event, result, .. } => {
                     let mut instructions = selected.instructions().filter(|instruction| {
                         instruction.provenance.operations.contains(psi_operation)
@@ -530,6 +552,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     || program_image_retained(psi_operation, boundary, targeted, selected)
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
                     || access_lifecycle_retained(operation, targeted)
+                    || empty_run_release_retained(operation, targeted, abstract_plan)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
@@ -1170,6 +1193,57 @@ pub(super) fn call_target_matches(
         ) => selector == actual_selector && interface == actual_interface && slot == actual_slot,
         _ => false,
     }
+}
+
+/// Empty release must retain the actual backing projection, not a host call
+/// or an arbitrary record with the same physical shape.
+fn empty_run_release_retained(
+    operation: &AbstractOperation,
+    targeted: &target_operations::TargetFunction,
+    plan: &abstract_operations::AbstractOperationPlan,
+) -> bool {
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        arguments,
+        structural_arguments,
+        result: abstract_operations::AbstractBoundaryResult::Structural(result),
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let Some(declaration) = plan
+        .boundary_machines
+        .iter()
+        .find(|row| row.id == *boundary)
+    else {
+        return false;
+    };
+    let Ok(contract) = terminal_semantics::empty_run_release_contract(
+        plan.structural_types.as_slice(),
+        declaration,
+    ) else {
+        return false;
+    };
+    let [source] = structural_arguments.as_slice() else {
+        return false;
+    };
+    if !arguments.is_empty()
+        || source.access != terminal_psi::StructuralAccess::Owned
+        || result.structural_type != contract.result.structural_type
+    {
+        return false;
+    }
+    let mut expected_path = source.path.clone();
+    expected_path.push(terminal_psi::StructuralPathSegment::Field(contract.storage));
+    targeted.graph.operations().filter(|row| matches!(row,
+        target_operations::TargetUnitOperation::StructuralLeafCopy {
+            psi_operation: actual, result_home, source: actual_source,
+            path: abstract_operations::StructuralCopyPath::Ordinary(path), ..
+        } if actual == psi_operation && *actual_source == source.place && *path == expected_path
+            && result_home.operation_result() == Some((*psi_operation, result))
+    )).count() == 1
 }
 
 /// Lifecycle lowering produces a whole-value operation, not an ABI call or

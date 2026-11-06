@@ -2,6 +2,7 @@
 //! variable itself. Keep that permission and every promised input together;
 //! copying the reference must not forget either when the variable changes.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanLineage, CheckFacts, CheckedCallBorrowLoanSource,
@@ -14,6 +15,8 @@ pub(in crate::checks::borrows::resources) fn install(
     program: &dyn validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
+    let prepared_loans = LoanOccurrences::new(program, facts);
+    let loan_occurrences = &prepared_loans;
     let mut plans = Vec::new();
     for (loan, row) in facts.borrow.loans.iter() {
         if row.lineage != BorrowLoanLineage::SuppliedOutput {
@@ -24,12 +27,37 @@ pub(in crate::checks::borrows::resources) fn install(
         };
         let incoming = facts.borrow.incoming_references.get(row.incoming_reference);
         let diagnostic = |reason: &'static str| {
-            vec![Diagnostic::error(format!(
-                "{reason}; completed output in state {:?}, statement {}, call {}, loan {loan:?}",
+            let invocation = facts.flow.control.calls.get(call);
+            let message = format!(
+                "{reason}; completed output from `{}` in machine `{}`, state `{}` ({:?}), statement {}, call {}, loan {loan:?}",
+                crate::published::labels::call_target_label(program, invocation.target_symbol),
+                crate::published::labels::symbol_name(program, incoming.machine_symbol),
+                crate::published::labels::symbol_name(program, incoming.state_symbol),
                 incoming.state_symbol,
                 row.statement_index,
-                facts.flow.control.calls.get(call).call_ordinal,
-            ))]
+                invocation.call_ordinal,
+            );
+            let mut diagnostic = Diagnostic::error(message);
+            let span = invocation
+                .authored_expression
+                .is_valid()
+                .then(|| {
+                    program
+                        .expression_table
+                        .source_span(invocation.authored_expression)
+                })
+                .filter(|span| span.span.end > span.span.start)
+                .or_else(|| {
+                    let machine = program.machine_by_symbol(incoming.machine_symbol)?;
+                    let state = program.state_in_machine(machine, incoming.state_symbol)?;
+                    crate::flow::state_statements(program, state.statement_nodes)
+                        .get(invocation.statement_index)
+                        .and_then(|statement| validation::statement_source_span(program, statement))
+                });
+            if let Some(span) = span {
+                diagnostic = diagnostic.with_source_span(span);
+            }
+            vec![diagnostic]
         };
         let IncomingReferenceOrigin::Output { identity } = incoming.origin else {
             return refuse("completed output lost its output identity");
@@ -78,8 +106,16 @@ pub(in crate::checks::borrows::resources) fn install(
             .control
             .unique_state(incoming.machine_symbol, incoming.state_symbol)
             .ok_or_else(|| diagnostic("completed output has no unique flow owner"))?;
-        let inputs = super::inputs::plan(program, facts, state, call, sources, &ceilings)
-            .map_err(diagnostic)?;
+        let inputs = super::inputs::plan(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            call,
+            sources,
+            &ceilings,
+        )
+        .map_err(diagnostic)?;
         let origin = facts
             .borrow
             .supplied_output_call(loan)
@@ -115,6 +151,7 @@ pub(in crate::checks::borrows::resources) fn install(
             debts,
         ));
     }
+    drop(prepared_loans);
     facts
         .borrow
         .supplied_output_resources

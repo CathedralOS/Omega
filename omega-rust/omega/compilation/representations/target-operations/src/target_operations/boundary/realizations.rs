@@ -485,6 +485,8 @@ macro_rules! boundary_realization_conversion {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
+    /// Transfer an empty run's backing descriptor into its consuming result.
+    EmptyRunRelease,
     /// Whole-value operation using the immutable lifecycle catalog retained
     /// with this native program's structural declarations.
     AccessLifecycle {

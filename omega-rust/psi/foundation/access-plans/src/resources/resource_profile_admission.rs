@@ -92,7 +92,6 @@ impl ResourceProfileGrant {
         required_rights: ExtentRights,
         permitted_reach: BoundaryReach,
     ) -> Result<Self, AccessPlanDiagnostic> {
-        reject_when! { length == 0 => "resource-profile grant cannot bind an empty range" }
         base.checked_add(length)
             .ok_or_else(|| AccessPlanDiagnostic("resource-profile grant range overflows".into()))?;
         Ok(Self {

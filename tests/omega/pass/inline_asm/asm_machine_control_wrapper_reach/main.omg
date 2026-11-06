@@ -1,10 +1,16 @@
-// Ordinary wrappers inherit the helper's declared assembly service.
+// Importing assembly in Build must not change the program's service checks.
+// Ordinary wrappers inherit each helper's declared assembly service.
 use omega::language::core::assembly;
 
 machine helper() reaches MachineControl {
     asm { hlt }
 }
 
+machine write_port() reaches PortIo {
+    asm { out 1016, 66 }
+}
+
 machine main() {
+    write_port();
     helper();
 }

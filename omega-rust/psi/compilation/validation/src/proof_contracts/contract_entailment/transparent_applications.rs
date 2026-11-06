@@ -453,6 +453,12 @@ fn argument_term(
         .collect::<Vec<_>>();
     fields.sort_by(|left, right| left.0.cmp(&right.0));
     Some(StructuralTerm::Constructor {
+        identity: super::structural_judgment::ConstructorIdentity::at_reference(
+            program,
+            state.return_type,
+            data,
+            None,
+        )?,
         data: data.name.as_str().to_owned(),
         case: String::new(),
         fields,

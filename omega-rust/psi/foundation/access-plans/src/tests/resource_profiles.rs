@@ -15,6 +15,51 @@ use layout_plans::test_support::layout_field_entry;
 use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 
 #[test]
+fn empty_profile_restriction_supplies_no_bytes_and_keeps_admission_identity() {
+    let extent = uart_extent(0x4000, 16);
+    let loan = extent.loan(16, 0).expect("empty loan at the end");
+    let admitted = ResourceProfileGrant::from_admitted_provider_loan(
+        ResourceProfileReceiptId::from_normalized_identity(41).expect("receipt"),
+        &loan,
+        extent_rights(&[3]),
+        BoundaryReach::default(),
+    )
+    .expect("empty loan still has exact backing authority")
+    .admit(ResourceProfile {
+        regions: Vec::new(),
+    })
+    .expect("no operations over an empty range");
+    let profile = admitted.restrict_to_loan(&loan).expect("same empty loan");
+    assert_eq!(profile.length(), 0);
+    assert!(profile.regions().is_empty());
+    assert!(profile.restrict(0, 1, &BoundaryReach::default()).is_err());
+    assert!(profile.restrict(1, 0, &BoundaryReach::default()).is_err());
+
+    let other = uart_extent_with_lineage(0x4000, 16, 63);
+    let other_loan = other.loan(16, 0).expect("same empty coordinates");
+    assert!(admitted.restrict_to_loan(&other_loan).is_err());
+    let nonempty = extent.loan(15, 1).expect("one real byte");
+    assert!(admitted.restrict_to_loan(&nonempty).is_err());
+
+    let parent = validate_resource_profile(
+        uart_resource_profile_data(16, &BoundaryReach::default()),
+        16,
+    )
+    .expect("parent profile");
+    for offset in [0, 8, 16] {
+        let empty = parent
+            .restrict(offset, 0, &BoundaryReach::default())
+            .expect("contained empty restriction");
+        assert_eq!(empty.length(), 0);
+        assert!(empty.regions().is_empty());
+    }
+    assert!(
+        validate_resource_profile(uart_resource_profile_data(16, &BoundaryReach::default()), 0)
+            .is_err()
+    );
+}
+
+#[test]
 fn resource_profiles_normalize_disjoint_regions_and_restrict_subranges() {
     let alternate_reach =
         BoundaryServiceReachId::from_normalized_identity(8).expect("alternate reach");

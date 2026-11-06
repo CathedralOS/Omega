@@ -43,7 +43,10 @@ mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
 mod completed_loads;
-pub use completed_loads::{CompletedDescriptorLoad, completed_descriptor_load};
+pub use completed_loads::{
+    CompletedDescriptorLoad, PreparedDescriptorLoadSlots, completed_descriptor_load,
+    completed_descriptor_load_slot,
+};
 #[cfg(test)]
 mod declared_frontier_tests;
 mod declared_returns;
@@ -1439,19 +1442,19 @@ pub fn storage_place_loans(
         program,
         reference,
         &loan_owner_path(program, reference, selection)
-            .ok_or("storage descriptor selection has no owner path")?,
+            .ok_or("the selected storage has no typed loan path")?,
     )
-    .ok_or("storage descriptor selection has no corresponding owner path")?;
+    .ok_or("the selected loan path does not fit its storage type")?;
     let borrowing = facts
         .borrow
         .unique_state_borrow(machine, state.symbol)
-        .ok_or("storage descriptor has no unique borrow state")?;
+        .ok_or("the storage has no unique borrow state")?;
     let loans = facts
         .borrow
         .storage_loans(borrowing, owner, statement_index as usize)
-        .ok_or("storage descriptor owner loans are not one valid contiguous group")?;
+        .ok_or("the storage has no complete formation loan group")?;
     let flow = state_flow(facts, machine, state.symbol)
-        .ok_or("storage descriptor has no checked flow state")?;
+        .ok_or("the storage has no completed state flow")?;
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
@@ -1468,19 +1471,29 @@ pub fn storage_place_loans(
         .borrow_lifetimes
         .activations
         .span(flow.borrow_activations)
-        .ok_or("storage descriptor activation roster is invalid")?;
+        .ok_or("the storage has no complete activation roster")?;
     let mut captured = Vec::new();
     for (handle, loan) in facts
         .borrow
         .loan_group(loans)
-        .ok_or("storage descriptor loan group is invalid")?
+        .ok_or("the storage loan group contains an unavailable loan")?
     {
+        let home_path = homes.owner_path(program, loan);
         if !crate::corresponding_loan_owner_path(
             program,
             reference,
-            homes.owner_path(program, loan).as_ref(),
+            home_path.as_ref(),
         )
-        .ok_or("storage descriptor loan has no corresponding owner projection")?
+        .ok_or_else(|| {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE storage-loan-home loan={handle:?} formation={:?} storage_owner={:?} root={:?} reference={reference:?} published_path={:?} home_path={home_path:?}",
+                    loan.formation_expression, loan.storage_owner, loan.root,
+                    facts.borrow.loan_owner_path(loan),
+                );
+            }
+            "the recorded descriptor home path does not fit its storage type"
+        })?
         .starts_with(&selected_owner_path)
         {
             continue;
@@ -1513,7 +1526,7 @@ pub fn storage_place_loans(
     record_leaf_loan_groups(
         program, facts, reference, owner, &captured, selection, homes,
     )
-    .ok_or("storage descriptor leaves do not match their recorded loans")
+    .ok_or("the activated storage loans have no complete typed leaf grouping")
 }
 
 /// Authenticate a reference slot's first installed descriptor. A declaration

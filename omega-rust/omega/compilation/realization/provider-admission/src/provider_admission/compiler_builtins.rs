@@ -136,7 +136,8 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         let realization = match execution {
-            CompilerBuiltinExecution::AccessLifecycle { .. } => {
+            CompilerBuiltinExecution::AccessLifecycle { .. }
+            | CompilerBuiltinExecution::EmptyRunRelease => {
                 return Err(vec![Diagnostic::error(
                     "private access lifecycle cannot be selected through a provider proposal",
                 )]);
@@ -383,6 +384,7 @@ fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryC
         | CompilerBuiltinExecution::ProgramImageRetainedSuffixStart
         | CompilerBuiltinExecution::ProgramStorageEntry
         | CompilerBuiltinExecution::AccessLifecycle { .. }
+        | CompilerBuiltinExecution::EmptyRunRelease
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
         | CompilerBuiltinExecution::AccessorScalarAccess { .. } => BoundaryCompletion::NormalReturn,
     }

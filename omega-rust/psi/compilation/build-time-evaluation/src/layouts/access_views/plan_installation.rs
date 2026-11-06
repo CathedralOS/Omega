@@ -28,6 +28,76 @@ fn observing_result_contracts(
     Ok(Some(access_atomic_observing_results(operations)))
 }
 
+/// Resolve the generated view and verify the exact declarations it applies.
+/// Both prerequisite evaluation and final plan installation use this check.
+pub(super) fn selected_access_view<'a>(
+    typed: &'a TypedTrees,
+    record: &AccessViewRecord,
+    policy_symbol: SymbolHandle,
+    schema_symbol: SymbolHandle,
+) -> Result<(&'a typed_trees::data::DataDefinition, SymbolHandle), Vec<Diagnostic>> {
+    let mut views = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.name.as_str() == record.synthetic_name);
+    let (Some(view), None) = (views.next(), views.next()) else {
+        return Err(vec![Diagnostic::error(format!(
+            "access view `{}` lost its unique derived data definition after typing",
+            record.synthetic_name
+        ))]);
+    };
+    let templates = typed
+        .data_definitions()
+        .iter()
+        .filter(|definition| {
+            definition.name.as_str().rsplit("::").next() == Some("Access")
+                && typed.symbols.symbol_source_span(definition.symbol)
+                    == Some(record.template_source)
+        })
+        .collect::<Vec<_>>();
+    let template_symbol = match templates.as_slice() {
+        [template] => template.symbol,
+        _ if typed.symbols.source_file(record.template_source).is_none() => SymbolHandle::default(),
+        _ => {
+            return Err(vec![
+                Diagnostic::error("access view lost its unique canonical template declaration")
+                    .with_source_span(record.template_source),
+            ]);
+        }
+    };
+    if template_symbol.is_valid() {
+        use typed_trees::types::TypeReferenceNode;
+        let origin = view.generic_instance.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "access view lost its retained applied origin",
+            )]
+        })?;
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            lifetime_arguments,
+            ..
+        } = typed.type_reference_table.type_reference(origin)
+        else {
+            return Err(vec![Diagnostic::error(
+                "access view retained origin is not an exact application",
+            )]);
+        };
+        let operands = type_reference_table(typed).type_reference_handles(*arguments);
+        if *base_symbol != template_symbol
+            || !lifetime_arguments.is_empty()
+            || !matches!(operands, [policy_operand, schema_operand]
+                if matches!(typed.type_reference_table.type_reference(*policy_operand), TypeReferenceNode::Named { symbol, .. } if *symbol == policy_symbol)
+                && matches!(typed.type_reference_table.type_reference(*schema_operand), TypeReferenceNode::Named { symbol, .. } if *symbol == schema_symbol))
+        {
+            return Err(vec![Diagnostic::error(
+                "access view origin changed its exact template/policy/schema producers",
+            )]);
+        }
+    }
+    Ok((view, template_symbol))
+}
+
 pub(super) fn install_access_view_plan(
     typed: &mut TypedTrees,
     record: &AccessViewRecord,
@@ -94,14 +164,8 @@ pub(super) fn install_access_view_plan(
         })
         .map(|field| (field.name.as_str().to_owned(), field))
         .collect::<BTreeMap<_, _>>();
-    let view = typed
-        .data_definition_by_name_str(&record.synthetic_name)
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "access view `{}` lost its derived data definition after typing",
-                record.synthetic_name
-            ))]
-        })?;
+    let (view, template_symbol) =
+        selected_access_view(typed, record, policy.symbol, schema.symbol)?;
     let view_fields = typed
         .data_members(view)
         .iter()
@@ -110,55 +174,6 @@ pub(super) fn install_access_view_plan(
             DataMember::Variant(_) => None,
         })
         .collect::<BTreeMap<_, _>>();
-    let templates = typed
-        .data_definitions()
-        .iter()
-        .filter(|definition| {
-            definition.name.as_str().rsplit("::").next() == Some("Access")
-                && typed.symbols.symbol_source_span(definition.symbol)
-                    == Some(record.template_source)
-        })
-        .collect::<Vec<_>>();
-    let template_symbol = match templates.as_slice() {
-        [template] => template.symbol,
-        _ if typed.symbols.source_file(record.template_source).is_none() => SymbolHandle::default(),
-        _ => {
-            return Err(vec![
-                Diagnostic::error("access view lost its unique canonical template declaration")
-                    .with_source_span(record.template_source),
-            ]);
-        }
-    };
-    if template_symbol.is_valid() {
-        use typed_trees::types::TypeReferenceNode;
-        let origin = view.generic_instance.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "access view lost its retained applied origin",
-            )]
-        })?;
-        let TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            lifetime_arguments,
-            ..
-        } = typed.type_reference_table.type_reference(origin)
-        else {
-            return Err(vec![Diagnostic::error(
-                "access view retained origin is not an exact application",
-            )]);
-        };
-        let operands = type_reference_table(typed).type_reference_handles(*arguments);
-        if *base_symbol != template_symbol
-            || !lifetime_arguments.is_empty()
-            || !matches!(operands, [policy_operand, schema_operand]
-                if matches!(typed.type_reference_table.type_reference(*policy_operand), TypeReferenceNode::Named { symbol, .. } if *symbol == policy.symbol)
-                && matches!(typed.type_reference_table.type_reference(*schema_operand), TypeReferenceNode::Named { symbol, .. } if *symbol == schema.symbol))
-        {
-            return Err(vec![Diagnostic::error(
-                "access view origin changed its exact template/policy/schema producers",
-            )]);
-        }
-    }
     let schema_symbol = schema.symbol;
     let data_symbol = view.symbol;
     let policy_symbol = policy.symbol;

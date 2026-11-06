@@ -50,6 +50,16 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
+When local resources cannot support a Rust test build, the manual
+`compiler.yml` workflow accepts one package and a required test-name filter on
+the selected remote branch. For example, `gh workflow run compiler.yml
+--ref work/my-change -f test_package=validation -f test_filter=integer_predicates`
+selects library unit tests. Set `test_target` for an integration-test binary.
+The job reports its actual source revision and command; retain its result with
+that revision. A filter matching no executed tests fails. This uses ordinary
+Cargo checking and execution, without replacing
+the separate compiler-program acceptance checks.
+
 For each proposed build or test, name the decision it answers, the affected
 behavior, and why applicable existing evidence is insufficient. Estimate time
 and resources, including compilation. Reuse evidence only when its revision,
@@ -157,13 +167,32 @@ For a named existing pass fixture whose oracle is a numeric exit, the optional
 ordinary CLI update/review/resume followed by `run --both --keep`; it does not
 repeat that package check in the corpus runner. It freezes
 tracked fixture/library inputs and requires explicit native and Terminal exit
-markers. It preserves raw logs for both review phases; managed acceptance is
+markers. An authored numeric `expected_interpreter_exit.txt` must match the
+selected native exit (or a sample's declared exit); conflicting or nonnumeric
+expectations refuse before building. Both engine markers must report that
+authored exit during execution. It preserves raw logs for both review phases; managed acceptance is
 ordinary pending-row decisions, not a copied lock. Plain names in `expected_terminal_inspections.txt` run through public named
 inspection and canonical artifact reload with matching program identity.
-An optional `expected_interpreter_exit.txt` must name the same numeric exit as
+An optional expected_interpreter_exit.txt must name the same numeric exit as
 the native oracle; the CLI observation still requires both actual engine markers.
 Stream, RAM and debug/runtime/control inspection oracles remain refused before building
-rather than silently omitted. For example:
+rather than silently omitted.
+
+Full compiler tracing stays opt-in through the caller's existing environment.
+The consumer retains ordinary stderr without forcing `OMEGA_PROVIDER_DEBUG` or
+`OMEGA_COMPILER_CHECK_SITES`; those traces can exceed 800 MB for one package
+check. A requested diagnostic replay still inherits both settings.
+Manual pilot runs can set `compiler_diagnostics=true` to enable them explicitly;
+leave it false for ordinary acceptance runs.
+For a failure that needs the complete ownership or state plan, set
+`structural_trace=true` to request the existing `OMEGA_STRUCT_TRACE` output.
+Select one fixture: these full traces can be large. This setting is off by
+default. It can also be enabled during an authenticated retained-compiler
+replay without rebuilding the compiler or changing its acceptance rules.
+A requested full trace is printed even if the runner exits normally after
+reporting a fixture failure; trace text remains separate from fixture records.
+
+For an ordinary run:
 
 ```sh
 gh workflow run compiler-pilot.yml --ref work/NAME \
@@ -214,11 +243,17 @@ rebuilds changed Rust inputs, so a routine post-merge integration can spend the
 same cold-build time that branch reuse was meant to avoid.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
-or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
+or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/`, `run/` or `fail/`
 containing `main.omg`, including nested fact-place paths.
 For canonical checking rows after runtime is already qualified, add
 `--checking-only` (manual workflow input `checking_only: true`). It requires
 exact fixture IDs and refuses sample or ordinary CLI execution selectors.
+To produce reviewable source records on the hosted runner, add the manual input
+`record_results: true`. The pilot runs `corpus_gate.py --record` into
+`build/compiler-pilot/recorded-corpus-outcomes.txt`, retaining the published
+golden's timing limits. It leaves tracked goldens unchanged. Download and review
+those measured rows before applying them to `tests/omega/corpus_outcomes.txt`;
+the ordinary oracle, source identity and rejection checks still apply.
 The ordinary CLI selector `cli_fixtures` also accepts an exact normal-exit
 `samples/cli/...` project. It retains that project's original relative dependency
 paths and numeric source oracle; it does not select descendants or weaken the
@@ -236,6 +271,11 @@ verified binary, source export and preparation receipts, then saves the Cargo
 cache before program consumers begin. Later consumer failures stay red without
 hiding the already prepared producer. The final observations and compact records
 use separate artifact names; the original producer upload is not overwritten.
+
+For an ordinary CLI runtime failure, `compiler_diagnostics: true` also records
+the interpreter's operation, block and scalar values in that fixture's
+`both.stderr`. `OMEGA_TERMINAL_TRACE=1` enables the same trace directly. It is
+off by default and prints at most 128 scalar values per operation or terminator.
 
 The same split is available locally with `compiler_pilot.py --phase prepare` and
 `--phase consume`, using the same validated selections and output directory.
@@ -258,7 +298,10 @@ compiler phase profiler during consumers. It is off by default and changes no
 compiler acceptance rule or fixture timeout. Completed scopes remain in the job
 log if a corpus fixture reaches its existing time cap: the corpus gate forwards
 the profiler's existing checkpoint, timing and counter rows when requested.
-Unrelated compiler stderr keeps its ordinary buffering. Use one selected fixture
+Requested `CHECKSITE` diagnostics also remain visible when
+`OMEGA_COMPILER_CHECK_SITES` is enabled, even if the runner exits normally after
+recording a rejected fixture. Other compiler stderr keeps its ordinary
+buffering. Use one selected fixture
 to keep concurrent work out of that measurement.
 
 The plan records the original producer commit, tree, target, toolchain,
@@ -888,8 +931,8 @@ checking only on `linux_x86_64`; `--native` or `--both` also compares
 native/Terminal rows on the matching host (`linux_x86_64`, `linux_arm64`,
 `windows_x86_64` or `macos_arm64`). The base's rows are cached like local
 ones, so a second remote compare against that base dispatches only the head.
-The pilot takes exact `pass/` and `fail/` IDs, so `run/` fixtures and `--shard`
-stay local.
+The pilot accepts exact `pass/`, `run/` and `fail/` IDs; `run/` fixtures keep
+their authored engine oracles. `--shard` stays local.
 
 The base is built from its commit in a separate worktree
 (`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from

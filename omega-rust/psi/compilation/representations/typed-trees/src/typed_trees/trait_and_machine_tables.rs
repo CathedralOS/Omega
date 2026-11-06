@@ -839,10 +839,9 @@ impl TypedTrees {
     /// state. Otherwise the first machine in roster order that stores it,
     /// other than that parent, answers, but only for a symbol that
     /// `may_name_stored_state`: call targets naming a machine head, builtin,
-    /// parameter or trait requirement skip it. State spans are disjoint
-    /// append-only ranges, so at most one machine can contain a given state
-    /// symbol. The state-position index lists the storing machines in roster
-    /// order, so no case scans the roster.
+    /// parameter or trait requirement skip it. The state-position index keeps
+    /// every stored occurrence in roster order, including duplicates. Borrow
+    /// those rows directly rather than copying their coordinates for this lookup.
     pub fn machine_holding_state(&self, state_symbol: SymbolHandle) -> Option<&machine::Machine> {
         if !state_symbol.is_valid() {
             return None;
@@ -850,19 +849,22 @@ impl TypedTrees {
         let symbol = self.symbols.get(state_symbol);
         let parent = symbol.parent;
         let parent_machine = self.machine(parent);
-        let mut other = None;
-        for (machine, _) in self.machine_states_named(state_symbol) {
-            if parent_machine.is_some_and(|candidate| std::ptr::eq(candidate, machine)) {
-                return Some(machine);
+        self.with_state_positions_for_symbol(state_symbol, |positions| {
+            let mut other = None;
+            for (_, (machine_position, _)) in positions {
+                let machine = &self.machines()[*machine_position as usize];
+                if parent_machine.is_some_and(|candidate| std::ptr::eq(candidate, machine)) {
+                    return Some(machine);
+                }
+                if other.is_none() && machine.symbol != parent {
+                    other = Some(machine);
+                }
             }
-            if other.is_none() && machine.symbol != parent {
-                other = Some(machine);
+            if !self.may_name_stored_state(symbol) {
+                return None;
             }
-        }
-        if !self.may_name_stored_state(symbol) {
-            return None;
-        }
-        other
+            other
+        })
     }
 
     /// Whether a symbol can name a stored state row: a state symbol, or one

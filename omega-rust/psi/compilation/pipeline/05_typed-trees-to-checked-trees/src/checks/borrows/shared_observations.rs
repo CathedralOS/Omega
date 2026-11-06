@@ -7,6 +7,7 @@
 //! envelope compatible with that hold. Unknown writes and interior descriptor
 //! crossings refuse; observation footprints never become physical addresses.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowCallFact, FlowStateFact};
 use facts::PlaceRoot;
 use validation::CanonicalPlace;
@@ -142,9 +143,12 @@ pub(crate) fn shared_reference_observation<'facts>(
     let epoch = actuals
         .last()
         .ok_or("the invocation has no completed actual cut")?;
+    let prepared_loans = LoanOccurrences::for_state(program, facts, state);
+    let loan_occurrences = &prepared_loans;
     let backings = super::completed_backings::resolve_at_path(
         program,
         facts,
+        loan_occurrences,
         state,
         capture,
         &captured.projection.remaining,
@@ -155,6 +159,7 @@ pub(crate) fn shared_reference_observation<'facts>(
     let actual = super::place_access::argument_backings(
         program,
         facts,
+        loan_occurrences,
         state,
         borrow_call,
         call.entry_constraints,
@@ -184,8 +189,16 @@ pub(crate) fn shared_reference_observation<'facts>(
         .ok_or("the observation interval has missing, reordered or unknown writes")?;
     let mut lookup = None;
     for (statement, write) in writes {
-        let grants =
-            write_permission_envelope(program, facts, state, earlier, epoch, statement, write)?;
+        let grants = write_permission_envelope(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            earlier,
+            epoch,
+            statement,
+            write,
+        )?;
         if grants.is_empty()
             || !grants.iter().all(|grant| {
                 backings.places.iter().all(|saved| {
@@ -233,6 +246,7 @@ pub(crate) fn shared_reference_observation<'facts>(
 fn write_permission_envelope(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     earlier: &checked_trees::FlowOperandFact,
     epoch: &checked_trees::FlowOperandFact,
@@ -319,6 +333,7 @@ fn write_permission_envelope(
     super::access_sources::resolve_descriptor_all(
         program,
         facts,
+        loan_occurrences,
         state,
         earlier.statement_index,
         earlier.constraints,

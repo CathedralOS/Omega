@@ -687,6 +687,12 @@ fn validate<'program>(
         let mut stored_integer_writes = Vec::new();
         let mut boundary_operator_applications = Vec::new();
         let mut self_call_descents = Vec::new();
+        // Machines run on parallel workers, so subject wall times overlap and
+        // their sum exceeds the loop's own row.
+        let _subject =
+            phase_profile::subject("psi.05.prepare_typed_program.validate.machine_loop", || {
+                program.symbols.profile_label(machine.symbol)
+            });
         let _machine_pkg_guard = phase_profile::enabled().then(|| {
             let is_toolchain_or_std = program
                 .symbols
@@ -1382,6 +1388,10 @@ fn judge_machines(
     body_index: &dependency_bodies::DependencyBodyIndex,
 ) -> JudgedEntailment {
     let judge_machine = |machine_index: usize, machine: &typed_trees::machine::Machine| {
+        // Judged on parallel workers when the roster is large; times overlap.
+        let _subject = phase_profile::subject("psi.05.contract_entailment", || {
+            program.symbols.profile_label(machine.symbol)
+        });
         let mut diagnostics = Vec::new();
         let mut proven_machine_contract = None;
         // Pristine templates remain in the frozen roster. Judge their declared

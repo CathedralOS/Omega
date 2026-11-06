@@ -47,14 +47,20 @@ every relational proof pattern is implemented by today's checker.
 A consumption point is a use that may rely on the value's domain:
 
 - A read relying on a range or dependent coupling.
-- Borrow creation or a call.
-- A terminal transfer, return, or scope expiration.
-- A boundary/capability-carrying call, even when it does not name the place.
+- A borrow or call consuming the affected domain.
+- A transfer, return, scope expiration or loan handback that releases custody
+  or supplies the value under that domain.
+- A boundary/capability call that may expose the affected storage, including
+  through authority not named as an argument.
 
 The checker must close the relevant windows there. If it cannot, the diagnostic
 names both the opening write or storage cast and the consuming use. Machine
 arrivals prove their own contracts; a backedge cannot reuse entry facts invalidated
-by its writes.
+by its writes. A borrower's internal repair transfer can retain the lender's
+restoration obligation under the receiving contract, as explained below.
+A call proved unable to observe, expose or interfere with the broken coupling
+need not close its window. That requires complete access/effect/outcome evidence;
+merely writing nothing is insufficient. Unknown effects remain conservative.
 
 ## Lending Does Not Erase The Owner's Domain
 
@@ -78,7 +84,8 @@ unrestricted tag by itself makes no such promise. See
 ## Failure Does Not Cancel A Window
 
 Recoverable failure is an ordinary outcome, not permission to discard proof
-debt. Calls and transitions still close the reachable windows. Once a value is
+debt. Calls and transitions must satisfy their receiving contracts and preserve
+any delegated restoration obligation. Handback still requires restoration. Once a value is
 established, its cleanup and obligations may rely on its invariant, so it cannot
 simply be thrown away mid-window.
 
@@ -137,10 +144,41 @@ and [byte-backed header example](chapter_20_memory_layout_abi.md#initializing-a-
 
 ## Construction Windows Do Not Cross Terminal Transfers
 
-Windows do not cross terminal transfers. If a value cannot be made valid in one
-machine body, carry independent temporary values or unestablished storage and
-establish the whole where it becomes observable. A nested machine signature is not a way
-to pass a broken established value onward.
+An unfinished whole cannot cross a terminal transfer as a valid value of its
+declared type. Carry independent temporary values or unestablished storage and
+establish the whole where it becomes observable. A successor's `ensures` does
+not excuse failing its parameter's default domain on entry. This differs from
+delegating a named qualification's repair through an already valid weaker view.
+
+## Repair Through Existing Contracts
+
+`requires` describes what a repair step can assume; `ensures` describes what it
+restores. A helper can accept a structurally valid tree with one imbalance and
+promise balance on completion. An enclosing operation can use that guarantee
+to fulfill its own promise, including when the helper is a terminal successor.
+The original lender's restoration obligation remains attached throughout.
+
+| Guarantee | What must hold |
+| --- | --- |
+| Data default domain | Every ordinary receiver of that type may assume it at entry. |
+| Stored named qualification | The owner receives storage satisfying it back; a weaker borrowed repair view does not erase the duty. |
+| Operation `requires` / `ensures` | The stated fact holds on entry / the matching completed outcome. An entry-only fact may expire. |
+
+This uses existing contracts, not a new open/close keyword. Your code performs
+the repair; the checker composes its evidence. After a write, fresh proof of a
+predicate-only domain's conditions can re-establish membership. A guarantee
+about another object, an old value or a different outcome cannot do so.
+
+For example, balance may be a named qualification of a tree whose default domain
+describes structural validity. A weak repair view still satisfies that default
+domain, and a helper promising balance can restore the qualified owner's loan.
+If balance is instead part of the default domain, every `&mut Tree` receiver
+requires balance already. The repair rule does not silently weaken that type.
+
+These rules are ratified; compiler conformance and regression coverage remain
+tracked by **DOMAIN-ACCESS-AUTHORITY** and the
+[repair-facts plan](../drafts/designs/invariant_repair_facts.md). No compile-time
+speedup or runtime repair is implied by this clarification.
 
 ## Temps And Init-Syntax Remain Good Style
 
@@ -156,11 +194,12 @@ signature can operate on independent fields when their own borrow and consumptio
 obligations are satisfied:
 
 ```omega
-machine Tree::rotate_step(left: &mut NodeId, right: &mut NodeId) {
+machine rotate_step(left: &mut NodeId, right: &mut NodeId) {
     ... // field update omitted
 }
 ```
 
 Narrow parameters make the helper's reachable state explicit. They do not waive
-a coupling or a witness loan. The current model supplies no whole-value
-mid-window helper escape; a concrete need for one would require separate design.
+a coupling or a witness loan. A whole-value helper must receive a valid value
+under its parameter type; a weaker view can delegate a lender's named-domain
+repair only under the contract and custody rules above.

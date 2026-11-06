@@ -487,6 +487,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                 BoundaryRealization::ProgramImageRetainedSuffixStart
                 | BoundaryRealization::NearestIeeeFloatArithmetic(_)
                 | BoundaryRealization::AccessorScalarAccess(_)
+                | BoundaryRealization::EmptyRunRelease
                 | BoundaryRealization::AccessLifecycle { .. } => {
                     // These operations realize inline on the control-flow
                     // route; they never form a call-shaped settlement row.

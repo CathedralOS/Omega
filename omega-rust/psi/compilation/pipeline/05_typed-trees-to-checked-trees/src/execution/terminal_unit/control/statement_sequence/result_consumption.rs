@@ -574,8 +574,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         at_exit: false,
         uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
-        scalar_completion: None,
+        completion: None,
         transported_loans: &transported_loans,
+        storage_borrowers: &owner_candidates.storage_borrowers,
     };
     // Receiving carriers retire before their retained supplying descriptors.
     // Call inputs have the same statement boundaries as standalone producers;
@@ -1008,7 +1009,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
-    scalar_control: Option<&checked_trees::CheckedUnitScalarControlPlan>,
+    completion: crate::execution::terminal_unit::storage_transfers::CompletionPlan<'_>,
     results: &[(BindingPlan, PlaceRoot)],
     operations: &mut Vec<OperationPlan>,
     trace: &super::super::LocalConstructionTrace,
@@ -1032,32 +1033,19 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     {
         return Some(());
     }
-    // The final use of a local must finish before exit releases it. Select
-    // those return paths once, and preserve a malformed plan's reason in the
-    // construction diagnostic instead of hiding it in a retirement refusal.
-    let scalar_paths = match scalar_control {
-        Some(control)
-            if !matches!(
-                control.terminator,
-                checked_trees::CheckedScalarStateTerminator::Crash { .. }
-            ) =>
-        {
-            match control
-                .terminator
-                .returning_paths(&facts.flow.guarded_exits)
-            {
-                Ok(paths) => Some(paths),
-                Err(reason) => {
-                    trace.phase(reason);
-                    return None;
-                }
-            }
+    // No normal completion means no lexical cleanup successor. Prepare the
+    // selected paths once; every pending holder uses this same source plan.
+    let prepared_completion = match completion.prepare(program, facts, machine, authored_state) {
+        Ok(prepared) => prepared,
+        Err(reason) => {
+            trace.phase(reason);
+            return None;
         }
-        _ => None,
     };
-    let scalar_completion = scalar_paths.as_deref().map(|paths| {
-        crate::execution::terminal_unit::storage_transfers::ScalarCompletion { state, paths }
-    });
+    if !prepared_completion.has_normal_completion() {
+        return Some(());
+    }
+    let completion = Some(&prepared_completion);
     let order = program
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);
@@ -1216,8 +1204,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         at_exit: false,
         uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
-        scalar_completion,
+        completion,
         transported_loans: &transported_loans,
+        storage_borrowers: &owner_candidates.storage_borrowers,
     };
     // Lexical last use does not order descriptor death: a parent's last
     // authored use can form a child that lives until this same completion.
@@ -1462,7 +1451,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         authored_state,
         statement_index,
         returned,
-        scalar_completion,
+        completion,
         true,
         trace,
         results,
@@ -1721,8 +1710,8 @@ pub(in crate::execution::terminal_unit) fn consume_results(
             consume_result(operations, binding_ordinal, access, projected)?;
         }
     }
-    // A whole-result field store consumes the minted binding the same way a
-    // call argument does: Owned access retires the producer's disposal debt.
+    // Installing a completed value into a local home or field consumes it as
+    // an owned call argument does, retiring the producer's disposal debt.
     if let Some(value) = consumer.installed_value()
         && let Some(binding_ordinal) = value.source_structural_result_binding_ordinal()
     {

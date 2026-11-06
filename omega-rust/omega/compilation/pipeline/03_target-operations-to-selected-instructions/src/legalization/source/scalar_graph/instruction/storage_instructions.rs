@@ -81,6 +81,35 @@ pub(super) fn project_structural_leaf_copy(
             owned_path = source.path.clone().into();
             (*psi_operation, result, source.place, &owned_path)
         }
+        AbstractOperation::BoundaryCall {
+            psi_operation,
+            boundary,
+            arguments,
+            structural_arguments,
+            result: abstract_operations::AbstractBoundaryResult::Structural(result),
+            ..
+        } => {
+            let declaration = plan
+                .boundary_machines
+                .iter()
+                .find(|row| row.id == *boundary)
+                .ok_or(Error::custody())?;
+            let contract = terminal_semantics::empty_run_release_contract(
+                plan.structural_types.as_slice(),
+                declaration,
+            )
+            .map_err(|_| Error::custody())?;
+            let [source] = structural_arguments.as_slice() else {
+                return Err(Error::custody());
+            };
+            if !arguments.is_empty() || source.access != terminal_psi::StructuralAccess::Owned {
+                return Err(Error::custody());
+            }
+            let mut projection = source.path.clone();
+            projection.push(terminal_psi::StructuralPathSegment::Field(contract.storage));
+            owned_path = projection.into();
+            (*psi_operation, result, source.place, &owned_path)
+        }
         _ => return Err(Error::custody()),
     };
     let (byte_offset, shape, elements) =

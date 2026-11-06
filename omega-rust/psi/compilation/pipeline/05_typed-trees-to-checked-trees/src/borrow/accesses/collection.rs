@@ -43,9 +43,15 @@ impl<'a> BorrowAccessCollection<'a> {
     /// Collect a transition arm's own target roster, whose payload bindings
     /// were copied out of the dispatch's saved subject before the call.
     pub(super) fn after_dispatch_extraction(mut self) -> Self {
-        if let Some(state) = self.program.state_by_symbol(self.state_symbol) {
-            self.dispatch_extraction =
-                DispatchExtraction::of_transition_arm(self.program, state, self.statement_index);
+        if let Some(machine) = self.program.machine_by_symbol(self.machine_symbol)
+            && let Some(state) = self.program.state_in_machine(machine, self.state_symbol)
+        {
+            self.dispatch_extraction = DispatchExtraction::of_transition_arm(
+                self.program,
+                machine,
+                state,
+                self.statement_index,
+            );
         }
         self
     }

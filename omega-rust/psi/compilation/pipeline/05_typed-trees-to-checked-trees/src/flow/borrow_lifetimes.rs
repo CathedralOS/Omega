@@ -115,6 +115,7 @@ pub(crate) fn filter_reassigned_borrow_loans(
     {
         return source;
     }
+    // Keep the previous constraints until concrete, complete effects replace them.
     let source = if let Some(effects) = call_frames.and_then(|frames| {
         frames
             .stored_reference_fallthrough_effects(machine, statement)

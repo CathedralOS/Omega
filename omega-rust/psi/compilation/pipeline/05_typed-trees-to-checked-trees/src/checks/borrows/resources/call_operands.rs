@@ -12,6 +12,7 @@
 //! These rows retain demands; they authorize no access, restoration or parking.
 
 use super::permission_sources;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 
 use crate::published::places::place_at;
 use arena::{Arena, Handle, HandleSpan};
@@ -28,6 +29,8 @@ pub(super) struct ResourceDraft {
 }
 
 pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut CheckFacts) {
+    let prepared_loans = LoanOccurrences::new(program, facts);
+    let loan_occurrences = &prepared_loans;
     let mut resources = Vec::new();
     let mut parents = Arena::new();
     for (_, state) in facts.flow.control.states.iter() {
@@ -37,6 +40,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
                 collect(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     operand,
@@ -48,6 +52,7 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
             }
         }
     }
+    drop(prepared_loans);
     facts.borrow.call_loan_resources.reset_retain_capacity();
     facts.borrow.call_loan_paths.reset_retain_capacity();
     facts.borrow.call_loan_backing_paths.reset_retain_capacity();
@@ -99,6 +104,7 @@ pub(super) fn install_resource(
 fn collect(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     owner_operand: Handle<FlowOperandFact>,
@@ -135,6 +141,7 @@ fn collect(
             collect(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 call,
                 owner_operand,
@@ -174,6 +181,7 @@ fn collect(
             collect(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 call,
                 owner_operand,
@@ -190,6 +198,7 @@ fn collect(
         collect_suppliers(
             program,
             facts,
+            loan_occurrences,
             state,
             call,
             owner_operand,
@@ -232,6 +241,7 @@ fn collect(
                     if !collect_suppliers(
                         program,
                         facts,
+                        loan_occurrences,
                         state,
                         call,
                         owner_operand,
@@ -318,6 +328,7 @@ fn collect(
 fn collect_suppliers(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
     owner_operand: Handle<FlowOperandFact>,
@@ -335,6 +346,7 @@ fn collect_suppliers(
     if !permission_sources::collect(
         program,
         facts,
+        loan_occurrences,
         state,
         call,
         source,

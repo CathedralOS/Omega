@@ -681,13 +681,17 @@ impl TypedTrees {
         .parameter_kind(self, kind)
     }
 
-    /// Prepare nominal callable applications after all declarations are lowered.
-    /// Invalid identities/arity remain absent for ordinary declaration checking;
-    /// an application that cannot be represented fails instead of looking applied.
-    pub fn instantiate_nominal_machine_parameter_contracts(&mut self) -> Result<(), &'static str> {
+    /// Finish the handler contracts introduced by this typing run. Earlier
+    /// declarations were already finished in their own source context; their
+    /// backing rows can remain after that context's traits leave the live roots.
+    /// Missing contracts in the new rows still fail ordinary lowering.
+    pub fn instantiate_nominal_machine_parameter_contracts(
+        &mut self,
+        first_parameter: usize,
+    ) -> Result<(), &'static str> {
         let pending = self
             .data_type_parameters
-            .iter()
+            .iter_from(first_parameter)
             .filter_map(|(handle, parameter)| match &parameter.kind {
                 data::TypeParameterKind::Machine {
                     contract:

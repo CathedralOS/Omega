@@ -518,6 +518,9 @@ pub(crate) fn lower_unit_closure(
     for (signature, admitted) in machine_signatures.iter().zip(admitted_bodies) {
         let body = admitted.source();
         let plan = body.entry()?;
+        let _subject = phase_profile::subject("psi.06.lower_selected_machine", || {
+            checked.symbols.profile_label(plan.machine)
+        });
         let terminal_machine = lookup_machine_id(&machine_ids, plan.machine)?;
         // A body's refusal names the machine it lowers: a closure emits every
         // callee, so the bare reason would not say which body stopped.

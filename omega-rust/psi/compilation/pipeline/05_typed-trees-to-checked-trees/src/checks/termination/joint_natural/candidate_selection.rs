@@ -9,6 +9,7 @@ use super::{
     views::Order,
 };
 use crate::checks::current_scalar_values::{CurrentScalarValues, parameter_projection_paths};
+use crate::checks::termination::rank_inputs::entry_observation_paths::entry_observation_paths;
 use typed_trees::{expression::BinaryOperator, machine::Machine, state::State};
 use validation::{RankSubjectCoordinate, ScopedArithmeticValue};
 
@@ -140,6 +141,17 @@ pub(super) fn prepare(
             }
         }
     }
+    for (machine, view) in machines.iter().zip(&authored) {
+        let Some(view) = view.as_ref() else {
+            continue;
+        };
+        let entry = &program.machine_states(machine)[0];
+        for path in entry_observation_paths(program, machine, entry, view.measure, &[]) {
+            if !field_paths.contains(&path) {
+                field_paths.push(path);
+            }
+        }
+    }
     let application = authored.iter().flatten().find_map(|view| view.application);
     if let Some(application) = application {
         let shape = application.shape(program)?;
@@ -171,8 +183,22 @@ pub(super) fn prepare(
     let mut selected_order = None;
     for (machine, view) in machines.iter().zip(&authored) {
         let entry = &program.machine_states(machine)[0];
-        let prepared =
-            super::super::rank_inputs::at_entry(program, machine, entry, frames, &field_paths)?;
+        let seed_reads = view.as_ref().and_then(|view| {
+            let application = view.application?;
+            let shape = application.shape(program)?;
+            Some((view.coordinate.clone(), shape.reads.clone()))
+        });
+        let declared_reads = seed_reads
+            .as_ref()
+            .map(|(root, reads)| (root, reads.as_slice()));
+        let prepared = super::super::rank_inputs::at_entry(
+            program,
+            machine,
+            entry,
+            frames,
+            &field_paths,
+            declared_reads,
+        )?;
         available.push(prepared.coordinates);
         entry_values.push(prepared.values);
         let Some(view) = view else {

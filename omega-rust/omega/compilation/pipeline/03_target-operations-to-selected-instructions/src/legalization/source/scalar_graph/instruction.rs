@@ -41,6 +41,12 @@ where
         target_operations::TargetUnitOperation::Call { .. }
     ) {
         call_instructions::project_call(optimized, unit, targeted, call_descriptor_origins)?
+    } else if matches!(
+        targeted,
+        target_operations::TargetUnitOperation::StructuralLeafCopy { .. }
+    ) && matches!(node.operation, AbstractOperation::BoundaryCall { .. })
+    {
+        storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?
     } else if let target_operations::TargetUnitOperation::AccessLifecycle {
         boundary,
         operands,

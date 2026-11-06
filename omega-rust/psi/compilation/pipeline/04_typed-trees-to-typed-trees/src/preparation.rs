@@ -510,11 +510,16 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
     // inside the executable derivation loop.
     // This preliminary query retains authored applications on the typed tree.
     // Final program validation collects their conditional formation rows.
-    validation::static_arguments::validate_authored_static_arguments(program, &mut Vec::new())?;
-    validation::static_bindings::validate_static_machine_bindings(program, &mut Vec::new())?;
-    validation::conformance_applications::validate_conformance_applications(program)?;
-    validation::validate_static_machine_selections(program)?;
-    validation::validate_generic_machine_contract_entailment(program)
+    // These checks only read the completed program. Share their derived
+    // contract information for this invocation instead of rebuilding it for
+    // each generic application. The borrow ends before preparation can mutate
+    // the program again, so no cached judgment survives a source change.
+    let checking = validation::CheckingContext::new(program);
+    validation::static_arguments::validate_authored_static_arguments(&checking, &mut Vec::new())?;
+    validation::static_bindings::validate_static_machine_bindings(&checking, &mut Vec::new())?;
+    validation::conformance_applications::validate_conformance_applications(&checking)?;
+    validation::validate_static_machine_selections(&checking)?;
+    validation::validate_generic_machine_contract_entailment(&checking)
 }
 
 /// Form one private constant-execution graph, including its exact call and

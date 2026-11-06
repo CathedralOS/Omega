@@ -299,7 +299,13 @@ impl StructuralJudge<'_> {
         value: &StructuralTerm,
     ) -> StructuralTerm {
         match self.completed_nominal_observation(value) {
-            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
+            StructuralTerm::Constructor {
+                identity,
+                data,
+                case,
+                fields,
+            } => StructuralTerm::Constructor {
+                identity,
                 data,
                 case,
                 fields: fields

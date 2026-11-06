@@ -2,6 +2,7 @@
 //! Statement extraction and assignment use the same captured-place compatibility
 //! judgment; call transfers retain their occurrence-specific call certificates.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use validation::CanonicalPlace;
 
 use checked_trees::{CheckFacts, FlowStateFact, FlowStatementFact};
@@ -16,6 +17,7 @@ use crate::published::labels::symbol_name;
 pub(super) fn check_storage_move<'program>(
     program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     event: &DiscoveredMoveEvent,
@@ -25,7 +27,15 @@ pub(super) fn check_storage_move<'program>(
     diagnostics: &mut Vec<Diagnostic>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'program>>,
 ) {
-    let resolved = match owned_storage_source(program, facts, state, statement, event, path) {
+    let resolved = match owned_storage_source(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        statement,
+        event,
+        path,
+    ) {
         Ok(Some(resolved)) => resolved,
         Ok(None) => return,
         Err(diagnostic) => {
@@ -82,6 +92,7 @@ pub(super) fn check_storage_move<'program>(
 pub(super) fn owned_storage_source(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     event: &DiscoveredMoveEvent,
@@ -130,7 +141,14 @@ pub(super) fn owned_storage_source(
         // exclusion does not certify that extraction's source authority.
         // Do not infer such authority from matching storage candidates or a
         // fallback authored path. Independent Terminal custody still checks it.
-        super::access_sources::resolve(program, facts, state, statement, event.expression)
+        super::access_sources::resolve(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            statement,
+            event.expression,
+        )
     };
     resolved.map(Some).ok_or_else(|| {
         Diagnostic::error(

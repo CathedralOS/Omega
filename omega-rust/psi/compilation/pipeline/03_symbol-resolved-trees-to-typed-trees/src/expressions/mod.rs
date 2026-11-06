@@ -5,11 +5,11 @@
 pub(crate) mod build_selections;
 pub(crate) mod call_results;
 mod capture_product_operands;
+pub(crate) mod construction_destinations;
 pub(crate) mod equality;
 pub(crate) mod equatable;
 pub(crate) mod exhaustiveness;
 pub(crate) mod expression;
-pub(crate) mod fixed_byte_array_literals;
 pub(crate) mod product_queries;
 pub(crate) mod product_selections;
 pub(crate) mod proposition;
