@@ -16,6 +16,7 @@ pub(super) fn roster_at_expression(
     expression: typed_trees::expression::ExpressionHandle,
     frames: &validation::CallFrameResolver<'_>,
     incoming: &[super::StateLoanTracker],
+    parameter_referents: &super::ParameterReferentGrants,
 ) -> Result<Vec<super::StateLoanTracker>, validation::StoredReferenceRelationRefusal> {
     let effects = match frames.stored_reference_effects_at_expression(
         machine,
@@ -40,7 +41,14 @@ pub(super) fn roster_at_expression(
         }
         Err(reason) => return Err(reason),
     };
-    let produced = from_effects(program, state, statement_index, effects.clone(), incoming);
+    let produced = from_effects(
+        program,
+        state,
+        statement_index,
+        effects.clone(),
+        incoming,
+        parameter_referents,
+    );
     let mut current = incoming
         .iter()
         .filter(|loan| {
@@ -213,6 +221,7 @@ pub(in crate::borrow) fn from_effects(
     statement_index: usize,
     effects: Vec<validation::StoredReferenceEffect>,
     loan_trackers: &[super::StateLoanTracker],
+    parameter_referents: &super::ParameterReferentGrants,
 ) -> Vec<StatementBorrowLoan> {
     let mut loans = Vec::new();
     for effect in effects {
@@ -360,7 +369,7 @@ pub(in crate::borrow) fn from_effects(
                 // Keep its zero-root unknown alternative below; deleting it
                 // would let a sibling source falsely prove a complete result.
             }
-            let captured = match source_capture_place(program, state, statement_index, source) {
+            let mut captured = match source_capture_place(program, state, statement_index, source) {
                 Ok(place) => super::call_views::rebase_borrow_places_through_local_loans(
                     program,
                     place,
@@ -376,6 +385,11 @@ pub(in crate::borrow) fn from_effects(
                     Vec::new()
                 }
             };
+            // Bare formal forwarding consumes the already published root grant,
+            // not a local predecessor or the next stored descriptor.
+            for candidate in &mut captured {
+                parameter_referents.bind(state.symbol, candidate);
+            }
             // A completed source records its input referent before deriving
             // the output view. Account for every actual carrier alternative
             // across the complete source roster, never a convenient subset.
@@ -658,6 +672,7 @@ mod tests {
             segments: vec![facts::PlaceSegment::FixedIndex { index: 0 }],
         };
         let candidate = super::super::RebasedBorrowPlace {
+            parameter_referent: None,
             source_place: checked_trees::CapturedPlace {
                 root: facts::PlaceRoot::Symbol(slot),
                 segments: backing.segments.clone(),

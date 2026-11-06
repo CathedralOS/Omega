@@ -542,6 +542,11 @@ fn rebase_borrow_places_following(
         || active.contains(&place)
     {
         return vec![RebasedBorrowPlace {
+            parameter_referent: if parameter_referent {
+                place.root.as_symbol()
+            } else {
+                None
+            },
             source_place: place.clone(),
             representation_address: if active.contains(&place) {
                 None
@@ -615,6 +620,7 @@ fn rebase_borrow_places_following(
                 })
             };
             RebasedBorrowPlace {
+                parameter_referent: None,
                 source_place: place.clone(),
                 representation_address: address,
                 lifetime_access: lifetime_only.then(|| source_loan.kind.clone()),
@@ -669,6 +675,7 @@ fn rebase_borrow_places_following(
                         nested
                     } else {
                         RebasedBorrowPlace {
+                            parameter_referent: nested.parameter_referent,
                             place: nested.place,
                             representation_address: nested.representation_address,
                             ..source.clone()
