@@ -13,6 +13,9 @@ use crate::name::Identifier;
 struct ExpressionDisplay<'table> {
     table: &'table ExpressionTable,
     displayed_expression: &'table dyn Fn(ExpressionHandle) -> ExpressionHandle,
+    /// Diagnostic substitutions may expose an expression with different
+    /// precedence. Keep its actual tree without changing legacy name labels.
+    preserve_grouping: bool,
 }
 
 impl std::ops::Deref for ExpressionDisplay<'_> {
@@ -25,9 +28,23 @@ impl std::ops::Deref for ExpressionDisplay<'_> {
 
 impl ExpressionDisplay<'_> {
     fn write_display_name(&self, expression: ExpressionHandle, rendered: &mut String) {
-        self.table
-            .expression((self.displayed_expression)(expression))
-            .write_display_name_with(self, rendered);
+        self.write_operand(expression, 0, rendered);
+    }
+
+    fn write_operand(&self, expression: ExpressionHandle, minimum: u8, rendered: &mut String) {
+        let node = self
+            .table
+            .expression((self.displayed_expression)(expression));
+        let grouped = self.preserve_grouping
+            && matches!(node, ExpressionNode::Binary(binary)
+                if binary.operator.display_precedence() < minimum);
+        if grouped {
+            rendered.push('(');
+        }
+        node.write_display_name_with(self, rendered);
+        if grouped {
+            rendered.push(')');
+        }
     }
 }
 
@@ -41,6 +58,7 @@ impl ExpressionTable {
         ExpressionDisplay {
             table: self,
             displayed_expression,
+            preserve_grouping: true,
         }
         .write_display_name(expression, &mut rendered);
         rendered
@@ -56,6 +74,7 @@ macro_rules! display_name_via_writer {
                 &ExpressionDisplay {
                     table,
                     displayed_expression: &|expression| expression,
+                    preserve_grouping: false,
                 },
                 &mut rendered,
             );
@@ -137,6 +156,7 @@ impl ExpressionNode {
             &ExpressionDisplay {
                 table,
                 displayed_expression: &|expression| expression,
+                preserve_grouping: false,
             },
             out,
         );
@@ -207,7 +227,7 @@ impl ExpressionNode {
                 let _ = write!(out, "<undetermined NaN {}>", format.name());
             }
             Self::Indexed(indexed) => {
-                table.write_display_name(indexed.collection, out);
+                table.write_operand(indexed.collection, u8::MAX, out);
                 out.push('[');
                 table.write_display_name(indexed.index, out);
                 out.push(']');
@@ -216,7 +236,7 @@ impl ExpressionNode {
                 let _ = write!(out, "{value}");
             }
             Self::Member(member) => {
-                table.write_display_name(member.receiver, out);
+                table.write_operand(member.receiver, u8::MAX, out);
                 let _ = write!(
                     out,
                     "{}{}",
@@ -226,7 +246,7 @@ impl ExpressionNode {
             }
             Self::Borrow(expression) => {
                 out.push_str(expression.access.borrow_prefix());
-                table.write_display_name(expression.target, out);
+                table.write_operand(expression.target, u8::MAX, out);
             }
             Self::Name(path) => {
                 write_display_name_path(table.name_path_members(path.members), "::", out)
@@ -382,11 +402,15 @@ impl TableBinaryExpression {
     display_name_via_writer!();
 
     fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
-        table.write_display_name(self.left, out);
+        let precedence = self.operator.display_precedence();
+        table.write_operand(self.left, precedence, out);
         out.push(' ');
         out.push_str(self.operator.display_name());
         out.push(' ');
-        table.write_display_name(self.right, out);
+        // Parsing is left associative. An equally binding right child must
+        // retain its grouping even for arithmetic that looks associative:
+        // selected carriers and policies still own each intermediate.
+        table.write_operand(self.right, precedence + 1, out);
     }
 }
 
@@ -395,7 +419,7 @@ impl TableUnaryExpression {
 
     fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         out.push_str(self.operator.display_name());
-        table.write_display_name(self.operand, out);
+        table.write_operand(self.operand, u8::MAX, out);
     }
 }
 
@@ -423,7 +447,7 @@ impl TableCastExpression {
     display_name_via_writer!();
 
     fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
-        table.write_display_name(self.value, out);
+        table.write_operand(self.value, u8::MAX, out);
         out.push_str(" as ");
         write_display_name_path(table.name_path_members(self.target_label), "::", out);
     }
@@ -447,7 +471,7 @@ impl TableCallExpression {
     fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
         use std::fmt::Write as _;
         if self.receiver.is_valid() {
-            table.write_display_name(self.receiver, out);
+            table.write_operand(self.receiver, u8::MAX, out);
             out.push('.');
         }
         let _ = write!(out, "{}", self.target);
@@ -529,6 +553,23 @@ impl StaticMachineArgument {
 }
 
 impl BinaryOperator {
+    /// Ordinary expression precedence, used only to preserve diagnostic syntax.
+    fn display_precedence(self) -> u8 {
+        match self {
+            Self::Or => 0,
+            Self::And => 1,
+            Self::Equal | Self::NotEqual => 2,
+            Self::Less | Self::LessOrEqual | Self::Greater | Self::GreaterOrEqual => 3,
+            Self::CaseMembership => 4,
+            Self::BitwiseOr => 5,
+            Self::BitwiseXor => 6,
+            Self::BitwiseAnd => 7,
+            Self::ShiftLeft | Self::ShiftRight => 8,
+            Self::Add | Self::Subtract => 9,
+            Self::Multiply | Self::Divide | Self::Modulo => 10,
+        }
+    }
+
     pub fn display_name(self) -> &'static str {
         match self {
             Self::Add => "+",
@@ -560,5 +601,103 @@ impl UnaryOperator {
             Self::BitwiseNot => "~",
             Self::LogicalNot => "!",
         }
+    }
+}
+
+#[cfg(test)]
+mod diagnostic_grouping_tests {
+    use super::*;
+    use crate::expression::NamePath;
+
+    fn name(value: &str) -> Expression {
+        Expression::Name(NamePath::unresolved(vec![Identifier::generated(value)]))
+    }
+
+    fn binary(left: Expression, operator: BinaryOperator, right: Expression) -> Expression {
+        Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator,
+            right,
+        }))
+    }
+
+    #[test]
+    fn diagnostics_preserve_arithmetic_grouping_and_selected_intermediates() {
+        use BinaryOperator::{Add, Divide, Multiply, Subtract};
+        let cases = [
+            (
+                binary(name("n"), Multiply, binary(name("n"), Add, name("step"))),
+                "n * (n + step)",
+            ),
+            (
+                binary(binary(name("a"), Add, name("b")), Multiply, name("c")),
+                "(a + b) * c",
+            ),
+            (
+                binary(name("a"), Subtract, binary(name("b"), Subtract, name("c"))),
+                "a - (b - c)",
+            ),
+            (
+                binary(name("a"), Divide, binary(name("b"), Multiply, name("c"))),
+                "a / (b * c)",
+            ),
+            (
+                binary(name("a"), Add, binary(name("b"), Add, name("c"))),
+                "a + (b + c)",
+            ),
+            (
+                binary(name("a"), Add, binary(name("b"), Multiply, name("c"))),
+                "a + b * c",
+            ),
+        ];
+        let mut program = crate::TypedTrees::default();
+        for (expression, expected) in cases {
+            let root = program.expression_table.insert_tree(&expression);
+            assert_eq!(program.diagnostic_expression_name(root), expected);
+        }
+    }
+
+    #[test]
+    fn substituted_capture_uses_its_actual_operand_precedence() {
+        let mut table = ExpressionTable::default();
+        let root = table.insert_tree(&binary(
+            name("n"),
+            BinaryOperator::Multiply,
+            name("capture"),
+        ));
+        let capture = table.binary_node(root).unwrap().right;
+        let initializer = table.insert_tree(&binary(name("n"), BinaryOperator::Add, name("step")));
+        assert_eq!(
+            table.display_name_resolving(root, &|expression| {
+                if expression == capture {
+                    initializer
+                } else {
+                    expression
+                }
+            }),
+            "n * (n + step)"
+        );
+    }
+
+    #[test]
+    fn diagnostic_boolean_and_unary_operands_keep_their_grouping() {
+        let mut program = crate::TypedTrees::default();
+        let alternative = binary(name("a"), BinaryOperator::Or, name("b"));
+        let conjunction = program.expression_table.insert_tree(&binary(
+            alternative.clone(),
+            BinaryOperator::And,
+            name("c"),
+        ));
+        let negation = program
+            .expression_table
+            .insert_tree(&Expression::Unary(Box::new(UnaryExpression {
+                operator: UnaryOperator::LogicalNot,
+                operand: alternative,
+            })));
+        assert_eq!(
+            program.diagnostic_expression_name(conjunction),
+            "(a || b) && c"
+        );
+        assert_eq!(program.diagnostic_expression_name(negation), "!(a || b)");
     }
 }

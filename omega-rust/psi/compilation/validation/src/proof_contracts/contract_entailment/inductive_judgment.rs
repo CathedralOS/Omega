@@ -156,7 +156,7 @@ pub(super) fn inductive_transition_entailment(
                     "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
                     machine.name,
                     arm.guard_display,
-                    program.expression_table.display_name(*fact),
+                    program.diagnostic_expression_name(*fact),
                     arm.fully_visible,
                 );
             }
@@ -178,14 +178,14 @@ pub(super) fn inductive_transition_entailment(
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
                 machine.name,
-                program.expression_table.display_name(*fact),
+                program.diagnostic_expression_name(*fact),
                 guard
             )));
         } else if let Some(guard) = refuted_arm {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
                 machine.name,
-                program.expression_table.display_name(*fact),
+                program.diagnostic_expression_name(*fact),
                 guard
             )));
         } else if let Some(ref guard) = unknown_arm
@@ -195,7 +195,7 @@ pub(super) fn inductive_transition_entailment(
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
                 machine.name,
-                program.expression_table.display_name(*fact),
+                program.diagnostic_expression_name(*fact),
                 guard
             )));
         } else if unknown_arm.is_none() {
@@ -273,12 +273,12 @@ fn prepare_arm<'program>(
     preceding: &[TransitionArm],
 ) -> Option<JudgedArm<'program>> {
     let guard_display = match arm.guard {
-        Some(guard) => program.expression_table.display_name(guard),
+        Some(guard) => guard_display_name(program, guard, true),
         None if preceding.is_empty() => "<always>".to_owned(),
         None => preceding
             .iter()
             .filter_map(|arm| arm.guard)
-            .map(|guard| failed_guard_display(program, guard))
+            .map(|guard| guard_display_name(program, guard, false))
             .collect::<Vec<_>>()
             .join(" && "),
     };
@@ -408,18 +408,30 @@ pub(super) fn guard_arm_comparison(
     ))
 }
 
-fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
+/// Display the authored condition and selected polarity, rather than the
+/// generated dispatch capture used to evaluate it once. This changes no fact.
+fn guard_display_name(
+    program: &dyn crate::CheckingInput,
+    guard: ExpressionHandle,
+    expected: bool,
+) -> String {
     if let Some(binary) = program.expression_table.binary_node(guard)
         && binary.operator == BinaryOperator::Equal
         && let ExpressionNode::Boolean(polarity) = program.expression_table.expression(binary.right)
     {
-        return format!(
-            "{} == {}",
-            program.expression_table.display_name(binary.left),
-            !polarity
-        );
+        let condition = program.diagnostic_expression_name(binary.left);
+        return if *polarity == expected {
+            condition
+        } else {
+            format!("!({condition})")
+        };
     }
-    format!("!({})", program.expression_table.display_name(guard))
+    let condition = program.diagnostic_expression_name(guard);
+    if expected {
+        condition
+    } else {
+        format!("!({condition})")
+    }
 }
 
 /// Complete the recursive tuple in the caller's namespace before publishing
@@ -555,4 +567,47 @@ pub(super) fn apply_argument_map(
         result = result.add(&piece);
     }
     Some(result)
+}
+
+#[cfg(test)]
+mod guard_display_tests {
+    use super::*;
+    use typed_trees::expression::{Expression, NamePath, TableBinaryExpression};
+    use typed_trees::name::Identifier;
+
+    #[test]
+    fn dispatch_diagnostics_keep_the_selected_and_failed_guard_polarities() {
+        let mut program = typed_trees::TypedTrees::default();
+        let n = program
+            .expression_table
+            .insert_tree(&Expression::Name(NamePath::unresolved(vec![
+                Identifier::generated("n"),
+            ])));
+        let zero = program.expression_table.insert_tree(&Expression::default());
+        let condition =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: n,
+                    operator: BinaryOperator::Greater,
+                    right: zero,
+                }));
+        for polarity in [true, false] {
+            let selected = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(polarity));
+            let guard =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: condition,
+                        operator: BinaryOperator::Equal,
+                        right: selected,
+                    }));
+            assert_eq!(guard_display_name(&program, guard, polarity), "n > 0");
+            assert_eq!(guard_display_name(&program, guard, !polarity), "!(n > 0)");
+        }
+        assert_eq!(guard_display_name(&program, condition, true), "n > 0");
+        assert_eq!(guard_display_name(&program, condition, false), "!(n > 0)");
+    }
 }
