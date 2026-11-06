@@ -1,0 +1,146 @@
+{
+  "kind": "Exact five focused nonignored Rust controls: published entry grants, captured lifetime debt, typed Store endpoints and evaluated capture association",
+  "source": "63c8ccce24cf315059328d3378a35d6812d78b9b",
+  "expected_total_passes": 5,
+  "owner_source_map_sha256": "212da90f8a590ff09ce55aa19a8332331643c488db15cdf41537a3aeaab0a8c3",
+  "groups": [
+    {
+      "package": "typed-trees-to-checked-trees",
+      "filter": "borrow::loans::grant_tests::forwarded_formal_reuses_the_published_root_grant_not_the_stored_pointer",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "borrow::loans::grant_tests::forwarded_formal_reuses_the_published_root_grant_not_the_stored_pointer"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans/grant_tests.rs",
+          "sha256": "2848e5dc64da41830163c22920368bab4b33b23fb4bf4d7103acb0fef2b325f7"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs",
+          "sha256": "c7edd20bb89f814d08cc0a1dddaf27024ef820025271342e59d9e0e7a727383b"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/Cargo.toml",
+          "sha256": "e563427469e159f73a45953777ab3a0526dc9df26035c22aa8889744ec2524bf"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    },
+    {
+      "package": "typed-trees-to-checked-trees",
+      "filter": "borrow::loans::grant_tests::root_grant_binding_refuses_missing_ambiguous_or_foreign_entry_evidence",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "borrow::loans::grant_tests::root_grant_binding_refuses_missing_ambiguous_or_foreign_entry_evidence"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans/grant_tests.rs",
+          "sha256": "2848e5dc64da41830163c22920368bab4b33b23fb4bf4d7103acb0fef2b325f7"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs",
+          "sha256": "c7edd20bb89f814d08cc0a1dddaf27024ef820025271342e59d9e0e7a727383b"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/Cargo.toml",
+          "sha256": "e563427469e159f73a45953777ab3a0526dc9df26035c22aa8889744ec2524bf"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    },
+    {
+      "package": "typed-trees-to-checked-trees",
+      "filter": "borrow::loans::stored_calls::tests::lifetime_debt_follows_original_captured_descriptor",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "borrow::loans::stored_calls::tests::lifetime_debt_follows_original_captured_descriptor"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans/stored_calls.rs",
+          "sha256": "61ef42839f9a735732d3fb43d238cd8e8298fa9fe86c6a31d60e6ab744855c3f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/borrow/loans.rs",
+          "sha256": "c7edd20bb89f814d08cc0a1dddaf27024ef820025271342e59d9e0e7a727383b"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/Cargo.toml",
+          "sha256": "e563427469e159f73a45953777ab3a0526dc9df26035c22aa8889744ec2524bf"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    },
+    {
+      "package": "validation",
+      "filter": "value_custody::completed_storage::query::tests::typed_store_endpoints_keep_descriptors_separate_from_their_payloads",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "value_custody::completed_storage::query::tests::typed_store_endpoints_keep_descriptors_separate_from_their_payloads"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/validation/src/value_custody/completed_storage/query/tests.rs",
+          "sha256": "0c32af6d39c743f343619cd210f29c5d796cbf0aaa947a38413d91e8540edb3a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/validation/src/value_custody/completed_storage/query.rs",
+          "sha256": "274829a43a6a7c4424e2d7523e2c3ca166a2c1d3a7cfa88f56ae90be3d6d2364"
+        },
+        {
+          "path": "omega-rust/psi/compilation/validation/src/value_custody/completed_storage.rs",
+          "sha256": "63772fbcd9d1a0f13ab5aaae679e75c77efb59eb0561240136c553c01b1b38eb"
+        },
+        {
+          "path": "omega-rust/psi/compilation/validation/Cargo.toml",
+          "sha256": "66daadaa7c8a184d051a03dcc8878cd0ff6b1e4619843b3f734f2441cc77d5e0"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    },
+    {
+      "package": "validation",
+      "filter": "value_custody::completed_storage::occurrences::tests::captures_follow_evaluated_sources_but_not_unrelated_history",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "value_custody::completed_storage::occurrences::tests::captures_follow_evaluated_sources_but_not_unrelated_history"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/validation/src/value_custody/completed_storage/occurrences/tests.rs",
+          "sha256": "da398b80ae40a89f22afc8892a65809005af9c79e0633d9bc66b2134be4dee83"
+        },
+        {
+          "path": "omega-rust/psi/compilation/validation/src/value_custody/completed_storage/occurrences.rs",
+          "sha256": "a93c4473bf97276547a52c164a005dc4fbe089aeb56bfed18246e275c6c006c0"
+        },
+        {
+          "path": "omega-rust/psi/compilation/validation/src/value_custody/completed_storage.rs",
+          "sha256": "63772fbcd9d1a0f13ab5aaae679e75c77efb59eb0561240136c553c01b1b38eb"
+        },
+        {
+          "path": "omega-rust/psi/compilation/validation/Cargo.toml",
+          "sha256": "66daadaa7c8a184d051a03dcc8878cd0ff6b1e4619843b3f734f2441cc77d5e0"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
