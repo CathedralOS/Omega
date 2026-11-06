@@ -361,6 +361,11 @@ pub struct BorrowLoanFact {
     /// its borrowing parent. These descriptor edges are not reborrow events.
     /// The shared graph keeps every supplier without expanding whole histories.
     pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Complete input lifetime debts for a directly returned reference.
+    /// Normal-call publication records Some(empty) when no input is retained;
+    /// None supplies no completed inventory. These keepalive edges cannot act
+    /// as spatial suppliers or confer the returned pointer's permission.
+    pub retained_input_lifetimes: Option<HandleSpan<Handle<BorrowLoanFact>>>,
     /// Checked formation lineage for this loan occurrence.
     ///
     /// An explicit reborrow with one exact prior source occurrence names a
@@ -874,7 +879,7 @@ pub struct CheckedReborrowLoanResource {
     pub restoration: CheckedReborrowRestorationObligation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum BorrowLoanOwnerSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),

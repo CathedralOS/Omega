@@ -568,7 +568,6 @@ fn retained_parents(
         let dependencies = Dependencies {
             program,
             facts,
-            records,
             state,
             statement: capture.statement_index,
             borrow_state,
@@ -592,7 +591,6 @@ fn retained_parents(
         let dependencies = Dependencies {
             program,
             facts,
-            records,
             state,
             statement: leaf.statement_index,
             borrow_state,
@@ -656,7 +654,6 @@ fn retained_parents(
     let dependencies = Dependencies {
         program,
         facts,
-        records,
         state,
         statement: capture.statement_index,
         borrow_state,
@@ -1079,7 +1076,6 @@ pub(super) fn retired_carrier_backing(
     let dependencies = Dependencies {
         program,
         facts,
-        records,
         state,
         statement,
         borrow_state,
@@ -1209,7 +1205,6 @@ enum StorageQuestion {
 struct Dependencies<'a> {
     program: &'a dyn validation::CheckingInput,
     facts: &'a CheckFacts,
-    records: &'a RetainedBorrowRecords<'a>,
     state: SymbolHandle,
     statement: usize,
     borrow_state: &'a checked_trees::StateBorrowFact,
@@ -1553,18 +1548,23 @@ impl Dependencies<'_> {
         {
             return false;
         }
-        self.records
-            .result_field_loans(loan.established_by_call, path)
-            .into_iter()
-            .filter(|(source, row)| {
-                borrow.loans_contain(call.completed_reference_loans, *source)
-                    && row.storage_owner == loan.storage_owner
-            })
-            .all(|(source, row)| {
-                source == handle
-                    || (row.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
-                        && self.loan(source, constraints, active_roots, active_loans, captured))
-            })
+        let Some(debts) = loan
+            .retained_input_lifetimes
+            .and_then(|debts| borrow.loan_suppliers.span(debts))
+        else {
+            return false;
+        };
+        debts.iter().all(|source| {
+            if !borrow.loans_contain(call.completed_reference_loans, *source) {
+                return false;
+            }
+            let row = borrow.loans.get(*source);
+            row.established_by_call == loan.established_by_call
+                && row.storage_owner == loan.storage_owner
+                && borrow.owner_segments.span(row.owner_path) == Some(path)
+                && row.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+                && self.loan(*source, constraints, active_roots, active_loans, captured)
+        })
     }
 
     fn loan(

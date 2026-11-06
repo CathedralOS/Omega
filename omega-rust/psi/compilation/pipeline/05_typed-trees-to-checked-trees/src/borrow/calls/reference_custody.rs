@@ -186,6 +186,7 @@ pub(in crate::borrow) fn append_reference_custody(
                     statement_index,
                     call,
                 );
+                retain_result_input_lifetimes(arenas, published, expression);
                 arenas.calls.get_mut(call).completed_reference_loans = published;
                 Some(current)
             }
@@ -220,4 +221,60 @@ pub(crate) fn replaces_reference_loan(
                     borrow.loan_owner_path(previous),
                 )
         })
+}
+
+/// A returned pointer records its complete input debts when the call completes.
+/// Carrier publication already groups equal storage and field paths, so one
+/// pass can attach each list without a later search through the state's loans.
+fn retain_result_input_lifetimes(
+    arenas: &mut BorrowFactArenas<'_>,
+    published: arena::HandleSpan<BorrowLoanFact>,
+    expression: typed_trees::expression::ExpressionHandle,
+) {
+    let mut retained = Vec::new();
+    let mut first = 0u32;
+    for group in arenas
+        .loans
+        .span_or_empty(published)
+        .chunk_by(|left, right| {
+            left.owner_symbol == right.owner_symbol
+                && left.storage_owner == right.storage_owner
+                && arenas.owner_segments.span(left.owner_path)
+                    == arenas.owner_segments.span(right.owner_path)
+        })
+    {
+        let start = first;
+        first += group.len() as u32;
+        let permissions = group
+            .iter()
+            .enumerate()
+            .filter_map(|(offset, loan)| {
+                (loan.storage_owner == facts::PlaceRoot::Expression(expression)
+                    && loan.lineage == checked_trees::BorrowLoanLineage::DirectRoot
+                    && loan.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
+                    && arenas.incoming_references.is_valid(loan.incoming_reference)
+                    && matches!(arenas.incoming_references.get(loan.incoming_reference).origin,
+                    checked_trees::IncomingReferenceOrigin::Invocation { expression: source, .. }
+                        if source == expression))
+                .then_some(published.handle_at(start + offset as u32))
+            })
+            .collect::<Vec<_>>();
+        if permissions.is_empty() {
+            continue;
+        }
+        let debts = arenas
+            .loan_suppliers
+            .insert_many(group.iter().enumerate().filter_map(|(offset, loan)| {
+                (loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency)
+                    .then_some(published.handle_at(start + offset as u32))
+            }));
+        retained.extend(
+            permissions
+                .into_iter()
+                .map(|permission| (permission, debts)),
+        );
+    }
+    for (permission, debts) in retained {
+        arenas.loans.get_mut(permission).retained_input_lifetimes = Some(debts);
+    }
 }

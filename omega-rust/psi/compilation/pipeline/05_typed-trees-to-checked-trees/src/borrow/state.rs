@@ -396,6 +396,7 @@ pub(super) fn append_carrier_loans(
                 owner_path,
                 source_owner_symbol: pending.source_owner_symbol,
                 supplying_loans: arenas.loan_suppliers.insert_many(pending.supplying_loans),
+                retained_input_lifetimes: None,
                 lineage: pending.lineage.clone(),
                 root: pending.place.root,
                 segments,
