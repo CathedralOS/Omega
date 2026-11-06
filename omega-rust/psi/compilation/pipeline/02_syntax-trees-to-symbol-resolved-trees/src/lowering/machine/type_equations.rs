@@ -110,33 +110,7 @@ fn lower_type_operand(
                 },
             })
         }
-        ExpressionNode::Indexed(indexed) => {
-            let ExpressionNode::Range(range) = syntax.expressions.expression(indexed.index) else {
-                return Err(Diagnostic::error("type equation requires a range shell")
-                    .with_source_span(syntax.expressions.source_span(expression)));
-            };
-            let carrier = lower_type_operand(lowerer, syntax, indexed.collection)?;
-            let base_type = lowerer.declaration_child_type_references().append(carrier);
-            let minimum = lower_expression_into_table(lowerer, syntax, range.start)?;
-            let maximum = lower_expression_into_table(lowerer, syntax, range.end)?;
-            let constraints = lowerer
-                .symbol_resolved_trees
-                .tables
-                .types
-                .constraints
-                .insert_many([TypeConstraint::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive: range.end_inclusive,
-                }]);
-            TypeReference::Constrained(ConstrainedTypeReference {
-                storage: ConstrainedTypeReferenceStorage {
-                    supplied_operand_owner: Default::default(),
-                    base_type,
-                    constraints,
-                },
-            })
-        }
+
         _ => {
             return Err(Diagnostic::error(
                 "structural type equation lost its classified type operand",

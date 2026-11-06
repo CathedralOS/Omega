@@ -581,20 +581,6 @@ pub fn frozen_declared_integer_range(
         .iter()
         .flat_map(|constraints| constraints.iter())
         .filter_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                // The same closed-endpoint evaluation as source range
-                // validation; failure is no bound, never a guessed one.
-                let low = crate::closed_integer_range_bound(program, *minimum)?;
-                let high = crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
-                Some(IntegerRange {
-                    minimum: low,
-                    maximum: high,
-                })
-            }
             _ => None,
         })
         .reduce(|previous, next| IntegerRange {

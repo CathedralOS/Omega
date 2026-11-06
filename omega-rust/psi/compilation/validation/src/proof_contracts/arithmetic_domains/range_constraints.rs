@@ -86,42 +86,6 @@ impl IntegerValueObservation<'_> {
     }
 }
 
-/// S4: the value range a type declares via a `Range` constraint (`x: i32 [0..N]`),
-/// so a bounded value's exact arithmetic can be proven in-range instead of using
-/// the full type width. Inclusive bounds (a sound over-approximation either way).
-/// `None` when the type has no literal range constraint. Looks through reference
-/// shells.
-/// `range-constraints-require-exact-domain` (Zach, 2026-07-13: "this is just a
-/// compile error"): a declared
-/// RANGE constraint combined with a non-Exact arithmetic domain is
-/// ill-formed. The range is only enforced under Exact stores, so
-/// `u8 [0..=4] in Wrapping` accepted `self.i = 100` silently -- the
-/// declaration lied to every reader. Rejecting at the declaration keeps the
-/// two features composable-by-omission: keep the range (Exact proof
-/// obligations enforce it) or keep the domain (defined overflow, full type
-/// range), never both.
-pub(crate) fn check_range_under_non_exact_domain(
-    program: &dyn CheckingInput,
-    handle: typed_trees::types::TypeReferenceHandle,
-    owner: crate::value_custody::type_references::TypeReferenceOwner<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    // Walk Reference wrappers AND nested Constrained spellings: `u8 [0..=4]
-    // in Wrapping` may parse as Constrained(Constrained(u8, [Range]),
-    // [Domain]), where the shallow per-node accessors see only one
-    // constraint set each.
-    if !declares_bracketed_range(program, handle) {
-        return;
-    }
-    let domain = program.type_reference_table.arithmetic_domain(handle);
-    if domain == numerics::arithmetic::ArithmeticDomain::Exact {
-        return;
-    }
-    diagnostics.push(Diagnostic::error(format!(
-        "{owner} declares a range constraint together with the `{domain:?}` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range"
-    )));
-}
-
 pub(crate) fn range_constraint_interval(
     program: &dyn CheckingInput,
     handle: TypeReferenceHandle,
@@ -144,30 +108,6 @@ pub(crate) fn range_constraint_interval(
             .constraints(*constraints)
             .iter()
             .filter_map(|constraint| match constraint {
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => closed_range_interval(program, *minimum, *maximum, *end_inclusive).or_else(
-                    || {
-                        Some(Interval {
-                            low: Some(
-                                crate::closed_integer_range_bound(program, *minimum)?.to_i64()?,
-                            ),
-                            high: Some(
-                                crate::closed_integer_range_maximum(
-                                    program,
-                                    *maximum,
-                                    *end_inclusive,
-                                )
-                                .and_then(|value| value.to_i64())
-                                .or_else(|| {
-                                    dependent_maximum_substituted(program, *maximum, *end_inclusive)
-                                })?,
-                            ),
-                        })
-                    },
-                ),
                 // A DECLARED domain's predicates bound the place exactly as a
                 // bracketed range does: membership requires every predicate,
                 // and a place declared `in D` establishes D at every write. The
@@ -312,11 +252,6 @@ pub(crate) fn enforced_declared_range_interval(
         .iter()
         .flat_map(|constraints| constraints.iter())
         .filter_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => closed_range_interval(program, *minimum, *maximum, *end_inclusive),
             _ => None,
         })
         .reduce(Interval::intersect)
@@ -326,29 +261,4 @@ fn floating_range_carrier(program: &dyn CheckingInput, reference: TypeReferenceH
     crate::unwrapped_type_reference(program, reference)
         .and_then(|carrier| program.primitive_type_reference(carrier))
         .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
-}
-
-/// Whether the type spells a BRACKETED range constraint anywhere in its
-/// shells, as opposed to carrying its bound through a declared domain. Both
-/// now yield an interval, so a check that owns only the bracketed spelling
-/// must ask this before speaking.
-pub(crate) fn declares_bracketed_range(
-    program: &dyn CheckingInput,
-    handle: TypeReferenceHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => declares_bracketed_range(program, *referee),
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| matches!(constraint, TypeConstraintNode::Range { .. }))
-                || declares_bracketed_range(program, *base_type)
-        }
-        _ => false,
-    }
 }

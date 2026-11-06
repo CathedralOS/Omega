@@ -145,18 +145,7 @@ impl TypeConstraintNode {
         match self {
             TypeConstraintNode::Named(name) => name.to_string(),
             TypeConstraintNode::Domain(name) => format!("in {name}"),
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                format!(
-                    "{}{}{}",
-                    expressions.display_name(*minimum),
-                    if *end_inclusive { "..=" } else { ".." },
-                    expressions.display_name(*maximum)
-                )
-            }
+
             TypeConstraintNode::ArithmeticDomain(domain) => format!("in {}", domain.name()),
         }
     }

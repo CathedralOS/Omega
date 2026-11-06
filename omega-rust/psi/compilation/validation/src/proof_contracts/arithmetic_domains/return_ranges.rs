@@ -178,39 +178,6 @@ pub(crate) fn infer_return_interval(
     )
 }
 
-/// S4 return-range ENFORCEMENT (companion to the call-site narrowing): when a
-/// return type declares a literal `[a..=b]`, the returned value's proven
-/// interval must fit inside it, else callers that trust the declared range are
-/// unsound. No-op when the return type carries no range constraint (so plain
-/// returns are unaffected -- range-constrained return types are a new
-/// capability). `interval` is the return expression's already-analyzed interval.
-pub(crate) fn enforce_declared_return_range(
-    program: &dyn crate::CheckingInput,
-    return_type: TypeReferenceHandle,
-    interval: Interval,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    // This enforcement owns the BRACKETED spelling, as its message says. A
-    // return type whose bound comes from a declared DOMAIN belongs to the
-    // scalar-result-domain check, which names the domain and its predicate;
-    // letting this one speak first reported a `[a..=b]` the program never
-    // wrote.
-    if !super::range_constraints::declares_bracketed_range(program, return_type) {
-        return;
-    }
-    if let Some(range) = range_constraint_interval(program, return_type)
-        && !range.contains(interval)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} returns a value not provably within its declared range: callers rely on the \
-             declared `[a..=b]` for exact arithmetic on the result, so the returned value must \
-             be proven to honor it (decision 17). Constrain the returned value, or widen/remove the \
-             return range constraint."
-        )));
-    }
-}
-
 /// The shared return-range tail: analyze the return value retaining
 /// decisions, then on a clean value re-resolve its stored carrier and add
 /// the narrowing store obligation. Returns the analyzed interval.
@@ -280,16 +247,7 @@ pub(crate) fn validate_return_value_range(
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
-    enforce_symbolic_range(
-        program,
-        machine,
-        Some(state),
-        state.return_type,
-        return_expression,
-        environment,
-        owner,
-        diagnostics,
-    );
+
     if let Some((interval, _, _)) = validate_anonymous_integer_range(
         program,
         state.return_type,
@@ -297,7 +255,6 @@ pub(crate) fn validate_return_value_range(
         owner,
         diagnostics,
     ) {
-        enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
     }
     if range_constraint_interval(program, state.return_type).is_some() {
@@ -318,7 +275,7 @@ pub(crate) fn validate_return_value_range(
             diagnostics,
             decisions,
         );
-        enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
+
         return;
     }
     // Unconstrained return: analyze into the REAL diagnostics, emitting any exact-
@@ -339,30 +296,4 @@ pub(crate) fn validate_return_value_range(
         diagnostics,
         decisions,
     );
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn enforce_symbolic_range(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    return_type: TypeReferenceHandle,
-    return_expression: ExpressionHandle,
-    environment: &ValueEnvironment,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if crate::proof_contracts::contract_entailment::symbolic_range_contains(
-        program,
-        machine,
-        state,
-        return_type,
-        return_expression,
-        environment,
-    ) == Some(false)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} has a value not provably within its declared symbolic const range"
-        )));
-    }
 }

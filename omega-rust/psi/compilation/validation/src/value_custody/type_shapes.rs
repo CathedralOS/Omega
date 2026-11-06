@@ -135,34 +135,6 @@ pub(crate) fn attenuated_reference_pair(
     }
 }
 
-/// Every `Range` constraint `reference` declares under `Constrained` shells,
-/// outermost first: `(minimum, maximum, end_inclusive)`.
-pub(crate) fn range_constraints(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> Vec<(ExpressionHandle, ExpressionHandle, bool)> {
-    let mut ranges = Vec::new();
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(reference)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            ranges.push((*minimum, *maximum, *end_inclusive));
-        }
-        reference = *base_type;
-    }
-    ranges
-}
-
 /// The data symbol a type reference names through its `Named`/`Generic` head.
 pub(crate) fn head_data_symbol(
     program: &dyn crate::CheckingInput,
@@ -219,22 +191,6 @@ pub fn exact_shells_symbolic_range_maximum(
         .iter()
         .flat_map(|constraints| constraints.iter())
         .find_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                maximum,
-                end_inclusive,
-                ..
-            } => {
-                let typed_trees::dependent_ranges::DependentBoundClass::SelfField(symbolic) =
-                    typed_trees::dependent_ranges::dependent_range_maximum(
-                        program,
-                        *maximum,
-                        *end_inclusive,
-                    )?
-                else {
-                    return None;
-                };
-                Some((symbolic.field, symbolic.offset))
-            }
             _ => None,
         })
 }

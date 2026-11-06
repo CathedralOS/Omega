@@ -444,26 +444,7 @@ fn integer_carrier(
     BuiltinTypeAtom,
     Vec<(ExpressionHandle, ExpressionHandle, bool)>,
 )> {
-    let mut constraints = Vec::new();
-    let mut reference = reference;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints: declared,
-    } = program.type_reference_table.type_reference(reference)
-    {
-        for constraint in program.type_reference_table.constraints(*declared) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                return None;
-            };
-            constraints.push((*minimum, *maximum, *end_inclusive));
-        }
-        reference = *base_type;
-    }
+    let constraints = Vec::new();
     let symbol = &program
         .type_reference_table
         .type_reference(reference)

@@ -125,86 +125,6 @@ pub(super) fn integer_landing(carrier: PrimitiveType) -> Result<LandedIntegerTyp
     }
 }
 
-/// Closed stand-in literals for the range bounds a private discharge probe
-/// cannot keep authored: signature bounds are checked before the outer
-/// endpoint evaluation completes, so a probe rewrites each still-spelled
-/// bound at its own carrier's extreme — minimum at the carrier's least
-/// spelling, maximum at its greatest. The rewritten constraint stays
-/// inhabited and every caller's store-range proof keeps its room; the
-/// stand-in only preserves signature checkability and never reaches the
-/// call's contract judgment — the outer evaluation still computes and
-/// publishes the bound's real fold. An endpoint that is already literal is
-/// left alone; a bound whose carrier is not a builtin integer keeps a `0`
-/// spelling, the most conservative closed choice.
-pub(crate) fn deferred_endpoint_stand_ins(
-    program: &TypedTrees,
-) -> Vec<(ExpressionHandle, ExpressionNode)> {
-    let mut stand_ins = Vec::new();
-    for constrained_type in EvaluationDomain::all().references(program).type_references {
-        let TypeReferenceNode::Constrained { constraints, .. } =
-            type_reference_table(program).type_reference(constrained_type)
-        else {
-            continue;
-        };
-        let carrier = exact_probe_destination(program, constrained_type);
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum, maximum, ..
-            } = constraint
-            else {
-                continue;
-            };
-            for (endpoint, minimum_role) in [(*minimum, true), (*maximum, false)] {
-                if matches!(
-                    program.expression_table.expression(endpoint),
-                    ExpressionNode::Integer(_)
-                ) {
-                    continue;
-                }
-                let (negative, spelling) = endpoint_stand_in(carrier, minimum_role);
-                let literal = IntegerLiteral::from_parts(negative, IntegerRadix::Decimal, spelling)
-                    .map(|literal| {
-                        match carrier.and_then(|carrier| integer_landing(carrier).ok()) {
-                            Some(landed_type) => literal.with_landing(IntegerLanding {
-                                landed_type,
-                                domain: ArithmeticDomain::Exact,
-                            }),
-                            None => literal,
-                        }
-                    });
-                let Ok(literal) = literal else {
-                    continue;
-                };
-                stand_ins.push((endpoint, ExpressionNode::Integer(literal)));
-            }
-        }
-    }
-    stand_ins
-}
-
-/// The extreme spelling a rewritten endpoint bound takes at `carrier`:
-/// minimums take the least value the carrier can hold, maximums the
-/// greatest, so any literal the sibling bound spells stays within the
-/// rewritten range and caller store proofs keep their room.
-fn endpoint_stand_in(carrier: Option<PrimitiveType>, minimum: bool) -> (bool, &'static str) {
-    match (carrier, minimum) {
-        (Some(PrimitiveType::I8), true) => (true, "128"),
-        (Some(PrimitiveType::I8), false) => (false, "127"),
-        (Some(PrimitiveType::I16), true) => (true, "32768"),
-        (Some(PrimitiveType::I16), false) => (false, "32767"),
-        (Some(PrimitiveType::I32), true) => (true, "2147483648"),
-        (Some(PrimitiveType::I32), false) => (false, "2147483647"),
-        (Some(PrimitiveType::I64), true) => (true, "9223372036854775808"),
-        (Some(PrimitiveType::I64), false) => (false, "9223372036854775807"),
-        (Some(PrimitiveType::U8), false) => (false, "255"),
-        (Some(PrimitiveType::U16), false) => (false, "65535"),
-        (Some(PrimitiveType::U32), false) => (false, "4294967295"),
-        (Some(PrimitiveType::U64), false) => (false, "18446744073709551615"),
-        (_, true) => (false, "0"),
-        (_, false) => (false, "9223372036854775807"),
-    }
-}
-
 #[derive(PartialEq, Eq)]
 pub(crate) struct PendingEndpoint {
     pub(crate) expression: ExpressionHandle,
@@ -227,7 +147,6 @@ pub(crate) struct IntegerRoot {
 /// the scalar carrier derived in their lexical scope. Do not manufacture that
 /// carrier from the range's constrained type.
 pub(crate) enum IntegerRootPosition {
-    Range(TypeReferenceHandle),
     Contract(typed_trees::constant_recipes::ConstantExpressionContext),
 }
 
@@ -568,12 +487,6 @@ fn evaluate_round(
                 }
                 let position = match endpoint.position {
                     IntegerRootPosition::Contract(_) => "contract integer expression".to_owned(),
-                    IntegerRootPosition::Range(reference) => {
-                        format!(
-                            "range endpoint of `{}`",
-                            typed.type_reference_table.display_name(reference)
-                        )
-                    }
                 };
                 round.diagnostics.push(
                     Diagnostic::error(format!("{position}: const evaluation failed: {reason}",))
@@ -628,70 +541,6 @@ pub(crate) fn integer_root_plan(
 ) -> Result<IntegerRootPlan, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     let mut roots = Vec::new();
-    let mut visited = Vec::new();
-    for constrained_type in domain.references(typed).type_references {
-        let TypeReferenceNode::Constrained { constraints, .. } =
-            typed.type_reference_table.type_reference(constrained_type)
-        else {
-            continue;
-        };
-        for constraint in typed.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum, maximum, ..
-            } = constraint
-            else {
-                continue;
-            };
-            let mut work = vec![(*maximum, false, *maximum), (*minimum, false, *minimum)];
-            let mut active = Vec::new();
-            while let Some((expression, leaving, root)) = work.pop() {
-                if !typed.expression_table.expression_is_valid(expression) {
-                    continue;
-                }
-                if !leaving {
-                    if active.contains(&expression) {
-                        return Err(vec![Diagnostic::error("cyclic range endpoint expression")]);
-                    }
-                    if visited.contains(&(expression, root)) {
-                        continue;
-                    }
-                    active.push(expression);
-                    work.push((expression, true, root));
-                    let children = expression_children(typed, expression);
-                    work.extend(children.into_iter().rev().map(|child| (child, false, root)));
-                    if let Some((machine, _)) = selected_endpoint_machine(typed, expression) {
-                        append_signature_bounds(typed, machine, &mut work)?;
-                    }
-                    continue;
-                }
-                active.pop();
-                visited.push((expression, root));
-                if expression == root
-                    && !matches!(
-                        typed.expression_table.expression(root),
-                        ExpressionNode::Integer(_)
-                    )
-                {
-                    roots.push(IntegerRoot {
-                        position: IntegerRootPosition::Range(constrained_type),
-                        expression: root,
-                    });
-                }
-                let Some((machine, static_application)) =
-                    selected_endpoint_machine(typed, expression)
-                else {
-                    continue;
-                };
-                pending.push(PendingEndpoint {
-                    expression,
-                    root,
-                    machine: machine.symbol,
-                    static_application,
-                    contract_expression: false,
-                });
-            }
-        }
-    }
     for root in super::contract_expressions::roots(typed, domain) {
         roots.push(IntegerRoot {
             position: IntegerRootPosition::Contract(root.context),
@@ -758,48 +607,4 @@ pub(super) fn selected_endpoint_machine(
         .conformance_bounds
         .is_empty()
         .then_some((machine, true))
-}
-
-fn append_signature_bounds(
-    typed: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    work: &mut Vec<(ExpressionHandle, bool, ExpressionHandle)>,
-) -> Result<(), Vec<Diagnostic>> {
-    let Some(entry) = typed.machine_states(machine).first() else {
-        return Ok(());
-    };
-    // A called declaration may appear later in source. Its static input/result
-    // bounds are dependencies of invocation admission, not a reason to rely on
-    // the type arena's order or repeatedly retry unsuccessful evaluations.
-    for mut reference in std::iter::once(entry.return_type).chain(
-        typed
-            .state_parameters(entry)
-            .iter()
-            .map(|parameter| parameter.type_reference),
-    ) {
-        let mut visited = Vec::new();
-        while let typed_trees::types::TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = typed.type_reference_table.type_reference(reference)
-        {
-            if visited.contains(&reference) {
-                return Err(vec![Diagnostic::error(
-                    "cyclic range endpoint integer type",
-                )]);
-            }
-            visited.push(reference);
-            for constraint in typed.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum, maximum, ..
-                } = constraint
-                {
-                    work.push((*maximum, false, *maximum));
-                    work.push((*minimum, false, *minimum));
-                }
-            }
-            reference = *base_type;
-        }
-    }
-    Ok(())
 }

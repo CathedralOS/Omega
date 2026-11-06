@@ -301,15 +301,7 @@ fn rebind_type_value_subjects(
                     .type_reference_table
                     .constraints(constraints)
                     .to_vec()
-                {
-                    if let typed_trees::types::TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } = constraint
-                    {
-                        expressions_of_mut(program).remap_symbols_in(minimum, realized);
-                        expressions_of_mut(program).remap_symbols_in(maximum, realized);
-                    }
-                }
+                {}
             }
             TypeReferenceNode::Generic {
                 base_symbol,

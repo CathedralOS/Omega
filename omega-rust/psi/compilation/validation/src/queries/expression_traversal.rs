@@ -660,12 +660,6 @@ pub fn collect_type_expressions(
             collect_type_expressions(program, *base_type, visited, expressions);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        collect_expression_tree(program, *minimum, expressions);
-                        collect_expression_tree(program, *maximum, expressions);
-                    }
                     TypeConstraintNode::Domain(domain) => {
                         for argument in &domain.arguments {
                             collect_type_expressions(program, *argument, visited, expressions);

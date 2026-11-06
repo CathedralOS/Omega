@@ -434,40 +434,7 @@ fn formed_type(
             if matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)) {
                 continue;
             }
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                return false;
-            };
-            let Some(minimum) = formed_value(
-                engine,
-                program,
-                *minimum,
-                0,
-                &mut ApplicationDecisions::default(),
-            ) else {
-                return false;
-            };
-            let Some(maximum) = formed_value(
-                engine,
-                program,
-                *maximum,
-                0,
-                &mut ApplicationDecisions::default(),
-            ) else {
-                return false;
-            };
-            if !engine.prove_at_least(&value.sub(&minimum), &BigInt::zero())
-                || !engine.prove_at_least(
-                    &maximum.sub(value),
-                    &BigInt::from_i64(if *end_inclusive { 0 } else { 1 }),
-                )
-            {
-                return false;
-            }
+            return false;
         }
         reference = *base_type;
     }

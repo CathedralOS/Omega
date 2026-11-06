@@ -713,24 +713,7 @@ fn substitute_constrained_type_reference(
                     (TypeConstraintNode::Domain(domain), false)
                 }
             }
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                let substituted_minimum =
-                    substitute_bound_expression(syntax, snapshot, minimum, substitution);
-                let substituted_maximum =
-                    substitute_bound_expression(syntax, snapshot, maximum, substitution);
-                (
-                    TypeConstraintNode::Range {
-                        minimum: substituted_minimum,
-                        maximum: substituted_maximum,
-                        end_inclusive,
-                    },
-                    substituted_minimum != minimum || substituted_maximum != maximum,
-                )
-            }
+
             constraint => (constraint, false),
         };
         changed |= constraint_changed;
@@ -875,12 +858,7 @@ pub(crate) fn type_reference_mentions_parameter(
                             .any(|&argument| {
                                 type_reference_mentions_parameter(syntax, argument, substitution)
                             }),
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            expression_mentions_parameter(syntax, *minimum, substitution)
-                                || expression_mentions_parameter(syntax, *maximum, substitution)
-                        }
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
                             false
                         }

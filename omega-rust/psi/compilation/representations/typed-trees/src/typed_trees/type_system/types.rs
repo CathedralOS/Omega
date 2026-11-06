@@ -1371,13 +1371,7 @@ impl TypeReferenceNode {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(Identifier),
-    Range {
-        minimum: ExpressionHandle,
-        maximum: ExpressionHandle,
-        /// Describes the authored endpoint, not an already-subtracted value.
-        /// Normalize exclusive ends in proof integers after checking them.
-        end_inclusive: bool,
-    },
+
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DomainConstraint),
@@ -1469,15 +1463,7 @@ impl TypeConstraintNode {
         match self {
             TypeConstraintNode::Named(name) => Self::Named(name.clone()),
             TypeConstraintNode::Domain(domain) => Self::Domain(domain.clone()),
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => Self::Range {
-                minimum: target_expressions.copy_from(source_expressions, *minimum),
-                maximum: target_expressions.copy_from(source_expressions, *maximum),
-                end_inclusive: *end_inclusive,
-            },
+
             TypeConstraintNode::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
         }
     }

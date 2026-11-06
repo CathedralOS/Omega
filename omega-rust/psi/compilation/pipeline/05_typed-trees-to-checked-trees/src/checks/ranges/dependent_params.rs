@@ -83,14 +83,6 @@ fn sibling_len_of_type_reference(
     let mut found = None;
     super::types::exact_domain_shell_constraints(program, handle, |constraints| {
         found = constraints.iter().find_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                maximum,
-                end_inclusive,
-                ..
-            } => match dependent_range_maximum(program, *maximum, *end_inclusive) {
-                Some(DependentBoundClass::SiblingLen(sibling)) => Some(sibling),
-                _ => None,
-            },
             _ => None,
         });
         found.is_none()

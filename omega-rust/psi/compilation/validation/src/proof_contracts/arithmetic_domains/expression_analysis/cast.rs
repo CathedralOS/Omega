@@ -76,17 +76,6 @@ pub(super) fn analyze(
         })
         .unwrap_or(source.interval);
     if let Some(machine) = walk.machine {
-        cast_ranges::validate_target_ranges(
-            program,
-            machine,
-            walk.state,
-            cast,
-            source_interval,
-            source.primitive,
-            walk.environment,
-            walk.owner,
-            diagnostics,
-        );
     } else {
         let integer_bounds = source.primitive.and_then(|primitive| {
             super::super::integer_ranges::integer_source_bounds_from_interval(
@@ -97,24 +86,6 @@ pub(super) fn analyze(
                 source_interval,
             )
         });
-        cast_ranges::validate_target_range_membership(
-            program,
-            cast.value,
-            cast.target_type,
-            source.primitive,
-            integer_bounds,
-            &|value| {
-                super::super::float_source_bounds(
-                    program,
-                    walk.lexical_owner,
-                    walk.environment,
-                    value,
-                    &|value| walk.result_type(value),
-                )
-            },
-            walk.owner,
-            diagnostics,
-        );
     }
     require_float_to_integer_denotation(walk, cast, &source, primitive, diagnostics);
     let exact_fit = require_exact_integer_fit(walk, expression, &source, primitive, diagnostics);

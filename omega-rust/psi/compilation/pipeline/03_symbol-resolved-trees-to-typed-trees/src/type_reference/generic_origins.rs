@@ -22,22 +22,19 @@ pub(crate) fn validate_computed_arguments(
     typed: &typed::TypedTrees,
 ) -> Result<(), Diagnostic> {
     if source.tables.types.generic_application_origins.is_empty()
-        || (!type_constraints(source)
-            .iter()
-            .any(|(_, constraint)| matches!(constraint, TypeConstraint::Range { .. }))
-            && !source
-                .tables
-                .bodies
-                .expressions
-                .iter_expressions()
-                .any(|(expression, _)| {
-                    source
-                        .tables
-                        .bodies
-                        .expressions
-                        .materialization_source(expression)
-                        .is_valid()
-                }))
+        || (!source
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .any(|(expression, _)| {
+                source
+                    .tables
+                    .bodies
+                    .expressions
+                    .materialization_source(expression)
+                    .is_valid()
+            }))
     {
         return Ok(());
     }
@@ -663,27 +660,7 @@ impl Equality<'_, '_> {
                     .is_some_and(|symbol| Some(symbol) == self.domain(&right.name, right_carrier))
                     && self.arguments(left.arguments, right.arguments)
             }
-            (
-                TypeConstraint::Range {
-                    minimum: first,
-                    maximum: second,
-                    end_inclusive: left_inclusive,
-                },
-                TypeConstraint::Range {
-                    minimum: third,
-                    maximum: fourth,
-                    end_inclusive: right_inclusive,
-                },
-                // Numeric equality must wait for completed symbols and operators;
-                // validate_computed_arguments performs that rejoin before publication.
-            ) => {
-                self.typed.is_none()
-                    || self
-                        .closed_range(*first, *second, *left_inclusive)
-                        .is_some_and(|left| {
-                            Some(left) == self.closed_range(*third, *fourth, *right_inclusive)
-                        })
-            }
+
             _ => false,
         }
     }

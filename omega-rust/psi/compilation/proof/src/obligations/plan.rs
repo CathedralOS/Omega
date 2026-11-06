@@ -194,17 +194,7 @@ impl ProofConstraint {
             // that an authored carrier domain was declared.
             TypeConstraintNode::Domain(domain) => ValueDomain::from_name(domain.as_str())
                 .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name()))),
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => Self::range_from_expression_handles(
-                program,
-                base_type,
-                *minimum,
-                *maximum,
-                *end_inclusive,
-            ),
+
             // Arithmetic policy is not a predicate, but the proof derivation
             // needs it to judge facts established by the operation (for
             // example, finite Saturating add/subtract/multiply stays Finite).

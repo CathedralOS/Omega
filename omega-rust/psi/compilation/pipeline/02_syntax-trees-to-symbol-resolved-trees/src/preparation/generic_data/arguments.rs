@@ -305,18 +305,8 @@ pub(crate) fn type_reference_slug(
         } => {
             let base = type_reference_slug(syntax, *base_type, selection)?;
             let mut rendered = Vec::new();
-            for (ordinal, constraint) in syntax_type_references(syntax)
-                .constraints(*constraints)
-                .iter()
-                .enumerate()
-            {
-                if matches!(constraint, TypeConstraintNode::Range { .. }) {
-                    let range = syntax_type_references(syntax)
-                        .integer_range_normalization(handle, ordinal)?;
-                    rendered.push(format!("[{}..={}]", range.minimum, range.maximum));
-                } else {
-                    rendered.push(constraint_slug(syntax, constraint, selection)?);
-                }
+            for constraint in syntax_type_references(syntax).constraints(*constraints) {
+                rendered.push(constraint_slug(syntax, constraint, selection)?);
             }
             if rendered.is_empty() {
                 return Some(base);
@@ -353,7 +343,6 @@ pub(crate) fn constraint_slug(
             ))
         }
         TypeConstraintNode::ArithmeticDomain(domain) => Some(domain.name().to_string()),
-        TypeConstraintNode::Range { .. } => None,
     }
 }
 
@@ -667,10 +656,7 @@ pub(crate) fn closed_argument_identity(
                             ClosedConstraintIdentity::Declaration(declaration)
                         }
                     }
-                    TypeConstraintNode::Range { .. } => ClosedConstraintIdentity::Range(
-                        syntax_type_references(syntax).integer_range_normalization(handle, ordinal)?
-                            .clone(),
-                    ),
+
                 });
             }
             Some(ClosedArgumentIdentity::Constrained(

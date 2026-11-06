@@ -804,19 +804,7 @@ pub(super) fn constrained_parameter_bound_expressions(
             constraints,
         } = program.type_reference_table.type_reference(reference)
         {
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum, maximum, ..
-                } = constraint
-                {
-                    if let Some(recorded) = recorded.as_deref_mut()
-                        && !recorded.contains(&parameter.symbol)
-                    {
-                        recorded.push(parameter.symbol);
-                    }
-                    expressions.extend([*minimum, *maximum]);
-                }
-            }
+            for constraint in program.type_reference_table.constraints(*constraints) {}
             reference = *base_type;
         }
     }
@@ -2044,12 +2032,7 @@ fn integer_parameter(
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .any(|constraint| {
-                !matches!(
-                    constraint,
-                    TypeConstraintNode::Range { .. } | TypeConstraintNode::ArithmeticDomain(_)
-                )
-            })
+            .any(|constraint| !matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
         {
             return None;
         }

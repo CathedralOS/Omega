@@ -70,11 +70,6 @@ pub fn constrained_range_constraints(
     {
         for constraint in program.type_reference_table.constraints(*constraints) {
             match constraint {
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => ranges.push((*minimum, *maximum, *end_inclusive)),
                 _ => saw_non_range = true,
             }
         }
@@ -156,19 +151,7 @@ pub fn declared_integer_range(
         constraints,
     } = program.type_reference_table.type_reference(type_reference)
     {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            if let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-                && endpoints
-                    .replace(([*minimum, *maximum], *end_inclusive))
-                    .is_some()
-            {
-                return None;
-            }
-        }
+        for constraint in program.type_reference_table.constraints(*constraints) {}
         type_reference = *base_type;
     }
     let symbol = &program

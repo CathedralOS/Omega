@@ -872,8 +872,7 @@ pub(crate) fn type_atoms(
                         // These retain their existing arithmetic/range proof
                         // owners. This catalog transports declared semantic
                         // atoms, not a replacement store or overflow judgment.
-                        TypeConstraintNode::ArithmeticDomain(_)
-                        | TypeConstraintNode::Range { .. } => {}
+                        TypeConstraintNode::ArithmeticDomain(_) => {}
                         TypeConstraintNode::Domain(domain)
                             if !domain.establishment_routes.is_empty()
                                 && value_facts(checked)

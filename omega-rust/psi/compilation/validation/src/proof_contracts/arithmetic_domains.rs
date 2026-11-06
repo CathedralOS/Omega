@@ -102,7 +102,6 @@ mod ordered_values;
 pub(crate) use ordered_values::{Operand as ScalarOperand, operand as scalar_operand};
 mod place_paths;
 mod range_constraints;
-pub(crate) use range_constraints::declares_bracketed_range;
 mod return_ranges;
 mod selected_scalar_intervals;
 mod slice_lengths;
@@ -174,13 +173,10 @@ pub(crate) use ordered_values::observation_survives_writes;
 pub use ordered_values::validate_ordered_requirement_call_totality;
 pub(crate) use place_paths::place_path;
 pub(crate) use range_constraints::{
-    IntegerValueObservation, check_range_containment, check_range_under_non_exact_domain,
-    check_where_interval_containment, enforced_declared_range_interval, range_constraint_interval,
+    IntegerValueObservation, check_range_containment, check_where_interval_containment,
+    enforced_declared_range_interval, range_constraint_interval,
 };
-pub(crate) use return_ranges::{
-    call_return_type, enforce_declared_return_range, enforce_symbolic_range,
-    validate_return_value_range,
-};
+pub(crate) use return_ranges::{call_return_type, validate_return_value_range};
 pub use stored_integer_writes::{
     StoredIntegerReach, UnestablishedStoredEncoding, stored_integer_source_projections,
     stored_integer_source_reach,

@@ -146,13 +146,7 @@ fn has_type_role(
                 _ => false,
             }
         }
-        ExpressionNode::Indexed(indexed) => {
-            has_type_role(program, indexed.collection, depth + 1)
-                && matches!(
-                    program.tables.bodies.expressions.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                )
-        }
+
         _ => false,
     }
 }
@@ -206,37 +200,7 @@ fn materialize_type_operand(
                 },
             })
         }
-        ExpressionNode::Indexed(indexed) => {
-            let (base, child_occurrences) = materialize_type_operand(program, indexed.collection);
-            occurrences.extend(child_occurrences);
-            let base_type = program
-                .tables
-                .declarations
-                .child_type_references
-                .append(base);
-            let ExpressionNode::Range(range) =
-                program.tables.bodies.expressions.expression(indexed.index)
-            else {
-                unreachable!("classified type range")
-            };
-            let constraints =
-                program
-                    .tables
-                    .types
-                    .constraints
-                    .insert_many([TypeConstraint::Range {
-                        minimum: range.start,
-                        maximum: range.end,
-                        end_inclusive: range.end_inclusive,
-                    }]);
-            TypeReference::Constrained(ConstrainedTypeReference {
-                storage: ConstrainedTypeReferenceStorage {
-                    supplied_operand_owner: Default::default(),
-                    base_type,
-                    constraints,
-                },
-            })
-        }
+
         _ => unreachable!("classified structural type operand"),
     };
     (reference, occurrences)
@@ -260,7 +224,7 @@ pub(crate) fn type_operand_nodes(
                 type_operand_nodes(program, element, output);
             }
         }
-        ExpressionNode::Indexed(indexed) => type_operand_nodes(program, indexed.collection, output),
+
         _ => {}
     }
 }

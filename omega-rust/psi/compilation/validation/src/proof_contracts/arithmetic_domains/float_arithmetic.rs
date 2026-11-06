@@ -361,34 +361,7 @@ pub(crate) fn float_range_constraint_interval(
         } => {
             let primitive = program.primitive_type_reference(handle)?;
             let mut range = float_range_constraint_interval(program, *base_type);
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } = constraint
-                {
-                    let read = |expression| match crate::closed_float_range_endpoint(
-                        program, expression, primitive,
-                    )? {
-                        semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
-                            Some(f64::from(f32::from_bits(bits)))
-                        }
-                        semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
-                            Some(f64::from_bits(bits))
-                        }
-                    };
-                    let additional = FloatInterval {
-                        low: Some(read(*minimum)?),
-                        high: Some(if *end_inclusive {
-                            read(*maximum)?
-                        } else {
-                            adjacent(read(*maximum)?, primitive, false)
-                        }),
-                    };
-                    range = Some(range.map_or(additional, |range| range.intersect(additional)));
-                }
-            }
+            for constraint in program.type_reference_table.constraints(*constraints) {}
             range
         }
         _ => None,

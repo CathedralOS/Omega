@@ -167,50 +167,24 @@ pub(in crate::checks) fn expression_enforced_declared_range(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(i64, i64)> {
-    let (type_reference, is_call_result) = match program.expression_table.expression(expression) {
+    let type_reference = match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
-            // A private trait realization is not the public requirement's
-            // proof interface. Its result needs that interface's own reader.
             if call.static_requirement_dispatch.is_some() {
                 return None;
             }
-            (
-                declared_place_type_raw(program, machine, Some(state), expression)?,
-                true,
-            )
+            declared_place_type_raw(program, machine, Some(state), expression)?
         }
-        _ => (
-            expression_type_reference(program, machine, state, expression)?,
-            false,
-        ),
+        _ => expression_type_reference(program, machine, state, expression)?,
     };
-    let primitive = primitive_of_type_reference(program, type_reference)?;
-    if !primitive.is_fixed_integer() {
+    if !primitive_of_type_reference(program, type_reference)?.is_fixed_integer() {
         return None;
     }
-    let declared = enforced_range_of_type_reference(program, type_reference).or_else(|| {
-        // `self.count` in a callee result is not the caller's same-named field.
-        // Relational call-entry substitution belongs to the call proof owner.
-        if is_call_result {
-            None
-        } else {
-            dependent_range_substituted(program, machine, type_reference)
-        }
-    });
-    let Some((low, high)) =
-        super::expressions::ensured_call_result_bounds(program, machine.symbol, expression)
-    else {
-        return declared;
-    };
-    let minimum = declared.map(|(minimum, _)| minimum).or_else(|| {
-        expression_integer_carrier_minimum(program, machine, state, expression)?.to_i64()
-    });
-    let maximum = declared.map(|(_, maximum)| maximum).or_else(|| {
-        i64::try_from(expression_integer_carrier_maximum(
-            program, machine, state, expression,
-        )?)
-        .ok()
-    });
+    let (low, high) =
+        super::expressions::ensured_call_result_bounds(program, machine.symbol, expression)?;
+    let minimum = expression_integer_carrier_minimum(program, machine, state, expression)
+        .and_then(|value| value.to_i64());
+    let maximum = expression_integer_carrier_maximum(program, machine, state, expression)
+        .and_then(|value| i64::try_from(value).ok());
     let minimum = match (minimum, low) {
         (Some(carrier), Some(ensured)) => Some(carrier.max(ensured)),
         (carrier, ensured) => carrier.or(ensured),
@@ -222,189 +196,9 @@ pub(in crate::checks) fn expression_enforced_declared_range(
     (minimum <= maximum).then_some((minimum, maximum))
 }
 
-/// R1 dependent range (`i: u32 [0..=self.count]`): the SUBSTITUTED literal
-/// interval. The caller-side proof obligation established `i <= count@entry
-/// plus `offset`; `count`'s own enforced literal range holds at EVERY write
-/// (store-enforced), so `count@entry <= high(count)` and the substituted
-/// `(min, high(count) + offset)` is a true invariant of `i` -- immune to the
-/// field being reassigned after entry. `None` when the named field is
-/// unranged, non-Exact, or the arithmetic overflows (the index prover then
-/// reports its clean cannot-prove error).
-fn dependent_range_substituted(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    handle: TypeReferenceHandle,
-) -> Option<(i64, i64)> {
-    let (minimum, symbolic) = dependent_range_of_type_reference(program, handle)?;
-    // The symbolic bound retains a field spelling, but its owner is the exact
-    // attached declaration. Another module's same-named record cannot supply
-    // the store-enforced bound used to justify this parameter's indexes.
-    let field_type = exact_attached_field(
-        program,
-        machine,
-        SymbolHandle::invalid(),
-        symbolic.field.as_str(),
-    )?
-    .type_reference;
-    // The field itself must be an enforced-integer-ranged place (same gate
-    // this module applies to any range an index proof may trust).
-    if primitive_of_type_reference(program, field_type)
-        .is_none_or(|primitive| !primitive.is_fixed_integer())
-    {
-        return None;
-    }
-    let (_, field_high) = enforced_range_of_type_reference(program, field_type)?;
-    let substituted_high = field_high.checked_add(symbolic.offset)?;
-    (minimum <= substituted_high).then_some((minimum, substituted_high))
-}
-
 // A Range constraint whose minimum literal-folds and whose maximum is the
 // R1a-admissible symbolic shape, under Exact shells only (mirrors
 // `enforced_range_of_type_reference`'s domain kill).
-
-/// A shell's constraint set spells a non-Exact arithmetic domain — a
-/// deliberately permissive layer neither dependent-range nor exact-shell
-/// walks may read through.
-fn has_non_exact_domain(constraints: &[TypeConstraintNode]) -> bool {
-    constraints.iter().any(|constraint| {
-        matches!(
-            constraint,
-            TypeConstraintNode::ArithmeticDomain(domain)
-                if *domain != numerics::arithmetic::ArithmeticDomain::Exact
-        )
-    })
-}
-
-fn dependent_range_of_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<(i64, SymbolicMaxBound)> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            dependent_range_of_type_reference(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            if has_non_exact_domain(constraints) {
-                return None;
-            }
-            constraints
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive,
-                    } => {
-                        let minimum = closed_integer_range_bound(program, *minimum)?.to_i64()?;
-                        let DependentBoundClass::SelfField(symbolic) =
-                            dependent_range_maximum(program, *maximum, *end_inclusive)?
-                        else {
-                            return None;
-                        };
-                        Some((minimum, symbolic))
-                    }
-                    _ => None,
-                })
-                .or_else(|| dependent_range_of_type_reference(program, *base_type))
-        }
-        _ => None,
-    }
-}
-
-/// Peel `Reference`/`Constrained` layers of `handle`, running `visit` on
-/// each surviving shell's constraints. A shell carrying a non-Exact
-/// arithmetic domain is deliberately permissive and kills the walk
-/// (`None`); `visit` returning `false` stops early.
-pub(in crate::checks::ranges) fn exact_domain_shell_constraints(
-    program: &dyn ::validation::CheckingInput,
-    mut handle: TypeReferenceHandle,
-    mut visit: impl FnMut(&[TypeConstraintNode]) -> bool,
-) -> Option<()> {
-    loop {
-        handle = program
-            .type_reference_table
-            .dereferenced_type_reference(handle);
-        match program.type_reference_table.type_reference(handle) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let constraints = program.type_reference_table.constraints(*constraints);
-                if has_non_exact_domain(constraints) {
-                    return None;
-                }
-                if !visit(constraints) {
-                    return Some(());
-                }
-                handle = *base_type;
-            }
-            _ => return Some(()),
-        }
-    }
-}
-
-fn enforced_range_of_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<(i64, i64)> {
-    let mut bounds: Option<(BigInt, BigInt)> = None;
-    exact_domain_shell_constraints(program, handle, |constraints| {
-        for constraint in constraints {
-            // A DECLARED domain on the place carries its predicates as
-            // an invariant of every value that reaches it: membership
-            // requires every predicate, and a place declared `in D`
-            // establishes D at every write. So each predicate the
-            // reader recognizes as a closed integer bound is a true
-            // bound of the place, exactly as a bracketed range is.
-            if let TypeConstraintNode::Domain(domain) = constraint
-                && let Some((minimum, maximum)) = declared_domain_predicate_bounds(program, domain)
-            {
-                bounds = Some(match bounds.take() {
-                    Some((prior_minimum, prior_maximum)) => {
-                        (minimum.max(prior_minimum), maximum.min(prior_maximum))
-                    }
-                    None => (minimum, maximum),
-                });
-                continue;
-            }
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            let Some((minimum, maximum)) = closed_integer_range_bound(program, *minimum).zip(
-                closed_integer_range_maximum(program, *maximum, *end_inclusive),
-            ) else {
-                // This reader contributes only closed facts. Dependent
-                // endpoint substitution retains its separate owner.
-                continue;
-            };
-            bounds = Some(match bounds.take() {
-                Some((prior_minimum, prior_maximum)) => {
-                    (minimum.max(prior_minimum), maximum.min(prior_maximum))
-                }
-                None => (minimum, maximum),
-            });
-        }
-        true
-    })?;
-    let (minimum, maximum) = bounds?;
-    // Intersect every closed shell before bounded conversion. A later empty
-    // constraint cannot disappear behind a prior nonempty interval, and an
-    // exclusive signed-minimum predecessor need not fit i64 to prove bottom.
-    if minimum > maximum {
-        Some((1, 0))
-    } else {
-        Some((minimum.to_i64()?, maximum.to_i64()?))
-    }
-}
 
 /// Use the same receiver-substituted extent as ordered collection checking.
 /// A closed lower bound is only a fast proof; alternative entry contracts are
@@ -427,10 +221,8 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
             type_reference,
         } => {
             let declared =
-                constrained_minimum_of_type_reference(program, type_reference).or_else(|| {
-                    primitive_of_type_reference(program, type_reference).and_then(|primitive| {
-                        matches!(primitive, unsigned_integer_primitive_pattern!()).then_some(0)
-                    })
+                primitive_of_type_reference(program, type_reference).and_then(|primitive| {
+                    matches!(primitive, unsigned_integer_primitive_pattern!()).then_some(0)
                 });
             let required = facts.const_binder_floor(symbol);
             match (declared, required) {
@@ -458,79 +250,6 @@ pub(in crate::checks::ranges) fn is_const_binder(
         || program
             .data_definition_by_symbol(machine.attached_data_symbol)
             .is_some_and(|data| program.data_type_parameters(data).iter().any(matches))
-}
-
-/// The declared minimum across a type's closed Range constraints, under the
-/// same Exact-shell gate as `enforced_range_of_type_reference` but tolerating
-/// a symbolic or absent maximum — a `u64[1..=18446744073709551615]`/`u64[0..N]` lower bound is
-/// still an enforced floor.
-fn constrained_minimum_of_type_reference(
-    program: &dyn ::validation::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<i64> {
-    let mut minimum: Option<numerics::bignum::BigInt> = None;
-    exact_domain_shell_constraints(program, handle, |constraints| {
-        for constraint in constraints {
-            let TypeConstraintNode::Range {
-                minimum: range_minimum,
-                ..
-            } = constraint
-            else {
-                continue;
-            };
-            let Some(range_minimum) = closed_integer_range_bound(program, *range_minimum) else {
-                continue;
-            };
-            minimum = Some(match minimum.take() {
-                Some(prior) => range_minimum.max(prior),
-                None => range_minimum,
-            });
-        }
-        true
-    })?;
-    minimum?.to_i64()
-}
-
-/// `Some(end_inclusive)` when `expression`'s declared type carries a Range
-/// constraint whose maximum names the const binder `extent` — the
-/// `u64[0..N]`/`u64[0..=N]` binder-bounded shape. `end_inclusive == false`
-/// asserts `value < N` (a strict index bound); `true` only `value <= N`.
-/// The binder is matched by symbol. A maximum Psi 02 left unbound is not
-/// that binder even when spelled like it; checking refuses such a maximum in
-/// an integer range of every declared type and requires a binder's carrier
-/// range to close.
-pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
-    program: &dyn ::validation::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    extent_symbol: SymbolHandle,
-) -> Option<bool> {
-    let handle = expression_type_reference(program, machine, state, expression)?;
-    let mut found = None;
-    exact_domain_shell_constraints(program, handle, |constraints| {
-        for constraint in constraints {
-            let TypeConstraintNode::Range {
-                maximum,
-                end_inclusive,
-                ..
-            } = constraint
-            else {
-                continue;
-            };
-            let Some(path) = program.expression_table.name_path_node(*maximum) else {
-                continue;
-            };
-            // A same-spelled binder in another scope cannot borrow
-            // this discharge.
-            if extent_symbol.is_valid() && path.symbol == extent_symbol {
-                found = Some(*end_inclusive);
-                return false;
-            }
-        }
-        true
-    })?;
-    found
 }
 
 pub(in crate::checks::ranges) fn expression_type_reference(

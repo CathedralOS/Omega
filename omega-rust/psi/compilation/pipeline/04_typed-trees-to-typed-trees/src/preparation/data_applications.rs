@@ -472,13 +472,7 @@ fn closed_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
                         TypeConstraintNode::Domain(domain) => {
                             pending.extend(domain.arguments.iter().copied())
                         }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } if !closed_expression(program, *minimum)
-                            || !closed_expression(program, *maximum) =>
-                        {
-                            return false;
-                        }
+
                         _ => {}
                     }
                 }

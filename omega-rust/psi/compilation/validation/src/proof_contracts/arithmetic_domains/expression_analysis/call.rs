@@ -228,32 +228,6 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
     })
 }
 
-fn selected_const_call_result(
-    walk: &ExpressionWalk,
-    expression: ExpressionHandle,
-) -> Option<Analysis> {
-    let program = walk.program;
-    let (return_type, minimum, maximum) =
-        crate::proof_contracts::contract_entailment::selected_const_call_result_bounds(
-            program,
-            walk.machine?,
-            walk.state,
-            expression,
-        )?;
-    let primitive = program.primitive_type_reference(return_type)?;
-    let carrier = primitive_range(primitive)?;
-    Some(Analysis {
-        recipe: None,
-        domain: Some(program.arithmetic_domain_for_type_reference(return_type)),
-        interval: Interval {
-            low: Some(minimum),
-            high: Some(maximum),
-        }
-        .intersect(carrier),
-        primitive: Some(primitive),
-    })
-}
-
 /// S4 return-range inference: a machine whose return type declares a literal
 /// range constraint (`-> i32 [0..=10]`) is ENFORCED to return within that range
 /// (validate_return_value_range), so a caller doing exact arithmetic on the

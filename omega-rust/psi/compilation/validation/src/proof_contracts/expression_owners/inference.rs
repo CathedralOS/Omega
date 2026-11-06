@@ -34,12 +34,6 @@ pub(super) fn type_reference_contains_expression(
                     .constraints(*constraints)
                     .iter()
                     .any(|constraint| match constraint {
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            super::expression_contains(program, *minimum, expression)
-                                || super::expression_contains(program, *maximum, expression)
-                        }
                         TypeConstraintNode::Domain(domain) => {
                             domain.arguments.iter().any(|argument| {
                                 type_reference_contains_expression(

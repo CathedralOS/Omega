@@ -52,18 +52,7 @@ pub(crate) fn normalized_constraints(
             TypeConstraintNode::Named(name) => {
                 NormalizedConstraint::Named(name.as_str().to_owned())
             }
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                // Canonical identity and range checking share exact endpoint
-                // evaluation. Keep symbolic end-kind when evaluation is open;
-                // flow facts never supply static type identity.
-                let minimum = normalized_range_endpoint(program, *minimum, true, context);
-                let maximum = normalized_range_endpoint(program, *maximum, *end_inclusive, context);
-                NormalizedConstraint::Range { minimum, maximum }
-            }
+
             TypeConstraintNode::ArithmeticDomain(domain) => {
                 NormalizedConstraint::Arithmetic(domain.name().to_owned())
             }
@@ -221,7 +210,6 @@ pub(crate) enum NormalizedConstraint {
     CompilerDomain(String),
     DeclaredDomain(String),
     Named(String),
-    Range { minimum: String, maximum: String },
 }
 
 impl NormalizedConstraint {

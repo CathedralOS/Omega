@@ -55,42 +55,7 @@ pub(crate) fn anonymous_integer_landing_warnings(program: &dyn CheckingInput) ->
         {
             continue;
         }
-        for constraint in program.type_reference_table.constraints(constraints) {
-            if let typed_trees::types::TypeConstraintNode::Range {
-                minimum, maximum, ..
-            } = constraint
-            {
-                for endpoint in [*minimum, *maximum] {
-                    if crate::closed_integer_range_bound(program, endpoint).is_none() {
-                        continue;
-                    }
-                    let mut pending = vec![endpoint];
-                    while let Some(expression) = pending.pop() {
-                        // An anonymous subtree lands once at its typed parent or
-                        // range boundary; nested typed operations own their peers.
-                        if anonymous_numeric_value(program, expression, &mut |expression| {
-                            has_anonymous_operator_meaning(program, expression)
-                        })
-                        .is_some()
-                        {
-                            append_integer_landing_warning(
-                                program,
-                                None,
-                                expression,
-                                &mut warned,
-                                &mut warnings,
-                            );
-                        } else {
-                            children(
-                                program,
-                                expression_table(program).expression(expression),
-                                |child| pending.push(child),
-                            );
-                        }
-                    }
-                }
-            }
-        }
+        for constraint in program.type_reference_table.constraints(constraints) {}
     }
     for (expression, node) in expression_table(program).iter_expressions() {
         let ExpressionNode::Binary(binary) = node else {

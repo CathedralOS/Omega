@@ -413,16 +413,6 @@ pub(super) fn validate(
                 .type_reference(local_data.type_reference),
             typed_trees::types::TypeReferenceNode::Reference { .. }
         ) {
-            arithmetic_domains::enforce_symbolic_range(
-                program,
-                machine,
-                current_state,
-                local_data.type_reference,
-                local_data.initial_value,
-                value_environment,
-                &owner,
-                diagnostics,
-            );
             arithmetic_domains::check_range_containment(
                 program,
                 local_data.type_reference,

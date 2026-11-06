@@ -93,32 +93,6 @@ impl IntegerPosition {
             }
             for constraint in rows {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive,
-                    } => {
-                        // A callee's own signature bound must already be closed in
-                        // the tree these positions read. Under an explicit static
-                        // application that tree is the prepared program, whose
-                        // cloned instance bound never sees the working tree's
-                        // folds, so a named endpoint call inside a template's
-                        // bound is reported here as an unclosed signature bound.
-                        for expression in [*minimum, *maximum] {
-                            crate::machine_execution::admission::require_closed_integer_argument(
-                                original, program, expression, authority,
-                            )
-                            .map_err(|reason| {
-                                format!("range endpoint signature bound is not closed: {reason}")
-                            })?;
-                        }
-                        let minimum = validation::closed_integer_range_bound(program, *minimum)
-                            .ok_or("range endpoint type needs a closed minimum")?;
-                        let maximum =
-                            closed_integer_range_maximum(program, *maximum, *end_inclusive)
-                                .ok_or("range endpoint type needs a closed maximum")?;
-                        ranges.push((minimum, maximum));
-                    }
                     // The typed lowering's carrier-aware normalization binds a
                     // declared domain's exact symbol before this pass; an
                     // unbound or compiler-owned subject has no proof route.

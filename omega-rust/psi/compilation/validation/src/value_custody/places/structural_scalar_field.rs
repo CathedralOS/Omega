@@ -1038,21 +1038,6 @@ fn realized_scalar_carrier(
             match constraint {
                 // IEEE endpoints restrict the value as a predicate over its
                 // own format; they are not an integer interval.
-                TypeConstraintNode::Range {
-                    minimum, maximum, ..
-                } if matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) => {
-                    crate::closed_float_range_endpoint(program, *minimum, primitive)?;
-                    crate::closed_float_range_endpoint(program, *maximum, primitive)?;
-                }
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => {
-                    crate::closed_integer_range_bound(program, *minimum)?;
-                    crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
-                    bounded = true;
-                }
                 TypeConstraintNode::Domain(domain) => {
                     if let Some((minimum, maximum)) =
                         crate::exact_declared_domain_carrier_interval(program, primitive, domain)

@@ -6,7 +6,7 @@
 
 use super::proposals::{BindingContext, StaticProposals};
 use crate::monomorphization::{
-    HandleSpan, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, range_arguments,
+    HandleSpan, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use typed_trees::types::DomainConstraint;
 
@@ -158,7 +158,6 @@ pub(crate) fn infer_static_bindings(
                 *actual_base,
                 proposals,
             );
-            range_arguments::infer(context, required, actual, proposals);
             infer_domain_argument_bindings(
                 context,
                 *required_constraints,

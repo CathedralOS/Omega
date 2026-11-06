@@ -1689,16 +1689,13 @@ fn qualified_builtin_carrier(
             } => {
                 for constraint in program.type_reference_table.constraint_span(*constraints)? {
                     match constraint {
-                        TypeConstraintNode::Range { .. } if allow_range_predicates => {}
                         TypeConstraintNode::ArithmeticDomain(domain) => {
                             if policy.is_some() {
                                 return None;
                             }
                             policy = Some(*domain);
                         }
-                        TypeConstraintNode::Range { .. }
-                        | TypeConstraintNode::Named(_)
-                        | TypeConstraintNode::Domain(_) => {
+                        TypeConstraintNode::Domain(_) => {
                             return None;
                         }
                     }

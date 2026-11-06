@@ -451,22 +451,6 @@ fn assign_type_value_expressions_with_declarations(
                 .span_or_empty(constrained.constraints)
             {
                 match constraint {
-                    TypeConstraint::Range {
-                        minimum, maximum, ..
-                    } => {
-                        for expression in [*minimum, *maximum] {
-                            crate::symbols::expressions::assign_expression_with_declaration_references(
-                                symbols,
-                                machine,
-                                parameters,
-                                state_symbol,
-                                expressions,
-                                child_types,
-                                expression,
-                                declaration_references,
-                            );
-                        }
-                    }
                     TypeConstraint::Domain(domain) => {
                         for handle in domain.arguments.handles() {
                             let mut reference = child_types.get(handle).clone();

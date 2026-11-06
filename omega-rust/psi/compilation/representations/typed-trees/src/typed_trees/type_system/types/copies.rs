@@ -285,12 +285,7 @@ impl TypeReferenceTable {
                                 self.remap_symbols_in(argument, expressions, symbols);
                             }
                         }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            expressions.remap_symbols_in(minimum, symbols);
-                            expressions.remap_symbols_in(maximum, symbols);
-                        }
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                     }
                 }

@@ -530,12 +530,7 @@ pub(crate) fn validate_type_reference_handle(
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
     // Reference/Constrained spellings transitively).
-    crate::proof_contracts::arithmetic_domains::check_range_under_non_exact_domain(
-        program,
-        type_reference,
-        owner,
-        diagnostics,
-    );
+
     validate_type_reference_node(
         program,
         type_reference,
@@ -771,12 +766,7 @@ fn validate_type_reference_node(
             );
             // Element spelling of `range-constraints-require-exact-domain`
             // (`[u8 [0..=9] in Wrapping; 3]`).
-            crate::proof_contracts::arithmetic_domains::check_range_under_non_exact_domain(
-                program,
-                *element_type,
-                owner,
-                diagnostics,
-            );
+
             validate_node!(*element_type);
         }
         TypeReferenceNode::Slice { element_type } => {

@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use symbols::{RetainedDeclaration, SymbolKind};
 
-const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x02";
+const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
 struct SelectionSources {

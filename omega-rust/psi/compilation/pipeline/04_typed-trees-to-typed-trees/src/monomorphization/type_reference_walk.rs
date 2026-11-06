@@ -41,13 +41,7 @@ pub(crate) fn for_each_type_reference(
                         TypeConstraintNode::Domain(domain) => {
                             pending.extend(domain.arguments.iter().copied());
                         }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            if on_range(program, *minimum, *maximum) {
-                                return true;
-                            }
-                        }
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                     }
                 }
