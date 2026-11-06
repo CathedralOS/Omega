@@ -1,13 +1,14 @@
-# Keep 33 private callback selections in one calling plan
+# Pass 33 callbacks through one call
 
-The checked registrar takes one borrowed envelope containing 33 private slots.
-Its calling policy joins each destination to its exact callback requirement,
-including a distinct second requirement. It invokes the first, second and last
-selected handlers with distinct results and checks adjacent and outer fields.
-Expected native and Terminal exits are both 0.
+A program can pass 33 callback functions through one call. This test keeps them
+in a plan for one borrowed table. The receiving Omega function, called the
+registrar, executes the first, second and last selected callbacks with distinct
+results and checks adjacent and outer fields. Native and Terminal execution
+must both exit 0.
 
-This existing fixture uses its ARM64 calling plan. A checked registrar calls
-selected machines directly; it does not load the emitted private pointers.
-The companion `layouts/private_callback_descriptor_fragments_exit` fixture
-executes all 33 stored native pointers through a C registrar. Its negative twin
-swaps two unlike callback requirements while keeping every binder unique.
+The calling policy matches each table slot to the callback contract it expects,
+including a distinct second contract. The fixture retains its ARM64 calling
+plan. Its receiving function calls selected machines directly; it does not load
+the stored native addresses. The companion
+`layouts/private_callback_descriptor_fragments_exit` fixture checks that those
+addresses are actually written and executes all 33 through a C function.

@@ -1,7 +1,11 @@
-# Reject a callback slot with the wrong requirement
+# Reject a callback in a slot with a different contract
 
-This is the 33-slot foreign registrar positive with only its materialization
-binder selection changed. Swapping binders 0 and 32 preserves all 33 unique
-binder identities but assigns two different callback requirements to the wrong
-destinations. Checking must report that the binder and native-place demand
-require different callback contracts, before native execution.
+A program must put each callback in a table slot that expects its declared
+contract. This test swaps two callbacks with different contracts while keeping
+all 33 selected callbacks unique. The compiler must reject the mismatch before
+writing their addresses or executing the receiving C function.
+
+The positive is `pass/layouts/private_callback_descriptor_fragments_exit`.
+Only the selection of those two callbacks changes. The expected diagnostic
+names the callback binder and native-place demand because those are the
+selected callback and destination records being compared.
