@@ -65,6 +65,7 @@ impl TypedTrees {
             owned_signature: SymbolHandle::invalid(),
             runtime_values: Vec::new(),
             region_scope: declaration,
+            source_lifetime_owner: SymbolHandle::invalid(),
             trait_region_application: None,
             lifetime_declaration: declaration,
             lifetimes: Vec::new(),
