@@ -164,6 +164,68 @@ pub struct StaticMachineContractObligation {
 }
 
 impl StaticMachineContractObligation {
+    /// Retain the same binder/selection correspondence used by formation.
+    /// This records an input contract; it grants no callable or effect authority.
+    pub(crate) fn from_applied_callable(
+        program: &dyn crate::CheckingInput,
+        applied: &typed_trees::typed_trees::AppliedMachineCallable<'_>,
+    ) -> Option<Self> {
+        let handle = program.data_type_parameter_handle_by_symbol(applied.demand)?;
+        let parameter = program.data_type_parameters.get(handle);
+        let TypeParameterKind::Machine { contract } = &parameter.kind else {
+            return None;
+        };
+        if program
+            .machine_parameter_contract_view(contract)?
+            .signature()
+            != applied.source_required
+        {
+            return None;
+        }
+        let obligation = Self {
+            parameter: handle,
+            selected: crate::call_target_state(program, applied.selected_entry)?.symbol,
+            application: applied.invocation,
+            ordinal: applied.ordinal,
+            original_selected: applied.selected_entry,
+            label: "selected callable input".to_owned(),
+        };
+        (std::ptr::eq(
+            obligation.required_signature(program).ok()?,
+            applied.required,
+        ))
+        .then_some(obligation)
+    }
+
+    pub(crate) fn supplies(
+        &self,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        selected: SymbolHandle,
+    ) -> bool {
+        self.application == application && self.original_selected == selected
+    }
+
+    /// The rewritten call retains its original binder. Its independent input
+    /// contract was recorded at selection, so caller facts cannot strengthen it.
+    pub fn bounds_static_call(
+        &self,
+        program: &dyn crate::CheckingInput,
+        site: crate::CallSite<'_>,
+    ) -> bool {
+        site.static_machine_parameter() == program.data_type_parameters.get(self.parameter).symbol
+            && crate::call_target_entry_symbol(program, site.target_symbol(program))
+                == self.selected
+    }
+
+    pub fn input_identity(
+        &self,
+    ) -> (
+        typed_trees::static_applications::StaticMachineApplicationHandle,
+        usize,
+    ) {
+        (self.application, self.ordinal)
+    }
+
     pub fn selected_entry(&self) -> SymbolHandle {
         self.selected
     }

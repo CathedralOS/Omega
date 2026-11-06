@@ -171,6 +171,8 @@ impl TypedTrees {
                     && source_required == expected)
                     .then_some(AppliedMachineCallable {
                         invocation,
+                        ordinal,
+                        demand,
                         lexical_owner: self.static_machine_application(*provider).lexical_owner,
                         provider: *provider,
                         selected_entry: *entry,
@@ -435,6 +437,8 @@ impl TypedTrees {
             .filter_map(move |(_, prepared)| {
                 let AppliedCallableOwner::MachineSelection {
                     invocation: source,
+                    ordinal,
+                    demand,
                     selected: entry,
                     provider,
                     required,
@@ -449,6 +453,8 @@ impl TypedTrees {
                 let required = required.as_ref()?;
                 (*source == invocation).then_some(AppliedMachineCallable {
                     invocation,
+                    ordinal: *ordinal,
+                    demand: *demand,
                     lexical_owner: self.static_machine_application(*provider).lexical_owner,
                     provider: *provider,
                     selected_entry: *entry,

@@ -15,9 +15,20 @@ use validation::field_domains::ByteSequencePredicate;
 /// transition edge keys on its source state and arm target; a call-derived
 /// edge keys on its source state and call site.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct BoundsSource {
-    pub(super) state: SymbolHandle,
-    pub(super) tag: u64,
+pub(super) enum BoundsSource {
+    Transition {
+        state: SymbolHandle,
+        target: typed_trees::statement::TransitionTargetHandle,
+    },
+    Invocation {
+        state: SymbolHandle,
+        statement: usize,
+        ordinal: usize,
+    },
+    CallableInput {
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        ordinal: usize,
+    },
 }
 
 impl BoundsSource {
@@ -25,16 +36,20 @@ impl BoundsSource {
         state: SymbolHandle,
         target: typed_trees::statement::TransitionTargetHandle,
     ) -> Self {
-        Self {
+        Self::Transition { state, target }
+    }
+    pub(super) fn invocation(state: SymbolHandle, statement: usize, ordinal: usize) -> Self {
+        Self::Invocation {
             state,
-            tag: target.arena_index() as u64,
+            statement,
+            ordinal,
         }
     }
-
-    pub(super) fn invocation(state: SymbolHandle, statement: usize, ordinal: usize) -> Self {
-        Self {
-            state,
-            tag: (1 << 40) | ((statement as u64) << 8) | (ordinal as u64 + 1),
+    pub(super) fn callable_input(input: &validation::StaticMachineContractObligation) -> Self {
+        let (application, ordinal) = input.input_identity();
+        Self::CallableInput {
+            application,
+            ordinal,
         }
     }
 }
