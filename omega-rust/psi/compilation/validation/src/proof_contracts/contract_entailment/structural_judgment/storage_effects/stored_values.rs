@@ -12,16 +12,22 @@
 //! exactly as the scan did. Coordinates never change after a value is
 //! stored; only `push`, `retain_mut` and construction change which positions
 //! exist, and each keeps the index exact.
+//!
+//! Branches share unchanged observations. Copying the collection copies its
+//! ordered row references and coordinate index, while updating a row first
+//! copies that row if another branch still uses it. Reading one place therefore
+//! does not copy every stored term. All comparisons still inspect row contents.
 
 use super::{CapturedStorageCoordinate, CapturedStorageSegment, CapturedStorageValue};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// No earlier position shares this coordinate key.
 const NO_POSITION: u32 = u32::MAX;
 
 #[derive(Clone, Default)]
 pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct StoredValues {
-    values: Vec<CapturedStorageValue>,
+    values: Vec<Arc<CapturedStorageValue>>,
     /// The last position whose coordinate has each key.
     last_with_key: HashMap<u64, u32>,
     /// For each position, the previous position whose coordinate has the same
@@ -35,7 +41,7 @@ impl StoredValues {
         values: Vec<CapturedStorageValue>,
     ) -> Self {
         let mut stored = Self {
-            values,
+            values: values.into_iter().map(Arc::new).collect(),
             ..Self::default()
         };
         stored.rebuild_index();
@@ -78,7 +84,7 @@ impl StoredValues {
         positions
             .into_iter()
             .rev()
-            .map(|position| &self.values[position])
+            .map(|position| self.values[position].as_ref())
     }
 
     /// The first value stored at `coordinate`.
@@ -86,7 +92,7 @@ impl StoredValues {
         &self,
         coordinate: &CapturedStorageCoordinate,
     ) -> Option<&CapturedStorageValue> {
-        Some(&self.values[self.position(coordinate)?])
+        Some(self.values[self.position(coordinate)?].as_ref())
     }
 
     /// The first value stored at `coordinate`, for updating its observations.
@@ -95,15 +101,40 @@ impl StoredValues {
         coordinate: &CapturedStorageCoordinate,
     ) -> Option<&mut CapturedStorageValue> {
         let position = self.position(coordinate)?;
-        Some(&mut self.values[position])
+        Some(Arc::make_mut(&mut self.values[position]))
+    }
+
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn len(
+        &self,
+    ) -> usize {
+        self.values.len()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn is_empty(
+        &self,
+    ) -> bool {
+        self.values.is_empty()
+    }
+
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn iter(
+        &self,
+    ) -> impl DoubleEndedIterator<Item = &CapturedStorageValue> + ExactSizeIterator {
+        self.values.iter().map(Arc::as_ref)
+    }
+
+    #[cfg(test)]
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn first(
+        &self,
+    ) -> Option<&CapturedStorageValue> {
+        self.values.first().map(Arc::as_ref)
     }
 
     /// Callers may update each value's observations in place; none rewrites
     /// its coordinate, which the index is keyed by, or reorders the values.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn iter_mut(
         &mut self,
-    ) -> std::slice::IterMut<'_, CapturedStorageValue> {
-        self.values.iter_mut()
+    ) -> impl DoubleEndedIterator<Item = &mut CapturedStorageValue> + ExactSizeIterator {
+        self.values.iter_mut().map(Arc::make_mut)
     }
 
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn push(
@@ -117,15 +148,15 @@ impl StoredValues {
             .insert(value.coordinate.search_key(), position)
             .unwrap_or(NO_POSITION);
         self.previous_with_key.push(previous);
-        self.values.push(value);
+        self.values.push(Arc::new(value));
     }
 
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_mut(
         &mut self,
-        keep: impl FnMut(&mut CapturedStorageValue) -> bool,
+        mut keep: impl FnMut(&mut CapturedStorageValue) -> bool,
     ) {
         let before = self.values.len();
-        self.values.retain_mut(keep);
+        self.values.retain_mut(|value| keep(Arc::make_mut(value)));
         if self.values.len() != before {
             self.rebuild_index();
         }
@@ -147,24 +178,31 @@ impl StoredValues {
 
 impl PartialEq for StoredValues {
     fn eq(&self, other: &Self) -> bool {
-        self.values == other.values
+        self.values.len() == other.values.len()
+            && self
+                .iter()
+                .zip(other.iter())
+                .all(|(left, right)| left == right)
     }
 }
 
-impl std::ops::Deref for StoredValues {
-    type Target = [CapturedStorageValue];
+impl std::ops::Index<usize> for StoredValues {
+    type Output = CapturedStorageValue;
 
-    fn deref(&self) -> &Self::Target {
-        &self.values
+    fn index(&self, index: usize) -> &Self::Output {
+        self.values[index].as_ref()
     }
 }
 
 impl<'values> IntoIterator for &'values mut StoredValues {
     type Item = &'values mut CapturedStorageValue;
-    type IntoIter = std::slice::IterMut<'values, CapturedStorageValue>;
+    type IntoIter = std::iter::Map<
+        std::slice::IterMut<'values, Arc<CapturedStorageValue>>,
+        fn(&'values mut Arc<CapturedStorageValue>) -> &'values mut CapturedStorageValue,
+    >;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.values.iter_mut()
+        self.values.iter_mut().map(Arc::make_mut)
     }
 }
 

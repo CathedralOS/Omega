@@ -1,10 +1,10 @@
 //! Nominal case judgments over exact observed subjects.
 //!
-//! Scope authenticates the subject/carrier/selected case before intake. A tag
-//! remains a classifier, never a constructor payload or a whole-value equation.
-//! Normal completions may publish the selected public case only after their
-//! entry obligations and effects have been settled. Case substitution uses this
-//! restricted ledger rather than arbitrary value rewrites or body unfolding.
+//! Case facts identify the exact checked value, its type and its selected case.
+//! A known tag gives neither payload contents nor whole-value equality.
+//! Completed calls contribute their public case guarantees only after checking
+//! their inputs and effects. These queries use recorded facts rather than
+//! reopening the called bodies.
 
 use super::{CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm, term_contains};
 use crate::proof_contracts::contract_entailment::{
