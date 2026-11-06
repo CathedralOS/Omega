@@ -2417,6 +2417,7 @@ fn main() {
     );
     if phase_profile::enabled() {
         eprint!("{}", phase_profile::render());
+        eprint!("{}", phase_profile::render_subjects(15));
     }
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);

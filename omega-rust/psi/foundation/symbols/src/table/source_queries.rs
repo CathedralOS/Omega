@@ -18,6 +18,29 @@ impl SymbolTable {
             .is_none_or(|file| file.dependency_scope == scope)
     }
 
+    /// `file\tdeclaration` for profile attribution: the package-relative
+    /// source path, or `<generated>`, and the symbol's display path.
+    pub fn profile_label(&self, symbol: SymbolHandle) -> String {
+        let file = self
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| self.source_file(span))
+            .map(|file| {
+                let path = file.path.to_string_lossy().replace('\\', "/");
+                match (file.origin, path.rfind("/library/")) {
+                    (source::SourceOrigin::Toolchain, Some(at)) => {
+                        format!("library:{}", &path[at + "/library/".len()..])
+                    }
+                    _ => {
+                        let relative =
+                            file.path.strip_prefix(&file.package_root).unwrap_or(&file.path);
+                        relative.to_string_lossy().replace('\\', "/")
+                    }
+                }
+            })
+            .unwrap_or_else(|| "<generated>".to_owned());
+        format!("{file}\t{}", self.display_path(symbol, "::"))
+    }
+
     pub fn source_text(&self, source_span: SourceSpan) -> &str {
         self.sources
             .as_deref()
