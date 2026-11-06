@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 248 even when every table
+order below. This layout uses semantic format marker 249 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -852,7 +852,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 248 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 249 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1009,8 +1009,13 @@ results or resolved addresses; they do not turn lifetime anchors into locations
 or impose an input-only output rule on every boundary call.
 
 Format 247 introduced lender-preservation requests; format 248 additionally
-retains the distinct reference-source choices under vocabulary 135. Older module
-markers reject rather than supplying either table implicitly.
+retained the distinct reference-source choices under vocabulary 135. Format 249
+combines provider-instance applications with completed-output captures,
+input-obligation links, lender guarantees and conditional reference forwarding.
+The lender and forwarding tables remain immediately after boundary machines;
+provider-instance requirements follow provider candidates in the table order
+above. The earlier 247 and 248 layouts are incompatible with this combined
+schema and reject rather than supplying omitted tables or capture fields.
 
 Marker 238 requires the explicit prerequisite/result role byte after the
 subject of every integer-range and predicate condition, together with complete
