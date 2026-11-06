@@ -160,10 +160,17 @@ impl PreparedProductTarget {
         });
         let binding_declarations =
             std::sync::Arc::clone(source.binding_declarations.get_or_init(|| {
+                // Find the remaining reference checks while source is available.
+                // Target binding only needs the saved decision about that work.
+                let requires_terminal_checks =
+                    validation::terminal_receiving_machines(&source.program)
+                        .next()
+                        .is_some();
                 std::sync::Arc::new(selected_dispatch::PreparedBindingDeclarations::capture(
                     &source.program,
                     &source.provider_inventory,
                     source.sources.exact_toolchain_sources(),
+                    requires_terminal_checks,
                 ))
             }));
         let direct_calls = source
