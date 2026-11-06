@@ -35,6 +35,15 @@ pub(super) fn encode(
     plan: &TerminalAccessLifecyclePlan,
 ) -> Result<(), CodecError> {
     writer.id(plan.boundary);
+    writer.u8(u8::from(plan.target.is_some()));
+    if let Some(target) = &plan.target {
+        writer.string("lifecycle target", &target.target)?;
+        writer.u64(target.pointer_size);
+        writer.u64(target.pointer_alignment);
+        writer.u64(target.case_tag_size);
+        writer.u64(target.case_tag_alignment);
+        writer.u8(u8::from(target.little_endian));
+    }
     writer.u8(match plan.operation {
         TerminalAccessLifecycleOperation::Initialize => 0,
         TerminalAccessLifecycleOperation::MoveOut => 1,
@@ -107,6 +116,22 @@ pub(super) fn encode(
 
 pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecyclePlan, CodecError> {
     let boundary = reader.id("access lifecycle boundary")?;
+    let target = match reader.u8()? {
+        0 => None,
+        1 => Some(terminal_psi::TargetLayoutInput {
+            target: reader.string("lifecycle target")?,
+            pointer_size: reader.u64()?,
+            pointer_alignment: reader.u64()?,
+            case_tag_size: reader.u64()?,
+            case_tag_alignment: reader.u64()?,
+            little_endian: match reader.u8()? {
+                0 => false,
+                1 => true,
+                tag => return Err(CodecError::InvalidTag("lifecycle target byte order", tag)),
+            },
+        }),
+        tag => return Err(CodecError::InvalidTag("lifecycle target input", tag)),
+    };
     let operation = match reader.u8()? {
         0 => TerminalAccessLifecycleOperation::Initialize,
         1 => TerminalAccessLifecycleOperation::MoveOut,
@@ -180,6 +205,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessLifecycleP
     let placement = super::access_view_plan_wire::decode_placement(reader)?;
     Ok(TerminalAccessLifecyclePlan {
         boundary,
+        target,
         operation,
         execution,
         schema,

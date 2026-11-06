@@ -502,7 +502,15 @@ impl ConstructorStorage {
             self.views.insert(relocate(home)?, view.clone())?;
         }
         for (home, case) in &original.cases {
-            self.cases.insert(relocate(home)?, *case)?;
+            let destination = relocate(home)?;
+            if decoded.cases.get(&destination).is_some_and(|decoded| {
+                decoded.structural_type != case.structural_type || decoded.case != case.case
+            }) {
+                return Err(TerminalInterpretError::ContentTransformationMismatch(
+                    "resident case bytes disagree with the retained payload custody",
+                ));
+            }
+            self.cases.insert(destination, *case)?;
         }
         // Physical data is reconstructed in the ordinary constructor format,
         // not overlaid on stale byte-array or scalar aliases in the snapshot.

@@ -136,14 +136,14 @@ pub(super) fn validate(
                 },
                 ..scope
             };
-            // Callable materialization can create a closed expression after
-            // the original source cohort's canonical-publication pass. Replay
-            // the same formation and exact-carrier judgment here; no receiver
-            // facts or deferred obligations may turn it into a closed value.
+            // Specialization can leave a completed expression to validate
+            // here. Open expressions still need the caller's bounds and local
+            // facts in the ordinary argument check below.
             if let TypeParameterKind::Const { type_reference } = parameter.kind
                 && let TypeReferenceNode::ConstExpression(expression) =
                     program.type_reference_table.type_reference(*argument)
                 && !program.pending_const_range_endpoints.contains(expression)
+                && typed_trees::domain::index_argument_is_closed(program.typed_program(), *argument)
             {
                 match check_closed_const_expression_in_carrier(
                     program,

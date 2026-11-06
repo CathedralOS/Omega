@@ -45,6 +45,14 @@ fn catalog() -> StructuralTypeCatalog {
         fields: vec![],
     };
     let initialize = TerminalAccessLifecyclePlan {
+        target: Some(terminal_psi::TargetLayoutInput {
+            target: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        }),
         boundary: BoundaryMachineId::new(7).unwrap(),
         operation: TerminalAccessLifecycleOperation::Initialize,
         execution: TerminalAccessLifecycleExecution::CompilerPrimitive {
@@ -108,6 +116,16 @@ fn recovery_preserves_complete_placement_catalog_and_its_identity() {
     for changed_catalog in [
         catalog.clone().with_access_views(vec![]),
         catalog.clone().with_access_lifecycles(vec![]).unwrap(),
+        {
+            let mut lifecycle = catalog.access_lifecycles().to_vec();
+            lifecycle[0].target.as_mut().unwrap().case_tag_size = 8;
+            catalog.clone().with_access_lifecycles(lifecycle).unwrap()
+        },
+        {
+            let mut lifecycle = catalog.access_lifecycles().to_vec();
+            lifecycle[0].target = None;
+            catalog.clone().with_access_lifecycles(lifecycle).unwrap()
+        },
         {
             let mut lifecycle = catalog.access_lifecycles().to_vec();
             lifecycle[0].storage.base = StructuralFieldId::new(22).unwrap();

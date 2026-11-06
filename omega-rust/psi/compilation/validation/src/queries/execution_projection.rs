@@ -782,6 +782,7 @@ mod lifecycle_projection_tests {
                     schema: Default::default(),
                     policy_machine: Default::default(),
                     invocations,
+                    target: None,
                     placement: placement.clone(),
                     storage: Default::default(),
                 });

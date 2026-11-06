@@ -30,6 +30,7 @@ pub(crate) fn retain(
             policy,
             schema,
             policy_machine,
+            target,
             placement,
             storage,
             ..
@@ -118,6 +119,16 @@ pub(crate) fn retain(
         for boundary in boundaries {
             plans.push(TerminalAccessLifecyclePlan {
                 boundary,
+                target: target
+                    .as_ref()
+                    .map(|target| terminal_psi::TargetLayoutInput {
+                        target: target.profile.clone(),
+                        pointer_size: target.pointer_size,
+                        pointer_alignment: target.pointer_alignment,
+                        case_tag_size: target.case_tag_size,
+                        case_tag_alignment: target.case_tag_alignment,
+                        little_endian: target.little_endian,
+                    }),
                 operation: match operation {
                     AccessLifecycleOperation::Initialize => {
                         TerminalAccessLifecycleOperation::Initialize
@@ -136,10 +147,19 @@ pub(crate) fn retain(
             });
         }
     }
-    plans.sort_unstable_by_key(|plan| plan.boundary);
+    plans.sort_unstable_by(|left, right| {
+        (
+            left.boundary,
+            left.target.as_ref().map(|target| target.target.as_str()),
+        )
+            .cmp(&(
+                right.boundary,
+                right.target.as_ref().map(|target| target.target.as_str()),
+            ))
+    });
     if plans
         .windows(2)
-        .any(|pair| pair[0].boundary == pair[1].boundary)
+        .any(|pair| pair[0].boundary == pair[1].boundary && pair[0].target == pair[1].target)
     {
         return unsupported("placement boundary has competing lifecycle plans");
     }

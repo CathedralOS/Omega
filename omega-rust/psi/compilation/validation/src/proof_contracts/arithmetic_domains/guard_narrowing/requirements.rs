@@ -32,6 +32,57 @@ pub(super) fn seed_state_requirements(
         machine_written.as_deref(),
     )
     .apply(program, machine, state, environment);
+    // A record `requires` bound is already proved by the caller before this
+    // arrival. Seed it on each parameter field so a later read is not the
+    // field's whole carrier. A store in this state replaces that seed.
+    seed_arriving_data_field_bounds(program, state, environment);
+}
+
+fn seed_arriving_data_field_bounds(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    environment: &mut ValueEnvironment,
+) {
+    for parameter in program.state_parameters(state) {
+        let Some(definition) = parameter_record(program, parameter) else {
+            continue;
+        };
+        let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+            continue;
+        };
+        for (symbol, low, high) in bounds {
+            let Some(field) = program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| member.as_field().filter(|field| field.symbol == symbol))
+            else {
+                continue;
+            };
+            let path = format!("{}.{}", parameter.name.as_str(), field.name.as_str());
+            let declared = Interval { low, high };
+            let interval = environment
+                .get(&path)
+                .map_or(declared, |existing| existing.intersect(declared));
+            environment.set(path, interval);
+        }
+    }
+}
+
+fn parameter_record<'a>(
+    program: &'a dyn crate::CheckingInput,
+    parameter: &typed_trees::signature::StateParameter,
+) -> Option<&'a typed_trees::data::DataDefinition> {
+    let mut reference = parameter.type_reference;
+    if let Some(shell) = crate::reference_shell(program, reference) {
+        reference = shell.referee;
+    }
+    reference = program.unwrapped_type_reference(reference)?;
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+        typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
+        _ => return None,
+    };
+    program.data_definition_by_symbol(symbol)
 }
 
 /// Every place the machine's complete state write frames can write, or

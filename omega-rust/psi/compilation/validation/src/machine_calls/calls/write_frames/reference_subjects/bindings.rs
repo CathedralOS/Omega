@@ -11,9 +11,7 @@ use super::super::{
     local_aliases, stored_origins,
 };
 use crate::frozen_program::expression_table;
-use crate::machine_calls::calls::write_frames::state_write_walk::{
-    CollectedStatementPrefix, collected_prefix_at,
-};
+use crate::machine_calls::calls::write_frames::state_write_walk::collected_prefix_at;
 use std::sync::Mutex;
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
@@ -69,7 +67,7 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
     collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+        HashMap<(SymbolHandle, SymbolHandle), super::super::state_write_walk::CollectedPrefixes>,
     >,
 ) -> Option<()> {
     let (state, _, index) = caller_statement_at_site(program, machine, symbols, site)?;

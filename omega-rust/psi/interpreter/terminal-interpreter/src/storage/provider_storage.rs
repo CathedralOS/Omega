@@ -189,8 +189,7 @@ impl TerminalExecution<'_> {
         };
         let initialized = self
             .program
-            .catalogs
-            .access_lifecycle_plans
+            .access_lifecycle_plans()
             .iter()
             .find(|plan| plan.boundary == *initialized_by)
             .ok_or_else(malformed)?;

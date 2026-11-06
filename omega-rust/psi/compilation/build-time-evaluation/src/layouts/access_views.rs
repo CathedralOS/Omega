@@ -347,6 +347,7 @@ pub fn desugar_access_views(
             &execution,
             policy_machine,
             schema,
+            None,
             &domain.accounting,
         )
         .map_err(|reason| {
@@ -493,6 +494,7 @@ pub(crate) fn validate_access_view_plans_in(
             &execution,
             policy_machine,
             schema,
+            None,
             &domain.accounting,
         )
         .map_err(|reason| {

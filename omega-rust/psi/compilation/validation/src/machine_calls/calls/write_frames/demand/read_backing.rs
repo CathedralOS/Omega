@@ -307,7 +307,7 @@ impl CallFrameResolver<'_> {
         if !transfer.is_complete() {
             return None;
         }
-        let mut after_children: CollectedStatementPrefix = prefix.clone();
+        let mut after_children: CollectedStatementPrefix = (*prefix).clone();
         stored_calls::apply_transfer(
             self.program,
             &mut after_children.stored,

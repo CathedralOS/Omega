@@ -23,6 +23,17 @@ pub(super) fn contract_application_roots<'program>(
     program: &'program TypedTrees,
     occurrences: &[crate::references::TypeOccurrence],
 ) -> Vec<AppliedTraitScope<'program>> {
+    // A root is published only where the walk reaches a `DynamicTrait` node,
+    // and every node it reaches (substitutions included) is a row of the type
+    // table. A table with no such row publishes nothing, so the walk over
+    // every occurrence and its field telescopes cannot change the answer.
+    if !program
+        .type_reference_table
+        .references()
+        .any(|(_, node)| matches!(node, TypeReferenceNode::DynamicTrait { .. }))
+    {
+        return Vec::new();
+    }
     let mut discovery = SourceFields {
         program,
         roots: Vec::new(),

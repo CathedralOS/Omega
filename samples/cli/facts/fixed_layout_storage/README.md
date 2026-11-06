@@ -15,3 +15,8 @@ Exact optimized producer `bc022a133a9ab10d6ba88e5eb9fa893ee72e8ad2` observed all
 The row does not close the parent tasks: lifetime/cleanup compositions, complete policy migration, foreign ABI agreement, alias and conversion families, portable artifact controls, independent review and verified publication remain open until demonstrated.
 
 The match-join place separately executes both choices and observes caller-visible markers 17 and 29 after forming the unchanged subtraction. Identical returned representation bytes cannot conceal branch inversion. Its reject twin retains the same marker observations and breaks only the establishing field bound.
+
+The [computed-policy composition](compositions/computed_const_policy/README.md)
+supplies `Value + 1` to a layout policy under the caller's upper bound. Its
+transparent-alias variation checks the same argument through `PolicyStorage`;
+both unbounded controls retain the original arithmetic obligation.

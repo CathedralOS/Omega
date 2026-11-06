@@ -41,10 +41,25 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
     }
     let mut previous = None;
     for (position, plan) in module.access_lifecycle_plans.iter().enumerate() {
-        if previous.is_some_and(|boundary| boundary >= plan.boundary) {
-            return Err("access lifecycle boundaries are not unique and ordered");
+        let key = (
+            plan.boundary,
+            plan.target.as_ref().map(|target| target.target.as_str()),
+        );
+        if previous.is_some_and(|previous| previous >= key) {
+            return Err("access lifecycle boundary/target pairs are not unique and ordered");
         }
-        previous = Some(plan.boundary);
+        previous = Some(key);
+        if let Some(target) = &plan.target {
+            layout_plans::LayoutTargetFacts {
+                profile: target.target.clone(),
+                pointer_size: target.pointer_size,
+                pointer_alignment: target.pointer_alignment,
+                case_tag_size: target.case_tag_size,
+                case_tag_alignment: target.case_tag_alignment,
+                little_endian: target.little_endian,
+            }
+            .validate()?;
+        }
         let boundary = module
             .boundary_machine(plan.boundary)
             .ok_or("access lifecycle boundary is absent")?;
@@ -231,6 +246,8 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
             .filter(|earlier| {
                 earlier.policy_identity == plan.policy_identity
                     && earlier.schema_identity == plan.schema_identity
+                    && earlier.target.as_ref().map(|target| target.target.as_str())
+                        == plan.target.as_ref().map(|target| target.target.as_str())
             })
         {
             if earlier.schema != plan.schema
@@ -245,6 +262,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
                     && earlier.storage.owned_content()? != plan.storage.owned_content()?)
                 || earlier.policy_plan_machine_identity != plan.policy_plan_machine_identity
                 || earlier.placement != plan.placement
+                || earlier.target != plan.target
             {
                 return Err("access lifecycle operations disagree on normalized policy");
             }
@@ -336,13 +354,61 @@ fn validate_image_fields(
             return Err("placement image repeats a field or represents erased custody");
         }
     }
+    let carriers = plan
+        .target
+        .as_ref()
+        .map(|target| {
+            Ok::<_, &'static str>(semantic_vocabulary::TargetCarrierLayout {
+                pointer_byte_size: target.pointer_size,
+                pointer_byte_alignment: target.pointer_alignment,
+                descriptor_byte_size: target
+                    .pointer_size
+                    .checked_mul(2)
+                    .ok_or("placement image descriptor footprint overflows")?,
+                descriptor_byte_alignment: target.pointer_alignment,
+                case_tag_byte_size: target.case_tag_size,
+                case_tag_byte_alignment: target.case_tag_alignment,
+            })
+        })
+        .transpose()?;
+    let mut geometry =
+        crate::ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
+            Err(crate::StorageGeometryError::UnresolvedExtent(application))
+        })
+        .with_target_carriers(carriers);
     for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
         let size = if let Some(scalar) = field.field_type.scalar_type() {
             crate::reference_storage_byte_width(scalar).map(u64::from)
         } else {
-            field.field_type.as_structural().and_then(|child| {
-                crate::reference_storage_size(module.structural_types.iter(), child)
-            })
+            let child = field
+                .field_type
+                .as_structural()
+                .ok_or("placement image field has no structural carrier")?;
+            Some(
+                geometry
+                    .layout(child)
+                    .map_err(|error| match error {
+                        crate::StorageGeometryError::MissingCarrierLayout => {
+                            "placement image requires explicit target carrier geometry"
+                        }
+                        crate::StorageGeometryError::InvalidCarrierLayout => {
+                            "placement image has invalid target carrier geometry"
+                        }
+                        crate::StorageGeometryError::Overflow => {
+                            "placement image field geometry overflows"
+                        }
+                        crate::StorageGeometryError::UnresolvedExtent(_) => {
+                            "placement image field has an unresolved array extent"
+                        }
+                        crate::StorageGeometryError::UnresolvedLayout(_) => {
+                            "placement image field has an unresolved record layout"
+                        }
+                        _ => {
+                            "placement image field has no supported closed physical representation"
+                        }
+                    })?
+                    .0,
+            )
         }
         .ok_or("placement image field has no closed physical representation")?;
         if (size != 0) != plan.image_fields.contains(&field.id) {

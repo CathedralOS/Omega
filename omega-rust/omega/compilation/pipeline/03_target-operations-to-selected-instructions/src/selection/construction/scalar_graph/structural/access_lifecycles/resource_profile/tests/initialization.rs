@@ -103,6 +103,7 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
     let profile_layout = ProfileLayout::derive(&types.0, profile_type).unwrap();
     let boundary = BoundaryMachineId::new(8).unwrap();
     let plan = TerminalAccessLifecyclePlan {
+        target: None,
         boundary,
         operation: TerminalAccessLifecycleOperation::Initialize,
         execution: TerminalAccessLifecycleExecution::CompilerPrimitive {

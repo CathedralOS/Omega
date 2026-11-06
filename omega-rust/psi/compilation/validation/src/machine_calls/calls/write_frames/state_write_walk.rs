@@ -50,7 +50,7 @@ use crate::machine_calls::calls::write_frames::type_capabilities::{
 use crate::machine_calls::calls::write_frames::{
     alias_bindings, local_aliases, reference_subjects, stored_origins,
 };
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use symbols::SymbolHandle;
 use symbols::SymbolKeyMap as HashMap;
 use typed_trees::machine::Machine;
@@ -226,6 +226,9 @@ pub(crate) enum StateWriteQuery {
     /// Only incoming statement boundaries, not the enclosing state's effects.
     StatementPrefixes { include_shared: bool },
 }
+/// Before-statement snapshots of one state, built once and shared by every
+/// reader: a lookup copies a pointer, not the accumulated origin lists.
+pub(crate) type CollectedPrefixes = Option<Arc<Vec<Option<Arc<CollectedStatementPrefix>>>>>;
 
 /// A per-statement snapshot of the non-shared prefix walk's alias/stored
 /// accumulators. `collect_state_write_prefixes` captures one entry per
@@ -352,16 +355,14 @@ pub(crate) fn collect_state_write_prefixes(
 /// O(statements) walk and every later boundary index reads its collected
 /// entry instead of paying a fresh O(index) prefix walk.
 pub(crate) fn collected_prefix_at(
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
-    >,
+    collections: &Mutex<HashMap<(SymbolHandle, SymbolHandle), CollectedPrefixes>>,
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     index: usize,
     include_shared: bool,
-) -> Option<CollectedStatementPrefix> {
+) -> Option<Arc<CollectedStatementPrefix>> {
     collected_prefix_with_readiness_at(
         collections,
         program,
@@ -371,41 +372,42 @@ pub(crate) fn collected_prefix_at(
         index,
         include_shared,
     )
-    .filter(CollectedStatementPrefix::is_complete)
+    .filter(|prefix| prefix.is_complete())
 }
 
 /// Effect composition still examines later suppliers after an unresolved call.
 /// The retained status prevents this scratch prefix from becoming source evidence.
 pub(crate) fn collected_prefix_with_readiness_at(
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
-    >,
+    collections: &Mutex<HashMap<(SymbolHandle, SymbolHandle), CollectedPrefixes>>,
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
     symbols: &TopLevelSymbols<'_>,
     index: usize,
     include_shared: bool,
-) -> Option<CollectedStatementPrefix> {
+) -> Option<Arc<CollectedStatementPrefix>> {
+    // Every checking worker reads these snapshots, so the lock covers only a
+    // pointer copy; the walk and the indexed read happen outside it.
     let key = (machine.symbol, state.symbol);
-    let known = collections
-        .lock()
-        .ok()
-        .is_some_and(|cache| cache.contains_key(&key));
-    if !known {
-        let built = collect_state_write_prefixes(program, machine, state, symbols, include_shared);
-        if let Ok(mut cache) = collections.lock() {
-            cache.insert(key, built);
+    let known = collections.lock().ok()?.get(&key).cloned();
+    let prefixes = match known {
+        Some(prefixes) => prefixes,
+        None => {
+            let built =
+                collect_state_write_prefixes(program, machine, state, symbols, include_shared).map(
+                    |prefixes| {
+                        Arc::new(
+                            prefixes
+                                .into_iter()
+                                .map(|prefix| prefix.map(Arc::new))
+                                .collect(),
+                        )
+                    },
+                );
+            collections.lock().ok()?.entry(key).or_insert(built).clone()
         }
-    }
-    collections.lock().ok().and_then(|cache| {
-        cache
-            .get(&key)
-            .and_then(|entry| entry.as_ref())
-            .and_then(|prefixes| prefixes.get(index))
-            .cloned()
-            .flatten()
-    })
+    };
+    prefixes?.get(index).cloned().flatten()
 }
 
 /// The same state transfer computes whole-body summaries and the alias context

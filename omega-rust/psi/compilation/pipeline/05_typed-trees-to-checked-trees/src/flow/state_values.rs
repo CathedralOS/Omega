@@ -57,7 +57,7 @@ pub(super) struct StateValues {
 
 /// One same-machine transition edge's completed argument cases.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct ArgumentEdge {
+pub(super) struct ArgumentEdge {
     source: fields::BoundsSource,
     cases: Vec<(SymbolHandle, SymbolHandle)>,
 }
@@ -106,6 +106,15 @@ fn join(
     source: fields::BoundsSource,
     incoming: StateValues,
 ) {
+    if !delivers_here(program, build, Some(machine), destination, || {
+        Delivery::Join {
+            destination: destination.symbol,
+            source,
+            incoming: incoming.clone(),
+        }
+    }) {
+        return;
+    }
     let state = incoming.state;
     let mut changed = false;
     // The widening thresholds are program-pure: fetch the context's memoized
@@ -657,6 +666,12 @@ fn deliver_argument_edge(
     destination: &typed_trees::state::State,
     incoming: ArgumentEdge,
 ) {
+    if !delivers_here(program, build, None, destination, || Delivery::Edge {
+        destination: destination.symbol,
+        incoming: incoming.clone(),
+    }) {
+        return;
+    }
     let ArgumentEdge { source, cases } = incoming;
     let index = ensure_input_row(program, build, destination);
     let row = &mut build.state_value_inputs[index];
@@ -864,4 +879,114 @@ pub(super) fn append_entry_context(
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);
     }
+}
+
+/// One value-input delivery a state visit made, kept with the exact arguments
+/// `join` or `deliver_argument_edge` received so a group run can repeat it.
+#[derive(Clone, Debug)]
+pub(super) struct InputDelivery(Delivery);
+
+#[derive(Clone, Debug)]
+enum Delivery {
+    Join {
+        destination: SymbolHandle,
+        source: fields::BoundsSource,
+        incoming: StateValues,
+    },
+    Edge {
+        destination: SymbolHandle,
+        incoming: ArgumentEdge,
+    },
+    /// The destination does not resolve back to the state that received it.
+    Unreplayable,
+}
+
+/// The deliveries of one state visit, tagged with its pass.
+#[derive(Debug)]
+pub(super) struct RecordedVisit {
+    pub(super) state: SymbolHandle,
+    pub(super) pass: usize,
+    pub(super) deliveries: Vec<InputDelivery>,
+}
+
+/// A part of a group that converges alone: no machine outside it writes its
+/// inputs. `machines` is sorted by roster position.
+#[derive(Debug, Default)]
+pub(super) struct InputRecording {
+    pub(super) machines: Vec<usize>,
+    pub(super) visits: Vec<RecordedVisit>,
+}
+
+/// Records the delivery while a part converges alone and reports whether to
+/// apply it here: rows outside the part belong to the group's later run, which
+/// replays every recorded delivery in the group's own pass and roster order.
+fn delivers_here(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    machine: Option<&typed_trees::machine::Machine>,
+    destination: &typed_trees::state::State,
+    delivery: impl FnOnce() -> Delivery,
+) -> bool {
+    if build.input_recording.is_none() {
+        return true;
+    }
+    let location = build.state_location(program, destination.symbol);
+    let resolves = location.is_some_and(|(owner, state)| {
+        let owner = &program.machines()[owner];
+        machine.is_none_or(|machine| std::ptr::eq(owner, machine))
+            && std::ptr::eq(&program.machine_states(owner)[state], destination)
+    });
+    let recording = build
+        .input_recording
+        .as_mut()
+        .expect("recording checked above");
+    let delivery = if resolves {
+        delivery()
+    } else {
+        Delivery::Unreplayable
+    };
+    if let Some(visit) = recording.visits.last_mut() {
+        visit.deliveries.push(InputDelivery(delivery));
+    } else {
+        recording.visits.push(RecordedVisit {
+            state: SymbolHandle::invalid(),
+            pass: usize::MAX,
+            deliveries: vec![InputDelivery(Delivery::Unreplayable)],
+        });
+    }
+    location.is_some_and(|(owner, _)| recording.machines.binary_search(&owner).is_ok())
+}
+
+/// Repeat one recorded delivery; `false` when it no longer resolves.
+pub(super) fn replay_delivery(
+    program: &dyn ::validation::CheckingInput,
+    build: &mut FlowBuildContext,
+    delivery: &InputDelivery,
+) -> bool {
+    let destination = match &delivery.0 {
+        Delivery::Join { destination, .. } | Delivery::Edge { destination, .. } => *destination,
+        Delivery::Unreplayable => return false,
+    };
+    let Some((owner, state)) = build.state_location(program, destination) else {
+        return false;
+    };
+    let machine = &program.machines()[owner];
+    let destination = &program.machine_states(machine)[state];
+    match &delivery.0 {
+        Delivery::Join {
+            source, incoming, ..
+        } => join(
+            program,
+            build,
+            machine,
+            destination,
+            *source,
+            incoming.clone(),
+        ),
+        Delivery::Edge { incoming, .. } => {
+            deliver_argument_edge(program, build, destination, incoming.clone())
+        }
+        Delivery::Unreplayable => unreachable!("rejected above"),
+    }
+    true
 }

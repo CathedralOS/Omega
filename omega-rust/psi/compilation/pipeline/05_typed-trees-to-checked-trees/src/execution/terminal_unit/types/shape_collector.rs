@@ -84,7 +84,8 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in super::super) types: TypeCatalog,
     pub(in super::super) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in super::super) opaque_representations: Vec<checked_trees::CheckedOpaqueRepresentation>,
-    pub(in super::super) cleanup_control: checked_trees::CheckedCleanupControlPlans,
+    pub(in super::super) cleanup_control:
+        forks::CopyOnWrite<checked_trees::CheckedCleanupControlPlans>,
     // Compiler-owned handles select arena slots; the small bucket retains
     // exact generation/telescope/substitution contexts for that source row.
     // This is a collector-local query memo, never a semantic type identity.

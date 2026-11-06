@@ -43,6 +43,7 @@ pub struct AdmittedTargetLayouts {
     target: String,
     closures: Vec<TargetLayoutClosure>,
     records: Vec<StructuralTypeDeclaration>,
+    lifecycles: Vec<terminal_psi::TerminalAccessLifecyclePlan>,
 }
 impl AdmittedTargetLayouts {
     pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
@@ -58,6 +59,11 @@ impl AdmittedTargetLayouts {
     /// the canonical module and this receipt separately; these are not a module.
     pub fn resolved_records(&self) -> &[StructuralTypeDeclaration] {
         &self.records
+    }
+    /// Whole-value operations consume this target's checked placement, not the
+    /// first interpretation retained in the portable artifact.
+    pub fn resolved_lifecycles(&self) -> &[terminal_psi::TerminalAccessLifecyclePlan] {
+        &self.lifecycles
     }
     pub fn geometry<'a>(
         &'a self,
@@ -108,10 +114,17 @@ pub enum TargetLayoutSelectionError {
     },
     StaleApplication(LayoutApplicationId),
     InvalidTargetInput(String),
+    InvalidLifecycle {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        reason: &'static str,
+    },
 }
 impl std::fmt::Display for TargetLayoutSelectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::InvalidLifecycle { boundary, reason } => {
+                write!(formatter, "lifecycle {boundary:?}: {reason}")
+            }
             Self::InvalidTargetInput(reason) => write!(formatter, "layout target input: {reason}"),
             Self::ArtifactIdentityMismatch => write!(
                 formatter,
@@ -209,10 +222,114 @@ pub fn admit_target_layouts(
         records.push(record);
     }
     records.sort_unstable_by_key(|record| record.id);
+    let mut lifecycles = Vec::new();
+    for plan in &artifact.module().access_lifecycle_plans {
+        if let Some(input) = &plan.target
+            && !lifecycle_target_matches(input, target).map_err(|reason| {
+                TargetLayoutSelectionError::InvalidLifecycle {
+                    boundary: plan.boundary,
+                    reason,
+                }
+            })?
+        {
+            continue;
+        }
+        if lifecycles
+            .last()
+            .is_some_and(|previous: &terminal_psi::TerminalAccessLifecyclePlan| {
+                previous.boundary == plan.boundary
+            })
+        {
+            return Err(TargetLayoutSelectionError::InvalidLifecycle {
+                boundary: plan.boundary,
+                reason: "multiple placements apply to the selected target",
+            });
+        }
+        lifecycles.push(plan.clone());
+    }
     Ok(AdmittedTargetLayouts {
         terminal_psi: artifact.identity(),
         target: selections.target().to_owned(),
         closures,
         records,
+        lifecycles,
     })
+}
+
+/// Matching a profile name is insufficient: imported geometry must also agree
+/// with the receiving catalog, not just with its own serialized assertions.
+fn lifecycle_target_matches(
+    input: &terminal_psi::TargetLayoutInput,
+    target: &layout_plans::LayoutTargetFacts,
+) -> Result<bool, &'static str> {
+    if input.target != target.profile {
+        return Ok(false);
+    }
+    if input.pointer_size != target.pointer_size
+        || input.pointer_alignment != target.pointer_alignment
+    {
+        return Err("pointer geometry differs from the receiving target");
+    }
+    if input.case_tag_size != target.case_tag_size
+        || input.case_tag_alignment != target.case_tag_alignment
+    {
+        return Err("case tag geometry differs from the receiving target");
+    }
+    if input.little_endian != target.little_endian {
+        return Err("byte order differs from the receiving target");
+    }
+    Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lifecycle_admission_checks_the_selected_catalog_not_just_its_profile_name() {
+        let target = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        let valid = terminal_psi::TargetLayoutInput {
+            target: target.profile.clone(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        assert_eq!(lifecycle_target_matches(&valid, &target), Ok(true));
+        let mut other = valid.clone();
+        other.target = "linux_arm64".into();
+        assert_eq!(lifecycle_target_matches(&other, &target), Ok(false));
+        let mut altered = valid.clone();
+        altered.pointer_size = 4;
+        assert_eq!(
+            lifecycle_target_matches(&altered, &target),
+            Err("pointer geometry differs from the receiving target")
+        );
+        let mut altered = valid.clone();
+        altered.pointer_alignment = 4;
+        assert!(lifecycle_target_matches(&altered, &target).is_err());
+        let mut altered = valid.clone();
+        altered.case_tag_size = 8;
+        assert_eq!(
+            lifecycle_target_matches(&altered, &target),
+            Err("case tag geometry differs from the receiving target")
+        );
+        let mut altered = valid.clone();
+        altered.case_tag_alignment = 2;
+        assert!(lifecycle_target_matches(&altered, &target).is_err());
+        let mut altered = valid;
+        altered.little_endian = false;
+        assert_eq!(
+            lifecycle_target_matches(&altered, &target),
+            Err("byte order differs from the receiving target")
+        );
+    }
 }

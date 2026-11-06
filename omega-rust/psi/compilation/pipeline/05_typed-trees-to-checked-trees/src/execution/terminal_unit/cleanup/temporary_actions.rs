@@ -752,7 +752,8 @@ pub(crate) fn finalize_completion_actions(
     // Computed calls append conditions to the same published catalog as
     // statement continuations. Restore that owner even when plan selection
     // declines: existing action spans must never outlive their arena.
-    shapes.cleanup_control = std::mem::take(&mut facts.flow.terminal_unit_effects.cleanup_control);
+    shapes.cleanup_control =
+        std::mem::take(&mut facts.flow.terminal_unit_effects.cleanup_control).into();
     let mut refusal = String::from("missing executable cleanup catalog");
     let replacements = (|| {
         let targets = facts
@@ -1128,7 +1129,8 @@ pub(crate) fn finalize_completion_actions(
         }
         Some((replacements, value_calls, observation_replacements))
     })();
-    facts.flow.terminal_unit_effects.cleanup_control = std::mem::take(&mut shapes.cleanup_control);
+    facts.flow.terminal_unit_effects.cleanup_control =
+        std::mem::take(&mut shapes.cleanup_control).into_inner();
     let (replacements, value_calls, observation_replacements) = replacements.ok_or(refusal)?;
     for (handle, selected) in value_calls {
         install_value_call(

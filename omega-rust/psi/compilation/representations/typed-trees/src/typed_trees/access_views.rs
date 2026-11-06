@@ -27,6 +27,9 @@ pub enum AccessLifecyclePlan {
         schema: symbols::SymbolHandle,
         policy_machine: symbols::SymbolHandle,
         invocations: arena::HandleSpan<source::SourceSpan>,
+        /// Exact checking input for this physical interpretation. None means
+        /// target-independent geometry was established without target facts.
+        target: Option<layout_plans::LayoutTargetFacts>,
         placement: access_plans::ValidatedAccessPlan,
         storage: AccessLifecycleStorage,
     },

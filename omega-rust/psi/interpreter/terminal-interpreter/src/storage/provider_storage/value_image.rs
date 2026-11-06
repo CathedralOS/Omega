@@ -27,7 +27,9 @@ use terminal_psi::{
 };
 
 mod decoding;
+mod geometry;
 pub(crate) use decoding::restore;
+use geometry::ImageGeometry;
 
 pub(crate) fn prepare(
     execution: &TerminalExecution<'_>,
@@ -50,13 +52,15 @@ pub(crate) fn prepare(
     else {
         return Err(malformed());
     };
-    require_runtime_fields(execution, fields)?;
+    let geometry = ImageGeometry::new(execution, plan.target.as_ref())?;
+    require_runtime_fields(&geometry, fields)?;
     let mut reader = ValueImageReader {
         execution,
         source,
         byte_order,
         path: source.path.clone(),
         active: Vec::new(),
+        geometry,
     };
     let mut schemas = Vec::with_capacity(plan.image_fields.len());
     let mut values = Vec::with_capacity(plan.image_fields.len());
@@ -95,6 +99,7 @@ struct ValueImageReader<'execution, 'program, 'source> {
     byte_order: ByteOrder,
     path: Vec<StructuralPathSegment>,
     active: Vec<StructuralTypeId>,
+    geometry: ImageGeometry<'execution, 'program>,
 }
 
 impl ValueImageReader<'_, '_, '_> {
@@ -132,7 +137,7 @@ impl ValueImageReader<'_, '_, '_> {
         ),
         TerminalInterpretError,
     > {
-        let schema = field_schema(self.execution, field, name, member_identity)?;
+        let schema = field_schema(self.execution, &self.geometry, field, name, member_identity)?;
         self.path.push(StructuralPathSegment::Field(field.identity));
         let bytes = match field.field_type.scalar_type() {
             Some(scalar) => self.scalar(scalar),
@@ -156,19 +161,14 @@ impl ValueImageReader<'_, '_, '_> {
         self.active.push(root);
         let types = self.execution.structural_types();
         let declaration = types.declaration(&root)?;
-        let (size, alignment) = terminal_semantics::reference_storage_layout(types.values(), root)
-            .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                "owned image requires closed declared storage",
-            ))?;
+        let (size, alignment) = self.geometry.layout(root)?;
         let result = match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => self.scalar(*scalar),
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
-                let (stride, _) =
-                    terminal_semantics::reference_storage_layout(types.values(), *element)
-                        .ok_or_else(malformed)?;
+                let (stride, _) = self.geometry.layout(*element)?;
                 let mut bytes = zeroed(size, self.execution.account.as_ref())?;
                 // Zero-byte arrays retain custody but need no per-element image work.
                 if stride != 0 {
@@ -192,8 +192,16 @@ impl ValueImageReader<'_, '_, '_> {
                 Ok(bytes)
             }
             StructuralTypeShape::Record { fields, storage } => {
-                require_runtime_fields(self.execution, fields)?;
-                let layout = record_layout(self.execution, root, fields, storage, size, alignment)?;
+                require_runtime_fields(&self.geometry, fields)?;
+                let layout = record_layout(
+                    self.execution,
+                    &self.geometry,
+                    root,
+                    fields,
+                    storage,
+                    size,
+                    alignment,
+                )?;
                 let mut schemas = Vec::new();
                 let mut values = Vec::new();
                 for field in fields {
@@ -210,6 +218,8 @@ impl ValueImageReader<'_, '_, '_> {
                     self.execution.account.as_ref(),
                 )
             }
+            StructuralTypeShape::Sum { cases } => self.sum(root, &[], cases),
+            StructuralTypeShape::Mixed { fields, cases } => self.sum(root, fields, cases),
             _ => Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "owned image shape is outside the retained schema reflection contract",
             )),
@@ -217,10 +227,94 @@ impl ValueImageReader<'_, '_, '_> {
         self.active.pop();
         result
     }
+
+    fn sum(
+        &mut self,
+        root: StructuralTypeId,
+        common: &[StructuralFieldDeclaration],
+        cases: &[terminal_psi::StructuralCaseDeclaration],
+    ) -> Result<ByteSequenceStorage, TerminalInterpretError> {
+        let layout = self.geometry.sum_layout(root)?;
+        let selected = self.execution.resolve_live_projection(
+            self.source.place,
+            &self.path,
+            self.source.access,
+        )?;
+        let contents = self.execution.structural_cases.require(
+            &crate::boundary::values::StructuralRuntimePlace::from(&selected),
+        )?;
+        if contents.structural_type != root {
+            return Err(malformed());
+        }
+        let case_position = cases
+            .iter()
+            .position(|case| case.id == contents.case)
+            .ok_or_else(malformed)?;
+        let case = &cases[case_position];
+        let mut bytes = zeroed(layout.storage.byte_size, self.execution.account.as_ref())?;
+        let width = self.geometry.tag_width()?;
+        let tag = u64::try_from(case_position).map_err(|_| malformed())?;
+        if width < 8 && tag >= (1_u64 << (width * 8)) {
+            return Err(malformed());
+        }
+        let encoded = match self.byte_order {
+            ByteOrder::LittleEndian => tag.to_le_bytes(),
+            ByteOrder::BigEndian => tag.to_be_bytes(),
+        };
+        let encoded = match self.byte_order {
+            ByteOrder::LittleEndian => &encoded[..width],
+            ByteOrder::BigEndian => &encoded[8 - width..],
+        };
+        bytes
+            .bytes_mut()
+            .get_mut(..width)
+            .ok_or_else(malformed)?
+            .copy_from_slice(encoded);
+        self.sum_fields(common, &layout.common_field_offsets, &mut bytes)?;
+        self.path.push(StructuralPathSegment::Case(case.id));
+        self.sum_fields(
+            &case.fields,
+            &layout.case_field_offsets[case_position],
+            &mut bytes,
+        )?;
+        self.path.pop();
+        Ok(bytes)
+    }
+
+    fn sum_fields(
+        &mut self,
+        fields: &[StructuralFieldDeclaration],
+        offsets: &[u64],
+        bytes: &mut ByteSequenceStorage,
+    ) -> Result<(), TerminalInterpretError> {
+        require_runtime_fields(&self.geometry, fields)?;
+        if fields.len() != offsets.len() {
+            return Err(malformed());
+        }
+        for (field, offset) in fields.iter().zip(offsets) {
+            self.path.push(StructuralPathSegment::Field(field.identity));
+            let value = match field.field_type.scalar_type() {
+                Some(scalar) => self.scalar(scalar),
+                None => self.structure(field.field_type.as_structural().ok_or_else(malformed)?),
+            }?;
+            self.path.pop();
+            let start = usize::try_from(*offset).map_err(|_| malformed())?;
+            let end = start
+                .checked_add(value.bytes().len())
+                .ok_or_else(malformed)?;
+            bytes
+                .bytes_mut()
+                .get_mut(start..end)
+                .ok_or_else(malformed)?
+                .copy_from_slice(value.bytes());
+        }
+        Ok(())
+    }
 }
 
 fn field_schema(
     execution: &TerminalExecution<'_>,
+    geometry: &ImageGeometry<'_, '_>,
     field: &StructuralFieldDeclaration,
     name: &str,
     member_identity: Option<u64>,
@@ -228,10 +322,11 @@ fn field_schema(
     let types = execution.structural_types();
     let size = match field.field_type.scalar_type() {
         Some(scalar) => terminal_semantics::reference_storage_byte_width(scalar).map(u64::from),
-        None => field
-            .field_type
-            .as_structural()
-            .and_then(|child| terminal_semantics::reference_storage_size(types.values(), child)),
+        None => Some(
+            geometry
+                .layout(field.field_type.as_structural().ok_or_else(malformed)?)?
+                .0,
+        ),
     }
     .ok_or_else(malformed)?;
     let repeated =
@@ -243,8 +338,7 @@ fn field_schema(
                     element,
                     length: terminal_psi::ArrayExtent::Literal(length),
                 } => {
-                    let (size, alignment) =
-                        terminal_semantics::reference_storage_layout(types.values(), element)?;
+                    let (size, alignment) = geometry.layout(element).ok()?;
                     Some((size, alignment, length))
                 }
                 _ => None,
@@ -266,6 +360,7 @@ fn field_schema(
 /// evaluates a policy or recovers a semantic field from its diagnostic name.
 fn record_layout(
     execution: &TerminalExecution<'_>,
+    geometry: &ImageGeometry<'_, '_>,
     root: StructuralTypeId,
     fields: &[StructuralFieldDeclaration],
     storage: &StructuralRecordStorage,
@@ -291,12 +386,9 @@ fn record_layout(
         };
         match (storage, &field.storage) {
             (StructuralRecordStorage::Packed, _) => {
-                let region = terminal_semantics::reference_storage_region(
-                    types.values(),
-                    root,
-                    &[StructuralPathSegment::Field(field.identity)],
-                )
-                .ok_or_else(malformed)?;
+                let region = geometry
+                    .region(root, &[StructuralPathSegment::Field(field.identity)])
+                    .ok_or_else(malformed)?;
                 append(
                     &mut layout,
                     LayoutPlacementReport::At {
@@ -391,15 +483,17 @@ fn record_layout(
 /// also keeps skipped reference/loan custody from disappearing into a private
 /// resident snapshot outside the ordinary live-loan map.
 fn require_runtime_fields(
-    execution: &TerminalExecution<'_>,
+    geometry: &ImageGeometry<'_, '_>,
     fields: &[StructuralFieldDeclaration],
 ) -> Result<(), TerminalInterpretError> {
-    let types = execution.structural_types();
     for field in fields {
         if field.relevance.is_erased()
-            || field.field_type.as_structural().is_some_and(|child| {
-                terminal_semantics::reference_storage_size(types.values(), child) == Some(0)
-            })
+            || field
+                .field_type
+                .as_structural()
+                .map(|child| geometry.layout(child))
+                .transpose()?
+                .is_some_and(|(size, _)| size == 0)
         {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "placement with non-runtime fields requires an authored custody agreement",
