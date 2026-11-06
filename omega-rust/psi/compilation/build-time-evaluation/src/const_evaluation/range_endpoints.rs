@@ -11,23 +11,17 @@
 //! replacing the caller's selected operation or borrowing a callee activation
 //! to interpret the caller's expression.
 
-use crate::build_time_evaluation::{EvaluationDomain, type_reference_table};
-use crate::const_evaluation::const_generic_expressions::exact_probe_destination;
+use crate::build_time_evaluation::EvaluationDomain;
 use crate::const_evaluation::const_generic_expressions::value::evaluate_integer_endpoint;
-use crate::machine_execution::admission::{expression_children, require_closed_expression_custody};
+use crate::machine_execution::admission::require_closed_expression_custody;
 use crate::unique::extend_unique;
 use crate::{BuildTimeAdmissionPlan, SelectedBuildTimeOperators};
 use diagnostics::Diagnostic;
-use numerics::{
-    arithmetic::ArithmeticDomain,
-    literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
-};
+use numerics::literals::LandedIntegerType;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::state::state_by_symbol;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::PrimitiveType;
 
 pub(super) mod arguments;
 mod integer_type;

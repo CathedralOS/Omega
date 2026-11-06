@@ -32,7 +32,7 @@ use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use syntax_trees::types::TypeReferenceNode;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     ClosedDeclarationConstantUses, closed_array_extent_expressions,
     resolve_deferred_initializer_probe,

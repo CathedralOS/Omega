@@ -988,7 +988,7 @@ impl Invocation<'_> {
             }
             return Ok(());
         }
-        if let Some(primitive) = typed.primitive_type_reference(destination) {
+        if typed.primitive_type_reference(destination).is_some() {
             return Ok(());
         }
         let carrier = type_reference_table(typed).unconstrained_type_reference(destination);

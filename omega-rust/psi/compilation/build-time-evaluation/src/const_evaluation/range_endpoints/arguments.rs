@@ -67,7 +67,7 @@ impl Invocation<'_> {
         } else {
             self.working
         };
-        ScalarPosition::prepare(types, self.execution, reference, self.authority)
+        ScalarPosition::prepare(types, reference)
     }
 
     fn result_position(&self, callee: super::EndpointCallee) -> Result<ScalarPosition, String> {
