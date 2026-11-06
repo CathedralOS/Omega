@@ -341,6 +341,8 @@ mod authored_type_occurrence_tests {
             commutativity_licensed: false,
             associativity_licensed: false,
             distributes_over: Vec::new(),
+            left_identity_literal: String::new(),
+            right_identity_literal: String::new(),
         });
         let cast = program
             .expression_table

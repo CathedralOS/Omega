@@ -172,10 +172,12 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             expression,
             typed_trees::expression::OpenIndexNormalization {
                 index_type,
-                // Version 3 retains exact providers even without AC laws and
-                // shares their identity with established fact operands. An
-                // alias is diagnostic payload, never algebra identity.
-                normalizer_version: 3,
+                // Version 4 removes a literal identity only when the selected
+                // conformance publishes both the identity law and its
+                // nullary-to-literal connection. Version 3 retained providers
+                // without that rewrite. An alias is diagnostic payload, never
+                // algebra identity.
+                normalizer_version: 4,
             },
             operations,
         ));
@@ -323,10 +325,16 @@ fn normalize_open_index_expression_operations(
         )));
         return;
     };
-    let TypeReferenceNode::Named { .. } = program.type_reference_table.type_reference(index_type)
-    else {
+    // A qualified integer (`u64 in Wrapping`) is still the operation's carrier.
+    // The qualification does not choose an implementation; the conformance
+    // bound does. Other type forms are not open index arithmetic.
+    let selectable = matches!(
+        program.type_reference_table.type_reference(index_type),
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Constrained { .. }
+    );
+    if !selectable {
         return;
-    };
+    }
     let candidates = bound_index_operations(program, machine, expression, index_type, spelling);
     let [operation] = candidates.as_slice() else {
         diagnostics.push(Diagnostic::error(format!(
@@ -388,6 +396,15 @@ fn bound_index_operations(
             trait_definition,
             requirement.name.as_str(),
         );
+        // Identity evidence is the whole selected conformance, including a
+        // child trait's literal connection over a parent operation. The
+        // declaring trait alone does not publish that connection.
+        let identities = crate::proof_contracts::contract_entailment::literal_index_identities(
+            program,
+            bound,
+            requirement.symbol,
+            index_type,
+        );
         Some(typed_trees::expression::OpenIndexOperationSelection {
             expression,
             spelling,
@@ -401,6 +418,8 @@ fn bound_index_operations(
             commutativity_licensed: !laws.commutativity.is_empty(),
             associativity_licensed: !laws.associativity.is_empty(),
             distributes_over: laws.distributivity,
+            left_identity_literal: identities.left,
+            right_identity_literal: identities.right,
         })
     })
     .collect()

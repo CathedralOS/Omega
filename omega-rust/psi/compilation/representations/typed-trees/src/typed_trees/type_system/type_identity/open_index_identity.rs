@@ -3,11 +3,13 @@
 //! A selected index operation normalizes under exactly the laws its selection
 //! records, each from a different checked law slot of the selected trait:
 //! associativity flattens a nested chain of one operation, commutativity sorts
-//! the operands, and left distributivity expands a product over a sum factor
-//! when both operations come from one provider of the trait that declares the
-//! law. No law implies another, and a missing law keeps the expression's own
-//! structure, so two expressions that need it stay distinct instead of either
-//! being rejected; compatibility then asks for an established equality.
+//! the operands, a literal identity drops an operand only when both that
+//! identity law and its nullary-to-literal connection are published, and left
+//! distributivity expands a product over a sum factor when both operations
+//! come from one provider of the trait that declares the law. No law implies
+//! another, and a missing law keeps the expression's own structure, so two
+//! expressions that need it stay distinct instead of either being rejected;
+//! compatibility then asks for an established equality.
 //!
 //! Expansion has to see which operands are sums, so normalization builds
 //! `IndexTerm`s and renders them once. Rendering reproduces the identity text
@@ -111,6 +113,8 @@ fn same_open_index_ac_authority(
         && left.commutativity_licensed == right.commutativity_licensed
         && left.associativity_licensed == right.associativity_licensed
         && left.distributes_over == right.distributes_over
+        && left.left_identity_literal == right.left_identity_literal
+        && left.right_identity_literal == right.right_identity_literal
 }
 
 /// Whether `product` distributes over `sum` by a law the trait declares: both
@@ -210,6 +214,14 @@ impl<'program> IndexTerm<'program> {
         } else {
             operands
         };
+        // Identities come off before ordering and expansion. `N + 0` is `N`
+        // only when this operation recorded both the identity law and the
+        // literal connection; a chain of nothing but that literal stays the
+        // literal rather than disappearing.
+        operands = without_licensed_identities(program, selection, operands, context);
+        if let [single] = operands.as_slice() {
+            return single.clone();
+        }
         if selection.commutativity_licensed {
             operands.sort_by_cached_key(|operand| operand.render(program, context));
         }
@@ -327,6 +339,76 @@ impl<'program> IndexTerm<'program> {
             ),
         }
     }
+}
+
+/// Drop operands the selection's literal identity laws remove.
+///
+/// A right identity removes a non-leading operand, and a leading one only
+/// with a left-identity or commutativity law. A left identity is symmetric.
+/// When every operand is that same literal, one copy remains. Two different
+/// licensed literals in one chain remove nothing.
+fn without_licensed_identities<'program>(
+    program: &'program TypedTrees,
+    selection: &'program OpenIndexOperationSelection,
+    operands: Vec<IndexTerm<'program>>,
+    context: &TypeIdentityContext<'_>,
+) -> Vec<IndexTerm<'program>> {
+    let len = operands.len();
+    let matches = operands
+        .iter()
+        .enumerate()
+        .map(|(index, operand)| {
+            let rendered = operand.render(program, context);
+            let left = literal_matches(&selection.left_identity_literal, &rendered);
+            let right = literal_matches(&selection.right_identity_literal, &rendered);
+            let removable = identity_operand_is_removable(index, len, left, right, selection);
+            (rendered, removable)
+        })
+        .collect::<Vec<_>>();
+    let mut shared = None;
+    for (rendered, removable) in &matches {
+        if !removable {
+            continue;
+        }
+        match &shared {
+            None => shared = Some(rendered.clone()),
+            Some(existing) if existing == rendered => {}
+            Some(_) => return operands,
+        }
+    }
+    let mut kept = Vec::new();
+    for (operand, (_, removable)) in operands.into_iter().zip(matches) {
+        if removable {
+            continue;
+        }
+        kept.push(operand);
+    }
+    if kept.is_empty()
+        && let Some(text) = shared
+    {
+        return vec![IndexTerm::Leaf(text)];
+    }
+    kept
+}
+
+fn literal_matches(literal: &str, rendered: &str) -> bool {
+    !literal.is_empty() && rendered == atom(IndexForm::Integer, literal)
+}
+
+fn identity_operand_is_removable(
+    index: usize,
+    len: usize,
+    left: bool,
+    right: bool,
+    selection: &OpenIndexOperationSelection,
+) -> bool {
+    if !left && !right {
+        return false;
+    }
+    let leading = index == 0;
+    let trailing = index + 1 == len;
+    let commutative = selection.commutativity_licensed;
+    (right && (!leading || commutative || left)) || (left && (!trailing || commutative || right))
 }
 
 /// The identity text of a binary index expression whose operation the consuming

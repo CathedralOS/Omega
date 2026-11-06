@@ -260,10 +260,24 @@ fn closed_domain_argument_identity(
     substitutions: &[(SymbolHandle, IndexIdentityArgument<'_>)],
 ) -> Result<String, Diagnostic> {
     let Named { symbol, name } = program.type_reference_table.type_reference(argument) else {
-        if matches!(
-            program.type_reference_table.type_reference(argument),
-            crate::types::TypeReferenceNode::ConstExpression(_)
-        ) {
+        if let crate::types::TypeReferenceNode::ConstExpression(expression) =
+            program.type_reference_table.type_reference(argument)
+        {
+            // A selected identity law can reduce the whole operation to one
+            // integer (`N + 0` is `N` after the binder is a value). That
+            // integer is the same domain instance as a direct integer argument.
+            // A bare integer expression keeps the expression wrapper, so this
+            // only fires for an operation the normalizer actually removed.
+            if program.expression_table.binary_node(*expression).is_some()
+                && let Some(identity) =
+                    crate::type_identity::normalized_const_index_expression_identity(
+                        program,
+                        *expression,
+                    )
+                && let Some(value) = integer_atom_text(&identity)
+            {
+                return Ok(format!("integer:{expected}:{value}"));
+            }
             // PDI3 retains an open computed index until exact operation and
             // algebra selection. The same structural identity works before
             // selection and incorporates that semantic authority afterward,
@@ -841,6 +855,15 @@ pub fn index_argument_is_closed_with_substitutions(
     };
     crate::references::visit_type_reference(program, &mut closure, reference);
     !closure.open
+}
+
+/// `integer(N)` from the index normalizer, when `N` is a plain decimal atom.
+/// Escapes and non-digits stay structural so a coincidental spelling cannot
+/// become a domain value.
+fn integer_atom_text(identity: &str) -> Option<&str> {
+    let value = identity.strip_prefix("integer(")?.strip_suffix(')')?;
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    (!digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())).then_some(value)
 }
 
 /// Names and literal atoms denote the same admitted value in a domain index.
