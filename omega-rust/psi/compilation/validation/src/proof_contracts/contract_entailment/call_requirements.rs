@@ -53,14 +53,14 @@ use inherited_predicates::{InheritedPredicate, inherited_predicate};
 /// tag across the traversed prefix. Scalar premises and equations are unavailable
 /// in that mode; incomplete mutation evidence never licenses either judgment.
 #[allow(clippy::too_many_arguments)]
-pub fn structural_call_requirement_entailed(
-    program: &dyn CheckingInput,
+pub fn structural_call_requirement_entailed<'p>(
+    program: &'p dyn CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
     in_transition_target: bool,
-    callee: &State,
-    arguments: &[ExpressionHandle],
+    callee: &'p State,
+    arguments: &'p [ExpressionHandle],
     expression: ExpressionHandle,
     case_facts_only: bool,
 ) -> bool {
@@ -74,7 +74,7 @@ pub fn structural_call_requirement_entailed(
         statement_index,
         in_transition_target,
         &super::specification_calls::SelectedCallContract::Concrete(callee_machine, callee),
-        program.state_parameters(callee),
+        std::borrow::Cow::Borrowed(program.state_parameters(callee)),
         None,
         ExpressionHandle::invalid(),
         0,
@@ -88,25 +88,55 @@ pub fn structural_call_requirement_entailed(
 /// Selected expression calls share the structural prefix and execution-path
 /// owner. The exact public declaration supplies the telescope; the realized
 /// implementation cannot export a stronger private contract.
-pub fn selected_value_call_requirement_entailed(
-    program: &dyn CheckingInput,
+#[allow(clippy::too_many_arguments)]
+pub fn selected_value_call_requirement_entailed<'p>(
+    program: &'p dyn CheckingInput,
     machine: &Machine,
     state: &State,
     statement_index: usize,
-    site: crate::machine_calls::calls::CallSite<'_>,
+    site: crate::machine_calls::calls::CallSite<'p>,
     expression: ExpressionHandle,
     case_facts_only: bool,
     inherited: Option<(&ProofFacts, arena::Handle<checked_trees::ContractProofFact>)>,
 ) -> bool {
+    match prepare_selected_value(
+        program,
+        machine,
+        state,
+        statement_index,
+        site,
+        expression,
+        case_facts_only,
+        inherited,
+    ) {
+        PreparedRequirement::Decided(verdict) => verdict,
+        PreparedRequirement::Walk(walk) => run_requirement_walk(program, machine, *walk),
+    }
+}
+
+/// Every decision `selected_value_call_requirement_entailed` makes before its
+/// structural walk, without walking. `shared_proof_walks` prepares each call
+/// site's requirements here so its visitors match the solo ones exactly.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn prepare_selected_value<'p>(
+    program: &'p dyn CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    site: crate::machine_calls::calls::CallSite<'p>,
+    expression: ExpressionHandle,
+    case_facts_only: bool,
+    inherited: Option<(&ProofFacts, arena::Handle<checked_trees::ContractProofFact>)>,
+) -> PreparedRequirement<'p> {
     let call_expression = match site {
         crate::CallSite::Expression { expression, .. } => expression,
         crate::CallSite::Statement(_) => ExpressionHandle::invalid(),
-        crate::CallSite::TransitionNamed { .. } => return false,
+        crate::CallSite::TransitionNamed { .. } => return PreparedRequirement::Decided(false),
     };
     let Some(owner) =
         super::specification_calls::selected_call_site_contract(program, machine.symbol, site)
     else {
-        return false;
+        return PreparedRequirement::Decided(false);
     };
     if inherited.is_none()
         && !super::specification_calls::owner_contracts(program, &owner)
@@ -130,12 +160,12 @@ pub fn selected_value_call_requirement_entailed(
                 false
             })
     {
-        return false;
+        return PreparedRequirement::Decided(false);
     }
     let Some(parameter_scope) =
         super::specification_calls::call_parameter_scope(program, machine.symbol, &owner, site)
     else {
-        return false;
+        return PreparedRequirement::Decided(false);
     };
     // Pure type obligations do not require a runtime observation of a generic
     // referent. Authenticate the selected tuple and the original contract first,
@@ -158,7 +188,7 @@ pub fn selected_value_call_requirement_entailed(
         )
         && program.static_type_requirement_entailed(expression, type_context, &application.types)
     {
-        return true;
+        return PreparedRequirement::Decided(true);
     }
     // The physical invocation telescope remains with capture/reference
     // authentication. A migrated clause independently binds its public
@@ -185,7 +215,7 @@ pub fn selected_value_call_requirement_entailed(
                             machine.name
                         );
                     }
-                    return false;
+                    return PreparedRequirement::Decided(false);
                 }
             };
             Some(predicate)
@@ -196,21 +226,22 @@ pub fn selected_value_call_requirement_entailed(
     let Some(arguments) =
         crate::call_site_argument_expressions(program, &site).get(leading_operands..)
     else {
-        return false;
+        return PreparedRequirement::Decided(false);
     };
-    structural_requirement_at_prefix(
+    let in_transition_target = super::structural_prefix::expression_is_transition_target(
+        program,
+        state,
+        statement_index,
+        call_expression,
+    );
+    prepare_requirement(
         program,
         machine,
         state.symbol,
         statement_index,
-        super::structural_prefix::expression_is_transition_target(
-            program,
-            state,
-            statement_index,
-            call_expression,
-        ),
+        in_transition_target,
         &owner,
-        parameter_scope.as_ref(),
+        parameter_scope,
         Some(site),
         call_expression,
         leading_operands,
@@ -221,23 +252,78 @@ pub fn selected_value_call_requirement_entailed(
     )
 }
 
+/// A requirement check either decided before walking or prepared the walk it
+/// would take. Solo checks and `shared_proof_walks` both prepare here, so a
+/// shared walk carries the exact visitor a solo walk would build.
+pub(super) enum PreparedRequirement<'p> {
+    Decided(bool),
+    Walk(Box<RequirementWalk<'p>>),
+}
+
+/// Everything `run_requirement_walk` needs after preparation.
+pub(super) struct RequirementWalk<'p> {
+    pub(super) requirement: CallRequirement<'p>,
+    pub(super) runtime_values: bool,
+    state_prefix: bool,
+    pub(super) case_facts_only: bool,
+    pub(super) requires: Vec<ExpressionHandle>,
+}
+
 #[allow(clippy::too_many_arguments)]
-fn structural_requirement_at_prefix(
-    program: &dyn CheckingInput,
+fn structural_requirement_at_prefix<'p>(
+    program: &'p dyn CheckingInput,
     machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
     in_transition_target: bool,
     owner: &super::specification_calls::SelectedCallContract<'_>,
-    parameters: &[typed_trees::signature::StateParameter],
-    call_site: Option<crate::CallSite<'_>>,
+    parameters: std::borrow::Cow<'p, [typed_trees::signature::StateParameter]>,
+    call_site: Option<crate::CallSite<'p>>,
     call_expression: ExpressionHandle,
     leading_operands: usize,
-    arguments: &[ExpressionHandle],
+    arguments: &'p [ExpressionHandle],
     expression: ExpressionHandle,
     case_facts_only: bool,
     inherited: Option<&InheritedPredicate>,
 ) -> bool {
+    match prepare_requirement(
+        program,
+        machine,
+        state,
+        statement_index,
+        in_transition_target,
+        owner,
+        parameters,
+        call_site,
+        call_expression,
+        leading_operands,
+        arguments,
+        expression,
+        case_facts_only,
+        inherited,
+    ) {
+        PreparedRequirement::Decided(verdict) => verdict,
+        PreparedRequirement::Walk(walk) => run_requirement_walk(program, machine, *walk),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_requirement<'p>(
+    program: &'p dyn CheckingInput,
+    machine: &Machine,
+    state: SymbolHandle,
+    statement_index: usize,
+    in_transition_target: bool,
+    owner: &super::specification_calls::SelectedCallContract<'_>,
+    parameters: std::borrow::Cow<'p, [typed_trees::signature::StateParameter]>,
+    call_site: Option<crate::CallSite<'p>>,
+    call_expression: ExpressionHandle,
+    leading_operands: usize,
+    arguments: &'p [ExpressionHandle],
+    expression: ExpressionHandle,
+    case_facts_only: bool,
+    inherited: Option<&InheritedPredicate>,
+) -> PreparedRequirement<'p> {
     let callee_owner = inherited.map_or_else(
         || super::specification_calls::owner_symbol(owner),
         |predicate| predicate.owner,
@@ -248,10 +334,10 @@ fn structural_requirement_at_prefix(
     };
     let expression = inherited.map_or(expression, |predicate| predicate.expression);
     let predicate_parameters =
-        inherited.map_or(parameters, |predicate| predicate.parameters.as_slice());
+        inherited.map_or(&parameters[..], |predicate| predicate.parameters.as_slice());
     let classification = crate::proof_only_classification(program);
     let Some(entry) = program.machine_states(machine).first() else {
-        return false;
+        return PreparedRequirement::Decided(false);
     };
     let runtime_values = !classification.is_proof_machine(program, machine)
         || !super::specification_calls::owner_is_proof(program, &classification, owner);
@@ -259,14 +345,14 @@ fn structural_requirement_at_prefix(
         program, machine, entry,
     );
     if !runtime_values && !acyclic {
-        return false;
+        return PreparedRequirement::Decided(false);
     }
     // An acyclic invocation can retain its complete incoming substitutions and
     // branch facts. A recurrent state instead starts from its independently
     // established contract: first-arrival facts cannot describe every iteration.
     let state_prefix = runtime_values && !acyclic;
     let Some(caller_state) = program.state_in_machine(machine, state) else {
-        return false;
+        return PreparedRequirement::Decided(false);
     };
     // Named-state contracts are induction obligations of each arrival. They
     // do not acquire the machine entry's facts merely by sharing binder names.
@@ -285,7 +371,7 @@ fn structural_requirement_at_prefix(
         );
     }
     if case_facts_only && (!runtime_values || !case_fact_only(program, expression)) {
-        return false;
+        return PreparedRequirement::Decided(false);
     }
     if runtime_values
         && (!(runtime_fact_for_parameters(program, callee_owner, predicate_parameters, expression)
@@ -326,7 +412,7 @@ fn structural_requirement_at_prefix(
                     .collect::<Vec<_>>()
             );
         }
-        return false;
+        return PreparedRequirement::Decided(false);
     }
     if super::struct_trace() {
         eprintln!(
@@ -336,7 +422,7 @@ fn structural_requirement_at_prefix(
             expression_table(program).display_name(expression)
         );
     }
-    let mut requirement = CallRequirement {
+    let requirement = CallRequirement {
         state,
         statement_index,
         in_transition_target,
@@ -350,6 +436,37 @@ fn structural_requirement_at_prefix(
         inherited: inherited.cloned(),
         seen: false,
         proven: true,
+    };
+    PreparedRequirement::Walk(Box::new(RequirementWalk {
+        requirement,
+        runtime_values,
+        state_prefix,
+        case_facts_only,
+        requires,
+    }))
+}
+
+/// Walk a prepared requirement alone, after taking a proof caller's verdict
+/// from its machine's shared walk when that walk proved it.
+fn run_requirement_walk(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    walk: RequirementWalk<'_>,
+) -> bool {
+    if super::shared_proof_walks::proven(program, machine, &walk) {
+        return true;
+    }
+    let RequirementWalk {
+        mut requirement,
+        runtime_values,
+        state_prefix,
+        case_facts_only,
+        requires,
+    } = walk;
+    let expression = requirement.expression;
+    let classification = crate::proof_only_classification(program);
+    let Some(caller_state) = program.state_in_machine(machine, requirement.state) else {
+        return false;
     };
     // A state-local proof needs no incoming-path replay. Its independent
     // Requires and completed prefix suffice even when another acyclic branch
@@ -453,15 +570,25 @@ pub(super) struct CallRequirement<'program> {
     pub(super) statement_index: usize,
     pub(super) in_transition_target: bool,
     callee_owner: SymbolHandle,
-    parameters: &'program [typed_trees::signature::StateParameter],
+    /// Owned when the selected call's scope was derived, so a prepared
+    /// requirement can outlive the query that built it (shared proof walks).
+    parameters: std::borrow::Cow<'program, [typed_trees::signature::StateParameter]>,
     call_site: Option<crate::CallSite<'program>>,
-    call_expression: ExpressionHandle,
+    pub(super) call_expression: ExpressionHandle,
     leading_operands: usize,
     arguments: &'program [ExpressionHandle],
-    expression: ExpressionHandle,
+    pub(super) expression: ExpressionHandle,
     inherited: Option<InheritedPredicate>,
     seen: bool,
     proven: bool,
+}
+
+impl CallRequirement<'_> {
+    /// Whether this requirement checks an inherited contract clause, whose
+    /// predicate is bound through its own correspondence path.
+    pub(super) fn is_inherited(&self) -> bool {
+        self.inherited.is_some()
+    }
 }
 
 impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
@@ -548,7 +675,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             });
             let Some(entries) = judge.normal_argument_entries(
                 operands,
-                self.parameters,
+                &self.parameters,
                 OperationOperandDemand::All,
                 environment,
                 (machine, state, state.return_type),
@@ -566,7 +693,9 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
         let predicate_parameters = self
             .inherited
             .as_ref()
-            .map_or(self.parameters, |predicate| predicate.parameters.as_slice());
+            .map_or(&self.parameters[..], |predicate| {
+                predicate.parameters.as_slice()
+            });
         for mut entry in entries {
             if !self.proven {
                 return;
@@ -658,7 +787,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                     frames.expression_entry_reference_subjects(
                         owner_machine,
                         self.call_expression,
-                        self.parameters,
+                        &self.parameters,
                     )
                 })
             } else {

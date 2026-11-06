@@ -8,6 +8,7 @@
 //! at the storage that reference's loans captured, by the same place-access
 //! judgment as a read or a write through it.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::checks::ownership_occurrences::InvocationIdentity::Expression;
 use crate::checks::ownership_occurrences::statement_steps;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
@@ -33,6 +34,7 @@ pub(super) use staging::{InvocationBoundary, access_released_in_prefix};
 pub(super) fn check_compatibility(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flows: &[(&FlowStateFact, Option<&checked_trees::StateBorrowFact>)],
     incoming_guards: &IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -91,6 +93,7 @@ pub(super) fn check_compatibility(
                     check_build_selection_receiver(
                         program,
                         facts,
+                        loan_occurrences,
                         state_flow,
                         calls,
                         call,
@@ -101,6 +104,7 @@ pub(super) fn check_compatibility(
                     check_call_access_conflicts(
                         program,
                         facts,
+                        loan_occurrences,
                         state_flow,
                         call,
                         entry_constraints,
@@ -127,6 +131,7 @@ pub(super) fn check_compatibility(
 fn check_build_selection_receiver<'p>(
     program: &'p dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     calls: &[BorrowCallFact],
     commit: &BorrowCallFact,
@@ -212,6 +217,7 @@ fn check_build_selection_receiver<'p>(
     check_exclusive_place_use(
         program,
         facts,
+        loan_occurrences,
         state_flow,
         &prefix_statement,
         receiver,

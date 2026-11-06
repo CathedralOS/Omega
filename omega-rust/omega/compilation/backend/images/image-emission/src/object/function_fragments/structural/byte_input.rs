@@ -401,6 +401,7 @@ mod tests {
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: vec![],
                 projected_qualifications: vec![],
+                additional_input_qualifications: Vec::new(),
                 claims: vec![],
             };
             function.operations.push(AbstractOperation::BoundaryCall {

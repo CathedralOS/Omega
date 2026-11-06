@@ -134,6 +134,7 @@ mod tests {
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: vec![],
             projected_qualifications: vec![],
+            additional_input_qualifications: Vec::new(),
         }];
         super::super::atomic_projections_may_alias(
             &places,

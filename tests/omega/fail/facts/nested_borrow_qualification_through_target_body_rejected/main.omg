@@ -1,13 +1,25 @@
 // A nested borrowed record preserves the final-word-is-zero qualification for a consuming call.
 // Place: target_body.
 // Expected exit: 0
-domain [u16; 4]::Terminated requires self[3] == 0;
-data Name<'scope> { words: &'scope [u16; 4]; }
-data Attributes<'scope> { name: &'scope Name<'scope>; }
+public domain [u16; 4]::Terminated requires self[3] == 0;
+public data Name<'scope> { words: &'scope [u16; 4]; }
+public data Attributes<'scope> { name: &'scope Name<'scope>; }
 machine final_word(word: u16) -> u16 requires word == 0 { word }
-machine consume<'scope>(attributes: &Attributes<'scope>) -> u16 {
+public machine consume<'scope>(attributes: &Attributes<'scope>) -> u16 {
     final_word(attributes.name.words[3])
 }
+
+// Nonzero neighbors make an incorrect nested pointer or element offset observable.
+machine neighbors_valid<'scope>(attributes: &Attributes<'scope>) -> bool {
+    attributes.name.words[0] == 11
+        && attributes.name.words[1] == 23
+        && attributes.name.words[2] == 37
+}
+machine consume_with_neighbor_checks<'scope>(attributes: &Attributes<'scope>) -> u16 {
+    let result: u16 = consume(attributes);
+    transition neighbors_valid(attributes) { true -> result false -> 1 }
+}
+
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -38,7 +50,7 @@ X86TargetConsume satisfies SelectedTargetConsume {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     consume(attributes) 
+     consume_with_neighbor_checks(attributes)
     }
 }
 
@@ -47,7 +59,7 @@ ArmTargetConsume satisfies SelectedTargetConsume {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     consume(attributes) 
+     consume_with_neighbor_checks(attributes)
     }
 }
 
@@ -55,6 +67,9 @@ ArmTargetConsume satisfies SelectedTargetConsume {
 data Main {}
 machine Main::main(main: &mut Main) crashes Trap {
     let mut words: [u16; 4];
+    words[0] = 11;
+    words[1] = 23;
+    words[2] = 37;
     words[3] = 0;
     let name: Name = Name { words: &words };
     let attributes: Attributes = Attributes { name: &name };

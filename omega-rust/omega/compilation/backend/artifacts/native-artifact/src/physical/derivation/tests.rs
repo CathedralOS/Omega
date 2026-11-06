@@ -207,6 +207,7 @@ fn structural_boundary_settlement_identity_binds_the_complete_result_declaration
             multiplicity: StructuralMultiplicity::Affine,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             claims: Vec::new(),
         },
         declaration: StructuralTypeDeclaration {
@@ -714,6 +715,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             access,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         };
     let argument = |place: u64, field: &str, access: StructuralAccess| StructuralArgument {
         place: PlaceId::new(place).unwrap(),
@@ -1035,6 +1037,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             access,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         };
     let structural_parameters = vec![
         parameter(201, 0, StructuralAccess::SharedBorrow),

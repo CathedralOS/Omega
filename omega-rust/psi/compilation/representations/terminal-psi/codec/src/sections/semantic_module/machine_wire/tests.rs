@@ -38,6 +38,7 @@ fn module() -> TerminalModule {
             access: StructuralAccess::SharedBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         });
     machine.structural_places.push(StructuralPlaceDeclaration {
         id: place,

@@ -676,6 +676,86 @@ mod resolution_payload_tests {
     use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
     #[test]
+    fn argument_children_keep_order_length_and_callback_short_circuit() {
+        fn name(term: &StructuralTerm) -> &str {
+            let StructuralTerm::Variable(name) = term else {
+                panic!("the test application's children are variables");
+            };
+            name
+        }
+        let term = StructuralTerm::Application {
+            result_type: TypeReferenceHandle::invalid(),
+            target: symbols::SymbolHandle::invalid(),
+            selections: Vec::new(),
+            machine: "ordered".to_owned(),
+            arguments: ["first", "second", "third"]
+                .map(|name| StructuralTerm::Variable(name.to_owned()))
+                .into(),
+        };
+        let mut children = term.children();
+        assert_eq!(children.len(), 3);
+        assert_eq!(name(children.next().unwrap()), "first");
+        assert_eq!(children.len(), 2);
+        assert_eq!(name(children.next().unwrap()), "second");
+        assert_eq!(children.len(), 1);
+        assert_eq!(name(children.next().unwrap()), "third");
+        assert_eq!(children.len(), 0);
+        assert!(children.next().is_none());
+        let mut all = Vec::new();
+        term.for_each_child(|child| all.push(name(child)));
+        assert_eq!(all, ["first", "second", "third"]);
+        let mut visited = Vec::new();
+        assert!(term.any_child(|child| {
+            visited.push(name(child));
+            name(child) == "second"
+        }));
+        assert_eq!(visited, ["first", "second"]);
+    }
+
+    #[test]
+    fn payload_comparison_keeps_authority_on_the_last_of_three_fields() {
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let carrier = identities.intern("Carrier");
+        let left = StructuralTerm::Constructor {
+            identity: super::super::ConstructorIdentity::Nominal {
+                carrier,
+                reference: TypeReferenceHandle::from_arena_index(1),
+                declaration: symbols::SymbolHandle::from_arena_index(1),
+                case: None,
+                member: None,
+            },
+            data: "Carrier".to_owned(),
+            case: "Only".to_owned(),
+            fields: ["first", "second", "third"]
+                .map(|name| {
+                    (
+                        name.to_owned(),
+                        StructuralTerm::ObservedValue {
+                            observed_type: TypeReferenceHandle::from_arena_index(1),
+                            value: Box::new(StructuralTerm::Integer(
+                                numerics::bignum::BigInt::zero(),
+                            )),
+                            descriptor: None,
+                        },
+                    )
+                })
+                .into(),
+        };
+        let mut right = left.clone();
+        let StructuralTerm::Constructor { fields, .. } = &mut right else {
+            unreachable!();
+        };
+        let StructuralTerm::ObservedValue { observed_type, .. } = &mut fields[2].1 else {
+            unreachable!();
+        };
+        *observed_type = TypeReferenceHandle::from_arena_index(2);
+        assert_eq!(left, right, "semantic equality omits observation authority");
+        assert!(left.same_resolution_payload(&left.clone()));
+        assert!(!left.same_resolution_payload(&right));
+        assert!(!right.same_resolution_payload(&left));
+    }
+
+    #[test]
     fn repeated_array_traversal_and_substitution_are_independent_of_extent() {
         let array = StructuralTerm::RepeatedArray {
             length: 1_000_000_000,

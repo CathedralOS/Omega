@@ -115,6 +115,8 @@ impl StateGraphEmission<'_, '_> {
         )?;
         let mut operations = OperationBuffer::new(
             body_operations.next_identity - 1,
+            self.catalogs.next_place,
+            std::sync::Arc::clone(&body_operations.reference_formations),
             std::sync::Arc::clone(&self.dynamic_dispatch),
         );
         let mut sequence = OperationSequence::new(&evaluation);

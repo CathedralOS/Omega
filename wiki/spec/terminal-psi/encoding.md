@@ -332,8 +332,8 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | value declaration | value id + scalar type + `u64` qualification-set identity |
 | erased proof formal | `u32` source position + type identity string |
 | projected qualification | structural path + domain id |
-| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
-| structural parameter | place id + `u32` position + structural type id + multiplicity + access + counted domain ids + counted projected qualifications |
+| structural operation result | place id + structural type id + multiplicity + counted domain ids + counted projected qualifications + counted additional input qualifications + counted qualification establishments (domain id + `u64` route index) + counted claims (claim id + structural path) |
+| structural parameter | place id + `u32` position + structural type id + multiplicity + access + counted domain ids + counted projected qualifications + counted additional input qualifications |
 | scalar term list | counted scalar terms |
 | proof term list | counted proof terms |
 | obligation id list | counted obligation ids |
@@ -345,6 +345,19 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | residual discard | place id + structural path + structural type id |
 | affine cleanup action | `u8`: 1 + place id; 2 + residual discard; 3 + place id + structural path + structural type id + machine id + counted claim ids + optional identity + obligation id list; 4 + place id |
 | evidence interface | trait string + counted argument strings + counted requirements (declaring-trait string + counted argument strings + requirement string) |
+
+Additional input qualifications distinguish facts supplied for a call from
+requirements owed by the original storage, following
+[lender-domain restoration](../language/dependent_values.md#mutable-receivers-and-declared-field-domains).
+Each row uses the projected-qualification encoding; an empty path names a
+whole-value qualification. The list is strictly ordered, and every row also
+appears in the value's ordinary whole or projected qualification list. It grants
+no new membership evidence. Copies and saved addresses retain the distinction;
+a join retains it only when every incoming path permits the fact to expire.
+Declared storage requirements, intrinsic field constraints, ownership and access
+policies remain independently enforced. These rows participate in canonical
+bytes and identities. Marker 248 combines this distinction with the provider
+application roles introduced by marker 247; both earlier layouts reject.
 
 The closed `u8` spaces behind the scalar field forms:
 

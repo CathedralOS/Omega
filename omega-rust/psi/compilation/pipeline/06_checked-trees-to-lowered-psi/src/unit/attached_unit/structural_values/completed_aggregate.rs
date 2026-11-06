@@ -55,6 +55,7 @@ pub(in crate::unit::attached_unit) fn emit_completed<'parameter>(
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let mut rows = Vec::new();
+    let mut additional = Vec::new();
     let kind = match aggregate {
         CompletedAggregate::Record {
             fields,
@@ -67,6 +68,7 @@ pub(in crate::unit::attached_unit) fn emit_completed<'parameter>(
                 parameters,
                 operations,
                 &mut rows,
+                &mut additional,
             )?;
             OperationKind::EstablishRecord { fields }
         }
@@ -83,6 +85,7 @@ pub(in crate::unit::attached_unit) fn emit_completed<'parameter>(
                 parameters,
                 operations,
                 &mut rows,
+                &mut additional,
             )?;
             OperationKind::EstablishStructuralCase {
                 result_case,
@@ -90,13 +93,29 @@ pub(in crate::unit::attached_unit) fn emit_completed<'parameter>(
             }
         }
         CompletedAggregate::Array { elements } => {
-            append_elements(&elements, parameters, operations, &mut rows)?;
+            append_elements(
+                &elements,
+                parameters,
+                operations,
+                &mut rows,
+                &mut additional,
+            )?;
             OperationKind::EstablishStructuralArray { elements }
         }
     };
     rows.sort();
     rows.dedup();
-    declare_establishment(place, structural_type, multiplicity, rows, kind, operations)
+    additional.sort();
+    additional.dedup();
+    declare_establishment(
+        place,
+        structural_type,
+        multiplicity,
+        rows,
+        additional,
+        kind,
+        operations,
+    )
 }
 
 /// Declare and push one establishment's result: the single operation owning
@@ -106,12 +125,14 @@ fn declare_establishment(
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
     projected_qualifications: Vec<StructuralPathQualification>,
+    additional_input_qualifications: Vec<StructuralPathQualification>,
     kind: OperationKind,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let mut result = structural_result_declaration(place, structural_type, multiplicity);
     if let OperationResult::Structural(result) = &mut result {
         result.projected_qualifications = projected_qualifications;
+        result.additional_input_qualifications = additional_input_qualifications;
     }
     let operation = operations.push_leaf(result, kind);
     Ok(operation_result_place(place, operation, structural_type))
@@ -126,6 +147,7 @@ fn append_fields<'parameter>(
     parameters: impl Iterator<Item = &'parameter StructuralParameterDeclaration> + Clone,
     operations: &OperationBuffer,
     destination: &mut Vec<StructuralPathQualification>,
+    additional_destination: &mut Vec<StructuralPathQualification>,
 ) -> Result<(), LoweringError> {
     let declarations = declarations
         .iter()
@@ -161,6 +183,7 @@ fn append_fields<'parameter>(
             parameters.clone(),
             operations,
             destination,
+            additional_destination,
         );
     }
     Ok(())
@@ -172,6 +195,7 @@ fn append_elements<'parameter>(
     parameters: impl Iterator<Item = &'parameter StructuralParameterDeclaration> + Clone,
     operations: &OperationBuffer,
     destination: &mut Vec<StructuralPathQualification>,
+    additional_destination: &mut Vec<StructuralPathQualification>,
 ) -> Result<(), LoweringError> {
     for (ordinal, argument) in elements.iter().enumerate() {
         let index = u64::try_from(ordinal).map_err(|_| {
@@ -184,6 +208,7 @@ fn append_elements<'parameter>(
             parameters.clone(),
             operations,
             destination,
+            additional_destination,
         );
     }
     Ok(())

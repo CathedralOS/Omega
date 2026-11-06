@@ -165,10 +165,12 @@ A local declared `value: T in D` has the same restoration obligation for `D`
 as a stored field declared with that qualification. Lending it does not turn
 that obligation into an expiring input fact. A mutable loan, including a view
 whose displayed type omits `D`, retains the original storage's obligations.
-Writes may open the ordinary invariant window; the required predicates must be
-re-established at its consumption fences and before the loan returns that
-storage as valid to its owner. A call cannot silently change the local's declared
-qualification or make invalid storage usable under its old type.
+Writes may open the ordinary invariant window. The owner's required predicates
+must hold before its qualified storage is consumed as valid or handed back to
+it. A borrower's internal calls and terminal transfers check the receiving
+contracts and retain the owner's restoration obligation as described below;
+they do not each constitute handback to the owner. A call cannot silently change
+the local's declared qualification or make invalid storage usable under its old type.
 
 An additional input qualification instead describes a fact supplied for a
 particular call. If the original storage does not itself owe that qualification,
@@ -185,6 +187,44 @@ predicate debt, but its establishment provenance, access policy, custody and
 carry restrictions still apply. An unrestricted empty tag promises no hidden
 invariant; protocols relying on restricted witnesses or mutations must declare
 the corresponding routes and access policy. Erasure cannot bypass them.
+
+### Contract-based repair
+
+Ratified 2026-11-05: existing `requires` and `ensures` compose repairs of a
+lender's named predicate qualification. No new repair syntax is introduced.
+The receiving machine must establish its own parameter/default domains and
+entry requirements from the current contents. It may receive a weaker view
+while the original owner's stronger qualification remains owed, provided
+exclusive custody and the exact restoration obligation remain attached to
+that storage until handback. Weakening a view never cancels that obligation.
+
+A helper's checked normal-completion guarantees may discharge the enclosing
+machine's restoration promise. At a terminal call, prove the successor's
+requirements at entry and compose its guarantees into the enclosing completion
+contract. A future guarantee is not a fact at the transfer's entry. Missing
+restoration evidence rejects the enclosing completion or handback; an extra
+helper layer or a recursive cycle cannot turn an unproved promise into evidence.
+Recoverable outcomes must satisfy the obligations of their actual handback;
+cleanup, suspension and crash retain their existing contracts.
+
+This distinction does not weaken a data type's default domain. A successor
+accepting `&mut Tree` still requires `Tree`'s default domain on arrival, even if
+it promises that domain on completion. An unestablished whole, absent field or
+invalid reference cannot be passed as a valid value. For multi-step repair,
+the intermediate view must itself be valid under its weaker declared type.
+
+After an overlapping write invalidates predicate-only membership, fresh proof
+of the domain's defining predicates for the current subject may re-establish
+that membership. Ordinary checked guarantees and theorem evidence are usable
+for this proof. The named predicate and its defining conditions must not take
+different admission paths merely because mutation occurred. Establishment
+routes, provenance, access and cleanup policies remain separate obligations;
+unfolding a predicate cannot manufacture them. Unaffected facts remain available
+under the exact mutation frame; invalidated facts require new evidence.
+
+The accepted behavior and implementation acceptance are tracked under
+**DOMAIN-ACCESS-AUTHORITY** in [TASKS.md](../../../TASKS.md) and the
+[repair-facts plan](../../drafts/designs/invariant_repair_facts.md).
 
 ### Collection invariants
 
@@ -233,9 +273,22 @@ whose actual new contents remain available to ordinary flow reasoning.
 The domain must be proved again at the next consumption point:
 
 - A read relying on the domain or a dependent coupling.
-- Borrow creation or a call.
-- Terminal transfer, return, or scope expiration.
-- Boundary/capability-carrying calls, even when they do not name the place.
+- Borrow creation or a call consuming the affected domain.
+- Transfer, return, scope expiration or loan handback releasing the relevant
+  custody or supplying a value under that domain. Contract-based repair of a
+  lender's named qualification follows the delegation rule above.
+- Boundary/capability-carrying calls that may observe or expose the affected
+  storage, including through authority not named as an argument.
+
+A call need not close an unrelated domain window when its complete access,
+effect and outcome contracts prove that it cannot observe or expose the broken
+coupling, interfere with its witnesses or restoration, or release the custody
+excluding observers. Include argument evaluation, callbacks and authorized
+capability state in that determination. An empty mutation frame alone proves
+neither absence of reads nor non-exposure. Unknown access/effects are treated
+conservatively. This exception grants no new borrow authority and does not make
+an unfinished value valid; initial-establishment and ownership-hole restrictions
+remain in force.
 
 An unclosed window rejects with both the opening write or storage cast and the
 failing consumption point. Borrow exclusivity prevents another observer seeing it; a dependent loan

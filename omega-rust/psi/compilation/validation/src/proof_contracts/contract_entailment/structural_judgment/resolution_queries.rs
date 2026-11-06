@@ -28,7 +28,7 @@ pub(super) struct ApplicationResolution<'program> {
 #[derive(Default)]
 pub(super) struct CompletedResolutions<'program> {
     entries: Vec<CompletedResolution<'program>>,
-    buckets: HashMap<u64, Vec<usize>>,
+    buckets: HashMap<ResolutionBucket, Vec<usize>>,
     ages: Vec<u64>,
     clock: u64,
 }
@@ -50,6 +50,32 @@ pub(super) struct ResolutionObservations<'program> {
     previous: Option<Arc<Self>>,
 }
 
+// This is a completed observer snapshot, never its mutable collection buffer.
+// Keep a proven empty roster allocation-free; nonempty rosters can be shared
+// by the cache and the current replay without copying their term payloads.
+#[derive(Clone)]
+enum CompletedReads {
+    Empty,
+    Shared(Arc<[ApplicationRead]>),
+}
+
+impl CompletedReads {
+    fn capture(reads: &[ApplicationRead]) -> Self {
+        if reads.is_empty() {
+            Self::Empty
+        } else {
+            Self::Shared(Arc::from(reads))
+        }
+    }
+
+    fn as_slice(&self) -> &[ApplicationRead] {
+        match self {
+            Self::Empty => &[],
+            Self::Shared(reads) => reads,
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum StructuralQueryKind {
     Resolution,
@@ -63,6 +89,14 @@ enum StructuralQueryAnswer {
     Predicate(StructuralJudgment),
 }
 
+// One expression can occur under many proof contexts. Keep those candidates
+// apart before comparing their full inputs, values and dependency reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ResolutionBucket {
+    term: u64,
+    input_allocations: u64,
+}
+
 struct CompletedResolution<'program> {
     fingerprint: u64,
     kind: StructuralQueryKind,
@@ -70,10 +104,19 @@ struct CompletedResolution<'program> {
     inputs: ResolutionInputs<'program>,
     specification_terms: bool,
     returned_field_trace: Option<InputOwner<'program>>,
-    reads: Vec<ApplicationRead>,
+    reads: CompletedReads,
     depth: usize,
     resolution_depth: usize,
     value: StructuralQueryAnswer,
+}
+
+impl CompletedResolution<'_> {
+    fn bucket(&self) -> ResolutionBucket {
+        ResolutionBucket {
+            term: self.fingerprint,
+            input_allocations: self.inputs.allocation_fingerprint(),
+        }
+    }
 }
 
 // A bucket is not an identity judgment. Recurrence and completed reuse below
@@ -155,10 +198,15 @@ impl<'program> CompletedResolutions<'program> {
         term: &StructuralTerm,
         depth: usize,
         fingerprint: u64,
-    ) -> Option<(StructuralQueryAnswer, Vec<ApplicationRead>)> {
+    ) -> Option<(StructuralQueryAnswer, CompletedReads)> {
+        let current_inputs = judge.current_resolution_inputs();
+        let bucket = ResolutionBucket {
+            term: fingerprint,
+            input_allocations: current_inputs.allocation_fingerprint(),
+        };
         let index = self
             .buckets
-            .get(&fingerprint)?
+            .get(&bucket)?
             .iter()
             .rev()
             .copied()
@@ -168,11 +216,14 @@ impl<'program> CompletedResolutions<'program> {
                     && entry.depth == depth
                     && entry.resolution_depth == judge.application_resolution_depth()
                     && entry.specification_terms == judge.specification_terms
-                    && entry.returned_field_trace
-                        == judge.returned_field_trace.as_ref().map(InputOwner::new)
-                    && entry.inputs.same_inputs(&judge.resolution_inputs())
+                    && match (&entry.returned_field_trace, &judge.returned_field_trace) {
+                        (None, None) => true,
+                        (Some(retained), Some(current)) => retained.same_current(current),
+                        _ => false,
+                    }
+                    && entry.inputs.same_current_inputs(&current_inputs)
                     && entry.term.same_resolution_payload(term)
-                    && entry.reads.iter().all(|read| {
+                    && entry.reads.as_slice().iter().all(|read| {
                         judge.application_is_active_in_mode(
                             &read.application,
                             read.fingerprint,
@@ -188,7 +239,7 @@ impl<'program> CompletedResolutions<'program> {
 
     fn insert(&mut self, entry: CompletedResolution<'program>) {
         self.clock = self.clock.wrapping_add(1);
-        let fingerprint = entry.fingerprint;
+        let bucket = entry.bucket();
         let position = if self.entries.len() < 8192 {
             let position = self.entries.len();
             self.entries.push(entry);
@@ -198,7 +249,7 @@ impl<'program> CompletedResolutions<'program> {
             let position = (0..self.ages.len())
                 .min_by_key(|&position| self.ages[position])
                 .expect("a full cache has an eviction candidate");
-            let previous = self.entries[position].fingerprint;
+            let previous = self.entries[position].bucket();
             if let Some(bucket) = self.buckets.get_mut(&previous) {
                 bucket.retain(|&index| index != position);
                 if bucket.is_empty() {
@@ -209,7 +260,7 @@ impl<'program> CompletedResolutions<'program> {
             self.ages[position] = self.clock;
             position
         };
-        self.buckets.entry(fingerprint).or_default().push(position);
+        self.buckets.entry(bucket).or_default().push(position);
     }
 }
 
@@ -293,7 +344,7 @@ impl<'program> StructuralJudge<'program> {
             && let Some((value, reads)) = cache.lookup(self, kind, &term, depth, fingerprint)
         {
             drop(cache);
-            for read in reads {
+            for read in reads.as_slice() {
                 self.observe_application_read(
                     &read.application,
                     read.fingerprint,
@@ -339,11 +390,11 @@ impl<'program> StructuralJudge<'program> {
             .reads
             .lock()
             .ok()
-            .and_then(|reads| reads.clone());
+            .and_then(|reads| reads.as_deref().map(CompletedReads::capture));
         if let Some(reads) = reads {
             phase_profile::count(
                 "psi.05.resolution.dependencies.retained",
-                reads.len() as u64,
+                reads.as_slice().len() as u64,
             );
             if let Ok(mut cache) = cache.lock() {
                 cache.insert(CompletedResolution {
@@ -753,6 +804,97 @@ mod tests {
         assert_eq!(fingerprint(&authority), fingerprint(&term));
         judge.completed_resolution(authority, 0, compute);
         assert_eq!(calls.get(), 5);
+    }
+
+    #[test]
+    fn completed_queries_keep_premise_and_returned_storage_inputs_distinct() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            term
+        };
+        let term = StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(1),
+            value: Box::new(StructuralTerm::Variable("input".to_owned())),
+            descriptor: None,
+        };
+        judge.completed_resolution(term.clone(), 0, compute);
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 1);
+
+        judge
+            .premise_facts
+            .push(typed_trees::expression::ExpressionHandle::from_arena_index(
+                1,
+            ));
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 2);
+
+        judge.returned_value_source = Some(super::super::normal_returns::CompletedValueSource {
+            machine: SymbolHandle::from_arena_index(2),
+            state: SymbolHandle::from_arena_index(3),
+            expression: typed_trees::expression::ExpressionHandle::from_arena_index(4),
+            type_reference: TypeReferenceHandle::from_arena_index(5),
+            storage_version: Some(super::super::storage_effects::StorageVersion {
+                state: SymbolHandle::from_arena_index(3),
+                snapshot: arena::Handle::from_arena_index(1),
+            }),
+            context: Arc::new(judge.clone()),
+        });
+        judge.completed_resolution(term.clone(), 0, compute);
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 3);
+
+        judge
+            .returned_value_source
+            .as_mut()
+            .unwrap()
+            .storage_version
+            .as_mut()
+            .unwrap()
+            .snapshot = arena::Handle::from_arena_index(2);
+        judge.completed_resolution(term, 0, compute);
+        assert_eq!(calls.get(), 4);
+    }
+
+    #[test]
+    fn completed_query_keys_do_not_keep_replaced_premise_payloads_alive() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        let compute = |_: &StructuralJudge<'_>, term| {
+            calls.set(calls.get() + 1);
+            term
+        };
+        let term = StructuralTerm::ObservedValue {
+            observed_type: TypeReferenceHandle::from_arena_index(1),
+            value: Box::new(StructuralTerm::Variable("input".to_owned())),
+            descriptor: None,
+        };
+        judge.completed_resolution(term.clone(), 0, compute);
+        judge.completed_resolution(term.clone(), 0, compute);
+        assert_eq!(calls.get(), 1);
+        let previous = Arc::downgrade(&judge.normal_results);
+        // Even unchanged bytes have a new premise owner after COW separates
+        // the value from its historical weak handles.
+        let _ = Arc::make_mut(&mut judge.normal_results);
+        assert!(previous.upgrade().is_none());
+        judge.completed_resolution(term, 0, compute);
+        assert_eq!(calls.get(), 2);
     }
 
     #[test]
@@ -1299,9 +1441,9 @@ mod work_domain_tests {
             .lock()
             .unwrap();
         assert_eq!(cache.entries.len(), 8192);
-        for (fingerprint, indices) in &cache.buckets {
+        for (bucket, indices) in &cache.buckets {
             for &index in indices {
-                assert_eq!(cache.entries[index].fingerprint, *fingerprint);
+                assert_eq!(cache.entries[index].bucket(), *bucket);
             }
         }
         assert_eq!(cache.buckets.values().map(Vec::len).sum::<usize>(), 8192);
@@ -1543,5 +1685,104 @@ mod term_mode_tests {
             active.completed_resolution(parent, 0, compute_parent),
             integer(1)
         );
+    }
+}
+
+#[cfg(test)]
+mod completed_read_roster_tests {
+    use super::*;
+    use std::cell::{Cell, RefCell};
+
+    #[test]
+    fn published_reads_are_a_snapshot_and_replay_in_order() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let child = StructuralTerm::Variable("child".to_owned());
+        let first = StructuralTerm::Variable("first external read".to_owned());
+        let second = StructuralTerm::Variable("second external read".to_owned());
+        let late = StructuralTerm::Variable("later collector read".to_owned());
+        let saved = RefCell::new(None);
+        judge.completed_resolution(child.clone(), 0, |computing, term| {
+            saved.replace(computing.resolution_observations.clone());
+            for application in [&first, &second] {
+                computing.observe_application_read(
+                    application,
+                    fingerprint(application),
+                    false,
+                    computing.specification_terms,
+                );
+            }
+            term
+        });
+        // A later write to the old collector is not a read of the completed
+        // child question. Its publication must already own an immutable copy.
+        saved
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .reads
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .push(ApplicationRead {
+                application: late.clone().into(),
+                fingerprint: fingerprint(&late),
+                was_active: false,
+                specification_terms: judge.specification_terms,
+            });
+        judge.completed_resolution(
+            StructuralTerm::Variable("parent".to_owned()),
+            0,
+            |parent, term| {
+                parent.completed_resolution(child, 0, |_, _| panic!("child must reuse its answer"));
+                let observed = parent
+                    .resolution_observations
+                    .as_ref()
+                    .unwrap()
+                    .reads
+                    .lock()
+                    .unwrap();
+                let observed = observed.as_ref().unwrap();
+                assert_eq!(observed.len(), 2);
+                assert!(observed[0].application.same_resolution_payload(&first));
+                assert!(observed[1].application.same_resolution_payload(&second));
+                term
+            },
+        );
+    }
+
+    #[test]
+    fn unavailable_collectors_do_not_publish_completed_empty_reads() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let calls = Cell::new(0);
+        let term = StructuralTerm::Variable("unavailable read set".to_owned());
+        for _ in 0..2 {
+            judge.completed_resolution(term.clone(), 0, |computing, term| {
+                calls.set(calls.get() + 1);
+                *computing
+                    .resolution_observations
+                    .as_ref()
+                    .unwrap()
+                    .reads
+                    .lock()
+                    .unwrap() = None;
+                term
+            });
+        }
+        assert_eq!(calls.get(), 2);
     }
 }

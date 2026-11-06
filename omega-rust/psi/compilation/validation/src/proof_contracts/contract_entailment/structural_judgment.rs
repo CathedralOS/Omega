@@ -36,6 +36,7 @@ mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
 mod invocation_entry;
 mod licenses;
+mod logical_resolution;
 mod mathematical_predicates;
 pub(super) mod normal_returns;
 mod resolution_inputs;
@@ -1596,9 +1597,19 @@ impl<'program> StructuralJudge<'program> {
 
     fn resolve_uncached(
         &self,
+        term: StructuralTerm,
+        depth: usize,
+        purpose: ResolutionPurpose,
+    ) -> StructuralTerm {
+        self.resolve_uncached_with_budget(term, depth, purpose, 32)
+    }
+
+    fn resolve_uncached_with_budget(
+        &self,
         mut term: StructuralTerm,
         depth: usize,
         purpose: ResolutionPurpose,
+        rewrite_budget: usize,
     ) -> StructuralTerm {
         // A call-premise traversal also extracts locals and state arguments.
         // Keep its entire environment free of name-selected unfolding, not
@@ -1612,7 +1623,7 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 32 {
             return term;
         }
-        for _ in 0..32 {
+        for remaining in (0..rewrite_budget).rev() {
             // A completed result's field contract names this exact snapshot.
             // Rewriting its enclosing value to a call description first would
             // discard the more precise, independently admitted field equation.
@@ -1908,6 +1919,11 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
+                term @ StructuralTerm::ScalarBinary { .. }
+                    if logical_resolution::is_boolean_connective(&term) =>
+                {
+                    return self.resolve_logical_term(term, depth, purpose, remaining + 1);
+                }
                 StructuralTerm::ScalarBinary {
                     references,
                     operator,
@@ -1924,25 +1940,13 @@ impl<'program> StructuralJudge<'program> {
                         left: Box::new(left.clone()),
                         right: Box::new(right.clone()),
                     };
-                    if !super::structural_terms::scalar_operand_is_observed(
-                        self.program,
-                        references[0],
-                        &left,
-                    ) || !super::structural_terms::scalar_operand_is_observed(
-                        self.program,
-                        references[1],
-                        &right,
-                    ) {
-                        return resolved;
+                    match self.finish_scalar_resolution(resolved) {
+                        logical_resolution::ScalarResolution::Finished(value) => return value,
+                        logical_resolution::ScalarResolution::Rewrite(replacement) => {
+                            term = replacement;
+                            continue;
+                        }
                     }
-                    if let Some((_, replacement)) = self.rewrites.find(&resolved) {
-                        term = replacement.clone();
-                        continue;
-                    }
-                    if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
-                        return folded;
-                    }
-                    return resolved;
                 }
                 StructuralTerm::ScalarRepresentation {
                     source,
@@ -2653,7 +2657,80 @@ impl<'program> StructuralJudge<'program> {
         candidate.is_ok()
     }
 
+    /// Long chains of && and || must not consume the recursion budget reserved
+    /// for following declarations. Walk selected builtin operators in their
+    /// original order; operand leaves keep the ordinary observation checks.
     fn callee_term(
+        &self,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        static_observations: StaticObservations<'_>,
+        scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        if depth >= 32 {
+            return None;
+        }
+        enum Pending {
+            Read(ExpressionHandle),
+            Join(ExpressionHandle),
+        }
+        let mut pending = vec![Pending::Read(expression)];
+        let mut values = Vec::new();
+        while let Some(step) = pending.pop() {
+            match step {
+                Pending::Read(expression) => {
+                    // The exact completed expression wins over describing its
+                    // source again, just as in the ordinary leaf reader.
+                    if let Some((_, value)) = self
+                        .normal_results
+                        .iter()
+                        .find(|(source, _)| *source == expression)
+                    {
+                        values.push(value.clone());
+                    } else if let Some(binary) =
+                        expression_table(self.program).binary_node(expression)
+                        && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                        && scope.is_some_and(|(machine, state, _)| {
+                            crate::has_builtin_binary_expression_meaning(
+                                self.program,
+                                machine,
+                                Some(state),
+                                expression,
+                            )
+                        })
+                    {
+                        pending.push(Pending::Join(expression));
+                        pending.push(Pending::Read(binary.right));
+                        pending.push(Pending::Read(binary.left));
+                    } else {
+                        values.push(self.callee_term_leaf(
+                            expression,
+                            environment,
+                            static_observations,
+                            scope,
+                            depth,
+                        )?);
+                    }
+                }
+                Pending::Join(expression) => {
+                    let right = values.pop()?;
+                    let left = values.pop()?;
+                    values.push(super::structural_terms::binary_term_in_scope(
+                        self.program,
+                        scope,
+                        None,
+                        expression,
+                        left,
+                        right,
+                    )?);
+                }
+            }
+        }
+        values.pop()
+    }
+
+    fn callee_term_leaf(
         &self,
         expression: ExpressionHandle,
         environment: &[(String, StructuralTerm)],

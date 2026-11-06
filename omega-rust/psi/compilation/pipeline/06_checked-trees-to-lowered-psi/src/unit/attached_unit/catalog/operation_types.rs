@@ -38,7 +38,13 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         CheckedUnitEffectOperationPlan::CaptureAssignmentDestination { destination, .. } => {
             roots.push(destination.type_identity);
         }
-        CheckedUnitEffectOperationPlan::EstablishReference { result, source, .. } => {
+        CheckedUnitEffectOperationPlan::EstablishReference {
+            result,
+            source,
+            source_contract,
+            ..
+        } => {
+            super::collect_reference_contract_types(checked, source_contract, roots);
             roots.push(result.type_identity);
             roots.push(source.type_identity);
         }

@@ -17,6 +17,7 @@ fn body(state: SymbolHandle) -> StatePlan {
             primitive_referent: None,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         }],
         scalar_parameters: Vec::new(),
         parameter_storage: Vec::new(),

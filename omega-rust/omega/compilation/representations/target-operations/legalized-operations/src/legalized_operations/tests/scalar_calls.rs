@@ -32,6 +32,7 @@ fn empty_aggregate_result_shape_retains_some_and_rejects_fake_storage() {
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             claims: Vec::new(),
         });
         assert_eq!(call.validate_shape(), Ok(()));

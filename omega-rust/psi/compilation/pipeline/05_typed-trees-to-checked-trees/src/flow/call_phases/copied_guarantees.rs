@@ -4,6 +4,8 @@
 //! their own postconditions remain publishable after writes through the call.
 
 mod captured_aliases;
+mod captured_writes;
+pub(super) use captured_writes::{confined_write_parameter, intersect_captured_enclosure};
 
 use crate::published::places::place_at;
 use validation::CanonicalPlace;
@@ -169,6 +171,49 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             .find(|capture| capture.position == position && capture.destination.is_empty())?;
         super::super::operand_binds_live_view(self.program, capture.type_reference)
             .then_some(capture.referents.as_slice())
+    }
+
+    /// Project an inline write through the reference actually passed to the
+    /// callee. The caller must separately prove confinement to that formal;
+    /// crossing a stored pointer cannot use this inline projection.
+    pub(in crate::flow) fn inline_write_places(
+        &self,
+        source: &CanonicalPlace,
+    ) -> Option<Vec<CanonicalPlace>> {
+        let position = typed_trees::signature::state_parameter_position(
+            self.parameters,
+            source.root.as_symbol()?,
+        )?;
+        let referents = self.referent_places(position)?;
+        if referents.is_empty() {
+            return None;
+        }
+        // Callee selectors have their own evaluation history. Retain their
+        // conservative extent rather than comparing them with caller locals.
+        let path = source
+            .segments
+            .iter()
+            .map(|segment| {
+                segment.erase_runtime_selector(|expression| {
+                    self.program
+                        .expression_table
+                        .range_node(expression)
+                        .is_some()
+                })
+            })
+            .collect::<Vec<_>>();
+        referents
+            .iter()
+            .map(|referent| {
+                validation::completed_storage::project_captured_storage_place(
+                    self.program,
+                    self.state,
+                    self.statement,
+                    referent.clone(),
+                    &path,
+                )
+            })
+            .collect()
     }
 
     pub(in crate::flow) fn new(

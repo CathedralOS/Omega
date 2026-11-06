@@ -206,8 +206,7 @@ pass/borrow/runtime_write_only_exclusive_reference_projected_exit built 2369ms e
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit built 2692ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrow/runtime_write_only_indexed_record_copy_exit built 3066ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrow/runtime_write_only_local_affine_aggregate_exit built 2541ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/borrow/runtime_write_only_qualified_array_element_exit rejected 1661ms interpreter:unchecked @5f668826adf3+wt
-	cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 17
+pass/borrow/runtime_write_only_qualified_array_element_exit built 12619ms exit:0 interpreter-exit:0 interpreter:agrees @a01cb78ea44c
 pass/borrow/runtime_write_only_record_array_argument_exit built 2694ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrow/runtime_write_only_reference_aggregate_alias_exit built 6635ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit built 6663ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -1681,7 +1680,7 @@ pass/domains/predicate_domain_param checked 2724ms @5f668826adf3+wt
 pass/domains/progress_domain_provider checked 2298ms @5f668826adf3+wt
 pass/domains/qualified_fixed_byte_field_loan_exit built 3522ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/qualified_mutable_field_exit built 3398ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/domains/qualified_mutable_scalar_input_domain_expires checked 2497ms @5f668826adf3+wt
+pass/domains/qualified_mutable_scalar_input_domain_expires built 12240ms exit:0 interpreter-exit:0 interpreter:agrees @a01cb78ea44c
 pass/domains/qualified_owned_array_scalar_control_exit built 3458ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/domains/qualified_record_capture_after_mutation checked 2136ms @5f668826adf3+wt
 pass/domains/qualified_record_capture_before_mutation checked 2412ms @5f668826adf3+wt
@@ -5711,9 +5710,7 @@ pass/layouts/runtime_captured_encoded_reference_replacement_exit rejected 2358ms
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 pass/layouts/runtime_constant_layout_contract_exit built 2424ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/layouts/runtime_encoded_physical_view_exit rejected 1911ms interpreter:unchecked @5f668826adf3+wt
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/layouts/runtime_encoded_physical_view_exit built 13989ms exit:0 interpreter-exit:0 interpreter:agrees @a01cb78ea44c
 pass/layouts/runtime_foreign_encoded_reference_exit rejected 1774ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach

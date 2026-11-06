@@ -4,6 +4,7 @@
 
 use crate::checks::borrows::access_sources::resolve_captured_all;
 use crate::checks::borrows::aliases::ResolvedAlias;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::flow::{captured_call_operands, expressions};
 use crate::published::places::place_at;
 use arena::{Handle, HandleSpan};
@@ -18,6 +19,7 @@ use checked_trees::{CapturedPlace, CheckFacts, FlowCallFact, FlowOperandFact, Fl
 pub(in crate::checks::borrows) fn retained_places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: usize,
     constraints: HandleSpan<checked_trees::FlowConstraintRef>,
@@ -25,10 +27,18 @@ pub(in crate::checks::borrows) fn retained_places(
     active_calls: &mut Vec<Handle<FlowCallFact>>,
 ) -> Option<Vec<ResolvedAlias>> {
     let typed_state = program.state_by_symbol(state.state_symbol)?;
-    let mut pending = resolve_captured_all(program, facts, state, statement, constraints, source)?
-        .into_iter()
-        .map(|source| (source.place, source.lineage))
-        .collect::<Vec<_>>();
+    let mut pending = resolve_captured_all(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        statement,
+        constraints,
+        source,
+    )?
+    .into_iter()
+    .map(|source| (source.place, source.lineage))
+    .collect::<Vec<_>>();
     let mut roots = Vec::new();
     while let Some((place, ancestors)) = pending.pop() {
         if place.incoming_reference.is_valid() {
@@ -51,6 +61,7 @@ pub(in crate::checks::borrows) fn retained_places(
                 let returned = returned_places(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     &place.segments,
@@ -217,6 +228,7 @@ fn terminal_storage_is_resolved(
 fn returned_places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     call_handle: Handle<FlowCallFact>,
     result_suffix: &[facts::PlaceSegment],
@@ -284,6 +296,7 @@ fn returned_places(
         let backings = projected_operand_places(
             program,
             facts,
+            loan_occurrences,
             state,
             operand,
             parameter.type_reference,
@@ -299,6 +312,7 @@ fn returned_places(
             for mut selected in retained_places(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 call.statement_index,
                 completion,
@@ -356,6 +370,7 @@ fn returned_places(
         output.extend(projected_operand_places(
             program,
             facts,
+            loan_occurrences,
             state,
             operand,
             parameter.type_reference,
@@ -374,6 +389,7 @@ fn returned_places(
 fn projected_operand_places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     operand: &FlowOperandFact,
     reference: typed_trees::types::TypeReferenceHandle,
@@ -399,6 +415,7 @@ fn projected_operand_places(
             let places = projected_operand_places(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 facts.flow.control.operands.get(alternative.value),
                 reference,
@@ -445,6 +462,7 @@ fn projected_operand_places(
         return projected_operand_places(
             program,
             facts,
+            loan_occurrences,
             state,
             facts.flow.control.operands.get(child.value),
             child.type_reference,
@@ -474,6 +492,7 @@ fn projected_operand_places(
         retained_places(
             program,
             facts,
+            loan_occurrences,
             state,
             operand.statement_index,
             operand.constraints,
@@ -523,6 +542,7 @@ fn projected_operand_places(
             for mut source in retained_places(
                 program,
                 facts,
+                loan_occurrences,
                 state,
                 operand.statement_index,
                 constraints,
