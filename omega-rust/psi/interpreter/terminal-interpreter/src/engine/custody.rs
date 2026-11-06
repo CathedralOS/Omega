@@ -596,13 +596,12 @@ pub(crate) fn bind_structural_arguments(
     bind_existing_structural_places(parameters, arguments, &[], &[], account)
 }
 
-/// A fresh reborrow names the owner's actual source place. A forwarded loan
-/// names its already admitted borrow parameter instead; its accompanying owner
-/// is still the same live affine source. The binder separately joins runtime
-/// identities and paths. A saved reference supplies its resolved projection.
-/// Two owned values, linear custody and two loans cannot use this relation;
-/// independent inputs supply no established source provenance.
-fn retains_source_owner(
+/// A state edge retains the lender while its established child is in use.
+/// The lender can keep its owned home, or travel as the shared hold of an
+/// admitted mutable input. The captured descriptor supplies the child's exact
+/// backing; equal addresses alone cannot introduce this relation. Ordinary
+/// calls have no state-transfer provenance and retain independent-input checks.
+fn retains_source_lender(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
@@ -610,46 +609,74 @@ fn retains_source_owner(
     first: usize,
     second: usize,
 ) -> bool {
-    let (owner, loan) = match (parameters[first].access, parameters[second].access) {
-        (StructuralAccess::Owned, access) if access != StructuralAccess::Owned => (first, second),
-        (access, StructuralAccess::Owned) if access != StructuralAccess::Owned => (second, first),
-        _ => return false,
-    };
-    let Some(owner_source) = sources.get(owner) else {
-        return false;
-    };
-    let Some(loan_source) = sources.get(loan) else {
-        return false;
-    };
-    parameters[owner].multiplicity == StructuralMultiplicity::Affine
-        && arguments[loan].path.starts_with(&arguments[owner].path)
-        && owner_source.access == StructuralAccess::Owned
-        && owner_source.path.is_empty()
-        && loan_source.access == parameters[loan].access
-        && (owner_source.place == loan_source.place
-            // A saved descriptor has already resolved its access and exact
-            // backing. Keeping that backing's owner on this internal edge
-            // neither duplicates ownership nor admits another exclusive loan.
-            || provenance.get(loan).and_then(|source| source.reference_projection.as_ref())
-                .is_some_and(|source| *source == StructuralRuntimePlace::from(&arguments[loan]))
-            || (provenance
-                .get(owner)
-                .and_then(|source| source.parameter)
-                .is_some_and(|source| {
-                    source.access == StructuralAccess::Owned
-                        && source.multiplicity == StructuralMultiplicity::Affine
-                })
-                && provenance
-                    .get(loan)
-                    .and_then(|source| source.parameter)
-                    .is_some_and(|source| {
-                        source.access != StructuralAccess::Owned
-                            && source.multiplicity == StructuralMultiplicity::Unrestricted
-                            && crate::storage::reference::access_covers(
-                                source.access,
-                                loan_source.access,
-                            )
-                    })))
+    for (lender, child) in [(first, second), (second, first)] {
+        if parameters[child].access == StructuralAccess::Owned {
+            continue;
+        }
+        let (Some(lender_source), Some(child_source)) = (sources.get(lender), sources.get(child))
+        else {
+            continue;
+        };
+        let lender_parameter = provenance.get(lender).and_then(|source| source.parameter);
+        let lender_access = match parameters[lender].access {
+            StructuralAccess::Owned
+                if parameters[lender].multiplicity == StructuralMultiplicity::Affine
+                    && lender_source.access == StructuralAccess::Owned =>
+            {
+                StructuralAccess::Owned
+            }
+            StructuralAccess::SharedBorrow
+                if lender_source.access == StructuralAccess::SharedBorrow =>
+            {
+                // A shared hold keeps the original lender reachable while its
+                // child suspends mutation. Its admitted access must still be
+                // able to supply that child; a shared input cannot do so.
+                match lender_parameter {
+                    Some(parameter)
+                        if parameter.access == StructuralAccess::MutableBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted =>
+                    {
+                        StructuralAccess::MutableBorrow
+                    }
+                    Some(parameter)
+                        if parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity == StructuralMultiplicity::Affine =>
+                    {
+                        StructuralAccess::Owned
+                    }
+                    _ => continue,
+                }
+            }
+            _ => continue,
+        };
+        if !lender_source.path.is_empty()
+            || !arguments[child].path.starts_with(&arguments[lender].path)
+            || child_source.access != parameters[child].access
+            || !crate::storage::reference::access_covers(lender_access, parameters[child].access)
+        {
+            continue;
+        }
+        let resolved_reference = provenance
+            .get(child)
+            .and_then(|source| source.reference_projection.as_ref())
+            .is_some_and(|source| *source == StructuralRuntimePlace::from(&arguments[child]));
+        let forwarded_parameter = lender_parameter.is_some_and(|source| {
+            source.access == lender_access
+                && (source.access != StructuralAccess::Owned
+                    || source.multiplicity == StructuralMultiplicity::Affine)
+        }) && provenance
+            .get(child)
+            .and_then(|source| source.parameter)
+            .is_some_and(|source| {
+                source.access != StructuralAccess::Owned
+                    && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && crate::storage::reference::access_covers(source.access, child_source.access)
+            });
+        if lender_source.place == child_source.place || resolved_reference || forwarded_parameter {
+            return true;
+        }
+    }
+    false
 }
 
 fn bind_existing_structural_places(
@@ -726,7 +753,7 @@ fn bind_existing_structural_places(
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted;
             if overlapping
                 && (custody || exclusive)
-                && !retains_source_owner(
+                && !retains_source_lender(
                     parameters,
                     arguments,
                     sources,

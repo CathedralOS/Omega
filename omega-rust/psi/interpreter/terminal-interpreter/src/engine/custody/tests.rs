@@ -233,6 +233,63 @@ fn reference_provenance_cannot_duplicate_linear_custody_or_exclusive_loans() {
     assert!(bind_saved_reference(&parameters, &arguments, Some(arguments[1].clone())).is_err());
 }
 
+#[test]
+fn a_write_only_child_can_arrive_beside_its_retained_mutable_parent() {
+    let mut parent = parameter(5, 0, 3, StructuralMultiplicity::Unrestricted);
+    parent.access = StructuralAccess::MutableBorrow;
+    let arguments = [value(7, 3, Vec::new()), value(7, 3, Vec::new())];
+    assert!(bind_retained_parent(Some(&parent), &arguments, Some(&arguments[1])).is_ok());
+    parent.access = StructuralAccess::SharedBorrow;
+    assert!(bind_retained_parent(Some(&parent), &arguments, Some(&arguments[1])).is_err());
+    assert!(bind_retained_parent(None, &arguments, Some(&arguments[1])).is_err());
+    parent.access = StructuralAccess::MutableBorrow;
+    assert!(bind_retained_parent(Some(&parent), &arguments, None).is_err());
+    assert!(
+        bind_retained_parent(Some(&parent), &arguments, Some(&value(8, 3, Vec::new()))).is_err()
+    );
+}
+
+fn bind_retained_parent(
+    parent: Option<&StructuralParameterDeclaration>,
+    arguments: &[TerminalStructuralValue],
+    reference: Option<&TerminalStructuralValue>,
+) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
+    let mut held = parameter(1, 0, 3, StructuralMultiplicity::Unrestricted);
+    held.access = StructuralAccess::SharedBorrow;
+    let mut child = parameter(2, 1, 3, StructuralMultiplicity::Unrestricted);
+    child.access = StructuralAccess::WriteOnlyBorrow;
+    let parameters = [held, child];
+    assert!(bind_structural_arguments(&parameters, arguments, None).is_err());
+    super::bind_existing_structural_places(
+        &parameters,
+        arguments,
+        &[
+            StructuralArgument {
+                place: place(5),
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            },
+            StructuralArgument {
+                place: place(9),
+                path: vec![StructuralPathSegment::Referent],
+                access: StructuralAccess::WriteOnlyBorrow,
+            },
+        ],
+        &[
+            super::BlockArgumentProvenance {
+                parameter: parent,
+                reference_projection: None,
+            },
+            super::BlockArgumentProvenance {
+                parameter: None,
+                reference_projection: reference
+                    .map(crate::boundary::values::StructuralRuntimePlace::from),
+            },
+        ],
+        None,
+    )
+}
+
 fn retained_owner_parameters(owner: StructuralMultiplicity) -> [StructuralParameterDeclaration; 2] {
     let mut loan = parameter(2, 1, 3, StructuralMultiplicity::Unrestricted);
     loan.access = StructuralAccess::MutableBorrow;
