@@ -23,7 +23,10 @@ impl<'program> InvocationArguments<'program> {
     ) -> Option<&Option<&'program [typed_trees::expression::ExpressionHandle]>> {
         let position = self
             .rows
-            .binary_search_by_key(expression, |(expression, _)| *expression)
+            .binary_search_by_key(
+                &(expression.arena_index(), expression.generation()),
+                |(expression, _)| (expression.arena_index(), expression.generation()),
+            )
             .ok()?;
         Some(&self.rows[position].1)
     }
@@ -66,7 +69,9 @@ fn input_argument_index<'program>(
         .into_iter()
         .filter(|(expression, _)| expression.is_valid())
         .collect::<Vec<_>>();
-    inputs.sort_unstable_by_key(|(expression, _)| *expression);
+    inputs.sort_unstable_by_key(|(expression, _)| {
+        (expression.arena_index(), expression.generation())
+    });
     let mut rows: Vec<(_, Option<&[_]>)> = Vec::with_capacity(inputs.len());
     for (expression, arguments) in inputs {
         if let Some((prior, roster)) = rows.last_mut()
