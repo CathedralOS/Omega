@@ -1,0 +1,46 @@
+{
+  "kind": "Exactly one nonignored test: a fresh range keeps its owned address while an opaque stored pointer withholds that address",
+  "source": "1d688fb63dd20b927549e41537368de02a6fb499",
+  "expected_total_passes": 1,
+  "owner_source_map_sha256": "915178f6b4a4eb280498c2bc17d6792c9f5a58f214916f0300dd2ffe9c34e9fb",
+  "groups": [
+    {
+      "package": "typed-trees-to-checked-trees",
+      "filter": "checks::borrows::formation_captures::pointer_withholding_tests::builtin_range_opaque_slot_cannot_reuse_container_address",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "checks::borrows::formation_captures::pointer_withholding_tests::builtin_range_opaque_slot_cannot_reuse_container_address"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/borrows/formation_captures.rs",
+          "sha256": "847f95176694862f360e0b3ddf3252e822a0bd916c5d58b368c665ec82bfd43a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/borrows/formation_captures/pointer_withholding_tests.rs",
+          "sha256": "4937f67ae3f110a5f5154cd0717f21ed8ec09412072a51e7c59aa68990688395"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/expression.rs",
+          "sha256": "c1b69035e7aaa574c590b149973a441d544c3dcf3c2be232130d3b64ab36490f"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/expression/pointer_withholding_fixture.rs",
+          "sha256": "bf7cb94a8d5624fec57e50b5d7455c10f753c47d68b2bc04d7618fd91c97cefc"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/mod.rs",
+          "sha256": "0b67456fe1d1a7ce91f5b154d8bd249ed9510b7b8b12457d6493e312670385de"
+        },
+        {
+          "path": "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/Cargo.toml",
+          "sha256": "e563427469e159f73a45953777ab3a0526dc9df26035c22aa8889744ec2524bf"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
