@@ -1,9 +1,10 @@
 # Filesystem release contract: current evidence and remaining proof
 
 The unchanged Windows canonicalization customer now returns its authored exit
-70 in both native execution and Terminal execution. That demonstrates the
-customer's file, directory, missing-path and cleanup behavior; it does not prove
-that arbitrary handle use obeys the complete release contract.
+70 in both native execution and Terminal execution. The test verifies the
+resolved file and directory prefixes and the missing path's NotFound result.
+It attempts cleanup without checking whether removal succeeds. These results
+do not prove that arbitrary handle use obeys the complete release contract.
 
 This is scoped evidence for **CANONICALIZE-SCALAR-RANGE-CONTRACTS** and
 **FILESYSTEM-PLATFORM-SERVICES**, not closure of either parent acceptance.
