@@ -133,9 +133,9 @@ Measured validation uses the following sources:
 
 | Source and run | Observed scope |
 | --- | --- |
-| Compiler `0b53c8a4e109`, [original baseline](https://github.com/CathedralOS/Omega/actions/runs/42168270932) | 18 source checks, 13 native/Terminal exit-zero pairs with original-backing agreement, ten ordinary positives and eight matching invalid expectations. The nested invalid rejected 8 against 9 but missed its required diagnostic wording, so the full run failed. |
-| Compiler and programs `ab235e9fbe19`, [migration qualification](https://github.com/CathedralOS/Omega/actions/runs/42172876301) | Target source check and native/Terminal exit-zero pair with original-backing agreement; ordinary target positive and its invalid twin; nested invalid with the unchanged expected wording; five existing refuted-precondition controls and one existing dependency-recovery integration test. |
-| Compiler and programs `062d0753ff08`, observer `7e32952871ae`, [Mac ARM64 qualification](https://github.com/CathedralOS/Omega/actions/runs/42190647957) | 13 source accepts and five intended backing refusals; 13 native/Terminal exit-zero pairs with original-backing agreement; ten ordinary positives and nine intended invalid outcomes. |
+| Linux x86-64, compiler `0b53c8a4e109`, [original baseline](https://github.com/CathedralOS/Omega/actions/runs/42168270932) | 18 source checks, 13 native/Terminal exit-zero pairs with original-backing agreement, ten ordinary positives and eight matching invalid expectations. The nested invalid rejected 8 against 9 but missed its required diagnostic wording, so the full run failed. |
+| Linux x86-64, compiler and programs `ab235e9fbe19`, [migration qualification](https://github.com/CathedralOS/Omega/actions/runs/42172876301) | Target source check and native/Terminal exit-zero pair with original-backing agreement; ordinary target positive and its invalid twin; nested invalid with the unchanged expected wording; five existing refuted-precondition controls and one existing dependency-recovery integration test. |
+| Compiler and programs `062d0753ff08`, observer `7e32952871ae`, [Mac ARM64 qualification](https://github.com/CathedralOS/Omega/actions/runs/42190647957) | 13 programs pass source checking and five invalid storage tests reject; 13 native/Terminal exit-zero pairs with original-backing agreement; ten sample programs run on both engines; nine controls reject. |
 
 The Mac run observes 19 original corpus allocations and the expected backing for
 each ordinary positive. Its 27 unit-test results belong to the authenticated
