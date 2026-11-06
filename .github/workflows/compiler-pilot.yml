@@ -1,4 +1,4 @@
-name: Observe original finite progress target body
+name: Qualify Build-selected finite progress
 on:
   workflow_dispatch:
 permissions:
@@ -9,7 +9,7 @@ env:
   OMEGA_CORPUS_JOBS: '1'
   OMEGA_CORPUS_FIXTURE_SECS: '120'
 jobs:
-  original:
+  qualification:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -39,12 +39,12 @@ jobs:
           import os
           assert os.environ['CACHE_HIT']=='true'
           assert os.environ['CACHE_MATCH']=='compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-2a74eb21cdb4ff7bdfded0a75cf0dabd89b62ff0'
-      - name: Observe the unchanged positive and missing-right control
-        run: python tools/ci/compiler_pilot.py --fixtures @.github/progress_selector_baseline.json
+      - name: Qualify the nine places and original stale-value controls
+        run: python tools/ci/compiler_pilot.py --fixtures @.github/progress_selector_qualification.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: progress-selector-original-linux-${{ github.run_id }}
+          name: progress-selector-build-linux-${{ github.run_id }}
           path: |
             build/compiler-pilot/
             !build/compiler-pilot/producer-replay-*/**
