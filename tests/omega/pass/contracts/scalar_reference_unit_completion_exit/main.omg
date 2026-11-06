@@ -1,5 +1,27 @@
 // Expected exit: 0.
-// Completed scalar referent stores prove unit-exit guarantees across exact state origins.
+// Both scalar store forms return zero, and a helper keeps a ticket positive while changing 7 to 5.
+public data Ticket [copy] { number: u64; }
+public domain Ticket::Issued requires self.number > 0;
+public data Output<T> { body: T; }
+public boundary trait Installer {
+    machine install<'storage>(output: &mut Output<&'storage mut Ticket in Issued>) reaches;
+}
+public CheckedInstaller satisfies Installer {
+    machine install<'storage>(output: &mut Output<&'storage mut Ticket in Issued>) {
+        output.body.number = 5;
+    }
+}
+machine read_issued(ticket: &Ticket in Issued) -> u64 { ticket.number }
+machine exercise() -> bool reaches Installer {
+    let mut old_output: Ticket in Issued = Ticket { number: 7 };
+    let mut spare: Ticket in Issued = Ticket { number: 9 };
+    let mut output: Output<&mut Ticket in Issued> = Output { body: &mut old_output };
+    Installer::install(&mut output);
+    output = Output { body: &mut spare };
+    let old_value: u64 = read_issued(&old_output);
+    old_value == 5 && output.body.number == 9
+}
+
 machine zero(output: &mut u32) ensures output == 0 {
     transition { _ -> stored(output) }
     machine stored(destination: &mut u32) {
@@ -11,13 +33,14 @@ machine zero_implicit(output: &mut u32) ensures output == 0 {
     output = 0;
 }
 machine observe_zero(value: u32) requires value == 0 {}
-machine main() crashes Trap {
+machine main() crashes Trap reaches Installer {
+    let okay: bool = exercise();
     let mut changed: u32 = 99;
     let mut initialized: u32 = 99;
     zero(&mut changed);
     zero_implicit(&mut initialized);
     observe_zero(changed);
     observe_zero(initialized);
-    transition changed == 0 && initialized == 0 { true -> {} false -> bad() }
+    transition okay && changed == 0 && initialized == 0 { true -> {} false -> bad() }
     machine bad() { crash Trap; }
 }
