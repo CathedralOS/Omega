@@ -112,6 +112,7 @@ fn executable_extent_uses_resolved_bytes_and_preserves_placement_refusals() {
         byte_count: 2,
         symbol: "resolved".to_owned(),
         footprint: None,
+        entry_effects: None,
     };
     let inventory = place_executable_extent(&text, vec![region.clone()], 0x4000).unwrap();
     assert_eq!(inventory.text_byte_count, 6);
@@ -153,4 +154,48 @@ fn executable_extent_uses_resolved_bytes_and_preserves_placement_refusals() {
     );
     let empty = place_executable_extent(&[], Vec::new(), 0).unwrap();
     validate_placed_executable_region_inventory(&empty, &[]).unwrap();
+}
+
+#[test]
+fn entry_inventory_identity_binds_reads_and_clobbers_separately() {
+    use crate::{
+        FinalExecutableRegion, FinalExecutableRegionOrigin, place_executable_extent,
+        validate_placed_executable_region_inventory,
+    };
+    use calling_conventions::{
+        MachineRegister, MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence,
+    };
+    let effects = |read, clobber| {
+        StateEffectsEvidence::new(
+            RegisterSet::new([read]),
+            RegisterSet::new([MachineRegister::X86Rcx]),
+            MachineStateSet::new([MachineState::ControlState]),
+            clobber,
+        )
+    };
+    let region = |evidence| FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: 1,
+        symbol: "entry".into(),
+        footprint: None,
+        entry_effects: Some(evidence),
+    };
+    let first = effects(MachineRegister::X86Rax, MachineStateSet::empty());
+    let changed_read = effects(MachineRegister::X86Rdx, MachineStateSet::empty());
+    let changed_clobber = effects(
+        MachineRegister::X86Rax,
+        MachineStateSet::new([MachineState::ControlState]),
+    );
+    assert_eq!(first.footprint(), changed_read.footprint());
+    assert_eq!(first.footprint(), changed_clobber.footprint());
+    let inventory = place_executable_extent(&[0xc3], vec![region(first)], 0x4000).unwrap();
+    for evidence in [changed_read, changed_clobber] {
+        let changed =
+            place_executable_extent(&[0xc3], vec![region(evidence.clone())], 0x4000).unwrap();
+        assert_ne!(inventory.inventory_digest, changed.inventory_digest);
+        let mut stale = inventory.clone();
+        stale.regions[0].entry_effects = Some(evidence);
+        assert!(validate_placed_executable_region_inventory(&stale, &[0xc3]).is_err());
+    }
 }

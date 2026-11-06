@@ -335,6 +335,7 @@ fn append_body(linked: &mut ObjectArtifact, private: &PrivateFunctionObject) -> 
             function,
             body: Arc::clone(body),
             entry_bridge: private.entry_bridge.clone(),
+            entry_effects: private.entry_effects.clone(),
             inbound: private.inbound.clone(),
             inbound_ordinals: private.inbound_ordinals.clone(),
             text_offset,
@@ -487,6 +488,7 @@ pub(crate) fn validate_composition(artifact: &ObjectArtifact) -> Result<(), Erro
             identity: private.identity,
             body: Arc::clone(&private.body),
             entry_bridge: private.entry_bridge.clone(),
+            entry_effects: private.entry_effects.clone(),
             inbound: private.inbound.clone(),
             inbound_ordinals: private.inbound_ordinals.clone(),
         });

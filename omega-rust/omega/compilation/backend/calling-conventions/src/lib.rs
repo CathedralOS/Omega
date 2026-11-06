@@ -59,11 +59,12 @@ pub use hosts::darwin::{DARWIN_LIBOBJC_PATH, darwin_import_library};
 pub use hosts::windows::windows_import_library;
 pub use plans::{
     BoundaryEntryPlan, BoundaryPlanResult, CallPlan, CallSignature, CallingPolicy,
-    CallingPolicyRejection, EntryControl, EntryStack, IndirectPointerLocation, MachineRegime,
+    CallingPolicyRejection, EntryControl, EntryStack, GeneratedEntryControl,
+    GeneratedEntryEvidence, GeneratedEntryInstruction, IndirectPointerLocation, MachineRegime,
     MachineRegister, MachineState, MachineStateSet, PlanDiagnostic, Preemption, RegisterSet,
-    StateFootprintEvidence, StatePlan, SystemVEightbyteClass, ValidatedBoundaryEntryPlan,
-    ValueClass, ValueLocation, ValuePlacement, ValueShape, byte_size_at_offset_zero,
-    encode_state_plan_identity, evaluate_call_plan, evaluate_ordinary_boundary_entry_plan,
-    gpr_code, validate_boundary_entry_plan,
+    StateEffectsEvidence, StateFootprintEvidence, StatePlan, SystemVEightbyteClass,
+    ValidatedBoundaryEntryPlan, ValueClass, ValueLocation, ValuePlacement, ValueShape,
+    byte_size_at_offset_zero, encode_state_plan_identity, evaluate_call_plan,
+    evaluate_ordinary_boundary_entry_plan, gpr_code, validate_boundary_entry_plan,
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };

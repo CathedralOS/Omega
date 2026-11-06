@@ -31,7 +31,7 @@ pub struct ComponentNativeExport<'input> {
     candidate: &'input terminal_psi::ProviderCandidateConformance,
     calling_application: &'input BoundaryCallingApplication,
     body: image_emission::ObjectArtifact,
-    entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    entry_bridge: image_emission::CallableEntryTransport,
     runtime: native_artifact::TerminalCallableRuntimeProvisions,
     authority: AdmittedNativeCallableAuthority,
 }

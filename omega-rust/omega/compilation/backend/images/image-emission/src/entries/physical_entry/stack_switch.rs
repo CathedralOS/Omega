@@ -36,6 +36,8 @@ pub(super) struct StackSwitch {
     pub fixups: Arena<Fixup>,
     pub outgoing_frame_bytes: u32,
     pub incoming: PhysicalIncomingStackRequirement,
+    pub generated: calling_conventions::GeneratedEntryEvidence,
+    pub complete_effects: calling_conventions::StateEffectsEvidence,
 }
 
 impl StackSwitch {
@@ -184,6 +186,14 @@ pub(super) fn emit(bridge: &NativeEntryBridge) -> Result<StackSwitch, Diagnostic
         destination: Destination::Body,
     });
     bytes.extend_from_slice(bridge.bytes());
+    let body_call = u32::try_from(bridge_offset + bridge.call_field_offset())
+        .map_err(|_| invalid("physical entry body call exceeds u32"))?;
+    let generated = isa_x86_64::decode_x86_64_generated_entry(&bytes, Some(body_call))
+        .map_err(|reason| invalid(&reason))?;
+    let complete_effects = bridge
+        .request()
+        .checked_complete_effects(&generated.effects)
+        .map_err(|reason| invalid(&reason.to_string()))?;
     Ok(StackSwitch {
         bytes,
         fixups,
@@ -196,5 +206,7 @@ pub(super) fn emit(bridge: &NativeEntryBridge) -> Result<StackSwitch, Diagnostic
             caller_alignment: u64::from(alignment),
             caller_rsp_bias: 8,
         },
+        generated,
+        complete_effects,
     })
 }

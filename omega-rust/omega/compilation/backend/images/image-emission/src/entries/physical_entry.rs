@@ -307,6 +307,19 @@ pub(crate) fn prepare(artifact: &ObjectArtifact) -> Result<PreparedEntry, Diagno
     })
 }
 
+pub(crate) fn generated_state_effects(
+    artifact: &ObjectArtifact,
+) -> Option<(
+    &calling_conventions::GeneratedEntryEvidence,
+    &calling_conventions::StateEffectsEvidence,
+)> {
+    let binding = artifact.physical_entry.as_ref()?;
+    Some((
+        &binding.stack_switch.generated,
+        &binding.stack_switch.complete_effects,
+    ))
+}
+
 pub(crate) fn validate_image(
     artifact: &ObjectArtifact,
     object: &ObjectPlan,

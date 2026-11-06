@@ -197,13 +197,7 @@ pub(super) fn emit(
     // Admission proves this body has no normal completion. A violated physical
     // contract must stop here; it must never IRET through an opaque frame.
     halt(&mut bytes);
-    Ok(NativeEntryBridge {
-        request,
-        bytes,
-        frame_bytes,
-        call_field_offset,
-        installed_interrupt: Some(plan),
-    })
+    finish_native_entry(request, bytes, frame_bytes, call_field_offset, Some(plan))
 }
 
 fn descriptor_store(bytes: &mut Vec<u8>, offset: u32, operation: u8) {

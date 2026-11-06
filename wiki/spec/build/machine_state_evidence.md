@@ -49,6 +49,16 @@ and binds the normalized identity into the certificate before serialization.
 Fragment order and duplication do not affect normalized set union. Object and
 image validation still establish that every realized fragment was supplied.
 
+Generated callable and installed-entry transport retains target-decoded rows
+covering its complete byte span. These rows distinguish register reads from
+writes, include stack, flags and control-state effects, and bind internal control
+targets and the exact body-call relocation. Final-byte replay uses the same
+closed target form owners after relocation. The entry's use ceiling covers the
+union of this transport and the complete synchronous handler/callee closure;
+preservation checks use the clobbered subset. An ordinary ABI does not grant an
+implicit allowance for stack or instruction-pointer transport. The checked union
+is retained with its exact executable region and included in inventory identity.
+
 ## Exit realization
 
 Return-control evidence must match `CallPlan::entry_control`; the restored-state

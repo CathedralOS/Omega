@@ -22,9 +22,11 @@
 //! The retained request is replayed by artifact readers, off the production path.
 
 use arena::Arena;
+#[cfg(test)]
+use calling_conventions::StateFootprintEvidence;
 use calling_conventions::{
-    BoundaryEntryPlan, CallPlan, EntryControl, MachineRegister, RegisterSet,
-    StateFootprintEvidence, ValueClass, ValuePlacement, ValueShape,
+    BoundaryEntryPlan, CallPlan, EntryControl, GeneratedEntryEvidence, MachineRegister,
+    RegisterSet, StateEffectsEvidence, ValueClass, ValuePlacement, ValueShape,
 };
 use register_model::validate_physical_register_model;
 use target::{Architecture, NativeTarget};
@@ -50,7 +52,7 @@ pub struct NativeEntryBridgeRequest {
     /// The entry owns both argument placement and interrupted-state obligations.
     pub inbound: BoundaryEntryPlan,
     /// Actual checked body closure, required for asynchronous entry ceilings.
-    pub body_footprint: Option<StateFootprintEvidence>,
+    pub body_footprint: Option<StateEffectsEvidence>,
     /// Internal scalar-then-structural order, joined through nominal origins.
     pub parameters: Arena<NativeEntryParameter>,
 }
@@ -62,9 +64,17 @@ pub struct NativeEntryBridge {
     frame_bytes: u32,
     call_field_offset: usize,
     installed_interrupt: Option<InstalledInterruptEntryPlan>,
+    generated: GeneratedEntryEvidence,
+    complete_effects: StateEffectsEvidence,
 }
 
 impl NativeEntryBridge {
+    pub fn generated(&self) -> &GeneratedEntryEvidence {
+        &self.generated
+    }
+    pub fn complete_effects(&self) -> &StateEffectsEvidence {
+        &self.complete_effects
+    }
     pub fn installed_interrupt(&self) -> Option<InstalledInterruptEntryPlan> {
         self.installed_interrupt
     }
@@ -104,10 +114,14 @@ pub enum NativeEntryBridgeError {
     FrameOverflow,
     Encoding,
     ReplayMismatch,
+    GeneratedEntryEffects(String),
 }
 impl std::fmt::Display for NativeEntryBridgeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let reason = match self {
+            Self::GeneratedEntryEffects(reason) => {
+                return write!(formatter, "native entry bridge failed: {reason}");
+            }
             Self::UnsupportedInstalledInterruptSignature => {
                 "installed timer arrival requires exactly one owned 40-byte acknowledgement and no result"
             }
@@ -140,6 +154,56 @@ impl std::fmt::Display for NativeEntryBridgeError {
 }
 impl std::error::Error for NativeEntryBridgeError {}
 type Error = NativeEntryBridgeError;
+
+impl NativeEntryBridgeRequest {
+    /// The unchanged body and the adapter each contribute their real effects.
+    /// An ABI alias contributes an empty adapter, never a missing body claim.
+    pub fn checked_complete_effects(
+        &self,
+        adapter: &StateEffectsEvidence,
+    ) -> Result<StateEffectsEvidence, Error> {
+        let body = self
+            .body_footprint
+            .as_ref()
+            .ok_or(Error::MissingInterruptBodyFootprint)?;
+        let complete = adapter.compose(body);
+        complete.validate(&self.inbound.state).map_err(|reason| {
+            Error::GeneratedEntryEffects(format!(
+                "{reason}: used {:?}, permitted {:?}, clobbered {:?}, saved {:?}",
+                complete.machine_state(),
+                self.inbound.state.permitted_transitive_use,
+                complete.clobbered_state(),
+                self.inbound.state.saved_state
+            ))
+        })?;
+        Ok(complete)
+    }
+}
+
+fn finish_native_entry(
+    request: NativeEntryBridgeRequest,
+    bytes: Vec<u8>,
+    frame_bytes: u32,
+    call_field_offset: usize,
+    installed_interrupt: Option<InstalledInterruptEntryPlan>,
+) -> Result<NativeEntryBridge, Error> {
+    let call = Some(u32::try_from(call_field_offset).map_err(|_| Error::FrameOverflow)?);
+    let generated = match request.target.architecture {
+        Architecture::X86_64 => isa_x86_64::decode_x86_64_generated_entry(&bytes, call),
+        Architecture::Aarch64 => isa_aarch64::decode_aarch64_generated_entry(&bytes, call),
+    }
+    .map_err(Error::GeneratedEntryEffects)?;
+    let complete_effects = request.checked_complete_effects(&generated.effects)?;
+    Ok(NativeEntryBridge {
+        request,
+        bytes,
+        frame_bytes,
+        call_field_offset,
+        installed_interrupt,
+        generated,
+        complete_effects,
+    })
+}
 
 use crate::native_bridge_encoding::{
     AlignedHome, Encoding, NativeBridgeEncodingError, ValueStorage, WordLocation, allocate_home,
@@ -703,13 +767,7 @@ pub fn emit_native_entry_bridge(
     }
     bytes.extend_from_slice(&epilogue);
     bytes.extend_from_slice(protocol.return_bytes);
-    Ok(NativeEntryBridge {
-        request,
-        bytes,
-        frame_bytes,
-        call_field_offset,
-        installed_interrupt: None,
-    })
+    finish_native_entry(request, bytes, frame_bytes, call_field_offset, None)
 }
 
 /// Replay physical bytes and frame geometry at an independent artifact boundary.
@@ -769,7 +827,7 @@ mod tests {
             target,
             internal,
             inbound: inbound.plan().clone(),
-            body_footprint: None,
+            body_footprint: Some(StateEffectsEvidence::empty()),
             parameters,
         }
     }
@@ -800,22 +858,26 @@ mod tests {
                 .union(MachineStateSet::new([MachineState::VectorRegisters])),
             saved_state: preserved,
             restored_state: preserved,
-            permitted_transitive_use: preserved,
+            permitted_transitive_use: preserved
+                .union(MachineStateSet::new([MachineState::SegmentState])),
             stack: EntryStack::Dedicated { class: 4 },
             preemption: Preemption::Masked,
         };
-        request.body_footprint = Some(StateFootprintEvidence::new(
-            RegisterSet::new([
-                MachineRegister::X86Rax,
-                MachineRegister::X86Rdx,
-                MachineRegister::X86Rsp,
-            ]),
-            MachineStateSet::new([
-                MachineState::Flags,
-                MachineState::InstructionPointer,
-                MachineState::StackPointer,
-            ]),
-        ));
+        request.body_footprint = Some(
+            StateFootprintEvidence::new(
+                RegisterSet::new([
+                    MachineRegister::X86Rax,
+                    MachineRegister::X86Rdx,
+                    MachineRegister::X86Rsp,
+                ]),
+                MachineStateSet::new([
+                    MachineState::Flags,
+                    MachineState::InstructionPointer,
+                    MachineState::StackPointer,
+                ]),
+            )
+            .into(),
+        );
         request
     }
 
@@ -1044,10 +1106,13 @@ mod tests {
             Err(Error::MissingInterruptBodyFootprint)
         );
         let mut vector = interrupt_request(vec![]);
-        vector.body_footprint = Some(StateFootprintEvidence::new(
-            RegisterSet::new([MachineRegister::X86Xmm(0)]),
-            MachineStateSet::empty(),
-        ));
+        vector.body_footprint = Some(
+            StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Xmm(0)]),
+                MachineStateSet::empty(),
+            )
+            .into(),
+        );
         assert_eq!(
             emit_native_entry_bridge(vector),
             Err(Error::InterruptBodyStateExceedsPlan)
@@ -1086,6 +1151,18 @@ mod tests {
                 MachineRegister::Aarch64X(9) | MachineRegister::Aarch64V(16)
             )
         });
+        let mut missing_vector_use = request.clone();
+        missing_vector_use.inbound.state.permitted_transitive_use =
+            calling_conventions::MachineStateSet::new([
+                calling_conventions::MachineState::GeneralRegisters,
+                calling_conventions::MachineState::Flags,
+                calling_conventions::MachineState::InstructionPointer,
+                calling_conventions::MachineState::StackPointer,
+            ]);
+        assert!(matches!(
+            emit_native_entry_bridge(missing_vector_use),
+            Err(Error::GeneratedEntryEffects(_))
+        ));
         let bridge = emit_native_entry_bridge(request).unwrap();
         assert_eq!(bridge.frame_bytes(), 32);
         let before_call = &bridge.bytes()[..bridge.call_field_offset()];

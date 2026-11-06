@@ -1,14 +1,14 @@
 //! Collect state touched by the admitted native body and its actual callees.
 //!
 //! A call's allocation clobbers describe what its ABI permits, not what its
-//! checked callee writes. The x86 direct-call template is only CALL rel32;
-//! replace that summary with its stack/control transport and visit the callee.
-//! Ordinary forms keep their retained decoded effects. No bytes are decoded here.
+//! checked callee writes. Direct-call transport and generated frame protocols
+//! replay through their target form owner; the callee supplies its body effects.
+//! Ordinary body forms keep their retained decoded effects.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use calling_conventions::{
-    MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet, StateFootprintEvidence,
+    MachineRegister, MachineState, MachineStateSet, Preemption, RegisterSet, StateEffectsEvidence,
 };
 use machine_code::{
     ResolvedBranchEvidence, SelectedFormDecodedFootprint, SelectedFormEncodingRow,
@@ -26,12 +26,7 @@ use semantic_vocabulary::MachineId;
 pub(super) fn collect(
     body: &ObjectArtifact,
     preemption: Preemption,
-) -> Result<StateFootprintEvidence, Error> {
-    if body.target.architecture != target::Architecture::X86_64 {
-        return Err(Error::Unsupported(
-            "interrupt body footprint requires x86-64 effects",
-        ));
-    }
+) -> Result<StateEffectsEvidence, Error> {
     let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
         "interrupt body lacks retained emission custody",
     ))?;
@@ -54,7 +49,14 @@ pub(super) fn collect(
             }),
         encoding.rows(),
     )?;
+    let call_effects = direct_call_effects(body.target.architecture)?;
     let mut footprint = Footprint::default();
+    let mut frame_effects = StateEffectsEvidence::new(
+        RegisterSet::default(),
+        RegisterSet::default(),
+        MachineStateSet::empty(),
+        MachineStateSet::empty(),
+    );
     let mut visited = BTreeSet::new();
     let mut pending = vec![body.entry];
     while let Some(machine) = pending.pop() {
@@ -69,12 +71,24 @@ pub(super) fn collect(
             .selected_plan()
             .function(machine)
             .ok_or(Error::Mismatch("interrupt callee lacks selected contract"))?;
-        let frame = source
-            .frame_layout()
+        let protocols = source.frame_protocol();
+        let frame = protocols
             .functions
             .iter()
             .find(|frame| frame.machine == machine)
-            .ok_or(Error::Mismatch("interrupt callee lacks admitted frame"))?;
+            .ok_or(Error::Mismatch(
+                "entry callee lacks its actual frame protocol",
+            ))?;
+        for span in [frame.prologue, frame.epilogue] {
+            let bytes = span.bytes(&protocols.bytes).ok_or(Error::Mismatch(
+                "entry frame protocol has a stale byte span",
+            ))?;
+            let decoded = match body.target.architecture {
+                target::Architecture::X86_64 => isa_x86_64::decode_x86_64_generated_entry(bytes, None),
+                target::Architecture::Aarch64 => isa_aarch64::decode_aarch64_generated_entry(bytes, None),
+            }.map_err(|reason| Error::NativeEntryBridge(machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(reason)))?;
+            frame_effects = frame_effects.compose(&decoded.effects);
+        }
         // A handler promised to run with interrupts masked cannot enable
         // nested delivery, even if IRETQ would restore the original flags later.
         for instruction in selected.instructions() {
@@ -84,15 +98,16 @@ pub(super) fn collect(
                 check_mask_operation(preemption, operation)?;
             }
         }
-        footprint.frame(model, frame)?;
         for row in function.blocks.iter().flat_map(|block| &block.instructions) {
             if let Some(fixup) = row.internal_machine_fixup() {
-                if fixup.kind != SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 {
-                    return Err(Error::Unsupported("interrupt internal call has another transport"));
+                if !matches!((body.target.architecture, fixup.kind),
+                    (target::Architecture::X86_64, SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1)
+                    | (target::Architecture::Aarch64, SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1)) {
+                    return Err(Error::Unsupported("entry internal call has another target transport"));
                 }
-                // This admitted fixup belongs to the five-byte CALL template,
-                // not an argument-copy envelope. The callee supplies its writes.
-                footprint.direct_call(model)?;
+                // The admitted target fixup owns only its direct-call form.
+                // Argument copies retain their own rows; visit the exact callee.
+                frame_effects = frame_effects.compose(&call_effects);
                 pending.push(fixup.callee);
                 continue;
             }
@@ -138,16 +153,30 @@ pub(super) fn collect(
                 // An opaque implementation has a class ceiling rather than an
                 // inspectable body. Keep that admitted ceiling AND all encoded
                 // transport effects; never narrow it to the result register.
-                footprint.states = footprint.states.union(
-                    call.call
-                        .binding
-                        .boundary_entry_plan
-                        .state
-                        .permitted_transitive_use,
-                );
+                let ceiling = call
+                    .call
+                    .binding
+                    .boundary_entry_plan
+                    .state
+                    .permitted_transitive_use;
+                footprint.states = footprint.states.union(ceiling);
+                footprint.clobbered = footprint.clobbered.union(ceiling);
             }
             footprint.decoded(model, encoded)?;
             match row.alternative.family {
+                MachineAlternativeFamily::CodeSegmentReload
+                | MachineAlternativeFamily::DataSegmentReload => {
+                    // Loading a selector reads the descriptor-table state;
+                    // the architectural write is to the segment state itself.
+                    footprint.state(MachineState::ControlState);
+                    footprint.state(MachineState::SegmentState);
+                    footprint.clobbered = footprint
+                        .clobbered
+                        .union(MachineStateSet::new([MachineState::SegmentState]));
+                }
+                MachineAlternativeFamily::SegmentSelectorRead => {
+                    footprint.state(MachineState::SegmentState);
+                }
                 MachineAlternativeFamily::ControlRegisterRead
                 | MachineAlternativeFamily::GlobalDescriptorTableLoad
                 | MachineAlternativeFamily::GlobalDescriptorTableStore
@@ -156,11 +185,20 @@ pub(super) fn collect(
                 | MachineAlternativeFamily::InstalledInterruptTaskCommit
                 | MachineAlternativeFamily::InstalledInterruptTablePublication
                 | MachineAlternativeFamily::TaskRegisterRead
-                | MachineAlternativeFamily::CodeSegmentReload
-                | MachineAlternativeFamily::DataSegmentReload
-                | MachineAlternativeFamily::SegmentSelectorRead
                 | MachineAlternativeFamily::ControlRegisterWrite => {
-                    footprint.state(MachineState::ControlState)
+                    footprint.state(MachineState::ControlState);
+                    if matches!(
+                        row.alternative.family,
+                        MachineAlternativeFamily::GlobalDescriptorTableLoad
+                            | MachineAlternativeFamily::TaskRegisterActivate
+                            | MachineAlternativeFamily::InstalledInterruptTaskCommit
+                            | MachineAlternativeFamily::InstalledInterruptTablePublication
+                            | MachineAlternativeFamily::ControlRegisterWrite
+                    ) {
+                        footprint.clobbered = footprint
+                            .clobbered
+                            .union(MachineStateSet::new([MachineState::ControlState]));
+                    }
                 }
                 // A dynamic MSR selector can affect several architectural state
                 // classes. The current emitted row does not retain that summary.
@@ -174,7 +212,7 @@ pub(super) fn collect(
             }
         }
     }
-    footprint.finish(model)
+    Ok(footprint.finish(model)?.compose(&frame_effects))
 }
 
 /// Join the admitted producer's complete physical order to its encoded rows.
@@ -240,11 +278,33 @@ fn is_call(control: MachineEncodedControlEffect) -> bool {
     )
 }
 
+fn direct_call_effects(architecture: target::Architecture) -> Result<StateEffectsEvidence, Error> {
+    let decoded = match architecture {
+        target::Architecture::X86_64 => isa_x86_64::decode_x86_64_generated_entry(
+            &isa_x86_64::ORDINARY_DIRECT_CALL_BYTES,
+            Some(1),
+        ),
+        target::Architecture::Aarch64 => isa_aarch64::decode_aarch64_generated_entry(
+            &isa_aarch64::ORDINARY_DIRECT_CALL_BYTES,
+            Some(0),
+        ),
+    }
+    .map_err(|reason| {
+        Error::NativeEntryBridge(
+            machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
+                reason,
+            ),
+        )
+    })?;
+    Ok(decoded.effects)
+}
+
 #[derive(Default)]
 struct Footprint {
     units: BTreeSet<RegisterUnitId>,
     reads: BTreeSet<RegisterUnitId>,
     states: MachineStateSet,
+    clobbered: MachineStateSet,
 }
 
 impl Footprint {
@@ -311,47 +371,23 @@ impl Footprint {
             | MachineEncodedStackEffect::CallReturnAddressLifecycleV1 { stack_pointer, .. } => {
                 self.view(model, stack_pointer)?;
                 self.state(MachineState::StackPointer);
+                self.clobbered = self
+                    .clobbered
+                    .union(MachineStateSet::new([MachineState::StackPointer]));
             }
         }
         if effects.control != MachineEncodedControlEffect::FallThroughV1 {
             self.state(MachineState::InstructionPointer);
+            self.clobbered = self
+                .clobbered
+                .union(MachineStateSet::new([MachineState::InstructionPointer]));
         }
         Ok(())
     }
 
-    fn direct_call(&mut self, model: &PhysicalRegisterModel) -> Result<(), Error> {
-        self.view(
-            model,
-            model
-                .view_named("rsp")
-                .ok_or(Error::Mismatch("interrupt call lacks stack register"))?
-                .id,
-        )?;
-        self.state(MachineState::StackPointer);
-        self.state(MachineState::InstructionPointer);
-        Ok(())
-    }
-
-    fn frame(
-        &mut self,
-        model: &PhysicalRegisterModel,
-        frame: &machine_code::FunctionTargetFrameLayout,
-    ) -> Result<(), Error> {
-        if frame.frame_size_bytes != frame.red_zone_resident_bytes {
-            self.view(model, frame.stack_pointer)?;
-            self.state(MachineState::StackPointer);
-            // The admitted x86 fixed-frame protocol uses SUB/ADD RSP; its
-            // optional page-touch CMP also writes flags and no other register.
-            self.state(MachineState::Flags);
-        }
-        for slot in &frame.callee_save_slots {
-            self.view(model, slot.storage_view)?;
-        }
-        Ok(())
-    }
-
-    fn finish(mut self, model: &PhysicalRegisterModel) -> Result<StateFootprintEvidence, Error> {
+    fn finish(mut self, model: &PhysicalRegisterModel) -> Result<StateEffectsEvidence, Error> {
         let mut registers = Vec::new();
+        let mut reads = Vec::new();
         for unit in self.units.union(&self.reads) {
             let declaration = model.unit(*unit).ok_or(Error::Mismatch(
                 "interrupt effect names unknown register unit",
@@ -366,6 +402,14 @@ impl Footprint {
                 RegisterUnitKind::Zero => continue,
             };
             self.states = self.states.union(MachineStateSet::new([state]));
+            if self.units.contains(unit) {
+                self.clobbered = self.clobbered.union(MachineStateSet::new([state]));
+            }
+            if self.reads.contains(unit)
+                && let Some(register) = register_for_unit(model, *unit)
+            {
+                reads.push(register);
+            }
             if self.units.contains(unit)
                 && matches!(
                     declaration.kind,
@@ -374,24 +418,49 @@ impl Footprint {
                         | RegisterUnitKind::StackPointer
                 )
             {
-                let register = x86_register_for_unit(model, *unit).ok_or(Error::Unsupported(
-                    "interrupt register unit has no calling-plan identity",
-                ))?;
-                registers.push(register);
+                if let Some(register) = register_for_unit(model, *unit) {
+                    registers.push(register);
+                } else if declaration.kind != RegisterUnitKind::StackPointer {
+                    return Err(Error::Unsupported(
+                        "entry register unit has no calling-plan identity",
+                    ));
+                }
             }
         }
-        Ok(StateFootprintEvidence::new(
+        Ok(StateEffectsEvidence::new(
+            RegisterSet::new(reads),
             RegisterSet::new(registers),
             self.states,
+            self.clobbered,
         ))
     }
 }
 
-fn x86_register_for_unit(
+fn register_for_unit(
     model: &PhysicalRegisterModel,
     unit: RegisterUnitId,
 ) -> Option<MachineRegister> {
     use MachineRegister::*;
+    if model.view_named("x0").is_some() {
+        for index in 0..31 {
+            if model
+                .view_named(&format!("x{index}"))
+                .is_some_and(|view| view.units.contains(&unit))
+            {
+                return Some(Aarch64X(index));
+            }
+        }
+        for index in 0..32 {
+            if model
+                .view_named(&format!("q{index}"))
+                .or_else(|| model.view_named(&format!("d{index}")))
+                .is_some_and(|view| view.units.contains(&unit))
+            {
+                return Some(Aarch64V(index));
+            }
+        }
+        return None;
+    }
     let general = [
         ("rax", X86Rax),
         ("rcx", X86Rcx),
@@ -468,11 +537,13 @@ mod tests {
     fn checked_call_transport_does_not_invent_vector_writes() {
         let model = &isa_x86_64::x86_64_physical_register_model();
         let mut footprint = Footprint::default();
-        footprint.direct_call(model).unwrap();
         footprint
             .view(model, model.view_named("eax").unwrap().id)
             .unwrap();
-        let result = footprint.finish(model).unwrap();
+        let result = footprint
+            .finish(model)
+            .unwrap()
+            .compose(&direct_call_effects(target::Architecture::X86_64).unwrap());
         assert!(result.registers().contains(MachineRegister::X86Rax));
         assert!(result.registers().contains(MachineRegister::X86Rsp));
         assert!(
@@ -490,14 +561,16 @@ mod tests {
     fn vector_flags_and_unknown_units_remain_visible() {
         let model = &isa_x86_64::x86_64_physical_register_model();
         let mut footprint = Footprint::default();
-        footprint.direct_call(model).unwrap();
         footprint
             .view(model, model.view_named("xmm3").unwrap().id)
             .unwrap();
         footprint
             .units
             .extend(&model.view_named("rflags").unwrap().write_units);
-        let result = footprint.finish(model).unwrap();
+        let result = footprint
+            .finish(model)
+            .unwrap()
+            .compose(&direct_call_effects(target::Architecture::X86_64).unwrap());
         assert!(result.registers().contains(MachineRegister::X86Xmm(3)));
         assert!(result.machine_state().contains_all(MachineStateSet::new([
             MachineState::VectorRegisters,
@@ -522,6 +595,8 @@ mod tests {
                 .contains_all(MachineStateSet::new([MachineState::VectorRegisters]))
         );
         assert!(!result.registers().contains(MachineRegister::X86Xmm(5)));
+        assert!(result.registers_read().contains(MachineRegister::X86Xmm(5)));
+        assert!(result.clobbered_state().is_empty());
     }
 
     #[test]

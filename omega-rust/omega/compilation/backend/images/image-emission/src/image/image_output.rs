@@ -301,13 +301,14 @@ pub(crate) fn emit_direct_executable_image_signed(
     let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
     let prepared =
         crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-    let image = image::build_final_image(FinalImageInput {
+    let mut image = image::build_final_image(FinalImageInput {
         target: artifact.target,
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
+    crate::image::entry_effects::attach(artifact, &mut image, prepared.entry_shim.as_ref())?;
     let final_image_symbol_digest = image::final_image_symbol_digest(&image);
     let output = match artifact.target.object_format {
         // The architecture axis is deliberately not a dispatch key here: each
@@ -382,13 +383,18 @@ pub fn validate_direct_executable_image(
     let prepared_entry = crate::entries::hosted_unit_entry::prepare(artifact)?;
     let prepared =
         crate::entries::hosted_unit_entry::prepared_parts(artifact, prepared_entry.as_ref());
-    let replayed_final_image = image::build_final_image(FinalImageInput {
+    let mut replayed_final_image = image::build_final_image(FinalImageInput {
         target: artifact.target(),
         object: prepared.object,
         relocations: prepared.relocations,
         text_bytes: prepared.text_bytes,
         data_bytes: artifact.data_bytes(),
     });
+    crate::image::entry_effects::attach(
+        artifact,
+        &mut replayed_final_image,
+        prepared.entry_shim.as_ref(),
+    )?;
     if image.final_image_symbol_digest != image::final_image_symbol_digest(&replayed_final_image) {
         return Err(Diagnostic::error(
             "terminal executable image symbol evidence does not match its exact object entry/data-symbol table",

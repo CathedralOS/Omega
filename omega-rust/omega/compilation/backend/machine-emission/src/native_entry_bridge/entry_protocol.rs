@@ -7,8 +7,7 @@
 //! nor an interrupt acknowledgement.
 
 use calling_conventions::{
-    EntryControl, MachineRegister, MachineState, MachineStateSet, RegisterSet,
-    StateFootprintEvidence,
+    EntryControl, MachineRegister, MachineState, MachineStateSet, RegisterSet, StateEffectsEvidence,
 };
 use target::Architecture;
 
@@ -66,7 +65,7 @@ fn interrupt(request: &NativeEntryBridgeRequest) -> Result<EntryProtocol, Error>
         return Err(Error::UnsupportedInterruptState);
     }
     let footprint = interrupt_body_footprint(request)?;
-    if !restored.contains_all(footprint.machine_state()) {
+    if !restored.contains_all(footprint.clobbered_state()) {
         return Err(Error::InterruptBodyStateExceedsPlan);
     }
     Ok(EntryProtocol {
@@ -125,7 +124,7 @@ pub(super) fn validate_fatal(request: &NativeEntryBridgeRequest) -> Result<(), E
 
 fn interrupt_body_footprint(
     request: &NativeEntryBridgeRequest,
-) -> Result<&StateFootprintEvidence, Error> {
+) -> Result<&StateEffectsEvidence, Error> {
     let footprint = request
         .body_footprint
         .as_ref()

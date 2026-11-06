@@ -18,6 +18,8 @@ pub(crate) fn encoder_resolved(
 mod cursor;
 mod fma;
 mod frame_protocol;
+mod generated_entry;
+pub use generated_entry::decode_x86_64_generated_entry;
 /// Unresolved ordinary internal call control; the owner retains its rel32 field.
 pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 5] = [0xe8, 0, 0, 0, 0];
 /// Ordinary call-return control, after releasing the active frame.

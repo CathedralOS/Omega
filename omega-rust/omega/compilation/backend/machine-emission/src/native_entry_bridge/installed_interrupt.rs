@@ -195,13 +195,7 @@ pub fn emit_installed_interrupt_entry_bridge(
     // Both paths are back at top-56; discard gap and any CPU error word.
     bytes.extend_from_slice(&[0x48, 0x83, 0xc4, 16]); // add rsp, 16
     bytes.extend_from_slice(protocol.return_bytes);
-    Ok(NativeEntryBridge {
-        request,
-        bytes,
-        frame_bytes,
-        call_field_offset,
-        installed_interrupt: Some(plan),
-    })
+    finish_native_entry(request, bytes, frame_bytes, call_field_offset, Some(plan))
 }
 
 // Encoding order is also restoration order; RSP comes from the CPU frame.

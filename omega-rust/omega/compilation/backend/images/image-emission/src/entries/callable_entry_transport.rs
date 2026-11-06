@@ -7,12 +7,38 @@ mod body_footprint;
 use std::sync::Arc;
 
 use crate::{FunctionFragmentObjectArtifactError as Error, ObjectArtifact, PrivateFunctionObject};
-use calling_conventions::{BoundaryEntryPlan, EntryControl, ValueClass};
+use calling_conventions::{BoundaryEntryPlan, ValueClass};
 use function_identity::MachineFunctionIdentity;
 use machine_emission::native_entry_bridge::{
     InstalledInterruptEntryPlan, NativeEntryBridgeRequest, NativeEntryParameter,
     emit_installed_interrupt_entry_bridge, emit_native_entry_bridge,
 };
+
+/// A checked entry remains a checked entry when its ABI needs no adapter bytes.
+/// Keep that result beside the optional bridge rather than representing an alias
+/// as the absence of state and body correspondence evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallableEntryTransport {
+    pub(crate) bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    pub(crate) effects: calling_conventions::StateEffectsEvidence,
+    pub(crate) inbound: BoundaryEntryPlan,
+    pub(crate) ordinals: Vec<u32>,
+    source_psi: terminal_psi::TerminalPsiIdentity,
+    entry: semantic_vocabulary::MachineId,
+}
+
+pub(crate) fn validate_callable_transport(
+    body: &ObjectArtifact,
+    transport: &CallableEntryTransport,
+) -> Result<(), Error> {
+    let expected = create_callable_entry_transport(body, &transport.inbound, &transport.ordinals)?;
+    if expected != *transport {
+        return Err(Error::Mismatch(
+            "callable entry transport belongs to another body, ABI or state promise",
+        ));
+    }
+    Ok(())
+}
 
 /// Bind a caller-scoped private identity to its unchanged body and native entry.
 /// The ordinal roster is in internal lane order, after the nominal formal join.
@@ -22,11 +48,12 @@ pub fn create_private_function_object(
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
 ) -> Result<PrivateFunctionObject, Error> {
-    let entry_bridge = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
+    let transport = create_callable_entry_transport(&body, inbound, inbound_ordinals)?;
     Ok(PrivateFunctionObject {
         identity,
         body,
-        entry_bridge,
+        entry_bridge: transport.bridge,
+        entry_effects: transport.effects,
         inbound: inbound.clone(),
         inbound_ordinals: inbound_ordinals.to_vec(),
     })
@@ -59,6 +86,7 @@ pub fn create_installed_private_function_object(
     Ok(PrivateFunctionObject {
         identity,
         body,
+        entry_effects: bridge.complete_effects().clone(),
         entry_bridge: Some(bridge),
         inbound: inbound.clone(),
         inbound_ordinals: inbound_ordinals.to_vec(),
@@ -72,20 +100,31 @@ pub fn create_callable_entry_transport(
     body: &ObjectArtifact,
     inbound: &BoundaryEntryPlan,
     inbound_ordinals: &[u32],
-) -> Result<Option<machine_emission::native_entry_bridge::NativeEntryBridge>, Error> {
+) -> Result<CallableEntryTransport, Error> {
     if body.installed_entry_execution().is_some() {
         return Err(Error::Mismatch(
             "a privileged installed body cannot become an ordinary callable entry",
         ));
     }
     let request = native_entry_request(body, inbound, inbound_ordinals)?;
-    if identity_transport(&request) {
-        Ok(None)
+    let (bridge, effects) = if identity_transport(&request) {
+        let effects = request
+            .checked_complete_effects(&calling_conventions::StateEffectsEvidence::empty())
+            .map_err(Error::NativeEntryBridge)?;
+        (None, effects)
     } else {
-        emit_native_entry_bridge(request)
-            .map(Some)
-            .map_err(Error::NativeEntryBridge)
-    }
+        let bridge = emit_native_entry_bridge(request).map_err(Error::NativeEntryBridge)?;
+        let effects = bridge.complete_effects().clone();
+        (Some(bridge), effects)
+    };
+    Ok(CallableEntryTransport {
+        bridge,
+        effects,
+        inbound: inbound.clone(),
+        ordinals: inbound_ordinals.to_vec(),
+        source_psi: body.psi(),
+        entry: body.entry(),
+    })
 }
 
 /// Resolve the native transport against the unchanged ordinary body. Image
@@ -182,12 +221,7 @@ pub(crate) fn native_entry_request(
         target: body.target,
         internal: internal.clone(),
         inbound: inbound.clone(),
-        body_footprint: match inbound.call.entry_control {
-            EntryControl::InterruptReturn => {
-                Some(body_footprint::collect(body, inbound.state.preemption)?)
-            }
-            _ => None,
-        },
+        body_footprint: Some(body_footprint::collect(body, inbound.state.preemption)?),
         parameters,
     })
 }
@@ -240,7 +274,9 @@ pub(crate) fn validate_entry_transport(
             &private.inbound_ordinals,
         )?,
     };
-    if expected.entry_bridge != private.entry_bridge {
+    if expected.entry_bridge != private.entry_bridge
+        || expected.entry_effects != private.entry_effects
+    {
         return Err(Error::Mismatch(
             "private native entry differs from ordinary body transport",
         ));

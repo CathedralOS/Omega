@@ -25,6 +25,13 @@ impl ComponentSharedContainer {
             Self::Pe(image) => image.image(),
         }
     }
+    pub fn final_text_bytes(&self) -> &[u8] {
+        match self {
+            Self::Elf(image) => image.final_text_bytes(),
+            Self::MachO(image) => image.final_text_bytes(),
+            Self::Pe(image) => image.final_text_bytes(),
+        }
+    }
     pub fn contents(&self) -> &[u8] {
         match self {
             Self::Elf(image) => image.contents(),
@@ -97,6 +104,14 @@ pub fn emit_component_shared_image(
         slot_commitment,
         crate::component_export_symbol(&slot_commitment).into_bytes(),
     );
+    let emitted = emitted.and_then(|image| {
+        let validation =
+            validate_component_entry_effects(&image, export_symbol, entry_bridge.as_ref());
+        match validation {
+            Ok(()) => Ok(image),
+            Err(diagnostic) => Err((image.image().clone(), diagnostic)),
+        }
+    });
     match emitted {
         Ok(image) => Ok(ComponentSharedImage {
             body,
@@ -174,4 +189,59 @@ pub(crate) fn emit_shared_function_container(
             ),
         )),
     }
+}
+
+/// Replay only the selected entry rows through their target form owner after
+/// the format owner has resolved its relocations. Body instruction custody
+/// remains with the original checked fragment; this is not a whole-image decoder.
+fn validate_component_entry_effects(
+    container: &ComponentSharedContainer,
+    export: image::FinalImageSymbolHandle,
+    bridge: Option<&NativeEntryBridge>,
+) -> Result<(), Diagnostic> {
+    let image = container.image();
+    let symbol = image.symbol_table.symbols.get(export);
+    let region = image
+        .executable_regions
+        .iter()
+        .find(|region| region.section_offset == symbol.offset && region.byte_count == symbol.size)
+        .ok_or_else(|| Diagnostic::error("component entry has no exact state-evidence region"))?;
+    let complete = region
+        .entry_effects
+        .as_ref()
+        .ok_or_else(|| Diagnostic::error("component entry lost its complete state evidence"))?;
+    if let Some(bridge) = bridge {
+        if complete != bridge.complete_effects() {
+            return Err(Diagnostic::error(
+                "component entry state differs from its checked closure",
+            ));
+        }
+        let end = symbol
+            .offset
+            .checked_add(symbol.size)
+            .ok_or_else(|| Diagnostic::error("component entry byte span overflows"))?;
+        let bytes = container
+            .final_text_bytes()
+            .get(symbol.offset..end)
+            .ok_or_else(|| Diagnostic::error("component entry byte span is stale"))?;
+        let call = Some(
+            u32::try_from(bridge.call_field_offset())
+                .map_err(|_| Diagnostic::error("component entry call exceeds u32"))?,
+        );
+        let replay = match image.target.architecture {
+            target::Architecture::X86_64 => isa_x86_64::decode_x86_64_generated_entry(bytes, call),
+            target::Architecture::Aarch64 => {
+                isa_aarch64::decode_aarch64_generated_entry(bytes, call)
+            }
+        }
+        .map_err(Diagnostic::error)?;
+        if replay != *bridge.generated()
+            || region.footprint.as_ref() != Some(replay.effects.footprint())
+        {
+            return Err(Diagnostic::error(
+                "component entry instructions or effects fail final target replay",
+            ));
+        }
+    }
+    Ok(())
 }

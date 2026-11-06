@@ -387,6 +387,7 @@ pub struct ObjectCompilerPrivateFunction {
     pub body: std::sync::Arc<ObjectArtifact>,
     /// Physical native entry; absent only for identity transport to the body.
     pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    pub entry_effects: calling_conventions::StateEffectsEvidence,
     /// Keep the external calling recipe even when no adapter code is needed.
     pub inbound: calling_conventions::BoundaryEntryPlan,
     /// Native parameter ordinals in the ordinary body's formal order.
@@ -436,6 +437,7 @@ pub struct PrivateFunctionObject {
     pub identity: function_identity::MachineFunctionIdentity,
     pub body: std::sync::Arc<ObjectArtifact>,
     pub entry_bridge: Option<machine_emission::native_entry_bridge::NativeEntryBridge>,
+    pub entry_effects: calling_conventions::StateEffectsEvidence,
     /// Keep the external calling recipe even when no adapter code is needed.
     pub inbound: calling_conventions::BoundaryEntryPlan,
     /// Native parameter ordinals in the ordinary body's formal order.

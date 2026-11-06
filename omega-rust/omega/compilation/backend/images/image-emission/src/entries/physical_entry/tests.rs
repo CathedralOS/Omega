@@ -71,7 +71,7 @@ fn private_stack_prefix_copies_abi_stack_arguments_and_preserves_return() {
             target: target::NativeTarget::uefi_x64(),
             internal: plan.plan().call.clone(),
             inbound: plan.plan().clone(),
-            body_footprint: None,
+            body_footprint: Some(calling_conventions::StateEffectsEvidence::empty()),
             parameters,
         })
         .unwrap();

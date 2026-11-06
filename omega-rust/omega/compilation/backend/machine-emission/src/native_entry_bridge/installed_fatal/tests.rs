@@ -11,6 +11,7 @@ fn permitted() -> MachineStateSet {
         MachineState::Flags,
         MachineState::InstructionPointer,
         MachineState::StackPointer,
+        MachineState::ControlState,
     ])
 }
 
@@ -57,10 +58,13 @@ fn request(stack: EntryStack) -> NativeEntryBridgeRequest {
         target,
         internal,
         inbound: inbound.plan().clone(),
-        body_footprint: Some(StateFootprintEvidence::new(
-            RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rsp]),
-            permitted(),
-        )),
+        body_footprint: Some(
+            StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rsp]),
+                permitted(),
+            )
+            .into(),
+        ),
         parameters,
     }
 }
@@ -142,10 +146,10 @@ fn fatal_arrival_keeps_complete_body_state_evidence() {
     outside_ceiling.inbound.state.permitted_transitive_use =
         MachineStateSet::new([MachineState::GeneralRegisters]);
     let mut vector = request(EntryStack::Interrupted);
-    vector.body_footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Xmm(0)]),
-        permitted(),
-    ));
+    vector.body_footprint = Some(
+        StateFootprintEvidence::new(RegisterSet::new([MachineRegister::X86Xmm(0)]), permitted())
+            .into(),
+    );
     for request in [outside_ceiling, vector] {
         assert_eq!(
             emit(request, plan()),
@@ -170,5 +174,53 @@ fn fatal_arrival_does_not_relax_mask_stack_or_returning_timer_protocols() {
             InstalledInterruptEntryPlan::new(InstalledInterruptFrame::NoErrorCode),
         ),
         Err(Error::UnsupportedInterruptState),
+    );
+}
+
+#[test]
+fn fatal_generated_control_reads_require_an_explicit_use_ceiling() {
+    let mut missing = request(EntryStack::Interrupted);
+    // The body itself does not use control state; SGDT/SIDT/STR in the
+    // generated arrival still do, and cannot borrow permission from its name.
+    missing.body_footprint = Some(calling_conventions::StateEffectsEvidence::empty());
+    missing.inbound.state.permitted_transitive_use = MachineStateSet::new([
+        MachineState::GeneralRegisters,
+        MachineState::Flags,
+        MachineState::InstructionPointer,
+        MachineState::StackPointer,
+    ]);
+    assert!(matches!(
+        emit(missing.clone(), plan()),
+        Err(Error::GeneratedEntryEffects(_))
+    ));
+    missing.inbound.state.permitted_transitive_use = permitted();
+    let bridge = emit(missing, plan()).unwrap();
+    assert!(
+        bridge
+            .generated()
+            .effects
+            .machine_state()
+            .contains_all(MachineStateSet::new([MachineState::ControlState]))
+    );
+    assert!(
+        !bridge
+            .generated()
+            .effects
+            .clobbered_state()
+            .contains_all(MachineStateSet::new([MachineState::ControlState]))
+    );
+    validate_native_entry_bridge(&bridge).unwrap();
+
+    let mut dropped = bridge.clone();
+    dropped.generated.instructions.remove(0);
+    assert_eq!(
+        validate_native_entry_bridge(&dropped),
+        Err(Error::ReplayMismatch)
+    );
+    let mut wrong_call = bridge;
+    wrong_call.call_field_offset += 1;
+    assert_eq!(
+        validate_native_entry_bridge(&wrong_call),
+        Err(Error::ReplayMismatch)
     );
 }

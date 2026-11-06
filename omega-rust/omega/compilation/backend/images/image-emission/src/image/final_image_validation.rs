@@ -122,6 +122,7 @@ fn validate_terminal_image_with_import_count(
         &output.final_text_bytes,
     )?;
     image::validate_placed_data_region_inventory(&output.data_regions, &output.final_data_bytes)?;
+    crate::image::entry_effects::validate(artifact, output, entry_shim.as_ref())?;
     if !output.final_data_bytes.is_empty() {
         let text_end = output
             .final_image_layout
