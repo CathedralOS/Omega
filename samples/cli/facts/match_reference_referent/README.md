@@ -68,51 +68,51 @@ reference and read result across the selected target's calling convention,
 registers and stack storage. All required places must run with both engines
 and exit 0; emitted artifacts alone do not establish execution.
 
-## Recorded results and remaining checks
+## Scope and recorded results
 
-The optimized baseline `64376af6ae978b4ddb2d2d50874724226ccb0646`
-rejected the root and all nine positive places at the requirement that the
-referent equal 17. These failures were observed on macOS ARM64 on 2026-11-05.
+This change migrates the Build-selected target example and its matching fixtures.
+It contains no Rust or library change. The nine reference-match programs and
+root keep their values, contracts, consuming read and runtime checks.
 
-The following repaired producers ran the root and all nine positive places at
-exit 0 in both engines. Each run also passed 15 corpus positives and ordinary
-execution of the target-provider project. All 29 negative controls rejected;
-28 matched their expected diagnostic.
+On all four hosts, the nine corpus positives and root plus nine sample positives
+run at exit 0 in both engines. All nine corpus twins and three independent-input
+controls reject; eleven match their expected diagnostic. Eight sample twins
+match. The nested corpus and sample expectations miss the same caller/state
+labels, so the full-row runs remain failed.
 
-| Host | Actual producer | Run |
+| Host | Actual compiler source | Run |
 | --- | --- | --- |
-| Linux x86-64 | `195774d028943e0adfc06e7bee331a9a187da740` | [42138842550](https://github.com/CathedralOS/Omega/actions/runs/42138842550) |
-| Linux ARM64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145265423](https://github.com/CathedralOS/Omega/actions/runs/42145265423) |
-| macOS ARM64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145219092](https://github.com/CathedralOS/Omega/actions/runs/42145219092) |
-| Windows x86-64 | `47307200e73621ba104defb0300cc6c2447dc6ce` | [42145268258](https://github.com/CathedralOS/Omega/actions/runs/42145268258) |
+| Linux x86-64 | `43c8f36b1569` | [42267274369](https://github.com/CathedralOS/Omega/actions/runs/42267274369) |
+| Linux ARM64 | `804d94179e6b` | [42271885697](https://github.com/CathedralOS/Omega/actions/runs/42271885697) |
+| macOS ARM64 | `804d94179e6b` | [42271885697](https://github.com/CathedralOS/Omega/actions/runs/42271885697) |
+| Windows x86-64 | `804d94179e6b` | [42271885697](https://github.com/CathedralOS/Omega/actions/runs/42271885697) |
 
-These results retain their actual producer identities. Both revisions use the
-reviewed compiler source `bb51de149e26`; their workflow cache settings differ.
-They do not establish behavior of the newer integrated candidate.
+Linux reuses the verified optimized compiler with run configuration
+`b5d560ee2fc6`. The other hosts build the source shown above with run configuration
+`146272abe22f`; their compiler and library inputs equal fixed main `43c8f36b1569`.
+The final documentation and record changes preserve those tested program inputs.
 
-The nested twin still expects caller/state names `main`/`pick`; the diagnostic
-reports `pick`/`entry` for the same missing 17 requirement. The frozen expectation
-is unchanged, so all four earlier runs remain failed and the row remains open.
-The exact label correction still needs approval under the existing diagnostic-pin
-rule.
+Ordinary execution of the provider project also exits 0 in both engines on all
+four hosts. Linux retains the [earlier exact-input replay](https://github.com/CathedralOS/Omega/actions/runs/42258417474)
+with that same compiler and run configuration `6ab3b2410ace`; the other hosts run
+it in the matrix above. Each capture verifies all 180 copied inputs and nine
+product files, including `.omega-owner`.
 
-A [bounded current-main replay](https://github.com/CathedralOS/Omega/actions/runs/42258417474)
-uses optimized compiler `43c8f36b1569` with run configuration `6ab3b2410ace`.
-It checks the frozen local positive and rejects its twin for the unchanged pin.
-The ordinary target-provider project also runs at exit 0 in both engines.
-Current main already supplies the compiler support those checks need, so the
-remaining compiler addition was removed. This PR now changes the Build-selected
-provider example, its fixtures, controls, records and documentation. The other
-places and hosts retain the earlier producer identities above; the bounded
-replay does not establish new full-row qualification.
+## Unchanged failure in the broader row
 
-Earlier ordinary-execution uploads retained eight product files and reported
-nine product digests. The hidden `.omega-owner` file was omitted from those
-uploads; its bytes are not claimed verified. The current-main replay retained
-all nine product files, including that marker.
+The nested twin expects caller/state names `main`/`pick`; the diagnostic reports
+`pick`/`entry` for the same missing 17 requirement. Its source, Build file and expectations are unchanged from fixed main.
+The compiler and library sources are also unchanged.
+The changed provider and control packages do not enter that nested program.
+The failure therefore predates this migration and is outside its changed scope,
+as allowed by [validation scope](../../../../tools/testing.md#validation-scope).
 
-Older experiments at `9ff26a870215` also reported gaps when a helper returns a
-reference-valued match, or a match arm names a saved reference-valued match.
-Those experiments are outside this row's acceptance and have not been verified
-against current main. The parent task retains the broader borrowed-result and
-successor-lifetime work.
+The expectation and strict validation rule are unchanged. Every failed report
+remains failed. Correcting that expectation is separate work on the broader row;
+this migration does not claim the row or either parent task complete.
+
+Earlier experiments and four-host observations retain their actual producer
+identities and failed conclusions in the
+[historical PR records](https://github.com/CathedralOS/Omega/pull/1933#issuecomment-6691006128).
+They are not relabeled as executions of the current source. Their original raw
+records and product-retention limitations remain preserved.
