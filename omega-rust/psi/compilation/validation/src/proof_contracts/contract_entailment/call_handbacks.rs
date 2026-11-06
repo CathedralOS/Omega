@@ -156,26 +156,43 @@ pub(crate) fn validate_scalar_loan_handbacks(
                     statement_index,
                     &parent,
                 );
-                let preserved = receiver.is_some_and(|receiver| {
-                    program
-                        .proof_facts
-                        .span_or_empty(definition.where_facts)
-                        .iter()
-                        .chain(variant.into_iter().flat_map(|variant| {
-                            program
-                                .proof_facts
-                                .span_or_empty(variant.where_facts)
-                                .iter()
-                        }))
-                        .all(|fact| {
-                            fact.as_expression().is_some_and(|predicate| {
-                                captured_data_predicate_holds(
-                                    program, machine, state, point, &parent, receiver, definition,
-                                    *predicate,
-                                )
+                let mut encoded = parent.clone();
+                encoded.segments.push(PlaceSegment::Field { symbol });
+                let encoding_preserves = variant.is_none()
+                    && program
+                    .primitive_type_reference(shell.referee)
+                    .zip(program.primitive_type_reference(field.type_reference))
+                    .is_some_and(|(view, source)| {
+                        super::structural_judgment::stored_encoding_preserves_field(
+                            program,
+                            &encoded,
+                            view,
+                            source,
+                            definition,
+                            field.symbol,
+                        )
+                    });
+                let preserved = encoding_preserves
+                    || receiver.is_some_and(|receiver| {
+                        program
+                            .proof_facts
+                            .span_or_empty(definition.where_facts)
+                            .iter()
+                            .chain(variant.into_iter().flat_map(|variant| {
+                                program
+                                    .proof_facts
+                                    .span_or_empty(variant.where_facts)
+                                    .iter()
+                            }))
+                            .all(|fact| {
+                                fact.as_expression().is_some_and(|predicate| {
+                                    captured_data_predicate_holds(
+                                        program, machine, state, point, &parent, receiver,
+                                        definition, *predicate,
+                                    )
+                                })
                             })
-                        })
-                });
+                    });
                 if !preserved {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` cannot lend restricted field `{}` to `{}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",

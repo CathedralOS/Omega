@@ -41,6 +41,7 @@ mod returned_fields;
 mod runtime_induction;
 pub(super) mod selected_contracts;
 mod storage_effects;
+pub(crate) use storage_effects::stored_encoding_preserves_field;
 mod traversal_inputs;
 pub(in crate::proof_contracts::contract_entailment) use traversal_inputs::StructuralTraversalInputs;
 mod value_correspondence;

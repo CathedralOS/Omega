@@ -713,6 +713,21 @@ fn handle_field_store<'program>(
             })
         })
         .collect::<Vec<_>>();
+    let view_primitive = crate::expression_result_type_reference(program, machine, state, value)
+        .and_then(|reference| program.primitive_type_reference(reference));
+    let source_primitive = program.primitive_type_reference(store.field.type_reference);
+    // A whole-cell IntegerAt view write lands in the encoding's domain. That
+    // restores a record `requires` whose only facts are intervals inside it.
+    let encoding_preserves = view_primitive.zip(source_primitive).is_some_and(|(view, source)| {
+        crate::proof_contracts::contract_entailment::structural_judgment::stored_encoding_preserves_field(
+            program,
+            &store.destination,
+            view,
+            source,
+            definition,
+            store.field.symbol,
+        )
+    });
     for requirement in requirements {
         let fact = &requirement.fact;
         let resident_proven = !requirement.case.is_valid()
@@ -720,7 +735,14 @@ fn handle_field_store<'program>(
                 super::place_queries::data_predicate_fields(program, place.definition, fact)
                     == [field]
             });
+        let encoding_holds = encoding_preserves
+            && !requirement.case.is_valid()
+            && written_field.is_some_and(|written| {
+                super::place_queries::data_predicate_fields(program, place.definition, fact)
+                    == [written]
+            });
         let proven = resident_proven
+            || encoding_holds
             || match fact {
                 typed_trees::domain::ProofFact::Expression(expression) => {
                     match fold(
