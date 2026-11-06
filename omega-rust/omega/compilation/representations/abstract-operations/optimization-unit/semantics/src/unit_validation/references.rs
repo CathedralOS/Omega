@@ -743,6 +743,13 @@ pub(crate) fn validate_function_references(
             }
             continue;
         }
+        // A window extraction relocates existing leaves rather than forming
+        // new references. Structural-root validation checks its exact selected
+        // type; ordered window replay requires the live source and records
+        // the vacancy that must be restored before normal completion.
+        if matches!(node.operation, O::MoveStructuralField { .. }) {
+            continue;
+        }
         if contains_reference(types, result.structural_type)
             && !is_reference(result.structural_type)
             && (!matches!(
