@@ -438,12 +438,6 @@ impl TypedTrees {
                 .is_some_and(|(left, right)| left == right)
     }
 
-    /// Prepare the immutable invocation association before a batch of reads.
-    /// This changes only derived lookup storage, never callable admission.
-    pub fn prepare_applied_machine_callable_queries(&self) {
-        self.applied_callable_signatures.prepare_index();
-    }
-
     /// A retained specialization describes an existing application, rather
     /// than supplying another invocation. Its complete typed tuple must still
     /// match before its selected helpers can use that application's contracts.
