@@ -149,4 +149,3 @@ reaches MachineControl + PortIo
     Completion(acknowledgement);
     finish_static_interrupt_completion(permit);
 }
-
