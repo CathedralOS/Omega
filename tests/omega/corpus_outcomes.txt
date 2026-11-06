@@ -19100,17 +19100,12 @@ pass/arithmetic/reused_masked_shift_count_exit rejected 12741ms check-target:mac
 	Exact integer cast in machine `Main::main` state `main` from `i32` to `u32` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 20224ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 17205ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_boolean_alias_shift_count_exit rejected 1394ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_alias_shift_count_exit checked 10862ms check-target:macos_arm64 @019c9f4f6fce
 pass/arithmetic/runtime_boolean_divisor_state_exit checked 3856ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_boolean_field_shift_count_exit checked 3542ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_boolean_guarded_bit_value_exit rejected 1385ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
-pass/arithmetic/runtime_boolean_guarded_product_exit rejected 1221ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-pass/arithmetic/runtime_boolean_state_shift_count_exit rejected 1168ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_boolean_guarded_bit_value_exit checked 10860ms check-target:macos_arm64 @019c9f4f6fce
+pass/arithmetic/runtime_boolean_guarded_product_exit checked 11757ms check-target:macos_arm64 @019c9f4f6fce
+pass/arithmetic/runtime_boolean_state_shift_count_exit checked 11610ms check-target:macos_arm64 @019c9f4f6fce
 pass/arithmetic/runtime_bounded_dividend_remainder_exit checked 3905ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bounded_unsigned_sum_chain_exit checked 15823ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_bounded_unsigned_sum_field_and_call_exit checked 16203ms check-target:macos_arm64 @ccdb99ca2214
@@ -19123,9 +19118,7 @@ pass/arithmetic/runtime_cyclic_parameter_fixed_use_after_console_exit checked 15
 pass/arithmetic/runtime_dispatch_cast_decisions_exit checked 16018ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_domain_boundaries_exit checked 16679ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_exact_dispatch_divisor_exit checked 17488ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_exact_guarded_shift_count_exit rejected 48376ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	exact arithmetic in machine `shift` state `entry` assignment may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-	shift count in machine `shift` state `entry` assignment is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 108415ms check-target:macos_arm64 @019c9f4f6fce
 pass/arithmetic/runtime_exact_left_shift_bounds_exit checked 3936ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_exact_projection_sibling_exit checked 18105ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit checked 18105ms check-target:macos_arm64 @ccdb99ca2214
@@ -19160,9 +19153,7 @@ pass/arithmetic/runtime_signed_minimum_remainder_exit checked 3826ms check-targe
 pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_signed_modulo_shift_edges_exit checked 17145ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_transition_arg_false_arm_narrowing_exit checked 16400ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_transitive_bit_value_exit rejected 1395ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `calculate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	shift count in machine `calculate` state `entry` terminal expression is not provably below the operand width for `u64`: exact shifts prove `count < 64` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u64 in Wrapping` reduces the count modulo 64, equivalently `count & 63` for this carrier; `in Trapping` traps at runtime).
+pass/arithmetic/runtime_transitive_bit_value_exit checked 11831ms check-target:macos_arm64 @019c9f4f6fce
 pass/arithmetic/runtime_transitive_product_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_trapping_mutable_local_traps checked 17171ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_trapping_overflow_traps checked 16881ms check-target:macos_arm64 @ccdb99ca2214
@@ -21039,8 +21030,7 @@ pass/dependent/boundary_equality_recast_witness_compile rejected 699ms regressed
 pass/dependent/boundary_requires_caller_field_extent_compile checked 1937ms @ccdb99ca2214
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 2195ms @ccdb99ca2214
 pass/dependent/case_where_common_field_window checked 2301ms @ccdb99ca2214
-pass/dependent/case_where_equality_bounds_subtraction rejected 697ms regressed-from:checked @ccdb99ca2214
-	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/dependent/case_where_equality_bounds_subtraction checked 11021ms @019c9f4f6fce
 pass/dependent/case_where_generic_type_bound_coverage rejected 95ms regressed-from:checked @ccdb99ca2214
 	match over `Value` does not cover `Value::Integer`; add an arm or `_`
 pass/dependent/case_where_match_contributes rejected 2233ms regressed-from:checked @ccdb99ca2214
@@ -22058,9 +22048,7 @@ pass/facts/case_payload_layout_geometry_through_field_exit checked 3727ms check-
 pass/facts/case_payload_layout_geometry_through_local_exit checked 4233ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_layout_geometry_through_match_join_exit checked 3971ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_layout_geometry_through_other_machine_exit checked 3443ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_layout_geometry_through_other_state_exit rejected 1544ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/case_payload_layout_geometry_through_other_state_exit checked 12217ms check-target:macos_arm64 @019c9f4f6fce
 pass/facts/case_payload_layout_geometry_through_parameter_exit checked 4502ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_layout_geometry_through_target_body_exit checked 3879ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_stored_loan_through_call_result_exit checked 3462ms check-target:macos_arm64 @ccdb99ca2214
@@ -22850,9 +22838,7 @@ pass/facts/fixed_array_layout_geometry_through_field_exit checked 3664ms check-t
 pass/facts/fixed_array_layout_geometry_through_local_exit checked 2578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_layout_geometry_through_match_join_exit checked 4415ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_layout_geometry_through_other_machine_exit checked 4201ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/fixed_array_layout_geometry_through_other_state_exit rejected 1629ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/fixed_array_layout_geometry_through_other_state_exit checked 11489ms check-target:macos_arm64 @019c9f4f6fce
 pass/facts/fixed_array_layout_geometry_through_parameter_exit checked 3336ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_layout_geometry_through_target_body_exit checked 3995ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_call_result_exit checked 8009ms check-target:macos_arm64 @ccdb99ca2214
@@ -23649,9 +23635,7 @@ pass/facts/mixed_width_record_padding_geometry_through_field_exit checked 3889ms
 pass/facts/mixed_width_record_padding_geometry_through_local_exit checked 3721ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_match_join_exit checked 3501ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_other_machine_exit checked 4234ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/mixed_width_record_padding_geometry_through_other_state_exit rejected 1414ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/mixed_width_record_padding_geometry_through_other_state_exit checked 16737ms check-target:macos_arm64 @019c9f4f6fce
 pass/facts/mixed_width_record_padding_geometry_through_parameter_exit checked 4347ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_target_body_exit checked 4849ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/multi_exit_callee_saved_restoration_through_call_result_exit checked 4655ms check-target:macos_arm64 @ccdb99ca2214
@@ -23852,9 +23836,7 @@ pass/facts/nested_record_layout_geometry_through_field_exit checked 4118ms check
 pass/facts/nested_record_layout_geometry_through_local_exit checked 3874ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_record_layout_geometry_through_match_join_exit checked 4115ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_record_layout_geometry_through_other_machine_exit checked 4025ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_record_layout_geometry_through_other_state_exit rejected 1525ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/nested_record_layout_geometry_through_other_state_exit checked 14374ms check-target:macos_arm64 @019c9f4f6fce
 pass/facts/nested_record_layout_geometry_through_parameter_exit checked 4261ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_record_layout_geometry_through_target_body_exit checked 4284ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_record_value_through_call_result_exit checked 3843ms check-target:macos_arm64 @ccdb99ca2214
@@ -24197,8 +24179,7 @@ pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target
 pass/facts/record_layout_geometry_through_local_exit checked 3311ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_match_join_exit checked 3697ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_other_machine_exit checked 3410ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/record_layout_geometry_through_other_state_exit rejected 1139ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/record_layout_geometry_through_other_state_exit checked 11935ms check-target:macos_arm64 @019c9f4f6fce
 pass/facts/record_layout_geometry_through_parameter_exit checked 3816ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_target_body_exit checked 3646ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/recorded_build_role/call_result checked 23143ms check-target:macos_arm64 @1a41b8e686ed
@@ -24926,9 +24907,7 @@ pass/facts/slice_view_layout_geometry_through_field_exit checked 3719ms check-ta
 pass/facts/slice_view_layout_geometry_through_local_exit checked 3565ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_match_join_exit checked 3733ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_other_machine_exit checked 3841ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/slice_view_layout_geometry_through_other_state_exit rejected 1989ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+pass/facts/slice_view_layout_geometry_through_other_state_exit checked 10446ms check-target:macos_arm64 @019c9f4f6fce
 pass/facts/slice_view_layout_geometry_through_parameter_exit checked 3888ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_layout_geometry_through_target_body_exit checked 4009ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/source_indexed_binary_tree_distinct_exit checked 29293ms check-target:macos_arm64 terminal-inspections:match @6d20220933d7
