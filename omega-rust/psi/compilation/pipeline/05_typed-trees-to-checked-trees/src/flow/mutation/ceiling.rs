@@ -146,6 +146,14 @@ fn selected_signature_ceiling_regions(
         borrow_call.statement_index,
         borrow_call.call_ordinal,
     )?;
+    // A checked requirement citation observes its subjects without executing.
+    // Reuse the same complete-contract judgment as ownership and erasure:
+    // an abstract subject is not a writable runtime argument to this call.
+    if let CallSite::Statement(call) = site
+        && validation::is_fact_only_requirement_citation(program, machine.symbol, call)
+    {
+        return Some(Vec::new());
+    }
     let parameters = site.parameters(program, machine.symbol)?;
     let arguments = call_site_argument_expressions(program, &site);
     if parameters.len() != arguments.len() {
