@@ -3,6 +3,7 @@
 //! using each caller's actual pointers and write destination. If the caller
 //! also needs its caller to prove this, carry the same exact requirement outward.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{
     BorrowAccessKind, BorrowLoanFact, CapturedPlace, CheckFacts, FlowCallFact, FlowOperandFact,
@@ -93,6 +94,7 @@ impl<'facts> IncomingBackingCalls<'facts> {
         &self,
         program: &dyn validation::CheckingInput,
         facts: &CheckFacts,
+        loan_occurrences: &LoanOccurrences<'_>,
         state: &FlowStateFact,
         statement: &checked_trees::FlowStatementFact,
         loan_handle: Handle<BorrowLoanFact>,
@@ -136,7 +138,7 @@ impl<'facts> IncomingBackingCalls<'facts> {
                 });
             }
         }
-        self.discharge(program, facts, pending.clone())?;
+        self.discharge(program, facts, loan_occurrences, pending.clone())?;
         for requirement in pending {
             retained.push(PendingRequirement {
                 requirement,

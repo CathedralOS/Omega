@@ -16,46 +16,16 @@ impl StructuralJudge<'_> {
         dispatch: &TableMatchExpression,
         scope: SymbolHandle,
         parameters: &[StateParameter],
-        mut operand: impl FnMut(&Self, ExpressionHandle) -> Option<StructuralTerm>,
+        operand: impl FnMut(&Self, ExpressionHandle) -> Option<StructuralTerm>,
     ) -> Option<StructuralTerm> {
         let program = self.program;
         if !crate::expression_has_closed_value_captures(program, expression) {
             return None;
         }
-        let subject = operand(self, dispatch.subject)?;
-        let mut selected = self.clone();
-        if dispatch.capture.is_valid() {
-            let capture = program.expression_table.value_capture(dispatch.capture);
-            if capture.definition != expression || capture.subject != dispatch.subject {
-                return None;
-            }
-            selected.bind_formed_match_subjects(&[(capture.value_anchor, subject.clone())]);
-        }
-        for arm in program.expression_table.match_arms(dispatch.arms) {
-            let condition = selected.bound_match_condition(
-                dispatch,
-                &subject,
-                arm.pattern,
-                scope,
-                parameters,
-                &mut operand,
-            )?;
-            let judgment = condition
-                .as_ref()
-                .map_or(StructuralJudgment::Proven, |condition| {
-                    condition.judgment(&selected)
-                });
-            match judgment {
-                StructuralJudgment::Proven => return operand(&selected, arm.value),
-                StructuralJudgment::Refuted => {}
-                StructuralJudgment::Unknown => return None,
-            }
-        }
-        // A non-exhaustive dispatch has no value on the unmatched path.
-        None
+        self.bound_declaration_match_term(expression, dispatch, scope, parameters, operand)
     }
 
-    fn bound_match_condition(
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn bound_match_condition(
         &self,
         dispatch: &TableMatchExpression,
         subject: &StructuralTerm,

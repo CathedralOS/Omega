@@ -69,6 +69,7 @@ fn owned_value_wire_preserves_projected_source_and_claim_identity() {
                 path: vec![StructuralPathSegment::Field(TerminalIdentityIndex(6))],
                 domain: StructuralDomainId::new(7).unwrap(),
             }],
+            additional_input_qualifications: Vec::new(),
             qualification_establishments: Vec::new(),
             claims: vec![StructuralResultClaimBinding {
                 claim: ClaimId::new(8).unwrap(),

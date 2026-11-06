@@ -19,6 +19,7 @@ fn semantic_and_target_parameters_bind_ordered_projected_qualifications() {
         access: StructuralAccess::WriteOnlyBorrow,
         qualifications: Vec::new(),
         projected_qualifications: rows.clone(),
+        additional_input_qualifications: Vec::new(),
     };
     let shape = ValueShape::integer(8, 8);
     let target = target_operations::TargetStructuralParameter {

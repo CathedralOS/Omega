@@ -1,6 +1,7 @@
 //! Join the invocation's captured operands to their physical backing.
 //! The shared completed-storage query owns descriptor/enclosure geometry;
 //! this borrow-checking adapter alone supplies checked completion-time loans.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 use facts::PlaceSegment;
@@ -10,6 +11,7 @@ mod loan_origins;
 pub(super) fn places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     operand: Handle<FlowOperandFact>,
     path: &[PlaceSegment],
@@ -19,6 +21,8 @@ pub(super) fn places(
         &facts.flow.control,
         operand,
         path,
-        &mut |operand, path| loan_origins::places(program, facts, state, operand, path),
+        &mut |operand, path| {
+            loan_origins::places(program, facts, loan_occurrences, state, operand, path)
+        },
     )
 }

@@ -27,6 +27,11 @@ use checked_trees::{
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, FactPlan};
 use symbols::SymbolHandle;
 
+pub(super) struct BuiltCallFlow {
+    pub call: FlowCallFact,
+    pub storage_writes: Option<super::call_phases::CallStorageWrites>,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build_call_flow_fact<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
@@ -42,7 +47,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     borrow_call: &BorrowCallFact,
     captured_operands: &[checked_trees::FlowOperandFact],
     writes: Option<&super::call_phases::CallStorageWrites>,
-) -> FlowCallFact {
+) -> BuiltCallFlow {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
     let (contract_call, entry, requires) = phase_profile::scope(
         "psi.05.build_check_facts.flow.call.entry_and_requires",
@@ -172,7 +177,9 @@ pub(super) fn build_call_flow_fact<'plans>(
                 &mut exit,
                 argument_sources.as_ref(),
                 domains,
-                writes.map(|writes| writes.contributions.as_slice()),
+                observed_writes
+                    .as_ref()
+                    .map(|writes| writes.contributions.as_slice()),
             );
         },
     );
@@ -221,7 +228,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     {
         build.append_origin_write(&mut normal_return_writes, place);
     }
-    FlowCallFact {
+    let call = FlowCallFact {
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
         invocation_storage: Default::default(),
@@ -265,6 +272,10 @@ pub(super) fn build_call_flow_fact<'plans>(
         operational_acknowledgement: Default::default(),
         authored_source_span: None,
         authored_source_custody_valid: false,
+    };
+    BuiltCallFlow {
+        call,
+        storage_writes: observed_writes,
     }
 }
 

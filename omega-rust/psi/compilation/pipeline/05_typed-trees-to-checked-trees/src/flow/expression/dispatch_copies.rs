@@ -86,6 +86,7 @@ impl Execution<'_, '_, '_> {
             .to_vec();
         let mut extraction = validation::DispatchExtraction::of_transition_arm(
             self.program,
+            self.machine,
             self.state,
             self.statement_index,
         );

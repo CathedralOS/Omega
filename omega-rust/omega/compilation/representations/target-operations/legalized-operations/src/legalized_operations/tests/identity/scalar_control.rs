@@ -53,6 +53,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     };
     plan.scalar_functions[0].blocks[0]
         .structural_parameters

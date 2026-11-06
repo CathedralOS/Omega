@@ -42,6 +42,7 @@ mod aliases;
 pub(in crate::checks) use aliases::transport_suppliers;
 mod completed_backings;
 mod formation_captures;
+mod loan_occurrences;
 mod shared_observations;
 pub(crate) use shared_observations::shared_reference_observation;
 mod details;
@@ -59,6 +60,7 @@ use diagnostics::Diagnostic;
 
 use self::elision::check_view_return_elision;
 use self::escape::check_view_return_escape;
+use self::loan_occurrences::LoanOccurrences;
 use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
@@ -69,6 +71,8 @@ pub(crate) fn check_flow_call_borrows(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
+    let prepared_loans = LoanOccurrences::new(program, facts);
+    let loan_occurrences = &prepared_loans;
     let mut diagnostics = Vec::new();
     let mut borrow_by_state = symbols::SymbolKeyMap::<
         (symbols::SymbolHandle, symbols::SymbolHandle),
@@ -95,6 +99,7 @@ pub(crate) fn check_flow_call_borrows(
     calls::check_compatibility(
         program,
         facts,
+        loan_occurrences,
         &state_flows,
         incoming_guards,
         call_frames,
@@ -147,6 +152,7 @@ pub(crate) fn check_flow_call_borrows(
                     check_statement_borrows(
                         program,
                         facts,
+                        loan_occurrences,
                         state_flow,
                         borrow_state,
                         &incoming_backing,
@@ -178,6 +184,7 @@ pub(crate) fn check_flow_call_borrows(
         incoming_requirements.extend(requirements);
     }
     crate::checks::finish(diagnostics)?;
+    drop(prepared_loans);
     incoming_backing::publish(&mut facts.borrow, incoming_requirements)?;
     Ok(())
 }

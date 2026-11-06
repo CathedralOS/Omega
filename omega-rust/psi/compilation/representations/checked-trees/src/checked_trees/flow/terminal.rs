@@ -117,10 +117,10 @@ pub use unit_call_plans::{
 };
 pub use unit_effect_plans::{
     CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralInvocation,
-    CheckedStructuralValueCall, CheckedUnitCallableEntry, CheckedUnitCleanupBoundary,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan, CheckedUnitPlanGap,
-    CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
+    CheckedStructuralLocalInitialization, CheckedStructuralValueCall, CheckedUnitCallableEntry,
+    CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan,
+    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
     CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

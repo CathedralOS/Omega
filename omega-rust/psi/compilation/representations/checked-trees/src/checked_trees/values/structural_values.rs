@@ -149,6 +149,7 @@ pub enum CheckedStructuralValueKind {
         /// Exact supplying type of the selected storage endpoint. A view's
         /// logical referee cannot reconstruct this catalog dependency.
         backing_type: TypeReferenceHandle,
+        source_contract: crate::CheckedReferenceSourceContract,
         /// The backing producer when the source has no existing storage home.
         /// Zero names existing storage. Evaluation lends this child; it never
         /// transfers the child into the descriptor or its containing record.

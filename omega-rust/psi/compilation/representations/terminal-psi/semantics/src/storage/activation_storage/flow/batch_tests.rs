@@ -75,6 +75,7 @@ fn module_activation_batch_preserves_global_error_priority_and_machine_order() {
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     };
     module.machines[0].structural_parameters = vec![parameter(1), parameter(2)];
     let roots = Err("activation carrier root has inconsistent structural types");

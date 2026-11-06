@@ -56,5 +56,6 @@ pub(in crate::legalization) fn parameter(
         access: formal.access,
         qualifications: formal.qualifications.to_vec(),
         projected_qualifications: formal.projected_qualifications.to_vec(),
+        additional_input_qualifications: formal.additional_input_qualifications.to_vec(),
     })
 }

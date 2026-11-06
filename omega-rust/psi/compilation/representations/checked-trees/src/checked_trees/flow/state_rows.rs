@@ -113,7 +113,6 @@ impl FlowControlFacts {
         if !self.calls.is_valid(call) {
             return Vec::new();
         }
-        let selected = self.calls.get(call);
         self.states.call_rows.with_rows(
             &self.states,
             |state| state.calls.start().generation(),
@@ -122,10 +121,18 @@ impl FlowControlFacts {
                 rows.iter()
                     .map(|owner| self.states.get(*owner))
                     .filter(|state| {
-                        self.calls
-                            .span_or_empty(state.calls)
-                            .iter()
-                            .any(|candidate| std::ptr::eq(candidate, selected))
+                        if self.calls.span(state.calls).is_none() {
+                            return false;
+                        }
+                        let Some(offset) = call
+                            .arena_index()
+                            .checked_sub(state.calls.start().arena_index())
+                        else {
+                            return false;
+                        };
+                        // The span iterator owns offset arithmetic and full
+                        // generation identity; nth is a constant-time query.
+                        state.calls.handles().nth(offset as usize) == Some(call)
                     })
                     .collect()
             },
@@ -152,6 +159,20 @@ impl FlowControlFacts {
             |row| row.state_symbol,
             &state,
             |rows| rows.first().map(|handle| self.states.get(*handle)),
+        )
+    }
+
+    /// A unique row with this exact state symbol, including its generation.
+    /// Missing and duplicate identities both withhold the state.
+    pub fn unique_state_by_symbol(&self, state: SymbolHandle) -> Option<&FlowStateFact> {
+        self.states.state_rows.with_rows(
+            &self.states,
+            |row| row.state_symbol,
+            &state,
+            |rows| match rows {
+                [handle] => Some(self.states.get(*handle)),
+                _ => None,
+            },
         )
     }
 
@@ -193,6 +214,41 @@ impl FlowControlFacts {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unique_state_symbol_keeps_duplicates_and_generations_distinct() {
+        let mut control = FlowControlFacts::default();
+        let state = SymbolHandle::from_parts(7, 1);
+        let other_generation = SymbolHandle::from_parts(7, 2);
+        assert!(control.unique_state_by_symbol(state).is_none());
+        control.states.insert(FlowStateFact {
+            state_symbol: state,
+            ..FlowStateFact::default()
+        });
+        assert_eq!(
+            control
+                .unique_state_by_symbol(state)
+                .map(|row| row.state_symbol),
+            Some(state)
+        );
+        assert!(control.unique_state_by_symbol(other_generation).is_none());
+        control.states.insert(FlowStateFact {
+            state_symbol: other_generation,
+            ..FlowStateFact::default()
+        });
+        assert_eq!(
+            control
+                .unique_state_by_symbol(other_generation)
+                .map(|row| row.state_symbol),
+            Some(other_generation)
+        );
+        control.states.insert(FlowStateFact {
+            state_symbol: state,
+            ..FlowStateFact::default()
+        });
+        assert!(control.unique_state_by_symbol(state).is_none());
+        assert!(control.unique_state_by_symbol(other_generation).is_some());
+    }
 
     fn owner_matches_scan(control: &FlowControlFacts, call: Handle<super::super::FlowCallFact>) {
         let expected = if control.calls.is_valid(call) {

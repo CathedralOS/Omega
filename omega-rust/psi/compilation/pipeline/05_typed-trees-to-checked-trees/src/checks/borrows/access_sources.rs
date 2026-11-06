@@ -7,6 +7,7 @@
 //! slot or relabels derived loans as direct reborrows.
 
 use super::aliases::{self, ResolvedAlias};
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
@@ -24,21 +25,37 @@ mod storage_addresses;
 pub(in crate::checks::borrows) fn stored_address(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: arena::Handle<checked_trees::FlowOperandFact>,
     replaces_descriptor: bool,
 ) -> Result<Vec<ResolvedAlias>, &'static str> {
-    storage_addresses::resolve(program, facts, state, capture, replaces_descriptor)
+    storage_addresses::resolve(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        capture,
+        replaces_descriptor,
+    )
 }
 
 pub(in crate::checks::borrows) fn resolve(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     expression: ExpressionHandle,
 ) -> Option<ResolvedAlias> {
-    let mut sources = resolve_all(program, facts, state, statement, expression)?;
+    let mut sources = resolve_all(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        statement,
+        expression,
+    )?;
     (sources.len() == 1).then(|| sources.remove(0))
 }
 
@@ -47,13 +64,21 @@ pub(in crate::checks::borrows) fn resolve(
 pub(in crate::checks::borrows) fn resolve_all(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement: &FlowStatementFact,
     expression: ExpressionHandle,
 ) -> Option<Vec<ResolvedAlias>> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Mutable => {
-            return resolve_all(program, facts, state, statement, borrow.target);
+            return resolve_all(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                statement,
+                borrow.target,
+            );
         }
         ExpressionNode::Call(call) => {
             let mut resolved = Vec::new();
@@ -68,7 +93,9 @@ pub(in crate::checks::borrows) fn resolve_all(
                     return None;
                 }
                 let argument = *arguments.get(source.parameter_index)?;
-                for mut actual in resolve_all(program, facts, state, statement, argument)? {
+                for mut actual in
+                    resolve_all(program, facts, loan_occurrences, state, statement, argument)?
+                {
                     actual.place.segments.extend_from_slice(&projection);
                     if !resolved.iter().any(|previous: &ResolvedAlias| {
                         previous.place == actual.place && previous.lineage == actual.lineage
@@ -95,6 +122,7 @@ pub(in crate::checks::borrows) fn resolve_all(
     resolve_captured_all(
         program,
         facts,
+        loan_occurrences,
         state,
         statement.statement_index,
         statement.entry_constraints,
@@ -108,6 +136,7 @@ pub(in crate::checks::borrows) fn resolve_all(
 pub(in crate::checks::borrows) fn resolve_captured_all(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     entry_constraints: HandleSpan<FlowConstraintRef>,
@@ -116,6 +145,7 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
     resolve_captured_with_loans(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         facts.flow.borrow_loan_constraints(entry_constraints),
@@ -126,14 +156,29 @@ pub(in crate::checks::borrows) fn resolve_captured_all(
 pub(in crate::checks::borrows) fn resolve_captured_with_loans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     loans: impl Iterator<Item = arena::Handle<checked_trees::BorrowLoanFact>>,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
-    let candidates =
-        aliases::resolve_places_with_loans(program, facts, state, loans, place.clone())?;
-    retain_captured_lineage(program, facts, state, statement_index, place, candidates)
+    let candidates = aliases::resolve_places_with_loans(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        loans,
+        place.clone(),
+    )?;
+    retain_captured_lineage(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        statement_index,
+        place,
+        candidates,
+    )
 }
 
 /// The argument already evaluated a reference value, including a descriptor
@@ -142,12 +187,21 @@ pub(in crate::checks::borrows) fn resolve_captured_with_loans(
 pub(in crate::checks::borrows) fn resolve_descriptor_all(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
-    descriptor_loads::resolve(program, facts, state, statement_index, constraints, place)
+    descriptor_loads::resolve(
+        program,
+        facts,
+        loan_occurrences,
+        state,
+        statement_index,
+        constraints,
+        place,
+    )
 }
 
 /// Storage read by collection metadata, before loading its final descriptor.
@@ -155,6 +209,7 @@ pub(in crate::checks::borrows) fn resolve_descriptor_all(
 pub(in crate::checks::borrows) fn metadata_storage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     observed: &checked_trees::FlowValueObservationFact,
@@ -182,6 +237,7 @@ pub(in crate::checks::borrows) fn metadata_storage(
     descriptor_loads::storage(
         program,
         facts,
+        loan_occurrences,
         state,
         statement_index,
         observed.constraints,
@@ -192,6 +248,7 @@ pub(in crate::checks::borrows) fn metadata_storage(
 pub(super) fn retain_captured_lineage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     place: CapturedPlace,
@@ -255,7 +312,7 @@ pub(super) fn retain_captured_lineage(
         // its current-descriptor alternative correspondence was retained.
         let available_at_call = loan.established_by_call.is_valid();
         if let Some(mut lineage) =
-            aliases::retained_lineage(&facts.borrow, borrow_state, candidate.local_loan)
+            aliases::retained_lineage(facts, loan_occurrences, borrow_state, candidate.local_loan)
         {
             for alternative in alternatives {
                 crate::shared::collections::push_unique(&mut lineage, alternative);
@@ -291,7 +348,14 @@ pub(super) fn retain_captured_lineage(
                 .span_or_empty(state.statements)
                 .iter()
                 .find(|previous| previous.statement_index == loan.statement_index)?;
-            resolve_all(program, facts, state, formation, local.initial_value)
+            resolve_all(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                formation,
+                local.initial_value,
+            )
         })();
         let mut lineage = alternatives;
         if let Some(supplying) = supplying {

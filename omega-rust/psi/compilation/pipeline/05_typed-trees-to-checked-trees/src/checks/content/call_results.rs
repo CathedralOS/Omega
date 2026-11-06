@@ -26,6 +26,7 @@ use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::signature::StateParameter;
 
 mod parameter_qualifications;
+mod retained_cell;
 use parameter_qualifications::ParameterQualificationJoin;
 
 pub(super) struct Invocation<'program> {
@@ -564,12 +565,6 @@ fn private_access_result_contract(
     else {
         return Ok(false);
     };
-    if !domain.establishment_routes.iter().any(|route| {
-        matches!(route, DomainEstablishmentRoute::ExactMachine { machine }
-            if *machine == declaration.template())
-    }) {
-        return Ok(false);
-    }
     let bindings = declaration.source_invocation_bindings(
         program,
         invocation.machine,
@@ -591,6 +586,21 @@ fn private_access_result_contract(
         return Err(Diagnostic::error(
             "placement source result disagrees with its exact invocation-owned type operands",
         ));
+    }
+    // Extraction returns the existing value held by the resident, including
+    // its qualifications. Its issuer need not authorize the storage operation
+    // to mint another value. Only the exact authenticated value slot has this
+    // custody contract; the sibling backing still owes its separate route.
+    let retained_cell = declaration.operation()
+        == typed_trees::typed_trees::AccessLifecycleOperation::MoveOut
+        && retained_cell::is_extracted_value_path(program, result_type, bindings[1].1, path);
+    if !retained_cell
+        && !domain.establishment_routes.iter().any(|route| {
+            matches!(route, DomainEstablishmentRoute::ExactMachine { machine }
+                if *machine == declaration.template())
+        })
+    {
+        return Ok(false);
     }
     // This proves the sealed conditional source contract only. Closed
     // geometry, profile provenance and actual backing remain execution duties.

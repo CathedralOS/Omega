@@ -129,6 +129,7 @@ pub(super) fn encode_structural_parameter(
             .map(|qualification| qualification.get()),
     );
     encode_projected_qualifications(bytes, &parameter.projected_qualifications);
+    encode_projected_qualifications(bytes, &parameter.additional_input_qualifications);
 }
 
 pub(super) fn encode_target_structural_parameter(

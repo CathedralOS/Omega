@@ -17,6 +17,26 @@ pub fn present_structural_memberships<'types, 'domains>(
     whole: &mut Vec<StructuralDomainId>,
     projected: &mut Vec<StructuralPathQualification>,
 ) -> Result<(), &'static str> {
+    present_structural_membership_contract(
+        types,
+        domains,
+        destination,
+        whole,
+        projected,
+        &mut Vec::new(),
+    )
+}
+
+/// Facts and their input-only lifetimes change carrier coordinates together.
+/// Reusing the same mapping keeps a copied observation attached to its fact.
+pub fn present_structural_membership_contract<'types, 'domains>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domains StructuralDomainDeclaration> + Clone,
+    destination: StructuralTypeId,
+    whole: &mut Vec<StructuralDomainId>,
+    projected: &mut Vec<StructuralPathQualification>,
+    additional_input: &mut Vec<StructuralPathQualification>,
+) -> Result<(), &'static str> {
     let present = |domain: StructuralDomainId, carrier: StructuralTypeId| {
         let source = domains
             .clone()
@@ -46,7 +66,7 @@ pub fn present_structural_memberships<'types, 'domains>(
     for domain in whole.iter_mut() {
         *domain = present(*domain, destination)?;
     }
-    for row in projected.iter_mut() {
+    for row in projected.iter_mut().chain(additional_input.iter_mut()) {
         let carrier = crate::qualification_path_carrier(types.clone(), destination, &row.path)
             .ok_or("membership presentation has no destination path carrier")?;
         row.domain = present(row.domain, carrier)?;
@@ -55,6 +75,8 @@ pub fn present_structural_memberships<'types, 'domains>(
     whole.dedup();
     projected.sort();
     projected.dedup();
+    additional_input.sort();
+    additional_input.dedup();
     Ok(())
 }
 

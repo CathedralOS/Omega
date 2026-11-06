@@ -89,6 +89,7 @@ wire_record! {
         access: Access,
         qualifications: Ids,
         projected_qualifications: List<PathQualification>,
+        additional_input_qualifications: List<PathQualification>,
     }
     BorrowPlace: RetainedBorrowPlace {
         version: PlaceVersion,

@@ -9,6 +9,7 @@ use super::receiver::explicit_jump_data_access;
 use super::staging::InvocationBoundary;
 use super::staging::access_released_in_prefix;
 use super::staging::completed_observation_before_terminal_transfer;
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
@@ -28,6 +29,7 @@ use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
     program: &'program dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     borrow_state: &checked_trees::StateBorrowFact,
     statement: &checked_trees::FlowStatementFact,
@@ -96,7 +98,15 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 let moved = match &moved_source {
                     Some(place) => place,
                     None => {
-                        match owned_storage_source(program, facts, state, statement, event, path) {
+                        match owned_storage_source(
+                            program,
+                            facts,
+                            loan_occurrences,
+                            state,
+                            statement,
+                            event,
+                            path,
+                        ) {
                             Ok(Some(source)) => moved_source.insert(source.place),
                             Ok(None) => return,
                             Err(diagnostic) => {
@@ -109,6 +119,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 let backings = place_access::argument_backings(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     call,
                     statement.entry_constraints,
@@ -146,6 +157,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
 pub(super) fn check_call_access_conflicts<'p>(
     program: &'p dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state_flow: &FlowStateFact,
     borrow_call: &BorrowCallFact,
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
@@ -193,13 +205,22 @@ pub(super) fn check_call_access_conflicts<'p>(
                     )
                 })
         })
-        .map(|loan| (loan, facts.borrow.loans.get(loan)))
+        .map(|loan| {
+            let row = facts.borrow.loans.get(loan);
+            let inputs = super::staging::returned_loan_input_range(
+                &facts.borrow,
+                row,
+                borrow_call,
+                &accesses,
+            );
+            (loan, row, inputs)
+        })
         .collect();
 
     for transferred in
         crate::flow::owned_call_operand_places(program, facts, state_flow, borrow_call)
     {
-        for (loan_handle, loan) in &active_loans {
+        for (loan_handle, loan, _) in &active_loans {
             if canonical_place_non_interfering(
                 program,
                 &transferred,
@@ -230,6 +251,7 @@ pub(super) fn check_call_access_conflicts<'p>(
         let backings = place_access::argument_backings(
             program,
             facts,
+            loan_occurrences,
             state_flow,
             borrow_call,
             entry_constraints,
@@ -426,7 +448,15 @@ pub(super) fn check_call_access_conflicts<'p>(
             continue;
         }
 
-        for (loan_handle, loan) in &active_loans {
+        for (loan_handle, loan, producing_inputs) in &active_loans {
+            // This result did not exist while its own call's inputs ran.
+            // Keep it active against the result access and every later sibling.
+            if producing_inputs
+                .as_ref()
+                .is_some_and(|range| range.contains(&index))
+            {
+                continue;
+            }
             // An owned carrier retains its backing with the transferred loan.
             // A caller-owned slot instead needs exact intermediate retention:
             // follow copies/replacements through successor slots, reject escape
@@ -493,7 +523,8 @@ pub(super) fn check_call_access_conflicts<'p>(
             // formed through it, suspends that backing for the invocation.
             if !place_access::access_interferes(
                 program,
-                &facts.borrow,
+                facts,
+                loan_occurrences,
                 &operand_backings[index].places,
                 &access.kind,
                 *loan_handle,
@@ -504,14 +535,14 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
                 eprintln!(
-                    "CHECKSITE call-live-loan-conflict state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
+                    "call-live-loan-conflict target={target_name} state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
                     state_flow.state_symbol, borrow_call.statement_index, borrow_call.call_ordinal
                 );
                 for backing in &operand_backings[index].places {
                     eprintln!(
-                        "CHECKSITE call-live-loan-backing place={:?} lineage={:?}",
+                        "call-live-loan-backing place={:?} lineage={:?}",
                         backing.place, backing.lineage
                     );
                 }

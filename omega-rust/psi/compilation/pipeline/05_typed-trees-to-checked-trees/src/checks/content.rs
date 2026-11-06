@@ -28,7 +28,9 @@ mod derived_memberships;
 mod partition_wrappers;
 mod retained_custody;
 
-pub(crate) use body_conservation::observe_body_completion;
+pub(crate) use body_conservation::{
+    ConservationCandidate, ConservationSites, conservation_sites, observe_body_completion,
+};
 pub(crate) use call_transformations::observe_call_completion;
 pub(crate) use content_paths::{content_path, projection_observations};
 pub(crate) use derived_memberships::completed_membership;

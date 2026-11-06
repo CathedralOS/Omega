@@ -358,8 +358,9 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             }
         }
     }
+    let mut transfers = storage_foundations::StructuralTransferInputs::new(module);
     for machine in &module.machines {
-        machine_foundations::validate_machine(module, machine)?;
+        machine_foundations::validate_machine(module, machine, &mut transfers)?;
     }
     // Replay custody only after types, the finite by-value graph, and every
     // operation/place relationship are checked. Malformed constructor loops
@@ -798,6 +799,7 @@ fn validate_operation_foundation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
+    transfers: &mut storage_foundations::StructuralTransferInputs<'_>,
 ) -> Result<(), CodecError> {
     if let OperationKind::ReadScalarApplication { application } = operation.kind {
         let Some(carrier) = module
@@ -986,10 +988,10 @@ fn validate_operation_foundation(
             storage_foundations::validate_structural_case_membership(operation)?
         }
         structural_leaf_copy_pair_pattern!() => {
-            storage_foundations::validate_structural_leaf_copy(module, machine, operation)?
+            storage_foundations::validate_structural_leaf_copy(transfers, machine, operation)?
         }
         OperationKind::MoveStructuralValue { .. } => {
-            storage_foundations::validate_move_structural_value(module, machine, operation)?
+            storage_foundations::validate_move_structural_value(transfers, machine, operation)?
         }
         OperationKind::TransformContent { .. } => {
             terminal_semantics::content_transformations::validate_shape(module, machine, operation)
@@ -1387,6 +1389,7 @@ fn validate_structural_arguments(
             access: StructuralAccess::Owned,
             qualifications: result.qualifications.clone(),
             projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
         });
         let backing = parameter
             .or_else(|| block_parameter(machine, argument.place))

@@ -154,6 +154,10 @@ pub struct StructuralOperationResult {
     /// Strictly ordered exact qualifications rooted beneath `place`. Calls
     /// copy this roster exactly from the callee result declaration.
     pub projected_qualifications: Vec<StructuralPathQualification>,
+    /// Exact memberships observed on input rather than owed by this storage.
+    /// Empty paths select the root. Writes may invalidate their predicates;
+    /// ownership, access policy and declared field requirements remain separate.
+    pub additional_input_qualifications: Vec<StructuralPathQualification>,
     /// Strictly ordered establishment bindings for this result's
     /// route-authorized memberships. The establishing occurrence is this
     /// operation; replay resolves the callee identity against the domain's

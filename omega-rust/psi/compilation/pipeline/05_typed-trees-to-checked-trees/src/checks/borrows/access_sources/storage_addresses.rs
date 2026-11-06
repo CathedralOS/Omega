@@ -6,6 +6,7 @@
 //! its old pointer when the operation replaces that field. Captured projections
 //! also keep an index's evaluated coordinate when a later operand changes it.
 
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use arena::Handle;
 use checked_trees::{CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 
@@ -14,6 +15,7 @@ use super::super::aliases::ResolvedAlias;
 pub(super) fn resolve(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: Handle<FlowOperandFact>,
     replaces_descriptor: bool,
@@ -21,6 +23,7 @@ pub(super) fn resolve(
     address(
         program,
         facts,
+        loan_occurrences,
         state,
         capture,
         replaces_descriptor,
@@ -31,6 +34,7 @@ pub(super) fn resolve(
 fn address(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: Handle<FlowOperandFact>,
     replaces_descriptor: bool,
@@ -47,13 +51,20 @@ fn address(
     if !replaces_descriptor
         && validation::reference_shell(program, operand.type_reference).is_some()
     {
-        return super::super::completed_backings::resolve(program, facts, state, capture)
-            .map(|backings| backings.places);
+        return super::super::completed_backings::resolve(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            capture,
+        )
+        .map(|backings| backings.places);
     }
     ancestors.push(capture);
     let result = project_address(
         program,
         facts,
+        loan_occurrences,
         state,
         capture,
         replaces_descriptor,
@@ -66,6 +77,7 @@ fn address(
 fn project_address(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: Handle<FlowOperandFact>,
     replaces_descriptor: bool,
@@ -88,7 +100,15 @@ fn project_address(
             .operand_child_paths
             .span(projection)
             .ok_or("the completed address has no captured receiver projection")?;
-        let backings = address(program, facts, state, operand.backing, false, ancestors)?;
+        let backings = address(
+            program,
+            facts,
+            loan_occurrences,
+            state,
+            operand.backing,
+            false,
+            ancestors,
+        )?;
         let projectable = validation::completed_storage::projectable_reference_places(
             program,
             control,
@@ -152,6 +172,7 @@ fn project_address(
                 for backing in super::resolve_captured_all(
                     program,
                     facts,
+                    loan_occurrences,
                     state,
                     operand.statement_index,
                     operand.constraints,

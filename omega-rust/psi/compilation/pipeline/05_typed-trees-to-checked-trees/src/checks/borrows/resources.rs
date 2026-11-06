@@ -9,6 +9,7 @@ pub(in crate::checks::borrows) mod call_operands;
 mod disposition_events;
 mod formation_sources;
 mod forwarded_lifetimes;
+pub(in crate::checks::borrows) mod invocation_permissions;
 mod lifecycle;
 mod loan_resources;
 mod permission_sources;

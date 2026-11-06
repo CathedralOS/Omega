@@ -4,6 +4,7 @@
 //! origins and refuses unresolved reference endpoints. Lifetime dependencies
 //! alone identify no pointer, and geometry never grants ancestry or access.
 //! Incoming parameters retain their separately admitted joint namespace.
+use crate::checks::borrows::loan_occurrences::LoanOccurrences;
 use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
@@ -11,6 +12,7 @@ use checked_trees::{CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 pub(super) fn places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     operand: Handle<FlowOperandFact>,
     path: &[facts::PlaceSegment],
@@ -23,11 +25,27 @@ pub(super) fn places(
     match validation::completed_storage::frozen_reference_leaf(program, control, operand, path) {
         validation::completed_storage::FrozenReferenceSelection::Unavailable => None,
         validation::completed_storage::FrozenReferenceSelection::Endpoint { owner, leaf, path } => {
-            captured_places(program, facts, state, &owner, &path, leaf.constraints)
+            captured_places(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                &owner,
+                &path,
+                leaf.constraints,
+            )
         }
         validation::completed_storage::FrozenReferenceSelection::NotFrozen
         | validation::completed_storage::FrozenReferenceSelection::ThroughReference => {
-            captured_places(program, facts, state, capture, path, capture.constraints)
+            captured_places(
+                program,
+                facts,
+                loan_occurrences,
+                state,
+                capture,
+                path,
+                capture.constraints,
+            )
         }
     }
 }
@@ -35,6 +53,7 @@ pub(super) fn places(
 fn captured_places(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
+    loan_occurrences: &LoanOccurrences<'_>,
     state: &FlowStateFact,
     capture: &FlowOperandFact,
     path: &[facts::PlaceSegment],
@@ -53,6 +72,7 @@ fn captured_places(
     let resolved = super::super::resources::retained_backing::retained_places(
         program,
         facts,
+        loan_occurrences,
         state,
         capture.statement_index,
         constraints,

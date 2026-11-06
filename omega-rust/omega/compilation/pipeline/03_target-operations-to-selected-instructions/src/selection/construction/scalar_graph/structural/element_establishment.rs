@@ -492,5 +492,6 @@ fn local_home_root(
         access: StructuralAccess::Owned,
         qualifications: home.qualifications.clone(),
         projected_qualifications: home.projected_qualifications.clone(),
+        additional_input_qualifications: home.additional_input_qualifications.clone(),
     }
 }

@@ -135,9 +135,9 @@ pub(crate) struct Evaluation {
     /// negative correspondences belong to the emitted prefix, not a replay of
     /// later permission events from the same source statement.
     pub(crate) retired_structural_bindings: Vec<RetiredStructuralBinding>,
-    /// Physical source occurrences retired on this execution path, including
-    /// parameters and anonymous producers that have no local symbol.
-    pub(crate) retired_structural_homes: Vec<PlaceId>,
+    /// Ended physical occurrences on this path. Moving a source and completing
+    /// its whole-home disposal are distinct events, including for anonymous values.
+    pub(crate) retired_structural_homes: StructuralHomeEndings,
     /// The view family of each established immutable view local, so scalar
     /// observations rooted at one pick its length and read operations.
     pub(crate) view_locals: Vec<ViewLocalBinding>,
@@ -212,11 +212,46 @@ pub(crate) enum StructuralBindingEnd {
     RetiredHome,
 }
 
+#[derive(Clone, Default)]
+pub(crate) struct StructuralHomeEndings {
+    rows: Vec<(PlaceId, StructuralBindingEnd)>,
+}
+
+impl StructuralHomeEndings {
+    pub(crate) fn contains(&self, place: &PlaceId) -> bool {
+        self.rows.iter().any(|(candidate, _)| candidate == place)
+    }
+
+    fn is_retired(&self, place: PlaceId) -> bool {
+        self.rows.iter().any(|(candidate, end)| {
+            *candidate == place && *end == StructuralBindingEnd::RetiredHome
+        })
+    }
+
+    fn record(&mut self, place: PlaceId, end: StructuralBindingEnd) {
+        if let Some((_, current)) = self
+            .rows
+            .iter_mut()
+            .find(|(candidate, _)| *candidate == place)
+        {
+            if end == StructuralBindingEnd::RetiredHome {
+                *current = end;
+            }
+        } else {
+            self.rows.push((place, end));
+        }
+    }
+
+    fn reestablish(&mut self, place: PlaceId) {
+        self.rows.retain(|(candidate, _)| *candidate != place);
+    }
+}
+
 /// A retired source occurrence remains identifiable after its executable local
 /// binding is removed. Rebinding that source name clears this negative fact.
 #[derive(Clone)]
 pub(crate) struct RetiredStructuralBinding {
-    pub(crate) symbol: symbols::SymbolHandle,
+    pub(crate) root: facts::PlaceRoot,
     pub(crate) place: PlaceId,
     /// Anonymous aliases without a named owner grant no declaration exemption.
     pub(crate) statement: Option<u32>,
@@ -230,7 +265,7 @@ pub(crate) struct StructuralSourceFrontier {
     owners: Vec<StructuralValueOwner>,
     locals: Vec<StructuralLocalBinding>,
     retired_bindings: Vec<RetiredStructuralBinding>,
-    retired_homes: Vec<PlaceId>,
+    retired_homes: StructuralHomeEndings,
     views: Vec<ViewLocalBinding>,
     parameters: Vec<(u32, StructuralParameterDeclaration)>,
     previous_parameters: Vec<StructuralParameterDeclaration>,
@@ -452,6 +487,7 @@ impl Evaluation {
     /// Resolve a completed value's storage and selected subtree. Retirement
     /// and replacement share this identity join. Result registries differ
     /// between ordinary and graph bodies; the caller supplies its registry.
+    #[track_caller]
     pub(crate) fn value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -530,7 +566,7 @@ impl Evaluation {
         for binding in self
             .retired_structural_bindings
             .iter()
-            .filter(|binding| root.as_symbol() == Some(binding.symbol))
+            .filter(|binding| binding.root == root)
         {
             retired_binding_count += 1;
             if retired_bindings.len() < 4 {
@@ -564,6 +600,7 @@ impl Evaluation {
     /// Checked cleanup can outlive the source frontier that established an
     /// anonymous producer. Its conditional schedule names that exact producer;
     /// only its completed geometry is needed here, never sibling permissions.
+    #[track_caller]
     pub(crate) fn cleanup_value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -586,6 +623,46 @@ impl Evaluation {
             }
         }
         self.value_storage(source, parameters, result)
+    }
+
+    /// A completed whole-home disposal can be emitted inside an expanded
+    /// operand. Completion consumes that exact receipt, even when its checked
+    /// source name differs from the operation that retired the physical home.
+    /// Consuming a source name alone leaves its residual cleanup outstanding.
+    pub(crate) fn cleanup_source_is_retired(
+        &self,
+        source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        parameters: &[StructuralParameterDeclaration],
+        result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
+    ) -> Result<bool, LoweringError> {
+        use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
+        let root = match *source {
+            Source::StructuralLocal { symbol } => Some(facts::PlaceRoot::Symbol(symbol)),
+            Source::StructuralExpression { expression } => {
+                Some(facts::PlaceRoot::Expression(expression))
+            }
+            _ => None,
+        };
+        if let Some(root) = root
+            && structural_local_by_root(&self.structural_locals, root).is_none()
+        {
+            let mut ended = self
+                .retired_structural_bindings
+                .iter()
+                .filter(|binding| binding.root == root);
+            if let Some(binding) = ended.next() {
+                if ended.next().is_some() {
+                    // An ambiguous receipt cannot cancel a required cleanup.
+                    // Keep the action; ordinary storage resolution must still
+                    // supply its exact home or report the missing storage.
+                    return Ok(false);
+                }
+                return Ok(binding.end == StructuralBindingEnd::RetiredHome
+                    && self.retired_structural_homes.is_retired(binding.place));
+            }
+        }
+        let storage = self.cleanup_value_storage(source, parameters, result)?;
+        Ok(self.retired_structural_homes.is_retired(storage.place))
     }
 
     /// Preserve receipt-bound source storage emitted in a private scalar state.
@@ -942,12 +1019,10 @@ impl Evaluation {
     /// A new occurrence of a retired name supersedes its negative correspondence;
     /// earlier captured operands retain their own physical homes.
     pub(crate) fn bind_structural_local(&mut self, binding: StructuralLocalBinding) {
-        if let Some(symbol) = binding.root.as_symbol() {
-            self.retired_structural_bindings
-                .retain(|retired| retired.symbol != symbol);
-        }
+        self.retired_structural_bindings
+            .retain(|retired| retired.root != binding.root);
         self.retired_structural_homes
-            .retain(|place| *place != binding.argument.place);
+            .reestablish(binding.argument.place);
         self.structural_locals.push(binding);
     }
 
@@ -1030,8 +1105,23 @@ impl Evaluation {
 
     /// Remove a retired physical occurrence from current source and transport
     /// rosters. Historical declarations and shared type geometry stay intact.
+    #[track_caller]
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            eprintln!(
+                "CHECKSITE structural-home-retired place={place:?} caller={} local_roots={:?}",
+                std::panic::Location::caller(),
+                self.structural_locals
+                    .iter()
+                    .filter(|local| local.argument.place == place)
+                    .take(16)
+                    .map(|local| local.root)
+                    .collect::<Vec<_>>(),
+            );
+        }
         self.retire_structural_sources(place);
+        self.retired_structural_homes
+            .record(place, StructuralBindingEnd::RetiredHome);
         for binding in self
             .retired_structural_bindings
             .iter_mut()
@@ -1043,45 +1133,32 @@ impl Evaluation {
             .retain(|local| local.argument.place != place);
     }
 
-    /// End an anonymous result that occupies a declared local's place.
-    /// The result and the local are two registrations of one home. Releasing
-    /// the result must leave the named local established: a later descriptor
-    /// release still resolves that symbol.
-    pub(crate) fn retire_result_carrier(&mut self, place: PlaceId) {
-        self.structural_value_owners
-            .retain(|owner| owner.value.place != place || owner.symbol.is_valid());
-        self.structural_locals
-            .retain(|local| local.argument.place != place || local.root.as_symbol().is_some());
-    }
-
     /// A consuming operation removes executable names, while expression-owner
     /// coordinates remain available to their already checked completion cleanup.
     /// Whole-home cleanup removes those historical coordinates afterwards.
     fn retire_structural_sources(&mut self, place: PlaceId) {
-        if !self.retired_structural_homes.contains(&place) {
-            self.retired_structural_homes.push(place);
-        }
+        self.retired_structural_homes
+            .record(place, StructuralBindingEnd::ConsumedSource);
         for local in self
             .structural_locals
             .iter()
             .filter(|local| local.argument.place == place)
         {
-            let Some(symbol) = local.root.as_symbol() else {
-                continue;
-            };
             if !self
                 .retired_structural_bindings
                 .iter()
-                .any(|binding| binding.symbol == symbol && binding.place == place)
+                .any(|binding| binding.root == local.root && binding.place == place)
             {
                 let statement = self
                     .structural_value_owners
                     .iter()
-                    .find(|owner| owner.symbol == symbol && owner.value.place == place)
+                    .find(|owner| {
+                        Some(owner.symbol) == local.root.as_symbol() && owner.value.place == place
+                    })
                     .map(|owner| owner.statement);
                 self.retired_structural_bindings
                     .push(RetiredStructuralBinding {
-                        symbol,
+                        root: local.root,
                         place,
                         statement,
                         end: StructuralBindingEnd::ConsumedSource,
@@ -1206,7 +1283,7 @@ impl Evaluation {
             completed_operand_scope: Vec::new(),
             completed_cleanup_homes: Vec::new(),
             retired_structural_bindings: Vec::new(),
-            retired_structural_homes: Vec::new(),
+            retired_structural_homes: StructuralHomeEndings::default(),
             view_locals: Vec::new(),
             element_views: std::collections::BTreeMap::new(),
             produced_values: Vec::new(),
@@ -2289,6 +2366,7 @@ pub(crate) fn emit_dynamic_family_dispatch(
             access: StructuralAccess::Owned,
             qualifications: result.qualifications.clone(),
             projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
         })
         .into_iter()
         .collect();

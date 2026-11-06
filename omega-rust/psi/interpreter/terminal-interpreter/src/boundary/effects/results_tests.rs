@@ -91,6 +91,7 @@ fn host_byte_results_require_exact_shared_carrier_and_real_storage() {
                 multiplicity: StructuralMultiplicity::Unrestricted,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
                 qualification_establishments: Vec::new(),
                 claims: Vec::new(),
             };
