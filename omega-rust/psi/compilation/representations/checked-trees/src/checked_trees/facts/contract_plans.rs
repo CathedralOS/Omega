@@ -91,11 +91,43 @@ pub struct MachineContractPlans {
     /// identity as `machines`. Published requirement capsules remain separate;
     /// this row is the narrower realized endpoint used by callback admission.
     pub realized_envelopes: Vec<RealizedMachineContractEnvelope>,
+    /// Positions of `machines` sorted by machine symbol, published by the
+    /// producer (`index_machines`); ties keep row order. Every lowered machine
+    /// asks for its own plan, and scanning all plans per question made that
+    /// quadratic in the machine count.
+    pub machine_index: Vec<((u32, u32), usize)>,
 }
 
 impl MachineContractPlans {
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineContractPlan> {
-        contract_plan_by_machine(&self.machines, machine)
+        // A row set changed after publication reads the rows themselves.
+        if self.machine_index.len() != self.machines.len() {
+            return contract_plan_by_machine(&self.machines, machine);
+        }
+        let key = (machine.arena_index(), machine.generation());
+        let start = self.machine_index.partition_point(|(row, _)| *row < key);
+        self.machine_index[start..]
+            .iter()
+            .take_while(|(row, _)| *row == key)
+            .map(|(_, position)| &self.machines[*position])
+            .find(|plan| plan.machine == machine)
+    }
+
+    /// Publish `machine_index` over the finished `machines` rows.
+    pub fn index_machines(&mut self) {
+        let mut index = self
+            .machines
+            .iter()
+            .enumerate()
+            .map(|(position, plan)| {
+                (
+                    (plan.machine.arena_index(), plan.machine.generation()),
+                    position,
+                )
+            })
+            .collect::<Vec<_>>();
+        index.sort_unstable();
+        self.machine_index = index;
     }
 
     pub fn crash_capsule(

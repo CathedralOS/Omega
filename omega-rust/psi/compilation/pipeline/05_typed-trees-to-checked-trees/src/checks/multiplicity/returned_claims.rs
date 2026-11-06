@@ -203,11 +203,8 @@ pub(crate) fn completed_owned_claims(
     let owner = facts
         .flow
         .control
-        .states
-        .iter()
-        .find_map(|(_, state)| {
-            (state.state_symbol == operand.state_symbol).then_some(state.machine_symbol)
-        })
+        .state_by_symbol(operand.state_symbol)
+        .map(|state| state.machine_symbol)
         .ok_or("completed owner has no state flow")?;
     let consumer = ClaimConsumption {
         machine: owner,
@@ -919,13 +916,7 @@ fn completed_call_claims(
     operand: &FlowOperandFact,
     conditions: &SelectionConditions,
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
-    let Some(state_flow) = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == operand.state_symbol).then_some(state))
-    else {
+    let Some(state_flow) = facts.flow.control.state_by_symbol(operand.state_symbol) else {
         return Err("completed result has no state flow");
     };
     let mut calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls)

@@ -204,9 +204,13 @@ fn task_frame_summary<'program>(
     let mut calls = Vec::new();
     let mut unresolved_calls = Vec::new();
     for state in &states {
-        let mut flow_states = check_facts.flow.control.states.iter().filter(|(_, flow)| {
-            flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
-        });
+        let mut flow_states = check_facts
+            .flow
+            .control
+            .machine_states(machine.symbol)
+            .into_iter()
+            .filter(|flow| flow.state_symbol == state.symbol)
+            .map(|state| ((), state));
         let Some((_, flow_state)) = flow_states.next() else {
             continue;
         };

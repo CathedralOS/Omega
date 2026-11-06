@@ -115,6 +115,11 @@ pub struct CheckedDeclarationDescriptions {
     pub invocation_targets: Arena<CheckedSynchronousBoundaryTarget>,
     pub machines: Arena<CheckedDeclarationDescription>,
     pub parameters: Arena<CheckedDeclarationParameter>,
+    /// `machines` sorted by machine symbol, published by the producer once
+    /// every row is in place (`index_machines`). Ties keep arena order.
+    /// Each lowered declaration asks for its own description; scanning every
+    /// machine row per question made lowering quadratic in the machine count.
+    pub machine_index: Vec<((u32, u32), arena::Handle<CheckedDeclarationDescription>)>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -150,6 +155,7 @@ impl Default for CheckedDeclarationDescriptions {
             invocation_targets: Arena::new(),
             machines: Arena::new(),
             parameters: Arena::new(),
+            machine_index: Vec::new(),
         }
     }
 }
@@ -177,9 +183,39 @@ pub struct CheckedCompilerEvaluationCall {
 
 impl CheckedDeclarationDescriptions {
     pub fn description(&self, machine: SymbolHandle) -> Option<&CheckedDeclarationDescription> {
-        self.machines
+        if !machine.is_valid() {
+            return None;
+        }
+        // The published index covers every row only when no row was added
+        // after it; otherwise read the rows themselves.
+        if self.machine_index.len() != self.machines.len() {
+            return self
+                .machines
+                .iter()
+                .find_map(|(_, row)| (row.machine() == machine).then_some(row));
+        }
+        let key = symbol_key(machine);
+        let start = self.machine_index.partition_point(|(row, _)| *row < key);
+        self.machine_index[start..]
             .iter()
-            .find_map(|(_, row)| (machine.is_valid() && row.machine() == machine).then_some(row))
+            .take_while(|(row, _)| *row == key)
+            .map(|(_, handle)| self.machines.get(*handle))
+            .find(|row| row.machine() == machine)
+    }
+
+    /// Publish `machine_index` over the finished `machines` rows.
+    pub fn index_machines(&mut self) {
+        let mut index = self
+            .machines
+            .iter()
+            .enumerate()
+            .map(|(position, (handle, row))| (symbol_key(row.machine()), position, handle))
+            .collect::<Vec<_>>();
+        index.sort_unstable_by_key(|(key, position, _)| (*key, *position));
+        self.machine_index = index
+            .into_iter()
+            .map(|(key, _, handle)| (key, handle))
+            .collect();
     }
 
     pub fn for_machine(&self, machine: SymbolHandle) -> Result<&CheckedMachineDescription, &str> {
@@ -189,4 +225,8 @@ impl CheckedDeclarationDescriptions {
             _ => Err("checked machine lost its retained declaration description"),
         }
     }
+}
+
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
 }

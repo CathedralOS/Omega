@@ -257,15 +257,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
         machine: &Machine,
         state: &State,
     ) -> Option<&'a FlowStateFact> {
-        facts
-            .flow
-            .control
-            .states
-            .iter()
-            .find(|(_, flow)| {
-                flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
-            })
-            .map(|(_, flow)| flow)
+        facts.flow.control.state(machine.symbol, state.symbol)
     }
 
     /// A spelled or resolved target enters `header`: the header's own symbol

@@ -490,11 +490,13 @@ pub(crate) fn build_contract_plans(
             }
             })
             .collect();
-    let plans = checked_trees::MachineContractPlans {
+    let mut plans = checked_trees::MachineContractPlans {
         machines,
         crash_capsules,
         realized_envelopes,
+        machine_index: Vec::new(),
     };
+    plans.index_machines();
     plans.validate_resource_envelopes().map_err(|error| {
         vec![diagnostics::Diagnostic::error(format!(
             "checked resource-envelope replay failed: {error}"

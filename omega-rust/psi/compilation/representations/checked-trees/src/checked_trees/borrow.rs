@@ -1339,6 +1339,23 @@ impl BorrowFacts {
         )
     }
 
+    /// The first `states` row recorded for an exact state symbol, across all
+    /// recorded machines, with its handle.
+    pub fn first_state_borrow_by_symbol(
+        &self,
+        state: SymbolHandle,
+    ) -> Option<(Handle<StateBorrowFact>, &StateBorrowFact)> {
+        self.state_index.with_rows(
+            &self.states,
+            |row| row.state_symbol,
+            &state,
+            |rows| {
+                let handle = rows.first().copied()?;
+                Some((handle, self.states.get(handle)))
+            },
+        )
+    }
+
     /// The first `states` row recorded for `(machine, state)`, with its handle.
     pub fn first_state_borrow(
         &self,

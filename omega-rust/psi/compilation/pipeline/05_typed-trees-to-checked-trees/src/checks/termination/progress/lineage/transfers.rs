@@ -21,9 +21,9 @@ pub(super) fn collect(
     let mut transfers = Vec::new();
     for (_, state) in flow
         .control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == machine.symbol)
+        .machine_states(machine.symbol)
+        .into_iter()
+        .map(|state| ((), state))
     {
         for call in flow.control.calls.span_or_empty(state.calls) {
             let Some(target) = local_state_transition_target(program, machine, state, call) else {

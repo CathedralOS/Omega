@@ -52,7 +52,7 @@ pub(crate) fn validate_case_dispatch_exhaustiveness_in(
     cohort: &crate::lowerer::TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     for (ordinal, machine) in program.machines.iter().enumerate() {
-        if ordinal < cohort.machines && !cohort.completed_machines.contains(&machine.symbol) {
+        if ordinal < cohort.machines && !cohort.completes(machine.symbol) {
             continue;
         }
         for state_handle in program.machine_state_handles(machine.states) {

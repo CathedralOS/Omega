@@ -284,17 +284,7 @@ pub(super) fn check_suspension_carry(
             continue;
         };
         let source_values = state_carry_values(program, state);
-        let Some(state_flow) = facts
-            .flow
-            .control
-            .states
-            .iter()
-            .find_map(|(_, state_flow)| {
-                (state_flow.machine_symbol == machine.symbol
-                    && state_flow.state_symbol == state.symbol)
-                    .then_some(state_flow)
-            })
-        else {
+        let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
             continue;
         };
 

@@ -47,13 +47,7 @@ impl ExitScalars<'_, '_> {
             .facts
             .flow
             .control
-            .states
-            .iter()
-            .find_map(|(_, state)| {
-                (state.machine_symbol == self.exit.machine_symbol
-                    && state.state_symbol == self.exit.state_symbol)
-                    .then_some(state)
-            });
+            .state(self.exit.machine_symbol, self.exit.state_symbol);
         if let Some(frames) = self.call_frames
             && let Some(caller) = caller
             && let Some(entry) = self.program.machine_states(self.machine).first()

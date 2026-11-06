@@ -105,6 +105,7 @@ pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
         }
         descriptions.machines.insert(row);
     }
+    descriptions.index_machines();
     checked.facts.declaration_descriptions = descriptions;
 }
 
