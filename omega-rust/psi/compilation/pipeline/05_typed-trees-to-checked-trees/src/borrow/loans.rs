@@ -76,7 +76,6 @@ pub(super) use descriptor_loads::prepare as prepare_descriptor_loads;
 
 mod invocation_results;
 pub(in crate::borrow) use invocation_results::complete as complete_invocation_results;
-pub(crate) use invocation_results::is_completed_value as is_completed_invocation_value;
 mod reference_borrows;
 pub(in crate::borrow) use aggregate_loans::borrowed_initializer_loans;
 use aggregate_loans::*;

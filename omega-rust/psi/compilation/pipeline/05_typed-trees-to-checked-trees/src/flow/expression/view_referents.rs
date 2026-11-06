@@ -52,7 +52,7 @@ use validation::{
 impl Execution<'_, '_, '_> {
     /// A returned value acquires its permission at this exact completion,
     /// before an enclosing call can consume it. Its ordinary lifetime ledger
-    /// then retains the whole result cohort through any saved carrier.
+    /// retains every reference and input lifetime when the result is saved.
     pub(super) fn retain_invocation_permissions(
         &mut self,
         invocation: Handle<FlowCallFact>,
@@ -83,7 +83,7 @@ impl Execution<'_, '_, '_> {
             .handles()
             .filter(|loan| {
                 let row = self.borrow.loans.get(*loan);
-                crate::borrow::is_completed_invocation_value(self.borrow, row)
+                self.borrow.is_call_result_loan(row)
                     && row.established_by_call == call
                     && row.formation_expression == capture.expression
                     && self

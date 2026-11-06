@@ -119,8 +119,7 @@ pub(in crate::flow) fn finish_statement_reference_custody(
         |reference| match reference.kind {
             FlowConstraintKind::BorrowLoan { loan } => {
                 let row = borrow.loans.get(loan);
-                !row.established_by_call.is_valid()
-                    || crate::borrow::is_completed_invocation_value(borrow, row)
+                !row.established_by_call.is_valid() || borrow.is_call_result_loan(row)
             }
             _ => true,
         },

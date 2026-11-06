@@ -78,7 +78,7 @@ pub(super) fn form(
 }
 
 /// Publish one opaque call's returned value at its actual normal completion.
-/// Binding and direct forwarding then retain the same descriptor cohort.
+/// Binding and direct forwarding retain every reference from that result.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::borrow) fn complete(
     program: &dyn validation::CheckingInput,
@@ -153,7 +153,7 @@ pub(in crate::borrow) fn complete(
         &incoming,
         &sources,
     )?
-    .ok_or("completed call result has no complete reference cohort")?;
+    .ok_or("completed call result has no complete reference set")?;
     for loan in &mut loans {
         loan.storage_owner = PlaceRoot::Expression(expression);
         loan.formation_expression = expression;
@@ -161,20 +161,8 @@ pub(in crate::borrow) fn complete(
     Ok(loans)
 }
 
-/// A call-result home retains the performed invocation that owns it. Stored
-/// output slots use their separate replacement relation.
-pub(crate) fn is_completed_value(
-    borrow: &checked_trees::BorrowFacts,
-    loan: &checked_trees::BorrowLoanFact,
-) -> bool {
-    matches!(loan.storage_owner, PlaceRoot::Expression(expression)
-        if expression == loan.formation_expression
-            && borrow.calls.is_valid(loan.established_by_call)
-            && borrow.calls.get(loan.established_by_call).authored_expression == expression)
-}
-
-/// Saving an evaluated carrier transports every descriptor and input debt.
-/// It adds no new permission, and lifetime debts keep their original access.
+/// Saving an evaluated value retains every reference and required input lifetime.
+/// It adds no permission, and input lifetimes keep their original access.
 pub(super) fn retain(
     program: &dyn validation::CheckingInput,
     local: &TableLocalData,

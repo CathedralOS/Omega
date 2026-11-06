@@ -161,7 +161,7 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
             }
         }
         for (loan_handle, loan) in borrow.state_loans(state) {
-            if (crate::borrow::is_completed_invocation_value(borrow, loan)
+            if (borrow.is_call_result_loan(loan)
                 || (borrow.incoming_references.is_valid(loan.incoming_reference)
                     && matches!(
                         borrow
