@@ -10,6 +10,7 @@ use super::{CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm, 
 use crate::proof_contracts::contract_entailment::{
     observed_projections, specification_calls, structural_terms,
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
@@ -17,27 +18,29 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
-// Prepare only expressions this extractor can visit to publish a case. Walk
-// both connective operands once; exact handles below retain every generation.
-fn collect_case_observation_expressions(
+// Match the extractor's connective traversal. Shared expression children
+// retain one metadata result per complete handle within this query.
+fn prepare_case_observation_expressions(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
-    expressions: &mut Vec<ExpressionHandle>,
+    expressions: &mut HashMap<ExpressionHandle, bool>,
 ) -> bool {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return false;
-    };
-    let contains_case = match binary.operator {
-        BinaryOperator::And | BinaryOperator::Or => {
-            let left = collect_case_observation_expressions(program, binary.left, expressions);
-            let right = collect_case_observation_expressions(program, binary.right, expressions);
-            left || right
-        }
-        _ => structural_terms::is_case_observation(program, expression),
-    };
-    if contains_case {
-        expressions.push(expression);
+    if let Some(contains_case) = expressions.get(&expression) {
+        return *contains_case;
     }
+    let contains_case = program
+        .expression_table
+        .binary_node(expression)
+        .is_some_and(|binary| match binary.operator {
+            BinaryOperator::And | BinaryOperator::Or => {
+                let left = prepare_case_observation_expressions(program, binary.left, expressions);
+                let right =
+                    prepare_case_observation_expressions(program, binary.right, expressions);
+                left || right
+            }
+            _ => structural_terms::is_case_observation(program, expression),
+        });
+    expressions.insert(expression, contains_case);
     contains_case
 }
 
@@ -232,13 +235,10 @@ impl StructuralJudge<'_> {
         if !self.has_exact_case_subjects() {
             return;
         }
-        let mut expressions = Vec::new();
-        if !collect_case_observation_expressions(self.program, fact, &mut expressions) {
+        let mut expressions = HashMap::new();
+        if !prepare_case_observation_expressions(self.program, fact, &mut expressions) {
             return;
         }
-        expressions
-            .sort_unstable_by_key(|expression| (expression.arena_index(), expression.generation()));
-        expressions.dedup();
         self.extend_contract_case_guarantees(owner, fact, map, guarantees, &expressions);
     }
 
@@ -248,7 +248,7 @@ impl StructuralJudge<'_> {
         fact: ExpressionHandle,
         map: &[(String, StructuralTerm)],
         guarantees: &mut Vec<CaseGuarantee>,
-        case_expressions: &[ExpressionHandle],
+        case_expressions: &HashMap<ExpressionHandle, bool>,
     ) {
         use specification_calls::{SelectedCallContract, owner_parameters};
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
@@ -285,13 +285,7 @@ impl StructuralJudge<'_> {
             let parameters = owner_parameters(self.program, owner);
             for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)]
             {
-                if case_expressions
-                    .binary_search_by_key(
-                        &(alternative.arena_index(), alternative.generation()),
-                        |expression| (expression.arena_index(), expression.generation()),
-                    )
-                    .is_err()
-                {
+                if case_expressions.get(&alternative) != Some(&true) {
                     continue;
                 }
                 if matches!(
