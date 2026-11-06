@@ -79,8 +79,9 @@ pub(super) fn facts_contain_expression(
     // Search for the one node and stop at it, rather than collecting every
     // node of every fact first. A subtree searched under an earlier fact
     // already proved it does not hold `expression`, so the facts share one
-    // visited set: one bit per expression table slot.
-    let mut seen = Vec::<u64>::new();
+    // visited set, sized to the nodes actually reached rather than to the
+    // expression table.
+    let mut seen = Vec::new();
     program.proof_facts.span_or_empty(facts).iter().any(|fact| {
         let mut reaches = |root| reaches_expression(program, root, expression, &mut seen);
         match fact {
@@ -96,27 +97,22 @@ pub(super) fn facts_contain_expression(
 
 /// Whether `target` is reached from `expression` by the preorder that
 /// `collect_expression_nodes` takes: zero handles are skipped and each handle
-/// is entered once. Every handle reached from a frozen fact is live, so its
-/// table slot alone identifies it.
+/// is entered once. `seen` holds the handles entered so far, sorted by slot and
+/// generation.
 fn reaches_expression(
     program: &dyn crate::CheckingInput,
     expression: ExpressionHandle,
     target: ExpressionHandle,
-    seen: &mut Vec<u64>,
+    seen: &mut Vec<(u32, u32)>,
 ) -> bool {
     if !expression.is_valid() {
         return false;
     }
-    let slot = usize::try_from(expression.arena_index())
-        .expect("expression slot exceeds the address space");
-    let (word, bit) = (slot / 64, 1_u64 << (slot % 64));
-    if word >= seen.len() {
-        seen.resize(word + 1, 0);
+    let key = (expression.arena_index(), expression.generation());
+    match seen.binary_search(&key) {
+        Ok(_) => return false,
+        Err(position) => seen.insert(position, key),
     }
-    if seen[word] & bit != 0 {
-        return false;
-    }
-    seen[word] |= bit;
     if expression == target {
         return true;
     }
