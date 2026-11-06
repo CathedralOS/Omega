@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "f89b6a55487863e98b9138fd84202a1876f28620",
-    "tree": "6b5ddfc23b5b2b0e65a3825cddc934d7a4cf52a2",
+    "revision": "16b9e88275f7134fd61625514f989d5d8adeef64",
+    "tree": "716be43ac35c97f78ec94bf7d3acae61dfc1b853",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "36a6d3a0e0a8c4a35c885b6f853200795dd8d91b",
+      "omega-rust": "129b33858ff39ace9b66ac4b92871bb6b6c37aa7",
       "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,22 +19,22 @@
     },
     "executables": {
       "cli": {
-        "sha256": "8a988babd8a019c95de615a5639fabacd8212a33884b4f42eae25dfe6948c4ba",
+        "sha256": "6bc0a9cce29c45ab88393ddf7d988323c7c36d6c50b2caf4c20fc4994b7c6ed3",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "91febe7dd2ee4fb7e46a1e4833a49cc17e64fd1c2fff5638325556718ec02939",
+        "sha256": "22d6830667b86a6f8b407123a1a6df3aa46ab1e2a458abc6759bd2ca4be3519c",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42221766266,
-    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-f89b6a55487863e98b9138fd84202a1876f28620"
+    "origin_run": 42233051013,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-16b9e88275f7134fd61625514f989d5d8adeef64"
   },
   "fixtures": [
     "pass/build/selected_const_array_length_exit"
