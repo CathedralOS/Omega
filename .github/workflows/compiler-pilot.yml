@@ -36,6 +36,10 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
+      frozen_source_diagnostics:
+        description: Record only the four fixed frozen Source05 source checks with check-site diagnostics
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -62,6 +66,8 @@ jobs:
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
     env:
       CARGO_BUILD_JOBS: '2'
+      FROZEN_SOURCE_MAP: tools/ci/frozen_source_diagnostic_source_map.json
+      FROZEN_SOURCE_MAP_SHA256: 'eb70f404f873ccaff931bba89eef25a966663594692f2651804eed57791fa73b'
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
@@ -78,6 +84,26 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
+      - name: Validate the finite Source05-only diagnostic request
+        if: github.event_name == 'workflow_dispatch' && inputs.frozen_source_diagnostics
+        env:
+          SOURCE_DIAGNOSTIC_REQUEST: ${{ toJSON(inputs) }}
+        run: >-
+          python -c "import os,json; r=json.loads(os.environ['SOURCE_DIAGNOSTIC_REQUEST']);
+          assert r['native_host'] in ('linux_x86_64','linux_arm64','windows_x86_64','macos_arm64');
+          assert not any(r.get(k) for k in ('smoke','checking_only','phase_profile','build_consent','frozen_controls','body_controls'));
+          assert not any(r.get(k,'') for k in ('fixtures','samples','cli_fixtures'))"
+      - name: Authenticate frozen source inputs before any Rust build
+        id: source-diagnostic-preflight
+        if: github.event_name == 'workflow_dispatch' && inputs.frozen_source_diagnostics
+        shell: python
+        run: |
+          import os, subprocess, sys
+          subprocess.run([sys.executable, 'tools/ci/run_frozen_source_diagnostics.py',
+                          '--source-map', os.environ['FROZEN_SOURCE_MAP'],
+                          '--source-map-sha256', os.environ['FROZEN_SOURCE_MAP_SHA256'],
+                          '--preflight-receipt', 'build/compiler-pilot/frozen-source-input-preflight.json',
+                          '--preflight-only'], check=True)
       - name: Test the gate's refusal paths
         run: python tools/tests/test_compiler_pilot.py -v
       - name: Test Build control evidence refusal paths
@@ -132,8 +158,104 @@ jobs:
           restore-keys: |
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
+      - name: Prepare the exact producer and record four Source05 checks under one hold
+        id: source-diagnostic-chain
+        if: github.event_name == 'workflow_dispatch' && inputs.frozen_source_diagnostics && steps.source-diagnostic-preflight.outcome == 'success'
+        env:
+          SOURCE_DIAGNOSTIC_PREFLIGHT_SHA256: ${{ steps.source-diagnostic-preflight.outputs.preflight_sha256 }}
+        shell: python
+        run: |
+          import json, os, subprocess, sys, time
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          import build_slot, compiler_profile
+          from tools.ci import compiler_pilot
+          from tools.ci import qualify_frozen_source_diagnostics as control
+          root = Path.cwd()
+          output = root / 'build/compiler-pilot'
+          output.mkdir(parents=True, exist_ok=True)
+          preparation_path = output / 'preparation.json'
+          assert not preparation_path.exists() and not (output / 'producer.json').exists()
+          summary = dict(schema='omega-compiler-preparation-v1', passed=False,
+                         scope='Four frozen Source05 checks only; no engine/artifact/full98 acceptance.',
+                         full98_accepted=False, source_controls=list(control.SOURCE_DIAGNOSTIC_CONTROLS))
+          environment = compiler_profile.optimized_environment()
+          overrides = ('RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','RUSTC_WRAPPER',
+                       'RUSTC_WORKSPACE_WRAPPER','RUSTC','RUSTDOC','CARGO_BUILD_RUSTC')
+          summary['compiler_overrides'] = {key: environment.get(key) for key in overrides}
+          assert not any(environment.get(key) for key in overrides), 'unreviewed compiler override'
+          started = time.monotonic()
+          try:
+              with build_slot.hold(root) as (slot, waited):
+                  assert slot is not None
+                  summary['slot'] = dict(path=str(slot), wait_seconds=waited, one_hold_for_chain=True)
+                  # Standard compiler-check remains in this mode, inside the same lane hold.
+                  stdout, stderr = output / 'source-compiler-check.stdout', output / 'source-compiler-check.stderr'
+                  with stdout.open('xb') as out, stderr.open('xb') as err:
+                      process = subprocess.Popen(['cargo','check','--locked','-p','omega'],
+                          stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=environment,
+                          start_new_session=os.name != 'nt',
+                          creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP | 0x4) if os.name == 'nt' else 0)
+                      with control.owned_process_tree(process):
+                          process.wait(timeout=1800)
+                  summary['compiler_check_exit'] = process.returncode
+                  assert process.returncode == 0, 'standard compiler-check failed'
+                  producer = compiler_pilot.prepare_producer(output, need_runner=True)
+                  summary.update(candidate=producer.revision, tree=producer.tree, target=producer.target,
+                                 toolchain=producer.toolchain, producer=producer.record(), passed=True)
+                  compiler_pilot.write_new_record(output / 'producer.json',
+                      dict(schema='omega-compiler-producer-v1', producer=producer.record()))
+                  preparation_path.write_text(json.dumps(summary, indent=2) + '\n')
+                  # The wrapper retains package failures and still attempts each actual --check.
+                  result = subprocess.run([sys.executable, 'tools/ci/run_frozen_source_diagnostics.py',
+                      '--source-map', os.environ['FROZEN_SOURCE_MAP'],
+                      '--source-map-sha256', os.environ['FROZEN_SOURCE_MAP_SHA256'],
+                      '--preflight-receipt', 'build/compiler-pilot/frozen-source-input-preflight.json',
+                      '--preflight-sha256', os.environ['SOURCE_DIAGNOSTIC_PREFLIGHT_SHA256'],
+                      '--preparation', str(preparation_path)], check=False)
+                  summary['source_diagnostic_consumer_exit'] = result.returncode
+                  assert result.returncode == 0, 'source diagnostics include a refusal/setup failure'
+          except BaseException as error:
+              summary['chain_error'] = type(error).__name__ + ': ' + str(error)
+              raise
+          finally:
+              summary['seconds'] = round(time.monotonic() - started, 3)
+              # Producer preparation success is distinct from later source-check success.
+              if not preparation_path.exists():
+                  preparation_path.write_text(json.dumps(summary, indent=2) + '\n')
+              (output / 'source-diagnostic-chain.json').write_text(json.dumps(summary, indent=2) + '\n')
+      - name: Retain Source05 producer, preparation and complete source diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.frozen_source_diagnostics
+        with:
+          name: compiler-pilot-source05-four-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/
+            build/supplied-output-loan/ci-frozen-source-diagnostic-observations/
+          if-no-files-found: warn
+          compression-level: 6
+          retention-days: 7
+      - name: Retain bounded Source05 records separately from producer images
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.frozen_source_diagnostics
+        with:
+          name: compiler-pilot-source05-four-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/*.json
+            build/compiler-pilot/*.stdout
+            build/compiler-pilot/*.stderr
+            build/compiler-pilot/frozen-source-diagnostics/
+            build/compiler-pilot/producer-*/*.json
+            build/compiler-pilot/producer-*/*.stderr
+            build/supplied-output-loan/ci-frozen-source-diagnostic-observations/*.json
+            build/supplied-output-loan/ci-frozen-source-diagnostic-observations/*-check.stdout
+            build/supplied-output-loan/ci-frozen-source-diagnostic-observations/*-check.stderr
+          if-no-files-found: warn
+          compression-level: 6
+          retention-days: 7
       - name: Check the exact integration candidate
         id: compiler-check
+        if: github.event_name != 'workflow_dispatch' || !inputs.frozen_source_diagnostics
         run: cargo check --locked -p omega
       - name: Prepare and retain the optimized producer
         id: producer-preparation
@@ -171,7 +293,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.phase_profile
         run: python -c "import os; from pathlib import Path; Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8').write('OMEGA_PHASE_PROFILE=1\n')"
       - name: Optional executable observations
-        if: ${{ !cancelled() && steps.producer-preparation.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.frozen_source_diagnostics && steps.producer-preparation.outcome == 'success' }}
         env:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}

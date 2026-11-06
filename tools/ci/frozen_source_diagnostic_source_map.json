@@ -1,0 +1,22 @@
+{
+  "schema": "omega-reviewed-compiler-input-map-v1",
+  "compiled_source": "9a0b196f4b52a63673e48b3960c3aa0f680cf47b",
+  "compiler_inputs": {
+    "omega-rust": "61f680faf5bc5b5bf356a1b83e29cab136b55db0",
+    "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
+    "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+    "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+    "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+    "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+    "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+    "Cargo.lock": "b98bd3266eea8729b82f99e4cad45a65b3d8a4d9",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+    ".cargo": null
+  },
+  "provenance": {
+    "owner_source_map_sha256": "8f34ad8e8ccd07fd3e30329a04d9be85271d06381592488de4888cb35477fbfe",
+    "owner_source_map_original_path": "build/supplied-output-loan/source05-root-v3-and-f1-9a0b-ten-inputs.json",
+    "role_scope_sha256": "0a523e008cd9a63a893ca56c041c690173206eaf01e4f4d0bf114feb82db33d9",
+    "limits": "Current source availability/input identity only; no actual source-program/test outcomes for new root-role correction."
+  }
+}

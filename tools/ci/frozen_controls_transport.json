@@ -1,0 +1,1663 @@
+{
+  "schema": "omega-frozen-control-input-transport-v1",
+  "created_utc": "2026-11-06T13:30:24.190624+00:00",
+  "purpose": "Portable exact inputs for both required frozen control cohorts. Transport only; no compiler execution, source adoption or qualification.",
+  "archive": {
+    "path": "build/supplied-output-loan/candidate81f-frozen-inputs.zip",
+    "bytes": 206773,
+    "sha256": "33a324fbe0f993a119a2cd14e54131806af915b8ab4891fceb1d47b872942a06",
+    "members": 270,
+    "uncompressed_bytes": 639913
+  },
+  "cohorts": [
+    {
+      "path": "build/supplied-output-loan/candidate81e-current60-recovered-roster.json",
+      "sha256": "58231da71d2bd92106bdc5902fda2a87c5affbd1ed4b71a92e4b8858dec5c92d",
+      "cases": 60,
+      "positive": 35,
+      "negative": 25,
+      "files": 141
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/manifest.json",
+      "sha256": "c35505924030b04ec34901b29fa3267a2552d663e62c88b08198fec69159da65",
+      "cases": 38,
+      "positive": 19,
+      "negative": 19,
+      "files": 127
+    }
+  ],
+  "member_files": [
+    {
+      "path": "build/supplied-output-loan/candidate81e-current60-recovered-roster.json",
+      "bytes": 77711,
+      "sha256": "58231da71d2bd92106bdc5902fda2a87c5affbd1ed4b71a92e4b8858dec5c92d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/empty_reference_slot_no_mutable_upgrade/build.omg",
+      "bytes": 673,
+      "sha256": "81b41b9513ca6d93f2ee1a3f586de23e07318164f525dd2fa3caa7fb47aa3c54",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/empty_reference_slot_no_mutable_upgrade/main.omg",
+      "bytes": 1021,
+      "sha256": "3e05a493ca1d3be8c01745a0692868dd8e19f12716bede5b047391cd723a5995",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/current_pointer_loses_old_range/build.omg",
+      "bytes": 371,
+      "sha256": "3cc4b425d8860ef10e8c44e99cfc2f549b032a59758ff14df128e85071e7a19a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/current_pointer_loses_old_range/main.omg",
+      "bytes": 787,
+      "sha256": "d9734d361d065a4747f945dc71329cd814f7508db0e9175d657ad686631e9cab",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/generic_reference_slot/build.omg",
+      "bytes": 362,
+      "sha256": "4ea1a7b93ff8af5ca36643e459732cd29c1ba6b717cace0bd242a5f58629ff7d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/generic_reference_slot/main.omg",
+      "bytes": 1227,
+      "sha256": "76e0b33b89a38396b042677c3f109f069412a8391b11b30c64886b6dd77af089",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/mutable_reference_in_immutable_slot/build.omg",
+      "bytes": 375,
+      "sha256": "ad45fb1aefa79362dc2dce6572e360f111641fa75ed968d2f985d5cb5595dcbc",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/mutable_reference_in_immutable_slot/main.omg",
+      "bytes": 549,
+      "sha256": "48f46472e7e1348d40960dee4418dfad1a7a11e0af83bd75580bf3961483d2b9",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/mutable_reference_in_mutable_slot/build.omg",
+      "bytes": 373,
+      "sha256": "b3a851364c453493b72142f6c680e096b7ca297caf2dfd34863c269d2f01e58b",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/mutable_reference_in_mutable_slot/main.omg",
+      "bytes": 553,
+      "sha256": "5b8f16fcea2d9de88d267e536bb94f9545b2ae8a1f17a4732ea5935e4576faa9",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/shared_container_cannot_lend_slot/build.omg",
+      "bytes": 373,
+      "sha256": "aaed0b6f56f88d32c73a06a48d575524bb95cd8612471094416b5a6ae6f0fb44",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/shared_container_cannot_lend_slot/main.omg",
+      "bytes": 1328,
+      "sha256": "31c35e4f01d407c383daaa9890b8af88f4785e2f25beff519df98fef81faf7f3",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/shared_output_cannot_become_writable/build.omg",
+      "bytes": 696,
+      "sha256": "a156272c8b4ff81ebbb756bd9c53853996aac6e546c888f17e83d11d13ea5269",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/shared_output_cannot_become_writable/main.omg",
+      "bytes": 1787,
+      "sha256": "52f555eea6bad6af9fcbe62cc13fc486d103a70ba6a57bc67ea753df58997e73",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/shared_pointee_cannot_become_mutable/build.omg",
+      "bytes": 376,
+      "sha256": "bc1647b6857000606d2020f7141245b37087261905822a95440f17400ec89866",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/shared_pointee_cannot_become_mutable/main.omg",
+      "bytes": 1216,
+      "sha256": "bfb0a2d21dc0bd19a259c7b54cab5c7441109db46ef586b8b8951175668246e8",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/snapshot_before_any_replacement/build.omg",
+      "bytes": 371,
+      "sha256": "6b47c34e8cb70f2649037671407cb04b26d8165438d6f0a563953516a3bda2a7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/snapshot_before_any_replacement/main.omg",
+      "bytes": 748,
+      "sha256": "017128a0a7639acd9f68ef9baa04a1035803b6f103b109aaf9fe421b6d6fdad6",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/snapshot_survives_slot_replacement/build.omg",
+      "bytes": 374,
+      "sha256": "2e2dccc02e36636f9cce6fcab213ee594c64b7d5f283090bb068c6e9be3620dd",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/snapshot_survives_slot_replacement/main.omg",
+      "bytes": 788,
+      "sha256": "48c991f2bc1ec985099dc6b14fca3d4bcbff46929452f51572a23021e15a9027",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/whole_input_cohort_early_write/build.omg",
+      "bytes": 690,
+      "sha256": "20fbb73c0ae41cd20cbb3b3a68e096c97a27ebf9943849b31493d0e5e9eb8d07",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/whole_input_cohort_early_write/main.omg",
+      "bytes": 1645,
+      "sha256": "1845a2c4aab91d9630cebdc167d7e9dd7b3837667cf82a7003ba7046e3214b5e",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/writable_reference_slot/build.omg",
+      "bytes": 363,
+      "sha256": "060fa1b1ea02ed7e502ce26ef9b55f476ebd7616fb65c73a5204ffd316a07e03",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/focused-controls/writable_reference_slot/main.omg",
+      "bytes": 1234,
+      "sha256": "eea3c1ced68fdcf54da60a04e8669b0ec72f6bbfb8bdb66242469044669eec0f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/generic-mutable-slot/build.omg",
+      "bytes": 352,
+      "sha256": "b71746927728c0415bd1c0b708d69a68a673b75468dfa7c8670ff4675ddc2c8e",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/generic-mutable-slot/main.omg",
+      "bytes": 550,
+      "sha256": "0e421305e53fada7c97d2ddd063e4ace2c8ff5e03d9aa87116f51f8dce25e8fb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/generic-record-probes/ordinary_forbidden/build.omg",
+      "bytes": 356,
+      "sha256": "79fd43aa9c4674e7fba9b909cc6d217e873a3be2233784d36f43c4e95a866070",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/generic-record-probes/ordinary_forbidden/main.omg",
+      "bytes": 1435,
+      "sha256": "1989953142462b3818b30acb3cd72e00bb40fa44b1bc20f8aa27f9f422f3a3e1",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/generic-record-probes/provided_forbidden/build.omg",
+      "bytes": 676,
+      "sha256": "3c63e80333b294b3c26ad687f092b8a98fd2b9333f7c51484ab0e31d09de16db",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/generic-record-probes/provided_forbidden/main.omg",
+      "bytes": 1806,
+      "sha256": "4b998a77444d107be0dca6d424d1cdb5a41baf9fa3c17b183c064881ef5c0a31",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/handback-alternative-control/positive/build.omg",
+      "bytes": 664,
+      "sha256": "f7b865bec44361d9e0b61548e7ab443ee68567c783681e9536f0a913ef9f0aeb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/handback-alternative-control/positive/main.omg",
+      "bytes": 2840,
+      "sha256": "c46b196e889c5ffc267696ff3cda29f5151d8ee8fba05babdbfa9027e96101f5",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/handback-alternative-control/reject/build.omg",
+      "bytes": 664,
+      "sha256": "f7b865bec44361d9e0b61548e7ab443ee68567c783681e9536f0a913ef9f0aeb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/handback-alternative-control/reject/main.omg",
+      "bytes": 2835,
+      "sha256": "429b439c56d881245c9c09108c250fcdc3e4d4bda30171bcbd457dd4c00f6ac5",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/incoming-stored-empty/build-authored-binding-v1.omg",
+      "bytes": 408,
+      "sha256": "40f25fcd6e8cfaaf9b125e61ffbd53f658205b93035ab1e796266f388b3f6cb4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/incoming-stored-empty/build.omg",
+      "bytes": 673,
+      "sha256": "81b41b9513ca6d93f2ee1a3f586de23e07318164f525dd2fa3caa7fb47aa3c54",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/incoming-stored-empty/main.omg",
+      "bytes": 877,
+      "sha256": "ab323d4487080d868aadf676faf615eae7a1ba506dba1448eaa116c24671a08c",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/installed-empty-snapshot-control/build.omg",
+      "bytes": 676,
+      "sha256": "e8cc5b78a4e0d4c3d24790f7c350fe8fabdddab5ffbc7e9d5649498c3d9e9f87",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/installed-empty-snapshot-control/main.omg",
+      "bytes": 1154,
+      "sha256": "4f5de7dcb8868c8760c32906917896db06c3dc327fd3ac94911d4c244e7bd45a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/installed_reference_snapshot_no_mutable_upgrade/build.omg",
+      "bytes": 676,
+      "sha256": "e8cc5b78a4e0d4c3d24790f7c350fe8fabdddab5ffbc7e9d5649498c3d9e9f87",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/installed_reference_snapshot_no_mutable_upgrade/main.omg",
+      "bytes": 1304,
+      "sha256": "3766b37034766fa4d192412ab9fa48f342006b358a185cea3f7d8e9f31ac0997",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/manifest.json",
+      "bytes": 294012,
+      "sha256": "c35505924030b04ec34901b29fa3267a2552d663e62c88b08198fec69159da65",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/owned_match_field_conflicting_arguments_rejected/build.omg",
+      "bytes": 340,
+      "sha256": "e58f38745afc2a2062f52a9efc6a57262c506d649e03e44dd026a047cd82d2ea",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/owned_match_field_conflicting_arguments_rejected/expected.txt",
+      "bytes": 76,
+      "sha256": "2212ad7b2769eef9d64e2a8316443f40386ebe1ab05452be4172a0d969109fa9",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/owned_match_field_conflicting_arguments_rejected/main.omg",
+      "bytes": 1012,
+      "sha256": "980b0c22e0129fc908723cc99cd82ce33557baba1f07af20334263e2af83237d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_conditional_helper_keeps_reference_forbidden/build.omg",
+      "bytes": 953,
+      "sha256": "54e9e594fd7681b35f5fee5a59c3b9d824e77125faf93aa15715068b71daaea7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_conditional_helper_keeps_reference_forbidden/expected.txt",
+      "bytes": 115,
+      "sha256": "c5a74fe08992772ba2f4c63b246f51058fe1b88a398109242517284f106046b4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_conditional_helper_keeps_reference_forbidden/main.omg",
+      "bytes": 2541,
+      "sha256": "b47e6eb4c3ef8b389beafc95c27faee810da076082af5d075266cfbd24bf7225",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_declared_lender_corrupted_after_consumption/build.omg",
+      "bytes": 347,
+      "sha256": "f38ed107f8de2626ba211a5755c6b57bae36e90331da82b0202fff4413b75d4f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_declared_lender_corrupted_after_consumption/main.omg",
+      "bytes": 781,
+      "sha256": "ffaf2088c4e0ab664721ad51e0c79939fd91bd717fc65be02d091c6d622eafcb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_empty_reference_slot_no_mutable_upgrade/build.omg",
+      "bytes": 673,
+      "sha256": "81b41b9513ca6d93f2ee1a3f586de23e07318164f525dd2fa3caa7fb47aa3c54",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_empty_reference_slot_no_mutable_upgrade/expected.txt",
+      "bytes": 75,
+      "sha256": "03b528f0c95dff027502e5c0d35882fb628965243d8a51785cd96ef4b01ceb16",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_empty_reference_slot_no_mutable_upgrade/main.omg",
+      "bytes": 1090,
+      "sha256": "5891db5d64756dc75030fe2bd523e1a020feeb0f9bf45b6f239543377bd2062c",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_exclusive_alternative_handback_wrong_subject/build.omg",
+      "bytes": 664,
+      "sha256": "f7b865bec44361d9e0b61548e7ab443ee68567c783681e9536f0a913ef9f0aeb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_exclusive_alternative_handback_wrong_subject/expected.txt",
+      "bytes": 24,
+      "sha256": "2a2b3f9e6f3cb5e29dd9222ac1c432abe1ec080d0e67aece34fcb02004741506",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_exclusive_alternative_handback_wrong_subject/main.omg",
+      "bytes": 2844,
+      "sha256": "df5bc65e0d152179909eb29657f31c4019dbad934fb6e710c6c7e0dbd6ca60aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_installed_reference_snapshot_no_mutable_upgrade/build.omg",
+      "bytes": 676,
+      "sha256": "e8cc5b78a4e0d4c3d24790f7c350fe8fabdddab5ffbc7e9d5649498c3d9e9f87",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_installed_reference_snapshot_no_mutable_upgrade/expected.txt",
+      "bytes": 81,
+      "sha256": "138f35311ed95d39046a544781e95a6ddb0cbfff3572f4bfc86dc8f070271fbd",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_installed_reference_snapshot_no_mutable_upgrade/main.omg",
+      "bytes": 1280,
+      "sha256": "2c56631b64716a6a3817703e6c4efdccef5a841cb3ba0ac3bf7bc9ce4d36c275",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden/build.omg",
+      "bytes": 648,
+      "sha256": "35743bdc4a457fed873794134c98d3804fddef5a295cace89c35e3105fd5fb31",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden/expected.txt",
+      "bytes": 57,
+      "sha256": "32078b3d8cc2d0b305d5e8b8b7109bfac7e7f98502ba1dd097fcd8eb3b46d7a4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden/main.omg",
+      "bytes": 1578,
+      "sha256": "c0f8e578aad83503feb7fdbd07fff0bbe78c9a8d9bc94b5dff333703cadf6a8d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade/build.omg",
+      "bytes": 966,
+      "sha256": "309f01e3adcaf0a611c571fa2482b3003708eebe511014dff827c35f6cf650aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade/expected.txt",
+      "bytes": 77,
+      "sha256": "313466b41cff3c5b374b024928b94c672fc71f07219ba205422698268a8776a3",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade/main.omg",
+      "bytes": 1827,
+      "sha256": "38a7fb199c8fd4acdd65dafeb4810b60bc60a9b6767247a0de1c07edb654f565",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_call_result_forbidden/build.omg",
+      "bytes": 990,
+      "sha256": "4a501becfc7ed1c8147039766b531a62149dfdadc3ba614d7e2927322d7bb0aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_call_result_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_call_result_forbidden/main.omg",
+      "bytes": 2601,
+      "sha256": "56c76f973fc0aaae59d1fd1682c1851246666350c05fb6528c5d9da11b45478a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_const_name_forbidden/build.omg",
+      "bytes": 989,
+      "sha256": "8f86a9c1040f57db0ace81cb90d312cd9316cde75219a98af502870404c90880",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_const_name_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_const_name_forbidden/main.omg",
+      "bytes": 2633,
+      "sha256": "92d4be9dfc28b05a0a64a97384a7b4576ae8d00ed71232882751429ce1839bb9",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_field_forbidden/build.omg",
+      "bytes": 984,
+      "sha256": "438c55235ef64b8c70eecf54b67273111983f5418a71237ccd86f6659c5e2452",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_field_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_field_forbidden/main.omg",
+      "bytes": 2676,
+      "sha256": "2b2d570555467c69b4a21a5dc493cd0878fe3d6aa81e2261dee1d3cb73c6c887",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_local_forbidden/build.omg",
+      "bytes": 984,
+      "sha256": "09cc37e322f5d7bd2ce72039cd217337bfb90a635a7c062bd9b1dd36a2b215e4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_local_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_local_forbidden/main.omg",
+      "bytes": 2505,
+      "sha256": "a0950a62ecb22b5e713e9a00b7680a7954e026425bea65e3f1b4fc91969d0d93",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_match_join_forbidden/build.omg",
+      "bytes": 989,
+      "sha256": "562ef0a6a709d26bffcd812e8a9a7dc44c2ef240dd5712c2a2798a05a26e6a3a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_match_join_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_match_join_forbidden/main.omg",
+      "bytes": 2536,
+      "sha256": "11861c0ad33e722d3d2238cda0fb29d123c5b3a9dace034ed38b1a994c539e99",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_other_machine_forbidden/build.omg",
+      "bytes": 992,
+      "sha256": "500004a09918e62d8bc332890d447d6448aa8bbfd8baa966606b3ebfb48f98a1",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_other_machine_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_other_machine_forbidden/main.omg",
+      "bytes": 2508,
+      "sha256": "4a1a3b73548c410b58e6775ef58038faf0c25f22d7d86dc2dc8215aa6cc54c80",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_other_state_forbidden/build.omg",
+      "bytes": 990,
+      "sha256": "aa900232931d8318921677b62f23bddfd330caf19426f98c33402314c077443f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_other_state_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_other_state_forbidden/main.omg",
+      "bytes": 2573,
+      "sha256": "a6268be3c6ef2fae97457a70df85d8eab1703694ec3e16fdef284799d9b893c5",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_parameter_forbidden/build.omg",
+      "bytes": 988,
+      "sha256": "fc51f7ac86b8a9517b1136fd00b18041929e6cd00d87fd801cbd0719e03a1614",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_parameter_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_parameter_forbidden/main.omg",
+      "bytes": 2612,
+      "sha256": "46b24048df8bf5ed09281bc6958feeb1abe6aaec4f769fccfb947be20d185315",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_target_body_forbidden/build.omg",
+      "bytes": 1346,
+      "sha256": "67df4b2b5ec429f391ed3fc6f40c18ed52cdb40c43ac548278de92b11d1a0a46",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_target_body_forbidden/expected.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/facts/supplied_output_loan_through_target_body_forbidden/main.omg",
+      "bytes": 4346,
+      "sha256": "6e293fc5388c7674a3c0f326a07ddac2c92819165fb008f6b004344ca53441d2",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/references/predicate_mutable_reference_missing_input_fact_rejected/build.omg",
+      "bytes": 350,
+      "sha256": "ad4fd75e291f31af3051379eeac4c02b5f173582e7a50004fd984e371c34ec5a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/references/predicate_mutable_reference_missing_input_fact_rejected/expected.txt",
+      "bytes": 78,
+      "sha256": "b39ad81217235950f0724f2550d4b4a5d401cd8fe4a51f873af390c8011f11f9",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/references/predicate_mutable_reference_missing_input_fact_rejected/main.omg",
+      "bytes": 550,
+      "sha256": "99d4afe1caeeca3c263cb9e9490651e6bb421abee819cb9e9db5b0c20ecb36a5",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/references/supplied_output_saved_child_survives_parent_release_rejected/build.omg",
+      "bytes": 670,
+      "sha256": "cdb1453d92bcada68223067cb64b7a03a92964bad412b07c0b806f429ba361f4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/references/supplied_output_saved_child_survives_parent_release_rejected/expected.txt",
+      "bytes": 65,
+      "sha256": "bcaaca9677f5fa7bef08033a097fd4581b9d71eaebccc6f68f10169a562c8283",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/fail/references/supplied_output_saved_child_survives_parent_release_rejected/main.omg",
+      "bytes": 2952,
+      "sha256": "45cca9263ed1e280e02fa35779eb50503eaf5adae433c14e12adfd14256d5e79",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/owned_match_field_disjoint_mutation_exit/build.omg",
+      "bytes": 340,
+      "sha256": "e58f38745afc2a2062f52a9efc6a57262c506d649e03e44dd026a047cd82d2ea",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/owned_match_field_disjoint_mutation_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/owned_match_field_disjoint_mutation_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/owned_match_field_disjoint_mutation_exit/main.omg",
+      "bytes": 1074,
+      "sha256": "acb54adc0a433c0d9b21f7b68abc8cec37ff318ae5afad2bd1009b495bd343fc",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_conditional_helper_keeps_reference_exit/build.omg",
+      "bytes": 953,
+      "sha256": "54e9e594fd7681b35f5fee5a59c3b9d824e77125faf93aa15715068b71daaea7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_conditional_helper_keeps_reference_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_conditional_helper_keeps_reference_exit/main.omg",
+      "bytes": 2458,
+      "sha256": "41b92cf51bc22f2ca103ff698105d7597ca282a87c031c986fa2cc5e8a957cc8",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_empty_reference_slot_exit/build.omg",
+      "bytes": 673,
+      "sha256": "81b41b9513ca6d93f2ee1a3f586de23e07318164f525dd2fa3caa7fb47aa3c54",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_empty_reference_slot_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_empty_reference_slot_exit/main.omg",
+      "bytes": 1020,
+      "sha256": "d60379e2116812fc30bd92b5f97726ce84d561b3da2d8b54148de6a00c6fbd77",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_exclusive_alternative_handback_exit/build.omg",
+      "bytes": 664,
+      "sha256": "f7b865bec44361d9e0b61548e7ab443ee68567c783681e9536f0a913ef9f0aeb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_exclusive_alternative_handback_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_exclusive_alternative_handback_exit/main.omg",
+      "bytes": 2877,
+      "sha256": "54a1d26b45d182e1f411f86dca8994026e0b7ca2d0bcbdb120ef4c100f97ce6e",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_installed_reference_snapshot_exit/build.omg",
+      "bytes": 676,
+      "sha256": "e8cc5b78a4e0d4c3d24790f7c350fe8fabdddab5ffbc7e9d5649498c3d9e9f87",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_installed_reference_snapshot_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_installed_reference_snapshot_exit/main.omg",
+      "bytes": 1149,
+      "sha256": "b5eaa65555a300737f6ae1939ab13e16b4491329f4b018f21d4351fbf581d6da",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_ordinary_helper_saved_reference_exit/build.omg",
+      "bytes": 638,
+      "sha256": "8ea43a0ad6d1aa62cd7dff9d8e1907920b1700a34d702b85c83f9e2f00a45852",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_ordinary_helper_saved_reference_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_ordinary_helper_saved_reference_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_ordinary_helper_saved_reference_exit/main.omg",
+      "bytes": 1504,
+      "sha256": "2d4593bbe2be0cc7698287decf1621859115503d4da74c9c164c75f178f0ae36",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_plain_lender_qualification_expires_exit/build.omg",
+      "bytes": 347,
+      "sha256": "f38ed107f8de2626ba211a5755c6b57bae36e90331da82b0202fff4413b75d4f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_plain_lender_qualification_expires_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_plain_lender_qualification_expires_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_plain_lender_qualification_expires_exit/main.omg",
+      "bytes": 834,
+      "sha256": "d17d6a9795378e6655a86a04f7ae7804ebfa7268ee126871a5f8920ce8b7a683",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_shared_stored_input_ceiling_exit/build.omg",
+      "bytes": 955,
+      "sha256": "21cb7a72c18754539b65242ca87d01abeb0dc8398fb53e52fe95aeda041c2f28",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_shared_stored_input_ceiling_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_shared_stored_input_ceiling_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/borrows/supplied_output_shared_stored_input_ceiling_exit/main.omg",
+      "bytes": 1840,
+      "sha256": "5589952a1731da2febafefff6af20b0029fa64881cea328f5f8bf2f5f7dffc90",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_call_result_exit/build.omg",
+      "bytes": 990,
+      "sha256": "4a501becfc7ed1c8147039766b531a62149dfdadc3ba614d7e2927322d7bb0aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_call_result_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_call_result_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_call_result_exit/main.omg",
+      "bytes": 2575,
+      "sha256": "2d5dbdec7a1b4a46bc3c62a2f38484b406c7f165b5049fdd6eafc93d8c0b092a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_const_name_exit/build.omg",
+      "bytes": 989,
+      "sha256": "8f86a9c1040f57db0ace81cb90d312cd9316cde75219a98af502870404c90880",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_const_name_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_const_name_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_const_name_exit/main.omg",
+      "bytes": 2607,
+      "sha256": "b7c96f85775a9c78af9f58603a222c9eaffadddd39e685b4a4f636c649122f21",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_field_exit/build.omg",
+      "bytes": 984,
+      "sha256": "438c55235ef64b8c70eecf54b67273111983f5418a71237ccd86f6659c5e2452",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_field_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_field_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_field_exit/main.omg",
+      "bytes": 2650,
+      "sha256": "f5e45bd9ce7ae6b5de09d95736d5bf01309d5136707c3e9f664185c900d3d6ea",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_local_exit/build.omg",
+      "bytes": 984,
+      "sha256": "09cc37e322f5d7bd2ce72039cd217337bfb90a635a7c062bd9b1dd36a2b215e4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_local_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_local_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_local_exit/main.omg",
+      "bytes": 2479,
+      "sha256": "f70b9b4be219d51620edd2dfe2b1c3459fedc22babe0d39d892d613e2e3f583d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_match_join_exit/build.omg",
+      "bytes": 989,
+      "sha256": "562ef0a6a709d26bffcd812e8a9a7dc44c2ef240dd5712c2a2798a05a26e6a3a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_match_join_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_match_join_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_match_join_exit/main.omg",
+      "bytes": 2510,
+      "sha256": "227406fbc16f005bee401909c18d8db89bb4bb13458ff600236493295021fb7d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_machine_exit/build.omg",
+      "bytes": 992,
+      "sha256": "500004a09918e62d8bc332890d447d6448aa8bbfd8baa966606b3ebfb48f98a1",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_machine_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_machine_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_machine_exit/main.omg",
+      "bytes": 2482,
+      "sha256": "519ff06b14d9e0166f5eb216bf56f4f72b31b6e1f678388233b9c7866b5d257d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_state_exit/build.omg",
+      "bytes": 990,
+      "sha256": "aa900232931d8318921677b62f23bddfd330caf19426f98c33402314c077443f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_state_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_state_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_other_state_exit/main.omg",
+      "bytes": 2547,
+      "sha256": "adb85b2c0f3ce6b31c9dcb5b5d9a0803c41712f986259d93fbaf092569ff6b5b",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_parameter_exit/build.omg",
+      "bytes": 988,
+      "sha256": "fc51f7ac86b8a9517b1136fd00b18041929e6cd00d87fd801cbd0719e03a1614",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_parameter_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_parameter_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_parameter_exit/main.omg",
+      "bytes": 2586,
+      "sha256": "d3d0d79895a4ba4c57ab65a43c9b7028bcf9a77e2e5321a4f1d3e464296612fc",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_target_body_exit/build.omg",
+      "bytes": 1346,
+      "sha256": "67df4b2b5ec429f391ed3fc6f40c18ed52cdb40c43ac548278de92b11d1a0a46",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_target_body_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_target_body_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/facts/supplied_output_loan_through_target_body_exit/main.omg",
+      "bytes": 4320,
+      "sha256": "2babf4ded26c26eab55d33527bc979118211a7fb0e066f715d76c58b68cb57bc",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/predicate_mutable_reference_input_fact_expires_exit/build.omg",
+      "bytes": 350,
+      "sha256": "ad4fd75e291f31af3051379eeac4c02b5f173582e7a50004fd984e371c34ec5a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/predicate_mutable_reference_input_fact_expires_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/predicate_mutable_reference_input_fact_expires_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/predicate_mutable_reference_input_fact_expires_exit/main.omg",
+      "bytes": 615,
+      "sha256": "4136f5911e864013c09c269fbecce2352e8b3a525e20af67aed945dc750ee031",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/supplied_output_saved_child_last_read_before_parent_release_exit/build.omg",
+      "bytes": 670,
+      "sha256": "cdb1453d92bcada68223067cb64b7a03a92964bad412b07c0b806f429ba361f4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/supplied_output_saved_child_last_read_before_parent_release_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/pins-provisioned-scheduler-current38-v4/tests/omega/pass/references/supplied_output_saved_child_last_read_before_parent_release_exit/main.omg",
+      "bytes": 2924,
+      "sha256": "7891dfc6cd8312982b121f77c990f747b1cc0ada41244d81c6c562d4b3556401",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/all_supplier_debts_only_saved_view/build.omg",
+      "bytes": 986,
+      "sha256": "732e9cd15c5eac3334c5771228c878a74306b119da7da6e981f1ca5a97444dd4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/all_supplier_debts_only_saved_view/main.omg",
+      "bytes": 1712,
+      "sha256": "803c353c414c7bf6418829d3b568f5151d669b7e2634102603d5c0c71299f982",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/compatible_view_from_supplied_reference/build.omg",
+      "bytes": 991,
+      "sha256": "529ee0f7e243790a317676b5a7676a23985c05a10711113c86cdd1c95cd97713",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/compatible_view_from_supplied_reference/main.omg",
+      "bytes": 1819,
+      "sha256": "f9aba0ac42b354aa636fbb8782424bb48a426a924760ce6168a6a3a472383a83",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/earlier_argument_keeps_installed_source/build.omg",
+      "bytes": 991,
+      "sha256": "a2ca041c0cb6fe2f63d14c2dcccf9d641531d2ebc0a325ad550d7418714f003a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/earlier_argument_keeps_installed_source/main.omg",
+      "bytes": 1926,
+      "sha256": "134a7982dcd32ff81d84bc68cff3cc2e10b25f2dfb667018b83a555cef792539",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_call_result/build.omg",
+      "bytes": 990,
+      "sha256": "4a501becfc7ed1c8147039766b531a62149dfdadc3ba614d7e2927322d7bb0aa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_call_result/main.omg",
+      "bytes": 2510,
+      "sha256": "2f539c336877a44884a482fd9f1d661773b0f588aa022cd81b82751a5dd27e59",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_const_name/build.omg",
+      "bytes": 989,
+      "sha256": "8f86a9c1040f57db0ace81cb90d312cd9316cde75219a98af502870404c90880",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_const_name/main.omg",
+      "bytes": 2542,
+      "sha256": "c1ff8faba243a1cfde5bddbfa5dd46d641f8308ba41e4b16370765b6b0f7950e",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_field/build.omg",
+      "bytes": 984,
+      "sha256": "438c55235ef64b8c70eecf54b67273111983f5418a71237ccd86f6659c5e2452",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_field/main.omg",
+      "bytes": 2585,
+      "sha256": "ba1915b63fb2f6a37aa368f90f6a97677e783c8b1dc75b13baac712655c8eccf",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_local/build.omg",
+      "bytes": 984,
+      "sha256": "09cc37e322f5d7bd2ce72039cd217337bfb90a635a7c062bd9b1dd36a2b215e4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_local/main.omg",
+      "bytes": 2414,
+      "sha256": "5b99fed9304cb6f886c109a50d6f15b11950ade11e09000a79277733da9b94f7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_match_join/build.omg",
+      "bytes": 989,
+      "sha256": "562ef0a6a709d26bffcd812e8a9a7dc44c2ef240dd5712c2a2798a05a26e6a3a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_match_join/main.omg",
+      "bytes": 2445,
+      "sha256": "28e17afc28355a5ebd5e949c4411589acf400f18aeb2d0a6e7f3a6837308bb78",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_other_machine/build.omg",
+      "bytes": 992,
+      "sha256": "500004a09918e62d8bc332890d447d6448aa8bbfd8baa966606b3ebfb48f98a1",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_other_machine/main.omg",
+      "bytes": 2417,
+      "sha256": "b70e8b274d1a5c2f495eb8bd5277c9d1931b8d6818e68280458312a2eb0aeff5",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_other_state/build.omg",
+      "bytes": 990,
+      "sha256": "aa900232931d8318921677b62f23bddfd330caf19426f98c33402314c077443f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_other_state/main.omg",
+      "bytes": 2482,
+      "sha256": "97a8821aff62562fc4c90a0b45c8924643b59d58ab2811d257109548b55deae7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_parameter/build.omg",
+      "bytes": 988,
+      "sha256": "fc51f7ac86b8a9517b1136fd00b18041929e6cd00d87fd801cbd0719e03a1614",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_parameter/main.omg",
+      "bytes": 2521,
+      "sha256": "ca9842eb047e9f2a7ac200154a16464d1ac2c776527bd346fa9fe121a67693ad",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_target_body/build.omg",
+      "bytes": 1346,
+      "sha256": "67df4b2b5ec429f391ed3fc6f40c18ed52cdb40c43ac548278de92b11d1a0a46",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/fact_target_body/main.omg",
+      "bytes": 4255,
+      "sha256": "350bf388700fa9d8b1fae3ee8332187dedf0bd0782a8d482641ae3701ca1e335",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/ordinary-output-probe/build.omg",
+      "bytes": 638,
+      "sha256": "8ea43a0ad6d1aa62cd7dff9d8e1907920b1700a34d702b85c83f9e2f00a45852",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/ordinary-output-probe/main.omg",
+      "bytes": 1363,
+      "sha256": "7b0ae100bb1d3452794f48b3cd2e223be77e8696d2bb38bb2450661a3a79a5df",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/output_replaced_saved_reference/build.omg",
+      "bytes": 983,
+      "sha256": "9eb00e2b01ebc599c04a952a873c6a4ad381bd6f544607b9408992736fd21ecb",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/output_replaced_saved_reference/main.omg",
+      "bytes": 1885,
+      "sha256": "49a17d2992ab1f7fb3ea576f765de51238c7598987b4eb4b6b5ed9af427e2460",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/provided-output-probe/build.omg",
+      "bytes": 958,
+      "sha256": "a810289203a20412e649c260245610f4db2f0bb63a6b52a427b093678c47bfd0",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/provided-output-probe/main.omg",
+      "bytes": 1734,
+      "sha256": "3ca19e27a31d38a8c05efa747a7113e85a293da3761bff1d535bf0d6de539caf",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/retained_incoming_conditional/build.omg",
+      "bytes": 953,
+      "sha256": "54e9e594fd7681b35f5fee5a59c3b9d824e77125faf93aa15715068b71daaea7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/retained_incoming_conditional/main.omg",
+      "bytes": 2463,
+      "sha256": "ded3691c15640d5f4d801e9bf08a032c2704a912c2c5f723c3aa5f4de5016e2a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/returned_slot_after_write/build.omg",
+      "bytes": 953,
+      "sha256": "9cc4adfe82310eedc9ebf18c66f9c345891401cdc511f8c9ba95d2640d1797cc",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/returned_slot_after_write/main.omg",
+      "bytes": 2019,
+      "sha256": "e58aa7b5c2ef789e93eabe89e96fd9e9002f688ef68dcf479066a39bd64025f6",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/shared_stored_input_ceiling/build.omg",
+      "bytes": 955,
+      "sha256": "21cb7a72c18754539b65242ca87d01abeb0dc8398fb53e52fe95aeda041c2f28",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/shared_stored_input_ceiling/main.omg",
+      "bytes": 1690,
+      "sha256": "4c03299556ab7ad9644f4dc7313a0f3997a7bd1c79ae8b0d369768403c2203df",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/whole_input_cohort_restores/build.omg",
+      "bytes": 979,
+      "sha256": "9435d13bc727e690ddaa830312fab5e65d38e84c5f58d087f5934a7287d1ec16",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/provisioned-scheduler-successors-80m/whole_input_cohort_restores/main.omg",
+      "bytes": 1645,
+      "sha256": "996326f73c79fa68789733899b5834242b9d8ed3b5007bb88c287189ebe15c3d",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/call_result/invalid/build.omg",
+      "bytes": 698,
+      "sha256": "15a52c7a5d80cad380c5976a64f312d0e3f10e45e9199795c5d67a8f39e53a4a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/call_result/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/call_result/invalid/main.omg",
+      "bytes": 2582,
+      "sha256": "65417581c29297d97035344b992a114bd0046bd0c11b5a2e841bb623795b4765",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/const_name/invalid/build.omg",
+      "bytes": 697,
+      "sha256": "b9bc4d4fb237786b5e00a4600f0e767da4855b875f09dc751e9da4cc57d187fa",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/const_name/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/const_name/invalid/main.omg",
+      "bytes": 2614,
+      "sha256": "63a008434f6fcd36c202e614ae83e5740dcaf0c838938e6c5ee90961274502a1",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/field/invalid/build.omg",
+      "bytes": 692,
+      "sha256": "2729242c671a968eeb2080bc42b4dc41feb5ccf279536116ef3d52fd01e351b0",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/field/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/field/invalid/main.omg",
+      "bytes": 2657,
+      "sha256": "bbef6f51854bf9c64db915043727ce205b82d09ec8a39fb80a9239c86466435e",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/local/invalid/build.omg",
+      "bytes": 692,
+      "sha256": "a8cd435fb624ffe2720602e35f7fd68d924d7a2f602dde7024baf5cd5a7bac98",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/local/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/local/invalid/main.omg",
+      "bytes": 2486,
+      "sha256": "0ccec9ec7a852924aaaff01b65eebb21a1366f3183bcc8e26977a8340a7174e2",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/match_join/invalid/build.omg",
+      "bytes": 697,
+      "sha256": "56d711c37449bc37bcb39733431c4395202c5a3fe6e873e0b860e6c4cfbb37f7",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/match_join/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/match_join/invalid/main.omg",
+      "bytes": 2517,
+      "sha256": "25247df64c9447a2c98bebb1699d78050f055d4b09cfd4dbe4ee6fa0c50240b2",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/other_machine/invalid/build.omg",
+      "bytes": 700,
+      "sha256": "ca44bb436d0aa6abb10f81e9df8a260c7d37086b9bb105f72b42c7d734bccfd8",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/other_machine/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/other_machine/invalid/main.omg",
+      "bytes": 2489,
+      "sha256": "5d36091fc1c64121588efaf9c4ff3f8e1e3e136c5d698a99168887c79fa9442a",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/other_state/invalid/build.omg",
+      "bytes": 698,
+      "sha256": "d4ec93975e047177ad31cfea5dc59528eb50b29c3d601f6d87894bf5a00b8684",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/other_state/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/other_state/invalid/main.omg",
+      "bytes": 2554,
+      "sha256": "5e7cf9970c78cfaf99b0870f09d856ce9e0c137894b05e0c6346e4803ed5e797",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/parameter/invalid/build.omg",
+      "bytes": 696,
+      "sha256": "2c6ceca3abb6e6e126f91f1510217fa478445295fe34f100c1c3e543305b9bf4",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/parameter/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/parameter/invalid/main.omg",
+      "bytes": 2593,
+      "sha256": "e124ea62513bff7077469609d496a5a6f08a084e5076f2092b20dd328ab4fb08",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/target_body/invalid/build.omg",
+      "bytes": 1054,
+      "sha256": "df9af975d71f3074ef5c9875e185d2456153e5ae85081b62c82819ff3ff8e35b",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/target_body/invalid/expected_diagnostic.txt",
+      "bytes": 83,
+      "sha256": "fb6347ca6dc6ca958270eba33d6c23588f3632490fddb8db85d4353f60e6cf62",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/recovered-frozen-nine-place-inputs-6d076d0b/inputs/target_body/invalid/main.omg",
+      "bytes": 4327,
+      "sha256": "10eb96e4bb767104cb4cac4b6dc300227ddd89c0ef6daaf1bd1e310969a255ed",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/retained-incoming-control/forbidden/build.omg",
+      "bytes": 661,
+      "sha256": "0f987134905c07f53aec0e8abea0decb6d285394bd8198a016ddbd25ba22700f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/retained-incoming-control/forbidden/main.omg",
+      "bytes": 2535,
+      "sha256": "e6019a2772eb01fb4064a89f6750e4ef795fff086067de95d694aa2f29ff8f19",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/returned-slot-written-contents/returned_slot_new_contents_forbidden/build.omg",
+      "bytes": 672,
+      "sha256": "0dfee1e8618cb8822188f1890fc282e544f2099a20ffd66f9d6d35fed58a63fe",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/returned-slot-written-contents/returned_slot_new_contents_forbidden/main.omg",
+      "bytes": 2091,
+      "sha256": "0b70a834f79d1313f474f2d2a821d5996a4c4b78652dbaad9667ff7c7a4dbdbd",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/shared-container-mutable-input/shared_stored_input_no_mutable_upgrade/build.omg",
+      "bytes": 674,
+      "sha256": "4cd9348df350e882b3902e52661eaa0505d56e986cb98b33f3fac4211cdcf65f",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/shared-container-mutable-input/shared_stored_input_no_mutable_upgrade/main.omg",
+      "bytes": 1741,
+      "sha256": "a6f4771a91855b07ca5733ac673c35584874bf6df85cbefbb7e1c847d4c5762b",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/shared-whole-input-pair/build.omg",
+      "bytes": 339,
+      "sha256": "e3f80c73f546bfd0f7ad190722d377ffd645244c9381532eb5af2149017e3a18",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/shared-whole-input-pair/main.omg",
+      "bytes": 1173,
+      "sha256": "7025c63529bb0b1f089edda7258b0667744e27596033079097a4e2263c8f5349",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/whole-input-early-read/build.omg",
+      "bytes": 689,
+      "sha256": "db315f29ebb49fc13cfe6aa67d2b94c80e1b9fcaf4ea1ce9ae80f956de041405",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "build/supplied-output-loan/whole-input-early-read/main.omg",
+      "bytes": 1705,
+      "sha256": "128d21ba1301e63f05b21ef968c3ba0d2bfee80fdad902ee17a2be217e483a27",
+      "already_tracked_repository_input": false
+    },
+    {
+      "path": "tests/omega/fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected/build.omg",
+      "bytes": 641,
+      "sha256": "211f8e6dfb5f20547e86e44311cd8e6e5be4d70d12ebb6f40442abc8b4a4d60f",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected/expected.txt",
+      "bytes": 65,
+      "sha256": "46413fef67fe5811dc77e8dc919bdf4b68fcab585e894f5ea088af9fbb8b94d6",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected/main.omg",
+      "bytes": 1397,
+      "sha256": "d1e7d9b1df1d5a62f6a7487b3587c18ca2b77f4132e41279cb19e103b1b09162",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrow/runtime_write_only_exclusive_reference_forward_exit/build.omg",
+      "bytes": 395,
+      "sha256": "34982fedf1b958f227fd67fe72712c5e732e6918736b3c3a09bab6d0140e42b6",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrow/runtime_write_only_exclusive_reference_forward_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrow/runtime_write_only_exclusive_reference_forward_exit/main.omg",
+      "bytes": 1137,
+      "sha256": "bbb68cff828a170ed4e690ba3a0e5d68257cb6ecd52afad6f93281b77fad529f",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_owned_generic_carrier_reborrow_exit/build.omg",
+      "bytes": 341,
+      "sha256": "970694a2637934d2404a280cb8066eb20626b8a623cde87855f884fa827b34d3",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_owned_generic_carrier_reborrow_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_owned_generic_carrier_reborrow_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_owned_generic_carrier_reborrow_exit/main.omg",
+      "bytes": 722,
+      "sha256": "4c6862000de839e700687ee463c4359299554a7fd1f9443a7d492430d1829a95",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_shared_descriptor_store/build.omg",
+      "bytes": 336,
+      "sha256": "a9801e9fd70ebe4f9f44f5f99a78a6d26a3079ab1b8d3d0d2b3f78099dbec930",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_shared_descriptor_store/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_shared_descriptor_store/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_shared_descriptor_store/main.omg",
+      "bytes": 1616,
+      "sha256": "cba79414acb71f0b07cf539d1c63c799e01c26733476492869a80fa72e434831",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_stored_carrier_retired_parent_exit/build.omg",
+      "bytes": 367,
+      "sha256": "33660259e6f1daecb02c5a5cebd9eb65bf0718746bdfee7c7b0ce8eef253ad62",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_stored_carrier_retired_parent_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_selected_stored_carrier_retired_parent_exit/main.omg",
+      "bytes": 1157,
+      "sha256": "9d304aea4381e1dadab38f1f9923ff4a10d0213f6ccc5e9be81db97cdf3fa951",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit/build.omg",
+      "bytes": 372,
+      "sha256": "a9eb5ae2d265bfe2ad517ef713733e9078e8b65d484dab6ecc775b57ee7b8e7a",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/runtime_writeonly_generic_returned_carrier_reborrow_exit/main.omg",
+      "bytes": 742,
+      "sha256": "56701a8d8618cac9fdd567bcc75bc126599d002b6fba500fc51fd5c3dc5fde20",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit/build.omg",
+      "bytes": 641,
+      "sha256": "211f8e6dfb5f20547e86e44311cd8e6e5be4d70d12ebb6f40442abc8b4a4d60f",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit/expected_interpreter_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit/expected_native_exit.txt",
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "already_tracked_repository_input": true
+    },
+    {
+      "path": "tests/omega/pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit/main.omg",
+      "bytes": 1465,
+      "sha256": "ff4ecf0b8246974590bb6c963f858a83b3ee32fa731641edda6103dd2dc9a0d5",
+      "already_tracked_repository_input": true
+    }
+  ],
+  "constraints": [
+    "All members are ordinary files under build/supplied-output-loan or tests/omega; no absolute or parent paths, duplicate members or symlinks.",
+    "Some60-cohort inputs are already tracked tests. Consumer must NEVER overwrite tracked paths: authenticate identical existing bytes or use an explicitly recorded isolated transport root.",
+    "Roster bytes including historical paths, oracles and pending qualifiers are preserved exactly. No old result is promoted.",
+    "Consumer validates archive/member hashes before safe extraction and refuses different existing destinations. Relocation must be explicit and lossless.",
+    "Current source/library/toolchain and producer profiles remain separate required authentication.",
+    "All60 and all38 must execute; intended negative reasons, both actual engine exits and SAME fresh artifact receiving remain mandatory.",
+    "The38 lender-corruption negative with pending_reject_diagnostic=true has no diagnostic pin and cannot count as intended-reason qualification from nonzero alone.",
+    "The separate corpus retained/native custody failure and noncohort/permanent controls remain open.",
+    "This archive changes no tracked source or OMG allocation and contains no compiler executables, cache, build outputs or runtime artifacts."
+  ]
+}
