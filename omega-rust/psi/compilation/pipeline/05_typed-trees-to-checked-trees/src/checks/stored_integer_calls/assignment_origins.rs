@@ -68,3 +68,78 @@ fn owned_destination(
         path: String::new(),
     }])
 }
+
+/// A call may replace a pointer and then write through its replacement. A
+/// fitting pending store proves nothing about those intermediate writes.
+/// Report their missing origins only when the failed call actually receives
+/// mutable access that can reach the descriptor for narrowed physical storage.
+pub(super) fn operand_write_refusal<'program>(
+    program: &'program dyn validation::CheckingInput,
+    frames: &CallFrameResolver<'program>,
+    machine: &'program Machine,
+    state: &State,
+    statement_index: usize,
+    statement: &StatementNode,
+    destinations: &[LocalWriteSource],
+) -> Option<&'static str> {
+    let assignment = statement.as_assignment()?;
+    let reference =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    validation::reference_shell(program, reference)?;
+    let slot = place_at(program, state.symbol, statement_index, assignment.target)?;
+    let root = slot.root.as_symbol()?;
+    if !destinations.iter().any(|source| {
+        validation::stored_integer_source_reach(program, state, source)
+            .is_ok_and(|reach| reach.requires_fit)
+    }) {
+        return None;
+    }
+    let failures = frames.stored_reference_call_failures(machine, statement)?;
+    for site in
+        validation::collect_call_sites_in_statement(program, machine, state, statement_index)
+    {
+        let target = site.target_symbol(program);
+        let validation::CallSite::Expression { expression, .. } = site else {
+            continue;
+        };
+        if !failures
+            .iter()
+            .any(|failure| failure.target == target && failure.expression == expression)
+            || validation::call_target_has_checked_body_contract(program, target)
+        {
+            continue;
+        }
+        let Some(parameters) = site.parameters(program, machine.symbol) else {
+            continue;
+        };
+        let origins = match site {
+            validation::CallSite::Statement(call) => frames.call_write_origins(machine, call),
+            validation::CallSite::Expression { expression, .. } => {
+                frames.expression_call_write_origins(machine, expression)
+            }
+            validation::CallSite::TransitionNamed { .. } => None,
+        };
+        let Some(origins) = origins else {
+            continue;
+        };
+        for (position, parameter) in parameters.iter().enumerate() {
+            if !validation::reference_shell(program, parameter.type_reference)
+                .is_some_and(|shell| shell.access.is_exclusive())
+            {
+                continue;
+            }
+            let Some(sources) = super::actual_origins(parameters, position, &origins) else {
+                continue;
+            };
+            if sources
+                .iter()
+                .any(|source| source.root == root && slot.segments.starts_with(&source.segments))
+            {
+                return Some(
+                    "performed write has unknown destination origins inside an operand call that can replace the captured reference",
+                );
+            }
+        }
+    }
+    None
+}

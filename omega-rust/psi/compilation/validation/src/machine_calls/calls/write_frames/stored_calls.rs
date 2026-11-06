@@ -339,7 +339,13 @@ fn invocation_reference_effects(
         // selects its actual machine. Each closed instance calls that body
         // and publishes the concrete relation; the template owes none.
         if program.machine_parameter_signature(target).is_some() {
-            return Some(SlotRelationTransfer::unknown(context, target, true, false));
+            return Some(SlotRelationTransfer::unknown(
+                context,
+                target,
+                call_expression,
+                true,
+                false,
+            ));
         }
         // A missing body cannot summarize a nonempty or symbolic frontier.
         return None;
@@ -359,7 +365,13 @@ fn invocation_reference_effects(
     // Preserve main's template deferral without refusing a generic owner whose
     // runtime destination inventory is already complete and concrete.
     if inventory.template_dependent {
-        return Some(SlotRelationTransfer::unknown(context, target, true, false));
+        return Some(SlotRelationTransfer::unknown(
+            context,
+            target,
+            call_expression,
+            true,
+            false,
+        ));
     }
     if matches!(
         callee.supply_mode,
@@ -616,8 +628,13 @@ fn complete_applied_output_transfer(
     effects: Vec<SlotEffect>,
 ) -> Option<SlotRelationTransfer> {
     if readiness == crate::borrow_contracts::BorrowRelationReadiness::TemplateDependent {
-        let mut transfer =
-            SlotRelationTransfer::unknown(context, SymbolHandle::invalid(), true, true);
+        let mut transfer = SlotRelationTransfer::unknown(
+            context,
+            SymbolHandle::invalid(),
+            ExpressionHandle::invalid(),
+            true,
+            true,
+        );
         // The captured destination may not have an incoming inventory row.
         // Its checked coordinate still becomes unknown at this completion.
         for mut effect in effects {

@@ -51,10 +51,10 @@ fn has_encoded_write_requirements(program: &dyn validation::CheckingInput) -> bo
 /// Ask the same destination owner without constructing a performed-write row.
 /// This explains an already rejected statement; it never supplies a call effect
 /// or permits source checking to continue past the original refusal.
-pub(crate) fn performed_assignment_origin_refusal(
-    program: &dyn validation::CheckingInput,
-    frames: &CallFrameResolver<'_>,
-    machine: &Machine,
+pub(crate) fn performed_assignment_origin_refusal<'program>(
+    program: &'program dyn validation::CheckingInput,
+    frames: &CallFrameResolver<'program>,
+    machine: &'program Machine,
     state: &State,
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
@@ -94,9 +94,18 @@ pub(crate) fn performed_assignment_origin_refusal(
         return None;
     }
     match assignment_origins::sources(program, frames, machine, state, statement_index, statement) {
-        Ok(_) => {
-            trace("assignment origins are available");
-            None
+        Ok(destinations) => {
+            let refusal = assignment_origins::operand_write_refusal(
+                program,
+                frames,
+                machine,
+                state,
+                statement_index,
+                statement,
+                &destinations,
+            );
+            trace(refusal.unwrap_or("assignment origins are available"));
+            refusal
         }
         Err(reason) => {
             trace(reason);

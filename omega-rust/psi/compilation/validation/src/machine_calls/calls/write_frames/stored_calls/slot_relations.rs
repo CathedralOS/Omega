@@ -150,6 +150,9 @@ pub enum StoredReferenceRelationRefusal {
 #[derive(Clone, Debug)]
 pub struct StoredReferenceCallFailure {
     pub target: SymbolHandle,
+    /// Exact expression invocation; zero denotes an explicit statement call.
+    /// Repeated calls to one target do not share a failure.
+    pub expression: ExpressionHandle,
     pub requires_relation: bool,
 }
 
@@ -198,6 +201,7 @@ impl SlotRelationTransfer {
     pub fn unknown(
         context: &CollectedStatementPrefix,
         target: SymbolHandle,
+        expression: ExpressionHandle,
         template_dependent: bool,
         requires_relation: bool,
     ) -> Self {
@@ -231,6 +235,7 @@ impl SlotRelationTransfer {
             } else {
                 vec![StoredReferenceCallFailure {
                     target,
+                    expression,
                     requires_relation,
                 }]
             },

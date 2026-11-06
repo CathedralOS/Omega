@@ -496,6 +496,7 @@ fn evaluate_statement(
                     SlotRelationTransfer::unknown(
                         &context,
                         call.target_symbol,
+                        ExpressionHandle::invalid(),
                         false,
                         super::provider_output_relation_required(
                             program,
@@ -798,6 +799,7 @@ impl Evaluation<'_, '_> {
                 SlotRelationTransfer::unknown(
                     context,
                     call.target_symbol,
+                    expression,
                     false,
                     super::provider_output_relation_required(
                         self.program,
