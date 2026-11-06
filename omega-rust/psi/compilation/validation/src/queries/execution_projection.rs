@@ -6,8 +6,9 @@
 //! guessed from a preliminary call graph. Product declarations remain frozen for
 //! designated selection operations, never ordinary callable lookup. A descriptor
 //! operand does not seed host type-work; ordinary signature, storage and value
-//! references restore that declaration if Build also uses it. This is a typed
-//! input projection, not a checked judgment or post-check product pruning.
+//! references restore that declaration if Build also uses it. These selections
+//! preserve typed declaration identity. A projection grants no checked judgment;
+//! its caller still owns source admission and executable selection.
 
 use crate::frozen_program::expression_table;
 use std::collections::HashSet;

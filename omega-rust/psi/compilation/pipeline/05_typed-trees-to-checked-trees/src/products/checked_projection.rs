@@ -165,7 +165,7 @@ pub(super) fn retain_facts(
             checked_trees::NominalMachineUseSite::Statement(statement) => index
                 .statement_machine
                 .get(&statement)
-                .is_some_and(|owner| retained(owner)),
+                .is_some_and(&retained),
             checked_trees::NominalMachineUseSite::Expression(_) => true,
         });
 
@@ -251,7 +251,7 @@ pub(super) fn retain_facts(
         index
             .state_machine
             .get(&row.state)
-            .is_none_or(|machine| retained(machine))
+            .is_none_or(&retained)
     });
     facts
         .flow

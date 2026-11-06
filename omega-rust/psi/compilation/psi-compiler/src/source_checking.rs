@@ -306,9 +306,9 @@ impl CheckRequest<'_> {
 }
 
 impl CheckedSource {
-    /// Select all authored Product roots after checking, or retain the complete
-    /// checked program when no pruning was requested. An explicit empty root set
-    /// remains an invalid request, not permission to skip checking or selection.
+    /// Select Product execution after full source checking. Complete checked
+    /// declarations remain available for review. Optional pruning follows the
+    /// Build/Product separation; an explicit empty root set is still invalid.
     pub fn select_product(
         self,
         roots: Option<Vec<symbols::SymbolHandle>>,
