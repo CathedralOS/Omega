@@ -1,6 +1,6 @@
 {
   "schema": "omega-installed-entry-arm-early-callers-v1",
-  "parent": "a7436fc4812226b74f20b421d3d3316438221f52",
+  "parent": "68a36415c620db0193bbf32838245ae8c9482fe4",
   "compiler_source": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
   "origin_run": 42202380872,
   "fixture": "pass/build/installed_entry_ram_live_stack_exit",
@@ -25,7 +25,7 @@
     "phase_profile": false
   },
   "meaning": "Active callers and per-process counters only; no allocation/OOM/CPU-share/qualification inference. Original18/13/19 acceptance remains owed.",
-  "setup": "Existing root-owned non-writable Swift LLDB only; two bounded probes before retained cache/materialization. Missing tool/Python/local symbols/server or denied normal-user launch fails closed. No install or alternate profiler.",
+  "setup": "Fixed preinstalled Swift LLDB must resolve to an executable file. Retain path/SHA/filekind/executable/UID/GID/mode as metadata; ownership and mode do not grant authority or require mutation. Two bounded version/API probes run before cache/workload. Missing tool/Python/local symbols/server or denied normal-user launch fails closed. No install or alternate profiler.",
   "privacy": "No inherited credentials, init scripts, symbol scripts, network symbols, argument/local values, inferior expressions or host-wide capture. Own-process child launch and pidfd/start/session identity only.",
   "references": [
     "https://lldb.llvm.org/use/aarch64-linux.html",

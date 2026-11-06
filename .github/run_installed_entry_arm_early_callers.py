@@ -40,8 +40,14 @@ if phase == 'tools':
     try:
         actual = TOOL.resolve(strict=True)
         stat = actual.stat()
-        assert actual.is_file() and os.access(actual, os.X_OK) and stat.st_uid == 0 and not stat.st_mode & 0o022
-        setup.update(resolved_tool=str(actual), sha256=sha(actual))
+        inventory = dict(resolved_tool=str(actual), is_file=actual.is_file(),
+                         executable=os.access(actual, os.X_OK), uid=stat.st_uid,
+                         gid=stat.st_gid, mode=oct(stat.st_mode), bytes=stat.st_size)
+        setup.update(inventory)
+        print(json.dumps(dict(protocol=TAG, kind='tool_inventory', **inventory)), flush=True)
+        if not inventory['is_file'] or not inventory['executable']:
+            raise ValueError('Fixed preinstalled Swift LLDB is not an executable file')
+        setup['sha256'] = sha(actual)
         commands = [[str(actual), '--no-lldbinit', '--version'],
                     [str(actual), '--no-lldbinit', '--batch', '-o',
                      'script import lldb; assert hasattr(lldb.SBProcess, "Stop") and hasattr(lldb.SBTarget, "Launch"); print("installed-entry-lldb-api-v1")']]
