@@ -5,9 +5,8 @@
 //! checked signature, never implementation-private facts or receiving domains.
 use crate::runtime_structural_path_tip;
 use crate::substitution;
-use crate::substitution::substitute_proposition_values;
+use crate::substitution::{ScalarValueBindings, substitute_proposition_bindings};
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
-use std::collections::BTreeMap;
 
 pub(super) fn scalar_conjuncts(propositions: &[Proposition]) -> Vec<Proposition> {
     let mut pending = propositions.iter().rev().collect::<Vec<_>>();
@@ -29,10 +28,9 @@ pub fn instantiate_payload_scalar_guarantees(
     contract: &terminal_psi::MachineContract,
     bindings: &[(ValueId, ScalarTerm)],
 ) -> Vec<Proposition> {
-    let substitutions = bindings.iter().cloned().collect::<BTreeMap<_, _>>();
-    if substitutions.len() != bindings.len() {
+    let Ok(substitutions) = ScalarValueBindings::new(bindings.iter().cloned()) else {
         return Vec::new();
-    }
+    };
     let guarantees = contract
         .ensures
         .iter()
@@ -43,7 +41,7 @@ pub fn instantiate_payload_scalar_guarantees(
         .filter_map(|proposition| {
             let mut bound = true;
             proposition.visit_value_ids(|value| bound &= substitutions.contains_key(&value));
-            bound.then(|| substitute_proposition_values(&proposition, &substitutions))
+            bound.then(|| substitute_proposition_bindings(&proposition, &substitutions))
         })
         .collect()
 }
@@ -119,7 +117,7 @@ pub(super) struct TerminalCallBindings<'module> {
     pub callee: &'module terminal_psi::TerminalMachine,
     pub parameters: Vec<TerminalCallParameterBinding>,
     scalar_bindings: Vec<(ValueId, ScalarTerm)>,
-    substitutions: BTreeMap<ValueId, ScalarTerm>,
+    substitutions: ScalarValueBindings,
     storage: Vec<(
         semantic_vocabulary::PlaceId,
         semantic_vocabulary::StructuralTypeId,
@@ -128,7 +126,7 @@ pub(super) struct TerminalCallBindings<'module> {
 }
 
 impl TerminalCallBindings<'_> {
-    pub(super) fn scalar_substitutions(&self) -> &BTreeMap<ValueId, ScalarTerm> {
+    pub(super) fn scalar_substitutions(&self) -> &ScalarValueBindings {
         &self.substitutions
     }
 }
@@ -263,10 +261,8 @@ pub(super) fn terminal_call_bindings<'module>(
         }
         _ => return Err("the performed call result disagrees with its signature"),
     }
-    let substitutions = bindings.iter().cloned().collect::<BTreeMap<_, _>>();
-    if substitutions.len() != bindings.len() {
-        return Err("the call has ambiguous scalar substitutions");
-    }
+    let substitutions = ScalarValueBindings::new(bindings.iter().cloned())
+        .map_err(|_| "the call has ambiguous scalar substitutions")?;
     Ok(TerminalCallBindings {
         callee,
         parameters,
@@ -352,7 +348,7 @@ pub(super) fn terminal_postconditions(
             destination.path.extend(selected.path);
             postconditions.stored.push((
                 destination,
-                substitution::substitute_scalar_term_values(value, &substitutions),
+                substitution::substitute_scalar_term_bindings(value, &substitutions),
             ));
         }
     }

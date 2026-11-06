@@ -270,7 +270,6 @@
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/compatibility.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/invocation.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/owned_shape.rs
-1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_predicates.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_reachability.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/provider_invocation.rs

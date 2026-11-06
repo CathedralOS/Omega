@@ -84,15 +84,25 @@ impl NormalReturnProof {
     }
 }
 
+/// Keep one machine's results and active proof work together. Raw identities
+/// may be sparse; only authenticated body ordinals index these local rows.
+struct NormalMachinePayload<'module> {
+    body: &'module TerminalMachine,
+    writes: Option<Result<Vec<ParameterWrite>, &'static str>>,
+    writing: bool,
+    posts: Vec<(
+        PlaceId,
+        Result<Vec<PayloadMembershipContract>, &'static str>,
+    )>,
+    posting: bool,
+    completing: bool,
+    entry_complete: bool,
+}
+
 pub(super) struct NormalPayloadContext<'module> {
     module: &'module TerminalModule,
     graph: &'module [DescriptorMachine],
-    writes: BTreeMap<MachineId, Result<Vec<ParameterWrite>, &'static str>>,
-    writing: BTreeSet<MachineId>,
-    posts: BTreeMap<(MachineId, PlaceId), Result<Vec<PayloadMembershipContract>, &'static str>>,
-    posting: BTreeSet<MachineId>,
-    completing: BTreeSet<MachineId>,
-    complete_entries: BTreeSet<MachineId>,
+    machine_payloads: Vec<NormalMachinePayload<'module>>,
 }
 
 impl<'module> NormalPayloadContext<'module> {
@@ -100,31 +110,95 @@ impl<'module> NormalPayloadContext<'module> {
         module: &'module TerminalModule,
         graph: &'module [DescriptorMachine],
     ) -> Self {
+        let mut machine_payloads = module
+            .machines
+            .iter()
+            .map(|body| NormalMachinePayload {
+                body,
+                writes: None,
+                writing: false,
+                posts: Vec::new(),
+                posting: false,
+                completing: false,
+                entry_complete: false,
+            })
+            .collect::<Vec<_>>();
+        if !machine_payloads
+            .windows(2)
+            .all(|pair| pair[0].body.id <= pair[1].body.id)
+        {
+            machine_payloads.sort_unstable_by_key(|row| row.body.id);
+        }
         Self {
             module,
             graph,
-            writes: BTreeMap::new(),
-            writing: BTreeSet::new(),
-            posts: BTreeMap::new(),
-            posting: BTreeSet::new(),
-            completing: BTreeSet::new(),
-            complete_entries: BTreeSet::new(),
+            machine_payloads,
         }
+    }
+
+    fn machine_ordinal(&self, identity: MachineId) -> Result<usize, &'static str> {
+        let position = self
+            .machine_payloads
+            .binary_search_by_key(&identity, |row| row.body.id)
+            .map_err(|_| "the normal payload body is absent")?;
+        if position
+            .checked_sub(1)
+            .is_some_and(|previous| self.machine_payloads[previous].body.id == identity)
+            || self
+                .machine_payloads
+                .get(position + 1)
+                .is_some_and(|next| next.body.id == identity)
+        {
+            return Err("the normal payload body is ambiguous");
+        }
+        Ok(position)
+    }
+
+    fn entry_is_complete(&self, identity: MachineId) -> bool {
+        self.machine_ordinal(identity)
+            .is_ok_and(|position| self.machine_payloads[position].entry_complete)
+    }
+
+    fn mark_entry_complete(&mut self, identity: MachineId) -> Result<(), &'static str> {
+        let position = self.machine_ordinal(identity)?;
+        self.machine_payloads[position].entry_complete = true;
+        Ok(())
+    }
+
+    fn begin_completion(&mut self, identity: MachineId) -> Result<bool, &'static str> {
+        let position = self.machine_ordinal(identity)?;
+        Ok(!std::mem::replace(
+            &mut self.machine_payloads[position].completing,
+            true,
+        ))
+    }
+
+    fn end_completion(&mut self, identity: MachineId) -> Result<(), &'static str> {
+        let position = self.machine_ordinal(identity)?;
+        self.machine_payloads[position].completing = false;
+        Ok(())
+    }
+
+    /// A call gets fresh entry proofs and summaries. Only its active recursion
+    /// chain survives, so another call's actual facts cannot leak into it.
+    fn for_complete_entry(&self, identity: MachineId) -> Result<Self, &'static str> {
+        let mut context = Self::new(self.module, self.graph);
+        for (row, inherited) in context
+            .machine_payloads
+            .iter_mut()
+            .zip(&self.machine_payloads)
+        {
+            row.completing = inherited.completing;
+        }
+        context.mark_entry_complete(identity)?;
+        Ok(context)
     }
 
     fn executable_body(
         &self,
         identity: MachineId,
     ) -> Result<&'module TerminalMachine, &'static str> {
-        let mut bodies = self
-            .module
-            .machines
-            .iter()
-            .filter(|body| body.id == identity);
-        let body = bodies.next().ok_or("the normal payload body is absent")?;
-        if bodies.next().is_some() {
-            return Err("the normal payload body is ambiguous");
-        }
+        let body = self.machine_payloads[self.machine_ordinal(identity)?].body;
         if body
             .blocks
             .iter()
@@ -312,15 +386,16 @@ impl<'module> NormalPayloadContext<'module> {
         analysis: &mut DescriptorAnalysis<'_>,
         identity: MachineId,
     ) -> Result<Vec<ParameterWrite>, &'static str> {
-        if let Some(result) = self.writes.get(&identity) {
+        let ordinal = self.machine_ordinal(identity)?;
+        if let Some(result) = &self.machine_payloads[ordinal].writes {
             return result.clone();
         }
-        if !self.writing.insert(identity) {
+        if std::mem::replace(&mut self.machine_payloads[ordinal].writing, true) {
             return Err("the normal write summary has a recursive dependency");
         }
         let result = self.collect_body_writes(graph, analysis, identity);
-        self.writing.remove(&identity);
-        self.writes.insert(identity, result.clone());
+        self.machine_payloads[ordinal].writing = false;
+        self.machine_payloads[ordinal].writes = Some(result.clone());
         result
     }
 
@@ -548,10 +623,14 @@ impl<'module> NormalPayloadContext<'module> {
         identity: MachineId,
         root: PlaceId,
     ) -> Result<Vec<PayloadMembershipContract>, &'static str> {
-        if let Some(result) = self.posts.get(&(identity, root)) {
-            return result.clone();
+        let ordinal = self.machine_ordinal(identity)?;
+        let post = self.machine_payloads[ordinal]
+            .posts
+            .binary_search_by_key(&root, |(place, _)| *place);
+        if let Ok(position) = post {
+            return self.machine_payloads[ordinal].posts[position].1.clone();
         }
-        if !self.posting.insert(identity) {
+        if std::mem::replace(&mut self.machine_payloads[ordinal].posting, true) {
             return Err("the normal payload summary has a recursive dependency");
         }
         let result = (|| {
@@ -567,8 +646,15 @@ impl<'module> NormalPayloadContext<'module> {
                 .preserved_normal_exit_contracts_in(analysis, root, Some(self))
                 .map(|exits| exits.into_iter().map(|(_, contract)| contract).collect())
         })();
-        self.posting.remove(&identity);
-        self.posts.insert((identity, root), result.clone());
+        self.machine_payloads[ordinal].posting = false;
+        // An active same-machine post refuses above, so this row's insertion
+        // position cannot change during the recursive calculation.
+        let position = match post {
+            Ok(position) | Err(position) => position,
+        };
+        self.machine_payloads[ordinal]
+            .posts
+            .insert(position, (root, result.clone()));
         result
     }
 }

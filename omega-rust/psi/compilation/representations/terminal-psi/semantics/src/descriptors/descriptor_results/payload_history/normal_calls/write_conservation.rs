@@ -37,7 +37,7 @@ impl PerformedWrite {
 
     pub(super) fn bound(
         self,
-        bindings: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::ScalarTerm>,
+        bindings: &impl crate::substitution::ScalarValueSubstitutions,
     ) -> Result<Self, &'static str> {
         match self {
             Self::Payload(write) => Ok(Self::Payload(write)),

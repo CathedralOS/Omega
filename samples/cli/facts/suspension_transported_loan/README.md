@@ -29,22 +29,38 @@ carries its own entry permission and already ran on the base.
 | other machine | [source](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | target body | [source](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-The [stored-reference recast production](recast/README.md) carries the same fact
-through all nine places after forming a compatible record view. It preserves
-the original backing's carry floor rather than acquiring the target type's
-default permissions.
+A compatible record view keeps the original backing's suspension restrictions.
+The viewed type's default permissions cannot replace that backing's carry floor.
 
-The [copied-source production](copied_source/README.md) first selects and copies
-stored references, then forms the view. It retains the original data and access
-when the source slot changes, including later argument effects, and keeps
-shared descendants and the complete originating call input borrowed until they
-finish. Its nine places and fact-sensitive twins are pinned alongside the
-inherited-policy, access and restoration controls.
+Copies of stored references retain their original data and access when the
+source slot changes, including changes made while evaluating later arguments.
+Shared descendants keep the complete originating call input borrowed until they
+finish. A field view returned by a helper carries the same requirements through
+source-slot replacement and later argument writes, for every possible supplier.
 
-The [helper-returned projection production](projected_call_source/README.md)
-keeps a saved field view usable after a possible suspension, including selected
-sources, source-slot replacement and later argument writes. Its controls retain
-the complete original call input and every possible supplier.
+## References installed by helpers
+
+A helper can leave an output pointing at its original cell or install a
+reference to another cell. Saving that reference must keep the chosen cell
+usable after a call that may pause, even when the output variable changes later.
+The [conditional helper fixture](../../../../tests/omega/pass/borrows/supplied_output_conditional_helper_keeps_reference_exit/main.omg)
+reads 11 when the helper keeps the reference and 73 when it replaces it.
+Its [policy twin](../../../../tests/omega/fail/borrows/supplied_output_conditional_helper_keeps_reference_forbidden/main.omg)
+forbids both backings from surviving the pause, so either choice retains the
+same suspension obligation.
+
+The [ordinary helper fixture](../../../../tests/omega/pass/borrows/supplied_output_ordinary_helper_saved_reference_exit/main.omg)
+also keeps the helper's original input borrowed until the saved reference's
+last use. The [shared containing-record fixture](../../../../tests/omega/pass/borrows/supplied_output_shared_stored_input_ceiling_exit/main.omg)
+reads a stored reference without acquiring mutable access to its cell. Their
+Build companions explicitly select `Immediate` for `Scheduler` on each hosted
+target; a requirement alone does not select an implementation.
+
+Checking records the completed output's actual suppliers and their full loan
+obligations. Copies keep that association, and lowering transports each
+conditional request onto its exact emitted call. A selected helper must prove
+the request for every normal return. Complete source duties, current predicate
+truth, access and lifetime each retain their own proof requirements.
 
 Twins change only the backing's declaration to
 `carry(suspension: forbidden, ...)`. No twin reads the backing after the call;

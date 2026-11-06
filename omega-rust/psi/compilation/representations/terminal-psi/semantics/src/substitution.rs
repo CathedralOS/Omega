@@ -1,4 +1,5 @@
-//! Capture-free substitution for retained proposition, scalar, and content terms.
+//! Use expressions with the values and storage supplied for them.
+//! Capture-free substitution preserves the identity of each replacement.
 
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
@@ -11,25 +12,85 @@ use semantic_vocabulary::{
     IntegerMathTerm, PlaceId, Proposition, ScalarTerm, ValueId,
 };
 
+/// Resolve a formal scalar identity to its already-bound actual expression.
+/// The lookup itself establishes no proposition or storage observation.
+pub trait ScalarValueSubstitutions {
+    fn replacement(&self, identity: ValueId) -> Option<&ScalarTerm>;
+}
+
+impl ScalarValueSubstitutions for BTreeMap<ValueId, ScalarTerm> {
+    fn replacement(&self, identity: ValueId) -> Option<&ScalarTerm> {
+        self.get(&identity)
+    }
+}
+
+/// Keep the arguments supplied to one call in a compact, ordered table.
+/// Formal and result IDs can be sparse; allocate only actual bindings, refuse
+/// duplicate coordinates, and never size storage from an arbitrary raw ID.
+#[derive(Clone, Debug, Default)]
+pub struct ScalarValueBindings {
+    rows: Vec<(ValueId, ScalarTerm)>,
+}
+
+impl ScalarValueBindings {
+    pub fn new(bindings: impl IntoIterator<Item = (ValueId, ScalarTerm)>) -> Result<Self, ValueId> {
+        let mut rows = bindings.into_iter().collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(identity, _)| *identity);
+        if let Some(pair) = rows.windows(2).find(|pair| pair[0].0 == pair[1].0) {
+            return Err(pair[0].0);
+        }
+        Ok(Self { rows })
+    }
+
+    pub fn contains_key(&self, identity: &ValueId) -> bool {
+        self.replacement(*identity).is_some()
+    }
+}
+
+impl ScalarValueSubstitutions for ScalarValueBindings {
+    fn replacement(&self, identity: ValueId) -> Option<&ScalarTerm> {
+        self.rows
+            .binary_search_by_key(&identity, |(candidate, _)| *candidate)
+            .ok()
+            .map(|position| &self.rows[position].1)
+    }
+}
+
+/// Preserve callers that already supply an ordered map; both representations
+/// use the same substitution operation below.
 pub fn substitute_proposition_values(
     proposition: &Proposition,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
+) -> Proposition {
+    substitute_proposition_bindings(proposition, substitutions)
+}
+
+pub(super) fn substitute_scalar_term_values(
+    term: &ScalarTerm,
+    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+) -> ScalarTerm {
+    substitute_scalar_term_bindings(term, substitutions)
+}
+
+pub fn substitute_proposition_bindings(
+    proposition: &Proposition,
+    substitutions: &impl ScalarValueSubstitutions,
 ) -> Proposition {
     match proposition {
         Proposition::Truth => Proposition::Truth,
         Proposition::Falsehood => Proposition::Falsehood,
         Proposition::Atom(atom) => Proposition::Atom(*atom),
         Proposition::Equal(left, right) => Proposition::Equal(
-            substitute_scalar_term_values(left, substitutions),
-            substitute_scalar_term_values(right, substitutions),
+            substitute_scalar_term_bindings(left, substitutions),
+            substitute_scalar_term_bindings(right, substitutions),
         ),
         Proposition::LessThan(left, right) => Proposition::LessThan(
-            substitute_scalar_term_values(left, substitutions),
-            substitute_scalar_term_values(right, substitutions),
+            substitute_scalar_term_bindings(left, substitutions),
+            substitute_scalar_term_bindings(right, substitutions),
         ),
         Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(
-            substitute_scalar_term_values(left, substitutions),
-            substitute_scalar_term_values(right, substitutions),
+            substitute_scalar_term_bindings(left, substitutions),
+            substitute_scalar_term_bindings(right, substitutions),
         ),
         Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
             substitute_integer_math_term_values(left, substitutions),
@@ -60,8 +121,8 @@ pub fn substitute_proposition_values(
             left,
             right,
         } => {
-            let mut left = substitute_scalar_term_values(left, substitutions);
-            let mut right = substitute_scalar_term_values(right, substitutions);
+            let mut left = substitute_scalar_term_bindings(left, substitutions);
+            let mut right = substitute_scalar_term_bindings(right, substitutions);
             if kind.is_symmetric() && left > right {
                 std::mem::swap(&mut left, &mut right);
             }
@@ -89,21 +150,21 @@ pub fn substitute_proposition_values(
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(
             conjuncts
                 .iter()
-                .map(|conjunct| substitute_proposition_values(conjunct, substitutions))
+                .map(|conjunct| substitute_proposition_bindings(conjunct, substitutions))
                 .collect(),
         ),
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(
             disjuncts
                 .iter()
-                .map(|disjunct| substitute_proposition_values(disjunct, substitutions))
+                .map(|disjunct| substitute_proposition_bindings(disjunct, substitutions))
                 .collect(),
         ),
         Proposition::Implication {
             premise,
             conclusion,
         } => Proposition::Implication {
-            premise: Box::new(substitute_proposition_values(premise, substitutions)),
-            conclusion: Box::new(substitute_proposition_values(conclusion, substitutions)),
+            premise: Box::new(substitute_proposition_bindings(premise, substitutions)),
+            conclusion: Box::new(substitute_proposition_bindings(conclusion, substitutions)),
         },
         Proposition::ContentConservation(conservation) => {
             Proposition::ContentConservation(conservation.clone())
@@ -252,15 +313,15 @@ pub fn substitute_proposition_structural_places(
 
 fn substitute_integer_math_term_values(
     term: &IntegerMathTerm,
-    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+    substitutions: &impl ScalarValueSubstitutions,
 ) -> IntegerMathTerm {
     match term {
         IntegerMathTerm::Embed(scalar) => {
-            IntegerMathTerm::embed(substitute_scalar_term_values(scalar, substitutions))
+            IntegerMathTerm::embed(substitute_scalar_term_bindings(scalar, substitutions))
                 .unwrap_or_else(|| term.clone())
         }
         IntegerMathTerm::MathValue { source_type, value } => substitutions
-            .get(value)
+            .replacement(*value)
             .and_then(|replacement| {
                 (replacement.scalar_type().as_integer() == Some(*source_type))
                     .then(|| IntegerMathTerm::embed(replacement.clone()))
@@ -719,11 +780,11 @@ impl Hasher for FactHasher {
     }
 }
 
-pub(super) fn substitute_scalar_term_values(
+pub(super) fn substitute_scalar_term_bindings(
     term: &ScalarTerm,
-    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+    substitutions: &impl ScalarValueSubstitutions,
 ) -> ScalarTerm {
-    let recurse = |term: &ScalarTerm| substitute_scalar_term_values(term, substitutions);
+    let recurse = |term: &ScalarTerm| substitute_scalar_term_bindings(term, substitutions);
     macro_rules! typed_binary_body {
         ($variant:ident, $scalar_type:ident, $left:ident, $right:ident) => {
             ScalarTerm::$variant {
@@ -762,7 +823,7 @@ pub(super) fn substitute_scalar_term_values(
     }
     match term {
         ScalarTerm::Value { id, .. } => substitutions
-            .get(id)
+            .replacement(*id)
             .cloned()
             .unwrap_or_else(|| term.clone()),
         ScalarTerm::StructuralRead {
@@ -972,8 +1033,10 @@ pub fn substitute_crash_routes(
                 .filter_map(|guard| match guard {
                     CrashRouteGuard::Truth => Some(CrashRouteGuard::Truth),
                     CrashRouteGuard::Predicate(predicate) => {
-                        match substitute_proposition_values(predicate.proposition(), substitutions)
-                        {
+                        match substitute_proposition_bindings(
+                            predicate.proposition(),
+                            substitutions,
+                        ) {
                             Proposition::Truth => Some(CrashRouteGuard::Truth),
                             Proposition::Falsehood => None,
                             proposition => Some(CrashRouteGuard::Predicate(
@@ -994,4 +1057,59 @@ pub fn substitute_crash_routes(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod scalar_binding_tests {
+    use super::*;
+    use semantic_vocabulary::ScalarType;
+
+    #[test]
+    fn sparse_call_bindings_preserve_unbound_values_and_match_existing_substitution() {
+        let first = ValueId::new(3).unwrap();
+        let last = ValueId::new(u64::MAX).unwrap();
+        let unrelated = ValueId::new(9).unwrap();
+        let pairs = [
+            (last, ScalarTerm::bool(false)),
+            (first, ScalarTerm::bool(true)),
+        ];
+        let bindings = ScalarValueBindings::new(pairs.clone()).unwrap();
+        let previous = pairs.into_iter().collect::<BTreeMap<_, _>>();
+        let proposition = Proposition::Conjunction(vec![
+            Proposition::Equal(
+                ScalarTerm::value(first, ScalarType::Bool),
+                ScalarTerm::bool(true),
+            ),
+            Proposition::Equal(
+                ScalarTerm::value(last, ScalarType::Bool),
+                ScalarTerm::bool(false),
+            ),
+            Proposition::Equal(
+                ScalarTerm::value(unrelated, ScalarType::Bool),
+                ScalarTerm::bool(true),
+            ),
+        ]);
+        let bound = substitute_proposition_bindings(&proposition, &bindings);
+        assert_eq!(
+            bound,
+            substitute_proposition_values(&proposition, &previous)
+        );
+        assert_eq!(bindings.replacement(last), Some(&ScalarTerm::bool(false)));
+        assert!(!bindings.contains_key(&unrelated));
+        assert!(matches!(bound, Proposition::Conjunction(ref parts)
+            if parts[2] == Proposition::Equal(ScalarTerm::value(unrelated, ScalarType::Bool), ScalarTerm::bool(true))));
+    }
+
+    #[test]
+    fn duplicate_call_bindings_refuse_even_when_the_expressions_agree() {
+        let identity = ValueId::new(71).unwrap();
+        assert_eq!(
+            ScalarValueBindings::new([
+                (identity, ScalarTerm::bool(true)),
+                (identity, ScalarTerm::bool(true)),
+            ])
+            .unwrap_err(),
+            identity
+        );
+    }
 }

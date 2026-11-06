@@ -36,7 +36,7 @@ impl NormalPayloadContext<'_> {
         }
         // Uninstantiated entry declarations promise at least these duties.
         // Only a closed entry or a call-bound replay can supply their ceiling.
-        if !body.structural_parameters.is_empty() && !self.complete_entries.contains(&caller) {
+        if !body.structural_parameters.is_empty() && !self.entry_is_complete(caller) {
             return Err("the completed output has no complete actual entry roster");
         }
         let operation = body
@@ -69,7 +69,7 @@ impl NormalPayloadContext<'_> {
             operation,
             &expressions,
         )?;
-        if !self.completing.insert(bindings.callee.id) {
+        if !self.begin_completion(bindings.callee.id)? {
             return Err("the call-bound output replay has a recursive dependency");
         }
         let result = (|| {
@@ -130,9 +130,7 @@ impl NormalPayloadContext<'_> {
                 return Ok(Vec::new());
             }
             history.replay.memberships = PayloadMembershipKind::Preserved;
-            let mut normal = NormalPayloadContext::new(self.module, self.graph);
-            normal.completing = self.completing.clone();
-            normal.complete_entries.insert(callee.id);
+            let mut normal = self.for_complete_entry(callee.id)?;
             let roots = outputs
                 .iter()
                 .map(|(formal, _)| *formal)
@@ -163,7 +161,7 @@ impl NormalPayloadContext<'_> {
             }
             Ok(result)
         })();
-        self.completing.remove(&bindings.callee.id);
+        self.end_completion(bindings.callee.id)?;
         result
     }
 
@@ -218,7 +216,7 @@ impl NormalPayloadContext<'_> {
                     .exact_location()
                     .ok_or("the output is not a static whole slot")?;
                 let body = self.executable_body(caller)?;
-                if !self.complete_entries.contains(&caller)
+                if !self.entry_is_complete(caller)
                     || !location.path.is_empty()
                     || !body.structural_parameters.iter().any(|formal| {
                         formal.place == location.root

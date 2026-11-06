@@ -16,6 +16,85 @@ pub(super) enum Origin {
 }
 pub(super) type Value = Option<BTreeSet<Origin>>;
 pub(super) type Slots = BTreeMap<DescriptorLocation, Value>;
+/// Remember where borrowed block parameters point. An absent row differs
+/// from an unknown address, and a known empty target set differs from both.
+/// Store only declared roots; raw place IDs need not form a bounded run.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub(super) struct ArrivalStorage {
+    rows: Vec<(PlaceId, Option<BTreeSet<DescriptorPayloadTarget>>)>,
+}
+
+impl ArrivalStorage {
+    fn for_machine(machine: &DescriptorMachine) -> Self {
+        let mut rows = machine.places.iter()
+            .filter(|row| matches!(row.definition, DescriptorDefinition::Arrival { access } if access != StructuralAccess::Owned))
+            .map(|row| (row.place, None))
+            .collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(root, _)| *root);
+        rows.dedup_by_key(|(root, _)| *root);
+        Self { rows }
+    }
+
+    pub(super) fn get(&self, root: &PlaceId) -> Option<&Option<BTreeSet<DescriptorPayloadTarget>>> {
+        self.rows
+            .binary_search_by_key(root, |(candidate, _)| *candidate)
+            .ok()
+            .map(|position| &self.rows[position].1)
+    }
+
+    pub(super) fn contains_key(&self, root: &PlaceId) -> bool {
+        self.get(root).is_some()
+    }
+
+    fn replace(
+        &mut self,
+        root: PlaceId,
+        storage: Option<BTreeSet<DescriptorPayloadTarget>>,
+    ) -> Option<()> {
+        let position = self
+            .rows
+            .binary_search_by_key(&root, |(candidate, _)| *candidate)
+            .ok()?;
+        self.rows[position].1 = storage;
+        Some(())
+    }
+
+    fn joined(left: &Self, right: &Self) -> Self {
+        let mut rows = Vec::with_capacity(left.rows.len().max(right.rows.len()));
+        let mut left_position = 0;
+        let mut right_position = 0;
+        loop {
+            match (left.rows.get(left_position), right.rows.get(right_position)) {
+                (None, None) => break,
+                (Some((left_root, left_storage)), Some((right_root, right_storage)))
+                    if left_root == right_root =>
+                {
+                    let storage = match (left_storage.as_ref(), right_storage.as_ref()) {
+                        (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
+                        _ => None,
+                    };
+                    rows.push((*left_root, storage));
+                    left_position += 1;
+                    right_position += 1;
+                }
+                (Some((left_root, _)), Some((right_root, _))) if left_root < right_root => {
+                    rows.push((*left_root, None));
+                    left_position += 1;
+                }
+                (Some(_), Some((right_root, _))) | (None, Some((right_root, _))) => {
+                    rows.push((*right_root, None));
+                    right_position += 1;
+                }
+                (Some((left_root, _)), None) => {
+                    rows.push((*left_root, None));
+                    left_position += 1;
+                }
+            }
+        }
+        Self { rows }
+    }
+}
+
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) cases: Arc<super::case_flow::CurrentCases>,
@@ -26,7 +105,7 @@ pub(super) struct State {
     // A borrowed block parameter names the storage selected on its incoming
     // edge. Keep that address separate from the descriptor value read there:
     // replacing an inner pointer changes its contents, not this alias's home.
-    pub(super) arrival_storage: Arc<BTreeMap<PlaceId, Option<BTreeSet<DescriptorPayloadTarget>>>>,
+    pub(super) arrival_storage: Arc<ArrivalStorage>,
     // Keys name incoming backing families, not addresses in local carriers.
     // Values are captured origins; reading them never replays a later write.
     pub(super) contents: Arc<BTreeMap<DescriptorContentsQuery, Value>>,
@@ -612,12 +691,11 @@ impl<'a> Replay<'a> {
             .collect()
     }
     pub(super) fn initial(&self, machine: &DescriptorMachine) -> Option<State> {
-        let mut state = State::default();
+        let mut state = State {
+            arrival_storage: Arc::new(ArrivalStorage::for_machine(machine)),
+            ..State::default()
+        };
         for row in &machine.places {
-            if matches!(row.definition, DescriptorDefinition::Arrival { access } if access != StructuralAccess::Owned)
-            {
-                Arc::make_mut(&mut state.arrival_storage).insert(row.place, None);
-            }
             state
                 .slots_mut()
                 .insert(DescriptorLocation::whole(row.place), None);
@@ -957,7 +1035,8 @@ impl<'a> Replay<'a> {
                     let targets = self.contents_targets(machine, before, query)?;
                     (!targets.is_empty()).then_some(targets)
                 });
-                Arc::make_mut(&mut after.arrival_storage).insert(binding.parameter.root, storage);
+                Arc::make_mut(&mut after.arrival_storage)
+                    .replace(binding.parameter.root, storage)?;
             }
             if let Some(query) = query {
                 // A formed reference has no owned child slots under its
@@ -1766,24 +1845,11 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
         changed = true;
     }
     existing.contents_invalidated |= incoming.contents_invalidated;
-    for root in before
-        .arrival_storage
-        .keys()
-        .chain(incoming.arrival_storage.keys())
-        .copied()
-        .collect::<BTreeSet<_>>()
-    {
-        let storage = match (
-            before.arrival_storage.get(&root).and_then(Option::as_ref),
-            incoming.arrival_storage.get(&root).and_then(Option::as_ref),
-        ) {
-            (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
-            _ => None,
-        };
-        if existing.arrival_storage.get(&root) != Some(&storage) {
-            Arc::make_mut(&mut existing.arrival_storage).insert(root, storage);
-            changed = true;
-        }
+    let arrival_storage =
+        ArrivalStorage::joined(&before.arrival_storage, &incoming.arrival_storage);
+    if arrival_storage != *existing.arrival_storage {
+        existing.arrival_storage = Arc::new(arrival_storage);
+        changed = true;
     }
     for query in before
         .contents
@@ -2888,5 +2954,42 @@ mod snapshot_tests {
         ));
         assert_eq!(after.slots.get(&captured), Some(&Some(origins.clone())));
         assert_eq!(replay.read(&machine, &after, &captured), Some(origins));
+    }
+}
+
+#[cfg(test)]
+mod arrival_storage_tests {
+    use super::*;
+
+    #[test]
+    fn arrival_join_distinguishes_missing_unknown_and_known_empty_sparse_roots() {
+        let first = PlaceId::new(3).unwrap();
+        let last = PlaceId::new(u64::MAX).unwrap();
+        let known = ArrivalStorage {
+            rows: vec![(first, Some(BTreeSet::new()))],
+        };
+        let missing = ArrivalStorage::default();
+        let unknown = ArrivalStorage {
+            rows: vec![(last, None)],
+        };
+        assert!(!missing.contains_key(&first));
+        assert_eq!(
+            ArrivalStorage::joined(&known, &known).get(&first),
+            Some(&Some(BTreeSet::new()))
+        );
+        let joined = ArrivalStorage::joined(&known, &missing);
+        assert!(joined.contains_key(&first));
+        assert_eq!(joined.get(&first), Some(&None));
+        let joined = ArrivalStorage::joined(&known, &unknown);
+        assert_eq!(
+            joined
+                .rows
+                .iter()
+                .map(|(root, _)| *root)
+                .collect::<Vec<_>>(),
+            vec![first, last]
+        );
+        assert_eq!(joined.get(&first), Some(&None));
+        assert_eq!(joined.get(&last), Some(&None));
     }
 }

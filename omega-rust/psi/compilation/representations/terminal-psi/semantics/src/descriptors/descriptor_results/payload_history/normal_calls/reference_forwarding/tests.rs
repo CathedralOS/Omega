@@ -1259,7 +1259,7 @@ fn completed_forwarding_output_needs_actual_source_and_public_output_rosters_to_
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
     let mut normal = NormalPayloadContext::new(&module, &graph);
     let caller = module.machines[0].id;
-    normal.complete_entries.insert(caller);
+    normal.mark_entry_complete(caller).unwrap();
     let before = complete_entry(&module, 0);
     let outputs = normal
         .completed_call_outputs(
@@ -1419,7 +1419,7 @@ fn completed_relay_outputs_are_bound_to_each_actual_call_not_cached_by_body() {
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
     let mut normal = NormalPayloadContext::new(&module, &graph);
     let caller = module.machines[2].id;
-    normal.complete_entries.insert(caller);
+    normal.mark_entry_complete(caller).unwrap();
     let before = complete_entry(&module, 2);
     assert_eq!(
         normal
@@ -1480,7 +1480,7 @@ fn completed_relay_outputs_are_bound_to_each_actual_call_not_cached_by_body() {
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&cleanup.structural_types, &graph);
     let mut normal = NormalPayloadContext::new(&cleanup, &graph);
-    normal.complete_entries.insert(caller);
+    normal.mark_entry_complete(caller).unwrap();
     assert_eq!(
         normal
             .completed_call_outputs(
@@ -1505,7 +1505,7 @@ fn completed_relay_outputs_are_bound_to_each_actual_call_not_cached_by_body() {
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
     let mut normal = NormalPayloadContext::new(&module, &graph);
-    normal.complete_entries.insert(caller);
+    normal.mark_entry_complete(caller).unwrap();
     assert_eq!(
         normal
             .completed_call_outputs(
@@ -1726,7 +1726,7 @@ fn opaque_result_duty_completeness_stays_unknown_through_copy_and_shared_reborro
     }
     let before = &history.replay.cached.as_ref().unwrap().snapshots[&position];
     let mut normal = NormalPayloadContext::new(&module, &graph);
-    normal.complete_entries.insert(body.id);
+    normal.mark_entry_complete(body.id).unwrap();
     assert_eq!(
         normal
             .completed_call_outputs(&mut analysis, body.id, position, before)

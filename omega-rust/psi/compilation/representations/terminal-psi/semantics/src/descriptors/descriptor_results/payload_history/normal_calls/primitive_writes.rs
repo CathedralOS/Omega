@@ -16,15 +16,15 @@ pub(super) struct PerformedPrimitiveWrite {
 impl PerformedPrimitiveWrite {
     pub(super) fn bound(
         mut self,
-        bindings: &BTreeMap<ValueId, ScalarTerm>,
+        bindings: &impl crate::substitution::ScalarValueSubstitutions,
     ) -> Result<Self, &'static str> {
         let mut complete = true;
         let closed = Proposition::Equal(self.value.clone(), self.value.clone())
-            .visit_value_ids(|value| complete &= bindings.contains_key(&value));
+            .visit_value_ids(|value| complete &= bindings.replacement(value).is_some());
         if !closed || !complete {
             return Err("the primitive writer has an unbound scalar value or storage observation");
         }
-        self.value = crate::substitution::substitute_scalar_term_values(&self.value, bindings);
+        self.value = crate::substitution::substitute_scalar_term_bindings(&self.value, bindings);
         Ok(self)
     }
 }
