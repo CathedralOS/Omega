@@ -80,19 +80,30 @@ pub(super) fn select(
     }
     if let Some(decision) = super::joint_natural::select(program, component, frames) {
         let admitted = decision.is_ok();
+        let source_outcomes = if admitted {
+            component
+                .iter()
+                .map(|position| (*position, ranking::DecreaseOutcome::Proven(None)))
+                .collect()
+        } else if matches!(
+            decision,
+            Err("a private member has no compatible natural rank input")
+        ) {
+            // Joint natural already refused the component. Search only
+            // recovers the authored range refusal: a rank-free finish that
+            // calls back into its owner sits outside each local proof, and
+            // that proof does not establish the selected range. A search
+            // that would admit the component does not override the refusal.
+            authored_range_refusals(program, topology, component, frames)
+        } else {
+            Vec::new()
+        };
         return SelectedComponent {
             positions: component.to_vec(),
             source_natural: None,
             bodies: Vec::new(),
             decision: decision.map(Some),
-            source_outcomes: if admitted {
-                component
-                    .iter()
-                    .map(|position| (*position, ranking::DecreaseOutcome::Proven(None)))
-                    .collect()
-            } else {
-                Vec::new()
-            },
+            source_outcomes,
         };
     }
     let mut bodies = Vec::new();
@@ -120,6 +131,35 @@ pub(super) fn select(
         decision,
         source_outcomes,
     }
+}
+
+fn authored_range_refusals(
+    program: &dyn validation::CheckingInput,
+    topology: &validation::RuntimeRankComponents,
+    component: &[usize],
+    frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Vec<(usize, ranking::DecreaseOutcome)> {
+    let mut bodies = Vec::new();
+    let mut chosen = None;
+    let mut failure = "a member lacks a source-complete ranking witness";
+    let mut source_outcomes = Vec::new();
+    search(
+        program,
+        topology,
+        component,
+        frames,
+        &mut bodies,
+        &mut chosen,
+        &mut failure,
+        &mut source_outcomes,
+    );
+    // A later admission does not erase the joint-natural refusal, and it
+    // must not publish a range failure the search itself withdrew.
+    if chosen.is_some() {
+        return Vec::new();
+    }
+    let _ = failure;
+    source_outcomes
 }
 
 type CompleteSelection = (
@@ -166,6 +206,13 @@ fn search(
         let accepted = match decision {
             Err(reason) => {
                 *failure = reason;
+                // A rank-free member in the same cycle has no projection, so
+                // the local candidate never covered that reentry. Keep the
+                // authored range refusal; the witness gap is not a separate
+                // language reason for this arrival.
+                if reason == "a member lacks a supported exact ranking witness" {
+                    source_complete = false;
+                }
                 false
             }
             Ok(natural) if bodies.len() == component.len() => {

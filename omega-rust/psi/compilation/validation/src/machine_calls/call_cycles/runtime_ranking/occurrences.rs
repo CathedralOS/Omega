@@ -4,7 +4,10 @@
 //! before the prefix walk can skip a preserving statement. A classified tail
 //! to the same destination cannot cover a call in a prefix, guard or argument.
 
-use crate::machine_calls::calls::{collect_call_sites_in_statement, transition_call_target};
+use crate::machine_calls::calls::{
+    CallSite, collect_call_sites_in_statement, transition_call_target,
+};
+use typed_trees::statement::TransitionTargetNode;
 
 pub(super) fn require_classified_tail_occurrences(
     program: &dyn crate::CheckingInput,
@@ -34,7 +37,7 @@ pub(super) fn require_classified_tail_occurrences(
             else {
                 return Err("an internal call occurrence lacks a classified tail edge");
             };
-            if !target_handle.is_valid() || !call.completes_transition(program, target_handle) {
+            if !target_handle.is_valid() || !call_is_ranked_tail(program, &call, target_handle) {
                 return Err("an internal call occurrence lacks a classified tail edge");
             }
             continue;
@@ -58,10 +61,30 @@ pub(super) fn require_classified_tail_occurrences(
         if !target_handle.is_valid() {
             return Err("an internal call occurrence lacks a classified tail edge");
         }
-        let is_tail_root = call.completes_transition(program, target_handle);
-        if !is_tail_root {
+        if !call_is_ranked_tail(program, &call, target_handle) {
             return Err("an internal call occurrence lacks a classified tail edge");
         }
     }
     Ok(())
+}
+
+/// A completing invocation is a tail. So is a call that is itself the
+/// transition's value: `{ left(0) }` is that completion edge, and rank
+/// formation still has to judge the arrival. The completing-invocation query
+/// also demands a resolved parameter roster, so a direct value call that it
+/// declines would otherwise hide the rank-range refusal. Calls nested in
+/// operands, guards, or arguments stay ordinary occurrences.
+fn call_is_ranked_tail(
+    program: &dyn crate::CheckingInput,
+    call: &CallSite<'_>,
+    target_handle: typed_trees::statement::TransitionTargetHandle,
+) -> bool {
+    if call.completes_transition(program, target_handle) {
+        return true;
+    }
+    matches!(
+        (call, program.statement_table.transition_target(target_handle)),
+        (CallSite::Expression { expression, .. }, TransitionTargetNode::Value(value))
+            if expression == value
+    )
 }
