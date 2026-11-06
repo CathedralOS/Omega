@@ -73,7 +73,7 @@ def recorded_run(command, timeout, stdin=subprocess.DEVNULL, cwd=None):
 gate.run = recorded_run
 sys.argv = ['sample_native_gate.py', '--cli', str(args.cli.resolve()), '--facts',
             '--target', gate.host_target(), '--jobs', '1', '--timeout', '300',
-            '--filter', 'samples/cli/facts/installed_entry_storage',
+            '--filter', manifest['sample_root'],
             '--write-results', str(args.output / 'samples.json'), '--history-dir', '']
 exit_code = 2
 try:

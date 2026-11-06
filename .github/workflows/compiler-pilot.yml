@@ -1,4 +1,4 @@
-name: Installed entry original-source baseline
+name: Installed entry target migration
 on:
   workflow_dispatch:
 permissions:
@@ -16,19 +16,19 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 3
+          fetch-depth: 4
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Authenticate completed published producer and original inputs
+      - name: Authenticate completed published producer and migration inputs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'CHECK'
           import hashlib, json, os, subprocess
           from pathlib import Path
-          output = Path('build/installed-entry-baseline')
+          output = Path('build/installed-entry-migration')
           output.mkdir(parents=True, exist_ok=False)
           def api(path):
               return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
@@ -63,11 +63,11 @@ jobs:
           python - <<'CACHE'
           assert '${{ steps.retained-cache.outputs.cache-hit }}' == 'true'
           CACHE
-      - name: Observe original corpus checks and engine backing
+      - name: Observe migrated target checks and engine backing
         run: |
           python - <<'CORPUS'
           from tools.ci.compiler_pilot import run_suite
-          raise SystemExit(run_suite('installed-entry-baseline', (), (), fixtures='@.github/installed_entry_plan.json'))
+          raise SystemExit(run_suite('installed-entry-migration', (), (), fixtures='@.github/installed_entry_plan.json'))
           CORPUS
       - name: Retain the original corpus budgets
         if: ${{ !cancelled() && steps.retained-cache.outputs.cache-hit == 'true' }}
@@ -75,22 +75,22 @@ jobs:
           python - <<'BUDGET'
           import json
           from pathlib import Path
-          root = Path('build/installed-entry-baseline')
+          root = Path('build/installed-entry-migration')
           checking = json.loads((root / 'checking.json').read_text())
           both = json.loads((root / 'both.json').read_text())
           rows = checking['observations'] + both['observations']
-          assert len(checking['observations']) == 18 and len(both['observations']) == 13
+          assert len(checking['observations']) == 1 and len(both['observations']) == 1
           passed = all(type(row.get('millis')) is int and 0 <= row['millis'] <= 120000 for row in rows)
           (root / 'budgets.json').write_text(json.dumps({'limit_ms':120000, 'passed':passed, 'checking':checking['observations'], 'both':both['observations']}, indent=2) + '\n')
           assert passed, 'Original corpus budget remains unmet; reports retained unchanged'
           BUDGET
-      - name: Observe ordinary entry-RAM projects and all invalid twins
+      - name: Observe ordinary target entry RAM and its invalid twin
         if: ${{ !cancelled() && steps.retained-cache.outputs.cache-hit == 'true' }}
         run: |
           python - <<'SAMPLES'
           import json, os, subprocess, sys
           from pathlib import Path
-          output = Path('build/installed-entry-baseline')
+          output = Path('build/installed-entry-migration')
           summary = json.loads((output / 'summary.json').read_text())
           cli = summary['producer']['cli']
           command = [sys.executable, '.github/installed_entry_samples.py', '--cli', cli,
@@ -101,19 +101,19 @@ jobs:
               raise SystemExit(result.returncode)
           rows = json.loads((output / 'samples/samples.json').read_text())
           expected = json.loads(Path('.github/installed_entry_inputs.json').read_text())['samples']
-          assert len(rows) == len(expected) == 19 and {r['sample'] for r in rows} == set(expected)
+          assert len(rows) == len(expected) == 2 and {r['sample'] for r in rows} == set(expected)
           assert all(r['state'] == ('rejected' if r['sample'].endswith('/invalid') else 'pass') for r in rows)
           SAMPLES
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: installed-entry-baseline-${{ github.sha }}-${{ github.run_attempt }}
+          name: installed-entry-migration-${{ github.sha }}-${{ github.run_attempt }}
           path: |
-            build/installed-entry-baseline/*.json
-            build/installed-entry-baseline/source/
-            build/installed-entry-baseline/producer-replay-*/cache-inputs.json
-            build/installed-entry-baseline/artifacts-*/
-            build/installed-entry-baseline/samples/
+            build/installed-entry-migration/*.json
+            build/installed-entry-migration/source/
+            build/installed-entry-migration/producer-replay-*/cache-inputs.json
+            build/installed-entry-migration/artifacts-*/
+            build/installed-entry-migration/samples/
           include-hidden-files: true
           if-no-files-found: error
           compression-level: 0

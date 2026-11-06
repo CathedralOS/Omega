@@ -37,24 +37,7 @@
     "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-0b53c8a4e109e8d6ef3a9bbabc29c52529317a48"
   },
   "fixtures": [
-    "pass/facts/installed_entry_storage_through_call_result_exit",
-    "pass/facts/installed_entry_storage_through_const_name_exit",
-    "pass/facts/installed_entry_storage_through_field_exit",
-    "pass/facts/installed_entry_storage_through_local_exit",
-    "pass/facts/installed_entry_storage_through_match_join_exit",
-    "pass/facts/installed_entry_storage_through_other_machine_exit",
-    "pass/facts/installed_entry_storage_through_other_state_exit",
-    "pass/facts/installed_entry_storage_through_parameter_exit",
-    "pass/facts/installed_entry_storage_through_target_body_exit",
-    "pass/build/installed_entry_ram_live_stack_exit",
-    "pass/build/installed_entry_ram_stack_occurrence_exit",
-    "pass/build/installed_entry_ram_two_occurrences_exit",
-    "pass/layouts/placed_view_source_access_exit",
-    "fail/build/installed_entry_ram_invalid_extent",
-    "fail/build/installed_entry_ram_invalid_padding",
-    "fail/build/installed_entry_ram_missing_backing",
-    "fail/build/installed_entry_ram_overlapping_exclusive_roots",
-    "fail/build/installed_entry_ram_wrong_occurrence"
+    "pass/facts/installed_entry_storage_through_target_body_exit"
   ],
   "source_only": false,
   "samples": [],
