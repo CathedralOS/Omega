@@ -71,18 +71,17 @@ pub(crate) fn validate_function_structural_catalog(
     ),
     OptimizationUnitValidationError,
 > {
-    let mismatch = || catalog_mismatch(function);
     if !structural_signature_matches(
         &function.structural_parameters,
         function.attachment,
         types,
         domains,
     ) {
-        return Err(mismatch());
+        return Err(catalog_mismatch(function));
     }
     let mut parameter_places = BTreeSet::new();
     for (position, parameter) in function.structural_parameters.iter().enumerate() {
-        if parameter.position != u32::try_from(position).map_err(|_| mismatch())?
+        if parameter.position != u32::try_from(position).map_err(|_| catalog_mismatch(function))?
             || !parameter_places.insert(parameter.place)
             || !types.contains_key(&parameter.structural_type)
             || !structural_qualifications_match(
@@ -97,13 +96,13 @@ pub(crate) fn validate_function_structural_catalog(
                 domains,
             )
         {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
     }
     let mut places = BTreeMap::new();
     for place in &function.structural_places {
         if places.insert(place.id, place.kind).is_some() {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
         let known_type = match place.kind {
             StructuralPlaceKind::BlockParameter { block, position } => function
@@ -144,7 +143,7 @@ pub(crate) fn validate_function_structural_catalog(
             }
         };
         if !known_type {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
     }
     for parameter in &function.structural_parameters {
@@ -153,12 +152,12 @@ pub(crate) fn validate_function_structural_catalog(
                 position: parameter.position,
             })
         {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
         if parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             && !function.entry_claim_declared(parameter.place)
         {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
     }
     // `reference_sources` stays part of the checked result contract; the
@@ -179,7 +178,7 @@ pub(crate) fn validate_function_structural_catalog(
                 domains,
             ))
     {
-        return Err(mismatch());
+        return Err(catalog_mismatch(function));
     }
     for node in function.block_nodes() {
         let structural_result = node.operation.structural_result();
@@ -195,7 +194,7 @@ pub(crate) fn validate_function_structural_catalog(
                 domains,
             ))
         {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
         let expected = match &node.operation {
             O::EstablishByteSequenceLiteral { place, .. } => Some((place.id, place.kind)),
@@ -215,20 +214,20 @@ pub(crate) fn validate_function_structural_catalog(
             }),
         };
         if expected.is_some_and(|(place, kind)| places.get(&place) != Some(&kind)) {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
     }
     let mut claim_inputs = Vec::new();
     for (index, claim) in function.entry_claim_declarations.iter().enumerate() {
         let expected = ClaimId::new(
             u64::try_from(index)
-                .map_err(|_| mismatch())?
+                .map_err(|_| catalog_mismatch(function))?
                 .checked_add(1)
-                .ok_or_else(mismatch)?,
+                .ok_or_else(|| catalog_mismatch(function))?,
         )
-        .ok_or_else(mismatch)?;
+        .ok_or_else(|| catalog_mismatch(function))?;
         let Some(parameter) = function.structural_parameter(claim.input) else {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         };
         if claim.claim != expected
             || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -243,7 +242,7 @@ pub(crate) fn validate_function_structural_catalog(
                             || claim.path.starts_with(&previous.path))
                 })
         {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
         claim_inputs.push(claim);
     }
@@ -256,7 +255,7 @@ pub(crate) fn validate_function_structural_catalog(
         .windows(2)
         .any(|pair| pair[0].claim >= pair[1].claim)
     {
-        return Err(mismatch());
+        return Err(catalog_mismatch(function));
     }
     let mut block_claim_inputs = Vec::new();
     for claim in &function.block_entry_claims {
@@ -264,7 +263,7 @@ pub(crate) fn validate_function_structural_catalog(
             .block_structural_parameters()
             .find(|parameter| parameter.place == claim.input)
         else {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         };
         if parameter.access != terminal_psi::StructuralAccess::Owned
             || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
@@ -275,7 +274,7 @@ pub(crate) fn validate_function_structural_catalog(
                         || claim.path.starts_with(&previous.path))
             })
         {
-            return Err(mismatch());
+            return Err(catalog_mismatch(function));
         }
         block_claim_inputs.push(claim);
     }
@@ -334,7 +333,7 @@ pub(crate) fn validate_function_structural_catalog(
                 || !structural_binding_matches
         })
     {
-        return Err(mismatch());
+        return Err(catalog_mismatch(function));
     }
     for projection in function
         .content_entry_claims

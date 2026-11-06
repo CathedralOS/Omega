@@ -67,7 +67,7 @@ jobs:
     env:
       CARGO_BUILD_JOBS: '2'
       FROZEN_SOURCE_MAP: tools/ci/frozen_source_diagnostic_source_map.json
-      FROZEN_SOURCE_MAP_SHA256: 'ccb1b6543ac9aeffeab5013c8138fa2cb99212285a6b0251223e9d6b92bbe7d6'
+      FROZEN_SOURCE_MAP_SHA256: '18948ffbee35a8967cd4c904944eef23257a8f0ca511231f2c4365e01dfb43eb'
       CARGO_INCREMENTAL: '0'
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content

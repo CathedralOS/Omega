@@ -29,14 +29,23 @@ pub(crate) mod affine_authority;
 pub(crate) mod arrival_storage;
 
 /// The catalog-mismatch rejection for `function`, named once per check site.
+#[track_caller]
 pub(crate) fn catalog_mismatch(
     function: &PsiOptimizationFunction,
 ) -> OptimizationUnitValidationError {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+        eprintln!(
+            "optimizer structural catalog mismatch {:?} at {}",
+            function.machine,
+            std::panic::Location::caller()
+        );
+    }
     OptimizationUnitValidationError::StructuralCatalogMismatch {
         machine: Some(function.machine),
     }
 }
 mod catalogs;
+pub(crate) use catalogs::prepare_unit_catalogs;
 pub(crate) mod derived_metadata;
 pub(crate) mod function_structure;
 mod identity_indexes;
@@ -115,7 +124,7 @@ pub(crate) fn validate_psi_optimization_unit_with_control_cycles(
 ) -> Result<(), OptimizationUnitValidationError> {
     identity_indexes::validate_identity_and_fact_indexes(unit)?;
     let indexes = catalogs::index_and_validate_unit_catalogs(unit, cycle_policy)?;
-    no_normal_calls::validate(unit, &indexes.machines)?;
+    no_normal_calls::validate(unit, &indexes.catalogs.machines)?;
     runtime_evidence::validate(unit)?;
     affine_authority::validate_retained_ownership_authority(unit)?;
     catalogs::validate_final_authorities(unit, &indexes)

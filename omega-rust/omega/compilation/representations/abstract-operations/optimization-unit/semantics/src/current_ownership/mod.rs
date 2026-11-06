@@ -62,13 +62,27 @@ pub(super) fn validate_current_ownership_frontier_collecting(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &mut CallAccesses,
     facts: &mut Vec<OwnershipFrontierFact>,
-) -> Result<
-    Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
-    OptimizationUnitValidationError,
-> {
+) -> Result<OwnershipCompletion, OptimizationUnitValidationError> {
     let entry = reconstruct_entry_ownership(function, structural_types)?;
-    let mut outputs = reference_output_builder(function, structural_types, &entry.live_references)?;
-    replay::validate_current_ownership_cfg(
+    let declarations = structural_types
+        .values()
+        .copied()
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut outputs = crate::reference_outputs::ReferenceOutputBuilder::new(
+        function,
+        &declarations,
+        &entry.live_references,
+    )
+    .map_err(
+        |reason| OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
+            machine: function.machine,
+            block: function.entry,
+            node: None,
+            reason,
+        },
+    )?;
+    let requirements = replay::validate_current_ownership_cfg(
         function,
         identities,
         dynamic_dispatch,
@@ -82,73 +96,44 @@ pub(super) fn validate_current_ownership_frontier_collecting(
         psi,
         facts,
         &mut outputs,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn reconstruct_reference_outputs(
-    psi: terminal_psi::TerminalPsiIdentity,
-    identities: &terminal_psi::TerminalIdentityTable,
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
-    function: &PsiOptimizationFunction,
-    blocks: &BTreeMap<BlockId, &OptimizationBlock>,
-    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
-    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-    boundary_machines: &BTreeMap<
-        semantic_vocabulary::BoundaryMachineId,
-        &BoundaryMachineDeclaration,
-    >,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    call_accesses: &mut CallAccesses,
-) -> Result<crate::reference_outputs::ReferenceBodyCompletion, OptimizationUnitValidationError> {
-    let entry = reconstruct_entry_ownership(function, structural_types)?;
-    let mut outputs = reference_output_builder(function, structural_types, &entry.live_references)?;
-    let mut facts = Vec::new();
-    let compatibility_requirements = replay::validate_current_ownership_cfg(
-        function,
-        identities,
-        dynamic_dispatch,
-        blocks,
-        predecessors,
-        functions,
-        boundary_machines,
-        structural_types,
-        call_accesses,
-        entry,
-        psi,
-        &mut facts,
-        &mut outputs,
     )?;
-    // The replay returns only after complete CFG joins and return coverage.
-    // A pure returned reference can have an independently checked interpretation
-    // even when this optional stored-output graph cannot represent its parent.
-    let unconditional = compatibility_requirements.is_empty();
-    Ok(crate::reference_outputs::ReferenceBodyCompletion {
-        unconditional,
-        outputs: outputs
-            .seal(function, structural_types, compatibility_requirements)
-            .map_err(str::to_owned),
+    Ok(OwnershipCompletion {
+        requirements,
+        outputs,
     })
 }
 
-fn reference_output_builder(
-    function: &PsiOptimizationFunction,
-    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    entry: &[LiveReference],
-) -> Result<crate::reference_outputs::ReferenceOutputBuilder, OptimizationUnitValidationError> {
-    let declarations = structural_types
-        .values()
-        .copied()
-        .cloned()
-        .collect::<Vec<_>>();
-    crate::reference_outputs::ReferenceOutputBuilder::new(function, &declarations, entry).map_err(
-        |reason| OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
-            machine: function.machine,
-            block: function.entry,
-            node: None,
-            reason,
-        },
-    )
+/// Ordinary replay and optional stored-output export share the same completed
+/// walk. Keep every conditional requirement even when export is unavailable.
+pub(crate) struct OwnershipCompletion {
+    requirements: Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
+    outputs: crate::reference_outputs::ReferenceOutputBuilder,
+}
+
+impl OwnershipCompletion {
+    pub(crate) fn into_requirements(
+        self,
+    ) -> Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement> {
+        self.requirements
+    }
+
+    pub(crate) fn into_reference_outputs(
+        self,
+        function: &PsiOptimizationFunction,
+        declarations: &[StructuralTypeDeclaration],
+    ) -> crate::reference_outputs::ReferenceBodyCompletion {
+        // Construction is reached only after CFG joins and return coverage.
+        // Optional export failure does not erase that ordinary completion;
+        // conditional requirements still withhold private interpretation.
+        let unconditional = self.requirements.is_empty();
+        crate::reference_outputs::ReferenceBodyCompletion {
+            unconditional,
+            outputs: self
+                .outputs
+                .seal(function, declarations, self.requirements)
+                .map_err(str::to_owned),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

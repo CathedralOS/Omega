@@ -16,19 +16,19 @@ use abstract_operations::{
 use access_plans::{AccessFields, AccessPlan, BoundaryReach, validate_access_plan};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
 use semantic_vocabulary::{
-    AuthoredRecordStorage, BlockId, EdgeId, MachineId, OperationId, PlaceId, ReferenceOriginExtent,
-    ScalarType, StructuralFieldId, StructuralTypeId,
+    AuthoredRecordStorage, BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
+    ReferenceOriginExtent, ScalarType, StructuralFieldId, StructuralTypeId,
 };
 use std::borrow::Cow;
 use terminal_psi::{
-    BindingRelevance, ReferenceOriginSource, SemanticFingerprint, StructuralAccess,
-    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralRecordStorage, StructuralReferenceOrigin, StructuralReferenceResultSource,
-    StructuralResultDeclaration, StructuralStoreDisposition, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAccessViewPlan, TerminalDynamicDispatchCatalog,
-    TerminalIdentityIndex, TerminalIdentityTable, TerminalIdentityTableBuilder,
-    TerminalPsiIdentity, VocabularyMarker,
+    BindingRelevance, MachineContract, ReferenceOriginSource, SemanticFingerprint,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralRecordStorage, StructuralReferenceOrigin,
+    StructuralReferenceResultSource, StructuralResultDeclaration, StructuralStoreDisposition,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalAccessViewPlan,
+    TerminalDynamicDispatchCatalog, TerminalIdentityIndex, TerminalIdentityTable,
+    TerminalIdentityTableBuilder, TerminalPsiIdentity, VocabularyMarker,
 };
 
 fn ty(raw: u64) -> StructuralTypeId {
@@ -362,11 +362,22 @@ impl Fixture {
             identities: self.identities.clone(),
             functions: vec![factory, relay, store],
         };
-        optimization_unit::reconstruct_psi_optimization_unit_seed(
+        let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &plan,
             terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         )
-        .expect("construct actual function CFGs and derived definition/fact indexes")
+        .expect("construct actual function CFGs and derived definition/fact indexes");
+        // Calls require declared contract inputs even when they have no
+        // premises or guarantees. These empty declarations prove no custody or
+        // interpretation; the actual bodies must still complete replay below.
+        for function in &mut unit.functions[..2] {
+            function.verified_contract = Some(MachineContract::empty(
+                ContractId::new(function.machine.get()).unwrap(),
+            ));
+        }
+        assert!(unit.runtime_evidence.is_none());
+        unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+        unit
     }
 
     fn catalog(&self, unit: &optimization_unit::PsiOptimizationUnit) -> ReferenceOutputCatalog {
