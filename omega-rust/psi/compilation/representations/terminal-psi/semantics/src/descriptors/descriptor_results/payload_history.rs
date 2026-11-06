@@ -382,6 +382,7 @@ enum PayloadSources<'input> {
         identity: MachineId,
         parameters: &'input [terminal_psi::StructuralParameterDeclaration],
         contracts: &'input [(PlaceId, PayloadMembershipContract)],
+        contract_positions: Vec<usize>,
     },
 }
 impl PayloadSources<'_> {
@@ -400,10 +401,15 @@ impl PayloadSources<'_> {
     fn contract(&self, root: PlaceId) -> Option<PayloadMembershipContract> {
         match self {
             Self::Terminal(machine) => super::terminal_payload_contract(machine, root),
-            Self::Current { contracts, .. } => {
-                let mut rows = contracts.iter().filter(|(place, _)| *place == root);
-                let (_, contract) = rows.next()?;
-                rows.next().is_none().then(|| contract.clone())
+            Self::Current {
+                contracts,
+                contract_positions,
+                ..
+            } => {
+                let index = contract_positions
+                    .binary_search_by_key(&root, |&index| contracts[index].0)
+                    .ok()?;
+                Some(contracts[contract_positions[index]].1.clone())
             }
         }
     }
@@ -558,12 +564,16 @@ impl<'input> PayloadMembershipHistory<'input> {
     ) -> Result<Self, &'static str> {
         let current =
             descriptor_machine(graph, identity).ok_or("current payload machine is absent")?;
-        for (index, (root, contract)) in contracts.iter().enumerate() {
-            if current.place_types.get(root) != Some(&contract.carrier)
-                || contracts[..index]
-                    .iter()
-                    .any(|(previous, _)| previous == root)
-            {
+        let mut contract_positions = (0..contracts.len()).collect::<Vec<_>>();
+        contract_positions.sort_by_key(|&index| contracts[index].0);
+        if contract_positions
+            .windows(2)
+            .any(|pair| contracts[pair[0]].0 == contracts[pair[1]].0)
+        {
+            return Err("current payload declaration disagrees with its exact graph carrier");
+        }
+        for (root, contract) in contracts {
+            if current.place_types.get(root) != Some(&contract.carrier) {
                 return Err("current payload declaration disagrees with its exact graph carrier");
             }
         }
@@ -579,11 +589,32 @@ impl<'input> PayloadMembershipHistory<'input> {
                 identity,
                 parameters,
                 contracts,
+                contract_positions,
             },
             replay: HistoryReplay::default(),
             predicate_observations: HistoryReplay::default(),
             entry_snapshots: None,
         })
+    }
+
+    /// Replay the complete old duties over these exact current declarations.
+    /// New formation predicates still require the separate current-storage
+    /// observation; neither the source roster nor the requested result proves it.
+    pub fn for_current_preservation_contracts(
+        types: &'input [StructuralTypeDeclaration],
+        domains: &'input [terminal_psi::StructuralDomainDeclaration],
+        graph: &'input [DescriptorMachine],
+        identity: MachineId,
+        parameters: &'input [terminal_psi::StructuralParameterDeclaration],
+        contracts: &'input [(PlaceId, PayloadMembershipContract)],
+    ) -> Result<Self, &'static str> {
+        let mut history =
+            Self::for_current_contracts(types, domains, graph, identity, parameters, contracts)?;
+        history.replay.memberships = PayloadMembershipKind::Preserved;
+        history.analysis = Some(DescriptorAnalysis::with_borrowed_storage_slots(
+            types, graph,
+        ));
+        Ok(history)
     }
     pub fn current_selected_payload_contract(
         &mut self,
@@ -3628,10 +3659,11 @@ mod tests {
                 vec![Some(DescriptorContentsQuery::from_location(&destination))],
             );
 
-            let source_contracts = [(source_root, empty.clone()), (written_value, empty)];
+            // Current declaration input order is independent of sparse place IDs.
+            let source_contracts = [(written_value, empty.clone()), (source_root, empty)];
             let identity = descriptor.id;
             let graph = [descriptor];
-            let mut history = PayloadMembershipHistory::for_current_contracts(
+            let mut history = PayloadMembershipHistory::for_current_preservation_contracts(
                 &types,
                 &domains,
                 &graph,
@@ -3640,13 +3672,6 @@ mod tests {
                 &source_contracts,
             )
             .unwrap();
-            // Configure the fresh normalized-source fixture exactly as
-            // for_preservation configures its fresh Terminal-source history.
-            // No query/cache exists yet; predicate_observations stays Observed.
-            history.replay.memberships = PayloadMembershipKind::Preserved;
-            history.analysis = Some(DescriptorAnalysis::with_borrowed_storage_slots(
-                &types, &graph,
-            ));
             let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
 
             let old_before = history

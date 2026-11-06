@@ -54,6 +54,13 @@ pub(super) fn append_state_borrow_facts(
     state_loan_trackers.clear();
     let incoming_references =
         append_incoming_reference_trackers(program, machine, state, arenas, state_loan_trackers);
+    let parameter_referents = super::loans::ParameterReferentGrants::new(
+        program,
+        machine,
+        state,
+        &*arenas.incoming_references,
+        incoming_references,
+    );
     // Formation reads the carrier's current contents, while last-use analysis
     // retains every earlier occurrence. Replacement retires the old slot only
     // after its RHS has been resolved against the entry roster.
@@ -91,6 +98,7 @@ pub(super) fn append_state_borrow_facts(
             &mut backing_loans,
             &current_loans,
             call_frames,
+            &parameter_referents,
         )
         .map_err(|reason| {
             Diagnostic::error(format!(
@@ -127,6 +135,7 @@ pub(super) fn append_state_borrow_facts(
             statement,
             &current_loans,
             call_frames,
+            &parameter_referents,
         )
         .map_err(|reason| {
             Diagnostic::error(format!(
@@ -188,6 +197,7 @@ pub(super) fn append_state_borrow_facts(
             state,
             statement_index,
             call_frames,
+            &parameter_referents,
             arenas,
             calls_span,
             &mut loans_span,
@@ -202,6 +212,7 @@ pub(super) fn append_state_borrow_facts(
             statement,
             &current_loans,
             call_frames,
+            &parameter_referents,
             replacement.as_ref(),
             completed_references.as_deref(),
         )

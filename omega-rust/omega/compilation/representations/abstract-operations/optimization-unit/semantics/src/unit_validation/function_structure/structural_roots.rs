@@ -4,6 +4,7 @@ use super::byte_field_freshness::byte_field_root;
 use super::byte_views::byte_field_store_capacity;
 use super::byte_views::validate_byte_view_source;
 use super::descriptor_sources::valid_whole;
+use crate::unit_validation::operation_contracts::structural_payload_contracts;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::leaf_access_within;
 use crate::unit_validation::references::reference_source_type;
@@ -62,16 +63,27 @@ pub(crate) fn place_kinds_operation_result(
 pub(crate) struct ReferenceMembershipValidation<'a> {
     graph: &'a [DescriptorMachine],
     analysis: terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    formation: Option<ReferenceFormationValidation<'a>>,
+}
+
+struct ReferenceFormationValidation<'a> {
+    graph: &'a [DescriptorMachine],
+    analysis: terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 }
 
 impl<'a> ReferenceMembershipValidation<'a> {
     pub(crate) fn new(
         types: &'a [StructuralTypeDeclaration],
         graph: &'a [DescriptorMachine],
+        borrowed_graph: Option<&'a [DescriptorMachine]>,
     ) -> Self {
         Self {
             graph,
             analysis: terminal_semantics::descriptor_results::DescriptorAnalysis::new(types, graph),
+            formation: borrowed_graph.map(|graph| ReferenceFormationValidation {
+                graph,
+                analysis: terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(types, graph),
+            }),
         }
     }
 }
@@ -106,6 +118,23 @@ pub(crate) fn validate_structural_root_operations(
     mut reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
     view_graph: Option<&[DescriptorMachine]>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let formation_graph = reference_memberships
+        .as_ref()
+        .and_then(|context| context.formation.as_ref().map(|formation| formation.graph));
+    let formation_contracts = formation_graph
+        .filter(|_| {
+            function.block_nodes().any(|node| {
+                matches!(&node.operation, O::EstablishReference { source, storage: None, .. }
+            if source.access != StructuralAccess::SharedBorrow)
+            })
+        })
+        .map(|_| structural_payload_contracts(function));
+    let mut formation_history = formation_contracts.as_ref().zip(formation_graph).map(|(contracts, graph)| {
+        terminal_semantics::descriptor_results::PayloadMembershipHistory::for_current_preservation_contracts(
+            &unit.structural_types, &unit.structural_domains, graph, function.machine,
+            &function.structural_parameters, contracts,
+        )
+    });
     let shared_descriptor_result = function.result.structural().is_some_and(|result| {
         result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && terminal_semantics::descriptor_results::is_shared_descriptor(
@@ -786,7 +815,30 @@ pub(crate) fn validate_structural_root_operations(
                             ) else {
                                 return false;
                             };
-                            if let Some(context) = reference_memberships.as_deref_mut()
+                            if source.access != StructuralAccess::SharedBorrow && storage.is_none() {
+                                let unavailable = |reason: &str| {
+                                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                                        eprintln!("CHECKSITE reference-formation-history-unavailable machine={:?} psi={psi_operation:?} reason={reason}", function.machine);
+                                    }
+                                    false
+                                };
+                                let history = match formation_history.as_mut() {
+                                    Some(Ok(history)) => history,
+                                    Some(Err(reason)) => return unavailable(reason),
+                                    None => return unavailable("the current formation has no complete borrowed-storage history"),
+                                };
+                                let Some(formation) = reference_memberships.as_deref_mut().and_then(|context| context.formation.as_mut()) else {
+                                    return unavailable("the current formation has no borrowed-storage analysis");
+                                };
+                                let backing = match history.reference_formation_memberships(
+                                    &unit.identities, &mut formation.analysis, (block.id, node_index),
+                                    source, storage.as_ref(), result,
+                                ) {
+                                    Ok(backing) => backing,
+                                    Err(reason) => return unavailable(reason),
+                                };
+                                captured.extend(backing);
+                            } else if let Some(context) = reference_memberships.as_deref_mut()
                                 && let Ok(backing) = terminal_semantics::descriptor_results::reference_backing_memberships(
                                     &unit.structural_types, &unit.structural_domains, &unit.identities,
                                     &mut context.analysis, function.machine, (block.id, node_index), source, storage.as_ref(), result,

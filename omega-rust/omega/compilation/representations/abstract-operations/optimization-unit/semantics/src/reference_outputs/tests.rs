@@ -1,5 +1,7 @@
 //! Exercise performed formations, stores and ordinary relays before examining
 //! their sealed output graphs. No test supplies a permission-role annotation.
+mod formation_memberships;
+
 use super::*;
 use abstract_operations::{
     AbstractBlockEntry, AbstractCallTarget, AbstractFunction, AbstractFunctionResult,

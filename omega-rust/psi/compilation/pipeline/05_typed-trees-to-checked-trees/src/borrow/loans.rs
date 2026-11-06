@@ -114,6 +114,9 @@ pub(super) struct StatementBorrowLoan {
 
 #[derive(Clone)]
 struct RebasedBorrowPlace {
+    /// The formal whose outer pointer this source forwarded. This is not a
+    /// grant: state-entry membership must supply its actual permission handle.
+    parameter_referent: Option<SymbolHandle>,
     /// The descriptor location before following its captured pointee. A
     /// containing pointer is not the supplier of a stored child descriptor.
     source_place: accesses::BorrowAccessPlace,
@@ -130,6 +133,123 @@ struct RebasedBorrowPlace {
     lifetime_access: Option<checked_trees::BorrowAccessKind>,
 }
 
+/// Entry grants live outside the current descriptor roster. Prepare their
+/// published member handles once for this state, then bind each forwarded
+/// formal without reconstructing a permission from type or backing geometry.
+pub(super) struct ParameterReferentGrants {
+    state_symbol: SymbolHandle,
+    entries: Vec<ParameterReferentGrant>,
+}
+
+struct ParameterReferentGrant {
+    parameter: SymbolHandle,
+    incoming_reference: Option<Handle<checked_trees::IncomingReferenceIdentity>>,
+}
+
+impl ParameterReferentGrants {
+    pub(super) fn new(
+        program: &dyn validation::CheckingInput,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        identities: &arena::Arena<checked_trees::IncomingReferenceIdentity>,
+        members: arena::HandleSpan<checked_trees::IncomingReferenceIdentity>,
+    ) -> Self {
+        let mut parameters = program.state_parameters(state).iter().collect::<Vec<_>>();
+        parameters.sort_by_key(|parameter| {
+            (
+                parameter.symbol.arena_index(),
+                parameter.symbol.generation(),
+            )
+        });
+        let mut entries = Vec::new();
+        if let Some(rows) = identities.span(members) {
+            for (identity, grant) in members.handles().zip(rows) {
+                let checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol } =
+                    grant.origin
+                else {
+                    continue;
+                };
+                let key = (symbol.arena_index(), symbol.generation());
+                let first = parameters.partition_point(|parameter| {
+                    (
+                        parameter.symbol.arena_index(),
+                        parameter.symbol.generation(),
+                    ) < key
+                });
+                let after = parameters.partition_point(|parameter| {
+                    (
+                        parameter.symbol.arena_index(),
+                        parameter.symbol.generation(),
+                    ) <= key
+                });
+                let runtime_formal = if after - first == 1 {
+                    let parameter = parameters[first];
+                    let carrier =
+                        validation::peel_declared_constraints(program, parameter.type_reference);
+                    !parameter.is_const
+                        && !parameter.relevance.is_erased()
+                        && grant.carrier_type == carrier
+                        && validation::reference_shell(program, carrier).is_some()
+                } else {
+                    false
+                };
+                entries.push(ParameterReferentGrant {
+                    parameter: symbol,
+                    incoming_reference: (grant.machine_symbol == machine.symbol
+                        && grant.state_symbol == state.symbol
+                        && grant.owner_path.is_empty()
+                        && runtime_formal)
+                        .then_some(identity),
+                });
+            }
+        }
+        // Retain duplicate rows so lookup refuses an ambiguous grant, including
+        // an invalid duplicate. Both parts of the formal handle are identity.
+        entries.sort_by_key(|entry| (entry.parameter.arena_index(), entry.parameter.generation()));
+        Self {
+            state_symbol: state.symbol,
+            entries,
+        }
+    }
+
+    /// Missing or ambiguous entry evidence leaves the existing unresolved source
+    /// intact. Publication must not replace it with a newly allocated identity.
+    fn bind(&self, state: SymbolHandle, source: &mut RebasedBorrowPlace) {
+        let Some(symbol) = source.parameter_referent else {
+            return;
+        };
+        if self.state_symbol != state
+            || source.place.incoming_reference.is_valid()
+            || source.place.root != facts::PlaceRoot::Symbol(symbol)
+            || !source.place.incoming_owner_path.is_empty()
+            || !source.place.segments.is_empty()
+        {
+            return;
+        }
+        let key = (symbol.arena_index(), symbol.generation());
+        let first = self.entries.partition_point(|entry| {
+            (entry.parameter.arena_index(), entry.parameter.generation()) < key
+        });
+        let after = self.entries.partition_point(|entry| {
+            (entry.parameter.arena_index(), entry.parameter.generation()) <= key
+        });
+        if after - first != 1 {
+            return;
+        }
+        let Some(identity) = self.entries[first].incoming_reference else {
+            return;
+        };
+        source.place.incoming_reference = identity;
+        if let Some(address) = &mut source.representation_address
+            && !address.incoming_reference.is_valid()
+            && address.root == source.place.root
+            && address.incoming_owner_path.is_empty()
+        {
+            address.incoming_reference = identity;
+        }
+    }
+}
+
 /// Every call input observes the ordered prefix ending at that input. Keep
 /// the statement-entry roster available: a later sibling can replace a slot
 /// after an earlier pointer was already evaluated.
@@ -137,6 +257,7 @@ struct RebasedBorrowPlace {
 pub(super) struct BorrowFormationSources<'source, 'program> {
     statement_entry: &'source [StateLoanTracker],
     call_frames: Option<&'source validation::CallFrameResolver<'program>>,
+    parameter_referents: &'source ParameterReferentGrants,
 }
 
 impl BorrowFormationSources<'_, '_> {
@@ -165,6 +286,7 @@ impl BorrowFormationSources<'_, '_> {
             argument,
             frames,
             self.statement_entry,
+            self.parameter_referents,
         )
         .map_err(|reason| match reason {
             validation::StoredReferenceRelationRefusal::TemplateDependent => {
@@ -190,10 +312,12 @@ pub(super) fn retain_backing_contents(
     pending: &mut Vec<StatementBorrowLoan>,
     current: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &ParameterReferentGrants,
 ) -> Result<(), &'static str> {
     let sources = BorrowFormationSources {
         statement_entry: current,
         call_frames,
+        parameter_referents,
     };
     let (owner, name) = statement
         .as_local_data()
@@ -292,6 +416,7 @@ pub(super) fn returned_value_loans(
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &ParameterReferentGrants,
 ) -> Result<
     Vec<(
         checked_trees::statement::TransitionTargetHandle,
@@ -303,6 +428,7 @@ pub(super) fn returned_value_loans(
     let sources = BorrowFormationSources {
         statement_entry: loan_trackers,
         call_frames,
+        parameter_referents,
     };
 
     if !is_reference_type(program, state.return_type)
@@ -333,6 +459,7 @@ pub(super) fn returned_value_loans(
             &value,
             loan_trackers,
             call_frames,
+            parameter_referents,
         )
     };
     let transition = match statement {
@@ -427,6 +554,7 @@ pub(super) fn statement_borrow_loans(
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &ParameterReferentGrants,
     replacement: Option<&CarrierReplacement>,
     completed_references: Option<&[StateLoanTracker]>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
@@ -453,6 +581,7 @@ pub(super) fn statement_borrow_loans(
         statement,
         loan_trackers,
         call_frames,
+        parameter_referents,
     )?);
     Ok(loans)
 }
@@ -468,10 +597,12 @@ fn binding_borrow_loans(
     local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &ParameterReferentGrants,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let sources = BorrowFormationSources {
         statement_entry: loan_trackers,
         call_frames,
+        parameter_referents,
     };
     // A selection's operands complete after its subject and patterns. Form
     // each selected value at its own cut, rather than borrowing the selection's
@@ -499,6 +630,7 @@ fn binding_borrow_loans(
                 &selected,
                 loan_trackers,
                 call_frames,
+                parameter_referents,
             )?);
         }
         return Ok(loans);
@@ -526,6 +658,7 @@ fn binding_borrow_loans(
                 initializer.expression,
                 frames,
                 loan_trackers,
+                parameter_referents,
             ) {
                 Ok(current) => current,
                 // A template body defers unknown type-parameter structure to
@@ -565,6 +698,7 @@ fn binding_borrow_loans(
         local_data.initial_value,
         frames,
         loan_trackers,
+        parameter_referents,
     ) {
         Ok(current) => current,
         Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
@@ -593,6 +727,7 @@ fn value_borrow_loans(
     statement: &StatementNode,
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &ParameterReferentGrants,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     match statement {
         StatementNode::Assignment(assignment) => assignment_borrow_loans(
@@ -603,6 +738,7 @@ fn value_borrow_loans(
             assignment,
             loan_trackers,
             call_frames,
+            parameter_referents,
         ),
         StatementNode::LocalData(local_data) => binding_borrow_loans(
             program,
@@ -612,6 +748,7 @@ fn value_borrow_loans(
             local_data,
             loan_trackers,
             call_frames,
+            parameter_referents,
         ),
         _ => Ok(Vec::new()),
     }
@@ -630,6 +767,7 @@ fn assignment_borrow_loans(
     assignment: &checked_trees::statement::TableAssignment,
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    parameter_referents: &ParameterReferentGrants,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let Some(target) = borrow_access_place(
         program,
@@ -674,6 +812,7 @@ fn assignment_borrow_loans(
         &synthetic_local,
         loan_trackers,
         call_frames,
+        parameter_referents,
     )?;
     let writes_referent = validation::expression_type_reference_in_state(
         program,

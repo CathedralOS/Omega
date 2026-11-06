@@ -195,8 +195,20 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         })
         .then(|| crate::descriptor_results::optimized_graph(unit))
         .flatten();
+    let borrowed_graph = reference_graph.as_ref().and_then(|_| {
+        crate::descriptor_results::optimized_borrowed_storage_catalog_graph(
+            unit.functions.iter(),
+            boundary_machines.values().copied(),
+            &unit.structural_types,
+            &unit.dynamic_dispatch,
+        )
+    });
     let mut reference_memberships = reference_graph.as_ref().map(|graph| {
-        function_structure::ReferenceMembershipValidation::new(&unit.structural_types, graph)
+        function_structure::ReferenceMembershipValidation::new(
+            &unit.structural_types,
+            graph,
+            borrowed_graph.as_deref(),
+        )
     });
     let mut descriptor_requirements = BTreeMap::new();
     let mut ownership_frontiers = Vec::new();
