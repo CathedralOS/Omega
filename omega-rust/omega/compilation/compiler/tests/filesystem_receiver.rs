@@ -10,17 +10,17 @@
 //! termination permission. Physical classification stays independently supplied
 //! by the existing toolchain policy, so an unsupported leaf must refuse.
 
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
-
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
 use effects::{
     CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet, TerminalAuthorityClass,
     TerminalAuthorityDisposition,
     provider_plan::{ProviderBinding, ProviderPlan},
 };
-use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
+use package_manager::{
+    PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
+};
+use platform_custody::temporary_directory::TemporaryDirectory;
 use semantic_vocabulary::PackageKeyIdentity;
+use std::path::{Path, PathBuf};
 use terminal_psi_to_abstract_operations::provider_admission;
 
 const FIXTURE: &str = "tests/omega/pass/filesystem/windows_canonicalize_exit/main.omg";
@@ -28,42 +28,70 @@ const TARGET: &str = "windows_x86_64";
 
 #[test]
 fn windows_canonicalize_receiver() {
-    let main = repo_root().join(FIXTURE);
-    let mut prepared = reviewed_repository_fixture_package_inputs(&main, Some(TARGET))
-        .unwrap_or_else(|diagnostics| panic!("{FIXTURE} package review: {diagnostics:#?}"));
-    // The shared fixture reviewer selects this entry supplier only by the
-    // canonical bundled-library source root. Its retained owner identifies the
-    // receiver's trusted std declarations; a same-named offered package cannot
-    // acquire these grants. Permission classes below are authored independently.
-    let trusted_std = prepared
-        .package_inputs
-        .as_ref()
-        .expect("the customer has its authored std dependency")
-        .accepted_semantic_bindings()
-        .find(|binding| {
-            binding.role()
-                == package_compilation::AcceptedSemanticBindingRole::WindowsX64ProgramEntry
-        })
-        .expect("reviewed bundled Windows entry supplier")
-        .package();
-    let request = CompileRequest::new(CompileOptions {
-        root_path: prepared.root_path.clone(),
-        build_dir: Some(std::env::temp_dir().join(format!(
-            "omega-windows-filesystem-receiver-{}",
-            std::process::id()
-        ))),
-        target_name: Some(TARGET.to_owned()),
-    })
-    .with_requested_product(RequestedCompileProduct::TerminalArtifact)
-    .with_package_inputs(
-        prepared
-            .package_inputs
-            .take()
-            .expect("reviewed package inputs"),
+    // The ordinary application route must establish project acceptance. The
+    // fixture helper's synthetic Console bindings are not a substitute for it.
+    let workspace = TemporaryDirectory::create("windows-filesystem-receiver", false)
+        .expect("private project workspace");
+    let root = repo_root();
+    copy_tree(
+        &root.join("source/library"),
+        &workspace.path().join("source/library"),
     );
-    let retained = orchestration::compile_sources(prepared.session.compiler(), request)
-        .and_then(compiler::CompileOutcomes::into_single_report)
-        .unwrap_or_else(|diagnostics| panic!("{FIXTURE} Terminal production: {diagnostics:#?}"))
+    let project = workspace
+        .path()
+        .join(FIXTURE)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    copy_tree(root.join(FIXTURE).parent().unwrap(), &project);
+    let profile = target::TargetProfile::WindowsX64;
+    let mut session = orchestration::BuildSession::create(&project.join("build/package-manager"))
+        .expect("ordinary project session");
+    accept_project(&project, profile, &mut session);
+    session
+        .close()
+        .expect("complete ordinary review invocation");
+    // The receiver selects its trusted source identity independently: this
+    // private std path, expected authored package name and explicit local
+    // context version. A foreign owner receives no fallback grant by name.
+    let trusted_std = package_manager::declarations::PackageKey::new(
+        package_manager::declarations::PackageName::parse("omega_language_std")
+            .expect("receiver's expected std package name"),
+        package_source::SourceLineage::ExternalLocal(
+            package_source::ExternalLocalLineage::canonicalize(
+                workspace.path().join("source/library/std"),
+                package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
+            )
+            .expect("receiver's exact canonical trusted std source"),
+        ),
+    )
+    .identity();
+    // Reuse the public application owner of source discovery, accepted
+    // package admission, Product compilation and completion. In particular,
+    // there is no fixture-injected Console provider or second scheduler here.
+    let mut outcomes = orchestration::build(orchestration::BuildRequest {
+        root_path: project.join("main.omg"),
+        build_directory: Some(project.join("build/terminal")),
+        targets: orchestration::BuildTargets::Single(profile),
+        product: orchestration::ProjectProduct::Terminal,
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .unwrap_or_else(|error| panic!("{FIXTURE} ordinary project build: {error}"));
+    assert_eq!(outcomes.len(), 1, "one exact Windows target");
+    let report = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .unwrap_or_else(|error| panic!("{FIXTURE} ordinary Terminal production: {error}"))
+        .into_report()
+        .unwrap_or_else(|error| panic!("{FIXTURE} Terminal report: {error}"))
+        .report;
+    let retained = report
         .into_retained_terminal_artifact()
         .expect("source-produced native proposal");
     let proposal = retained
@@ -80,6 +108,8 @@ fn windows_canonicalize_receiver() {
     .expect("accepted package permissions");
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permissions = Vec::new();
+    let mut trusted_filesystem_grants = 0;
+    let mut ordinary_close_grants = 0;
     let mut grant = |plan: &ProviderPlan, process_exit: bool| {
         for row in &plan.rows {
             if !process_exit
@@ -94,6 +124,19 @@ fn windows_canonicalize_receiver() {
             else {
                 continue;
             };
+            if !process_exit && plan.schema.declaration.trait_package_identity == Some(trusted_std)
+            {
+                if matches!(
+                    row.method.as_str(),
+                    "c_close_handle" | "close_handle" | "find_close"
+                ) {
+                    assert!(permitted.classes().is_empty(), "ordinary close permission");
+                    ordinary_close_grants += 1;
+                } else {
+                    assert_eq!(permitted.classes().len(), 6, "broad filesystem permission");
+                    trusted_filesystem_grants += 1;
+                }
+            }
             let permission = provider_admission::TerminalAuthorityPermissionPolicyRow::new(
                 plan.schema.identity_digest(),
                 identities.intern(plan.identities.text(row.requirement_identity)),
@@ -127,6 +170,17 @@ fn windows_canonicalize_receiver() {
             );
         }
     }
+    assert!(
+        trusted_filesystem_grants > 0,
+        "the independently configured std identity matched no filesystem grants"
+    );
+    assert!(
+        ordinary_close_grants > 0,
+        "the independently configured std identity matched no empty ordinary-close grant"
+    );
+    eprintln!(
+        "trusted std receiver setup: {trusted_filesystem_grants} filesystem grants, {ordinary_close_grants} empty ordinary-close grants"
+    );
     let receiver = provider_admission::terminal_authority_permission_policy_with_rows(
         permissions,
         identities.build(),
@@ -241,4 +295,92 @@ fn receiver_grant(
             PortableFilesystemAuthorityFacet::ALL,
         ))
     }
+}
+
+fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate belongs to the repository")
+        .to_path_buf()
+}
+
+// Preserve the customer's relative Build dependency and every source byte.
+// Only the private copy receives package-review and compiler output files.
+fn copy_tree(source: &Path, destination: &Path) {
+    std::fs::create_dir_all(destination).expect("private source directory");
+    for entry in std::fs::read_dir(source).expect("source inventory") {
+        let entry = entry.expect("source entry");
+        let kind = entry.file_type().expect("source file kind");
+        let output = destination.join(entry.file_name());
+        if kind.is_dir() {
+            copy_tree(&entry.path(), &output);
+        } else {
+            assert!(kind.is_file(), "source inputs must be ordinary files");
+            std::fs::copy(entry.path(), output).expect("unchanged source copy");
+        }
+    }
+}
+
+fn accept_project(
+    project: &Path,
+    target: target::TargetProfile,
+    session: &mut orchestration::BuildSession,
+) {
+    let mut options = PackageCommandOptions {
+        project_root: project.to_path_buf(),
+        targets: vec![target],
+        offline: true,
+        build_inputs: None,
+    };
+    let mut outcome = orchestration::execute_package_command(
+        PackageCommand::Update {
+            packages: Vec::new(),
+            revision: None,
+        },
+        options.clone(),
+        session,
+    )
+    .expect("ordinary project update");
+    // This harness supplies repository-test review consent through the same
+    // editable decisions as the CLI. It neither constructs accepted bindings
+    // nor turns those project decisions into the receiver's permission table.
+    for _ in 0..4 {
+        if outcome.status == PackageCommandStatus::Published {
+            return;
+        }
+        assert_eq!(outcome.status, PackageCommandStatus::ReviewRequired);
+        for path in &outcome.review_paths {
+            let document = std::fs::read_to_string(path).expect("pending review");
+            let mut accepted = String::new();
+            for line in document.lines() {
+                match line
+                    .strip_suffix(" pending")
+                    .filter(|_| line.starts_with("decision "))
+                {
+                    Some(subject) => {
+                        accepted.push_str(subject);
+                        accepted.push_str(" accept");
+                    }
+                    None => accepted.push_str(line),
+                }
+                accepted.push('\n');
+            }
+            std::fs::write(path, accepted).expect("authored test review consent");
+        }
+        options.targets.clear();
+        outcome = orchestration::execute_package_command(
+            PackageCommand::Resume {
+                kind: PackageCommandKind::Update,
+            },
+            options.clone(),
+            session,
+        )
+        .expect("ordinary project resume");
+    }
+    assert_eq!(
+        outcome.status,
+        PackageCommandStatus::Published,
+        "bounded review completion"
+    );
 }
