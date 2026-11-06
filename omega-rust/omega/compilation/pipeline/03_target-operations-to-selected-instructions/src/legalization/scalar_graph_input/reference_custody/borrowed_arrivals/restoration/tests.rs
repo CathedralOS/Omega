@@ -7,6 +7,7 @@ fn leaf(number: u64, parents: Vec<OccurrenceIdentity>) -> Leaf {
         multiplicity: terminal_psi::StructuralMultiplicity::Affine,
         qualifications: vec![],
         projected_qualifications: vec![],
+        additional_input_qualifications: Vec::new(),
         qualification_establishments: vec![],
         claims: vec![],
     };

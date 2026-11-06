@@ -2366,6 +2366,7 @@ pub(crate) fn emit_dynamic_family_dispatch(
             access: StructuralAccess::Owned,
             qualifications: result.qualifications.clone(),
             projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
         })
         .into_iter()
         .collect();

@@ -118,9 +118,10 @@ after four register arguments. Only occurrence four changes its transmit byte to
 Linux ARM64 uses the same exact-allocation lifecycle and AAPCS64 X0–X7 pointer
 placement, with Linux write and exit-group syscalls and an independent final-byte
 reader. Qualification records distinguish named QEMU/PRoot execution on Linux x86-64
-from physical ARM hardware execution. Fresh macOS execution and physical Linux ARM64
-execution remain unverified. Unsupported native placements still refuse explicitly. This
-is private hosted RAM, not a device-provider or Atomic establishment claim.
+from physical ARM hardware execution. The current macOS ARM64 run below observes these
+existing programs. Current Windows x86-64 and Linux ARM64 migration execution remains
+unverified. Unsupported native placements still refuse explicitly. This is private
+hosted RAM, not a device-provider or Atomic establishment claim.
 
 The companion [free local-state row](../free_entry_local_state/README.md) proves
 ordinary local ownership and executable cleanup without supplied parameters. [Applied
@@ -128,28 +129,34 @@ zero establishment](../applied_zero_establishment/README.md) retains invalid
 initialization controls when construction moves into ordinary locals. These establish
 separate obligations of the same parent outcome.
 
-Current Linux x86-64 validation is retained in two runs:
+Measured validation uses the following sources:
 
 | Source and run | Observed scope |
 | --- | --- |
-| Compiler `0b53c8a4e109`, [original baseline](https://github.com/CathedralOS/Omega/actions/runs/42168270932) | 18 source checks, 13 native/Terminal exit-zero pairs with original-backing agreement, ten ordinary positives and eight matching invalid expectations. The nested invalid rejected 8 against 9 but missed its required diagnostic wording, so the full run failed. |
-| Compiler and programs `ab235e9fbe19`, [migration qualification](https://github.com/CathedralOS/Omega/actions/runs/42172876301) | Target source check and native/Terminal exit-zero pair with original-backing agreement; ordinary target positive and its invalid twin; nested invalid with the unchanged expected wording; five existing refuted-precondition controls and one existing dependency-recovery integration test. |
+| Linux x86-64, compiler `0b53c8a4e109`, [original baseline](https://github.com/CathedralOS/Omega/actions/runs/42168270932) | 18 source checks, 13 native/Terminal exit-zero pairs with original-backing agreement, ten ordinary positives and eight matching invalid expectations. The nested invalid rejected 8 against 9 but missed its required diagnostic wording, so the full run failed. |
+| Linux x86-64, compiler and programs `ab235e9fbe19`, [migration qualification](https://github.com/CathedralOS/Omega/actions/runs/42172876301) | Target source check and native/Terminal exit-zero pair with original-backing agreement; ordinary target positive and its invalid twin; nested invalid with the unchanged expected wording; five existing refuted-precondition controls and one existing dependency-recovery integration test. |
+| Compiler and programs `062d0753ff08`, observer `7e32952871ae`, [Mac ARM64 qualification](https://github.com/CathedralOS/Omega/actions/runs/42190647957) | 13 programs pass source checking and five invalid storage tests reject; 13 native/Terminal exit-zero pairs with original-backing agreement; ten sample programs run on both engines; nine controls reject. |
 
-The qualification keeps the 120-second corpus limit and the ordinary sample gate's
-300-second limit per CLI call, with one worker and profiling off. Both invalid samples
-reject at the consuming `code == 9` requirement. The diagnostic repair adds
+The Mac run observes 19 original corpus allocations and the expected backing for
+each ordinary positive. Its 27 unit-test results belong to the authenticated
+original compiler preparation. These are measurements of the listed compiler
+and program sources, rather than execution of a newer main revision.
+
+The qualification runs keep the 120-second corpus limit and the ordinary sample gate's
+300-second limit per CLI call, with one worker and profiling off. All nine Mac invalid
+samples reject at the consuming `code == 9` requirement. The diagnostic repair adds
 requires-contract context without changing any checking decision or removing the
 previous message.
 
-The other eight places and storage controls retain their actual original baseline
-observations. Their authored inputs are unchanged; the compiler change only adds text to
-a diagnostic after a precondition is already refuted. It changes no accepted result,
-storage geometry, access, runtime code or backing observation. These retained
-measurements remain measurements of compiler `0b53c8a4e109`, rather than execution of
-the final source.
+For Linux x86-64, the other eight places and storage controls retain their actual
+original baseline observations. Their authored inputs are unchanged; the compiler change
+only adds text to a diagnostic after a precondition is already refuted. It changes no
+accepted result, storage geometry, access, runtime code or backing observation. These
+retained measurements remain measurements of compiler `0b53c8a4e109`, rather than
+execution of the final source.
 
-Current matching-host validation of this migration on Windows x86-64, macOS ARM64 and
-Linux ARM64 remains open. The historical host observations above do not establish
-current execution. The invalid examples still lack corresponding corpus tests. The
-broader Build-owned selection requirement, including distinct per-target behavior from
-one portable artifact, also remains open.
+Current matching-host validation of this migration on Windows x86-64 and Linux ARM64
+remains open. The historical host observations above do not establish current execution.
+The invalid examples still lack corresponding corpus tests. The broader Build-owned
+selection requirement, including distinct per-target behavior from one portable
+artifact, also remains open.

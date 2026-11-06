@@ -1,9 +1,8 @@
-//! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
+//! Retained plans must keep the selected program's source and result contracts.
 //!
-//! Owns admission and authentication order. V72 retains structural edge
-//! selectors and their accepted facts through descriptor snapshots.
-//! Atomic field identity remains distinct from its scalar representation.
-//! Every older envelope is rejected before its payload is interpreted.
+//! The envelope authenticates its bytes and rejects older layouts before decoding.
+//! Decoding preserves submitted metadata; independent validation still decides
+//! whether the plan's storage and ownership claims are valid.
 
 mod content;
 mod copy;
@@ -41,8 +40,9 @@ const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
 // Version 89 retains all private callback address placements.
 // Version 90 retains typed descriptor-table instructions.
 // Version 91 separates the occupied owner from its granted backing.
-// Installed providers retain declaration and receiving application roles.
-const VERSION: u32 = 95;
+// Version 96 combines input observation lifetimes with provider application roles.
+// Version 97 also retains input fact lifetimes on operation results.
+const VERSION: u32 = 97;
 const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;

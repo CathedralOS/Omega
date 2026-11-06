@@ -786,11 +786,18 @@ impl Builder<'_, '_> {
             };
             source.retain_projection_evaluations(projection_evaluations, &self.plans.operands)?;
             let selectors = self.retain_reference_selectors(expression, selectors)?;
+            let source_contract = crate::values::reference_sources::qualification_contract(
+                self.program,
+                expected,
+                backing_type,
+                storage,
+            );
             ValueKind::Reference {
                 source,
                 selectors,
                 storage,
                 backing_type,
+                source_contract,
                 source_value,
             }
         } else if needs_copied_place_root(

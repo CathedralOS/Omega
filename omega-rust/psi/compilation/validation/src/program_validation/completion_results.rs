@@ -12,9 +12,7 @@ use crate::machine_calls::calls;
 use diagnostics::Diagnostic;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{
-    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
 pub(super) fn validate(
     program: &dyn crate::CheckingInput,
@@ -55,16 +53,10 @@ pub(super) fn validate(
                         }
                     }
                 }
-                if transition.guard == TransitionGuardNode::Always
-                    || transition.continuation.is_valid()
-                    || !order.get(position + 1).is_some_and(|next| {
-                        matches!(statements[*next], StatementNode::Transition(_))
-                    })
-                {
-                    // Source-to-typed admission proves every authored dispatch
-                    // exhaustive, including finite case matrices whose last
-                    // guard need not be Always. All its arms have been checked
-                    // at this maximal run boundary; none falls into a suffix.
+                if crate::declarations::transitions::admitted_dispatch_ends(
+                    transition,
+                    order.get(position + 1).map(|next| &statements[*next]),
+                ) {
                     return;
                 }
             }

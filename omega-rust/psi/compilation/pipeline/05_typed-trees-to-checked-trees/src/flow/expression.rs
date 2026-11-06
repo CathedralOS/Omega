@@ -913,6 +913,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
         );
+        self.retain_invocation_permissions(completed.invocation, &capture);
         if !binds_view {
             let mut evaluated = EvaluatedOperand {
                 boolean,

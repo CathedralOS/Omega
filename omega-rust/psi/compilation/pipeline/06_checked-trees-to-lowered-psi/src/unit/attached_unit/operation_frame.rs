@@ -692,6 +692,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::EstablishReference {
                 formation_expression,
                 backing_type,
+                source_contract,
                 result,
                 source,
                 storage,
@@ -699,6 +700,7 @@ impl OperationFrame<'_, '_> {
                 identities,
                 *formation_expression,
                 *backing_type,
+                source_contract,
                 result,
                 source,
                 *storage,
@@ -727,6 +729,7 @@ impl OperationFrame<'_, '_> {
 
         formation_expression: checked_trees::expression::ExpressionHandle,
         backing_type: typed_trees::types::TypeReferenceHandle,
+        source_contract: &checked_trees::CheckedReferenceSourceContract,
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         source: &CheckedUnitStructuralArgumentPlan,
         storage: checked_trees::CheckedReferenceStorage,
@@ -795,10 +798,10 @@ impl OperationFrame<'_, '_> {
             identities,
             reference_results::Formation {
                 checked: self.checked,
-                state: self.state,
                 statement_index: result.statement_index as usize,
                 expression: formation_expression,
                 backing_type,
+                source_contract,
                 qualification_decisions: Default::default(),
                 domain_ids: self.calls.domain_ids,
             },
@@ -1145,6 +1148,7 @@ pub(super) fn allocate_structural_result(
             multiplicity,
             qualifications,
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
         kind,
@@ -1195,5 +1199,6 @@ pub(super) fn structural_parameter_declaration(
         access,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     }
 }

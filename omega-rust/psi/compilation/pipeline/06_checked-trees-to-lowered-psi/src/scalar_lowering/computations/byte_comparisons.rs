@@ -43,6 +43,7 @@ impl Expansion<'_> {
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
                 },
             )])
             .with_structural_observations(self.structural_types)

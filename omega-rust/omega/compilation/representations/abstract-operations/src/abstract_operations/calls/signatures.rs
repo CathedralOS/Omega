@@ -23,6 +23,7 @@ pub struct StructuralCallFormal<'declaration> {
     pub access: StructuralAccess,
     pub qualifications: &'declaration [StructuralDomainId],
     pub projected_qualifications: &'declaration [StructuralPathQualification],
+    pub additional_input_qualifications: &'declaration [StructuralPathQualification],
 }
 
 impl<'declaration> From<&'declaration ParameterDeclaration> for StructuralCallFormal<'declaration> {
@@ -34,6 +35,7 @@ impl<'declaration> From<&'declaration ParameterDeclaration> for StructuralCallFo
             access: parameter.access,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
+            additional_input_qualifications: &parameter.additional_input_qualifications,
         }
     }
 }
@@ -47,6 +49,7 @@ impl<'declaration> From<&'declaration StructuralFormal> for StructuralCallFormal
             access: parameter.access,
             qualifications: &parameter.qualifications,
             projected_qualifications: &[],
+            additional_input_qualifications: &[],
         }
     }
 }

@@ -26,7 +26,7 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
-        completion: checked_trees::FlowOperandCompletion,
+        completed_result: FlowOperandFact,
     ) -> Option<Handle<FlowOperandFact>> {
         let (parameters, origins) =
             region_sources(self.program, call, self.context.call_frames, returned, path)?;
@@ -93,7 +93,7 @@ impl Execution<'_, '_, '_> {
                 &origin.source.path,
             )?;
             let checked_trees::FlowOperandCompletion::InvocationResult { invocation, .. } =
-                completion
+                completed_result.completion
             else {
                 return None;
             };
@@ -148,12 +148,8 @@ impl Execution<'_, '_, '_> {
             });
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
-            completion,
-            state_symbol: self.state.symbol,
-            statement_index: self.statement_index,
-            storage_snapshot: self.storage_snapshot,
             retention,
-            ..Default::default()
+            ..completed_result
         }))
     }
 }

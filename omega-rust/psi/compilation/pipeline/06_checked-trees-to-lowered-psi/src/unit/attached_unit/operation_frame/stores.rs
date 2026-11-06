@@ -283,6 +283,7 @@ impl OperationFrame<'_, '_> {
                     logical_receiving: None,
                     qualifications: root.qualifications.to_vec(),
                     projected_qualifications: root.projected_qualifications.to_vec(),
+                    additional_input_qualifications: root.additional_input_qualifications.to_vec(),
                     place: source.place,
                     root_type: root.structural_type,
                     path: composed,
@@ -657,6 +658,7 @@ impl OperationFrame<'_, '_> {
                     root_type: physical.root_type,
                     qualifications: physical.qualifications,
                     projected_qualifications: physical.projected_qualifications,
+                    additional_input_qualifications: physical.additional_input_qualifications,
                     path: physical.path,
                     logical_receiving: Some(logical),
                 })
@@ -1206,6 +1208,7 @@ impl OperationFrame<'_, '_> {
                     parameter.structural_type,
                     &parameter.qualifications,
                     &parameter.projected_qualifications,
+                    &parameter.additional_input_qualifications,
                 )
             })
             .chain(self.operations.operations.iter().filter_map(|operation| {
@@ -1218,6 +1221,7 @@ impl OperationFrame<'_, '_> {
                             result.structural_type,
                             &result.qualifications,
                             &result.projected_qualifications,
+                            &result.additional_input_qualifications,
                         )
                     })
             }));
@@ -1225,7 +1229,7 @@ impl OperationFrame<'_, '_> {
         if declarations.next().is_some() {
             return unsupported("store receiving root declaration is ambiguous");
         }
-        let (root_type, whole, projected) = if let Some(declaration) = selected {
+        let (root_type, whole, projected, additional_input) = if let Some(declaration) = selected {
             declaration
         } else {
             // Bindings can repeat the same operation home. Only an absent
@@ -1245,6 +1249,7 @@ impl OperationFrame<'_, '_> {
                                     result.structural_type,
                                     &result.qualifications,
                                     &result.projected_qualifications,
+                                    &result.additional_input_qualifications,
                                 )
                             })
                     });
@@ -1260,6 +1265,7 @@ impl OperationFrame<'_, '_> {
             root_type,
             qualifications: whole.clone(),
             projected_qualifications: projected.clone(),
+            additional_input_qualifications: additional_input.clone(),
             path,
         })
     }

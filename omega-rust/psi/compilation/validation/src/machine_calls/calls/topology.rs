@@ -33,9 +33,7 @@ fn compute_normal_completion_possible(
     program: &dyn CheckingInput,
     initial: &State,
 ) -> Option<bool> {
-    use typed_trees::statement::{
-        StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-    };
+    use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
     let mut pending = vec![initial.symbol];
     let mut visited = Vec::new();
     while let Some(symbol) = pending.pop() {
@@ -108,9 +106,19 @@ fn compute_normal_completion_possible(
                     _ => {}
                 },
                 StatementNode::Transition(transition) => {
-                    all_paths_depart |= transition.guard == TransitionGuardNode::Always
-                        || transition.continuation.is_valid();
+                    let following_statement = match order.get(position + 1) {
+                        Some(next) => Some(statements.get(*next)?),
+                        None => None,
+                    };
+                    let dispatch_ends = crate::declarations::transitions::admitted_dispatch_ends(
+                        transition,
+                        following_statement,
+                    );
                     if matches!(transition.exit, TransitionExit::Crash(_)) {
+                        if dispatch_ends {
+                            all_paths_depart = true;
+                            break;
+                        }
                         continue;
                     }
                     if transition.targets().next().is_none() {
@@ -141,13 +149,16 @@ fn compute_normal_completion_possible(
                             }
                         }
                     }
+                    if dispatch_ends {
+                        all_paths_depart = true;
+                        break;
+                    }
                 }
                 _ => {}
             }
         }
-        // A conditional tail without an exhaustive continuation can fall
-        // through to implicit Unit completion. A crash ceiling or one crashing
-        // arm never establishes that every path departs.
+        // Without a departing call or completed dispatch, the state can return
+        // Unit. A crash ceiling or one crashing arm does not prove nonreturn.
         if !all_paths_depart {
             return Some(true);
         }

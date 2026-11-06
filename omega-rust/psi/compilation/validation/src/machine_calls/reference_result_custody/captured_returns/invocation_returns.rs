@@ -362,6 +362,7 @@ impl Captures<'_> {
                 source_type,
                 endpoint_type: origin.type_identity,
                 result_type,
+                extent: origin.extent,
             },
         ))
     }

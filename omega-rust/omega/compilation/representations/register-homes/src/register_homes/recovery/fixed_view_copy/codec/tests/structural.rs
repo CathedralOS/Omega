@@ -302,8 +302,12 @@ fn outgoing_slot_roles_bind_rosters_memory_and_authenticated_round_trips() {
         match mutation {
             0 => function.outgoing_arguments[1].id.role = OutgoingArgumentSlotRole::Argument,
             1 => {
-                function.memory_accesses.last_mut().unwrap().role =
-                    SelectedMemoryAccessRole::WriteOutgoing { slot: argument }
+                function
+                    .memory_accesses
+                    .iter_mut()
+                    .next_back()
+                    .unwrap()
+                    .role = SelectedMemoryAccessRole::WriteOutgoing { slot: argument }
             }
             2 => {
                 let position = function.memory_accesses.len() - 2;
@@ -678,10 +682,14 @@ fn returned_descriptor_origins_preserve_namespace_and_memory_role_in_wire_identi
                 eq!(function.calls[0].call.descriptor_origins.pop() => Some(Origin::Empty));
             }
             _ => {
-                function.memory_accesses.last_mut().unwrap().role =
-                    SelectedMemoryAccessRole::ReadReturnedView {
-                        producer: OperationId::new(83).unwrap(),
-                    }
+                function
+                    .memory_accesses
+                    .iter_mut()
+                    .next_back()
+                    .unwrap()
+                    .role = SelectedMemoryAccessRole::ReadReturnedView {
+                    producer: OperationId::new(83).unwrap(),
+                }
             }
         }
         assert_ne!(changed.encode().unwrap(), encoded);
@@ -709,4 +717,57 @@ fn scalar_result_buffer_round_trips_separately_from_boundary_controls() {
         .functions
         .push(function);
     eq!(FixedViewCopyPlan::decode(&source.encode().unwrap()).unwrap() => source);
+}
+
+#[test]
+fn retained_plan_preserves_returned_input_fact_lifetimes() {
+    use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralMultiplicity, StructuralOperationResult, StructuralPathQualification,
+    };
+    let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+    let mut function = structural_function();
+    let domain = StructuralDomainId::new(3).unwrap();
+    function.calls[0].call.structural_result = Some(StructuralOperationResult {
+        place: PlaceId::new(7).unwrap(),
+        structural_type: StructuralTypeId::new(2).unwrap(),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        qualifications: vec![domain],
+        projected_qualifications: Vec::new(),
+        additional_input_qualifications: vec![StructuralPathQualification {
+            path: Vec::new(),
+            domain,
+        }],
+        qualification_establishments: Vec::new(),
+        claims: Vec::new(),
+    });
+    std::sync::Arc::make_mut(&mut plan.transformed)
+        .functions
+        .push(function);
+    let encoded = plan.encode().unwrap();
+    assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
+    let identity = selected_instructions::selected_instruction_plan_identity(&plan.transformed);
+    let mut standing = plan.clone();
+    std::sync::Arc::make_mut(&mut standing.transformed)
+        .functions
+        .iter_mut()
+        .next_back()
+        .unwrap()
+        .calls[0]
+        .call
+        .structural_result
+        .as_mut()
+        .unwrap()
+        .additional_input_qualifications
+        .clear();
+    assert_ne!(
+        selected_instructions::selected_instruction_plan_identity(&standing.transformed),
+        identity
+    );
+    let standing_bytes = standing.encode().unwrap();
+    assert_ne!(standing_bytes, encoded);
+    assert_eq!(
+        FixedViewCopyPlan::decode(&standing_bytes).unwrap(),
+        standing
+    );
 }

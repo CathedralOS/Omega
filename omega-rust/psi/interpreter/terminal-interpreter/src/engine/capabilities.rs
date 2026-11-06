@@ -808,6 +808,7 @@ mod tests {
                 access: StructuralAccess::WriteOnlyBorrow,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             });
         assert!(boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
         boundary.structural_parameters[0].access = StructuralAccess::SharedBorrow;

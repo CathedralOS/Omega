@@ -728,6 +728,7 @@ pub(super) fn validate(
                         destination.structural_type(),
                         destination.qualifications(),
                         destination.projected_qualifications(),
+                        destination.additional_input_qualifications(),
                         path,
                     )
                     .is_some_and(|restriction| restriction.is_some() == range_obligation.is_some())

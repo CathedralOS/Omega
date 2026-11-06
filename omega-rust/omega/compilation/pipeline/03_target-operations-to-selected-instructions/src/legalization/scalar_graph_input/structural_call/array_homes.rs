@@ -54,6 +54,7 @@ pub(super) fn argument(
                 access: StructuralAccess::Owned,
                 qualifications: result.qualifications.clone(),
                 projected_qualifications: result.projected_qualifications.clone(),
+                additional_input_qualifications: result.additional_input_qualifications.clone(),
             },
             target_operations::TargetStructuralArgumentSource::StructuralHome {
                 psi_operation: producer,

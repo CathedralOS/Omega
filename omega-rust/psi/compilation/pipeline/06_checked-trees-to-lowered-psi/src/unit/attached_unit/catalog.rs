@@ -47,6 +47,25 @@ mod scalar_fields;
 pub(super) use operation_types::collect_operation_type_roots;
 pub(super) use scalar_fields::scalar_field_types;
 
+/// Source requirements can name carriers absent from the receiving reference.
+/// Keep their declarations alongside the domains the checked producer records.
+pub(super) fn collect_reference_contract_types(
+    checked: &CheckedTrees,
+    contract: &checked_trees::CheckedReferenceSourceContract,
+    roots: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
+) {
+    if let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract {
+        roots.extend(
+            contract
+                .domains
+                .iter()
+                .map(|(_, reference)| reference)
+                .chain(&contract.projection_types)
+                .map(|reference| stored_structural_identity(checked, *reference)),
+        );
+    }
+}
+
 /// Retain the declarations used while evaluating a structural value tree.
 /// A selected leaf and its completed source own distinct storage: the source
 /// declaration survives even when only the copied leaf occurs in a signature.
@@ -67,9 +86,11 @@ pub(crate) fn collect_value_roots(
         checked_trees::CheckedStructuralValueKind::Reference {
             source,
             source_value,
+            source_contract,
             ..
         } => {
             roots.push(source.type_identity);
+            collect_reference_contract_types(checked, source_contract, roots);
             if source_value.is_valid() {
                 roots.push(validation::stored_structural_type_identity(
                     &checked.typed,
@@ -379,22 +400,18 @@ pub(super) fn lower_unit_structural_types<'checked>(
         if let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()? {
             roots.push(result.type_identity);
         }
-        if let UnitBody::Composed(machine) = body {
-            roots.extend(
-                machine
-                    .states
-                    .iter()
-                    .flat_map(|state| state.successors())
-                    .flat_map(|edge| &edge.transfers)
-                    .filter_map(|transfer| {
-                        match &transfer.source {
-                    checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                        carrier_type_identity, ..
-                    } if carrier_type_identity.is_valid() => Some(*carrier_type_identity),
-                    _ => None,
+        for loan in body.projected_loans() {
+            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                carrier_type_identity,
+                source_contract,
+                ..
+            } = loan
+            {
+                if carrier_type_identity.is_valid() {
+                    roots.push(*carrier_type_identity);
                 }
-                    }),
-            );
+                collect_reference_contract_types(checked, source_contract, &mut roots);
+            }
         }
         for parameter in body.structural_parameters() {
             projection_types::collect_parameter(plans, parameter, &mut roots)?;
@@ -1082,6 +1099,18 @@ pub(super) fn lower_unit_structural_domains(
     }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        for loan in body.projected_loans() {
+            if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                source_contract,
+                ..
+            } = loan
+            {
+                crate::expression_preparation::structural_value_requirements::collect_reference_contract(
+                    source_contract, &mut selected,
+                );
+            }
+        }
+
         // Statement-call publications and returned custody consume the same
         // exact occurrence inventory. A declaration-represented scalar duty
         // is discharged there, while every nominal row roots its theory here.
@@ -1390,6 +1419,7 @@ pub(super) fn lower_unit_structural_domains(
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
                     };
                     // Checked scalar subjects and structural subjects occupy
                     // separate formal namespaces. Bind both at this declaration

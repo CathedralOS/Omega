@@ -47,6 +47,7 @@ pub(crate) use last_uses::{owner_path_overlaps_place_segments, place_is_used_aft
 pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::call_reference_lifetime_sources;
+pub(crate) use loans::is_descriptor_load_observation;
 pub(crate) use loans::owner_path_from_place_segments;
 pub(crate) use loans::owner_path_selects_leaf;
 pub(crate) use loans::owner_place_segments;
