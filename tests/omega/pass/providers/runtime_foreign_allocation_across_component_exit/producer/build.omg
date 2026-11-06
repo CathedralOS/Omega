@@ -1,5 +1,17 @@
+use omega::language::core::external_binding;
+
 machine build(builder: &mut Build) {
     Build::package(builder, "allocation_producer");
+    Build::bind<NativeBytes::allocate>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib", symbol: "_calloc",
+        },
+    });
+    Build::bind<NativeBytes::release>(builder, macos_arm64, ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib", symbol: "_free",
+        },
+    });
     Build::select_provider<RawAllocation, RawAllocationProvider>(builder, linux_arm64);
     Build::select_provider<RawAllocation, RawAllocationProvider>(builder, linux_x86_64);
     Build::select_provider<RawAllocation, RawAllocationProvider>(builder, macos_arm64);

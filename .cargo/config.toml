@@ -1,0 +1,9 @@
+# The compiler's x86-64 builds assume AVX2-era CPUs (x86-64-v3: Haswell 2013,
+# Zen 1 2017 and later). On a one-line `omega --check` this removes about 4.6%
+# of the compiler's instructions with byte-identical output, because LLVM can
+# use BMI/LZCNT/POPCNT and wider vector moves in hashing, scanning and copies.
+# The cost is that the omega binary no longer starts on older x86 CPUs. This
+# changes only how the Rust compiler binary is built, not the native code Omega
+# emits for Omega programs. An explicit RUSTFLAGS still overrides it.
+[target.'cfg(target_arch = "x86_64")']
+rustflags = ["-C", "target-cpu=x86-64-v3"]

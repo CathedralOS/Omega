@@ -36,6 +36,10 @@ pub use identity::{
 };
 
 pub mod checked;
+#[doc(hidden)]
+pub use checked::checking::build_continuation::{
+    core_product_speculations, refuse_core_product_speculation,
+};
 mod terminal;
 
 pub use crate::checked::{

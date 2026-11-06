@@ -43,6 +43,14 @@ impl BoundPredicate {
             .find(|binding| binding.operand == *operand)
     }
 
+    /// `binding` for a scalar operand, read in place rather than cloned into
+    /// an `Operand` just to be compared.
+    pub(crate) fn scalar_binding(&self, scalar: &Scalar) -> Option<&BoundObservation> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.operand.scalar() == Some(scalar))
+    }
+
     /// A positive conjunction can establish an exact scalar equation. A
     /// disjunction supplies no chosen branch. Resolve the opposite leaf only
     /// from ordinary snapshots in this predicate's surviving context: using
@@ -69,11 +77,7 @@ impl BoundPredicate {
                 } => [(left, right), (right, left)]
                     .into_iter()
                     .find_map(|(subject, value)| {
-                        (predicate
-                            .binding(&Operand::Scalar((**subject).clone()))?
-                            .place
-                            == *place)
-                            .then_some(())?;
+                        (predicate.scalar_binding(subject)?.place == *place).then_some(())?;
                         crate::values::evaluate_checked_scalar(
                             value,
                             &mut Values {

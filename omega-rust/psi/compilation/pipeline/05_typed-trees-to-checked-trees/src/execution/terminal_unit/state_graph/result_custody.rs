@@ -909,10 +909,26 @@ pub(super) fn account<'calls>(
                 permits_disposal(None, false)
             }
             TerminatorPlan::ReturnStructural { result: returned } => {
-                matches!(returned.source,
+                let returns_this = matches!(
+                    returned.source,
                     SourcePlan::StructuralResult { binding_ordinal }
-                        if binding_ordinal == result.binding_ordinal)
-                    || permits_disposal(None, false)
+                        if binding_ordinal == result.binding_ordinal
+                );
+                // Returning an affine view hands that view to the caller.
+                // Its checked loans are established at the producing statement
+                // and consumed at state exit; that consume is the handoff,
+                // including a dynamic selector call whose public result has no
+                // private callee activation to inherit. Counting the returned
+                // binding beside that release books one transfer twice.
+                // A physical reference release or whole retirement already
+                // realizes the same loan, so it keeps the returned binding
+                // as the one disposition.
+                let release_is_separate = reference_releases == 0 && !retired_whole;
+                if returns_this && release_owned_view && view_releases != 0 && release_is_separate {
+                    false
+                } else {
+                    returns_this || permits_disposal(None, false)
+                }
             }
             TerminatorPlan::Jump { .. }
             | TerminatorPlan::Conditional { .. }

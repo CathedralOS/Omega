@@ -7,6 +7,7 @@ use super::permission_events::case_transition_run_is_exhaustive;
 use crate::flow::CaseEvidence;
 use crate::flow::call_permission_evaluation;
 use checked_trees::{FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation};
+use std::sync::Arc;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 
 #[derive(Clone, Copy)]
@@ -318,14 +319,39 @@ impl<'program> SelectedCases<'program> {
         });
     }
 
-    /// Copy this step's exclusions out of the borrowed evidence. The evidence
-    /// reads no custody, so the parallel preparation of the permission walk
-    /// computes it ahead of the sequential custody replay that applies it.
-    pub(super) fn into_inactive_owned_cases(self) -> Vec<validation::CanonicalPlace> {
-        let mut cases = Vec::new();
-        self.evidence
-            .for_each_inactive_owned_case(|excluded| cases.push(excluded.clone()));
-        cases
+    /// This step's exclusions, carried forward from the previous step's list.
+    /// The evidence reads no custody, so the parallel preparation of the
+    /// permission walk computes it ahead of the sequential custody replay that
+    /// applies it. Consecutive steps of a large state usually exclude the same
+    /// cases, so a list equal to the `carried` one is shared instead of copying
+    /// every place again; only a step that changes the list allocates a new
+    /// one, copying the unchanged prefix and then its own exclusions.
+    pub(super) fn inactive_owned_cases_after(
+        self,
+        carried: Option<&Arc<[validation::CanonicalPlace]>>,
+    ) -> Arc<[validation::CanonicalPlace]> {
+        let previous = carried.map_or(&[][..], |previous| &previous[..]);
+        // Exclusions matched so far against `previous`, until the first change.
+        let mut matched = 0;
+        let mut changed: Option<Vec<validation::CanonicalPlace>> = None;
+        self.evidence.for_each_inactive_owned_case(|excluded| {
+            if let Some(cases) = &mut changed {
+                cases.push(excluded.clone());
+            } else if previous.get(matched) == Some(excluded) {
+                matched += 1;
+            } else {
+                let mut cases = Vec::with_capacity(previous.len().max(matched + 1));
+                cases.extend_from_slice(&previous[..matched]);
+                cases.push(excluded.clone());
+                changed = Some(cases);
+            }
+        });
+        match (changed, carried) {
+            (Some(cases), _) => cases.into(),
+            (None, Some(carried)) if matched == carried.len() => Arc::clone(carried),
+            // The step excludes a strict prefix of the previous list.
+            (None, _) => previous[..matched].into(),
+        }
     }
 }
 

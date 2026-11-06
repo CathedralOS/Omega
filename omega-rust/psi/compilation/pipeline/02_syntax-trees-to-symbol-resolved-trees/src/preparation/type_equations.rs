@@ -200,6 +200,32 @@ impl TypeEquation {
             _ => Ok(()),
         }
     }
+
+    /// Closed names in a machine `requires` equation are entry predicates, not
+    /// argument-recovery structure. Reject a const or missing operand here,
+    /// before operand retention reads the same equality as a mixed type/value
+    /// comparison. A selected data type stays for the later predicate check.
+    pub(crate) fn reject_unclosed_names(
+        &self,
+        syntax: &SyntaxTrees,
+        selection: Option<&declaration_selection::ConstantSelection>,
+    ) -> Result<(), Diagnostic> {
+        match &self.shape {
+            EquationShape::Structural {
+                structure: Structure::Name { name, binder: None },
+                span,
+                ..
+            } => validate_closed_name_type(syntax, selection, name)
+                .map_err(|reason| Diagnostic::error(reason).with_source_span(*span)),
+            EquationShape::Boolean { operands, .. } => {
+                for operand in operands {
+                    operand.reject_unclosed_names(syntax, selection)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
 }
 
 /// Static type equations remain specialization obligations, rather than value

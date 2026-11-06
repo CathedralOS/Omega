@@ -161,7 +161,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
 // Input observation lifetimes and provider application roles share this layout.
-pub(crate) const FORMAT_MARKER: u16 = 248;
+// Layout inputs retain target-owned case-tag size and alignment.
+pub(crate) const FORMAT_MARKER: u16 = 249;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -281,20 +282,28 @@ pub fn decode_canonical_proposition(
 }
 
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {
-    let bytes = encode_execution_module(module)?;
+    Ok(encoded_fingerprint(
+        module,
+        &encode_execution_module(module)?,
+    ))
+}
+
+/// The fingerprint of `module` from bytes [`encode_module`] already produced
+/// for it, so a publisher that keeps those bytes does not encode twice.
+pub(crate) fn encoded_fingerprint(module: &TerminalModule, bytes: &[u8]) -> SemanticFingerprint {
     let local = module.identities.invocation_local_entries();
     if local.is_empty() {
-        return Ok(fingerprint_bytes(&bytes));
+        return fingerprint_bytes(bytes);
     }
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(b"psi-invocation-code-fingerprint\0");
     digest.raw(&(bytes.len() as u64).to_le_bytes());
-    digest.raw(&bytes);
+    digest.raw(bytes);
     digest.raw(&(local.len() as u64).to_le_bytes());
     for identity in local {
         digest.raw(&identity.0.to_le_bytes());
     }
-    Ok(SemanticFingerprint::from_bytes(digest.finish()))
+    SemanticFingerprint::from_bytes(digest.finish())
 }
 
 pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdentity, CodecError> {

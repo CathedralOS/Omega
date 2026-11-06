@@ -5,16 +5,60 @@
 //! Cleanup dependencies are fixed by custody before this analysis. Borrow
 //! that exact graph throughout both fixed points; only progress summaries
 //! change between rounds, not the selected cleanup calls.
+//!
+//! A machine's summary reads only the summaries of the machines it calls, so
+//! the fixed point runs per call-cycle component, callees first
+//! (`shared::machine_waves`). Each call component reaches its own fixed point
+//! from its callees' settled summaries, and the call components of one wave
+//! run in parallel. Every ranked recursive component above is tied into a
+//! single call component, so its joint derivation stays whole.
 
 use super::CheckedProgressSummary;
 use crate::checks::termination::progress::machine_summaries::{
-    derive_machine_summary, no_guarantee,
+    ProgressSummaries, derive_machine_summary, no_guarantee, selected_call_reads, summary_reads,
 };
+use crate::shared::machine_waves::MachineCallComponents;
 use checked_trees::FlowFacts;
 use language_semantics::TerminationGuarantee;
-use symbols::SymbolHandle;
 
 mod projections;
+
+/// Inputs shared by every call component's derivation.
+struct ProgressInputs<'a, 'frames> {
+    program: &'a dyn ::validation::CheckingInput,
+    flow: &'a FlowFacts,
+    semantic: &'a facts::FactPlan,
+    cleanup_dependencies: &'a arena::Arena<flow_effects::CleanupDependency>,
+    call_frames: Option<&'a validation::CallFrameResolver<'frames>>,
+    rank_arrivals: &'a checked_trees::CheckedRankArrivalPlan,
+    maximum_fact_projection_length: usize,
+    /// Ranked recursive components: roster positions (ascending) and geometry.
+    ranked: Vec<(Vec<usize>, Option<projections::ComponentProjectionGeometry>)>,
+    /// For each roster position, the ranked components that contain it.
+    ranked_of: Vec<Vec<usize>>,
+    /// Whether a machine's own summary is among its reads.
+    reads_itself: Vec<bool>,
+}
+
+impl ProgressInputs<'_, '_> {
+    fn derive(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        summaries: &ProgressSummaries<'_>,
+    ) -> CheckedProgressSummary {
+        derive_machine_summary(
+            self.program,
+            self.flow,
+            self.semantic,
+            self.cleanup_dependencies,
+            machine,
+            summaries,
+            self.call_frames,
+            self.rank_arrivals,
+        )
+        .unwrap_or_else(|| no_guarantee(machine.symbol))
+    }
+}
 
 pub(super) fn derive_summaries(
     program: &dyn ::validation::CheckingInput,
@@ -93,80 +137,148 @@ pub(super) fn derive_summaries(
         projections::maximum_fact_projection_length(semantic)
     };
     let machines = program.machines();
-    let mut in_any_component = vec![false; machines.len()];
-    let component_indices: Vec<Vec<usize>> = components
+    let mut ranked_of = vec![Vec::new(); machines.len()];
+    let ranked: Vec<_> = components
         .iter()
-        .map(|component| {
+        .enumerate()
+        .map(|(ranked_index, component)| {
             let indices: Vec<usize> = machines
                 .iter()
                 .enumerate()
                 .filter_map(|(index, machine)| component.contains(&machine.symbol).then_some(index))
                 .collect();
             for &index in &indices {
-                in_any_component[index] = true;
+                ranked_of[index].push(ranked_index);
             }
-            indices
+            let geometry = projections::prepare_component_geometry(
+                program,
+                flow,
+                semantic,
+                component,
+                call_frames,
+            );
+            (indices, geometry)
         })
         .collect();
-    let component_geometries: Vec<Option<projections::ComponentProjectionGeometry>> = components
+
+    // The read graph mirrors every summary lookup a derivation performs.
+    let mut reads = vec![Vec::new(); machines.len()];
+    for (index, machine) in machines.iter().enumerate() {
+        summary_reads(program, flow, machine, &mut reads[index]);
+    }
+    for (_, dependency) in cleanup_dependencies.iter() {
+        if let Some(caller) = program.machine_position_by_symbol(dependency.caller_machine) {
+            selected_call_reads(program, dependency.target_machine, &mut reads[caller]);
+        }
+    }
+    for (indices, geometry) in &ranked {
+        // A ranked component is derived jointly: tie its members into one
+        // cycle, and let it read every external target its projection bound
+        // consults.
+        for (position, &index) in indices.iter().enumerate() {
+            reads[index].push(indices[(position + 1) % indices.len()]);
+        }
+        if let (Some(&first), Some(geometry)) = (indices.first(), geometry) {
+            for &target in geometry.external_call_targets() {
+                selected_call_reads(program, target, &mut reads[first]);
+            }
+        }
+    }
+    let reads_itself = reads
         .iter()
-        .map(|component| {
-            projections::prepare_component_geometry(program, flow, semantic, component, call_frames)
-        })
+        .enumerate()
+        .map(|(index, reads)| reads.contains(&index))
         .collect();
+    let schedule = MachineCallComponents::new(&reads);
+    phase_profile::count(
+        "psi.05.build_check_facts.post_flow_facts.termination.progress.call_components",
+        schedule.component_count() as u64,
+    );
+    phase_profile::count(
+        "psi.05.build_check_facts.post_flow_facts.termination.progress.callee_first_waves",
+        schedule.callee_first_wave_count() as u64,
+    );
+    let inputs = ProgressInputs {
+        program,
+        flow,
+        semantic,
+        cleanup_dependencies,
+        call_frames,
+        rank_arrivals,
+        maximum_fact_projection_length,
+        ranked,
+        ranked_of,
+        reads_itself,
+    };
     let mut summaries = machines
         .iter()
         .map(|machine| no_guarantee(machine.symbol))
         .collect::<Vec<_>>();
-    let mut non_component_constant = vec![false; machines.len()];
-    for (index, machine) in machines.iter().enumerate() {
-        if !in_any_component[index] {
-            let summary = derive_machine_summary(
-                program,
-                flow,
-                semantic,
-                cleanup_dependencies,
-                machine,
-                &summaries,
-                call_frames,
-                rank_arrivals,
-            )
-            .unwrap_or_else(|| no_guarantee(machine.symbol));
-            if matches!(
-                &summary.guarantee,
-                TerminationGuarantee::Terminates { premises } if premises.is_empty()
-            ) || (!machine.target_family_interface
-                && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                    || !super::super::retained_machine_local_summary(machine, rank_arrivals)
-                        .promises_termination()))
-            {
-                non_component_constant[index] = true;
-            }
-            summaries[index] = summary;
+    schedule.run_callee_first(&mut summaries, |members, settled| {
+        derive_call_component(&inputs, members, settled)
+    });
+    summaries
+}
+
+/// One call component's fixed point from its callees' settled summaries.
+///
+/// Machines outside every ranked component start from no guarantee and rise
+/// with their callees; each ranked component starts from its local promise
+/// and is derived jointly. Rounds repeat until no member changes.
+fn derive_call_component(
+    inputs: &ProgressInputs<'_, '_>,
+    members: &[usize],
+    settled: &[CheckedProgressSummary],
+) -> Vec<CheckedProgressSummary> {
+    let machines = inputs.program.machines();
+    let mut ranked: Vec<usize> = members
+        .iter()
+        .flat_map(|&index| inputs.ranked_of[index].iter().copied())
+        .collect();
+    ranked.sort_unstable();
+    ranked.dedup();
+    let free = |index: usize| inputs.ranked_of[index].is_empty();
+
+    let initial: Vec<_> = members
+        .iter()
+        .map(|&index| no_guarantee(machines[index].symbol))
+        .collect();
+    let mut summaries = initial.clone();
+    // The first round reads each earlier member's fresh summary in place.
+    let mut constant = vec![false; members.len()];
+    for (position, &index) in members.iter().enumerate() {
+        if !free(index) {
+            continue;
         }
+        let machine = &machines[index];
+        let summary = inputs.derive(
+            machine,
+            &ProgressSummaries::new(settled, members, &summaries),
+        );
+        if matches!(
+            &summary.guarantee,
+            TerminationGuarantee::Terminates { premises } if premises.is_empty()
+        ) || (!machine.target_family_interface
+            && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || !super::super::retained_machine_local_summary(machine, inputs.rank_arrivals)
+                    .promises_termination()))
+        {
+            constant[position] = true;
+        }
+        summaries[position] = summary;
     }
-    let initial = machines
-        .iter()
-        .map(|machine| no_guarantee(machine.symbol))
-        .collect::<Vec<_>>();
-    for ((component, indices), geometry) in components
-        .iter()
-        .zip(&component_indices)
-        .zip(&component_geometries)
-    {
+    if ranked.is_empty() && members.len() == 1 && !inputs.reads_itself[members[0]] {
+        // A lone machine off every cycle has read only settled callees.
+        return summaries;
+    }
+    for &component in &ranked {
         derive_component(
-            program,
-            flow,
-            semantic,
-            cleanup_dependencies,
+            inputs,
             component,
-            indices,
-            geometry.as_ref(),
+            members,
+            settled,
             &initial,
             &mut summaries,
-            maximum_fact_projection_length,
-            call_frames,
-            rank_arrivals,
         );
     }
     if equivalent(&summaries, &initial) {
@@ -175,118 +287,94 @@ pub(super) fn derive_summaries(
     let mut last_external = initial;
     loop {
         let previous = summaries.clone();
-        for (index, machine) in machines.iter().enumerate() {
-            if !in_any_component[index] && !non_component_constant[index] {
-                let summary = derive_machine_summary(
-                    program,
-                    flow,
-                    semantic,
-                    cleanup_dependencies,
-                    machine,
-                    &previous,
-                    call_frames,
-                    rank_arrivals,
-                )
-                .unwrap_or_else(|| no_guarantee(machine.symbol));
-                if matches!(
-                    &summary.guarantee,
-                    TerminationGuarantee::Terminates { premises } if premises.is_empty()
-                ) {
-                    non_component_constant[index] = true;
-                }
-                summaries[index] = summary;
+        for (position, &index) in members.iter().enumerate() {
+            if !free(index) || constant[position] {
+                continue;
             }
+            let summary = inputs.derive(
+                &machines[index],
+                &ProgressSummaries::new(settled, members, &previous),
+            );
+            if matches!(
+                &summary.guarantee,
+                TerminationGuarantee::Terminates { premises } if premises.is_empty()
+            ) {
+                constant[position] = true;
+            }
+            summaries[position] = summary;
         }
-        let external_changed =
-            previous
-                .iter()
-                .zip(&last_external)
-                .enumerate()
-                .any(|(index, (curr, prev))| {
-                    !in_any_component[index] && !summary_equivalent(curr, prev)
-                });
-        for ((component, indices), geometry) in components
-            .iter()
-            .zip(&component_indices)
-            .zip(&component_geometries)
-        {
-            if !external_changed && components.len() == 1 {
+        let external_changed = members.iter().enumerate().any(|(position, &index)| {
+            free(index) && !summary_equivalent(&previous[position], &last_external[position])
+        });
+        for &component in &ranked {
+            if !external_changed && ranked.len() == 1 {
                 continue;
             }
             derive_component(
-                program,
-                flow,
-                semantic,
-                cleanup_dependencies,
+                inputs,
                 component,
-                indices,
-                geometry.as_ref(),
+                members,
+                settled,
                 &previous,
                 &mut summaries,
-                maximum_fact_projection_length,
-                call_frames,
-                rank_arrivals,
             );
         }
-        last_external = previous.clone();
         // Premises are sets. Their discovery order can rotate around a cycle
         // without changing the judgment.
         if equivalent(&summaries, &previous) {
             return summaries;
         }
+        last_external = previous;
     }
 }
 
+/// Derive one ranked component jointly. `external` and `destination` hold the
+/// enclosing call component's members (`members`, ascending roster order).
 fn derive_component(
-    program: &dyn ::validation::CheckingInput,
-    flow: &FlowFacts,
-    semantic: &facts::FactPlan,
-    cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
-    _component: &[SymbolHandle],
-    component_indices: &[usize],
-    geometry: Option<&projections::ComponentProjectionGeometry>,
+    inputs: &ProgressInputs<'_, '_>,
+    component: usize,
+    members: &[usize],
+    settled: &[CheckedProgressSummary],
     external: &[CheckedProgressSummary],
     destination: &mut [CheckedProgressSummary],
-    maximum_fact_projection_length: usize,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
-    rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) {
-    let machines = program.machines();
+    let machines = inputs.program.machines();
+    let (component_indices, geometry) = &inputs.ranked[component];
+    let positions: Vec<usize> = component_indices
+        .iter()
+        .map(|index| {
+            members
+                .binary_search(index)
+                .expect("a ranked component lies inside one call component")
+        })
+        .collect();
     let mut summaries = external.to_vec();
     let mut unavailable = vec![false; summaries.len()];
     let projection_limit = projections::finite_projection_limit(
-        program,
-        maximum_fact_projection_length,
-        geometry,
-        external,
+        inputs.program,
+        inputs.maximum_fact_projection_length,
+        geometry.as_ref(),
+        &ProgressSummaries::new(settled, members, external),
     );
-    for &index in component_indices {
-        let machine = &machines[index];
-        summaries[index].guarantee =
-            super::super::retained_machine_local_summary(machine, rank_arrivals);
-        unavailable[index] = projection_limit.is_none();
+    for (&position, &index) in positions.iter().zip(component_indices) {
+        summaries[position].guarantee =
+            super::super::retained_machine_local_summary(&machines[index], inputs.rank_arrivals);
+        unavailable[position] = projection_limit.is_none();
     }
     let mut previous = summaries.clone();
     loop {
-        for &index in component_indices {
-            previous[index] = summaries[index].clone();
+        for &position in &positions {
+            previous[position] = summaries[position].clone();
         }
-        for &index in component_indices {
+        for (&position, &index) in positions.iter().zip(component_indices) {
             let machine = &machines[index];
-            let mut summary = if unavailable[index] {
+            let mut summary = if unavailable[position] {
                 no_guarantee(machine.symbol)
             } else {
-                derive_machine_summary(
-                    program,
-                    flow,
-                    semantic,
-                    cleanup_dependencies,
+                inputs.derive(
                     machine,
-                    &previous,
-                    call_frames,
-                    rank_arrivals,
+                    &ProgressSummaries::new(settled, members, &previous),
                 )
-                .unwrap_or_else(|| no_guarantee(machine.symbol))
             };
             if let TerminationGuarantee::Terminates { premises } = &summary.guarantee
                 && premises.iter().any(|premise| {
@@ -295,17 +383,17 @@ fn derive_component(
             {
                 // This demand needs an unbounded family of projected subjects,
                 // not a finite caller premise. Never truncate it into a promise.
-                unavailable[index] = true;
+                unavailable[position] = true;
                 summary = no_guarantee(machine.symbol);
             }
-            summaries[index] = summary;
+            summaries[position] = summary;
         }
-        if component_indices
+        if positions
             .iter()
-            .all(|&index| summary_equivalent(&summaries[index], &previous[index]))
+            .all(|&position| summary_equivalent(&summaries[position], &previous[position]))
         {
-            for &index in component_indices {
-                destination[index] = summaries[index].clone();
+            for &position in &positions {
+                destination[position] = summaries[position].clone();
             }
             return;
         }

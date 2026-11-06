@@ -19,6 +19,11 @@
 use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 
+/// Conventional closed-sum tags shared by the supported target realizations.
+/// Policy reflection and native storage must consume this same carrier.
+pub const CASE_TAG_BYTE_SIZE: u64 = 4;
+pub const CASE_TAG_BYTE_ALIGNMENT: u64 = 4;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Architecture {
     Aarch64,
@@ -533,6 +538,8 @@ impl TargetProfile {
             profile: self.target_name().to_owned(),
             pointer_size: native.pointer_size as u64,
             pointer_alignment: native.pointer_alignment as u64,
+            case_tag_size: CASE_TAG_BYTE_SIZE,
+            case_tag_alignment: CASE_TAG_BYTE_ALIGNMENT,
             little_endian: true,
         })
     }

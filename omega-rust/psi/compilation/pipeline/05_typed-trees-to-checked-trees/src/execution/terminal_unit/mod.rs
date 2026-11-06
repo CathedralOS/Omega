@@ -1214,7 +1214,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     };
     (
         EffectPlans {
-            cleanup_control: shapes.cleanup_control,
+            cleanup_control: shapes.cleanup_control.into_inner(),
             layout_observations,
             structural_types: shapes.types.into_values().collect(),
             structural_domains: {

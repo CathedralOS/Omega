@@ -24,13 +24,6 @@ pub(super) fn collect(
     state: &typed_trees::state::State,
     statement_index: usize,
 ) -> Vec<CaseObservation> {
-    let mut observer = Observer {
-        program,
-        machine,
-        state,
-        statement_index,
-        rows: Vec::new(),
-    };
     // Keep scratch proportional to relevant observations, not the largest
     // global fact slot. Complete handles retain generation identity; original
     // positions restore the same first-appearance order after deduplication.
@@ -47,6 +40,15 @@ pub(super) fn collect(
                 )
             }),
     );
+    // Each observed fact yields at most one row unless it is a compound
+    // predicate, so size the rows once rather than regrowing them.
+    let mut observer = Observer {
+        program,
+        machine,
+        state,
+        statement_index,
+        rows: Vec::with_capacity(observed.len()),
+    };
     for handle in observed {
         let fact = semantic.facts.get(handle);
         match fact.payload {

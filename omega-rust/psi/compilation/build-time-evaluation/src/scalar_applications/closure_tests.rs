@@ -99,6 +99,8 @@ fn scalar_closure_does_not_admit_unchecked_entries_as_roots_or_callees() {
             profile: targets.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -177,6 +179,8 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
             profile: targets.target().to_owned(),
             pointer_size: 8,
             pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
             little_endian: true,
         },
     )
@@ -321,6 +325,8 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
                 profile: targets.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )
@@ -350,6 +356,8 @@ fn scalar_closure_admits_ordinary_execution_after_complete_checking() {
                 profile: other_selections.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )
@@ -504,6 +512,8 @@ fn scalar_closure_refuses_false_debt_and_does_not_drop_evaluated_entry_condition
                 profile: targets.target().to_owned(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )

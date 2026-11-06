@@ -27,8 +27,8 @@ pub(crate) struct CaseEvidence<'program> {
 
 /// Coordinates prepared for repeated variant queries in one immutable evidence
 /// batch. This is local query scratch, never retained across a context change.
-struct PreparedCaseSubject {
-    place: CanonicalPlace,
+struct PreparedCaseSubject<'subject> {
+    place: std::borrow::Cow<'subject, CanonicalPlace>,
     exact_start: usize,
     indexed_start: usize,
 }
@@ -247,7 +247,7 @@ impl<'program> CaseEvidence<'program> {
             }) else {
                 continue;
             };
-            let prepared = self.prepare_stable_subject(subject);
+            let prepared = self.locate_normalized_subject(std::borrow::Cow::Borrowed(subject));
             for member in self.program.data_members(data) {
                 let typed_trees::data::DataMember::Variant(variant) = member else {
                     continue;
@@ -298,7 +298,7 @@ impl<'program> CaseEvidence<'program> {
     /// The caller authenticated stability at this evidence batch's exact cut.
     /// Only the variant changes in this emission walk, so normalize the subject
     /// and locate its observation ranges once before querying variants.
-    fn prepare_stable_subject(&self, subject: &CanonicalPlace) -> PreparedCaseSubject {
+    fn prepare_stable_subject(&self, subject: &CanonicalPlace) -> PreparedCaseSubject<'static> {
         let mut subject = subject.clone();
         observations::normalize_place(
             self.program,
@@ -308,6 +308,17 @@ impl<'program> CaseEvidence<'program> {
             self.statement_index,
             &mut subject,
         );
+        self.locate_normalized_subject(std::borrow::Cow::Owned(subject))
+    }
+
+    /// Locate the observation ranges of a subject already in this batch's
+    /// normalized coordinates, such as an observation's own place.
+    /// Normalization is idempotent under the same contexts and cut, so an
+    /// observation place is borrowed rather than copied and normalized again.
+    fn locate_normalized_subject<'subject>(
+        &self,
+        subject: std::borrow::Cow<'subject, CanonicalPlace>,
+    ) -> PreparedCaseSubject<'subject> {
         let exact_start = self
             .observations
             .partition_point(|row| row.place.compare_identity(&subject).is_lt());
@@ -340,14 +351,14 @@ impl<'program> CaseEvidence<'program> {
 
     fn has_value_for_subject(
         &self,
-        prepared: &PreparedCaseSubject,
+        prepared: &PreparedCaseSubject<'_>,
         case: SymbolHandle,
         required: bool,
     ) -> bool {
         if !case.is_valid() || self.program.symbols.get(case).kind != symbols::SymbolKind::Variant {
             return false;
         }
-        let subject = &prepared.place;
+        let subject: &CanonicalPlace = &prepared.place;
         let has_case_evidence = |case: SymbolHandle, required: bool| {
             self.observations[prepared.exact_start..]
                 .iter()

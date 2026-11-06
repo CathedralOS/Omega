@@ -30,6 +30,8 @@ wire_record! {
         target: Text,
         pointer_size: U64,
         pointer_alignment: U64,
+        case_tag_size: U64,
+        case_tag_alignment: U64,
         little_endian: Flag,
     }
     Realization: TargetLayoutRealization {
@@ -37,6 +39,8 @@ wire_record! {
         target: Text,
         pointer_size: U64,
         pointer_alignment: U64,
+        case_tag_size: U64,
+        case_tag_alignment: U64,
         little_endian: Flag,
         storage: RecordStorage,
         fields: List<FieldStorage>,

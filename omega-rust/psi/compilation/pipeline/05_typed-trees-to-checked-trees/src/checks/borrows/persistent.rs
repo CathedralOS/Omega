@@ -142,15 +142,15 @@ fn check_stored_output_relations(
             diagnostics.push(Diagnostic::error(format!("machine `{}` stores a borrowed value without a complete normal-exit backing relation", machine.name)));
         }
         for state in program.machine_states(machine) {
+            // The machine's own rows, in arena order: scanning every state of
+            // the program here made this pass quadratic in its state count.
             let calls = facts
                 .flow
                 .control
-                .states
-                .iter()
-                .filter(|(_, flow)| {
-                    flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
-                })
-                .flat_map(|(_, flow)| facts.flow.control.calls.span_or_empty(flow.calls));
+                .machine_states(machine.symbol)
+                .into_iter()
+                .filter(|flow| flow.state_symbol == state.symbol)
+                .flat_map(|flow| facts.flow.control.calls.span_or_empty(flow.calls));
             let calls = calls.collect::<Vec<_>>();
             for (statement_index, statement) in
                 crate::flow::state_statements(program, state.statement_nodes)

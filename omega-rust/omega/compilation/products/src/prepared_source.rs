@@ -30,6 +30,40 @@ impl SourcePreparation {
             .lock()
             .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
     }
+
+    /// A private copy for preparation that may be thrown away. Its admissions
+    /// stay invisible here unless [`Self::adopt`] accepts them.
+    pub fn fork(&self) -> Result<PreparationFork, Vec<Diagnostic>> {
+        let catalogue = self.catalogue()?;
+        let frontends = self.frontends.retained_count()?;
+        Ok(PreparationFork {
+            from: (catalogue.len(), frontends),
+            preparation: SourcePreparation {
+                catalogue: Arc::new(Mutex::new(catalogue.fork())),
+                frontends: self.frontends.fork()?,
+            },
+        })
+    }
+
+    /// Take `fork`'s admissions as this preparation's own when nothing was
+    /// admitted here since the fork, so the result is the state sequential
+    /// preparation would have reached. Otherwise leave this one untouched and
+    /// return false. Admission only appends, so equal counts mean no admission.
+    pub fn adopt(&self, fork: &PreparationFork) -> Result<bool, Vec<Diagnostic>> {
+        let mut catalogue = self.catalogue()?;
+        if (catalogue.len(), self.frontends.retained_count()?) != fork.from {
+            return Ok(false);
+        }
+        *catalogue = fork.preparation.catalogue()?.fork();
+        self.frontends.replace_with(&fork.preparation.frontends)?;
+        Ok(true)
+    }
+}
+
+/// A [`SourcePreparation`] copy and the admission counts it was taken at.
+pub struct PreparationFork {
+    from: (usize, usize),
+    pub preparation: SourcePreparation,
 }
 
 /// Indexed declarations and completed Build-context bodies before admission.

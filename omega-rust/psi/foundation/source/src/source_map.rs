@@ -48,6 +48,23 @@ pub struct SourceCatalogue {
 }
 
 impl SourceCatalogue {
+    /// Coordinates admitted so far. A later append changes it, so equal counts
+    /// show no source was admitted between two observations.
+    pub fn len(&self) -> usize {
+        self.backing.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.backing.is_empty()
+    }
+
+    /// An independent copy: admissions to either are invisible to the other.
+    pub fn fork(&self) -> Self {
+        Self {
+            backing: self.backing.clone(),
+        }
+    }
+
     pub fn begin_selection(&self) -> SourceMap {
         SourceMap {
             files: self.backing.files.clone(),

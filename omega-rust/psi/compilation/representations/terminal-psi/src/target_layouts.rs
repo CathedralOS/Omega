@@ -80,6 +80,8 @@ pub struct TargetLayoutInput {
     pub target: String,
     pub pointer_size: u64,
     pub pointer_alignment: u64,
+    pub case_tag_size: u64,
+    pub case_tag_alignment: u64,
     pub little_endian: bool,
 }
 
@@ -89,6 +91,8 @@ pub struct TargetLayoutRealization {
     pub target: String,
     pub pointer_size: u64,
     pub pointer_alignment: u64,
+    pub case_tag_size: u64,
+    pub case_tag_alignment: u64,
     pub little_endian: bool,
     pub storage: AuthoredRecordStorage,
     pub fields: Vec<TargetLayoutFieldStorage>,

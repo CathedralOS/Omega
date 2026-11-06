@@ -74,6 +74,23 @@ fn approved_boundary_traits(program: &dyn crate::CheckingInput) -> Vec<SymbolHan
     approved
 }
 
+/// A symbol's full identity, generation included, as a sort key.
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+/// The rows of `sorted` whose symbol is exactly `symbol`, in their order.
+fn equal_range<T>(
+    sorted: &[T],
+    symbol: SymbolHandle,
+    symbol_of: impl Fn(&T) -> SymbolHandle,
+) -> &[T] {
+    let key = symbol_key(symbol);
+    let start = sorted.partition_point(|row| symbol_key(symbol_of(row)) < key);
+    let end = start + sorted[start..].partition_point(|row| symbol_key(symbol_of(row)) == key);
+    &sorted[start..end]
+}
+
 /// Private scratch coordinates preserve call order and exact requirement
 /// ownership during validation. They are not another published evidence form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,7 +110,6 @@ fn checked_boundary_call_coordinates(
     let program = &checked.typed;
     let flow = &checked.facts.flow.control;
     let mut diagnostics = Vec::new();
-    let mut state_coordinates = Vec::new();
     let mut coordinates = Vec::new();
 
     let traits = program.traits();
@@ -130,23 +146,53 @@ fn checked_boundary_call_coordinates(
         return Err(diagnostics);
     }
 
-    for (_, flow_state) in flow.states.iter() {
-        let state_coordinate = (flow_state.machine_symbol, flow_state.state_symbol);
-        if state_coordinates.contains(&state_coordinate) {
+    // Each flow state asks which typed machine and state own it. Answering by
+    // scanning every machine and state of the program, and every coordinate
+    // seen so far, made this check quadratic in the program's state count.
+    // These tables are sorted once; ties keep roster order, so each lookup
+    // returns the rows the scans returned, in the same order.
+    let flow_coordinates = flow
+        .states
+        .iter()
+        .map(|(_, flow_state)| (flow_state.machine_symbol, flow_state.state_symbol))
+        .collect::<Vec<_>>();
+    let mut coordinate_order = (0..flow_coordinates.len()).collect::<Vec<_>>();
+    coordinate_order.sort_by_key(|&row| {
+        let (machine, state) = flow_coordinates[row];
+        (symbol_key(machine), symbol_key(state), row)
+    });
+    let mut repeated_coordinate = vec![false; flow_coordinates.len()];
+    for pair in coordinate_order.windows(2) {
+        if flow_coordinates[pair[0]] == flow_coordinates[pair[1]] {
+            repeated_coordinate[pair[1]] = true;
+        }
+    }
+    let mut machines_by_symbol = machines.iter().collect::<Vec<_>>();
+    machines_by_symbol.sort_by_key(|machine| symbol_key(machine.symbol));
+    let mut states_by_symbol = machines
+        .iter()
+        .flat_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .map(move |state| (machine, state))
+        })
+        .collect::<Vec<_>>();
+    states_by_symbol.sort_by_key(|(_, state)| symbol_key(state.symbol));
+
+    for (row, (_, flow_state)) in flow.states.iter().enumerate() {
+        if repeated_coordinate[row] {
             diagnostics.push(Diagnostic::error(format!(
                 "provider approval checked flow contains duplicate state coordinate ({:?}, {:?})",
                 flow_state.machine_symbol, flow_state.state_symbol,
             )));
             continue;
         }
-        state_coordinates.push(state_coordinate);
 
-        let machines = program
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == flow_state.machine_symbol)
-            .collect::<Vec<_>>();
-        let machine = match machines.as_slice() {
+        let machines = equal_range(&machines_by_symbol, flow_state.machine_symbol, |machine| {
+            machine.symbol
+        });
+        let machine = match machines {
             [machine] => *machine,
             [] => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -164,18 +210,10 @@ fn checked_boundary_call_coordinates(
             }
         };
 
-        let state_owners = program
-            .machines()
-            .iter()
-            .flat_map(|candidate_machine| {
-                program
-                    .machine_states(candidate_machine)
-                    .iter()
-                    .filter(move |state| state.symbol == flow_state.state_symbol)
-                    .map(move |state| (candidate_machine, state))
-            })
-            .collect::<Vec<_>>();
-        let typed_state = match state_owners.as_slice() {
+        let state_owners = equal_range(&states_by_symbol, flow_state.state_symbol, |(_, state)| {
+            state.symbol
+        });
+        let typed_state = match state_owners {
             [(owner, state)] if owner.symbol == machine.symbol => *state,
             [(owner, _)] => {
                 diagnostics.push(Diagnostic::error(format!(

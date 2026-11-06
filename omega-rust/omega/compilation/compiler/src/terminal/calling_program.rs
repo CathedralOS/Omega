@@ -26,15 +26,29 @@ fn prepare(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
-    // Capture Source relationships before publishing code, but consume their
-    // refusal afterwards as before. Targets receive only this owned result;
-    // Calling construction does not reopen Source after Terminal publication.
-    let source_preparation = capture_source_preparation(source);
-    let code = super::product_code::ProductCodeSource::checked(source);
-    let program = code.publish(
-        source.terminal_publication.optimizations(),
-        &mut crate::observations::PsiStageTimings::new(timings),
-    )?;
+    // Capture Source relationships while code is published: both only read the
+    // checked source. Publication's refusal still takes priority over the
+    // capture's. Targets receive only this owned result; Calling construction
+    // does not reopen Source after Terminal publication.
+    let (program, source_preparation) = std::thread::scope(|scope| {
+        let capture = crate::checked::checking::compile_thread::spawn_compile_worker(scope, || {
+            capture_source_preparation(source)
+        });
+        let code = super::product_code::ProductCodeSource::checked(source);
+        let program = code.publish(
+            source.terminal_publication.optimizations(),
+            &mut crate::observations::PsiStageTimings::new(timings),
+        );
+        let source_preparation = match capture {
+            Ok(worker) => worker
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+            // No spare thread: capture here, exactly as it ran before.
+            Err(_) => capture_source_preparation(source),
+        };
+        (program, source_preparation)
+    });
+    let program = program?;
     let source_preparation = source_preparation?;
     Ok(Arc::new(CallingProgram {
         source_owner: Arc::downgrade(&source.program),

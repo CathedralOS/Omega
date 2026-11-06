@@ -45,40 +45,52 @@ pub struct ForwardedBinding<'block> {
 /// The parameters this block's terminator forwards, with the exact operands
 /// each successor binds. Reading a block's arrival operands is one query: the
 /// terminator is classified here rather than re-matched by every consumer.
-pub fn forwarded_bindings(block: &Block) -> Vec<ForwardedBinding<'_>> {
-    match &block.terminator {
+///
+/// Predecessor searches call this for every block of a machine on every query,
+/// so the roster is borrowed from the terminator rather than allocated.
+pub fn forwarded_bindings(block: &Block) -> impl Iterator<Item = ForwardedBinding<'_>> {
+    let (forwarded, cases) = match &block.terminator {
         Terminator::Jump {
             target,
             arguments,
             structural_arguments,
             ..
-        } => vec![ForwardedBinding {
-            target: *target,
-            arguments: Some(arguments.as_slice()),
-            structural_arguments: structural_arguments.as_slice(),
-        }],
+        } => (
+            [
+                Some(ForwardedBinding {
+                    target: *target,
+                    arguments: Some(arguments.as_slice()),
+                    structural_arguments: structural_arguments.as_slice(),
+                }),
+                None,
+            ],
+            &[][..],
+        ),
         Terminator::Conditional {
             when_true,
             when_false,
             ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|successor| ForwardedBinding {
-                target: successor.target,
-                arguments: Some(successor.arguments.as_slice()),
-                structural_arguments: successor.structural_arguments.as_slice(),
-            })
-            .collect(),
-        Terminator::StructuralCase { cases, .. } => cases
-            .iter()
-            .map(|successor| ForwardedBinding {
-                target: successor.target,
-                arguments: None,
-                structural_arguments: &successor.structural_arguments,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+        } => (
+            [when_true, when_false].map(|successor| {
+                Some(ForwardedBinding {
+                    target: successor.target,
+                    arguments: Some(successor.arguments.as_slice()),
+                    structural_arguments: successor.structural_arguments.as_slice(),
+                })
+            }),
+            &[][..],
+        ),
+        Terminator::StructuralCase { cases, .. } => ([None, None], cases.as_slice()),
+        _ => ([None, None], &[][..]),
+    };
+    forwarded
+        .into_iter()
+        .flatten()
+        .chain(cases.iter().map(|successor| ForwardedBinding {
+            target: successor.target,
+            arguments: None,
+            structural_arguments: &successor.structural_arguments,
+        }))
 }
 
 /// Whether this block reaches `target` by a structural-case edge. The edge

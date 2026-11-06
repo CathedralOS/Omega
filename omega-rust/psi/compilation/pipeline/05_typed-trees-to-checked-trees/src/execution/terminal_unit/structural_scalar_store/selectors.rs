@@ -105,15 +105,11 @@ impl TargetSelectors {
         // `runtime_segment` can mint its segment; selectors the ledger
         // cannot resolve stay unproven there.
         let mut resolved = Vec::new();
-        if let Some(borrow_state) = facts
+        // The ledger's state index finds the same first row without scanning
+        // every state's borrows for each assignment.
+        if let Some((_, borrow_state)) = facts
             .borrow
-            .states
-            .iter()
-            .map(|(_, borrow_state)| borrow_state)
-            .find(|borrow_state| {
-                borrow_state.machine_symbol == machine.symbol
-                    && borrow_state.state_symbol == state.symbol
-            })
+            .first_state_borrow(machine.symbol, state.symbol)
         {
             for loan in facts.borrow.loans.span_or_empty(borrow_state.loans) {
                 for segment in facts.borrow.loan_segments(loan) {
