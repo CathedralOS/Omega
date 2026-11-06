@@ -245,7 +245,7 @@ pub struct CallableSubstitution {
     pub actual: types::TypeReferenceHandle,
 }
 
-/// A symbolic application is a checking view, not an executable instance.
+/// An exact stored applied-callable row. Default means no retained row.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct AppliedMachineCallableId(arena::Handle<AppliedCallableSignature>);
 
@@ -255,6 +255,7 @@ impl AppliedMachineCallableId {
     }
 }
 
+/// A symbolic application is a checking view, not an executable instance.
 pub struct AppliedMachineCallable<'a> {
     /// Exact row emitted by the applied-callable owner, including its generation.
     pub identity: AppliedMachineCallableId,

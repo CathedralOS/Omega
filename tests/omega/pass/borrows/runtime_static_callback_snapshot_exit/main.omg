@@ -4,11 +4,11 @@ machine overwrite<'storage>(slot: &mut View<'storage>, replacement: &'storage [u
 machine keep<'storage>(source: View<'storage>) -> View<'storage>
 ensures result.bytes.len == source.bytes.len, result.sibling.len == source.sibling.len
 { source }
-// The selected helper has no zero clause. Its callable interface supplies
-// that input condition; the wrapper must establish it independently.
 machine counter_tick(value: &mut u64) -> u64
 requires value == 0
 { value = value + 1; 0 }
+// record_tick has no zero clause. Its callable interface supplies that
+// input condition; call_counter must establish it independently.
 machine record_tick(visits: &mut u64) -> u64 { counter_tick(visits) }
 public machine call_counter<machine Step>(counter: &mut u64) -> u64
 requires machine Step(input: &mut u64) -> u64

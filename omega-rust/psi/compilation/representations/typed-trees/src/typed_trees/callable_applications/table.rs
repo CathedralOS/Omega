@@ -5,12 +5,11 @@
 use super::{AppliedCallableOwner, AppliedCallableSignature};
 use crate::static_applications::StaticMachineApplicationHandle;
 use arena::{Arena, Handle, OwnedIndex};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 #[derive(Clone, Default)]
 struct InvocationIndex {
-    rows: Arc<[InvocationRow]>,
-    complete: bool,
+    rows: OnceLock<Arc<[InvocationRow]>>,
 }
 type InvocationRow = (
     StaticMachineApplicationHandle,
@@ -50,12 +49,10 @@ impl std::ops::DerefMut for AppliedCallableTable {
 }
 impl AppliedCallableTable {
     pub(super) fn prepare_index(&self) {
-        self.index.with_updated(
-            (),
-            |existing| {
-                if existing.is_some_and(|index| index.complete) {
-                    return None;
-                }
+        self.index.with((), InvocationIndex::default, |index| {
+            // Construction lookups may already have allocated an empty cache.
+            // Preparing rows must fill it without another arena mutation.
+            index.rows.get_or_init(|| {
                 let mut rows = self
                     .arena
                     .iter()
@@ -70,13 +67,9 @@ impl AppliedCallableTable {
                 rows.sort_by_key(|(invocation, _)| {
                     (invocation.arena_index(), invocation.generation())
                 });
-                Some(InvocationIndex {
-                    rows: rows.into(),
-                    complete: true,
-                })
-            },
-            |_| (),
-        );
+                rows.into()
+            });
+        });
     }
 
     pub(super) fn machine_rows(
@@ -85,16 +78,12 @@ impl AppliedCallableTable {
     ) -> impl Iterator<Item = (Handle<AppliedCallableSignature>, &AppliedCallableSignature)> {
         let key = (invocation.arena_index(), invocation.generation());
         let indexed = self.index.with((), InvocationIndex::default, |index| {
-            if !index.complete {
-                return None;
-            }
-            let start = index
-                .rows
-                .partition_point(|(owner, _)| (owner.arena_index(), owner.generation()) < key);
-            let end = index
-                .rows
-                .partition_point(|(owner, _)| (owner.arena_index(), owner.generation()) <= key);
-            Some((Arc::clone(&index.rows), start..end))
+            let rows = index.rows.get()?;
+            let start =
+                rows.partition_point(|(owner, _)| (owner.arena_index(), owner.generation()) < key);
+            let end =
+                rows.partition_point(|(owner, _)| (owner.arena_index(), owner.generation()) <= key);
+            Some((Arc::clone(rows), start..end))
         });
         let mut source = self.arena.iter();
         let mut indexed = indexed;
@@ -108,7 +97,12 @@ impl AppliedCallableTable {
             // Production interleaves lookup with row mutation. Preserve its
             // original walk rather than sorting every growing prefix. Frozen
             // readers and private-use batches prepare the association once.
-            source.find(|(_, row)| matches!(row.owner, AppliedCallableOwner::MachineSelection { invocation: owner, .. } if owner == invocation))
+            source.find(|(_, row)| match &row.owner {
+                AppliedCallableOwner::MachineSelection {
+                    invocation: owner, ..
+                } => *owner == invocation,
+                _ => false,
+            })
         })
     }
 
