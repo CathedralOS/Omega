@@ -1,6 +1,6 @@
 // Expected exit: 0
-// A reconstructed aggregate retains mutually exclusive claim paths from a
-// completed sum result, alongside its unconditional sibling claims.
+// Only the selected result case owns a token. Building a larger record
+// keeps that token and its neighboring owned values.
 use omega::language::core::drop;
 data Token [linear] dropped by drop_token { value: u64; }
 machine drop_token(token: &mut Token) {}
@@ -27,7 +27,7 @@ machine make(left: bool) -> Outer {
 machine consume(choice: Choice) -> u64 {
     transition choice {
         Choice::Left { token } -> retire(token)
-        Choice::Right { token } -> retire(token)
+        Choice::Right { token } -> retire(token) ^ 100
     }
 }
 machine check(left: bool, expected: u64) -> bool {
@@ -40,7 +40,7 @@ machine check(left: bool, expected: u64) -> bool {
 }
 machine main() crashes Trap {
     let left: bool = check(true, 41);
-    let right: bool = check(false, 73);
+    let right: bool = check(false, 45);
     transition left && right { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
