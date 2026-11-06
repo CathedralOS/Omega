@@ -10,6 +10,7 @@ use crate::published::places::place_at;
 
 mod guard_values;
 mod match_patterns;
+pub(super) use guard_values::denotations::Denotations as GuardDenotations;
 pub(super) use guard_values::proves_with as guard_value_proves_with;
 
 pub(super) fn direct_context_proves_boolean_expression(
@@ -135,6 +136,8 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         statement_index,
         call_frames,
         arguments,
+        call: call_flow,
+        copies: std::cell::OnceCell::new(),
     };
     semantic.context_view(context).facts().any(|fact| {
         let supplied = match fact.payload {

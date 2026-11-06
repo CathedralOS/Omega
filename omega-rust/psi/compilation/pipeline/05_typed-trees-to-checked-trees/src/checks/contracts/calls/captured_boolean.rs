@@ -882,7 +882,7 @@ fn loan_call_does_not_write(
 /// denotation owner establishes value-only normal returns. An empty write
 /// frame alone does not make a call repeatable. This stage already holds
 /// fact-call projections, so those calls need no second identity derivation.
-pub(super) fn computed_values_have_source_identity(
+pub(in crate::checks::contracts) fn computed_values_have_source_identity(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,

@@ -50,7 +50,8 @@ pub(crate) use entry_origins::{
 mod exits;
 mod guard_predicates;
 pub(crate) use guard_predicates::{
-    GuardObservation, saved_guard_observations, transition_guard_observations,
+    GuardObservation, guard_observations_after_writes, saved_guard_observations,
+    transition_guard_observations,
 };
 mod expression;
 mod observations;

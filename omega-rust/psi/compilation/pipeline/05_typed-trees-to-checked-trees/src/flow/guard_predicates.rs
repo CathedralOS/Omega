@@ -102,10 +102,36 @@ pub(crate) fn transition_guard_observations<'program>(
             );
         }
     }
+    guard_observations_after_writes(
+        program,
+        machine,
+        state,
+        statement_index,
+        guard,
+        value,
+        &later_writes,
+        frames,
+    )
+}
+
+/// Current guard observations after the caller's complete known write interval.
+/// Call admission supplies actual-argument effects, excluding the callee's future
+/// effects; transition transfer supplies the complete selected arm instead.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn guard_observations_after_writes<'program>(
+    program: &dyn validation::CheckingInput,
+    machine: &'program Machine,
+    state: &State,
+    statement_index: usize,
+    guard: ExpressionHandle,
+    value: bool,
+    later_writes: &[String],
+    frames: &CallFrameResolver<'program>,
+) -> Option<Vec<(ExpressionHandle, bool)>> {
     let mut writes = frames
         .expression_write_frame(machine, guard)
         .into_complete_paths()?;
-    writes.extend_from_slice(&later_writes);
+    writes.extend_from_slice(later_writes);
     let mut observations = vec![(guard, value)];
     guard_observations(program, machine, state, guard, value, &mut observations);
     observations.retain(|(predicate, _)| {
@@ -127,7 +153,7 @@ pub(crate) fn transition_guard_observations<'program>(
         statement_index,
         guard,
         value,
-        &later_writes,
+        later_writes,
         Some(frames),
     ) {
         let expression = observation.current_expression;

@@ -1,5 +1,6 @@
 mod boolean_requirements;
 mod captured_boolean;
+pub(super) use captured_boolean::computed_values_have_source_identity;
 mod contradictory_edge;
 mod guard_observations;
 mod labels;

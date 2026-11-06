@@ -63,38 +63,31 @@ fn selected_transition_premise<'program>(
     if !selects_this_call || !guard_preserves_values(machine, guard, call_frames) {
         return None;
     }
-    // The flow owner authenticates exact reaching captures, polarity, and
-    // effects through dispatch. Whole requirements and Boolean children must
-    // consume that same observation set, not recover a generated-name capture
-    // through an independent matcher. Arm operands execute after observation.
-    let captured = crate::flow::saved_guard_observations(
+    // Both direct and saved predicates use the flow owner's exact backing-read
+    // interval. Argument effects precede invocation; the callee's own future
+    // writes cannot erase the evidence it needs at entry.
+    let frames = call_frames?;
+    let mut writes = Vec::new();
+    for argument in validation::call_site_argument_expressions(program, &call_site) {
+        writes.extend(
+            frames
+                .expression_write_frame(machine, *argument)
+                .into_complete_paths()?,
+        );
+    }
+    let premises = crate::flow::guard_observations_after_writes(
         program,
         machine,
         caller_state,
         call_flow.statement_index,
         guard,
         true,
-        &[],
-        call_frames,
-    );
-    let premises = std::iter::once(guard)
-        .chain(captured.into_iter().filter_map(|observation| {
-            let premise = observation.current_expression;
-            if !premise.is_valid() {
-                return None;
-            }
-            (observation.value
-                && super::super::guard_operands::premise_reads_survive_arm_operand_writes(
-                    program,
-                    facts,
-                    state_flow,
-                    call_flow,
-                    premise,
-                    call_frames,
-                ))
-            .then_some(premise)
-        }))
-        .collect();
+        &writes,
+        frames,
+    )?
+    .into_iter()
+    .filter_map(|(expression, value)| value.then_some(expression))
+    .collect();
     Some((call_site, target_parameters, premises))
 }
 
@@ -177,7 +170,13 @@ pub(in crate::checks::contracts) fn transition_guard_proves_boolean_requirement(
     (guards.iter().any(|guard| {
         guard_conjunct_matches(program, *guard, &required_label)
             || super::guard_observations::conjunct_matches(
-                program, facts, state_flow, call_flow, *guard, expression,
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                *guard,
+                expression,
+                call_frames,
             )
             || super::super::call_bounds::proves(
                 program,
@@ -263,6 +262,7 @@ pub(super) fn transition_guard_proves_requires(
                     call_flow,
                     *matching_guard,
                     expression,
+                    call_frames,
                 )
             })
         }
@@ -622,18 +622,45 @@ fn decomposed_guard_premise_proves(
     required_label: &str,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
+    let Some((machine, state, site, _)) = super::call_coordinates(program, state_flow, call_flow)
+    else {
+        return false;
+    };
+    let Some(frames) = call_frames else {
+        return false;
+    };
+    let mut writes = Vec::new();
+    for argument in validation::call_site_argument_expressions(program, &site) {
+        let Some(effects) = frames
+            .expression_write_frame(machine, *argument)
+            .into_complete_paths()
+        else {
+            return false;
+        };
+        writes.extend(effects);
+    }
     let establishes = |premise: ExpressionHandle| {
-        super::super::guard_operands::premise_reads_survive_arm_operand_writes(
+        crate::flow::guard_observations_after_writes(
             program,
-            facts,
-            state_flow,
-            call_flow,
+            machine,
+            state,
+            call_flow.statement_index,
             premise,
-            call_frames,
-        ) && (guard_conjunct_matches(program, premise, required_label)
-            || super::guard_observations::conjunct_matches(
-                program, facts, state_flow, call_flow, premise, required,
-            ))
+            true,
+            &writes,
+            frames,
+        )
+        .is_some_and(|observations| observations.contains(&(premise, true)))
+            && (guard_conjunct_matches(program, premise, required_label)
+                || super::guard_observations::conjunct_matches(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    premise,
+                    required,
+                    call_frames,
+                ))
     };
     let mut conjuncts = Vec::new();
     premise_conjuncts(program, guard, &mut conjuncts);
