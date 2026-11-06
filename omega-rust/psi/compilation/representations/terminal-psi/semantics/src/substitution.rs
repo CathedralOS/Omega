@@ -1070,23 +1070,23 @@ mod scalar_binding_tests {
         let last = ValueId::new(u64::MAX).unwrap();
         let unrelated = ValueId::new(9).unwrap();
         let pairs = [
-            (last, ScalarTerm::bool(false)),
-            (first, ScalarTerm::bool(true)),
+            (last, ScalarTerm::Boolean(false)),
+            (first, ScalarTerm::Boolean(true)),
         ];
         let bindings = ScalarValueBindings::new(pairs.clone()).unwrap();
         let previous = pairs.into_iter().collect::<BTreeMap<_, _>>();
         let proposition = Proposition::Conjunction(vec![
             Proposition::Equal(
-                ScalarTerm::value(first, ScalarType::Bool),
-                ScalarTerm::bool(true),
+                ScalarTerm::value(first, ScalarType::Boolean),
+                ScalarTerm::Boolean(true),
             ),
             Proposition::Equal(
-                ScalarTerm::value(last, ScalarType::Bool),
-                ScalarTerm::bool(false),
+                ScalarTerm::value(last, ScalarType::Boolean),
+                ScalarTerm::Boolean(false),
             ),
             Proposition::Equal(
-                ScalarTerm::value(unrelated, ScalarType::Bool),
-                ScalarTerm::bool(true),
+                ScalarTerm::value(unrelated, ScalarType::Boolean),
+                ScalarTerm::Boolean(true),
             ),
         ]);
         let bound = substitute_proposition_bindings(&proposition, &bindings);
@@ -1094,10 +1094,13 @@ mod scalar_binding_tests {
             bound,
             substitute_proposition_values(&proposition, &previous)
         );
-        assert_eq!(bindings.replacement(last), Some(&ScalarTerm::bool(false)));
+        assert_eq!(
+            bindings.replacement(last),
+            Some(&ScalarTerm::Boolean(false))
+        );
         assert!(!bindings.contains_key(&unrelated));
         assert!(matches!(bound, Proposition::Conjunction(ref parts)
-            if parts[2] == Proposition::Equal(ScalarTerm::value(unrelated, ScalarType::Bool), ScalarTerm::bool(true))));
+            if parts[2] == Proposition::Equal(ScalarTerm::value(unrelated, ScalarType::Boolean), ScalarTerm::Boolean(true))));
     }
 
     #[test]
@@ -1105,8 +1108,8 @@ mod scalar_binding_tests {
         let identity = ValueId::new(71).unwrap();
         assert_eq!(
             ScalarValueBindings::new([
-                (identity, ScalarTerm::bool(true)),
-                (identity, ScalarTerm::bool(true)),
+                (identity, ScalarTerm::Boolean(true)),
+                (identity, ScalarTerm::Boolean(true)),
             ])
             .unwrap_err(),
             identity
