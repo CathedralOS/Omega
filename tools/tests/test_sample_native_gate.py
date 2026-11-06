@@ -458,6 +458,28 @@ class HostScopeAndDiagnosticTests(unittest.TestCase):
                 lambda command, timeout, stdin=None: subprocess.CompletedProcess(command, 1, "", refusal))
             self.assertEqual(result["state"], "check-fail")
 
+    def test_invalid_control_keeps_all_diagnostics_after_fragment_matching(self):
+        # A matching fragment does not rule out an additional refusal. Keep
+        # both so the run record can establish which obligations failed.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            entry = root / "main.omg"
+            entry.write_text("module probe;\n", encoding="utf-8")
+            project = sample_projects.Project(
+                directory=root, entry=entry, role="intended-invalid",
+                rejection=("Reader", "last"))
+            for diagnostic, state in (
+                ("Writer: cannot prove byte guarantee\nReader: cannot prove last\n", "rejected"),
+                ("Writer: cannot prove byte guarantee\n", "rejection-failed"),
+            ):
+                with self.subTest(state=state):
+                    result = self.measure(
+                        directory, project,
+                        lambda command, timeout: subprocess.CompletedProcess(
+                            command, 1, "", diagnostic))
+                    self.assertEqual(result["state"], state)
+                    self.assertEqual(result["diagnostic"], diagnostic)
+
     def test_pending_decisions_are_not_a_review_failure(self):
         # `omega update` exits nonzero while decisions are pending; that is
         # the normal path, not a refusal.
