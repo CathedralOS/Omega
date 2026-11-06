@@ -17442,9 +17442,9 @@ fail/providers/windows_gui_host_unprovided_on_linux rejected 12315ms expected @c
 	no provider is selected for boundary requirement `WindowsGuiHost::foreground_window`, which the program entry reaches on target `linux_x86_64`
 fail/range/element_view_field_domain_occurrence rejected 5086ms expected @46cdd6b85b82+wt
 	machine `store` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/range/funnel_guard_one_edge_unguarded rejected 13167ms expected @ccdb99ca2214
+fail/range/funnel_guard_one_edge_unguarded rejected 82943ms expected @4e466851bcbe
 	cannot prove requires contract for call push from other: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/range/guarded_copy_stale_after_write rejected 10865ms expected @ccdb99ca2214
+fail/range/guarded_copy_stale_after_write rejected 74087ms expected @4e466851bcbe
 	cannot prove requires contract for call store from stale: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/range/guarded_runtime_index_collection_write rejected 2165ms expected @f78c2623a68c
 	cannot complete return from machine `interpose` state `entry`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
@@ -27180,7 +27180,7 @@ pass/providers/unreached_console_provider_rows checked 16889ms check-target:maco
 pass/providers/unused_named_provider_candidates checked 3791ms check-target:macos_arm64 @ccdb99ca2214
 pass/range/data_parameter_counter_non_negative_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.i` is within length 2 in add::entry
-pass/range/runtime_funnel_guard_agreement_exit checked 11294ms check-target:macos_arm64 @ccdb99ca2214
+pass/range/runtime_funnel_guard_agreement_exit checked 88469ms check-target:macos_arm64 @4e466851bcbe
 pass/range/runtime_guarded_runtime_index_increment_exit checked 12584ms check-target:macos_arm64 @89d5d2d7655c
 pass/ranges/loop_saved_guard_disjoint_write_exit rejected 2618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.index` is within length 3 in body::entry
