@@ -665,6 +665,10 @@ pub struct CheckingMemos {
     // Raw application association; reset with all context-sensitive inputs.
     pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
+    /// Complete proof-call components of this immutable program, built once
+    /// for every induction return that asks whether its call descends.
+    pub(crate) structural_descent_components:
+        OnceLock<Arc<crate::machine_calls::call_cycles::StructuralDescentComponents>>,
     /// Exact satisfaction associations depend only on this immutable typed
     /// program, not changing progress summaries, effects or selected layouts.
     pub(crate) requirement_satisfiers:
@@ -807,7 +811,7 @@ pub struct CheckingMemos {
     pub(crate) bound_subtree_meanings: Mutex<
         symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
     >,
-    pub(crate) expression_result_types: Mutex<
+    pub(crate) expression_result_types: std::sync::RwLock<
         symbols::SymbolKeyMap<
             (u32, u32, typed_trees::expression::ExpressionHandle),
             Option<typed_trees::types::TypeReferenceHandle>,
@@ -829,7 +833,7 @@ pub struct CheckingMemos {
             u32,
         >,
     >,
-    pub(crate) parameter_result_types: Mutex<
+    pub(crate) parameter_result_types: std::sync::RwLock<
         symbols::SymbolKeyMap<
             (u32, typed_trees::expression::ExpressionHandle),
             Option<typed_trees::types::TypeReferenceHandle>,
