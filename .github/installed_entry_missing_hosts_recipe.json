@@ -1,0 +1,151 @@
+{
+  "schema": "omega-installed-entry-query-effects-validation-v1",
+  "fixed_published_source": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+  "hosts": {
+    "linux_arm64": {
+      "runner": "ubuntu-24.04-arm",
+      "job_minutes": 90,
+      "target_dir": "/tmp/ot"
+    }
+  },
+  "source_checks": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit",
+    "fail/build/installed_entry_ram_invalid_extent",
+    "fail/build/installed_entry_ram_invalid_padding",
+    "fail/build/installed_entry_ram_missing_backing",
+    "fail/build/installed_entry_ram_overlapping_exclusive_roots",
+    "fail/build/installed_entry_ram_wrong_occurrence",
+    "pass/control_flow/runtime_owned_state_parallel_swap_exit",
+    "pass/slices/runtime_affine_view_edge_cleanup_exit",
+    "pass/borrows/initialized_empty_array_snapshot_replacement_exit",
+    "fail/structural/primitive_array_snapshot_shared_receiver",
+    "fail/borrows/borrow_duplicate_mut",
+    "fail/proofs/scalar_field_snapshot_after_alias_store",
+    "pass/layouts/portable_layout_constant_composition_exit",
+    "pass/slices/saved_byte_predicate_operand_disjoint_exit",
+    "pass/borrow/storage_address_window_identity_exit",
+    "pass/types/storage_address_core_name_shadowed_exit",
+    "fail/slices/saved_byte_predicate_operand_overlap",
+    "fail/layouts/data_layout_query_value_argument",
+    "fail/types/storage_address_not_portable_boolean"
+  ],
+  "both": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit",
+    "pass/control_flow/runtime_owned_state_parallel_swap_exit",
+    "pass/slices/runtime_affine_view_edge_cleanup_exit",
+    "pass/borrows/initialized_empty_array_snapshot_replacement_exit",
+    "pass/layouts/portable_layout_constant_composition_exit",
+    "pass/slices/saved_byte_predicate_operand_disjoint_exit",
+    "pass/borrow/storage_address_window_identity_exit",
+    "pass/types/storage_address_core_name_shadowed_exit"
+  ],
+  "samples": [
+    "samples/cli/facts/installed_entry_storage",
+    "samples/cli/facts/installed_entry_storage/call_result",
+    "samples/cli/facts/installed_entry_storage/call_result/invalid",
+    "samples/cli/facts/installed_entry_storage/const_name",
+    "samples/cli/facts/installed_entry_storage/const_name/invalid",
+    "samples/cli/facts/installed_entry_storage/field",
+    "samples/cli/facts/installed_entry_storage/field/invalid",
+    "samples/cli/facts/installed_entry_storage/local",
+    "samples/cli/facts/installed_entry_storage/local/invalid",
+    "samples/cli/facts/installed_entry_storage/match_join",
+    "samples/cli/facts/installed_entry_storage/match_join/invalid",
+    "samples/cli/facts/installed_entry_storage/other_machine",
+    "samples/cli/facts/installed_entry_storage/other_machine/invalid",
+    "samples/cli/facts/installed_entry_storage/other_state",
+    "samples/cli/facts/installed_entry_storage/other_state/invalid",
+    "samples/cli/facts/installed_entry_storage/parameter",
+    "samples/cli/facts/installed_entry_storage/parameter/invalid",
+    "samples/cli/facts/installed_entry_storage/target_body",
+    "samples/cli/facts/installed_entry_storage/target_body/invalid"
+  ],
+  "limits": {
+    "corpus_fixture_seconds": 120,
+    "sample_cli_seconds": 300,
+    "workers": 1,
+    "phase_profile": false
+  },
+  "producer_policy": "One optimized producer on actual host. Existing own evidence branch remains a normal descendant of ee357 to permit ordinary branch-scoped warm cache reuse. Current-ref/default-main normal restore only; actual miss permits declared fresh build. No active-ref borrowing, forced cache lookup or binary relabel.",
+  "stopping_point": "One ARM optimized producer; full prior24Source/16BOTH/19samples plus seven existing selected-operation controls (four real pairs), all original120/300 bounds. Preserve every refusal/failure; no automatic retry or other-host build.",
+  "build_estimate": "One optimized ARM compiler/runner preparation under one build-slot hold. Reuse visible own-branch ee357 warm cache by normal prefix restore; actual miss explicitly permits necessary fresh build. Six unchanged backend units retained at ee357, not rerun or relabeled. Ninety-minute job.",
+  "build_budget_note": "One necessary ARM build/qualification after an actual c417 source defect; no standalone check repeat or Windows build.",
+  "semantic_source": "8866f98decc7d02a1bfa76ad46937bb152c64de1",
+  "observer_parent": "8866f98decc7d02a1bfa76ad46937bb152c64de1",
+  "warm_cache_parent": "ee357443d61244a8a5f27b29383f912e97fc6cbd",
+  "operation_controls": {
+    "positive": [
+      "pass/layouts/portable_layout_constant_composition_exit",
+      "pass/slices/saved_byte_predicate_operand_disjoint_exit",
+      "pass/borrow/storage_address_window_identity_exit",
+      "pass/types/storage_address_core_name_shadowed_exit"
+    ],
+    "negative": [
+      "fail/slices/saved_byte_predicate_operand_overlap",
+      "fail/layouts/data_layout_query_value_argument",
+      "fail/types/storage_address_not_portable_boolean"
+    ],
+    "reason": "Retained layout size/alignment, selected byte predicate with disjoint and overlapping operand writes, physical storage-address identity and portable-value refusal, and an ordinary same-spelled address_of callable."
+  },
+  "retained_rust_tests": [
+    {
+      "package": "target-operations-to-selected-instructions",
+      "filter": "edge_copy_zero_small_tail_and_bulk_boundary_emit_exact_extents",
+      "count": 1,
+      "names": [
+        "selection::edge_transfers::descriptors::tests::edge_copy_zero_small_tail_and_bulk_boundary_emit_exact_extents"
+      ]
+    },
+    {
+      "package": "target-operations-to-selected-instructions",
+      "filter": "huge_edge_copy_emission_is_bounded_and_retains_offset_count_and_private_homes",
+      "count": 1,
+      "names": [
+        "selection::edge_transfers::descriptors::tests::huge_edge_copy_emission_is_bounded_and_retains_offset_count_and_private_homes"
+      ]
+    },
+    {
+      "package": "selected-instructions-to-register-homes",
+      "filter": "bulk_snapshot_",
+      "count": 4,
+      "names": [
+        "rewrites::runtime_spill::snapshot_copy::tests::bulk_snapshot_exact_zero_and_nonzero_offsets_name_the_actual_pointer_use",
+        "rewrites::runtime_spill::snapshot_copy::tests::bulk_snapshot_wrong_redefined_and_unknown_counts_refuse",
+        "rewrites::runtime_spill::snapshot_copy::tests::bulk_snapshot_wrong_or_redefined_address_never_names_the_binding",
+        "rewrites::runtime_spill::snapshot_copy::tests::bulk_snapshot_definition_walk_keeps_the_existing_work_budget"
+      ]
+    }
+  ],
+  "retained_test_execution": {
+    "run": 42237030855,
+    "source": "ee357443d61244a8a5f27b29383f912e97fc6cbd",
+    "audit_sha256": "a283eadac1b3a586b82a9f851941010e16b5152726abfbc5fc69afa8b6798d64",
+    "root_review_sha256": "81b3372a79a655cae35b64bcca91092854987b19d4238ecdc50f56dc99aafdef",
+    "claim": "Six backend structural/authority tests passed only on actual ee357. All backend production/test owners and operation consumers remain byte-identical; this Psi stored-query change is outside their source-free emission/spill harnesses. No fresh unit execution is claimed."
+  },
+  "rust_tests": []
+}
