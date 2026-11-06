@@ -1074,7 +1074,7 @@ fail/borrows/boundary_constant_temporary_reference_escape rejected 1946ms expect
 	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/boundary_primitive_loan_mutable_from_shared rejected 2823ms expected @ccdb99ca2214
 	argument `value` for state `read` is declared `&mut` (`&mut f32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/borrows/boundary_returned_view_keeps_backing_loan rejected 2035ms expected @ccdb99ca2214
+fail/borrows/boundary_returned_view_keeps_backing_loan rejected 3666ms expected @54cd60288b4c
 	statement 1 mutates `main.bytes[1]` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/byte_array_state_loan_shared_and_exclusive rejected 15518ms expected @ccdb99ca2214
 	state `both` receives `bytes` as both mutable and read-only
@@ -1216,7 +1216,7 @@ fail/borrows/direct_reference_array_live_source_write rejected 5077ms expected @
 	statement 1 mutates `main.inventory.slots` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/direct_reference_array_range_narrowing rejected 3638ms expected @911f6617ba9e
 	cannot prove ensures contract for exit from Main::read at statement 2: result >= 0 && result <= 50
-fail/borrows/dispatch_boundary_returning_sibling_escape rejected 1810ms expected @ccdb99ca2214
+fail/borrows/dispatch_boundary_returning_sibling_escape rejected 3545ms expected @54cd60288b4c
 	machine `invalid` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/dropped_reference_qualification_after_alias_write rejected 1980ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from corrupt at statement 0: ticket in Ticket::Issued
@@ -1872,7 +1872,7 @@ fail/borrows/shared_observation_does_not_discharge_linear_owner rejected 2795ms 
 	linear value `receipt` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/borrows/shared_record_byte_write_before_last_observation rejected 2777ms expected @ccdb99ca2214
 	statement 2 mutates `row.text` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/shared_reference_carrier_writable_call rejected 2197ms expected @7df56d785346
+fail/borrows/shared_reference_carrier_writable_call rejected 2151ms expected @54cd60288b4c
 	mutable argument `messages` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `selection` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	unreachable branch: the `true` arm of a transition in machine `Main::main` state `main` can never run; its guard contradicts the facts in force here: neighbor >= 99
@@ -2876,7 +2876,7 @@ fail/calls/terminal_return_type_mismatch_rejected rejected 904ms expected @ccdb9
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 fail/calls/terminal_state_jump_block_acknowledgement rejected 2043ms unexpected @ccdb99ca2214
 	call to `done` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
-fail/calls/unit_normal_completion_false_contract rejected 3337ms expected @ccdb99ca2214
+fail/calls/unit_normal_completion_false_contract rejected 3264ms expected @323727c404b9
 	cannot prove ensures contract for exit from forwarded at statement 0: value == 8
 fail/calls/unresolved_value_call_rejected rejected 9139ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: value call `bogus_fn(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
@@ -11887,7 +11887,7 @@ fail/facts/saved_case_predicate_through_target_body_rejected rejected 5790ms exp
 	machine `ArmProbe::probe` state `probe` statement 6: cannot prove selected case for payload access `choice.amount`: captured source `choice::Full.amount` has no live case evidence: the current source does not select its required case
 fail/facts/saved_observation_snapshot_after_call_relational_invalid_rejected rejected 3833ms expected @ccdb99ca2214
 	cannot prove requires contract for call same from probe: saved == 3 (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected rejected 2618ms expected @ccdb99ca2214
+fail/facts/saved_observation_snapshot_after_call_stale_before_call_rejected rejected 3508ms expected @bf5cc360e384
 	cannot prove requires contract for call same from main: saved == later (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/saved_observation_snapshot_after_call_through_call_result_rejected rejected 2968ms expected @ccdb99ca2214
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -12812,7 +12812,7 @@ fail/facts/skipped_short_circuit_call_through_const_name_rejected rejected 8879m
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_field_rejected rejected 10942ms expected @91458311fe6a+wt
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/skipped_short_circuit_call_through_local_rejected rejected 10828ms expected @91458311fe6a+wt
+fail/facts/skipped_short_circuit_call_through_local_rejected rejected 3511ms expected @bf5cc360e384
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_match_join_rejected rejected 10663ms expected @91458311fe6a+wt
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -15407,6 +15407,9 @@ fail/layouts/accessor_with_linear_owner_write_denied rejected 13119ms expected @
 	accessor write application: the access plan does not permit this operation
 fail/layouts/authored_placed_accessor_requires_realization rejected 644ms expected @ccdb99ca2214
 	bodyless boundary symbol `read` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+fail/layouts/boundary_effect_same_name rejected 3558ms expected @54cd60288b4c
+	cannot prove default-domain field requirement for call replace from keep::entry: parameter storage requires Extent::Granted
+	cannot prove default-domain field requirement for return from keep, state entry, at statement 2: storage requires Extent::Granted
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 2212ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 4056ms expected @f78c2623a68c
@@ -15456,6 +15459,9 @@ fail/layouts/encoded_scalar_boundary_loan_requires_fit rejected 2402ms expected 
 fail/layouts/encoded_view_opaque_write_requires_fit rejected 3098ms expected @ccdb99ca2214
 	IntegerAt call in write_first requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 	IntegerAt call in change requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
+fail/layouts/extent_descriptor_write_retires_grant rejected 3493ms expected @54cd60288b4c
+	cannot prove default-domain field requirement for call change_descriptor from keep::entry: parameter storage requires Extent::Granted
+	cannot prove default-domain field requirement for return from keep, state entry, at statement 2: storage requires Extent::Granted
 fail/layouts/extent_descriptor_write_retires_mathematical_qualification rejected 1828ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from preserve at statement 2: storage in Extent::Granted
 fail/layouts/extent_descriptor_write_retires_routed_qualification rejected 1430ms expected @ccdb99ca2214
@@ -15566,7 +15572,7 @@ fail/layouts/placed_factory_result_cannot_upgrade_source rejected 1826ms expecte
 	machine `bad` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/layouts/placed_policy_requires_exact_attached_owner rejected 372ms expected @b43a5fa574e6
 	`Access<RegPlacement, first::Registers>` must select one exact `RegPlacement::plan` machine
-fail/layouts/placed_primitive_denied_write rejected 3500ms expected @f78a4fddea0b
+fail/layouts/placed_primitive_denied_write rejected 3477ms expected @54cd60288b4c
 	accessor write application: the access plan does not permit this operation
 fail/layouts/placed_primitive_generic_wrapper rejected 3358ms expected @b43a5fa574e6
 	accessor read application: requires an exact compiler-issued field accessor; an ordinary or unconstrained generic type grants no operation
@@ -16024,7 +16030,7 @@ fail/ownership/borrowed_storage_stale_read_in_hole rejected 1784ms expected @ccd
 fail/ownership/borrowed_window_changed_selector rejected 10367ms expected @ee4dbb4b2d56
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 2 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
-fail/ownership/borrowed_window_crash_does_not_repair_return rejected 7807ms expected @ee4dbb4b2d56
+fail/ownership/borrowed_window_crash_does_not_repair_return rejected 2904ms expected @323727c404b9
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `leave_empty`, state `entry` (statement 0): `token` must hold a value again before this state's exits consume the borrow
 fail/ownership/borrowed_window_mutable_selector_observes_hole rejected 7701ms expected @ee4dbb4b2d56
 	cannot use `tokens[index].byte` while `tokens[index]` is absent from borrowed storage: the value moved out at statement 2 must be restored first
@@ -16580,6 +16586,8 @@ fail/proofs/entry_comparison_not_inherited_by_state rejected 2219ms expected @cc
 	cannot prove ensures contract for exit from wrong at statement 0: result > 0
 fail/proofs/exact_widening_without_source_bound rejected 6482ms expected @46cdd6b85b82+wt
 	data `Reading` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/proofs/exhaustive_nonreturn_contract rejected 41585ms expected @323727c404b9
+	cannot prove ensures contract for exit from work at statement 0: false
 fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4036ms expected @ccdb99ca2214
 	linear value `value::Node.token` reaches scope exit without being consumed or transferred in machine `reflexive` state `entry`
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 2548ms expected @ccdb99ca2214
@@ -16597,6 +16605,8 @@ fail/proofs/field_view_index_wrong_sibling rejected 5343ms expected @ccdb99ca221
 	cannot prove requires contract for call index from radiance: __hoist_2 < batch.selected.samples.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/field_view_saved_descriptor_replaced rejected 2311ms expected @ccdb99ca2214
 	cannot prove requires contract for call read from invalid: index < saved.child.samples.len (needs fact `index < value.child.samples.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/finite_boolean_policy_exit rejected 18505ms expected @bf5cc360e384
+	cannot prove ensures contract for exit from validate at statement 0: table_policy(result, table)
 fail/proofs/float_false_ordered_guard_is_not_reverse rejected 1927ms expected @ccdb99ca2214
 	machine `invalid_absolute` ensures contract proof fact `value < 0.0 && F64.meaning(result) == FloatSemantics.negate(FloatFormat, F64.meaning(value)) || value >= 0.0 && F64.meaning(result) == F64.meaning(value)` speaks about proof-only `FloatMeaning`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/float_guarded_negated_result_mismatch rejected 1928ms expected @ccdb99ca2214
@@ -16924,8 +16934,8 @@ fail/proofs/range_result_unrelated_bound rejected 2195ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from check, state entry, at statement 1: Checked::Ready.value requires Range::Bounded
 fail/proofs/ranked_accumulator_guarantee_wrong_step_twin rejected 12910ms unexpected regressed-from:checked @ccdb99ca2214
 	cannot prove ensures contract for exit from descend at statement 1: result <= previous
-fail/proofs/recursive_formals_do_not_read_caller_constants rejected 2606ms unexpected regressed-from:checked @ccdb99ca2214
-	cannot prove ensures contract for exit from recurse at statement 1: result == value + 1
+fail/proofs/recursive_formals_do_not_read_caller_constants rejected 3151ms expected regressed-from:checked @bf5cc360e384
+	machine `recurse` ensures contract proof fact `result == value + 1` is disproved by constant arithmetic on the transition arm guarded by `__transition_subject#13 == true`
 fail/proofs/recursive_terminal_missing_erased_evidence rejected 2344ms expected @ccdb99ca2214
 	call `scan` supplies 0 erased evidence arguments but its named requires lane has 1
 fail/proofs/referenced_law_slot_ambiguous rejected 2177ms expected @ccdb99ca2214
@@ -17040,7 +17050,7 @@ fail/proofs/selected_specification_requires_wrong_subject rejected 1102ms expect
 fail/proofs/self_call_without_witness_not_denotational rejected 2124ms expected @ccdb99ca2214
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
 	specification call `stalled` is not denotational: the selected machine is not unconditionally terminating
-fail/proofs/short_circuit_skipped_rhs_bound rejected 2274ms expected @ccdb99ca2214
+fail/proofs/short_circuit_skipped_rhs_bound rejected 3519ms expected @bf5cc360e384
 	cannot prove requires contract for call bounded from main: context.count < 6 (needs fact `context.count < 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/specification_case_exclusion_ambiguous_payload rejected 5087ms expected @7e945672b7b4+wt
 	cannot form specification payload projection `first` in trait `Observe` state `read` requires contract: establish its exact active case before projecting the payload
@@ -17332,7 +17342,7 @@ fail/providers/occurrence_region_binding_conflicting_inputs rejected 5754ms expe
 fail/providers/operator_specialized_realization_selection_not_retained rejected 2104ms expected @ccdb99ca2214
 	machine `Provider` does not match one exact overload of operator requirement `Policy::convert`; its entry parameter and result types must equal one declared requirement signature
 	machine `Provider$specialized$10334b0381d4aecf$0` operator realization `Policy::convert` does not retain the exact selected overload
-fail/providers/ordinary_exit_name_preserves_return_obligations rejected 3657ms expected @ccdb99ca2214
+fail/providers/ordinary_exit_name_preserves_return_obligations rejected 3294ms expected @323727c404b9
 	cannot prove ensures contract for exit from impossible at statement 1: false
 fail/providers/ordinary_provider_call_graph_ambiguous rejected 4721ms expected @ddc17fff6a3c
 	no provider is selected for boundary requirement `Choice::choose`, which the program entry reaches on target `windows_x86_64`
@@ -26138,6 +26148,7 @@ pass/layouts/empty_cases_sum_layout_compile checked 3776ms @ccdb99ca2214
 pass/layouts/empty_record_layout_queries_compile checked 2905ms @ccdb99ca2214
 pass/layouts/extent_view_external_content checked 12345ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
 pass/layouts/extent_view_external_write checked 14953ms terminal-runtime.attempt:match terminal-inspections:match @b3876048c0a2
+pass/layouts/extent_view_preserves_grant_exit checked 9107ms check-target:macos_arm64 @54cd60288b4c
 pass/layouts/five_element_array_layout_compile checked 2622ms @ccdb99ca2214
 pass/layouts/fixed_layout_closed_requirement_policy_exit checked 10253ms check-target:macos_arm64 @d68d95fa82f8
 pass/layouts/fixed_layout_computed_const_policy_exit rejected 523ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d68d95fa82f8
@@ -26798,9 +26809,11 @@ pass/proofs/embedded_successor_call_requirement_exit checked 3945ms check-target
 pass/proofs/embedded_successor_transports_upper_bound_exit checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
 pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
+pass/proofs/exhaustive_nonreturn_contract checked 86686ms check-target:macos_arm64 @77212783a73c
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
 pass/proofs/field_view_index_contract checked 10931ms @93ac4da811fe
+pass/proofs/finite_boolean_policy_exit checked 26449ms check-target:macos_arm64 @bf5cc360e384
 pass/proofs/float_guarded_negated_result_contract checked 5232ms @ccdb99ca2214
 pass/proofs/float_named_contract_literal_landing checked 5145ms @ccdb99ca2214
 pass/proofs/guarded_dynamic_field_arrival checked 12441ms check-target:macos_arm64 @ccdb99ca2214
