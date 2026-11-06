@@ -116,18 +116,28 @@ pub(crate) fn evaluate_selected_array_lengths(
         LengthProviderSelection::Selected(operators),
     )
     .evaluate(&mut execution)?;
+    publish_evaluated_array_lengths(typed, &execution, domain);
+    Ok(())
+}
+
+/// Publish completed extents at their original handles. Preparation may append
+/// private types, but those types never become part of the caller's schema.
+pub(crate) fn publish_evaluated_array_lengths(
+    typed: &mut TypedTrees,
+    execution: &TypedTrees,
+    domain: &EvaluationDomain,
+) {
     for (type_reference, _, _, _) in pending_array_lengths(typed, domain) {
         if let TypeReferenceNode::FixedArray {
             length: FixedArrayLength::Literal(value),
             ..
-        } = type_reference_table(&execution).type_reference(type_reference)
+        } = type_reference_table(execution).type_reference(type_reference)
         {
             typed
                 .type_reference_table
                 .set_fixed_array_length(type_reference, *value);
         }
     }
-    Ok(())
 }
 
 /// Provider settlement is an existing lifecycle boundary, not an alternate
