@@ -30,10 +30,10 @@ fn scalar(bits: u8) -> Result<ScalarType, &'static str> {
     ))
 }
 
-fn fields<'a>(
-    declarations: &'a [StructuralTypeDeclaration],
+fn fields(
+    declarations: &[StructuralTypeDeclaration],
     ty: StructuralTypeId,
-) -> Result<&'a [terminal_psi::StructuralFieldDeclaration], &'static str> {
+) -> Result<&[terminal_psi::StructuralFieldDeclaration], &'static str> {
     let Some(StructuralTypeShape::Record { fields, .. }) =
         terminal_psi::find_structural_type(declarations, ty).map(|row| &row.shape)
     else {

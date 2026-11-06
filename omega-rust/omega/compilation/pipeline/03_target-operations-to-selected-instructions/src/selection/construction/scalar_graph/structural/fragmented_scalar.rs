@@ -269,7 +269,7 @@ pub(super) fn read(
         envelope_offset,
         fragments,
         StorageAccess::Place {
-            indices: indices,
+            indices,
             byte_offset: 0,
         },
     )?;
@@ -359,7 +359,7 @@ pub(super) fn write(
         envelope_offset,
         fragments,
         StorageAccess::Place {
-            indices: indices,
+            indices,
             byte_offset: 0,
         },
         value_register,

@@ -136,14 +136,13 @@ impl Expr {
         if kind == Binary::Add {
             if let (Word::Binary(Binary::Add, base, previous), Word::Constant(extra)) =
                 (left.word(), right.word())
+                && let Word::Constant(offset) = previous.word()
             {
-                if let Word::Constant(offset) = previous.word() {
-                    return Self::binary(
-                        Binary::Add,
-                        base.clone(),
-                        Self::constant(offset.wrapping_add(*extra)),
-                    );
-                }
+                return Self::binary(
+                    Binary::Add,
+                    base.clone(),
+                    Self::constant(offset.wrapping_add(*extra)),
+                );
             }
             if matches!(left.word(), Word::Constant(_))
                 && !matches!(right.word(), Word::Constant(_))
@@ -440,7 +439,7 @@ impl<'a> Expressions<'a> {
             Kind::FrameAddress { slot, byte_offset } => {
                 Expr::new(Word::Frame(*slot)).offset(*byte_offset)
             }
-            Kind::ImageAddress { reference } => Expr::new(Word::Image(reference.clone())),
+            Kind::ImageAddress { reference } => Expr::new(Word::Image(*reference)),
             Kind::AddressOffset { byte_offset } => self.input(row, 0)?.offset(*byte_offset),
             Kind::Load8 { byte_offset } => self.loaded(row, *byte_offset, 1)?,
             Kind::Load16 { byte_offset } => self.loaded(row, *byte_offset, 2)?,

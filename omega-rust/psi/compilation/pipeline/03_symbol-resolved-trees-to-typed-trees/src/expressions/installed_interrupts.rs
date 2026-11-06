@@ -55,7 +55,7 @@ pub(crate) fn lower_request(
             "interrupt installation lost its exact declaration's entry",
         ));
     }
-    let [registrar, timer_slot, ..] = machine_arguments.as_ref() else {
+    let [registrar, timer_slot, ..] = machine_arguments else {
         return Err(Diagnostic::error(
             "interrupt installation needs its exact registrar application and timer slot",
         ));

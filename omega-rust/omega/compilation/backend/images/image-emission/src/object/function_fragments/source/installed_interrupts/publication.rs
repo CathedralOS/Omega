@@ -180,10 +180,10 @@ pub(super) fn validate(
 
 fn offset(address: &Expr, base: &Expr) -> Option<u64> {
     fn split(value: &Expr) -> (&Expr, u64) {
-        if let Word::Binary(super::Binary::Add, root, displacement) = value.word() {
-            if let Word::Constant(displacement) = displacement.word() {
-                return (root, *displacement);
-            }
+        if let Word::Binary(super::Binary::Add, root, displacement) = value.word()
+            && let Word::Constant(displacement) = displacement.word()
+        {
+            return (root, *displacement);
         }
         (value, 0)
     }
@@ -309,12 +309,12 @@ pub(super) fn reads(
                     if address == cell && bytes == 8 {
                         let load = instruction
                             .ok_or(Error::Mismatch("installation index has no observation"))?;
-                        if graph.position(load)?.0 != header {
-                            if graph.require_edge(expressions, &condition, load)? != header {
-                                return Err(Error::Mismatch(
-                                    "installation read uses another scan's index observation",
-                                ));
-                            }
+                        if graph.position(load)?.0 != header
+                            && graph.require_edge(expressions, &condition, load)? != header
+                        {
+                            return Err(Error::Mismatch(
+                                "installation read uses another scan's index observation",
+                            ));
                         }
                     }
                     Ok(())
@@ -431,14 +431,13 @@ fn footprints(
                 "installed CPU memory ranges differ from the checked geometry",
             ));
         }
-        if publish {
-            if expressions.input(row, 0)? != input.pointers[0]
-                || expressions.input(row, 1)? != contract.home.clone().offset(48)
-            {
-                return Err(Error::Mismatch(
-                    "IDT publication has different physical operands",
-                ));
-            }
+        if publish
+            && (expressions.input(row, 0)? != input.pointers[0]
+                || expressions.input(row, 1)? != contract.home.clone().offset(48))
+        {
+            return Err(Error::Mismatch(
+                "IDT publication has different physical operands",
+            ));
         }
     }
     Ok(())

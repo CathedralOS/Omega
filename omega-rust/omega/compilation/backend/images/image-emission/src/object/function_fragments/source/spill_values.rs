@@ -249,9 +249,9 @@ impl<'a> SpillValues<'a> {
     }
 }
 fn invalidate(slots: &mut [Option<Slot>], home: LocalStorageSlotId) {
-    if let LocalStorageSlotId::Spill { register } = home {
-        if let Some(slot) = slots.get_mut(register.0 as usize).and_then(Option::as_mut) {
-            slot.valid = false;
-        }
+    if let LocalStorageSlotId::Spill { register } = home
+        && let Some(slot) = slots.get_mut(register.0 as usize).and_then(Option::as_mut)
+    {
+        slot.valid = false;
     }
 }

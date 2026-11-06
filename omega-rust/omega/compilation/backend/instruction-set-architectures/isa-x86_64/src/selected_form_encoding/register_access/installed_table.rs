@@ -381,10 +381,7 @@ mod tests {
                 );
             }
         }
-        let different_table = X86InstalledCpuStateGeometry {
-            gdt_bytes: 48,
-            ..geometry
-        };
+        let different_table = X86InstalledCpuStateGeometry { gdt_bytes: 48 };
         assert!(
             validate_x86_64_installed_cpu_state_check(registers, different_table, &bytes).is_err()
         );

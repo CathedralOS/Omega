@@ -70,7 +70,7 @@ pub(super) fn retain(
             .trait_definition_by_symbol(closed.declaring_trait)
             .ok_or("interrupt installation registrar lost its declaring trait")?;
         let registrar_requirement =
-            checked.trait_requirement_callable_identity_text(owner, &closed.signature);
+            checked.trait_requirement_callable_identity_text(owner, closed.signature);
         let callbacks = request
             .callbacks
             .uses

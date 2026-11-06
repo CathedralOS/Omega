@@ -27,10 +27,8 @@ pub(super) fn validate(
     let mut counts = Counts::default();
     for block in &selected.blocks {
         for row in &block.instructions {
-            if row.provenance.operations.contains(&operation) {
-                if !expressions.private_store(row) {
-                    body(row, validation, &mut counts)?;
-                }
+            if row.provenance.operations.contains(&operation) && !expressions.private_store(row) {
+                body(row, validation, &mut counts)?;
             }
         }
         let row = selected_instructions::terminator_instruction(&block.terminator);

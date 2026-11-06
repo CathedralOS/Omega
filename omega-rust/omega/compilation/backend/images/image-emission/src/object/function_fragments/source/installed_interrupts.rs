@@ -409,15 +409,13 @@ fn refusal(
                 validation,
                 selected_instructions::terminator_instruction(&block.terminator).id,
             )?
-        {
-            if result
+            && result
                 .replace(graph.continuation(SelectedBlockId(failure as u32))?)
                 .is_some()
-            {
-                return Err(Error::Mismatch(
-                    "installation validator has multiple refusal continuations",
-                ));
-            }
+        {
+            return Err(Error::Mismatch(
+                "installation validator has multiple refusal continuations",
+            ));
         }
     }
     result.ok_or(Error::Mismatch(
@@ -612,42 +610,36 @@ fn loops(
             }
             Ok(())
         })?;
-        if kind == 1 {
-            if let Some(root) = &entry.acknowledgement_root {
-                let root_write = stores.take(contract.home.clone().offset(96), root.clone(), 8)?;
-                let top_write = stores.take(
-                    contract.home.clone().offset(104),
-                    contract.stack_top.clone(),
-                    8,
-                )?;
-                if !graph.precedes(scan.count_next, root_write)?
-                    || !graph.precedes(root_write, top_write)?
-                    || acknowledgement_header.replace(header).is_some()
-                {
-                    return Err(Error::Mismatch(
-                        "installation changed its unique acknowledgement root publication",
-                    ));
-                }
-                graph.selected_iteration(
-                    expressions,
-                    matching,
-                    header,
-                    root_write,
-                    scan.advance,
-                )?;
-                for predicate in guards {
-                    let actual = graph.require_guard_between(
-                        expressions,
-                        predicate,
-                        scan.count_next,
-                        root_write,
-                        refusal,
-                    )?;
-                    iteration_observations(&actual, &contract.home, header, graph)?;
-                }
-                iteration_observations(stores.value(root_write)?, &contract.home, header, graph)?;
-                iteration_observations(stores.value(top_write)?, &contract.home, header, graph)?;
+        if kind == 1
+            && let Some(root) = &entry.acknowledgement_root
+        {
+            let root_write = stores.take(contract.home.clone().offset(96), root.clone(), 8)?;
+            let top_write = stores.take(
+                contract.home.clone().offset(104),
+                contract.stack_top.clone(),
+                8,
+            )?;
+            if !graph.precedes(scan.count_next, root_write)?
+                || !graph.precedes(root_write, top_write)?
+                || acknowledgement_header.replace(header).is_some()
+            {
+                return Err(Error::Mismatch(
+                    "installation changed its unique acknowledgement root publication",
+                ));
             }
+            graph.selected_iteration(expressions, matching, header, root_write, scan.advance)?;
+            for predicate in guards {
+                let actual = graph.require_guard_between(
+                    expressions,
+                    predicate,
+                    scan.count_next,
+                    root_write,
+                    refusal,
+                )?;
+                iteration_observations(&actual, &contract.home, header, graph)?;
+            }
+            iteration_observations(stores.value(root_write)?, &contract.home, header, graph)?;
+            iteration_observations(stores.value(top_write)?, &contract.home, header, graph)?;
         }
         previous_header = header;
         backedges.push((scan.advance, header));

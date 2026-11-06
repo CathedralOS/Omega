@@ -1325,7 +1325,7 @@ fn validate_encoded_effects(
             && declaration.memory == crate::MachineMemoryEffect::InstalledInterruptTaskCommitV1
             && memory_stack == stack_pointer
             && encoded.external_operand_reads == [0, 1, 2]
-            && encoded.external_operand_writes == []
+            && encoded.external_operand_writes.is_empty()
             && encoded.control == MachineEncodedControlEffect::FallThroughOrStopV1
             && implicit_roster_matches(encoded, constraint) => {}
         (

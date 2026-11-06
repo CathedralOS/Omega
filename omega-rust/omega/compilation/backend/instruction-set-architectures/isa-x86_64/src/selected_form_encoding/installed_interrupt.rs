@@ -277,10 +277,10 @@ mod tests {
                 variant: 0,
             };
             let encoded =
-                crate::encode_x86_64_selected_form(&model, kind, alternative, &registers).unwrap();
+                crate::encode_x86_64_selected_form(model, kind, alternative, &registers).unwrap();
             assert!(
                 crate::validate_x86_64_selected_form_encoding(
-                    &model,
+                    model,
                     kind,
                     alternative,
                     &registers,
@@ -301,7 +301,7 @@ mod tests {
             };
             assert!(
                 crate::validate_x86_64_selected_form_encoding(
-                    &model,
+                    model,
                     changed,
                     alternative,
                     &registers,
@@ -313,7 +313,7 @@ mod tests {
             wrong_registers[0] = model.model().view_named("rbx").unwrap().id;
             assert!(
                 crate::validate_x86_64_selected_form_encoding(
-                    &model,
+                    model,
                     kind,
                     alternative,
                     &wrong_registers,
@@ -334,11 +334,11 @@ mod tests {
         };
         let operands = operands(Form::TaskCommit);
         let encoded =
-            crate::encode_x86_64_selected_form(&model, kind, alternative, &operands).unwrap();
+            crate::encode_x86_64_selected_form(model, kind, alternative, &operands).unwrap();
         let bytes = encoded.bytes();
         assert!(
             crate::validate_x86_64_selected_form_encoding(
-                &model,
+                model,
                 kind,
                 alternative,
                 &operands,
@@ -352,7 +352,7 @@ mod tests {
         reversed[stop..].fill(0x90);
         assert!(
             crate::validate_x86_64_selected_form_encoding(
-                &model,
+                model,
                 kind,
                 alternative,
                 &operands,

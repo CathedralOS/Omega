@@ -142,12 +142,12 @@ pub(super) fn materialization(
                     "installed address must be written before validation",
                 ));
             }
-            if let Some(prior) = previous {
-                if !graph.precedes(prior, write)? {
-                    return Err(Error::Mismatch(
-                        "installed address writes changed their order",
-                    ));
-                }
+            if let Some(prior) = previous
+                && !graph.precedes(prior, write)?
+            {
+                return Err(Error::Mismatch(
+                    "installed address writes changed their order",
+                ));
             }
             fresh_container(
                 writes.value(write)?,
@@ -189,12 +189,12 @@ fn fresh_container(
                         "installed preserving write reads its container after writing",
                     ));
                 }
-                if let Some(previous) = previous {
-                    if !graph.precedes(previous, load)? {
-                        return Err(Error::Mismatch(
-                            "installed preserving write reuses stale container bytes",
-                        ));
-                    }
+                if let Some(previous) = previous
+                    && !graph.precedes(previous, load)?
+                {
+                    return Err(Error::Mismatch(
+                        "installed preserving write reuses stale container bytes",
+                    ));
                 }
             }
             fresh_container(address, container, bytes, previous, first_write, graph)?;

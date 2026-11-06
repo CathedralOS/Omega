@@ -86,8 +86,8 @@ impl InstalledInterruptEntryPlan {
         entry_gate_byte_offset: u32,
         table_bytes: u32,
     ) -> Option<Self> {
-        if anchor_gate_byte_offset % 16 != 0
-            || entry_gate_byte_offset % 16 != 0
+        if !anchor_gate_byte_offset.is_multiple_of(16)
+            || !entry_gate_byte_offset.is_multiple_of(16)
             || anchor_gate_byte_offset == entry_gate_byte_offset
             || table_bytes < 16
             || table_bytes > 4096

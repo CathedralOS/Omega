@@ -556,13 +556,6 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | Semantic::ModelSpecificWrite
             | Semantic::ProcessorHalt
             | Semantic::InterruptControl
-            | Semantic::GlobalDescriptorTableLoad
-            | Semantic::GlobalDescriptorTableStore
-            | Semantic::TaskRegisterActivate
-            | Semantic::TaskRegisterRead
-            | Semantic::CodeSegmentReload
-            | Semantic::DataSegmentReload
-            | Semantic::SegmentSelectorRead
             | Semantic::MemoryFence
             | Semantic::AtomicFence
             | Semantic::AtomicAccess(_)
