@@ -3,6 +3,141 @@
 //! ordinary term over the supplied premise evidence and fixed arithmetic laws.
 
 use super::*;
+use crate::mathematical_core::TermArena;
+use std::collections::{HashMap, HashSet, VecDeque};
+
+struct OrderQuestion {
+    left: TermHandle,
+    right: TermHandle,
+    proof: Option<TermHandle>,
+    depth: usize,
+    consumers: Vec<usize>,
+    queued: bool,
+}
+
+// One predicate owns this graph and borrows its unchanged premises and laws.
+// A goal waits for actual proofs of its children, never for an assumption that
+// a cycle has failed. Producing a proof wakes the goals that consume it; an
+// unresolved cycle cannot wake itself. Completed expansions are shared across
+// reconverging paths, including paths through cycles.
+pub(super) struct OrderSearch<'premises> {
+    premises: &'premises [(TermHandle, TermHandle)],
+    laws: &'premises [laws::SourceLaw],
+    questions: Vec<OrderQuestion>,
+    by_structure: HashMap<(u64, u64), Vec<usize>>,
+    // Dependencies are sparse pairs of query positions. Register each edge
+    // once instead of rescanning a shared child's consumers on every request.
+    dependencies: HashSet<(usize, usize)>,
+    pending: VecDeque<usize>,
+    current: Option<usize>,
+    #[cfg(test)]
+    expansions: usize,
+    #[cfg(test)]
+    comparisons: usize,
+}
+
+impl<'premises> OrderSearch<'premises> {
+    pub(super) fn new(
+        premises: &'premises [(TermHandle, TermHandle)],
+        laws: &'premises [laws::SourceLaw],
+    ) -> Self {
+        Self {
+            premises,
+            laws,
+            questions: Vec::new(),
+            by_structure: HashMap::new(),
+            dependencies: HashSet::new(),
+            pending: VecDeque::new(),
+            current: None,
+            #[cfg(test)]
+            expansions: 0,
+            #[cfg(test)]
+            comparisons: 0,
+        }
+    }
+
+    fn enqueue(&mut self, question: usize) {
+        let row = &mut self.questions[question];
+        if !row.queued && row.proof.is_none() && row.depth < 128 {
+            row.queued = true;
+            self.pending.push_back(question);
+        }
+    }
+
+    fn question(
+        &mut self,
+        arena: &TermArena,
+        left: TermHandle,
+        right: TermHandle,
+    ) -> Result<usize, BoundedDenotationError> {
+        let hashes =
+            arena
+                .structural_hashes(&[left, right])
+                .ok_or(BoundedDenotationError::Unsupported(
+                    "order goal has an incomplete or cyclic term graph",
+                ))?;
+        let key = (hashes[0], hashes[1]);
+        let mut existing = None;
+        if let Some(candidates) = self.by_structure.get(&key) {
+            for &position in candidates {
+                #[cfg(test)]
+                {
+                    self.comparisons += 1;
+                }
+                let question = &self.questions[position];
+                if arena.structurally_equal(question.left, left)
+                    && arena.structurally_equal(question.right, right)
+                {
+                    existing = Some(position);
+                    break;
+                }
+            }
+        }
+        let depth = self
+            .current
+            .map_or(0, |parent| self.questions[parent].depth + 1);
+        let question = if let Some(position) = existing {
+            // A shorter path has more of the original depth allowance left.
+            // Revisit its dependencies rather than remembering an earlier cut
+            // as an unconditional failure.
+            if depth < self.questions[position].depth {
+                self.questions[position].depth = depth;
+                self.enqueue(position);
+            }
+            position
+        } else {
+            let position = self.questions.len();
+            self.questions.push(OrderQuestion {
+                left,
+                right,
+                proof: None,
+                depth,
+                consumers: Vec::new(),
+                queued: false,
+            });
+            self.by_structure.entry(key).or_default().push(position);
+            self.enqueue(position);
+            position
+        };
+        if let Some(parent) = self.current {
+            let row = &mut self.questions[question];
+            if row.proof.is_none() && self.dependencies.insert((question, parent)) {
+                row.consumers.push(parent);
+            }
+        }
+        Ok(question)
+    }
+
+    fn complete(&mut self, question: usize, proof: TermHandle) {
+        self.questions[question].proof = Some(proof);
+        for consumer in std::mem::take(&mut self.questions[question].consumers) {
+            self.enqueue(consumer);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;
 
 impl Denotation {
     fn source_order_transport(
@@ -88,28 +223,24 @@ impl Denotation {
     pub(super) fn source_composed_order(
         &mut self,
         goal: TermHandle,
-        premises: &[(TermHandle, TermHandle)],
-        laws: &[laws::SourceLaw],
+        search: &mut OrderSearch<'_>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         let Some(IntegerRelation::LessOrEqual { left, right }) = self.integer_relation(goal) else {
             return self.closed_source_predicate(goal, 0);
         };
-        self.source_order_search(left, right, premises, laws, &mut Vec::new())
+        self.source_order_search(left, right, search)
     }
 
     pub(super) fn source_strict_order(
         &mut self,
         left: TermHandle,
         right: TermHandle,
-        premises: &[(TermHandle, TermHandle)],
-        laws: &[laws::SourceLaw],
+        search: &mut OrderSearch<'_>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         let zero = self.math_literal(numerics::bignum::BigInt::from_i128(0))?;
         let one = self.math_literal(numerics::bignum::BigInt::from_i128(1))?;
         let successor = self.add_terms(left, one)?;
-        let Some(bound) =
-            self.source_order_search(successor, right, premises, laws, &mut Vec::new())?
-        else {
+        let Some(bound) = self.source_order_search(successor, right, search)? else {
             return Ok(None);
         };
         let integer = self.integer_constant()?;
@@ -149,32 +280,51 @@ impl Denotation {
         &mut self,
         left: TermHandle,
         right: TermHandle,
-        premises: &[(TermHandle, TermHandle)],
-        laws: &[laws::SourceLaw],
-        active: &mut Vec<(TermHandle, TermHandle)>,
+        search: &mut OrderSearch<'_>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if active.len() >= 128 {
-            return Ok(None);
+        let root = search.question(&self.arena, left, right)?;
+        while search.questions[root].proof.is_none() {
+            let Some(question) = search.pending.pop_front() else {
+                break;
+            };
+            search.questions[question].queued = false;
+            if search.questions[question].proof.is_some() {
+                continue;
+            }
+            let left = search.questions[question].left;
+            let right = search.questions[question].right;
+            search.current = Some(question);
+            #[cfg(test)]
+            {
+                search.expansions += 1;
+            }
+            let result = self.expand_source_order(left, right, search);
+            search.current = None;
+            if let Some(proof) = result? {
+                search.complete(question, proof);
+            }
         }
-        if active.iter().any(|&(a, b)| {
-            self.arena.structurally_equal(a, left) && self.arena.structurally_equal(b, right)
-        }) {
-            return Ok(None);
-        }
-        active.push((left, right));
-        let result = self.source_order_search_body(left, right, premises, laws, active);
-        active.pop();
-        result
+        Ok(search.questions[root].proof)
     }
 
-    fn source_order_search_body(
+    fn request_source_order(
+        &self,
+        left: TermHandle,
+        right: TermHandle,
+        search: &mut OrderSearch<'_>,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let question = search.question(&self.arena, left, right)?;
+        Ok(search.questions[question].proof)
+    }
+
+    fn expand_source_order(
         &mut self,
         left: TermHandle,
         right: TermHandle,
-        premises: &[(TermHandle, TermHandle)],
-        laws: &[laws::SourceLaw],
-        active: &mut Vec<(TermHandle, TermHandle)>,
+        search: &mut OrderSearch<'_>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let premises = search.premises;
+        let laws = search.laws;
         let goal = self.order_term_application(false, left, right)?;
         if let Some(proof) = self.closed_source_predicate(goal, 0)? {
             return Ok(Some(proof));
@@ -210,8 +360,7 @@ impl Denotation {
                     complete = false;
                     break;
                 };
-                let Some(proof) = self.source_order_search(left, right, premises, laws, active)?
-                else {
+                let Some(proof) = self.request_source_order(left, right, search)? else {
                     complete = false;
                     break;
                 };
@@ -253,7 +402,7 @@ impl Denotation {
         if !common.is_empty() {
             let a = self.source_sum_from_items(&left_items)?;
             let b = self.source_sum_from_items(&right_items)?;
-            if let Some(proof) = self.source_order_search(a, b, premises, laws, active)? {
+            if let Some(proof) = self.request_source_order(a, b, search)? {
                 let amount = self.source_sum_from_items(&common)?;
                 let proof = self.add_order_translation(a, b, amount, proof)?;
                 let l = self.add_terms(a, amount)?;
@@ -278,7 +427,7 @@ impl Denotation {
             {
                 continue;
             }
-            if let Some(rest) = self.source_order_search(middle, right, premises, laws, active)? {
+            if let Some(rest) = self.request_source_order(middle, right, search)? {
                 return self
                     .integer_law_application(
                         IntegerLaw::LessOrEqualTransitivity,
@@ -302,10 +451,10 @@ impl Denotation {
             (None, None) => Vec::new(),
         };
         for (a, c, b, d) in candidates {
-            let Some(first) = self.source_order_search(a, b, premises, laws, active)? else {
+            let Some(first) = self.request_source_order(a, b, search)? else {
                 continue;
             };
-            let Some(second) = self.source_order_search(c, d, premises, laws, active)? else {
+            let Some(second) = self.request_source_order(c, d, search)? else {
                 continue;
             };
             let proof = self.add_order_both(a, b, c, d, first, second)?;

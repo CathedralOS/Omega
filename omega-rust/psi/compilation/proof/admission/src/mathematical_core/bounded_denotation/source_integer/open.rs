@@ -11,6 +11,8 @@ mod laws;
 mod orders;
 mod sums;
 
+use orders::OrderSearch;
+
 #[derive(Clone, Copy)]
 struct NormalInteger {
     term: TermHandle,
@@ -252,13 +254,12 @@ impl Denotation {
     fn source_symbolic_goal(
         &mut self,
         goal: TermHandle,
-        premises: &[(TermHandle, TermHandle)],
-        laws: &[laws::SourceLaw],
+        search: &mut OrderSearch<'_>,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         if let Some(IntegerRelation::LessThan { left, right }) = self.integer_relation(goal) {
             let l = self.source_normal_integer(left, 0)?;
             let r = self.source_normal_integer(right, 0)?;
-            let Some(proof) = self.source_strict_order(l.term, r.term, premises, laws)? else {
+            let Some(proof) = self.source_strict_order(l.term, r.term, search)? else {
                 return self.closed_source_predicate(goal, 0);
             };
             let integer = self.integer_constant()?;
@@ -281,7 +282,7 @@ impl Denotation {
         let l = self.source_normal_integer(left, 0)?;
         let r = self.source_normal_integer(right, 0)?;
         let normal = self.order_term_application(false, l.term, r.term)?;
-        let Some(evidence) = self.source_composed_order(normal, premises, laws)? else {
+        let Some(evidence) = self.source_composed_order(normal, search)? else {
             return Ok(None);
         };
         let integer = self.integer_constant()?;
@@ -369,6 +370,7 @@ impl Denotation {
                 laws.push(law);
             }
         }
+        let mut search = OrderSearch::new(&orders, &laws);
         let Some(mut proof) = self.source_rewrite_proof(goal, &identities, |this, rewritten| {
             let rewritten = this.source_normal_proposition(rewritten, 0)?;
             for &(proposition, evidence) in &rewritten_premises {
@@ -388,7 +390,7 @@ impl Denotation {
                 let mut proofs = Vec::new();
                 let mut complete = true;
                 for &condition in &application.conditions {
-                    let Some(proof) = this.source_composed_order(condition, &orders, &laws)? else {
+                    let Some(proof) = this.source_composed_order(condition, &mut search)? else {
                         complete = false;
                         break;
                     };
@@ -407,7 +409,7 @@ impl Denotation {
                 }
                 return Ok(Some(evidence));
             }
-            this.source_symbolic_goal(rewritten, &orders, &laws)
+            this.source_symbolic_goal(rewritten, &mut search)
         })?
         else {
             return Ok(None);

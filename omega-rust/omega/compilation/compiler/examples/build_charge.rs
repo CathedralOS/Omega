@@ -1895,7 +1895,8 @@ fn project_session_lifecycle() {
         orchestration::BuildSession::create(&temporary.path().join("limited")).unwrap();
     let sponsor = session.resources().evaluation_sponsor().clone();
     // Model earlier work spending the invocation's entire result allowance.
-    // Source discovery must use this same sponsor and refuse its own result.
+    // Source discovery must use this same sponsor. Its Core supplier runs
+    // first and must refuse before the application Build can start.
     let maximum = sponsor.limits().maximum_result_storage_cells();
     sponsor
         .begin_invocation(sponsor.measurement(), 1)
@@ -1903,23 +1904,21 @@ fn project_session_lifecycle() {
         .charge_result_custody(maximum, 0)
         .unwrap();
     let before_source_counts = build_execution_counts::BuildExecutionCounts::capture();
+    let builds_before_refusal = counters::build_execution_count();
     let error = resolve_sources(&mut session, preparation(), profile)
         .err()
         .expect("source work cannot replenish a spent allowance");
-    match error {
-        orchestration::ProjectSourceResolutionError::Compilation(failure) => {
-            let diagnostics = failure.into_diagnostics();
-            assert!(
-                diagnostics.iter().any(|diagnostic| diagnostic
-                    .message
-                    .contains("evaluation ResultCustody allowance exhausted")),
-                "{diagnostics:?}"
-            );
-        }
-        error => panic!("expected shared result budget refusal: {error:?}"),
-    }
+    let orchestration::ProjectSourceResolutionError::Source(reason) = error else {
+        panic!("expected shared result budget refusal: {error:?}");
+    };
+    assert!(
+        reason.contains("evaluation ResultCustody allowance exhausted"),
+        "{reason}"
+    );
     assert_eq!(sponsor.consumed_result_storage_cells(), maximum);
-    assert_eq!(before_source_counts.source_build_delta(), 1);
+    assert_eq!(counters::build_execution_count(), builds_before_refusal + 1);
+    assert_eq!(before_source_counts.provider_defaults_delta(), 1);
+    assert_eq!(before_source_counts.source_build_delta(), 0);
     session.close().unwrap();
     let before = counters::build_execution_count();
     let error = resolve_sources(&mut session, preparation(), profile)
