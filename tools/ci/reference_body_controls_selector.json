@@ -1,0 +1,82 @@
+{
+  "kind": "Exact current sixteen nonignored Unit/catalog controls in two prefixes; previous eleven plus five opaque graph controls",
+  "source": "221e4b320fa7a34f24ab8fde9c2efa5105b8a77d",
+  "expected_total_passes": 16,
+  "owner_source_map_sha256": "b6bc88cc95229cd57c9c57bf03faa51d351bca8c6d899714d0e81912c68dadbc",
+  "groups": [
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "reference_outputs::",
+      "expected_nonignored_passes": 11,
+      "test_names": [
+        "reference_outputs::tests::performed_reborrow_and_ordinary_relay_retain_the_actual_parent",
+        "reference_outputs::tests::two_exported_reborrows_keep_the_immediate_parent_edge",
+        "reference_outputs::tests::equal_backing_cannot_make_two_exclusive_children_siblings",
+        "reference_outputs::tests::missing_and_active_recursive_bodies_do_not_supply_empty_outputs",
+        "reference_outputs::tests::known_unchanged_stored_slots_keep_a_complete_entry_graph",
+        "reference_outputs::tests::performed_move_and_refill_keep_the_transferred_occurrence",
+        "reference_outputs::tests::parent_reseating_does_not_redirect_an_exported_child",
+        "reference_outputs::tests::owned_ingress_formation_keeps_the_parent_until_the_child_ends",
+        "reference_outputs::result_composition_tests::access_factory_region_result_keeps_capture_through_relay_and_stored_output",
+        "reference_outputs::result_composition_tests::inconsistent_performed_factory_backing_cannot_donate_a_stored_capture",
+        "reference_outputs::unchanged_ingress_tests::unchanged_borrowed_holder_returns_when_reachable_pointer_array_exceeds_inventory"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests.rs",
+          "sha256": "bae613fd63fc0a3b25a95814a486cdbfd998fb81aa7448e302c6dc6fc91d3255"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/result_composition_tests.rs",
+          "sha256": "58a607806bd5e8a7167720bda8baab9a346eeaaefaa5c2118cbc727911578e9f"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/unchanged_ingress_tests.rs",
+          "sha256": "7dd117df1eb7ab95c86fdcbcd3bcfb97a11644084cc08aa6f67bf2e09a960860"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs.rs",
+          "sha256": "d3e68bb7a7fb2a2d23dab7f8852c5d235d82eec96667d9879975ebbedea7affe"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    },
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "unit_validation::structural_catalog::opaque_referent_tests::",
+      "expected_nonignored_passes": 5,
+      "test_names": [
+        "unit_validation::structural_catalog::opaque_referent_tests::registered_opaque_reference_targets_survive_unit_ownership_validation",
+        "unit_validation::structural_catalog::opaque_referent_tests::unregistered_reference_targets_remain_invalid",
+        "unit_validation::structural_catalog::opaque_referent_tests::registered_opaque_targets_cannot_supply_owned_storage",
+        "unit_validation::structural_catalog::opaque_referent_tests::registered_opaque_targets_do_not_enable_write_only_references",
+        "unit_validation::structural_catalog::opaque_referent_tests::concrete_reference_cycles_remain_invalid"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/structural_catalog/opaque_referent_tests.rs",
+          "sha256": "b28480581fb66c232596c33c52f0f762e0e752b72b9044cb82114c00c995db7f"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/structural_catalog/mod.rs",
+          "sha256": "1e16a5fc5b560886ea92e5abc034ed0c67d76d2ba63d8cd74fbb1b02e3de5fdf"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
