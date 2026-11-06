@@ -15306,7 +15306,7 @@ fail/host/process_exit_reach_keeps_return_obligations rejected 2609ms expected @
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/host/returning_exit_spelling_keeps_linear_obligations rejected 1963ms expected @ccdb99ca2214
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
-fail/inline_asm/asm_cli_requires_machine_authority rejected 197ms expected @ccdb99ca2214
+fail/inline_asm/asm_cli_requires_machine_authority rejected 1714ms expected @baac73bc4049
 	machine `Main::main` uses asm instruction `cli`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_deriver_only_exit rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/inline_asm/asm_deriver_only_exit/main.omg:6:11: asm instruction `iretq` is deriver-only: user-authored assembly may not spell entry/exit protocol operations or manufacture an unmodeled control exit
@@ -15330,7 +15330,7 @@ fail/inline_asm/asm_msr_index_width rejected 796ms expected @0af7c594a1c0
 	asm instruction `rdmsr` operand `MSR index` requires an exact `u32` for target register `ecx`, found `u64`
 fail/inline_asm/asm_msr_machine_authority rejected 452ms expected @0af7c594a1c0
 	machine `Main::main` uses asm instruction `wrmsr`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_port_io_service_required rejected 3482ms expected @03522ca11fdf
+fail/inline_asm/asm_port_io_service_required rejected 3148ms expected @baac73bc4049
 	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/inline_asm/asm_port_out_wrong_value_type rejected 2669ms expected @ccdb99ca2214
 	asm instruction `out` operand `value` requires an exact `u8` for target register `al`, found `u16`
@@ -15339,6 +15339,9 @@ fail/inline_asm/asm_runtime_register_excluded_port_io rejected 6189ms expected @
 	authority subject `toolchain::PortIo` exercises excluded physical authority class PortIo through mechanism CompilerIntrinsic(BuiltinFunction(AsmPortOut))
 fail/inline_asm/asm_runtime_register_wrong_target rejected 6098ms expected @0af7c594a1c0
 	native artifact provider supply failed: reachable machine `nominal(package-owner(32:2edfa8c9eaa87af8be6fd1bb6bc34b0bdf127c0f47bd777a1d19d70478695716),path(Main::main))` carries checked assembly whose catalog requires x86_64, which the realized target `linux_arm64` does not provide; scope that assembly to a target the catalog admits for x86_64, or build a target that provides it
+fail/inline_asm/asm_service_requires_core_owner rejected 3235ms expected @baac73bc4049
+	machine `halt` uses asm instruction `hlt`, which reaches canonical service `MachineControl`, but that service identity is unavailable: the core service is unavailable in this body's dependency context; add `use omega::language::core::assembly;`
+	machine `write_port` uses asm instruction `out`, which reaches canonical service `PortIo`, but that service identity is unavailable: the core service is unavailable in this body's dependency context; add `use omega::language::core::assembly;`
 fail/inline_asm/asm_sti_requires_machine_authority rejected 288ms expected @03522ca11fdf
 	machine `main` uses asm instruction `sti`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_system_register_destination_predicate rejected 6794ms expected @46cdd6b85b82+wt
@@ -26077,7 +26080,7 @@ pass/inline_asm/asm_aarch64_system_registers_compile checked 4578ms check-target
 pass/inline_asm/asm_block_jmp_state checked 3230ms check-target:macos_arm64 @ccdb99ca2214
 pass/inline_asm/asm_exact_clobbers checked 4527ms @0af7c594a1c0
 pass/inline_asm/asm_interrupt_control_compositions_compile checked 5303ms check-target:linux_x86_64 @bcfb0351ebd9
-pass/inline_asm/asm_machine_control_wrapper_reach checked 3375ms @ccdb99ca2214
+pass/inline_asm/asm_machine_control_wrapper_reach checked 5429ms @baac73bc4049
 pass/inline_asm/asm_memory_transfer checked 4217ms @ccdb99ca2214
 pass/inline_asm/asm_memory_transfer_compile checked 3528ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/inline_asm/asm_msr_multi checked 4572ms @0af7c594a1c0

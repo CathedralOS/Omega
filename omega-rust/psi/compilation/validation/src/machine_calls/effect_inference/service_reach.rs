@@ -118,6 +118,7 @@ pub(crate) fn infer_service_reaches_uncached(
     program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
+    let assembly_services = super::super::assembly_services::AssemblyServices::new(program);
     let contexts = &operational.selected_call_contexts;
     let mut declaration_contexts = symbols::SymbolKeyMap::default();
     for (handle, context) in contexts.contexts.iter() {
@@ -133,7 +134,13 @@ pub(crate) fn infer_service_reaches_uncached(
             .get(&machine.symbol)
             .copied()
             .unwrap_or_else(Handle::invalid);
-        work.push(machine_reach_work(program, operational, machine, context));
+        work.push(machine_reach_work(
+            program,
+            operational,
+            machine,
+            context,
+            &assembly_services,
+        ));
     }
 
     let work_index = work
@@ -164,7 +171,13 @@ pub(crate) fn infer_service_reaches_uncached(
             continue;
         };
         set_context_work(&mut context_work, handle, work.len());
-        work.push(machine_reach_work(program, operational, machine, handle));
+        work.push(machine_reach_work(
+            program,
+            operational,
+            machine,
+            handle,
+            &assembly_services,
+        ));
     }
     let call_targets = |call: &MachineReachCall| -> Vec<usize> {
         match &call.selected {
@@ -476,6 +489,7 @@ fn machine_reach_work(
     operational: &OperationalPlan,
     machine: &typed_trees::machine::Machine,
     context: Handle<SelectedCallContext>,
+    assembly_services: &super::super::assembly_services::AssemblyServices,
 ) -> MachineReachWork {
     let contexts = &operational.selected_call_contexts;
     let family_members = super::family_interface_members(program, machine)
@@ -560,7 +574,12 @@ fn machine_reach_work(
                 let call_reach = if selected_dispatch {
                     DirectServiceReach::default()
                 } else {
-                    direct_service_reach_for_operational_call(program, call)
+                    direct_service_reach_for_operational_call(
+                        program,
+                        machine.symbol,
+                        call,
+                        assembly_services,
+                    )
                 };
                 extend_service_set(&mut direct, &call_reach.services);
                 extend_service_set(&mut concrete_direct, &call_reach.concrete_services);
@@ -753,8 +772,32 @@ fn retained_contract_view<'program>(
 
 fn direct_service_reach_for_operational_call(
     program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
     call: &flow_effects::CallOperational,
+    assembly_services: &super::super::assembly_services::AssemblyServices,
 ) -> DirectServiceReach {
+    // Assembly is an unnameable builtin occurrence. Its body supplies the
+    // dependency context; the builtin's global symbol cannot supply one.
+    if let Some(function) = program
+        .symbols
+        .builtin_function_for_symbol(call.target_state_symbol)
+        && function.is_asm_intrinsic()
+    {
+        let mut reach = DirectServiceReach::default();
+        if let Some(service_name) = function.asm_intrinsic_service_name()
+            && let Ok(service) = assembly_services.resolve(program, owner, service_name)
+        {
+            program
+                .service_reaches
+                .extend_closure(service, &mut reach.services);
+            reach.services.sort_by_key(|service| service.0);
+            reach.services.dedup();
+            reach.concrete_services = reach.services.clone();
+        }
+        // Missing or ambiguous declarations retain their exact diagnostic in
+        // validate_asm_intrinsic_declarations; no service or authority is invented.
+        return reach;
+    }
     let mut reach = direct_service_reach_for_call(program, call.target_state_symbol);
     // Selection substitutes nominal reach only. Structural requirements
     // remain fixed even when the selected implementation has a smaller row.
@@ -950,27 +993,6 @@ fn direct_service_reach_for_call(
         .map_or(target, |slot| slot.requirement);
     let mut reach = DirectServiceReach::default();
     if !target.is_valid() {
-        return reach;
-    }
-
-    // Inline assembly is an unnameable builtin call whose instruction
-    // contract reaches a canonical boundary-service identity. Resolve that
-    // identity through the same symbol-backed table as authored `reaches`
-    // rows; never consult the lowercase/u64 compatibility catalog here. Each
-    // builtin slot names one function, so the target's own slot selects it.
-    if let Some(function) = program.symbols.builtin_function_for_symbol(target)
-        && function.is_asm_intrinsic()
-    {
-        if let Some(service_name) = function.asm_intrinsic_service_name()
-            && let Some(service) = program.service_reaches.id_for_name(service_name)
-        {
-            program
-                .service_reaches
-                .extend_closure(service, &mut reach.services);
-            reach.services.sort_by_key(|service| service.0);
-            reach.services.dedup();
-            reach.concrete_services = reach.services.clone();
-        }
         return reach;
     }
 
