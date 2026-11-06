@@ -35,6 +35,19 @@ impl Execution<'_, '_, '_> {
                 .operand_retained_paths
                 .insert_many(path.iter().copied()),
         };
+        let actual = self.context.control.calls.get(invocation);
+        // Each result field is observed after this call returns. Preserve its
+        // active permissions beside the field coordinate, including in every
+        // retained alternative; an empty default cut loses the returned loan.
+        let completed_result = FlowOperandFact {
+            completion,
+            expression: actual.authored_expression,
+            state_symbol: self.state.symbol,
+            statement_index: actual.statement_index,
+            storage_snapshot: self.storage_snapshot,
+            constraints: actual.exit_constraints,
+            ..Default::default()
+        };
         self.returned_descriptor(
             call,
             inputs,
@@ -42,7 +55,7 @@ impl Execution<'_, '_, '_> {
             path,
             retention,
             source_snapshot,
-            completion,
+            completed_result,
         )
         .or_else(|| {
             self.capture_returned_region_descriptor(
@@ -52,7 +65,7 @@ impl Execution<'_, '_, '_> {
                 path,
                 retention,
                 source_snapshot,
-                completion,
+                completed_result,
             )
         })
         .unwrap_or_default()
@@ -66,7 +79,7 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
-        completion: FlowOperandCompletion,
+        completed_result: FlowOperandFact,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
         let state = validation::call_target_state(self.program, target)?;
@@ -131,7 +144,9 @@ impl Execution<'_, '_, '_> {
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
             inputs.get(position)?;
-            let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
+            let FlowOperandCompletion::InvocationResult { invocation, .. } =
+                completed_result.completion
+            else {
                 return None;
             };
             let actual = self
@@ -299,13 +314,9 @@ impl Execution<'_, '_, '_> {
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {
                 type_reference: reference,
-                completion,
-                state_symbol: self.state.symbol,
-                statement_index: self.statement_index,
-                storage_snapshot: self.storage_snapshot,
                 referents,
                 retention,
-                ..Default::default()
+                ..completed_result
             });
         }
         if alternatives.len() == 1 {
@@ -341,13 +352,9 @@ impl Execution<'_, '_, '_> {
             .alternatives = alternatives;
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
-            completion,
-            state_symbol: self.state.symbol,
-            statement_index: self.statement_index,
-            storage_snapshot: self.storage_snapshot,
             referents,
             retention,
-            ..Default::default()
+            ..completed_result
         }))
     }
 

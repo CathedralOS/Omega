@@ -112,9 +112,26 @@ fn resolve_opaque(
                 crate::flow::canonical_place_segments_equal(program, *left, *right)
             })
     });
-    let permission = permissions
-        .next()
-        .ok_or("the completed result has no active permission for this reference field")?;
+    let Some(permission) = permissions.next() else {
+        if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
+            eprintln!(
+                "returned-reference-permission-refused call={call:?} expression={:?} path={path:?} expected_type={selected:?} expected_access={access:?} capture={capture:?}",
+                invocation.authored_expression,
+            );
+            for loan in checked.completed_reference_loans.handles().take(12) {
+                let row = facts.borrow.loans.get(loan);
+                let incoming = facts
+                    .borrow
+                    .incoming_references
+                    .is_valid(row.incoming_reference)
+                    .then(|| facts.borrow.incoming_references.get(row.incoming_reference));
+                eprintln!(
+                    "returned-reference-permission-candidate loan={loan:?} row={row:?} incoming={incoming:?}"
+                );
+            }
+        }
+        return Err("the completed result has no active permission for this reference field");
+    };
     if permissions.next().is_some() {
         return Err("the completed result has ambiguous reference permissions");
     }
