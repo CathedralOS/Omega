@@ -24,9 +24,21 @@ CONSUMER = CI / 'qualify_current_frozen_controls.py'
 PINS = {
     ARCHIVE: '33a324fbe0f993a119a2cd14e54131806af915b8ab4891fceb1d47b872942a06',
     TRANSPORT: '7fdac256d292b9b6adc87882f23f356e9526c38b758f78a3e2cd055c92ddfa12',
-    CONSUMER: 'd1917ac12cb7e0e366cb840194014158ab48ce8f93d157639076fc7e09f7b66e',
+    CONSUMER: '5ac3700ef1395e00a455f21d8e704cf9dbcaf4a4d33f41514c797571fa5819ac',
 }
 COMPILER_SOURCE = '2e9a696a90f329dccb6e0cc40b5cb610e7ed98b6'
+EXPECTED_INPUT_OBJECTS = {
+    'omega-rust': 'e7dc5cdcae0a676b3b5017e13fc8b5ae76d9b0c0',
+    'source/library': '0d8f76e96537348f44a8e168d83f4d1cc46f7548',
+    'source/psi': '400feb4e6c0c556f0fd5d6b44043e92f93d7f30c',
+    'source/omega': '96169168741fcd8265771a647ba3bfadd2bc7e8c',
+    'bootstrap': '42230c0aa7138a175590d9dd6a57d8ee71934df1',
+    'tools/benchmark': '6c1a4399e3f037c808a23ad59825e76664482e2f',
+    'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+    'Cargo.lock': 'e881ca0c250750753b5cf7294ce69621add8dfee',
+    'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929',
+    '.cargo': None,
+}
 
 
 def sha(path):
@@ -109,18 +121,10 @@ def main():
     assert preparation['passed'] is True and preparation['candidate'] == revision
     producer = preparation['producer']
     assert producer['revision'] == revision
-    # A shallow CI checkout lacks the earlier source commit used by both
-    # input checks. Fetch that exact commit without changing the checkout.
-    source_fetch = ['fetch', '--no-tags', '--depth=1', 'origin', COMPILER_SOURCE]
-    receipt['compiler_source_fetch'] = {'command': ['git', *source_fetch], 'passed': False}
-    retain()
-    git(*source_fetch)
-    assert git('rev-parse', COMPILER_SOURCE + '^{commit}') == COMPILER_SOURCE
-    receipt['compiler_source_fetch']['passed'] = True
-    retain()
-    compiler_inputs = {name: git('rev-parse', COMPILER_SOURCE + ':' + name, optional=True)
-                       for name in consumer.INPUT_PATHS}
-    assert all(value is not None for name, value in compiler_inputs.items() if name != '.cargo')
+    # The checkpoint is unpublished. Use its reviewed object roster, as the
+    # focused Rust-test consumer does, and compare every current checkout row.
+    assert set(EXPECTED_INPUT_OBJECTS) == set(consumer.INPUT_PATHS)
+    compiler_inputs = dict(EXPECTED_INPUT_OBJECTS)
     library = ROOT / 'source/library'
     library_inputs = {name: sha(ROOT / name) for name in git('ls-files', '-z', '--', 'source/library').split('\0') if name}
     library_modules = {name for name in library_inputs if name.endswith('.omg')}
@@ -234,7 +238,7 @@ def main():
     consumer_code = None
     try:
         sys.argv = list(receipt['consumer_arguments'])
-        consumer_code = consumer.main()
+        consumer_code = consumer.main(expected_input_objects=compiler_inputs)
         assert isinstance(consumer_code, int)
     except BaseException as error:
         receipt['consumer_error'] = type(error).__name__ + ': ' + str(error)

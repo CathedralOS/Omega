@@ -169,7 +169,7 @@ def owned_process_tree(process):
             process.wait(timeout=10)
 
 
-def main():
+def main(*, expected_input_objects=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--preparation', required=True, type=Path)
     parser.add_argument('--expected-compiler-source', required=True)
@@ -207,12 +207,17 @@ def main():
     machine = 'x86_64' if machine in {'amd64', 'x86_64'} else machine
     system = {'darwin': 'macos', 'windows': 'windows', 'linux': 'linux'}[platform.system().lower()]
     assert producer['target'] == system + '_' + machine
-    source_inputs = {
+    # CI may carry the reviewed checkpoint's exact object roster without its
+    # unpublished commit. Current checkout objects must still match every row.
+    source_inputs = ({
         name: git('rev-parse', args.expected_compiler_source + ':' + name, optional=True)
         for name in INPUT_PATHS
-    }
+    } if expected_input_objects is None else dict(expected_input_objects))
+    assert set(source_inputs) == set(INPUT_PATHS)
     # Only the historically absent .cargo path may lack an object.
-    assert all(value is not None for name, value in source_inputs.items() if name != '.cargo')
+    assert all((name == '.cargo' and value is None)
+               or (isinstance(value, str) and re.fullmatch(r'[0-9a-f]{40}', value))
+               for name, value in source_inputs.items())
     cli = Path(producer['cli'])
     runner = Path(producer['runner'])
     assert require_optimized(cli) == producer['cli_profile']
