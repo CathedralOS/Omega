@@ -28,6 +28,7 @@ impl ConstructorIdentity {
         definition: &DataDefinition,
         variant: Option<&DataVariant>,
     ) -> Option<Self> {
+        let _profile = phase_profile::guard("psi.05.constructor_identity.nominal");
         let member = match variant {
             Some(variant) => Some(program.data_members(definition).iter().position(|member| {
                 matches!(member, DataMember::Variant(selected) if selected.symbol == variant.symbol)
@@ -56,6 +57,7 @@ impl ConstructorIdentity {
         definition: &DataDefinition,
         variant: Option<&DataVariant>,
     ) -> Option<Self> {
+        let _profile = phase_profile::guard("psi.05.constructor_identity.at_reference");
         let reference = program
             .type_reference_table
             .unconstrained_type_reference(reference);
@@ -143,6 +145,7 @@ impl ConstructorIdentity {
         declaration: SymbolHandle,
         case: SymbolHandle,
     ) -> Option<bool> {
+        let _profile = phase_profile::guard("psi.05.constructor_identity.matches_case");
         let Self::Nominal {
             reference,
             declaration: observed,
