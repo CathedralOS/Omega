@@ -1,25 +1,81 @@
 # Fixed-layout reference readback
 
+These programs store a reference beside an integer, load both, and return them
+after the temporary storage holder is gone. The caller checks that the reference
+still reaches the original value and that the neighboring integer is unchanged.
+The returned reference must retain both its input lifetime and its exact layout
+policy; matching size and alignment do not make two policies interchangeable.
+
 Parent: **LIBRARY-REPRESENTATION-FAMILIES**.
 
 **A reference loaded from fixed-layout storage retains its selected representation policy and live referent while the adjacent integer field keeps its value.**
 
-The generic supplier writes the input reference and scalar 7 into the existing `EnvelopeLayout` representation, then loads both into an ordinary `Readback` carrier. Its declared output region remains the input pointer's region. A separate caller consumes the returned carrier after the temporary laid holder is gone, observing pointee 43 and scalar 7. Both independent input regions remain explicit; the consumer supplies the carrier's declared lifetime argument.
+`update` writes the input pointer and scalar 7 into `EnvelopeLayout`, then returns
+them in `Readback`. The caller checks pointee 43 and scalar 7. A separate input
+with value 23 gives the rejection controls an independent lifetime to name.
+The integer occupies eight bits at offset 0; the reference starts at offset 8.
+The selected policy remains `PayloadLayout<7>` throughout the positive programs.
 
-The [policy twin](invalid/main.omg) changes only the loaded reference's destination policy to `PayloadLayout<8>`, while the caller still supplies 7. Both policies have size 8 and alignment 8; equal geometry does not make the applications interchangeable. The [region twin](wrong_region/main.omg) changes only the returned carrier's region from the pointer input to the independent storage input. It rejects because the returned view still borrows `pointer`, which the changed result relation does not permit.
+The [root program](main.omg) and these nine places carry the same fact:
 
-Optimized Rust producer `a070c131d52ba72ae94e6824ef2d8d0099fa697b` (Mac ARM64, image `84888d4736958ccf25572325932c9c1d7cac39ebd63d3c833b29708a52dffd08`) observes native/Terminal exit-zero agreement and both intended refusals in 46 seconds. This behavior already works on that retained producer; this change adds executable coverage and corrects the previously unqualified board frontier, without a compiler repair or rebuild. The earlier 33-second direct-read observation used the simpler pre-returned-carrier source and retains its own identity.
+| Place | Positive | Wrong returned lifetime |
+| --- | --- | --- |
+| Local | [program](local/main.omg) | [control](local/invalid/main.omg) |
+| Field | [program](field/main.omg) | [control](field/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg) | [control](parameter/invalid/main.omg) |
+| Call result | [program](call_result/main.omg) | [control](call_result/invalid/main.omg) |
+| Match join | [program](match_join/main.omg) | [control](match_join/invalid/main.omg) |
+| Named constant inputs | [program](const_name/main.omg) | [control](const_name/invalid/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [control](other_state/invalid/main.omg) |
+| Another machine | [program](other_machine/main.omg) | [control](other_machine/invalid/main.omg) |
+| Build-selected implementation | [program](target_body/main.omg) | [control](target_body/invalid/main.omg) |
 
-The first transport batch establishes [local](local/main.omg), [field](field/main.omg) and [parameter](parameter/main.omg), each with a returned-region-only twin. The field place carries the complete result inside `ReadbackField`; the parameter place passes the complete result to a generic inspector. Local/parameter and their twins pass on the same retained producer in the original 43-second scoped run. The field pair, corrected to avoid the imported layout module's public `Observation` name, passes in 36 seconds. The original mixed run retains its field-name failure; it is not relabeled as a wholly successful run.
+The [root lifetime control](../../../../tests/omega/fail/facts/fixed_layout_reference_readback_wrong_region_rejected/main.omg)
+changes only the returned carrier's lifetime from the pointer input to the
+independent storage input. It must reject because the returned view still borrows
+`pointer`. The [policy control](../../../../tests/omega/fail/facts/fixed_layout_reference_readback_wrong_policy_rejected/main.omg)
+changes only the loaded reference's destination policy to `PayloadLayout<8>`.
+Policies 7 and 8 both have size 8 and alignment 8, but the reference must retain
+its exact policy application.
 
-The second batch establishes [call result](call_result/main.omg), [match join](match_join/main.omg) and [named constant inputs](const_name/main.omg), with the same output-region-only twins. The consumer takes the call result directly; both match arms execute; named inputs supply policy 7, scalar 7 and pointee 43 while the receiving type retains literal policy 7. The same retained producer observes all three native/Terminal exits and intended refusals in 75 seconds. No compiler rebuild was needed.
+The November 6 runs below executed all ten corpus positives with native and
+Terminal Psi exit 0. Each also ran the projects for another machine and the
+selected implementation through ordinary CLI package admission and
+`omega run --both`, with both engines exiting 0. The programs, Builds and expected
+results were frozen before execution and were unchanged between these producer
+revisions.
 
-The final batch establishes [nested machine](other_state/main.omg), [another machine](other_machine/main.omg) and [selected target implementation](target_body/main.omg). The nested consumer takes an explicit carrier argument; the relay returns the complete carrier into the original backing; ordinary Build rows select named consumers for each target. The nested pair passes on the retained `a070c131d52…` producer in the 45-second mixed run, which also records the original relay and target refusals.
+| Native host | Producer revision | Run |
+| --- | --- | --- |
+| Linux x64 | `d06663879aa63b6bc34b3b7cb2ab49b3e3851ad7` | [42285229154](https://github.com/CathedralOS/Omega/actions/runs/42285229154) |
+| Linux ARM64 | `bc53b23707f6d8db0843cf7e4d65f8bae61fecc0` | [42289025627](https://github.com/CathedralOS/Omega/actions/runs/42289025627) |
+| Windows x64 | `bc53b23707f6d8db0843cf7e4d65f8bae61fecc0` | [42289030188](https://github.com/CathedralOS/Omega/actions/runs/42289030188) |
 
-The relay originally counted a definite owned call transfer and a Source exit-disposal permission as two retirements. Accounting now excludes only that permission after the transfer; explicit moves and physical cleanup remain independent. The selected-target signature originally lost its authored policy occurrence after its trait left a private projection. Exact omitted-trait descriptions now use the ordinary signature traversal, preserving evidence without adding execution roots or sidecar authority.
+All three full runs remain **failed**: all eleven invalid controls rejected, and all
+ten lifetime controls matched their required diagnostics, but the policy control
+missed its required message fragment. Its pin says `PayloadLayout<const 8>`;
+the compiler reports `PayloadLayout<8>` in the same type-mismatch diagnostic.
+That pin is unchanged, the failed control is excluded from new source records,
+and this runtime evidence does not close the full row or the parent task.
+The existing platform goldens retain actual runtime results with their measured
+producer revision; source-check records include only the twenty successful rows.
 
-Optimized Rust producer `363cb9e6a2200663ea536e700352df48167908a9` (Mac ARM64, image `1c69c8ae906f093b759f4d0094a613f5105a12fd7a4f7a1c21895edc2a84a1b9`) executes both unchanged positives with native/Terminal exit-zero agreement and both twins match the intended returned-region refusal in 49 seconds. Its one changed compiler build took 1,325.79 seconds; the seven unaffected placements retain their earlier producer identities and observations. The original mixed report remains failed, and the diagnostic-only source nonce was restored before acceptance.
+Earlier Mac ARM64 evidence remains tied to its original producers. Producer
+`a070c131d52ba72ae94e6824ef2d8d0099fa697b` (image
+`84888d4736958ccf25572325932c9c1d7cac39ebd63d3c833b29708a52dffd08`)
+ran the root and seven places. Producer
+`363cb9e6a2200663ea536e700352df48167908a9` (image
+`1c69c8ae906f093b759f4d0094a613f5105a12fd7a4f7a1c21895edc2a84a1b9`)
+ran the relay and selected implementation after their compiler repairs. The
+original mixed runs that found those refusals remain failed. These are retained
+Mac observations, not executions of the November 6 producer.
 
-All four hosted ProgramEntry bindings and exact corpus mirrors are present. The root, all nine transport places and their region-only twins are established on Mac ARM64. Other-host execution, broader reference compositions and the parent capability remain open. It does not qualify arbitrary descriptor bytes, mutable-reference transport, byte roundtrips or authority reconstructed from an address.
+All four hosted ProgramEntry bindings and corpus mirrors are present. The match
+place supplies inputs for both branch conditions, but its identical arm results
+do not test branch discrimination. Broader reference compositions, arbitrary
+descriptor bytes, mutable references, byte roundtrips and authority reconstructed
+from an address are outside this evidence.
 
-Rules: [representation applications](../../../../wiki/spec/layouts/plans.md#representation-applications), [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and [carried-loan transport](../../../../wiki/spec/language/lifetimes.md#carried-loan-transport).
+Rules: [representation applications](../../../../wiki/spec/layouts/plans.md#representation-applications),
+[returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and
+[carried-loan transport](../../../../wiki/spec/language/lifetimes.md#carried-loan-transport).
