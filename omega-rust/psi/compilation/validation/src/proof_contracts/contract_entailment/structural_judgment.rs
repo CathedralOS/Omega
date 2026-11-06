@@ -49,7 +49,9 @@ pub(in crate::proof_contracts::contract_entailment) use traversal_inputs::Struct
 mod value_correspondence;
 mod value_predicates;
 
-pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
+pub(crate) use licenses::{
+    EntryMachines, LicenseCandidates, declared_index_algebra_laws, literal_index_identities,
+};
 use licenses::{
     RingLicense, SemiringLicense, additive_addends, fold_scalar_binary, polynomial_normal_form,
     sorted_multiset_subtract, term_uses_application,

@@ -49,7 +49,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
 - **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises end to end ([executable supply](wiki/spec/language/expressions.md#executable-supply), [contracts.md](wiki/spec/proofs/contracts.md#licensed-normalization)).
-  - Implement literal-linked index identities (`N + 0`, `N * 1`) and 64-summand canonical index normalization.
+  - Implement 64-summand canonical index normalization.
   - Carry generic compatibility through specialization, retire the `operator` introducer ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)), and lower `f64 in D` / `i32 in D` operator shapes.
   Acceptance: `declared_operator_match_result` and `body_bearing_comparison`/`generic_comparison_body`/`open_index_distributivity` pass `--both`.
 

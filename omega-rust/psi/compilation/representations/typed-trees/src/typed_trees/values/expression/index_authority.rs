@@ -46,6 +46,14 @@ pub struct OpenIndexOperationSelection {
     /// law slots. The consuming conformance proves the law, so the evidence is
     /// the pair of selections sharing one provider, never the spelled `*` and `+`.
     pub distributes_over: Vec<String>,
+    /// Decimal text of the integer literal a checked left-identity law removes.
+    /// Empty unless the same selected conformance also connects that law's
+    /// nullary slot to this exact literal (`zero() == 0`). A direct
+    /// `add(value, 0) == value` law does not fill this field.
+    pub left_identity_literal: String,
+    /// Decimal text of the integer literal a checked right-identity law removes,
+    /// under the same nullary-to-literal connection as `left_identity_literal`.
+    pub right_identity_literal: String,
 }
 
 impl OpenIndexOperationSelection {
