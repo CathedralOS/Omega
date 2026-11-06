@@ -262,6 +262,16 @@ Outcome-specific guarantees follow the matching nominal result case and remain
 separate from unconditional guarantees, as specified in
 [proof availability](../proofs/contracts.md#identity-availability-and-erasure).
 
+For [contract-based repair](dependent_values.md#contract-based-repair), a
+successor's checked `ensures` may establish the enclosing machine's completion
+promise on the exact borrowed subject. Its `requires` and parameter/default
+domains must hold before entry; its postconditions become usable only for the
+matching completed outcome. The lender's qualification and restoration duty
+remain attached to the original storage through intermediate transfers.
+Neither weakening the displayed view nor composing a future guarantee makes
+the qualification true during repair. Existing well-founded recursion rules
+govern cyclic compositions; a promise cannot prove itself.
+
 A call used as a total predicate term requires termination and absence of crash
 routes. Equality conditional on normal runtime return does not establish total
 denotation. Repeated calls need effect- and observation-free semantics plus exact
