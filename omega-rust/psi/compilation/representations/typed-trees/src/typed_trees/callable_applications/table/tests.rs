@@ -124,9 +124,9 @@ fn clones_replacement_and_record_recovery_keep_their_own_associations() {
         let old_write = compiler_storage::encode(&prior, limits);
         let new_write = compiler_storage::encode(&table, limits);
         assert_eq!(old_write.is_ok(), new_write.is_ok(), "write depth {depth}");
-        if old_write.is_ok() {
+        if let Ok(old_bytes) = old_write {
             saw_write_success = true;
-            assert_eq!(old_write.unwrap(), new_write.unwrap());
+            assert_eq!(old_bytes, new_write.unwrap());
         }
         let old_read = compiler_storage::decode::<PriorTableRecord>(&encoded, limits);
         let new_read = compiler_storage::decode::<AppliedCallableTable>(&encoded, limits);
