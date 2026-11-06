@@ -8,7 +8,7 @@ machine compute(counter: &mut u64, root: Root) -> u64
 requires counter == 0
 ensures result == root.index
 {
-    counter = 1;
+    counter = counter + 1;
     root.index
 }
 
