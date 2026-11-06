@@ -111,6 +111,26 @@ impl CarriedPredicate {
 }
 
 impl QualifiedInput {
+    /// A selected callable's admitted entry condition, already substituted to
+    /// the selected body's parameter. It inherits authority; it mints none.
+    pub(super) fn declared_contract(
+        place: validation::CanonicalPlace,
+        domain_symbol: SymbolHandle,
+        semantic_domain: language_semantics::SemanticDomainId,
+        entry: SymbolHandle,
+    ) -> Self {
+        Self {
+            subject: place.root,
+            segments: place.segments,
+            predicate: CarriedPredicate::Domain {
+                domain: HandleSpan::empty(),
+                domain_symbol,
+                semantic_domain,
+            },
+            evidence: crate::published::facts::propagated_evidence(entry),
+        }
+    }
+
     /// One integer per storage place, folded from the root's and segments'
     /// integer keys: equal subjects get equal keys. Distinct places may share
     /// a key, so `same_subject` still decides every match.

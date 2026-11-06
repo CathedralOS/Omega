@@ -129,7 +129,7 @@ impl TypedTrees {
         selected: SymbolHandle,
     ) -> bool {
         self.applied_callable_signatures
-            .iter()
+            .machine_rows(invocation)
             .any(|(_, prepared)| {
                 matches!(&prepared.owner, AppliedCallableOwner::MachineSelection {
                 invocation: source, ordinal: position, selected: entry, ..
@@ -146,45 +146,57 @@ impl TypedTrees {
         expected: &signature::StateSignature,
     ) -> Option<AppliedMachineCallable<'_>> {
         self.applied_callable_signatures
-            .iter()
-            .find_map(|(_, prepared)| {
-                let AppliedCallableOwner::MachineSelection {
-                    invocation: source,
-                    ordinal: position,
-                    demand: prepared_demand,
-                    selected: entry,
-                    provider,
-                    required,
-                    source_required,
-                    caller_operands,
-                    caller_lifetimes,
-                    ..
-                } = &prepared.owner
-                else {
-                    return None;
-                };
-                let required = required.as_ref()?;
-                (*source == invocation
-                    && *position == ordinal
-                    && *entry == selected
-                    && *prepared_demand == demand
-                    && source_required == expected)
-                    .then_some(AppliedMachineCallable {
-                        invocation,
-                        lexical_owner: self.static_machine_application(*provider).lexical_owner,
-                        provider: *provider,
-                        selected_entry: *entry,
-                        required,
-                        selected: &prepared.signature,
-                        source_required,
-                        caller_operands: self
-                            .callable_substitutions
-                            .span_or_empty(*caller_operands),
-                        caller_lifetimes: self
-                            .callable_lifetime_substitutions
-                            .span_or_empty(*caller_lifetimes),
-                    })
+            .machine_rows(invocation)
+            .find_map(|(handle, _)| {
+                let view = self
+                    .applied_machine_callable_at(super::super::AppliedMachineCallableId(handle))?;
+                (view.ordinal == ordinal
+                    && view.selected_entry == selected
+                    && view.demand == demand
+                    && view.source_required == expected)
+                    .then_some(view)
             })
+    }
+
+    /// Read a row retained by the producing owner. A retired handle or a row
+    /// without its required view supplies no contract. Consumers still compare
+    /// their full application, binder, ordinal and selected-entry correspondence.
+    pub fn applied_machine_callable_at(
+        &self,
+        identity: super::super::AppliedMachineCallableId,
+    ) -> Option<AppliedMachineCallable<'_>> {
+        let prepared = self.applied_callable_signatures.get(identity.0);
+        let AppliedCallableOwner::MachineSelection {
+            invocation,
+            ordinal,
+            demand,
+            selected,
+            provider,
+            required,
+            source_required,
+            caller_operands,
+            caller_lifetimes,
+            ..
+        } = &prepared.owner
+        else {
+            return None;
+        };
+        Some(AppliedMachineCallable {
+            identity,
+            invocation: *invocation,
+            ordinal: *ordinal,
+            demand: *demand,
+            lexical_owner: self.static_machine_application(*provider).lexical_owner,
+            provider: *provider,
+            selected_entry: *selected,
+            required: required.as_ref()?,
+            selected: &prepared.signature,
+            source_required,
+            caller_operands: self.callable_substitutions.span_or_empty(*caller_operands),
+            caller_lifetimes: self
+                .callable_lifetime_substitutions
+                .span_or_empty(*caller_lifetimes),
+        })
     }
 
     pub fn applied_machine_callable_matches(
@@ -228,7 +240,7 @@ impl TypedTrees {
         let mut mismatch = "no checking view names this exact function and requirement";
         let matches = self
             .applied_callable_signatures
-            .iter()
+            .machine_rows(invocation)
             .any(|(_, prepared)| {
                 let AppliedCallableOwner::MachineSelection {
                     invocation: source,
@@ -426,40 +438,20 @@ impl TypedTrees {
                 .is_some_and(|(left, right)| left == right)
     }
 
+    /// Prepare the immutable invocation association before a batch of reads.
+    /// This changes only derived lookup storage, never callable admission.
+    pub fn prepare_applied_machine_callable_queries(&self) {
+        self.applied_callable_signatures.prepare_index();
+    }
+
     pub fn applied_machine_callables(
         &self,
         invocation: StaticMachineApplicationHandle,
     ) -> impl Iterator<Item = AppliedMachineCallable<'_>> {
         self.applied_callable_signatures
-            .iter()
-            .filter_map(move |(_, prepared)| {
-                let AppliedCallableOwner::MachineSelection {
-                    invocation: source,
-                    selected: entry,
-                    provider,
-                    required,
-                    source_required,
-                    caller_operands,
-                    caller_lifetimes,
-                    ..
-                } = &prepared.owner
-                else {
-                    return None;
-                };
-                let required = required.as_ref()?;
-                (*source == invocation).then_some(AppliedMachineCallable {
-                    invocation,
-                    lexical_owner: self.static_machine_application(*provider).lexical_owner,
-                    provider: *provider,
-                    selected_entry: *entry,
-                    required,
-                    selected: &prepared.signature,
-                    source_required,
-                    caller_operands: self.callable_substitutions.span_or_empty(*caller_operands),
-                    caller_lifetimes: self
-                        .callable_lifetime_substitutions
-                        .span_or_empty(*caller_lifetimes),
-                })
+            .machine_rows(invocation)
+            .filter_map(|(handle, _)| {
+                self.applied_machine_callable_at(super::super::AppliedMachineCallableId(handle))
             })
     }
 }

@@ -5,6 +5,9 @@
 
 use super::{Arrival, ExpressionHandle, Machine, SymbolHandle};
 use crate::CheckingInput;
+use crate::machine_calls::machine_parameters::{
+    StaticMachineContractObligation, machine_selection_arguments, static_machine_input_parameters,
+};
 use symbols::SymbolKeyMap;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::references::TypedReferences;
@@ -53,6 +56,37 @@ fn enclosing_declaration(program: &dyn CheckingInput, symbol: SymbolHandle) -> S
 pub fn private_invocation_entry_is_closed(program: &dyn CheckingInput, machine: &Machine) -> bool {
     lexical_root(program, machine)
         .is_some_and(|root| closed_arrivals(program, root, machine).is_ok())
+}
+
+/// The complete input list contains ordinary callers and independently
+/// admitted callable contracts. The latter are alternatives, never conjuncts.
+/// Unknown uses supply arbitrary inputs and make this list unavailable.
+pub fn with_private_invocation_inputs<T>(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    consume: impl FnOnce(&[StaticMachineContractObligation]) -> T,
+) -> Option<T> {
+    let index = private_invocation_index(program);
+    if !index.has_complete_private_uses(program, machine) {
+        return None;
+    }
+    let contracts = index
+        .contract_inputs
+        .get(&machine.symbol)
+        .map_or(&[][..], Vec::as_slice);
+    if contracts.iter().any(|input| {
+        input.required_signature(program).is_err()
+            || program
+                .machine_by_own_or_state_symbol(input.selected_entry())
+                .is_none_or(|owner| owner.symbol != machine.symbol)
+            || crate::call_target_state(program, input.selected_entry()).is_none()
+    }) {
+        return None;
+    }
+    if contracts.is_empty() && !private_invocation_entry_is_closed(program, machine) {
+        return None;
+    }
+    Some(consume(contracts))
 }
 
 pub(super) fn lexical_root(program: &dyn CheckingInput, machine: &Machine) -> Option<SymbolHandle> {
@@ -163,19 +197,21 @@ pub(crate) struct ProgramPrivateArrivalIndex {
     called_targets: SymbolSet,
     private_callees: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
     callable_use_owners: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+    contract_inputs: SymbolKeyMap<SymbolHandle, Vec<StaticMachineContractObligation>>,
     state_owners: SymbolKeyMap<SymbolHandle, Option<usize>>,
 }
 
 impl ProgramPrivateArrivalIndex {
-    /// Graph/use custody only: no caller premise or body judgment is exposed.
-    /// An open callable cannot rely on a known direct-caller demand roster.
-    pub(crate) fn has_closed_private_uses(
+    /// Every use must be either an ordinary invocation or a complete applied
+    /// callable supply. This classification grants no input value or authority.
+    pub(crate) fn has_complete_private_uses(
         &self,
         program: &dyn CheckingInput,
         machine: &Machine,
     ) -> bool {
         self.private_targets.contains(&machine.symbol)
-            && self.called_targets.contains(&machine.symbol)
+            && (self.called_targets.contains(&machine.symbol)
+                || self.contract_inputs.contains_key(&machine.symbol))
             && !machine.is_public
             && !machine.target_family_interface
             && !externally_invocable(program, machine)
@@ -196,6 +232,7 @@ impl ProgramPrivateArrivalIndex {
     }
 
     fn build(program: &dyn CheckingInput) -> Self {
+        program.prepare_applied_machine_callable_queries();
         let machines = program.machines();
         let mut members_by_root: SymbolKeyMap<SymbolHandle, Vec<usize>> = Default::default();
         let mut target_roots: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>> = Default::default();
@@ -298,6 +335,7 @@ impl ProgramPrivateArrivalIndex {
             seen_types: Vec::new(),
             unclosed_symbols: Default::default(),
             callable_use_owners: Default::default(),
+            contract_inputs: Default::default(),
         };
         if !uses.target_symbols.is_empty() {
             typed_trees::references::visit_program(program.typed_program(), &mut uses);
@@ -316,6 +354,7 @@ impl ProgramPrivateArrivalIndex {
             called_targets,
             private_callees,
             callable_use_owners: uses.callable_use_owners,
+            contract_inputs: uses.contract_inputs,
             state_owners,
         }
     }
@@ -494,6 +533,9 @@ fn compute_closed_arrivals(
                 )
                 .any(|symbol| {
                     index.unclosed_symbols.contains(&symbol)
+                        || program
+                            .machine_by_own_or_state_symbol(symbol)
+                            .is_some_and(|owner| index.contract_inputs.contains_key(&owner.symbol))
                         || index
                             .callable_use_owners
                             .get(&symbol)
@@ -702,6 +744,7 @@ struct ProgramPrivateUses<'program> {
     seen_types: Vec<Vec<(Option<SymbolHandle>, TypeReferenceHandle)>>,
     unclosed_symbols: SymbolSet,
     callable_use_owners: SymbolKeyMap<SymbolHandle, Vec<SymbolHandle>>,
+    contract_inputs: SymbolKeyMap<SymbolHandle, Vec<StaticMachineContractObligation>>,
 }
 
 impl ProgramPrivateUses<'_> {
@@ -711,6 +754,50 @@ impl ProgramPrivateUses<'_> {
     fn private_target(&self, symbol: SymbolHandle) -> bool {
         self.target_symbols.contains(&symbol)
     }
+    fn callable_inputs(
+        &mut self,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) -> Vec<StaticMachineContractObligation> {
+        if !application.is_valid() {
+            return Vec::new();
+        }
+        let inputs = self
+            .program
+            .applied_machine_callables(application)
+            .filter_map(|applied| {
+                StaticMachineContractObligation::from_applied_callable(self.program, &applied)
+            })
+            .collect::<Vec<_>>();
+        for input in &inputs {
+            if let Some(machine) = self
+                .program
+                .machine_by_own_or_state_symbol(input.selected_entry())
+                && self.private_target(machine.symbol)
+            {
+                let rows = self.contract_inputs.entry(machine.symbol).or_default();
+                if !rows.contains(input) {
+                    rows.push(input.clone());
+                }
+            }
+        }
+        inputs
+    }
+
+    fn supplied_argument(
+        &mut self,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+        inputs: &[StaticMachineContractObligation],
+        ordinal: usize,
+        demand: SymbolHandle,
+        argument: &typed_trees::expression::StaticMachineArgument,
+    ) {
+        if inputs.iter().any(|input| {
+            input.supplies(self.program, application, ordinal, demand, argument.symbol)
+        }) {
+            self.direct(argument.symbol);
+        }
+    }
+
     fn direct(&mut self, symbol: SymbolHandle) {
         if self.private_target(symbol) {
             *self.pending_counts.entry(symbol).or_insert(0) += 1;
@@ -752,6 +839,70 @@ impl TypedReferences for ProgramPrivateUses<'_> {
             *count -= 1;
         } else {
             self.unclosed_symbols.insert(symbol);
+        }
+    }
+    fn call_arguments(
+        &mut self,
+        program: &typed_trees::TypedTrees,
+        call: typed_trees::references::StaticArgumentCall<'_>,
+    ) -> bool {
+        let application = call.application();
+        let inputs = self.callable_inputs(application);
+        let parameters =
+            static_machine_input_parameters(self.program, call.registration_operation(program));
+        let mut demands = parameters.iter().filter(|parameter| {
+            matches!(
+                parameter.kind,
+                typed_trees::data::TypeParameterKind::Machine { .. }
+            )
+        });
+        for (ordinal, argument) in
+            machine_selection_arguments(self.program, call.arguments(program)).enumerate()
+        {
+            let Some(demand) = demands.next() else {
+                break;
+            };
+            self.supplied_argument(application, &inputs, ordinal, demand.symbol, argument);
+        }
+        true
+    }
+    fn static_application(
+        &mut self,
+        application: typed_trees::static_applications::StaticMachineApplicationHandle,
+    ) {
+        let inputs = self.callable_inputs(application);
+        let program = self.program;
+        let declaration = program
+            .static_machine_application(application)
+            .registration_operation;
+        let demands = static_machine_input_parameters(program, declaration)
+            .iter()
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    typed_trees::data::TypeParameterKind::Machine { .. }
+                )
+            })
+            .collect::<Vec<_>>();
+        for (ordinal, argument) in program
+            .expression_table
+            .static_machine_application_selected_machines(application)
+            .iter()
+            .enumerate()
+        {
+            if let Some(demand) = demands.get(ordinal) {
+                self.supplied_argument(application, &inputs, ordinal, demand.symbol, argument);
+            }
+        }
+        for binding in program.static_machine_application_bindings(application) {
+            if let typed_trees::static_applications::StaticMachineBindingValue::Machine(argument) =
+                &binding.value
+                && let Some(ordinal) = demands
+                    .iter()
+                    .position(|parameter| parameter.symbol == binding.parameter)
+            {
+                self.supplied_argument(application, &inputs, ordinal, binding.parameter, argument);
+            }
         }
     }
     fn statement(&mut self, statement: &typed_trees::statement::StatementNode) -> bool {
