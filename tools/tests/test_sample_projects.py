@@ -48,7 +48,7 @@ class ProjectGateTests(unittest.TestCase):
 
     def test_nested_projects_and_library_consumer_are_independent(self):
         parent = self.project("group")
-        consumer = self.project("group/consumer", 'Build::depend(builder, Source::Path { location: "source/library/std" }); Build::bind(builder, Target::ProgramEntry, Main::main);')
+        consumer = self.project("group/consumer", 'Build::depend(builder, Source::Path { location: "source/library/blocking-executor" }); Build::bind(builder, Target::ProgramEntry, Main::main);')
         invalid = self.negative()
         library = self.project("program/controls/intended_invalid/dependency", 'Build::package(builder, "kernel");')
         rows = projects.discover(self.root / "samples", self.root)
