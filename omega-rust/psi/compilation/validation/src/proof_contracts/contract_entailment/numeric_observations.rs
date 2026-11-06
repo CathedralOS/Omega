@@ -986,6 +986,27 @@ impl Observations {
             self.values.push((expression, Some(value)));
         }
     }
+
+    fn observation_request(&self) -> StatementObservationRequest {
+        let mut values = self.candidates.clone();
+        values.extend(
+            self.results
+                .iter()
+                .copied()
+                .filter(|result| !self.candidates.contains(result)),
+        );
+        StatementObservationRequest {
+            values,
+            // Association proofs use the completed root. Scalar read identities
+            // must be saved before later operands run.
+            value_identities: if self.wants_scalar_values {
+                self.candidates.clone()
+            } else {
+                Vec::new()
+            },
+            operations: self.operations.clone(),
+        }
+    }
 }
 
 impl StructuralPrefixVisitor for Observations {
@@ -1012,17 +1033,7 @@ impl StructuralPrefixVisitor for Observations {
     }
 
     fn statement_observations(&self) -> Option<StatementObservationRequest> {
-        let mut values = self.candidates.clone();
-        values.extend(
-            self.results
-                .iter()
-                .copied()
-                .filter(|result| !self.candidates.contains(result)),
-        );
-        Some(StatementObservationRequest {
-            values,
-            operations: self.operations.clone(),
-        })
+        Some(self.observation_request())
     }
 
     fn observe_completed<'program>(
@@ -1063,13 +1074,7 @@ impl StructuralPrefixVisitor for Observations {
         }
         // Requested identities do not change when an unknown root invalidates
         // its captures. Keep this exact roster for every root in the visit.
-        let mut requested = self.candidates.clone();
-        requested.extend(
-            self.results
-                .iter()
-                .copied()
-                .filter(|result| !self.candidates.contains(result)),
-        );
+        let requested = self.observation_request();
         // Stage03 normalizes a machine terminal invocation to one Value(Call)
         // root; its source arity is not a root count. This observer requests
         // descendants' inputs, not the final call's execution or guarantees.
@@ -1096,7 +1101,6 @@ impl StructuralPrefixVisitor for Observations {
                 environment,
                 (machine, state, reference),
                 &requested,
-                &self.operations,
             ) else {
                 for root in roots {
                     self.invalidate_root(program, root);

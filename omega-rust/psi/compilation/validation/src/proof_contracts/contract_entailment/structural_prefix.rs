@@ -167,6 +167,9 @@ pub(super) type PrefixObservation<'a, 'program> = (
 #[derive(Default)]
 pub(super) struct StatementObservationRequest {
     pub values: Vec<typed_trees::expression::ExpressionHandle>,
+    /// A subset of `values` whose identities must be saved as they finish.
+    /// Other requested values need only the completed root's storage associations.
+    pub value_identities: Vec<typed_trees::expression::ExpressionHandle>,
     pub operations: Vec<typed_trees::expression::ExpressionHandle>,
 }
 

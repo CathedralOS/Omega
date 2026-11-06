@@ -16,8 +16,7 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         demand: NormalValueDemand<'_>,
-        observations: &[ExpressionHandle],
-        operations: &[ExpressionHandle],
+        request: &StatementObservationRequest,
     ) -> CompletedExpression<'program> {
         // Ordinary values retain their selected expression type. Only literals
         // without a standalone type use the receiving contextual presentation;
@@ -28,7 +27,7 @@ impl<'program> StructuralJudge<'program> {
         let scope = (scope.0, scope.1, reference);
         let mut entries = NormalObservationEntries::default();
         let roots = [expression];
-        let observed_roots = if observations.is_empty() && operations.is_empty() {
+        let observed_roots = if request.values.is_empty() && request.operations.is_empty() {
             &[][..]
         } else {
             &roots[..]
@@ -44,8 +43,7 @@ impl<'program> StructuralJudge<'program> {
                 environment,
                 scope,
                 0,
-                OperationObservations::completion(observations, operations)
-                    .with_roots(observed_roots),
+                OperationObservations::completion(request).with_roots(observed_roots),
                 &mut entries,
                 None,
             )

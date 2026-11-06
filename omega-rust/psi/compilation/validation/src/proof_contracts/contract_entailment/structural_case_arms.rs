@@ -13,7 +13,7 @@ use arrivals::StructuralArrival;
 pub(in crate::proof_contracts::contract_entailment) use arrivals::StructuralArrivalLog;
 
 use super::call_requirements::establish_citation;
-use super::structural_prefix::StructuralPrefixVisitor;
+use super::structural_prefix::{StatementObservationRequest, StructuralPrefixVisitor};
 use crate::proof_contracts::contract_entailment::citations::{
     CitationFacts, CitationFrontier, CitationTarget, citation_argument_types,
     citation_call_in_statement, instantiate_citation, is_citation_statement,
@@ -617,7 +617,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             let advance = visitors.iter().enumerate().any(|(index, visitor)| {
                 !valid[index] && !visitor.is_complete() && !at_site(&**visitor)
             });
-            let mut requested = super::structural_prefix::StatementObservationRequest::default();
+            let mut requested = StatementObservationRequest::default();
             let mut completion_visitors = vec![false; visitors.len()];
             for (index, visitor) in visitors.iter().enumerate() {
                 if at_site(&**visitor)
@@ -628,6 +628,11 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     for value in request.values {
                         if !requested.values.contains(&value) {
                             requested.values.push(value);
+                        }
+                    }
+                    for value in request.value_identities {
+                        if !requested.value_identities.contains(&value) {
+                            requested.value_identities.push(value);
                         }
                     }
                     for operation in request.operations {
@@ -657,8 +662,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         statement_index,
                         &path.environment,
                         (machine, state, reference),
-                        &requested.values,
-                        &requested.operations,
+                        &requested,
                         advance,
                     );
                 }
@@ -1593,8 +1597,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                     statement_index,
                                     &environment,
                                     (invocation, state, local.type_reference),
-                                    &[],
-                                    &[],
+                                    &StatementObservationRequest::default(),
                                     true,
                                 )
                                 .and_then(|completed| completed.binding_outcomes())
