@@ -2343,6 +2343,8 @@ fail/build/receiver_view_writeback_local_escape rejected 2511ms expected @ccdb99
 	machine `configure` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 fail/build/representation_selection_fabricated_activation rejected 28ms expected @ccdb99ca2214
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/requested_boundary_telescope_capacity rejected 49094ms expected @6685712c7bf8
+	boundary signature has 33 native parameters; calling policies currently support at most 32
 fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833eb
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
@@ -2485,7 +2487,7 @@ fail/build/wire_compatibility_fabricated_activation rejected 30ms expected @ccdb
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/wire_compatibility_unknown_fact rejected 239ms unexpected @ccdb99ca2214
 	Build wire demand names an unknown compatibility fact
-fail/calling/call_plan_count_invalid_handback rejected 37513ms expected @08a2dd067a58
+fail/calling/call_plan_count_invalid_handback rejected 19862ms expected @6685712c7bf8
 	machine `corrupt` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/calling/native_field_path_empty rejected 15341ms expected @ccdb99ca2214
 	data `NativePlace` case `Field` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -15589,6 +15591,8 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 7440ms expected @ccd
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/portable_layout_constant_composition rejected 3854ms expected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_layout from main: size_of() + align_of() == 24
+fail/layouts/private_callback_capacity_wrong_contract rejected 53911ms expected @6685712c7bf8
+	callback materialization binder and native-place demand require different callback contracts
 fail/layouts/private_callback_fragments_container_outside rejected 45373ms expected @72079e22578e+wt
 	symbolic field `private callback` writes outside the 16-byte materialization
 fail/layouts/private_callback_fragments_destination_overlap rejected 45351ms expected @72079e22578e+wt
@@ -19928,7 +19932,7 @@ pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:maco
 pass/build/task_register_activation checked 74734ms check-target:linux_x86_64 @2b8a1382008c
 pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @4b50ded92ae9
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
-pass/build/terminal_private_callback_calling checked 79138ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @f8fd5ea66130
+pass/build/terminal_private_callback_calling checked 261753ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @6685712c7bf8
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/uefi_context_cleanup_entry checked 113706ms check-target:uefi_x86_64 @ee4dbb4b2d56
@@ -26150,7 +26154,7 @@ pass/layouts/placed_view_call_custody checked 11861ms terminal-inspections:match
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/private_callback_descriptor_fragments_exit checked 59018ms check-target:macos_arm64 @72079e22578e+wt
+pass/layouts/private_callback_descriptor_fragments_exit checked 110831ms check-target:macos_arm64 @6685712c7bf8
 pass/layouts/private_callback_inherited_policy_exit checked 50702ms check-target:macos_arm64 @26231d1dbd74+wt
 pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt

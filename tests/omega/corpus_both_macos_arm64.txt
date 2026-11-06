@@ -91,7 +91,7 @@ pass/build/sibling_module_slot_family_rows_exit built 83436ms exit:70 interprete
 pass/build/static_assumed_binding_spelling_exit built 3822ms exit:0 interpreter-exit:0 interpreter:agrees @0d0998b4be90
 pass/build/terminal_calling_policy_execution built 83884ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.retained_plan:match terminal-inspections:match @015a1e018c46
 pass/build/terminal_native_layout_catalog built 7219ms exit:0 interpreter-exit:0 interpreter:agrees native-layout-controls:match terminal-inspections:match @059e1533f82a
-pass/build/terminal_private_callback_calling built 103327ms exit:0 interpreter-exit:0 interpreter:agrees callback-body-controls:match terminal-inspections:match @e2e21da6e1d9
+pass/build/terminal_private_callback_calling built 262283ms exit:0 interpreter-exit:0 interpreter:agrees callback-body-controls:match terminal-inspections:match @6685712c7bf8
 pass/calls/completed_narrowing_result_case_bounds built 1715ms exit:0 interpreter-exit:0 interpreter:agrees @09c8250ac20f+wt
 pass/calls/converted_call_value_private_arrival_exit built 1448ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
 pass/calls/native_code_layout_frame_exit built 9336ms exit:0 interpreter-exit:0 interpreter:agrees @b0fa0866008e
