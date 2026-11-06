@@ -318,6 +318,8 @@ impl ExpressionTable {
                 };
             }
         }
+        // A fresh occurrence must prepare its own callable views. The retained
+        // instance's contract-source link does not survive operand copying.
         let copy = self.retain_static_machine_application(
             declaration.registration_operation,
             declaration.target,

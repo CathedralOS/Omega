@@ -444,12 +444,71 @@ impl TypedTrees {
         self.applied_callable_signatures.prepare_index();
     }
 
+    /// A retained specialization describes an existing application, rather
+    /// than supplying another invocation. Its complete typed tuple must still
+    /// match before its selected helpers can use that application's contracts.
+    /// Only a direct original application is permitted; missing or changed
+    /// correspondence supplies no contract.
+    pub fn applied_machine_callable_origin(
+        &self,
+        invocation: StaticMachineApplicationHandle,
+    ) -> Option<StaticMachineApplicationHandle> {
+        if !invocation.is_valid() {
+            return None;
+        }
+        let retained = self.static_machine_application(invocation);
+        if !retained.registration_operation.is_valid() {
+            return None;
+        }
+        let source = retained.callable_contract_source;
+        if !source.is_valid() {
+            return Some(invocation);
+        }
+        let original = self.static_machine_application(source);
+        let lifetimes = self.static_machine_application_lifetimes(invocation);
+        (!original.callable_contract_source.is_valid()
+            && original.registration_operation.is_valid()
+            && self.same_registered_machine_operation(
+                retained.registration_operation,
+                original.registration_operation,
+            )
+            && original.binding_declaration.is_valid()
+            && original.lexical_owner.is_valid()
+            && retained.binding_declaration == original.binding_declaration
+            && retained.lexical_owner == original.lexical_owner
+            // Empty region tuples have no named region owner to substitute.
+            // Nonempty tuples retain their exact declaration and supplying scope.
+            && (lifetimes.is_empty()
+                || retained.lifetime_binding_declaration == original.lifetime_binding_declaration)
+            && retained.conformance_selection == original.conformance_selection
+            && lifetimes == self.static_machine_application_lifetimes(source)
+            && self.same_selected_bindings(
+                self.static_machine_application_bindings(invocation),
+                self.static_machine_application_bindings(source),
+                original.lexical_owner,
+            ))
+        .then_some(source)
+    }
+
+    fn same_registered_machine_operation(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
+        // A machine head and its unique entry name the same operation. Public
+        // requirements remain distinct even when their implementation tuple matches.
+        let head_and_entry = |head, entry| {
+            self.machine_by_symbol(head).is_some_and(|machine| {
+                self.unique_machine_by_entry_state_symbol(entry)
+                    .is_some_and(|(owner, _)| owner.symbol == machine.symbol)
+            })
+        };
+        left == right || head_and_entry(left, right) || head_and_entry(right, left)
+    }
+
     pub fn applied_machine_callables(
         &self,
         invocation: StaticMachineApplicationHandle,
     ) -> impl Iterator<Item = AppliedMachineCallable<'_>> {
-        self.applied_callable_signatures
-            .machine_rows(invocation)
+        self.applied_machine_callable_origin(invocation)
+            .into_iter()
+            .flat_map(|origin| self.applied_callable_signatures.machine_rows(origin))
             .filter_map(|(handle, _)| {
                 self.applied_machine_callable_at(super::super::AppliedMachineCallableId(handle))
             })
