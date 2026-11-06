@@ -267,7 +267,7 @@ pub(crate) fn literal_index_identities(
                             ConnectionOrientation::LiteralThenCall => (binary.right, binary.left),
                         };
                         let carries = |expression| {
-                            operands_type(program, law, expression).map_or(false, |reference| {
+                            operands_type(program, law, expression).is_some_and(|reference| {
                                 trees.scoped_type_identity(
                                     typed_trees::type_identity::TypeIdentityRequest {
                                         substitutions,
