@@ -1095,7 +1095,7 @@ projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
 
-## Audited funnel guard owner field
+## Audited guarded-store owner fields
 
 The existing `pass/range/runtime_funnel_guard_agreement_exit` and
 `fail/range/funnel_guard_one_edge_unguarded` customers each declared
@@ -1112,6 +1112,14 @@ retains the storage obligation as well as call admission. The existing
 store's required integer interval, not an additional restriction. The
 positive keeps both guarded entries and exit 7. The negative keeps its
 runtime input and unguarded entry, and its existing diagnostic is unchanged.
+
+The same two migration commits changed
+`fail/range/guarded_copy_stale_after_write`. Its sole historical suffix,
+`Main.y: i32 [0..=9]` at `7a9a7b8287e6`, now uses plain i32 and data
+`requires y >= 0 && y <= 9`, with the destination field store and read
+restored. The source still writes 100 to `main.yv`, rereads that fresh value,
+and calls `store`; its equivalent 0..=9 input contract must still reject.
+The existing `cannot prove requires contract for call store` pin is unchanged.
 
 ## Audited write-only scalar owner fields
 
