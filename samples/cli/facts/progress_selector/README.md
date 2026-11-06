@@ -1,148 +1,137 @@
 # Finite progress subjects through selected operands
 
-Requirement: TPR6 carries every finite entry-subject alternative into call coverage
-and state transfers. A finite selector retains every exact progress subject
-required by its selected operation.
+Requirement: `TERMINATION-RANKING-CHECKS` / TPR6 preserves every possible exact
+progress subject when a reference is selected, passed to a call or transferred
+to another state. Build-owned selection for this row is described below.
 
-Each place selects both distinct `Token` origins from a fixed array of shared
-references, consumes their existing `Fair` progress qualification, and checks
-identities 37/43 with exactly two calls. The nine places are local, field,
-parameter, call result, match join, const name, other state, other machine and
-target body. The returned-array helper declares the explicit lifetime relation
-required for its two carried references. Every build binds all four hosted entry
-targets. Each reject twin removes only the right origin's qualification. Controls
-replace a slot or whole carrier, supply an unknown alternative, or mutate live
-referent contents; none may inherit the old origin's guarantee.
+Each program selects shared references to two distinct `Token` values from a
+fixed array, then calls `consume` using their existing `Fair` qualifications.
+Both selected values must retain their qualification. The caller observes 37
+and 43 with exactly two calls and authored exit 0. The returned-array helper
+also declares the lifetime relation needed to return both references. All
+positive programs bind `ProgramEntry` for the four hosted targets.
 
-The fresh baseline at `d6cf554fd1cbf20551983d29bae26f5cf3b81664` rejects the
-positive row because its published termination cannot cover the selected call.
-The candidate additionally exposed a state-arrival retention refusal for distinct
-caller-owned referents. Comparing every alternative's local retention plan lets
-the selected descriptor cross without choosing a referent from static origins;
-all parent permissions remain checked. The original row did not establish distinct local owned-home retention; the owned-arrival production below exercises that remaining mechanism.
+The nine places are [local](local/main.omg), [field](field/main.omg),
+[parameter](parameter/main.omg), [call result](call_result/main.omg),
+[match join](match_join/main.omg), [const name](const_name/main.omg),
+[nested machine](other_state/main.omg), [other machine](other_machine/main.omg),
+and [target body](target_body/main.omg). Each invalid example removes only the
+right token reference's `Fair` requirement:
+[local](local/invalid/main.omg), [field](field/invalid/main.omg),
+[parameter](parameter/invalid/main.omg), [call result](call_result/invalid/main.omg),
+[match join](match_join/invalid/main.omg), [const name](const_name/invalid/main.omg),
+[nested machine](other_state/invalid/main.omg),
+[other machine](other_machine/invalid/main.omg), and
+[target body](target_body/invalid/main.omg). The corresponding corpus fixtures
+are `tests/omega/{pass,fail}/facts/progress_selector_through_*`. Four existing
+controls replace a slot, replace the entire array, introduce an unknown
+alternative or write the referenced contents; each must reject reuse of the
+old qualification. Supplemental snapshot controls remain under
+`tests/omega/*/termination`.
 
-Measured on the saved Omega cloud Linux x86_64 host: all nine programs execute
-with native exit 0 and Terminal exit 0; all nine missing-subject twins reject
-with `published termination contract does not cover that exact subject`; all
-four stale/substituted controls reject. This does not claim execution on the
-other three declared hosts. The corresponding pass/fail fact fixtures are under
-`tests/omega/{pass,fail}/facts/progress_selector_through_*`. Supplemental owned
-snapshot and reference-binding snapshot twins are under `tests/omega/*/termination`.
+The original baseline at `d6cf554fd1cbf20551983d29bae26f5cf3b81664`
+rejected the positive row because it could not prove the published termination
+promise for the selected call. The repair checked every possible producer of a
+selected reference rather than choosing one token at compile time. Array size,
+lifetime annotations, equal scalar values and the callee's promise do not
+supply `Fair`. Unknown producers reject the call, and existing permissions still
+govern whether either token may remain borrowed. The historical Linux x86-64
+run then executed all nine positives with native/Terminal exits 0/0, rejected
+all nine missing-subject twins with `published termination contract does not
+cover that exact subject`, and rejected all four stale/substituted controls.
+That observation covered the original programs on Linux, not the later
+Build-owned migration or the three other hosted targets. Mutation summaries
+were unchanged. The separate owned-arrival programs below cover local token
+storage that the original row did not establish.
 
-The repair shares completed-producer, binding-preservation and checked-body
-origin queries between progress summaries and ordinary profile-precondition
-admission. Closed array geometry only enumerates possibilities; every possible
-producer must independently preserve exact provenance. Unknown alternatives fail
-the whole demand. No route catalogue, lifetime spelling, numeric equality or
-callee promise creates a progress receipt. R5 mutation summaries are unchanged.
+The row exercises these obligations:
 
-This closes this finite-selector row, not all of TPR6. Generic/dispatched helper
-origins, additional unresolved reference boundaries, growing projections and
-other recursive/aggregate-result cases retain their separate acceptance.
+- Establishment: the accepted `Grants` provider supplies `Fair` on both token
+  results. `select` declares both exact input requirements. Runtime equality
+  checks are oracles and supply no static proof.
+- Identity and lifetime: 37 and 43 distinguish the referents. Copies preserve
+  the selected address; snapshot controls preserve earlier bindings and values.
+  Replaced slots, replaced arrays and live writes cannot reuse old facts.
+- Composition and soundness: calls and state transfers preserve every possible
+  subject. Every alternative needs an existing qualification, and normal loan,
+  access and termination checks still apply. Erased lifetime parameters create
+  neither runtime arguments nor proof of a selected body's behavior.
+- Terminal Psi and native execution: the produced Terminal artifacts execute,
+  including state arrivals, and agree with native exit 0. Retained
+  `program.oterm` files are replay inputs rather than compile-only evidence.
+- Providers, layout and calls: explicit boundary acceptance and Build selection
+  supply the tokens. Reference arguments and helper results carry real pointer
+  words. Runtime checks observe both selected values and exactly two calls
+  across nested calls and state transfers.
+- Cleanup, storage and encoding: existing loan/escape controls retain their
+  meaning. The historical Linux ELF images execute and agree with Terminal;
+  distinct local token homes are covered by the owned-arrival programs below.
 
-Applicable requirements and evidence:
-
-- Establishment: the explicitly accepted `Grants` provider installs `Fair` on
-  each result. `select` publishes both exact input premises; the final runtime
-  equality check is only an oracle and supplies no static qualification.
-- Identity and lifetime: 37 and 43 distinguish referents; copied descriptors
-  retain addresses. Snapshot twins freeze original bindings/values. Replaced
-  slots/carriers and live writes reject instead of reusing initializers.
-- Composition: [local](local/main.omg), [field](field/main.omg),
-  [parameter](parameter/main.omg), [call result](call_result/main.omg),
-  [match join](match_join/main.omg), [const name](const_name/main.omg),
-  [state arrival](other_state/main.omg), [nested machine](other_machine/main.omg),
-  and [target body](target_body/main.omg) preserve the same consuming operation.
-  Every corresponding `invalid/main.omg` removes only `right in Token::Fair`.
-- Soundness: all alternative subjects must have existing qualification. Unknown
-  alternatives, overwritten contents and missing entry premises reject; ordinary
-  access/loan admission still checks the complete operand. Erased lifetime
-  binders supply no body-origin evidence or runtime generic arguments.
-- Checked-to-Terminal: actual `run --both --keep` observations execute the
-  produced Terminal artifact, including the selected state arrival. Retained
-  `program.oterm` files are replay inputs, not compile-only success claims.
-- Providers/layout/ABI: explicit boundary acceptance and provider selection
-  establish the two owned tokens; helper return and selected reference calls
-  carry actual pointer words. This row does not claim opaque boundary ABI,
-  generic dispatch or new layout-query support.
-- Instruction/register/frame realization: native execution checks both selected
-  identities and the once-per-invocation counter after nested calls/state
-  transfer. Existing locally owned state-loan and escape controls are compared
-  separately; the owned-arrival production below also tests distinct local homes.
-- Encoding/publication: the emitted Linux x86_64 ELF images actually execute and
-  agree with Terminal. Other hosted builds are declared, with no other-host
-  execution claim. Broader encoding/ABI/backend acceptance remains on its board.
-
-Pinned reject twins: [local](local/invalid/main.omg),
-[field](field/invalid/main.omg), [parameter](parameter/invalid/main.omg),
-[call result](call_result/invalid/main.omg), [match join](match_join/invalid/main.omg),
-[const name](const_name/invalid/main.omg), [state arrival](other_state/invalid/main.omg),
-[nested machine](other_machine/invalid/main.omg), [target body](target_body/invalid/main.omg).
+These observations establish this finite-selector operation. They do not close
+all of TPR6: generic/dispatched helper origins, unresolved reference boundaries,
+growing projections, recursive aggregate results, opaque boundary ABI and
+additional layout/backend obligations keep their separate acceptance.
 
 ## Owned backing and additional descriptor boundaries
 
 The `TERMINATION-RANKING-CHECKS` / TPR6 continuation is in
-[`owned_arrivals/`](owned_arrivals/local/main.omg). It keeps the same fact,
-identities 37/43, two selected calls, and authored exit 0. The first production
-copies both qualified tokens into separate local owned homes before the selected
-reference crosses an arrival. Its nine places are `local`, `field`, `parameter`,
-`call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and
-`target_body`. Each has a linked `invalid/main.omg` that removes only the right
-input's `Fair` requirement. The pass/fail fixtures are
+[`owned_arrivals/`](owned_arrivals/local/main.omg). It copies the qualified tokens
+into separate local homes before selecting and transferring a reference. Its
+nine places are local, field, parameter, call result, match join, const name,
+nested machine (`other_state`), other machine and target body. Each retains
+37/43, exactly two calls, exit 0 and an invalid example omitting only the right
+input's `Fair` requirement. Corpus mirrors are
 `tests/omega/{pass,fail}/facts/progress_selector_owned_arrival_through_*`.
 
-The [`nested` production](owned_arrivals/nested/local/main.omg) transports the
-same array of references through an owned envelope and two explicit descriptor
-loads before copying it into each of those nine places. It includes the same
-missing-origin twins and is pinned as
+The [`nested` production](owned_arrivals/nested/local/main.omg) first puts the
+same reference array inside an owned envelope, reads the stored references
+through two explicit loads, and transports them through the same nine places.
+Its missing-subject twins are pinned as
 `tests/omega/{pass,fail}/facts/progress_selector_nested_arrival_through_*`.
-The call-result place passes that copied array through a checked helper; its
-result preserves both independently captured leaf suppliers.
+The call-result place passes the copied array through a checked helper and
+preserves the two independently captured token references in the result.
 
 Supplemental [`affine`](owned_arrivals/affine/main.omg),
 [`owned parameter`](owned_arrivals/owned_parameter/main.omg),
-[`direct nested arrival`](owned_arrivals/reference_boundary/main.omg), and
+[`direct nested arrival`](owned_arrivals/reference_boundary/main.omg),
 [`nested reborrow`](owned_arrivals/reference_reborrow/main.omg),
 [`borrowed ingress reborrow`](owned_arrivals/borrowed_reborrow/main.omg), and
-[`owned input replacement`](owned_arrivals/owned_input_replacement/main.omg) programs test
-cleanup retention and descriptor identity. Their missing-origin twins are beside
-each program. The [`frozen ingress`](owned_arrivals/frozen_ingress/main.omg),
+[`owned input replacement`](owned_arrivals/owned_input_replacement/main.omg)
+programs test cleanup and reference identity; their missing-subject twins are
+beside them. The [`frozen ingress`](owned_arrivals/frozen_ingress/main.omg),
 [`repeated rebinding`](owned_arrivals/repeated_rebind/main.omg),
 [`replacement helper`](owned_arrivals/replacement_helper/main.omg), and
-[`mixed ingress`](owned_arrivals/mixed_ingress/main.omg) controls retain captured
-bindings and every local supplier independently. Rebinding a formal retires its
-new descriptor at its receiving event; the old copied pointer stays unchanged.
-A local descriptor borrowed by another reference remains protected from replacement.
-Both productions also reject replaced slots and stale contents
-under their `controls/` directories. These are real progress-premise refusals;
-a runtime equality guard does not re-establish qualification.
+[`mixed ingress`](owned_arrivals/mixed_ingress/main.omg) controls check that an
+earlier pointer copy keeps its original meaning when a formal is rebound.
+Borrowing the formal's own pointer storage still prevents replacing that
+storage. Both productions also reject replaced slots and stale contents under
+their `controls/` directories. A later equality guard cannot restore the lost
+progress qualification.
 
-The baseline at `717593f593c656f865c7a322fd2874b4bd168afc` refuses the frozen
-owned-home positive with `state loan: distinct backing alternatives`. The
-continuation retains every possible owned backing as a separate checked lifetime
-dependency. No selected descriptor chooses one static home or gains permission
-to relocate or dispose of a backing. Checked whole-home dispositions, formation
-order and availability still govern cleanup. Owned inputs and local results
-retain the same occurrence-level parent relation. Direct borrows of descriptor
-storage retain their physical owner independently of ultimate logical loans;
-borrowed ingress remains caller-owned. Public target-family signatures share their authored
-entry requirements with composed bodies without exporting arrival-derived facts.
-Reference shapes retain the exact
-stored referent identity; ordinary formation stops at the authored referee.
-The common selected-operand path retains captured selector computations and all
-physical loads. Aggregate copies transfer the exact selected descriptor leaves,
-not the containing pointer's loan. Returned-descriptor presence validates the
-physical path and resolves each load against its immutable storage cut.
+Baseline `717593f593c656f865c7a322fd2874b4bd168afc` rejected the positive that
+saved local owned references with `state loan: distinct backing alternatives`.
+The repair tracks each local home that a selected pointer could reference and
+checks every home's lifetime separately. It neither chooses one home at
+compile time nor grants permission to move or dispose of a home. Normal
+formation, availability and cleanup checks still apply to local homes, owned
+inputs and local results. A borrow of the pointer's storage remains distinct
+from a borrow of the token it points to; a borrowed input stays caller-owned.
+Public target-family signatures share their authored entry requirements with
+their bodies, without publishing facts supplied only by a particular caller.
+The compiler preserves exact stored reference identities, the selector
+computation and every physical load. Copying an aggregate copies its selected
+references rather than substituting the containing pointer. A returned
+reference is checked against the storage version that supplied it.
 
-These programs exercise establishment by accepted boundary results, exact
-identity and live-content invalidation, composition through every place,
-independent loan/custody checks, checked-to-Terminal lowering, pointer/aggregate
-layout and calls, cleanup/frame retention, and Linux x86_64 native/Terminal
-execution agreement. Every positive binds all four hosted targets; other-host
-execution is unverified. Generic/dispatched helpers, arbitrary recursive
-arrival shapes, additional access modes and broader ranking/cyclic-execution
-acceptance remain on the parent task. This finite-selector continuation does
-not close all of TPR6 or `TERMINATION-RANKING-CHECKS`.
+These separate programs cover establishment by accepted boundary results,
+identity after writes and rebinding, calls and all nine places, loan/custody
+checks, Terminal lowering, pointer/aggregate layout, cleanup and frame storage.
+Their retained execution evidence is Linux x86-64 native/Terminal agreement;
+although they declare all four hosted entries, other-host execution remains
+unverified. This migration's new host results do not extend that evidence.
+Generic/dispatched helpers, arbitrary recursive arrivals, additional access
+modes, ranking and cyclic execution remain on the parent task. These finite
+productions do not close all of TPR6 or `TERMINATION-RANKING-CHECKS`.
 
 ## Build-owned target-body migration
 
@@ -160,8 +149,42 @@ contract and its implementations; the caller's two granted tokens cannot
 justify that broader interface. Its original missing-subject diagnostic stays
 unchanged. Build chooses code and grants no progress qualification.
 
-Current qualification is pending. Historical prefix-family measurements above
-do not validate this migration or a newer compiler. Fresh checking, both-engine
-execution, rejection controls and ordinary sample observations must retain
-their actual producer, program source and matching target identities. This
-migration does not close the parent target-selection or termination task.
+The compiler records when `Fair` came from a call input. Copies, joins and
+state arrivals preserve that dependency. The body may use the fact normally,
+but cannot use it to remove a premise required by the helper's authored
+termination promise.
+Native parameter lowering carries progress requirements in the dedicated
+progress representation; it keeps the ordinary signature comparison strict.
+
+The programs and Build files stayed unchanged during validation, together with
+the 37/43 oracle, exactly two calls, exit 0 and every diagnostic pin.
+Validation uses the nine positive places,
+their nine twins and four existing replacement/unknown/stale-content controls.
+Each completed host below passed nine positive Source checks, all 13 intended
+rejections, nine corpus native/Terminal 0/0 pairs, and nine positive/nine invalid
+ordinary samples. The compiler check and four facts-owner algebra tests passed
+on each prepared host. Corpus runs used one worker and 120-second limits;
+ordinary samples retained their original 300-second stage limits.
+
+| Actual host | Actual compiler/program observer | Validation run | Result |
+| --- | --- | --- | --- |
+| Linux x86-64 | `dfb79c300aae3917c2681b51c319f58741f2664c` | [42218867485](https://github.com/CathedralOS/Omega/actions/runs/42218867485) | Full scope passed |
+| Linux ARM64 | `dcfb6f8937b6a739731fe5a2100e27b6cde363f6` | [42224888218](https://github.com/CathedralOS/Omega/actions/runs/42224888218) | Full scope passed |
+| macOS ARM64 | `dcfb6f8937b6a739731fe5a2100e27b6cde363f6` | [42224888218](https://github.com/CathedralOS/Omega/actions/runs/42224888218) | Full scope passed |
+| Windows x86-64 | `dcfb6f8937b6a739731fe5a2100e27b6cde363f6` | [42224888218](https://github.com/CathedralOS/Omega/actions/runs/42224888218) | Full scope passed |
+
+These observers carry source `b6b156b5e97a04c1806b6312df5225048b9888ff`,
+which integrates the repair with fixed published main `c417f61c`. Actual raw
+Source/BOTH comparisons remain moved/exit 1; they are not rewritten as fresh
+zero-exit comparisons. Updated Source records retain their actual measured
+`dfb79c30` source, times and diagnostics. Corpus products include authenticated
+native images and Terminal artifacts. Sample records contain explicit numeric
+engine exits and intended-pin decisions; their individual products and stderr
+are not in the upload.
+
+The earlier passing target-declaration baseline and failed migration are retained
+at runs [42199181794](https://github.com/CathedralOS/Omega/actions/runs/42199181794)
+and [42200336267](https://github.com/CathedralOS/Omega/actions/runs/42200336267).
+They keep their original programs and compiler identities. This migration does
+not close broader BUILD-OWNED-TARGET-SELECTION or termination acceptance, and
+does not restamp the separate owned-arrival productions above.
