@@ -194,7 +194,11 @@ fn has_captured_entry_reference(
                     return false;
                 };
                 validation::reference_shell(program, selected).is_some_and(|declared| {
-                    actual.access == declared.access
+                    checked_trees::BorrowAccessKind::from(declared.access)
+                        .direct_reborrow_effect(&checked_trees::BorrowAccessKind::from(
+                            actual.access,
+                        ))
+                        .is_some()
                         && validation::storage_origin_types_match(
                             program,
                             actual.referee,
