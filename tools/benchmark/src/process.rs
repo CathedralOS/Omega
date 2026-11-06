@@ -64,8 +64,9 @@ pub fn capture(
             timeout_ms.div_ceil(1000) + 10,
             // RLIMIT_AS counts reserved virtual memory, not use: at 16 GiB a
             // release compiler checking a std project on Linux cannot reserve
-            // its worker-thread stacks and panics. Resident memory stays
-            // bounded by the 8 GiB limits below.
+            // its worker-thread stacks and panics. The 8 GiB memory limits
+            // below are enforced only by Windows job objects, so on Unix this
+            // harness no longer bounds a child's memory.
             1024 * gibibyte,
             gibibyte,
             1024,
