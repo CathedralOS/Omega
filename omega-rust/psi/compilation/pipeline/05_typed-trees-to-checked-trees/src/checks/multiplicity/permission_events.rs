@@ -115,6 +115,10 @@ pub(crate) fn prepare_permission_events(
         .map(|(handle, state)| (handle, state.clone()))
         .collect::<Vec<_>>();
     for (state_handle, state_flow) in state_flows {
+        let _subject =
+            phase_profile::subject("psi.05.build_check_facts.permissions.state_loop", || {
+                program.symbols.profile_label(state_flow.machine_symbol)
+            });
         let _setup_guard = phase_profile::guard("psi.05.permissions.setup");
         let Some(machine) = program.machine_by_symbol(state_flow.machine_symbol) else {
             continue;

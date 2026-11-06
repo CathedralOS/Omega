@@ -264,6 +264,10 @@ pub(crate) fn build_checked_unit_effect_plans(
                 // authored in-package, so it is planned like any other checked body.
                 .filter(|machine| machine.supplies_checked_body())
             {
+                let _subject = phase_profile::subject(
+                    "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies",
+                    || program.symbols.profile_label(machine.symbol),
+                );
                 let trace = LocalConstructionTrace::default();
                 shapes.take_unselected_opaque();
                 let mut attempt_calls = structural_value_calls::PreparedCalls::default();
