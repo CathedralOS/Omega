@@ -449,17 +449,12 @@ impl StructuralJudge<'_> {
                 if matches!(
                     binary.operator,
                     typed_trees::expression::BinaryOperator::And
-                ) && matches!(
-                    left_judgment,
-                    Some(super::StructuralJudgment::Refuted)
-                ) {
+                ) && matches!(left_judgment, Some(super::StructuralJudgment::Refuted))
+                {
                     return Some(super::super::value_predicates::boolean_term(false));
                 }
                 if matches!(binary.operator, typed_trees::expression::BinaryOperator::Or)
-                    && matches!(
-                        left_judgment,
-                        Some(super::StructuralJudgment::Proven)
-                    )
+                    && matches!(left_judgment, Some(super::StructuralJudgment::Proven))
                 {
                     return Some(super::super::value_predicates::boolean_term(true));
                 }
@@ -474,15 +469,9 @@ impl StructuralJudge<'_> {
                     depth + 1,
                 )?;
                 if (binary.operator == typed_trees::expression::BinaryOperator::And
-                    && matches!(
-                        left_judgment,
-                        Some(super::StructuralJudgment::Proven)
-                    ))
+                    && matches!(left_judgment, Some(super::StructuralJudgment::Proven)))
                     || (binary.operator == typed_trees::expression::BinaryOperator::Or
-                        && matches!(
-                            left_judgment,
-                            Some(super::StructuralJudgment::Refuted)
-                        ))
+                        && matches!(left_judgment, Some(super::StructuralJudgment::Refuted)))
                 {
                     return Some(right);
                 }
