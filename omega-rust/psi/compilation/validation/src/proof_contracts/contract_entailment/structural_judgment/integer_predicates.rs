@@ -853,6 +853,20 @@ impl<'program> StructuralJudge<'program> {
         let alternatives =
             self.integer_boolean_alternatives(predicate, false, &mut observations, &mut remaining)?;
         let goal_operations = 0..observations.operations.len();
+        // A selected body's guard can be a Boolean formula around an integer
+        // comparison. Prove it from its own admitted operations before opening
+        // caller contracts that may mention the application being unfolded.
+        // Denial is proof-local and never supplies operation formation.
+        let mut independent = observations.clone();
+        if independent.install_premises(&mut Vec::new())
+            && independent.admitted(goal_operations.clone())
+            && alternatives.iter().all(|alternative| {
+                let mut engine = independent.engine.clone();
+                engine.integer_comparisons_unsatisfiable(alternative.clone())
+            })
+        {
+            return Some(true);
+        }
         let mut premises = self.observed_integer_premises(&mut observations);
         let retained = premises.clone();
         // Only real prefix facts may admit a partial operand. Install the
