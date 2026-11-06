@@ -128,7 +128,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
-          key: compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-3139bb5027bc1b1a6d187eb73d6f03000b53c54d
+          key: ${{ fromJSON('{"macos_arm64":"compiler-regression-macos15-macOS-ARM64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-64376af6ae978b4ddb2d2d50874724226ccb0646","linux_arm64":"compiler-regression-Linux-ARM64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-64376af6ae978b4ddb2d2d50874724226ccb0646","windows_x86_64":"compiler-pilot-Windows-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-64376af6ae978b4ddb2d2d50874724226ccb0646"}')[inputs.native_host] }}
           fail-on-cache-miss: true
       - name: Check the exact integration candidate
         id: compiler-check
