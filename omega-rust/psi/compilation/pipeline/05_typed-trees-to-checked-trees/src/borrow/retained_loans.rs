@@ -2,8 +2,13 @@
 //! Follow its recorded parents, suppliers and lifetime cohort; a different
 //! descriptor pointing at the same data is not part of that history.
 
+use std::collections::{HashMap, HashSet};
+
 use arena::Handle;
-use checked_trees::{BorrowFacts, BorrowLoanFact, BorrowLoanLineage, StateBorrowFact};
+use checked_trees::{
+    BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment,
+    StateBorrowFact,
+};
 
 pub(crate) struct RetainedLoanSourceScope<'a> {
     pub program: &'a dyn validation::CheckingInput,
@@ -13,13 +18,82 @@ pub(crate) struct RetainedLoanSourceScope<'a> {
     pub calls: super::lifetime_contract::SourceCallScope,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct CarrierGeneration {
+    owner: symbols::SymbolHandle,
+    storage: facts::PlaceRoot,
+    statement: usize,
+    call: Handle<BorrowCallFact>,
+}
+
+impl CarrierGeneration {
+    fn of(loan: &BorrowLoanFact) -> Option<Self> {
+        (loan.owner_symbol.is_valid() && loan.storage_owner.is_valid()).then_some(Self {
+            owner: loan.owner_symbol,
+            storage: loan.storage_owner,
+            statement: loan.statement_index,
+            call: loan.established_by_call,
+        })
+    }
+}
+
 pub(crate) fn same_carrier_generation(left: &BorrowLoanFact, right: &BorrowLoanFact) -> bool {
-    right.owner_symbol.is_valid()
-        && right.storage_owner.is_valid()
-        && left.owner_symbol == right.owner_symbol
-        && left.storage_owner == right.storage_owner
-        && left.statement_index == right.statement_index
-        && left.established_by_call == right.established_by_call
+    CarrierGeneration::of(right)
+        .is_some_and(|generation| CarrierGeneration::of(left) == Some(generation))
+}
+
+#[derive(Default)]
+struct GenerationCohort<'a> {
+    unavailable_owner_path: bool,
+    paths: HashMap<&'a [BorrowLoanOwnerSegment], Vec<Handle<BorrowLoanFact>>>,
+}
+
+/// A saved pointer keeps the lifetime duties of its own version and field.
+/// Group those rows once for this walk, retaining their state order. An unknown
+/// path only refuses when that generation is actually reached.
+struct LifetimeCohorts<'a> {
+    generations: HashMap<CarrierGeneration, GenerationCohort<'a>>,
+}
+
+impl<'a> LifetimeCohorts<'a> {
+    fn for_state(borrow: &'a BorrowFacts, state: &StateBorrowFact) -> Self {
+        let mut generations = HashMap::<CarrierGeneration, GenerationCohort<'a>>::new();
+        for (handle, loan) in borrow.state_loans(state) {
+            if loan.lineage != BorrowLoanLineage::LifetimeDependency {
+                continue;
+            }
+            let Some(generation) = CarrierGeneration::of(loan) else {
+                continue;
+            };
+            let cohort = generations.entry(generation).or_default();
+            if let Some(path) = borrow.owner_segments.span(loan.owner_path) {
+                cohort.paths.entry(path).or_default().push(handle);
+            } else {
+                cohort.unavailable_owner_path = true;
+            }
+        }
+        Self { generations }
+    }
+
+    fn dependencies(
+        &self,
+        borrow: &BorrowFacts,
+        loan: &BorrowLoanFact,
+    ) -> Result<&[Handle<BorrowLoanFact>], &'static str> {
+        let Some(cohort) =
+            CarrierGeneration::of(loan).and_then(|generation| self.generations.get(&generation))
+        else {
+            return Ok(&[]);
+        };
+        if cohort.unavailable_owner_path {
+            return Err("the retained descriptor has an unavailable lifetime cohort");
+        }
+        let path = borrow
+            .owner_segments
+            .span(loan.owner_path)
+            .ok_or("the retained obligation has an incomplete captured source")?;
+        Ok(cohort.paths.get(path).map_or(&[][..], Vec::as_slice))
+    }
 }
 
 pub(crate) fn same_carrier_occurrence(
@@ -43,10 +117,13 @@ pub(crate) fn retained_loan_closure(
     sources: &RetainedLoanSourceScope<'_>,
 ) -> Result<Vec<Handle<BorrowLoanFact>>, &'static str> {
     let mut completed = Vec::new();
+    let mut completed_members = HashSet::new();
     let mut active = Vec::new();
+    let mut active_members = HashSet::new();
+    let mut cohorts = None;
     let mut pending = vec![(root, false)];
     while let Some((handle, closing)) = pending.pop() {
-        if completed.contains(&handle) {
+        if completed_members.contains(&handle) {
             continue;
         }
         if !borrow.state_owns_loan(state, handle) {
@@ -56,10 +133,12 @@ pub(crate) fn retained_loan_closure(
             if active.pop() != Some(handle) {
                 return Err("the retained obligation traversal has no exact predecessor");
             }
+            active_members.remove(&handle);
+            completed_members.insert(handle);
             completed.push(handle);
             continue;
         }
-        if active.contains(&handle) {
+        if active_members.contains(&handle) {
             return Err("the retained obligation has a cyclic supplier history");
         }
         let loan = borrow.loans.get(handle);
@@ -92,25 +171,20 @@ pub(crate) fn retained_loan_closure(
             }
         }
         active.push(handle);
+        active_members.insert(handle);
         pending.push((handle, true));
         pending.extend(suppliers.iter().rev().map(|source| (*source, false)));
         if let BorrowLoanLineage::Reborrow { parent_loan } = loan.lineage {
             pending.push((parent_loan, false));
         }
         if loan.lineage != BorrowLoanLineage::LifetimeDependency {
-            for (dependency, candidate) in borrow.state_loans(state) {
-                if candidate.lineage != BorrowLoanLineage::LifetimeDependency
-                    || !same_carrier_generation(loan, candidate)
-                {
-                    continue;
-                }
-                if borrow.owner_segments.span(candidate.owner_path).is_none() {
-                    return Err("the retained descriptor has an unavailable lifetime cohort");
-                }
-                if same_carrier_occurrence(borrow, loan, candidate) {
-                    pending.push((dependency, false));
-                }
-            }
+            let cohorts = cohorts.get_or_insert_with(|| LifetimeCohorts::for_state(borrow, state));
+            pending.extend(
+                cohorts
+                    .dependencies(borrow, loan)?
+                    .iter()
+                    .map(|dependency| (*dependency, false)),
+            );
         }
     }
     validate_incoming_sources(borrow, state, &completed, sources)?;
@@ -306,6 +380,21 @@ mod tests {
             BorrowLoanLineage::LifetimeDependency,
             vec![original],
         );
+        let other_field = append(
+            &mut borrow,
+            output,
+            1,
+            BorrowLoanLineage::LifetimeDependency,
+            vec![original],
+        );
+        let field_path = borrow
+            .owner_segments
+            .insert_many([BorrowLoanOwnerSegment::Field(SymbolHandle::from_parts(
+                5, 1,
+            ))]);
+        borrow.loans.get_mut(other_field).owner_path = field_path;
+        let unavailable_path = HandleSpan::from_parts(Handle::from_parts(10_000, 1), 1);
+        borrow.loans.get_mut(obsolete_input).owner_path = unavailable_path;
         let child = append(
             &mut borrow,
             saved,
@@ -320,11 +409,23 @@ mod tests {
         assert!(held.contains(&debt));
         assert!(held.contains(&original));
         assert!(!held.contains(&obsolete_input));
+        assert!(!held.contains(&other_field));
         assert_eq!(
             retained_loan_closure(&borrow, &state, debt, &sources).unwrap(),
             vec![original, debt],
             "following one debt does not reopen another descriptor's cohort",
         );
+        borrow.loans.get_mut(other_field).owner_path = unavailable_path;
+        assert_eq!(
+            retained_loan_closure(&borrow, &state, child, &sources).unwrap_err(),
+            "the retained descriptor has an unavailable lifetime cohort",
+        );
+        assert_eq!(
+            retained_loan_closure(&borrow, &state, debt, &sources).unwrap(),
+            vec![original, debt],
+            "a captured debt does not reopen its containing descriptor's cohort",
+        );
+        borrow.loans.get_mut(other_field).owner_path = field_path;
         let foreign = StateBorrowFact {
             loans: HandleSpan::empty(),
             ..Default::default()

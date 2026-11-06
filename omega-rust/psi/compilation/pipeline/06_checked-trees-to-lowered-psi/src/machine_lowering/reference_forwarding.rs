@@ -1,10 +1,13 @@
-//! Translate a proof-used producer dependency to its emitted BoundaryCall.
-//! This transports the request; the chosen provider independently proves it.
+//! Keep a saved reference's requirements attached to the call that produced it.
+//! Lowering records the request; the selected implementation must prove it.
 
 use checked_trees::{CheckedTrees, FlowReferenceForwardingSource};
 use lowered_psi::LoweredPsi;
-use terminal_psi::{BoundaryReferenceForwardingDemand, BoundaryReferenceSource, OperationKind};
+use terminal_psi::{BoundaryReferenceForwardingDemand, BoundaryReferenceSource};
 
+use super::call_requests::{
+    EmittedCallCatalog, EmittedCallLookupError, StatementCallKey, matching_requests,
+};
 use crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path;
 use crate::shared::lowering_error::LoweringError;
 
@@ -12,6 +15,7 @@ pub(super) fn retain(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     lowered: &mut LoweredPsi,
+    emitted_calls: &EmittedCallCatalog,
 ) -> Result<(), LoweringError> {
     if !lowered
         .semantic_module
@@ -22,15 +26,99 @@ pub(super) fn retain(
     }
     let control = &checked.facts.flow.control;
     let mut requested = Vec::new();
+    let mut seen_requests = std::collections::HashSet::new();
     for (_, state) in control.states.iter() {
         for call in control.calls.span_or_empty(state.calls) {
             for request in &call.reference_forwarding {
-                if !requested.contains(request) {
-                    requested.push(request.clone());
+                if seen_requests.insert(request) {
+                    requested.push(request);
                 }
             }
         }
     }
+    if requested.is_empty() {
+        return Ok(());
+    }
+    let mut states = control
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .collect::<Vec<_>>();
+    states.sort_by_key(|state| {
+        (
+            state.state_symbol.arena_index(),
+            state.state_symbol.generation(),
+        )
+    });
+    let mut producer_states = Vec::with_capacity(requested.len());
+    let mut requested_calls = Vec::new();
+    let mut unavailable_states = Vec::new();
+    for (request_index, request) in requested.iter().enumerate() {
+        let state_key = (
+            request.state_symbol.arena_index(),
+            request.state_symbol.generation(),
+        );
+        let first = states.partition_point(|state| {
+            (
+                state.state_symbol.arena_index(),
+                state.state_symbol.generation(),
+            ) < state_key
+        });
+        let after = states.partition_point(|state| {
+            (
+                state.state_symbol.arena_index(),
+                state.state_symbol.generation(),
+            ) <= state_key
+        });
+        let state = states.get(first).copied().filter(|_| first < after);
+        let ambiguous = after - first > 1;
+        producer_states.push((state, ambiguous));
+        if let Some(state) = state.filter(|_| !ambiguous) {
+            if let Some(key) = StatementCallKey::from_checked(
+                checked,
+                checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    statement_index: request.statement_index,
+                    role: checked_trees::CheckedValueStatementRole::Expression,
+                },
+                request.call_ordinal,
+            ) {
+                requested_calls.push((key, request_index));
+            }
+        } else {
+            // Keep malformed-state checks at the first same-ordinal occurrence,
+            // before testing its source coordinate, just as the original walk did.
+            unavailable_states.push((request.call_ordinal, request_index));
+        }
+    }
+    requested_calls.sort_unstable();
+    unavailable_states.sort_unstable();
+    let mut recorded_calls = control
+        .states
+        .iter()
+        .flat_map(|(_, state)| {
+            control
+                .calls
+                .span_or_empty(state.calls)
+                .iter()
+                .map(move |call| {
+                    (
+                        (
+                            StatementCallKey::new(
+                                state.state_symbol,
+                                call.statement_index,
+                                call.call_ordinal,
+                            ),
+                            call.authored_expression.arena_index(),
+                            call.authored_expression.generation(),
+                        ),
+                        call,
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    recorded_calls.sort_unstable_by_key(|(key, _)| *key);
     let mut rows = Vec::new();
     let mut visited = vec![false; requested.len()];
     for occurrence in &lowered.source_call_occurrences {
@@ -40,49 +128,56 @@ pub(super) fn retain(
         ) else {
             continue;
         };
-        for (index, request) in requested.iter().enumerate() {
-            if coordinate.call_ordinal != request.call_ordinal {
-                continue;
-            }
-            let mut states = control
-                .states
-                .iter()
-                .map(|(_, state)| state)
-                .filter(|state| state.state_symbol == request.state_symbol);
-            let state = states
-                .next()
-                .ok_or(LoweringError::InvalidReferenceForwardingPlan(
-                    "the forwarding producer state is absent",
-                ))?;
-            if states.next().is_some() {
+        let key = StatementCallKey::new(
+            coordinate.state,
+            coordinate.statement_index,
+            coordinate.call_ordinal,
+        );
+        let mut matching = matching_requests(&requested_calls, key)
+            .iter()
+            .map(|(_, request_index)| *request_index)
+            .peekable();
+        let mut unavailable = matching_requests(&unavailable_states, coordinate.call_ordinal)
+            .iter()
+            .map(|(_, request_index)| *request_index)
+            .peekable();
+        // Merge the two already ordered groups without changing which original
+        // request reports an error first or allocating per emitted occurrence.
+        let matching = std::iter::from_fn(|| match (matching.peek(), unavailable.peek()) {
+            (Some(found), Some(missing)) if found < missing => matching.next(),
+            (_, Some(_)) => unavailable.next(),
+            _ => matching.next(),
+        });
+        for request_index in matching {
+            let request = requested[request_index];
+            let (state, ambiguous) = producer_states[request_index];
+            let state = state.ok_or(LoweringError::InvalidReferenceForwardingPlan(
+                "the forwarding producer state is absent",
+            ))?;
+            if ambiguous {
                 return invalid_plan("the forwarding producer state is ambiguous");
             }
-            if !occurrence.matches_checked_origin(
-                checked,
-                checked_trees::CheckedValueOrigin::StateStatement {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    statement_index: request.statement_index,
-                    role: checked_trees::CheckedValueStatementRole::Expression,
-                },
-            ) {
-                continue;
-            }
-            let mut calls = control
-                .calls
-                .span_or_empty(state.calls)
-                .iter()
-                .filter(|call| {
-                    call.statement_index == request.statement_index
-                        && call.call_ordinal == request.call_ordinal
-                        && call.authored_expression == request.invocation
-                });
-            let call = calls
-                .next()
+            let call_key = (
+                StatementCallKey::new(
+                    state.state_symbol,
+                    request.statement_index,
+                    request.call_ordinal,
+                ),
+                request.invocation.arena_index(),
+                request.invocation.generation(),
+            );
+            let call_position = recorded_calls.partition_point(|(found, _)| *found < call_key);
+            let call = recorded_calls
+                .get(call_position)
+                .filter(|(found, _)| *found == call_key)
+                .map(|(_, call)| *call)
                 .ok_or(LoweringError::InvalidReferenceForwardingPlan(
                     "the forwarding producer has no exact recorded call",
                 ))?;
-            if calls.next().is_some() {
+            if recorded_calls
+                .get(call_position + 1)
+                .is_some_and(|(found, _)| *found == call_key)
+            {
                 return invalid_plan("the forwarding producer has ambiguous recorded calls");
             }
             if occurrence.source_target != call.target_symbol
@@ -90,21 +185,16 @@ pub(super) fn retain(
             {
                 return invalid_plan("the forwarding request joins another source target");
             }
-            let mut operations = lowered
-                .semantic_module
-                .machines
-                .iter()
-                .flat_map(|machine| {
-                    machine
-                        .operations()
-                        .map(move |operation| (machine.id, operation))
-                })
-                .filter(|(_, operation)| operation.id == operation_id);
-            let (Some((machine, operation)), None) = (operations.next(), operations.next()) else {
-                return invalid_plan("the forwarding producer has no unique emitted operation");
-            };
-            let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
-                return invalid_plan("the forwarding producer did not lower to a boundary call");
+            let (machine, boundary) = match emitted_calls.boundary_call(operation_id) {
+                Ok(call) => call,
+                Err(EmittedCallLookupError::MissingOrAmbiguousOperation) => {
+                    return invalid_plan("the forwarding producer has no unique emitted operation");
+                }
+                Err(EmittedCallLookupError::NotBoundaryCall) => {
+                    return invalid_plan(
+                        "the forwarding producer did not lower to a boundary call",
+                    );
+                }
             };
             let declaration = lowered.semantic_module.boundary_machine(boundary).ok_or(
                 LoweringError::InvalidReferenceForwardingPlan("the forwarding boundary is absent"),
@@ -196,33 +286,24 @@ pub(super) fn retain(
                 })?,
                 sources,
             });
-            visited[index] = true;
+            visited[request_index] = true;
         }
     }
-    for (request, visited) in requested.iter().zip(visited) {
-        let state = control
-            .states
-            .iter()
-            .map(|(_, state)| state)
-            .find(|state| state.state_symbol == request.state_symbol)
-            .ok_or(LoweringError::InvalidReferenceForwardingPlan(
-                "the forwarding source state is absent",
-            ))?;
-        let origin =
-            checked.consistent_terminal_origin(checked_trees::CheckedValueOrigin::StateStatement {
+    for ((request, (state, _)), visited) in requested.iter().zip(producer_states).zip(visited) {
+        let state = state.ok_or(LoweringError::InvalidReferenceForwardingPlan(
+            "the forwarding source state is absent",
+        ))?;
+        let key = StatementCallKey::from_checked(
+            checked,
+            checked_trees::CheckedValueOrigin::StateStatement {
                 machine_symbol: state.machine_symbol,
                 state_symbol: state.state_symbol,
                 statement_index: request.statement_index,
                 role: checked_trees::CheckedValueStatementRole::Expression,
-            });
-        let emitted = match origin {
-            Some(checked_trees::CheckedValueOrigin::StateStatement { state_symbol, .. }) => lowered
-                .state_blocks
-                .iter()
-                .any(|block| block.state == state_symbol),
-            _ => false,
-        };
-        if emitted && !visited {
+            },
+            request.call_ordinal,
+        );
+        if key.is_some_and(|key| emitted_calls.state_was_emitted(key)) && !visited {
             return invalid_plan(
                 "an emitted forwarding dependency has no producer call occurrence",
             );

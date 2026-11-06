@@ -22,7 +22,7 @@ pub struct FlowLenderPreservation {
 /// A provider output whose unchanged reference value was needed by a later
 /// storage proof. These are requested choices, not an established forwarding
 /// relation. The selected provider must prove every normal output independently.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub struct FlowReferenceForwarding {
     pub state_symbol: SymbolHandle,
     pub statement_index: usize,
@@ -33,7 +33,7 @@ pub struct FlowReferenceForwarding {
     pub sources: Vec<FlowReferenceForwardingSource>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum FlowReferenceForwardingSource {
     Reference {
         argument_position: u32,

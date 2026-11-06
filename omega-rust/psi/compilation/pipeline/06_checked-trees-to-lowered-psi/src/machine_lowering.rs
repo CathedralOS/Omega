@@ -19,6 +19,7 @@ use crate::retention::access_lifecycles::retain;
 use crate::unit::attached_unit::target_families::runtime_families;
 mod boundary_applications;
 mod build_providers;
+mod call_requests;
 mod callback_applications;
 pub(crate) mod debug_map;
 pub(crate) mod declarations;
@@ -137,11 +138,12 @@ pub fn lower_machine(
         )
     })
     .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
+    let emitted_calls = call_requests::EmittedCallCatalog::for_checked_requests(checked, &lowered);
     phase_profile::scope("psi.06.lender_preservation", || {
-        lender_preservation::retain(&mut identities, checked, &mut lowered)
+        lender_preservation::retain(&mut identities, checked, &mut lowered, &emitted_calls)
     })?;
     phase_profile::scope("psi.06.reference_forwarding", || {
-        reference_forwarding::retain(&mut identities, checked, &mut lowered)
+        reference_forwarding::retain(&mut identities, checked, &mut lowered, &emitted_calls)
     })?;
     match external_declarations {
         Some(declarations) => declarations.retain(

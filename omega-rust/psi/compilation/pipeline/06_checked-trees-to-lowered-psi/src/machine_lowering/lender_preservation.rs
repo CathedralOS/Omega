@@ -1,11 +1,12 @@
-//! Carry the caller's requested lender duties onto the exact emitted call.
-//! Source checking selects the duties; this join changes only their namespace.
-//! Provider selection must still fulfill them independently.
+//! Keep every safety check attached to the call that needs it.
+//! Translate source call coordinates into emitted operation identities; the
+//! selected implementation must still prove that it fulfills each request.
 
 use checked_trees::CheckedTrees;
 use lowered_psi::LoweredPsi;
-use terminal_psi::{BoundaryLenderPreservationDemand, OperationKind, StructuralDomainRequirement};
+use terminal_psi::{BoundaryLenderPreservationDemand, StructuralDomainRequirement};
 
+use super::call_requests::{EmittedCallCatalog, EmittedCallLookupError, StatementCallKey};
 use crate::shared::lowering_error::LoweringError;
 use crate::shared::terminal_identities::StructuralDomainBinding;
 
@@ -13,6 +14,7 @@ pub(super) fn retain(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     lowered: &mut LoweredPsi,
+    emitted_calls: &EmittedCallCatalog,
 ) -> Result<(), LoweringError> {
     if !lowered
         .semantic_module
@@ -22,7 +24,6 @@ pub(super) fn retain(
         return invalid_plan("lender preservation requests were already lowered");
     }
     let mut rows = Vec::new();
-    let mut visited = std::collections::HashSet::new();
     let requested = checked
         .facts
         .flow
@@ -41,6 +42,29 @@ pub(super) fn retain(
                 .map(move |call| (state, call))
         })
         .collect::<Vec<_>>();
+    if requested.is_empty() {
+        return Ok(());
+    }
+    let mut requested_calls = requested
+        .iter()
+        .enumerate()
+        .filter_map(|(request_index, (state, call))| {
+            StatementCallKey::from_checked(
+                checked,
+                checked_trees::CheckedValueOrigin::StateStatement {
+                    machine_symbol: state.machine_symbol,
+                    state_symbol: state.state_symbol,
+                    statement_index: call.statement_index,
+                    role: checked_trees::CheckedValueStatementRole::Expression,
+                },
+                call.call_ordinal,
+            )
+            .map(|key| (key, request_index))
+        })
+        .collect::<Vec<_>>();
+    requested_calls.sort_unstable();
+    let mut visited = vec![false; requested.len()];
+    let mut domain_catalog = None;
     for occurrence in &lowered.source_call_occurrences {
         let (Some(coordinate), Some(operation_id)) = (
             occurrence.origin.statement(),
@@ -48,71 +72,75 @@ pub(super) fn retain(
         ) else {
             continue;
         };
-        let mut matching = requested.iter().filter(|(state, call)| {
-            call.call_ordinal == coordinate.call_ordinal
-                && occurrence.matches_checked_origin(
-                    checked,
-                    checked_trees::CheckedValueOrigin::StateStatement {
-                        machine_symbol: state.machine_symbol,
-                        state_symbol: state.state_symbol,
-                        statement_index: call.statement_index,
-                        role: checked_trees::CheckedValueStatementRole::Expression,
-                    },
-                )
-        });
-        let Some(&(state, call)) = matching.next() else {
+        let key = StatementCallKey::new(
+            coordinate.state,
+            coordinate.statement_index,
+            coordinate.call_ordinal,
+        );
+        let request_position = requested_calls.partition_point(|(found, _)| *found < key);
+        let Some(&(_, request_index)) = requested_calls
+            .get(request_position)
+            .filter(|(found, _)| *found == key)
+        else {
             continue;
         };
-        if matching.next().is_some() {
+        if requested_calls
+            .get(request_position + 1)
+            .is_some_and(|(found, _)| *found == key)
+        {
             return invalid_plan("a lowered lender call has ambiguous checked request owners");
         }
+        let (_, call) = requested[request_index];
         if occurrence.source_target != call.target_symbol
             && occurrence.source_target != call.authored_target
         {
             return invalid_plan("the lender request joins another checked call target");
         }
-        let mut operations = lowered
-            .semantic_module
-            .machines
-            .iter()
-            .flat_map(|machine| {
-                machine
-                    .operations()
-                    .map(move |operation| (machine.id, operation))
-            })
-            .filter(|(_, operation)| operation.id == operation_id);
-        let (Some((machine, operation)), None) = (operations.next(), operations.next()) else {
-            return invalid_plan("the lender call has no unique emitted operation");
-        };
-        let OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
-            return invalid_plan("the lender request did not lower to a boundary call");
+        let (machine, boundary) = match emitted_calls.boundary_call(operation_id) {
+            Ok(call) => call,
+            Err(EmittedCallLookupError::MissingOrAmbiguousOperation) => {
+                return invalid_plan("the lender call has no unique emitted operation");
+            }
+            Err(EmittedCallLookupError::NotBoundaryCall) => {
+                return invalid_plan("the lender request did not lower to a boundary call");
+            }
         };
         let declaration = lowered.semantic_module.boundary_machine(boundary).ok_or(
             LoweringError::InvalidLenderPreservationPlan(
                 "the lender call has no public declaration",
             ),
         )?;
-        let domain_ids = lowered
-            .semantic_module
-            .structural_domains
-            .iter()
-            .map(|domain| {
-                Ok(StructuralDomainBinding {
-                    // This catalog field explicitly retains Psi's semantic domain
-                    // identity; the concrete carrier-specific domain id is separate.
-                    semantic_domain: language_semantics::SemanticDomainId(
-                        u32::try_from(domain.semantic_domain.get()).map_err(|_| {
-                            LoweringError::InvalidLenderPreservationPlan(
-                                "the semantic domain exceeds Psi's identity range",
-                            )
-                        })?,
-                    ),
-                    carrier: domain.carrier,
-                    domain: domain.id,
-                    byte_predicate: domain.byte_predicate.clone(),
-                })
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
+        if domain_catalog.is_none() {
+            domain_catalog = Some(
+                lowered
+                    .semantic_module
+                    .structural_domains
+                    .iter()
+                    .map(|domain| {
+                        Ok(StructuralDomainBinding {
+                            // This catalog field explicitly retains Psi's semantic domain
+                            // identity; the concrete carrier-specific domain id is separate.
+                            semantic_domain: language_semantics::SemanticDomainId(
+                                u32::try_from(domain.semantic_domain.get()).map_err(|_| {
+                                    LoweringError::InvalidLenderPreservationPlan(
+                                        "the semantic domain exceeds Psi's identity range",
+                                    )
+                                })?,
+                            ),
+                            carrier: domain.carrier,
+                            domain: domain.id,
+                            byte_predicate: domain.byte_predicate.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, LoweringError>>()?,
+            );
+        }
+        let domain_bindings =
+            domain_catalog
+                .as_deref()
+                .ok_or(LoweringError::InvalidLenderPreservationPlan(
+                    "the lender domain catalog was not prepared",
+                ))?;
         for request in &call.lender_preservation {
             let mut parameters = declaration
                 .structural_parameters
@@ -129,7 +157,7 @@ pub(super) fn retain(
                         path: request.path.clone(),
                         domain: request.domain,
                     }],
-                    &domain_ids,
+                    domain_bindings,
                     formal.structural_type,
                     &lowered.semantic_module.structural_types,
                 )?;
@@ -162,36 +190,20 @@ pub(super) fn retain(
                 requirement,
             });
         }
-        visited.insert((
-            state.machine_symbol,
-            state.state_symbol,
-            coordinate.statement_index,
-            coordinate.call_ordinal,
-        ));
+        visited[request_index] = true;
     }
-    for (state, call) in requested {
-        let origin =
-            checked.consistent_terminal_origin(checked_trees::CheckedValueOrigin::StateStatement {
+    for ((state, call), visited) in requested.into_iter().zip(visited) {
+        let key = StatementCallKey::from_checked(
+            checked,
+            checked_trees::CheckedValueOrigin::StateStatement {
                 machine_symbol: state.machine_symbol,
                 state_symbol: state.state_symbol,
                 statement_index: call.statement_index,
                 role: checked_trees::CheckedValueStatementRole::Expression,
-            });
-        let emitted = match origin {
-            Some(checked_trees::CheckedValueOrigin::StateStatement { state_symbol, .. }) => lowered
-                .state_blocks
-                .iter()
-                .any(|block| block.state == state_symbol),
-            _ => false,
-        };
-        if emitted
-            && !visited.contains(&(
-                state.machine_symbol,
-                state.state_symbol,
-                call.statement_index,
-                call.call_ordinal,
-            ))
-        {
+            },
+            call.call_ordinal,
+        );
+        if key.is_some_and(|key| emitted_calls.state_was_emitted(key)) && !visited {
             return invalid_plan("an emitted checked lender request has no call occurrence");
         }
     }

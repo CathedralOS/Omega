@@ -954,7 +954,7 @@ pub struct CheckedReborrowLoanResource {
     pub restoration: CheckedReborrowRestorationObligation,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum BorrowLoanOwnerSegment {
     Field(SymbolHandle),
     Case(SymbolHandle),

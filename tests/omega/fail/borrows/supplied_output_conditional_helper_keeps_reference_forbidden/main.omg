@@ -1,6 +1,6 @@
 // A helper choosing between references cannot remove a pause restriction.
 // The selected data is forbidden across the later call that may pause.
-// Expected exit: 0
+// Checking must reject both cells surviving the later pause.
 public boundary trait Scheduler { machine park() reaches suspends; }
 public Immediate satisfies Scheduler { machine park() {} }
 public data Cell [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { value: i32; }
