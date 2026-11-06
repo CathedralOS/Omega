@@ -83,10 +83,19 @@ pub(crate) fn prepare_reference_output_catalog(
         cycles.admit(machine);
     }
     let graph = crate::descriptor_results::optimized_graph(&view);
+    let borrowed_graph = graph.as_ref().and_then(|_| {
+        crate::descriptor_results::optimized_borrowed_storage_catalog_graph(
+            view.functions.iter(),
+            boundaries.values().copied(),
+            &view.structural_types,
+            &view.dynamic_dispatch,
+        )
+    });
     let mut memberships = graph.as_ref().map(|graph| {
         crate::unit_validation::function_structure::ReferenceMembershipValidation::new(
             &view.structural_types,
             graph,
+            borrowed_graph.as_deref(),
         )
     });
     let prepared = view

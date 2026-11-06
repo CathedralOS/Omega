@@ -30,7 +30,7 @@ mod values;
 pub(crate) use records::constructible;
 pub(crate) use structural_access::{
     owned_bounded_owner_loan, structural_access_can_supply, structural_operation_result_contract,
-    structural_source_contract,
+    structural_payload_contracts, structural_source_contract,
 };
 
 pub(crate) fn validate_values_and_bindings(

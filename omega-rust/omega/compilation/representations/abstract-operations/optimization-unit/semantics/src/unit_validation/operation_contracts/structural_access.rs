@@ -1104,6 +1104,64 @@ pub(crate) fn owned_bounded_owner_loan(
 /// Reconstructs declared custody without deciding whether a particular use is
 /// legal. Literal descriptors have the same source facts at every consumer;
 /// availability, backing access, predicates and ownership are checked separately.
+/// Prepare this function's declared payload inputs once for history replay.
+/// Producer contracts remain declarations until their actual operation is
+/// reached; collecting them supplies no observation, access or body proof.
+pub(crate) fn structural_payload_contracts(
+    caller: &PsiOptimizationFunction,
+) -> Vec<(PlaceId, PayloadMembershipContract)> {
+    let payload =
+        |carrier,
+         qualifications: &[StructuralDomainId],
+         projected: &[StructuralPathQualification]| PayloadMembershipContract {
+            scalar_observations: Vec::new(),
+            scalar_requirements: Vec::new(),
+            carrier,
+            qualifications: qualifications.to_vec(),
+            projected_qualifications: projected.to_vec(),
+        };
+    let mut contracts = caller
+        .structural_parameters
+        .iter()
+        .chain(caller.block_structural_parameters())
+        .map(|parameter| {
+            (
+                parameter.place,
+                payload(
+                    parameter.structural_type,
+                    &parameter.qualifications,
+                    &parameter.projected_qualifications,
+                ),
+            )
+        })
+        .collect::<Vec<_>>();
+    for node in caller.block_nodes() {
+        if let Some(contract) = structural_operation_result_contract(caller, &node.operation) {
+            contracts.push((contract.place, contract.payload_contract()));
+            continue;
+        }
+        match &node.operation {
+            O::EstablishTrivialAffineLocal {
+                place,
+                structural_type,
+                ..
+            } => {
+                contracts.push((place.id, payload(structural_type.id, &[], &[])));
+            }
+            O::EstablishByteSequenceLiteral {
+                place,
+                structural_type,
+                qualifications,
+                ..
+            } => {
+                contracts.push((place.id, payload(structural_type.id, qualifications, &[])));
+            }
+            _ => {}
+        }
+    }
+    contracts
+}
+
 pub(crate) fn structural_source_contract(
     caller: &PsiOptimizationFunction,
     place: PlaceId,
