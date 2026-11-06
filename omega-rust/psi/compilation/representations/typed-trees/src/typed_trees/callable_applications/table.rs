@@ -17,7 +17,7 @@ type InvocationRow = (
 );
 
 #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-pub(in crate::typed_trees) struct AppliedCallableTable {
+pub(crate) struct AppliedCallableTable {
     arena: Arena<AppliedCallableSignature>,
     index: OwnedIndex<InvocationIndex, ()>,
 }
