@@ -479,6 +479,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "abstract-operations",
  "access-plans",
  "arena",
  "artifacts",
@@ -515,6 +516,8 @@ dependencies = [
  "object-file",
  "optimization",
  "optimization-core",
+ "optimization-unit",
+ "optimization-unit-semantics",
  "orchestration",
  "package-compilation",
  "package-evidence",

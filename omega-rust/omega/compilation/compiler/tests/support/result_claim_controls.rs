@@ -177,7 +177,106 @@ pub(super) fn inspect(artifact: &CanonicalTerminalArtifact) -> Result<(), String
         "missing unguarded return obligation",
         "structural callee return disagrees with the caller's result claims",
     )?;
+    inspect_optimization_replay(artifact, site, unused)?;
     Ok(())
+}
+
+fn inspect_optimization_replay(
+    artifact: &CanonicalTerminalArtifact,
+    site: CallSite,
+    unused: usize,
+) -> Result<(), String> {
+    use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
+    use optimization_unit_semantics::{
+        OperationSite, OptimizationUnitValidationError,
+        reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
+        validate_psi_optimization_unit_with_admitted_cycle_machines,
+    };
+    use terminal_psi_to_abstract_operations::{
+        ArtifactSections, build_verified_psi_optimization_unit, lower_artifact,
+    };
+
+    let module = artifact.semantic_module();
+    let source = &module.machines[site.machine];
+    let operation = &source.blocks[site.block].operations[site.operation];
+    let bytes = terminal_codec::encode_module(module).map_err(|error| format!("{error:?}"))?;
+    let input = lower_artifact(ArtifactSections {
+        semantic_bytes: &bytes,
+    })
+    .map_err(|error| format!("result control lowering: {error:?}"))?
+    .into_optimization_artifact()
+    .into_optimization_input();
+    let (_, unit) = build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .map_err(|error| format!("result control unit: {error:?}"))?
+    .into_parts();
+    // The acyclic source needs no external cycle authority. First prove that
+    // its intact unit and reconstructed ownership pass this public consumer.
+    let frontiers = reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
+        .map_err(|error| format!("result control intact ownership: {error:?}"))?;
+    let mut unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
+        .map_err(|error| format!("result control ownership attachment: {error:?}"))?;
+    validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[])
+        .map_err(|error| format!("result control intact replay: {error:?}"))?;
+    let function = unit
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == source.id)
+        .ok_or("result control unit lost its caller")?;
+    let mut expected = None;
+    for block in &mut function.blocks {
+        for (index, node) in block.nodes.iter_mut().enumerate() {
+            let AbstractOperation::CallStructural {
+                psi_operation,
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } = &mut node.operation
+            else {
+                continue;
+            };
+            if *psi_operation != operation.id {
+                continue;
+            }
+            let (_, endpoint) = terminal_semantics::canonical_static_projection(
+                unit.structural_types.iter(),
+                result.structural_type,
+                &result.claims[unused].path,
+            )
+            .ok_or("unused optimization result has no owned endpoint")?;
+            terminal_semantics::representation_view_declaration(
+                unit.structural_types.iter(),
+                endpoint.id,
+                None,
+            )
+            .ok_or("result control needs a record endpoint for its interpretation")?;
+            // This retains a declared endpoint and case guard, but changes
+            // owned custody into a storage interpretation. Geometry must not
+            // admit it as an unused possible claim.
+            result.claims[unused].path.push(Path::RepresentationView {
+                structural_type: endpoint.id,
+                stored_scalar: None,
+            });
+            expected = Some(OperationSite::new(
+                source.id,
+                block.id,
+                u32::try_from(index).map_err(|_| "result control node index overflow")?,
+            ));
+        }
+    }
+    let expected = expected.ok_or("result control unit lost its call operation")?;
+    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    match validate_psi_optimization_unit_with_admitted_cycle_machines(&unit, &[]) {
+        Err(OptimizationUnitValidationError::StructuralCallContractMismatch(actual))
+            if actual == expected =>
+        {
+            Ok(())
+        }
+        result => Err(format!(
+            "optimization result interpretation expected a call-contract refusal at {expected:?}, got {result:?}"
+        )),
+    }
 }
 
 fn result_mut(
