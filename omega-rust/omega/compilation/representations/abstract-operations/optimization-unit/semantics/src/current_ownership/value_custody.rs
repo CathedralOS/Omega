@@ -359,7 +359,6 @@ impl ValueUse<'_> {
             .filter(|(_, claim)| claim.input == Some(value.place))
             .map(|(identity, claim)| (*identity, claim.clone()))
             .collect::<Vec<_>>();
-        let installs_owned_part = !moved.is_empty();
         if owned
             && current.claims.values().any(|claim| {
                 claim.input == Some(destination.place())
@@ -391,10 +390,10 @@ impl ValueUse<'_> {
                 );
             }
         }
-        if owned && (hole.is_empty() || installs_owned_part) {
-            // The home is storage until a performed whole store, or until
-            // a completed owned child is actually installed. The exact
-            // claim frontier still fences every unfilled sibling on use.
+        if owned && hole.is_empty() {
+            // Only the whole establishing store makes this home a value.
+            // Installing a claimed child says nothing about unfilled siblings,
+            // including fields that carry no claim of their own.
             if let Some(missing) = current.partial_custody_paths.get_mut(&destination.place()) {
                 missing.remove(&Vec::new());
                 if missing.is_empty() {
