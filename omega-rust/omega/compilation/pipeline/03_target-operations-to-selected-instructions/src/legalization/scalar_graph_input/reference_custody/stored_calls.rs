@@ -526,12 +526,11 @@ impl Staged {
             if Some(location.0) != place
                 || public.referent != proved.referent
                 || public_origins != proved_origins
-                || (proved.placed.is_some() && public.placed != proved.placed)
+                || public.placed != proved.placed
             {
                 return Err(invalid());
             }
             let mut proved = proved.clone();
-            proved.placed = public.placed.clone();
             proved.backing.extend_from_slice(&public.backing);
             proved.backing.sort();
             proved.backing.dedup();
@@ -617,12 +616,7 @@ pub(super) fn stage(
         return Ok(staged);
     };
     if let Callee::Body(callee) = &callee {
-        let needs_outputs = writable_slots(callee, types)
-            || callee.structural_parameters.iter().any(|parameter| {
-                parameter.access == StructuralAccess::Owned
-                    && contains_reference(types, parameter.structural_type)
-            })
-            || result.is_some_and(|result| contains_reference(types, result.structural_type));
+        let needs_outputs = writable_slots(callee, types);
         if needs_outputs {
             let outputs = custody
                 .stored_calls
@@ -941,6 +935,18 @@ pub(super) fn commit(
     custody: &mut Custody,
     staged: Staged,
 ) -> Result<(), LegalizationError> {
+    if staged.replacements.is_empty() {
+        return Ok(());
+    }
+    for (destination, replacement) in &staged.replacements {
+        if staged.established.contains(destination)
+            && replacement
+                .as_ref()
+                .is_some_and(|leaf| custody.retired.contains_key(&leaf.identity))
+        {
+            return Err(invalid());
+        }
+    }
     // All effects captured the pre-call generation. A simultaneous replacement
     // can itself retain another overwritten occurrence; checking only the
     // already-resident children misses that dependency. Static-site reuse may
@@ -970,9 +976,17 @@ pub(super) fn commit(
             _ => None,
         }
     };
+    let mut replacement_ids = staged
+        .replacements
+        .iter()
+        .filter_map(|(_, leaf)| leaf.as_ref())
+        .map(|leaf| &leaf.identity)
+        .collect::<Vec<_>>();
+    replacement_ids.sort();
     let mut ancestry = custody
         .leaves
         .values()
+        .filter(|old| replacement_ids.binary_search(&&old.identity).is_err())
         .chain(
             staged
                 .replacements
@@ -982,21 +996,17 @@ pub(super) fn commit(
         .chain(custody.retired.values().map(|retired| &retired.leaf))
         .collect::<Vec<_>>();
     ancestry.sort_by(|left, right| left.identity.cmp(&right.identity));
-    let ancestor = |ancestor: &OccurrenceIdentity, child: &Leaf| {
-        let mut pending = child.parents.iter().collect::<Vec<_>>();
-        let mut seen = BTreeSet::new();
-        while let Some(parent) = pending.pop() {
-            if parent == ancestor {
-                return true;
-            }
-            if !seen.insert(parent) {
-                continue;
-            }
-            if let Ok(index) = ancestry.binary_search_by(|leaf| leaf.identity.cmp(parent)) {
-                pending.extend(ancestry[index].parents.iter());
-            }
-        }
-        false
+    let mut ancestor_index = None;
+    let mut related = |ancestor, child| {
+        ancestor_index
+            .get_or_insert_with(|| {
+                optimization_unit_semantics::reference_outputs::ReferenceAncestryIndex::new(
+                    ancestry
+                        .iter()
+                        .map(|leaf| (leaf.identity.clone(), leaf.parents.clone())),
+                )
+            })
+            .is_ancestor(ancestor, child)
     };
     let mut published = custody
         .leaves
@@ -1017,8 +1027,8 @@ pub(super) fn commit(
                     && roots_overlap(&root.root, &leaf.root)
                     && (access != StructuralAccess::SharedBorrow
                         || *previous != StructuralAccess::SharedBorrow)
-                    && !ancestor(&root.identity, leaf)
-                    && !ancestor(&leaf.identity, root)
+                    && !related(&root.identity, &leaf.identity)
+                    && !related(&leaf.identity, &root.identity)
             })
         {
             return Err(invalid());

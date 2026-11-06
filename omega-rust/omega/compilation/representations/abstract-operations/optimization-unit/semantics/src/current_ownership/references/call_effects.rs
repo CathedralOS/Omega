@@ -22,6 +22,7 @@ enum SlotSource {
 pub(crate) struct ReferenceCallEffects {
     functions: BTreeMap<MachineId, Option<Vec<SlotEffect>>>,
     declarations: Vec<StructuralTypeDeclaration>,
+    access_carriers: Vec<StructuralTypeId>,
     outputs: Option<crate::reference_outputs::ReferenceOutputPreparation>,
 }
 
@@ -31,6 +32,7 @@ impl ReferenceCallEffects {
         boundaries: &[&BoundaryMachineDeclaration],
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        access_views: &[terminal_psi::TerminalAccessViewPlan],
     ) -> Self {
         let declarations = types
             .values()
@@ -134,8 +136,21 @@ impl ReferenceCallEffects {
         Self {
             functions,
             declarations,
+            access_carriers: {
+                let mut carriers = access_views
+                    .iter()
+                    .map(|plan| plan.carrier)
+                    .collect::<Vec<_>>();
+                carriers.sort_unstable();
+                carriers.dedup();
+                carriers
+            },
             outputs: None,
         }
+    }
+
+    pub(super) fn is_access_carrier(&self, carrier: StructuralTypeId) -> bool {
+        self.access_carriers.binary_search(&carrier).is_ok()
     }
 
     pub(crate) fn use_output_preparation(
@@ -180,20 +195,16 @@ impl ReferenceCallEffects {
                     access_path_type(types, signature.structural_type, &argument.path)
                 })
                 .is_none_or(|selected| {
-                    argument.access == StructuralAccess::Owned
-                        && contains_reference(types, selected)
-                        || terminal_semantics::descriptor_results::DescriptorSlotKind::References
-                            .writable_slots(
-                                &self.declarations,
-                                argument.place,
-                                selected,
-                                argument.access,
-                            )
-                            .is_none_or(|slots| !slots.is_empty())
+                    terminal_semantics::descriptor_results::DescriptorSlotKind::References
+                        .writable_slots(
+                            &self.declarations,
+                            argument.place,
+                            selected,
+                            argument.access,
+                        )
+                        .is_none_or(|slots| !slots.is_empty())
                 })
-        }) || matches!(operation, O::CallStructural {
-            result: AbstractStructuralCallResult::Structural { result, .. }, ..
-        } if contains_reference(types, result.structural_type));
+        });
         if self.outputs.is_some()
             && needs_outputs
             && let Some(machine) = callee.machine()
@@ -392,6 +403,7 @@ impl ReferenceCallEffects {
                             carrier_path: destination.path.clone(),
                             root,
                             parent,
+                            interpretation: ReferenceInterpretation::Unavailable,
                         }
                     }
                 };
@@ -417,10 +429,25 @@ impl ReferenceCallEffects {
             }
             replacements.push(replacement);
         }
+        let destinations = replacements
+            .iter()
+            .map(|reference| ReferenceIdentity {
+                place: reference.carrier,
+                path: reference.carrier_path.clone(),
+            })
+            .collect();
         Ok(StoredReferences {
             replacements,
+            destinations,
             returned: None,
             established,
+            historical_parents: live
+                .iter()
+                .filter_map(|reference| match &reference.parent {
+                    ReferenceParent::Reference(parent) => Some(parent.clone()),
+                    ReferenceParent::Root(_) => None,
+                })
+                .collect(),
             retained_identities: live
                 .iter()
                 .filter(|reference| !moved.contains(&reference.identity))
@@ -502,8 +529,10 @@ pub(super) fn resolve_slot(
 #[derive(Default)]
 pub(super) struct StoredReferences {
     pub(super) replacements: Vec<LiveReference>,
+    pub(super) destinations: Vec<ReferenceIdentity>,
     pub(super) returned: Option<Vec<LiveReference>>,
     pub(super) established: BTreeSet<ReferenceOccurrenceIdentity>,
+    pub(super) historical_parents: BTreeSet<ReferenceOccurrenceIdentity>,
     pub(super) retained_identities: BTreeSet<ReferenceOccurrenceIdentity>,
 }
 
@@ -516,10 +545,32 @@ impl StoredReferences {
         node: u32,
         live: &mut Vec<LiveReference>,
     ) -> Result<(), OptimizationUnitValidationError> {
-        if self.replacements.is_empty() {
+        if self.destinations.is_empty() {
             return Ok(());
         }
-        let mut graph = live.iter().chain(&self.replacements).collect::<Vec<_>>();
+        if self
+            .established
+            .iter()
+            .any(|identity| self.historical_parents.contains(identity))
+        {
+            return Err(invalid(
+                function,
+                block,
+                Some(node),
+                "stored reference formation reuses a captured historical parent occurrence",
+            ));
+        }
+        let mut replacement_ids = self
+            .replacements
+            .iter()
+            .map(|reference| &reference.identity)
+            .collect::<Vec<_>>();
+        replacement_ids.sort();
+        let mut graph = live
+            .iter()
+            .filter(|old| replacement_ids.binary_search(&&old.identity).is_err())
+            .chain(&self.replacements)
+            .collect::<Vec<_>>();
         graph.sort_by(|left, right| left.identity.cmp(&right.identity));
         for replacement in &self.replacements {
             if live.iter().any(|old| {
@@ -537,27 +588,31 @@ impl StoredReferences {
                 ));
             }
         }
-        let ancestor = |ancestor: &ReferenceOccurrenceIdentity, child: &LiveReference| {
-            let mut parent = &child.parent;
-            for _ in 0..=graph.len() {
-                let ReferenceParent::Reference(identity) = parent else {
-                    return false;
-                };
-                if identity == ancestor {
-                    return true;
-                }
-                let Ok(position) = graph.binary_search_by(|row| row.identity.cmp(identity)) else {
-                    return false;
-                };
-                parent = &graph[position].parent;
-            }
-            false
+        let mut ancestry = None;
+        let mut related = |ancestor, child| {
+            ancestry
+                .get_or_insert_with(|| {
+                    crate::reference_outputs::ReferenceAncestryIndex::new(graph.iter().map(
+                        |reference| {
+                            let parents = match &reference.parent {
+                                ReferenceParent::Reference(parent) => vec![parent.clone()],
+                                ReferenceParent::Root(_) => Vec::new(),
+                            };
+                            (reference.identity.clone(), parents)
+                        },
+                    ))
+                })
+                .is_ancestor(ancestor, child)
         };
+        let mut destinations = self.destinations.iter().collect::<Vec<_>>();
+        destinations.sort();
         let replaced = |reference: &LiveReference| {
-            self.replacements.iter().any(|replacement| {
-                replacement.carrier == reference.carrier
-                    && replacement.carrier_path == reference.carrier_path
-            })
+            destinations
+                .binary_search_by(|slot| {
+                    (slot.place, slot.path.as_slice())
+                        .cmp(&(reference.carrier, reference.carrier_path.as_slice()))
+                })
+                .is_ok()
         };
         let mut staged = live
             .iter()
@@ -585,8 +640,8 @@ impl StoredReferences {
                 origins_overlap(&reference.root, &replacement.root)
                     && (permission(reference) != Some(StructuralAccess::SharedBorrow)
                         || permission(&replacement) != Some(StructuralAccess::SharedBorrow))
-                    && !ancestor(&reference.identity, &replacement)
-                    && !ancestor(&replacement.identity, reference)
+                    && !related(&reference.identity, &replacement.identity)
+                    && !related(&replacement.identity, &reference.identity)
             }) {
                 return Err(invalid(
                     function,

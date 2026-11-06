@@ -97,12 +97,10 @@ pub(super) fn output_graph(
                     (slot.parameter, slot.path.as_slice())
                         .cmp(&(parameter, reference.carrier_path.as_slice()))
                 })
-                .is_ok();
-            let residence = if writable {
-                ReferenceOutputResidence::Parameter {
-                    parameter,
-                    path: reference.carrier_path.clone(),
-                }
+                .ok()
+                .map(|index| slot_order[index]);
+            let residence = if let Some(slot) = writable {
+                ReferenceOutputResidence::Parameter { slot: slot.index }
             } else {
                 ReferenceOutputResidence::Entry(
                     existing.ok_or("a read-only input changed its reference occurrence")?,
@@ -153,11 +151,40 @@ pub(super) fn output_graph(
             };
             ReferenceOutputSupply::Constructed { origins, parent }
         };
+        let interpretation = match &reference.interpretation {
+            ReferenceInterpretation::Unplaced => ReferenceOutputInterpretation::Unplaced,
+            ReferenceInterpretation::Incoming(identity) => ReferenceOutputInterpretation::Entry(
+                entry_index(identity)
+                    .ok_or("an output interpretation lost its exact entry occurrence")?,
+            ),
+            ReferenceInterpretation::Captured(backing) => {
+                ReferenceOutputInterpretation::Captured(backing.clone())
+            }
+            ReferenceInterpretation::Source(source) => {
+                let parameter = parameter_order
+                    .binary_search_by_key(&source.place, |index| {
+                        function.structural_parameters[*index].place
+                    })
+                    .map(|index| parameter_order[index])
+                    .map_err(
+                        |_| "an output interpretation depends on an unexported local operand",
+                    )?;
+                ReferenceOutputInterpretation::Source {
+                    parameter,
+                    path: source.path.clone(),
+                    access: source.access,
+                }
+            }
+            ReferenceInterpretation::Unavailable => {
+                return Err("an output interpretation has incomplete or conflicting alternatives");
+            }
+        };
         let position = graph.len();
         graph.push(ReferenceOutputNode {
             residence,
             reference_type,
             supply,
+            interpretation,
         });
         positions[index] = Some(position);
         active[index] = false;

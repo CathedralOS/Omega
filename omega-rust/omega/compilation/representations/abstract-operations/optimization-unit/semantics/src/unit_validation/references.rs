@@ -154,6 +154,18 @@ pub enum ReferenceOrigin {
     },
 }
 
+/// Interpretation provenance is independent of pointer geometry. Incoming and
+/// source rows remain variables until the actual caller supplies their issuing
+/// interpretation; a performed conversion retains its checked correspondence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReferenceInterpretation {
+    Unplaced,
+    Incoming(ReferenceOccurrenceIdentity),
+    Source(StructuralArgument),
+    Captured(abstract_operations::AccessReferenceBacking),
+    Unavailable,
+}
+
 /// One outstanding loan: which carrier leaf holds it, which original referent
 /// root it suspends, and which parent it descends from.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,6 +175,7 @@ pub struct LiveReference {
     pub carrier_path: Vec<StructuralPathSegment>,
     pub root: ReferenceOrigin,
     pub parent: ReferenceParent,
+    pub interpretation: ReferenceInterpretation,
 }
 
 /// Inspect owned containment only. A reference's referent is not its payload.

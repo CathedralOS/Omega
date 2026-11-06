@@ -17,17 +17,19 @@ use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralCaseId, Structu
 use terminal_psi::{StructuralAccess, StructuralPathSegment, StructuralTypeDeclaration};
 
 pub use crate::unit_validation::references::{
-    LiveReference, ReferenceFormation, ReferenceIdentity, ReferenceOccurrenceIdentity,
-    ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
+    LiveReference, ReferenceFormation, ReferenceIdentity, ReferenceInterpretation,
+    ReferenceOccurrenceIdentity, ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
 };
 
 /// One typed caller-storage slot. This is a storage coordinate, independently
 /// of the identity of the permission currently installed there.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReferenceOutputSlot {
+    index: usize,
     parameter: usize,
     path: Vec<StructuralPathSegment>,
     reference_type: StructuralTypeId,
+    access: StructuralAccess,
 }
 
 impl ReferenceOutputSlot {
@@ -42,6 +44,9 @@ impl ReferenceOutputSlot {
     pub fn reference_type(&self) -> StructuralTypeId {
         self.reference_type
     }
+    pub fn access(&self) -> StructuralAccess {
+        self.access
+    }
 }
 
 /// Keep exits separate: a loan from one path cannot justify a missing parent
@@ -52,6 +57,7 @@ pub struct ReferenceOutputExit {
     returned: Vec<LiveReference>,
     stored: Vec<LiveReference>,
     graph: Vec<ReferenceOutputNode>,
+    cleared_slots: Option<Vec<usize>>,
 }
 
 impl ReferenceOutputExit {
@@ -69,6 +75,10 @@ impl ReferenceOutputExit {
 
     /// Parents precede their children. Each node is a permission occurrence,
     /// even when another node has exactly the same pointer origin.
+    pub fn cleared_slots(&self) -> Option<&[usize]> {
+        self.cleared_slots.as_deref()
+    }
+
     pub fn graph(&self) -> &[ReferenceOutputNode] {
         &self.graph
     }
@@ -77,13 +87,8 @@ impl ReferenceOutputExit {
 #[derive(Clone, Debug)]
 pub enum ReferenceOutputResidence {
     Entry(usize),
-    Parameter {
-        parameter: usize,
-        path: Vec<StructuralPathSegment>,
-    },
-    Returned {
-        path: Vec<StructuralPathSegment>,
-    },
+    Parameter { slot: usize },
+    Returned { path: Vec<StructuralPathSegment> },
 }
 
 #[derive(Clone, Debug)]
@@ -117,10 +122,23 @@ pub enum ReferenceOutputSupply {
 }
 
 #[derive(Clone, Debug)]
+pub enum ReferenceOutputInterpretation {
+    Unplaced,
+    Entry(usize),
+    Source {
+        parameter: usize,
+        path: Vec<StructuralPathSegment>,
+        access: StructuralAccess,
+    },
+    Captured(abstract_operations::AccessReferenceBacking),
+}
+
+#[derive(Clone, Debug)]
 pub struct ReferenceOutputNode {
     residence: ReferenceOutputResidence,
     reference_type: StructuralTypeId,
     supply: ReferenceOutputSupply,
+    interpretation: ReferenceOutputInterpretation,
 }
 
 impl ReferenceOutputNode {
@@ -130,6 +148,10 @@ impl ReferenceOutputNode {
     pub fn reference_type(&self) -> StructuralTypeId {
         self.reference_type
     }
+    pub fn interpretation(&self) -> &ReferenceOutputInterpretation {
+        &self.interpretation
+    }
+
     pub fn supply(&self) -> &ReferenceOutputSupply {
         &self.supply
     }
@@ -140,6 +162,8 @@ impl ReferenceOutputNode {
 pub struct ReferenceBodyOutputs {
     machine: MachineId,
     entry: Vec<LiveReference>,
+    entry_parameters: Vec<usize>,
+    entry_writable: Vec<bool>,
     slots: Vec<ReferenceOutputSlot>,
     exits: Vec<ReferenceOutputExit>,
     required_entries: Vec<usize>,
@@ -154,6 +178,14 @@ impl ReferenceBodyOutputs {
 
     pub fn entry(&self) -> &[LiveReference] {
         &self.entry
+    }
+
+    pub fn entry_parameter(&self, entry: usize) -> Option<usize> {
+        self.entry_parameters.get(entry).copied()
+    }
+
+    pub fn entry_is_writable(&self, entry: usize) -> bool {
+        self.entry_writable.get(entry).copied().unwrap_or(false)
     }
 
     pub fn slots(&self) -> &[ReferenceOutputSlot] {
@@ -194,10 +226,12 @@ enum ReferenceOutputState {
 
 pub(crate) type ReferenceOutputPreparation = Rc<RefCell<ReferenceOutputCatalog>>;
 
+mod ancestry;
 mod catalog;
 mod completion;
 mod graph;
 
+pub use ancestry::ReferenceAncestryIndex;
 pub use catalog::reconstruct_reference_output_catalog;
 pub(crate) use completion::ReferenceOutputBuilder;
 use graph::{external_root, is_entry_storage, output_graph};

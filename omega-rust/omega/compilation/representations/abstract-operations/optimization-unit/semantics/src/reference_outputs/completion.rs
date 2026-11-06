@@ -7,6 +7,8 @@ use super::*;
 pub(crate) struct ReferenceOutputBuilder {
     machine: MachineId,
     entry: Vec<LiveReference>,
+    entry_parameters: Vec<usize>,
+    entry_writable: Vec<bool>,
     slots: Vec<ReferenceOutputSlot>,
     slot_order: Vec<usize>,
     incomplete_slots: Option<&'static str>,
@@ -47,17 +49,74 @@ impl ReferenceOutputBuilder {
                     &path,
                 )
                 .ok_or("a reference output has no current reference type")?;
+                let access = if let Some(crossing) = path
+                    .iter()
+                    .rposition(|part| *part == StructuralPathSegment::Referent)
+                {
+                    match &terminal_semantics::runtime_structural_path_tip(
+                        types.iter(),
+                        parameter.structural_type,
+                        &path[..crossing],
+                    )
+                    .ok_or("a writable reference output has no typed crossing")?
+                    .shape
+                    {
+                        terminal_psi::StructuralTypeShape::Reference { access, .. } => *access,
+                        _ => return Err("a writable reference output crosses a non-reference"),
+                    }
+                } else {
+                    parameter.access
+                };
+                if !matches!(
+                    access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ) {
+                    return Err("a writable reference output has no exclusive storage access");
+                }
                 slots.push(ReferenceOutputSlot {
+                    index: slots.len(),
                     parameter: position,
                     path,
                     reference_type: selected.id,
+                    access,
                 });
             }
         }
+        let mut parameters = function
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .collect::<Vec<_>>();
+        parameters.sort_by_key(|(_, parameter)| parameter.place);
+        let entry_parameters = entry
+            .iter()
+            .map(|entry| {
+                parameters
+                    .binary_search_by_key(&entry.carrier, |(_, parameter)| parameter.place)
+                    .map(|index| parameters[index].0)
+                    .map_err(|_| "a reference entry has no structural parameter")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut writable_keys = slots
+            .iter()
+            .map(|slot| (slot.parameter, slot.path.as_slice()))
+            .collect::<Vec<_>>();
+        writable_keys.sort();
+        let entry_writable = entry
+            .iter()
+            .zip(&entry_parameters)
+            .map(|(entry, parameter)| {
+                writable_keys
+                    .binary_search(&(*parameter, entry.carrier_path.as_slice()))
+                    .is_ok()
+            })
+            .collect();
         Ok(Self {
             machine: function.machine,
             incomplete_slots,
             entry: entry.to_vec(),
+            entry_parameters,
+            entry_writable,
             slot_order: {
                 let mut indices = (0..slots.len()).collect::<Vec<_>>();
                 indices.sort_by(|left, right| {
@@ -82,12 +141,14 @@ impl ReferenceOutputBuilder {
         block: BlockId,
         returned: Vec<LiveReference>,
         stored: Vec<LiveReference>,
+        cleared_slots: Option<Vec<usize>>,
     ) {
         let exit = ReferenceOutputExit {
             block,
             returned,
             stored,
             graph: Vec::new(),
+            cleared_slots,
         };
         if let Some(previous) = self.exits.iter_mut().find(|exit| exit.block == block) {
             *previous = exit;
@@ -102,21 +163,18 @@ impl ReferenceOutputBuilder {
         returned: &[LiveReference],
         live: &[LiveReference],
         inactive_case: impl Fn(PlaceId, &[StructuralPathSegment], StructuralCaseId) -> bool,
-    ) -> Result<(), &'static str> {
+    ) -> Result<Option<Vec<usize>>, &'static str> {
+        let mut actual_entry = live.iter().collect::<Vec<_>>();
+        let mut expected_entry = self
+            .entry
+            .iter()
+            .filter(|reference| is_entry_storage(function, reference.carrier))
+            .collect::<Vec<_>>();
+        actual_entry.sort_by(|left, right| left.identity.cmp(&right.identity));
+        expected_entry.sort_by(|left, right| left.identity.cmp(&right.identity));
+        let unchanged = actual_entry == expected_entry;
         if self.incomplete_slots.is_some() {
-            // An optional output summary must not reject an unchanged ordinary
-            // body merely because its writable pointee inventory is recursive.
-            // Keep the previous exact borrowed-ingress restoration judgment;
-            // this branch cannot publish a complete output graph at seal().
-            let mut actual = live.iter().collect::<Vec<_>>();
-            let mut expected = self
-                .entry
-                .iter()
-                .filter(|reference| is_entry_storage(function, reference.carrier))
-                .collect::<Vec<_>>();
-            actual.sort_by(|left, right| left.identity.cmp(&right.identity));
-            expected.sort_by(|left, right| left.identity.cmp(&right.identity));
-            return if actual == expected {
+            return if unchanged {
                 Ok(())
             } else {
                 Err("unknown writable reference outputs require exact unchanged ingress custody")
@@ -135,7 +193,8 @@ impl ReferenceOutputBuilder {
         residents.sort_by(|left, right| {
             (left.carrier, &left.carrier_path).cmp(&(right.carrier, &right.carrier_path))
         });
-        for slot in &self.slots {
+        let mut cleared = Vec::new();
+        for (index, slot) in self.slots.iter().enumerate() {
             let (place, path) = location(function, slot);
             let first = residents.partition_point(|reference| {
                 (reference.carrier, reference.carrier_path.as_slice()) < (place, path)
@@ -147,13 +206,19 @@ impl ReferenceOutputBuilder {
             if count > 1 {
                 return Err("a stored reference output has ambiguous live occurrences");
             }
-            if count == 0
-                && !path.iter().enumerate().any(|(position, segment)| {
+            if count == 0 {
+                let inactive = path.iter().enumerate().any(|(position, segment)| {
                     matches!(segment, StructuralPathSegment::Case(case)
                         if inactive_case(place, &path[..position], *case))
-                })
-            {
-                return Err("a stored reference output is neither live nor proved inactive");
+                });
+                if !inactive {
+                    return if unchanged {
+                        Ok(None)
+                    } else {
+                        Err("a stored reference output is neither live nor proved inactive")
+                    };
+                }
+                cleared.push(index);
             }
         }
         let is_output = |reference: &LiveReference| {
@@ -181,6 +246,9 @@ impl ReferenceOutputBuilder {
         expected.sort_by(|left, right| left.identity.cmp(&right.identity));
         if remaining != expected {
             return Err("normal completion does not restore borrowed reference custody");
+        }
+        if unchanged {
+            return Ok(());
         }
         let mut current = returned.iter().chain(live).collect::<Vec<_>>();
         current.sort_by(|left, right| left.identity.cmp(&right.identity));
@@ -212,7 +280,7 @@ impl ReferenceOutputBuilder {
                 &mut complete,
             )?;
         }
-        Ok(())
+        Ok(Some(cleared))
     }
 
     fn validate_parent(
@@ -285,6 +353,11 @@ impl ReferenceOutputBuilder {
             return Err(reason);
         }
         for exit in &mut self.exits {
+            if exit.cleared_slots.is_none() {
+                return Err(
+                    "normal restoration did not establish a complete writable output graph",
+                );
+            }
             exit.graph = output_graph(function, types, &self.entry, &self.slots, exit)?;
         }
         fn retain_origins(origins: &[ReferenceOutputOrigin], entries: &mut Vec<usize>) {
@@ -295,6 +368,9 @@ impl ReferenceOutputBuilder {
         }
         let mut required_entries = Vec::new();
         for node in self.exits.iter().flat_map(|exit| &exit.graph) {
+            if let ReferenceOutputInterpretation::Entry(entry) = node.interpretation() {
+                required_entries.push(*entry);
+            }
             match node.supply() {
                 ReferenceOutputSupply::Entry(entry) => required_entries.push(*entry),
                 ReferenceOutputSupply::Constructed { origins, parent } => {
@@ -314,6 +390,8 @@ impl ReferenceOutputBuilder {
         Ok(ReferenceBodyOutputs {
             machine: self.machine,
             entry: self.entry,
+            entry_parameters: self.entry_parameters,
+            entry_writable: self.entry_writable,
             slots: self.slots,
             exits: self.exits,
             required_entries,

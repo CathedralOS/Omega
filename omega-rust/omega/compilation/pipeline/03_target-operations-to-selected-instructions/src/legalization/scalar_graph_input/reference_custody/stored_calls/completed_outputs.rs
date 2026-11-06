@@ -3,8 +3,8 @@
 //! origins alone cannot authorize moving or creating a permission.
 use super::*;
 use optimization_unit_semantics::reference_outputs::{
-    ReferenceBodyOutputs, ReferenceOutputOrigin, ReferenceOutputParent, ReferenceOutputResidence,
-    ReferenceOutputSupply,
+    ReferenceBodyOutputs, ReferenceOutputInterpretation, ReferenceOutputOrigin,
+    ReferenceOutputParent, ReferenceOutputResidence, ReferenceOutputSupply,
 };
 
 #[derive(Clone)]
@@ -18,7 +18,6 @@ struct Origin {
     backing: Vec<descriptor_backing::Backing>,
     parents: Vec<OccurrenceIdentity>,
     debts: Vec<lifetime_debts::Debt>,
-    placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -34,29 +33,17 @@ pub(super) fn stage(
     result: Option<&StructuralOperationResult>,
 ) -> Result<Staged, LegalizationError> {
     let actual = |parameter: usize, path: &[StructuralPathSegment]| {
-        let parameter = callee
+        let formal = callee
             .structural_parameters
             .get(parameter)
             .ok_or_else(|| invalid())?;
-        call_source(
-            &callee.structural_parameters,
-            arguments,
-            &StructuralArgument {
-                place: parameter.place,
-                path: path.to_vec(),
-                access: parameter.access,
-            },
-        )
-        .ok_or_else(|| invalid())
+        abstract_operations::calls::call_source_at(arguments, parameter, path, formal.access)
+            .ok_or_else(|| invalid())
     };
     let mut captured = vec![None; body.entry().len()];
     for &index in body.required_entries() {
         let entry = &body.entry()[index];
-        let parameter = callee
-            .structural_parameters
-            .iter()
-            .position(|parameter| parameter.place == entry.carrier)
-            .ok_or_else(|| invalid())?;
+        let parameter = body.entry_parameter(index).ok_or_else(|| invalid())?;
         let actual = actual(parameter, &entry.carrier_path)?;
         let location = window_storage(
             function,
@@ -85,6 +72,39 @@ pub(super) fn stage(
         }
         captured[index] = Some(Captured { location, leaf });
     }
+    let destinations = body
+        .slots()
+        .iter()
+        .map(|slot| {
+            let actual = abstract_operations::calls::call_source_at(
+                arguments,
+                slot.parameter(),
+                slot.path(),
+                slot.access(),
+            )
+            .ok_or_else(|| invalid())?;
+            let destination = window_storage(
+                function,
+                custody,
+                types,
+                actual.place,
+                &actual.path,
+                StructuralAccess::WriteOnlyBorrow,
+            )?;
+            if source_contract(function, custody, destination.0)
+                .and_then(|root| leaf_type(types, root, &destination.1))
+                != Some(slot.reference_type())
+            {
+                return Err(invalid());
+            }
+            Ok(destination)
+        })
+        .collect::<Result<Vec<_>, LegalizationError>>()?;
+    let mut destination_keys = destinations.iter().collect::<Vec<_>>();
+    destination_keys.sort();
+    if destination_keys.windows(2).any(|rows| rows[0] == rows[1]) {
+        return Err(invalid());
+    }
     let mut completed = None;
     for exit in body.exits() {
         let mut staged = Staged {
@@ -95,6 +115,7 @@ pub(super) fn stage(
             returned: Some(Vec::new()),
         };
         let mut nodes: Vec<Leaf> = Vec::with_capacity(exit.graph().len());
+        let mut covered = vec![false; destinations.len()];
         for output in exit.graph() {
             let (destination, publish, returned) = match output.residence() {
                 ReferenceOutputResidence::Entry(entry) => (
@@ -107,26 +128,13 @@ pub(super) fn stage(
                     false,
                     false,
                 ),
-                ReferenceOutputResidence::Parameter { parameter, path } => {
-                    let actual = actual(*parameter, path)?;
-                    if !matches!(
-                        actual.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    ) {
+                ReferenceOutputResidence::Parameter { slot } => {
+                    let present = covered.get_mut(*slot).ok_or_else(|| invalid())?;
+                    if *present {
                         return Err(invalid());
                     }
-                    (
-                        window_storage(
-                            function,
-                            custody,
-                            types,
-                            actual.place,
-                            &actual.path,
-                            StructuralAccess::WriteOnlyBorrow,
-                        )?,
-                        true,
-                        false,
-                    )
+                    *present = true;
+                    (destinations[*slot].clone(), true, false)
                 }
                 ReferenceOutputResidence::Returned { path } => (
                     (result.ok_or_else(|| invalid())?.place, path.clone()),
@@ -147,9 +155,15 @@ pub(super) fn stage(
                         .and_then(Option::as_ref)
                         .ok_or_else(|| invalid())?;
                     if entry.location != destination {
-                        if !moved
+                        let moved_by_argument = moved
                             .get(&entry.location)
-                            .is_some_and(|leaf| leaf == &entry.leaf)
+                            .is_some_and(|leaf| leaf == &entry.leaf);
+                        if (!moved_by_argument && !body.entry_is_writable(*index))
+                            || (!moved_by_argument
+                                && custody.leaves.values().any(|child| {
+                                    custody.descends_from(child, &entry.leaf.identity)
+                                        || custody.lifetime_depends_on(child, &entry.leaf.identity)
+                                }))
                             || staged
                                 .relocations
                                 .insert(entry.location.clone(), destination.clone())
@@ -191,6 +205,40 @@ pub(super) fn stage(
                     let identity = OccurrenceIdentity::operation(&destination, operation);
                     let referent = leaf_referent(types, output.reference_type(), &[])
                         .ok_or_else(|| invalid())?;
+                    let placed = match output.interpretation() {
+                        ReferenceOutputInterpretation::Unplaced => None,
+                        ReferenceOutputInterpretation::Entry(index) => captured
+                            .get(*index)
+                            .and_then(Option::as_ref)
+                            .ok_or_else(|| invalid())?
+                            .leaf
+                            .placed
+                            .clone(),
+                        ReferenceOutputInterpretation::Captured(backing) => {
+                            if backing.carrier() != referent {
+                                return Err(invalid());
+                            }
+                            Some(target_operations::TargetAccessInterpretation::Captured(
+                                backing.clone(),
+                            ))
+                        }
+                        ReferenceOutputInterpretation::Source {
+                            parameter,
+                            path,
+                            access,
+                        } => {
+                            let source = abstract_operations::calls::call_source_at(
+                                arguments, *parameter, path, *access,
+                            )
+                            .ok_or_else(|| invalid())?;
+                            if reference_source_type(function, custody, types, &source)
+                                != Some(referent)
+                            {
+                                return Err(invalid());
+                            }
+                            super::super::access_source(function, custody, types, &source)
+                        }
+                    };
                     staged.established.insert(destination.clone());
                     Leaf {
                         identity: identity.clone(),
@@ -199,7 +247,7 @@ pub(super) fn stage(
                         parents,
                         lifetime_debts: origin.debts,
                         referent,
-                        placed: origin.placed,
+                        placed,
                         formations: vec![Formation {
                             identity,
                             contract: contract.clone(),
@@ -224,6 +272,20 @@ pub(super) fn stage(
             leaf.parents.sort();
             leaf.parents.dedup();
             nodes.push(leaf);
+        }
+        for &index in exit.cleared_slots().ok_or_else(|| invalid())? {
+            let present = covered.get_mut(index).ok_or_else(|| invalid())?;
+            if *present {
+                return Err(invalid());
+            }
+            *present = true;
+            staged.replacements.push((
+                destinations.get(index).cloned().ok_or_else(|| invalid())?,
+                None,
+            ));
+        }
+        if covered.iter().any(|present| !present) {
+            return Err(invalid());
         }
         staged
             .replacements
@@ -269,10 +331,8 @@ fn bind_origins(
     let mut candidates = Vec::with_capacity(origins.len());
     let mut backing = Vec::new();
     let mut debts = Vec::new();
-    let mut placed = None;
-    let mut first = true;
     for origin in origins {
-        let (root, parents, observed_backing, observed_debts, interpretation) = match origin {
+        let (root, parents, observed_backing, observed_debts) = match origin {
             ReferenceOutputOrigin::Entry {
                 entry,
                 suffix,
@@ -292,7 +352,6 @@ fn bind_origins(
                         .into_iter()
                         .cloned()
                         .collect::<Vec<_>>(),
-                    entry.placed.clone(),
                 )
             }
             ReferenceOutputOrigin::Storage {
@@ -312,14 +371,11 @@ fn bind_origins(
                     })
                     .collect::<Option<Vec<_>>>()
                     .ok_or_else(|| invalid())?;
-                let actual = call_source(
-                    &callee.structural_parameters,
+                let actual = abstract_operations::calls::call_source_at(
                     arguments,
-                    &StructuralArgument {
-                        place: formal.place,
-                        path,
-                        access: formal.access,
-                    },
+                    *parameter,
+                    &path,
+                    formal.access,
                 )
                 .ok_or_else(|| invalid())?;
                 let (root, mut parents) = normalized_source(function, custody, types, &actual)?;
@@ -334,15 +390,9 @@ fn bind_origins(
                     parents,
                     backing,
                     Vec::new(),
-                    super::super::access_source(function, custody, types, &actual),
                 )
             }
         };
-        if !first && placed != interpretation {
-            return Err(invalid());
-        }
-        placed = interpretation;
-        first = false;
         candidates.push((root, parents));
         backing.extend(observed_backing);
         debts.extend(observed_debts);
@@ -357,6 +407,5 @@ fn bind_origins(
         parents,
         backing,
         debts,
-        placed,
     })
 }

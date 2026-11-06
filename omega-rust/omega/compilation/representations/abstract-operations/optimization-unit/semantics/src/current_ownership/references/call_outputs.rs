@@ -3,8 +3,8 @@
 //! replaced slot cannot redirect a child to its new resident pointer.
 use super::*;
 use crate::reference_outputs::{
-    ReferenceBodyOutputs, ReferenceOutputOrigin, ReferenceOutputParent, ReferenceOutputResidence,
-    ReferenceOutputSupply,
+    ReferenceBodyOutputs, ReferenceOutputInterpretation, ReferenceOutputOrigin,
+    ReferenceOutputParent, ReferenceOutputResidence, ReferenceOutputSupply,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -27,26 +27,20 @@ pub(super) fn bind(
             .structural_parameters
             .get(parameter)
             .ok_or_else(|| fail("completed reference output parameter is absent"))?;
-        call_source(
-            &callee.structural_parameters,
-            arguments,
-            &StructuralArgument {
-                place: formal.place,
-                path: path.to_vec(),
-                access: formal.access,
-            },
-        )
-        .ok_or_else(|| fail("completed reference output actual is absent"))
+        abstract_operations::calls::call_source_at(arguments, parameter, path, formal.access)
+            .ok_or_else(|| fail("completed reference output actual is absent"))
     };
     // Capture once, before any destination is replaced. An entry anchor is an
     // actual live pointer word; its type or root spelling cannot supply it.
+    let mut residents = live.iter().collect::<Vec<_>>();
+    residents.sort_by(|left, right| {
+        (left.carrier, &left.carrier_path).cmp(&(right.carrier, &right.carrier_path))
+    });
     let mut captured = vec![None; body.entry().len()];
     for &index in body.required_entries() {
         let entry = &body.entry()[index];
-        let parameter = callee
-            .structural_parameters
-            .iter()
-            .position(|parameter| parameter.place == entry.carrier)
+        let parameter = body
+            .entry_parameter(index)
             .ok_or_else(|| fail("completed reference entry has no formal"))?;
         let argument = actual(parameter, &entry.carrier_path)?;
         let slot = call_effects::resolve_slot(function, types, block, node, live, &argument)?;
@@ -61,17 +55,50 @@ pub(super) fn bind(
                 "completed reference entry changes the actual descriptor type",
             ));
         }
-        let mut residents = live.iter().filter(|reference| {
-            reference.carrier == slot.place && reference.carrier_path == slot.path
+        let first = residents.partition_point(|reference| {
+            (reference.carrier, reference.carrier_path.as_slice())
+                < (slot.place, slot.path.as_slice())
         });
-        let resident = residents
-            .next()
-            .cloned()
-            .ok_or_else(|| fail("completed reference entry is not live at this call"))?;
-        if residents.next().is_some() {
-            return Err(fail("completed reference entry is ambiguous at this call"));
+        let after = residents.partition_point(|reference| {
+            (reference.carrier, reference.carrier_path.as_slice())
+                <= (slot.place, slot.path.as_slice())
+        });
+        if after - first != 1 {
+            return Err(fail(
+                "completed reference entry is absent or ambiguous at this call",
+            ));
         }
+        let resident = residents[first].clone();
         captured[index] = Some(resident);
+    }
+    let destinations = body
+        .slots()
+        .iter()
+        .map(|slot| {
+            let actual = abstract_operations::calls::call_source_at(
+                arguments,
+                slot.parameter(),
+                slot.path(),
+                slot.access(),
+            )
+            .ok_or_else(|| fail("completed writable output actual is absent"))?;
+            let destination =
+                call_effects::resolve_slot(function, types, block, node, live, &actual)?;
+            if call_effects::slot_type(function, types, &destination) != Some(slot.reference_type())
+            {
+                return Err(fail(
+                    "completed writable output changes its actual descriptor type",
+                ));
+            }
+            Ok(destination)
+        })
+        .collect::<Result<Vec<_>, OptimizationUnitValidationError>>()?;
+    let mut destination_keys = destinations.iter().collect::<Vec<_>>();
+    destination_keys.sort();
+    if destination_keys.windows(2).any(|rows| rows[0] == rows[1]) {
+        return Err(fail(
+            "completed outputs map distinct writable slots to the same actual slot",
+        ));
     }
     let mut completed = None;
     for exit in body.exits() {
@@ -79,6 +106,7 @@ pub(super) fn bind(
         let mut replacements = Vec::new();
         let mut returned = Vec::new();
         let mut established = BTreeSet::new();
+        let mut covered = vec![false; destinations.len()];
         for output in exit.graph() {
             let (destination, publish, is_returned) = match output.residence() {
                 ReferenceOutputResidence::Entry(entry) => {
@@ -95,21 +123,15 @@ pub(super) fn bind(
                         false,
                     )
                 }
-                ReferenceOutputResidence::Parameter { parameter, path } => {
-                    let actual = actual(*parameter, path)?;
-                    if !matches!(
-                        actual.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    ) {
-                        return Err(fail(
-                            "completed reference destination lacks exclusive access",
-                        ));
+                ReferenceOutputResidence::Parameter { slot } => {
+                    let present = covered
+                        .get_mut(*slot)
+                        .ok_or_else(|| fail("completed writable slot index is absent"))?;
+                    if *present {
+                        return Err(fail("completed body repeats a writable output slot"));
                     }
-                    (
-                        call_effects::resolve_slot(function, types, block, node, live, &actual)?,
-                        true,
-                        false,
-                    )
+                    *present = true;
+                    (destinations[*slot].clone(), true, false)
                 }
                 ReferenceOutputResidence::Returned { path } => {
                     let result =
@@ -148,10 +170,21 @@ pub(super) fn bind(
                     if (reference.carrier != destination.place
                         || reference.carrier_path != destination.path)
                         && !moved.contains(&reference.identity)
+                        && !body.entry_is_writable(*index)
                     {
                         return Err(fail(
                             "completed reference transfer did not consume its actual argument",
                         ));
+                    }
+                    if (reference.carrier != destination.place
+                        || reference.carrier_path != destination.path)
+                        && !moved.contains(&reference.identity)
+                        && live.iter().any(|child| {
+                            matches!(&child.parent,
+                            ReferenceParent::Reference(parent) if parent == &reference.identity)
+                        })
+                    {
+                        return Err(fail("completed reference transfer source has a live child"));
                     }
                     reference.clone()
                 }
@@ -189,12 +222,49 @@ pub(super) fn bind(
                         destination.path.clone(),
                     )?;
                     established.insert(identity.clone());
+                    let interpretation = match output.interpretation() {
+                        ReferenceOutputInterpretation::Unplaced => {
+                            ReferenceInterpretation::Unplaced
+                        }
+                        ReferenceOutputInterpretation::Entry(index) => captured
+                            .get(*index)
+                            .and_then(Option::as_ref)
+                            .ok_or_else(|| fail("completed interpretation entry is unavailable"))?
+                            .interpretation
+                            .clone(),
+                        ReferenceOutputInterpretation::Captured(backing) => {
+                            ReferenceInterpretation::Captured(backing.clone())
+                        }
+                        ReferenceOutputInterpretation::Source {
+                            parameter,
+                            path,
+                            access,
+                        } => {
+                            let source = abstract_operations::calls::call_source_at(
+                                arguments, *parameter, path, *access,
+                            )
+                            .ok_or_else(|| {
+                                fail("completed interpretation source actual is absent")
+                            })?;
+                            whole_source_interpretation(
+                                function,
+                                types,
+                                live,
+                                &source,
+                                output.reference_type(),
+                                &root,
+                                &parent,
+                                true,
+                            )
+                        }
+                    };
                     LiveReference {
                         identity,
                         carrier: destination.place,
                         carrier_path: destination.path.clone(),
                         root,
                         parent,
+                        interpretation,
                     }
                 }
             };
@@ -215,7 +285,22 @@ pub(super) fn bind(
         returned.sort_by(|left, right| {
             (left.carrier, &left.carrier_path).cmp(&(right.carrier, &right.carrier_path))
         });
-        let current = (replacements, returned, established);
+        let cleared = exit
+            .cleared_slots()
+            .ok_or_else(|| fail("completed output clear roster is unavailable"))?;
+        for &slot in cleared {
+            let present = covered
+                .get_mut(slot)
+                .ok_or_else(|| fail("completed output clear index is absent"))?;
+            if *present {
+                return Err(fail("completed output clear overlaps a live output"));
+            }
+            *present = true;
+        }
+        if covered.iter().any(|present| !present) {
+            return Err(fail("completed body omits a typed writable output slot"));
+        }
+        let current = (replacements, returned, established, cleared.to_vec());
         if completed
             .as_ref()
             .is_some_and(|previous| previous != &current)
@@ -230,8 +315,16 @@ pub(super) fn bind(
         completed.ok_or_else(|| fail("reference-output body has no completed normal exit"))?;
     Ok(call_effects::StoredReferences {
         replacements,
+        destinations,
         returned: Some(returned),
         established,
+        historical_parents: live
+            .iter()
+            .filter_map(|reference| match &reference.parent {
+                ReferenceParent::Reference(parent) => Some(parent.clone()),
+                ReferenceParent::Root(_) => None,
+            })
+            .collect(),
         retained_identities: live
             .iter()
             .filter(|reference| !moved.contains(&reference.identity))
@@ -290,14 +383,11 @@ fn bind_origin(
                 .ok_or_else(|| {
                     fail("completed reference storage is not an exact projected path")
                 })?;
-            let actual = call_source(
-                &callee.structural_parameters,
+            let actual = abstract_operations::calls::call_source_at(
                 arguments,
-                &StructuralArgument {
-                    place: formal.place,
-                    path,
-                    access: formal.access,
-                },
+                *parameter,
+                &path,
+                formal.access,
             )
             .ok_or_else(|| fail("completed reference storage actual is absent"))?;
             let (root, mut parent) =

@@ -9,11 +9,11 @@ use super::address_joins::borrowed_regions::BorrowedReferenceSources;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
-    LiveReference, ReferenceFormation, ReferenceIdentity, ReferenceOccurrenceIdentity,
-    ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent, access_path_type,
-    access_reference_source_compatible, access_referent_tail, contains_reference, formal_origin,
-    is_reference_projection, leaf_access_within, leaf_paths, leaf_referent, leaf_type,
-    reference_access, reference_source_type, storage_projection,
+    LiveReference, ReferenceFormation, ReferenceIdentity, ReferenceInterpretation,
+    ReferenceOccurrenceIdentity, ReferenceOrigin, ReferenceOriginIdentity, ReferenceParent,
+    access_path_type, access_reference_source_compatible, access_referent_tail, contains_reference,
+    formal_origin, is_reference_projection, leaf_access_within, leaf_paths, leaf_referent,
+    leaf_type, reference_access, reference_source_type, storage_projection,
 };
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
@@ -297,6 +297,7 @@ pub(super) fn entry_references(
             let identity = ReferenceOccurrenceIdentity::entry(parameter.place, path.clone());
             let root = ReferenceOrigin::IngressLeaf(identity.clone().into());
             live.push(LiveReference {
+                interpretation: ReferenceInterpretation::Incoming(identity.clone()),
                 identity,
                 carrier: parameter.place,
                 carrier_path: path,
@@ -544,6 +545,57 @@ fn shared_borrow_compatibility<'a>(
     }
 }
 
+/// Only the performed whole-source relation can inherit an interpretation.
+/// Equal roots without this exact current parent do not establish one.
+#[allow(clippy::too_many_arguments)]
+fn whole_source_interpretation(
+    function: &PsiOptimizationFunction,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    live: &[LiveReference],
+    source: &StructuralArgument,
+    result_type: StructuralTypeId,
+    root: &ReferenceOrigin,
+    parent: &ReferenceParent,
+    access_carrier: bool,
+) -> ReferenceInterpretation {
+    let projected = match root {
+        ReferenceOrigin::Primitive(_) => true,
+        ReferenceOrigin::IngressLeaf(origin) => {
+            origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+        }
+        ReferenceOrigin::Alternatives { origins, .. } => origins
+            .iter()
+            .all(|origin| origin.extent == semantic_vocabulary::ReferenceOriginExtent::Projected),
+        ReferenceOrigin::Invocation { extent, .. } => {
+            *extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+        }
+    };
+    if projected && let ReferenceParent::Reference(identity) = parent {
+        let mut parents = live
+            .iter()
+            .filter(|reference| &reference.identity == identity);
+        if let Some(parent) = parents.next()
+            && parents.next().is_none()
+            && &parent.root == root
+            && structural_source_contract(function, parent.carrier)
+                .and_then(|signature| {
+                    leaf_type(types, signature.structural_type, &parent.carrier_path)
+                })
+                .and_then(|reference| leaf_referent(types, reference, &[]))
+                == leaf_referent(types, result_type, &[])
+        {
+            return parent.interpretation.clone();
+        }
+    }
+    if access_carrier && matches!(parent, ReferenceParent::Reference(_)) {
+        ReferenceInterpretation::Unavailable
+    } else if access_carrier {
+        ReferenceInterpretation::Source(source.clone())
+    } else {
+        ReferenceInterpretation::Unplaced
+    }
+}
+
 fn formed_identity(
     function: &PsiOptimizationFunction,
     block: BlockId,
@@ -649,6 +701,7 @@ pub(super) fn copy_reference_carriers(
             carrier_path: relative.clone(),
             root: source_leaf.root.clone(),
             parent: source_leaf.parent.clone(),
+            interpretation: source_leaf.interpretation.clone(),
         });
     }
     if live.iter().any(|reference| {
@@ -1762,16 +1815,12 @@ pub(super) fn apply_operation(
     }
     let sources = match operation {
         O::EstablishReference { source, .. } | O::EstablishAccessReference { source, .. } => {
-            let transferred = transferred_ingress_leaf(function, structural_types, live, source);
-            if let Some(identity) = &transferred {
-                moved.insert(identity.clone());
-            }
             vec![ReferenceCallResult {
                 path: Vec::new(),
                 sources: vec![ReferenceCallSource {
                     origin: terminal_semantics::ReferenceCallOrigin::Parameter {
                         source: source.clone(),
-                        transfers_existing: transferred.is_some(),
+                        transfers_existing: false,
                     },
                     suffix: Vec::new(),
                     extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
@@ -1904,6 +1953,7 @@ pub(super) fn apply_operation(
                             carrier: result.place,
                             carrier_path: path.clone(),
                             parent: ReferenceParent::Root(root.clone()),
+                            interpretation: ReferenceInterpretation::Unavailable,
                             root,
                         });
                         continue;
@@ -2037,6 +2087,29 @@ pub(super) fn apply_operation(
                         }
                         root = interpreted;
                     }
+                    let interpretation = match operation {
+                        O::EstablishAccessReference { correspondence, .. } => {
+                            ReferenceInterpretation::Captured(correspondence.clone())
+                        }
+                        O::EstablishReference {
+                            storage: Some(_), ..
+                        } => ReferenceInterpretation::Unplaced,
+                        _ if suffix.is_empty()
+                            && extent == semantic_vocabulary::ReferenceOriginExtent::Projected =>
+                        {
+                            whole_source_interpretation(
+                                function,
+                                structural_types,
+                                live,
+                                &source,
+                                result.structural_type,
+                                &root,
+                                &parent,
+                                call_effects.is_access_carrier(expected),
+                            )
+                        }
+                        _ => ReferenceInterpretation::Unplaced,
+                    };
                     LiveReference {
                         identity: formed_identity(
                             function,
@@ -2049,6 +2122,7 @@ pub(super) fn apply_operation(
                         carrier_path: path.clone(),
                         root,
                         parent,
+                        interpretation,
                     }
                 };
                 alternatives.push(reference);
@@ -2081,49 +2155,6 @@ pub(super) fn apply_operation(
     Ok(())
 }
 
-/// A sole leaf in an owned ingress record can move into a returned carrier.
-/// This is the same permission, not a child loan that would escape its parent.
-/// Local carriers and reference-typed roots still reborrow; additional leaves
-/// would require independent residual custody and cannot be silently retired.
-pub(super) fn transferred_ingress_leaf(
-    function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    live: &[LiveReference],
-    source: &StructuralArgument,
-) -> Option<ReferenceOccurrenceIdentity> {
-    let parameter = function
-        .structural_parameter(source.place)
-        .filter(|parameter| parameter.access == StructuralAccess::Owned)?;
-    if !matches!(
-        formal_origin(types, function, source),
-        Some(ReferenceOrigin::IngressLeaf(_))
-    ) || matches!(
-        types.get(&parameter.structural_type)?.shape,
-        terminal_psi::StructuralTypeShape::Reference { .. }
-    ) {
-        return None;
-    }
-    let (StructuralPathSegment::Referent, path) = source.path.split_last()? else {
-        return None;
-    };
-    let paths = leaf_paths(types, parameter.structural_type, live.len())?;
-    if paths.as_slice() != [path.to_vec()] {
-        return None;
-    }
-    let mut leaves = live.iter().filter(|reference| {
-        reference.carrier == source.place && owned_resident(&reference.carrier_path, &[])
-    });
-    let leaf = leaves.next()?;
-    (leaves.next().is_none()
-        && leaf.carrier_path == path
-        && leaf.parent == ReferenceParent::Root(leaf.root.clone())
-        && !live.iter().any(|child| {
-            matches!(&child.parent,
-            ReferenceParent::Reference(identity) if identity == &leaf.identity)
-        }))
-    .then(|| leaf.identity.clone())
-}
-
 /// Publish one carrier only after every possible origin has independently
 /// rejoined the same leaf identity and direct ingress custody.
 fn combine_alternative_references(
@@ -2149,6 +2180,9 @@ fn combine_alternative_references(
             || reference.carrier_path != alternative.carrier_path
         {
             return Err(invalid());
+        }
+        if reference.interpretation != alternative.interpretation {
+            reference.interpretation = ReferenceInterpretation::Unavailable;
         }
         origins.push((alternative.root, alternative.parent));
     }

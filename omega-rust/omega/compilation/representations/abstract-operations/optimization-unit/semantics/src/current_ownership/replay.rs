@@ -1205,12 +1205,15 @@ pub(super) fn validate_current_ownership_cfg(
                 O::Return {
                     cleanup_actions, ..
                 } => {
-                    frontier = cleanup_frontier(cleanup_actions, &frontier, &[])?;
+                    let (settled, cleared_slots) =
+                        cleanup_frontier(cleanup_actions, &frontier, &[])?;
+                    frontier = settled;
                     reject_live_linear_claim(function, block_id, &frontier)?;
                     reference_outputs.record(
                         block_id,
                         Vec::new(),
                         frontier.live_references.clone(),
+                        cleared_slots,
                     );
                 }
                 O::ReturnUnit {
@@ -1218,11 +1221,14 @@ pub(super) fn validate_current_ownership_cfg(
                 } => {
                     // A unit exit has no retired structural rows to continue;
                     // the drained frontier retires with the activation.
-                    frontier = cleanup_frontier(cleanup_actions, &frontier, &[])?;
+                    let (settled, cleared_slots) =
+                        cleanup_frontier(cleanup_actions, &frontier, &[])?;
+                    frontier = settled;
                     reference_outputs.record(
                         block_id,
                         Vec::new(),
                         frontier.live_references.clone(),
+                        cleared_slots,
                     );
                 }
                 O::ReturnStructural {
@@ -1322,11 +1328,14 @@ pub(super) fn validate_current_ownership_cfg(
                     for binding in returned_claims {
                         frontier.claims.remove(&binding.claim);
                     }
-                    frontier = cleanup_frontier(cleanup_actions, &frontier, &returned_references)?;
+                    let (settled, cleared_slots) =
+                        cleanup_frontier(cleanup_actions, &frontier, &returned_references)?;
+                    frontier = settled;
                     reference_outputs.record(
                         block_id,
                         returned_references,
                         frontier.live_references.clone(),
+                        cleared_slots,
                     );
                     if let Some(claim) = frontier.claims.keys().next().copied() {
                         return Err(

@@ -41,7 +41,7 @@ pub(super) fn validate_return_cleanup_actions(
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
     membership: &CaseMembership<'_>,
-) -> Result<CurrentOwnership, OptimizationUnitValidationError> {
+) -> Result<(CurrentOwnership, Option<Vec<usize>>), OptimizationUnitValidationError> {
     let mut remaining = frontier.clone();
     super::continuation::apply_edge_cleanup_actions(
         function,
@@ -61,7 +61,7 @@ pub(super) fn validate_return_cleanup_actions(
             block,
         });
     }
-    reference_outputs
+    let cleared_slots = reference_outputs
         .validate_exit(
             function,
             returned,
@@ -76,7 +76,7 @@ pub(super) fn validate_return_cleanup_actions(
                 reason,
             },
         )?;
-    Ok(remaining)
+    Ok((remaining, cleared_slots))
 }
 
 /// Root ordering includes nominal and linear owners. Their eligibility is

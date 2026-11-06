@@ -74,6 +74,7 @@ pub fn reconstruct_reference_output_catalog(
         boundaries.values().copied(),
         &view.dynamic_dispatch,
         &types,
+        &view.structural_types.access_views(),
     );
     let outputs = Rc::new(RefCell::new(ReferenceOutputCatalog::new(
         view.functions.iter().map(|function| function.machine),
