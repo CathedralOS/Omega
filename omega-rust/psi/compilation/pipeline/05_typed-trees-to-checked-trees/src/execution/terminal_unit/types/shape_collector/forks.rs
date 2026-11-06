@@ -203,6 +203,106 @@ pub(crate) struct ShapeEdits {
     cleanup_control: Option<checked_trees::CheckedCleanupControlPlans>,
 }
 
+/// The completed-request memo, shared between a collector and its forks.
+///
+/// The memo has one slot per type-reference arena row, so it grows with the
+/// program. Each body plans on a fork, and copying the whole memo into every
+/// fork made planning quadratic in the number of machines. Forks now share
+/// the memo and keep only what they complete themselves in `local`, which is
+/// also exactly what replaying the fork needs. A collector that holds the
+/// only reference extends the shared rows in place.
+#[derive(Clone, Default)]
+pub(crate) struct CompletedRequests {
+    shared: std::sync::Arc<Vec<Vec<(TypeShapeRequest, TypeIdentityId)>>>,
+    /// Requests completed while `shared` was shared, in completion order.
+    /// Every one of them follows every shared request of its slot.
+    local: Vec<(usize, TypeShapeRequest, TypeIdentityId)>,
+}
+
+impl CompletedRequests {
+    /// The first completed request in `slot` that `matches`, in completion order.
+    pub(super) fn find(
+        &self,
+        slot: usize,
+        mut matches: impl FnMut(&TypeShapeRequest) -> bool,
+    ) -> Option<TypeIdentityId> {
+        let shared = self.shared.get(slot).into_iter().flatten();
+        let local = self
+            .local
+            .iter()
+            .filter(|(owner, _, _)| *owner == slot)
+            .map(|(_, request, identity)| (request, identity));
+        shared
+            .map(|(request, identity)| (request, identity))
+            .chain(local)
+            .find_map(|(request, identity)| matches(request).then_some(*identity))
+    }
+
+    pub(super) fn push(
+        &mut self,
+        slot: usize,
+        request: TypeShapeRequest,
+        identity: TypeIdentityId,
+    ) {
+        // Shared rows precede local ones, so only an empty local log may
+        // extend them without reordering a slot.
+        if self.local.is_empty()
+            && let Some(rows) = std::sync::Arc::get_mut(&mut self.shared)
+        {
+            if rows.len() <= slot {
+                rows.resize_with(slot + 1, Vec::new);
+            }
+            rows[slot].push((request, identity));
+        } else {
+            self.local.push((slot, request, identity));
+        }
+    }
+
+    fn slot_len(&self, slot: usize) -> usize {
+        self.shared.get(slot).map_or(0, Vec::len)
+            + self
+                .local
+                .iter()
+                .filter(|(owner, _, _)| *owner == slot)
+                .count()
+    }
+
+    /// Every request completed here beyond what `base` holds in each slot.
+    fn since(&self, base: &Self) -> Vec<(usize, TypeShapeRequest, TypeIdentityId)> {
+        // A fork of `base` shares its rows and extends its local log.
+        if std::sync::Arc::ptr_eq(&self.shared, &base.shared)
+            && self.local.len() >= base.local.len()
+        {
+            return self.local[base.local.len()..].to_vec();
+        }
+        let slots = self.shared.len().max(
+            self.local
+                .iter()
+                .map(|(slot, _, _)| slot + 1)
+                .max()
+                .unwrap_or(0),
+        );
+        let mut since = Vec::new();
+        for slot in 0..slots {
+            let known = base.slot_len(slot);
+            let shared = self.shared.get(slot).into_iter().flatten();
+            let local = self
+                .local
+                .iter()
+                .filter(|(owner, _, _)| *owner == slot)
+                .map(|(_, request, identity)| (request, identity));
+            since.extend(
+                shared
+                    .map(|(request, identity)| (request, identity))
+                    .chain(local)
+                    .skip(known)
+                    .map(|(request, identity)| (slot, request.clone(), *identity)),
+            );
+        }
+        since
+    }
+}
+
 /// The roster position at which each collector row last changed.
 #[derive(Default)]
 pub(crate) struct ChangeLog {
@@ -339,19 +439,7 @@ impl ShapeCollector<'_> {
         let Some(base) = base else {
             return edits;
         };
-        edits.completed_requests = self
-            .completed_requests
-            .iter()
-            .enumerate()
-            .flat_map(|(slot, contexts)| {
-                let known = base.completed_requests.get(slot).map_or(0, Vec::len);
-                contexts
-                    .get(known..)
-                    .unwrap_or_default()
-                    .iter()
-                    .map(move |(request, identity)| (slot, request.clone(), *identity))
-            })
-            .collect();
+        edits.completed_requests = self.completed_requests.since(&base.completed_requests);
         edits.byte_view_elements = self
             .byte_view_elements
             .difference(&base.byte_view_elements)
@@ -389,10 +477,7 @@ impl ShapeCollector<'_> {
         self.opaque_representations
             .extend(edits.opaque_representations);
         for (slot, request, identity) in edits.completed_requests {
-            if self.completed_requests.len() <= slot {
-                self.completed_requests.resize_with(slot + 1, Vec::new);
-            }
-            self.completed_requests[slot].push((request, identity));
+            self.completed_requests.push(slot, request, identity);
         }
         self.byte_view_elements.extend(edits.byte_view_elements);
         self.unselected_opaque = edits.unselected_opaque;
