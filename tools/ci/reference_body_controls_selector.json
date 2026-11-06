@@ -1,0 +1,52 @@
+{
+  "kind": "Exact eleven nonignored current real-body controls including unchanged-ingress F1; no CLI or whole-outcome claim",
+  "source": "b03d1408967ef8e3631ddfa023e49e95459f9b8c",
+  "expected_total_passes": 11,
+  "owner_source_map_sha256": "d3482495c6e38eec0176bca76a02a232b43a41756f55ed2d80ded0ec8def78a6",
+  "groups": [
+    {
+      "package": "optimization-unit-semantics",
+      "filter": "reference_outputs::",
+      "expected_nonignored_passes": 11,
+      "test_names": [
+        "reference_outputs::tests::performed_reborrow_and_ordinary_relay_retain_the_actual_parent",
+        "reference_outputs::tests::two_exported_reborrows_keep_the_immediate_parent_edge",
+        "reference_outputs::tests::equal_backing_cannot_make_two_exclusive_children_siblings",
+        "reference_outputs::tests::missing_and_active_recursive_bodies_do_not_supply_empty_outputs",
+        "reference_outputs::tests::known_unchanged_stored_slots_keep_a_complete_entry_graph",
+        "reference_outputs::tests::performed_move_and_refill_keep_the_transferred_occurrence",
+        "reference_outputs::tests::parent_reseating_does_not_redirect_an_exported_child",
+        "reference_outputs::tests::owned_ingress_formation_keeps_the_parent_until_the_child_ends",
+        "reference_outputs::result_composition_tests::access_factory_region_result_keeps_capture_through_relay_and_stored_output",
+        "reference_outputs::result_composition_tests::inconsistent_performed_factory_backing_cannot_donate_a_stored_capture",
+        "reference_outputs::unchanged_ingress_tests::unchanged_borrowed_holder_returns_when_reachable_pointer_array_exceeds_inventory"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/tests.rs",
+          "sha256": "bae613fd63fc0a3b25a95814a486cdbfd998fb81aa7448e302c6dc6fc91d3255"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/result_composition_tests.rs",
+          "sha256": "b60184e539e6b0200d8fd598f8cec31d1d0d4338f6065b6e4200d82877accc89"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs/unchanged_ingress_tests.rs",
+          "sha256": "7dd117df1eb7ab95c86fdcbcd3bcfb97a11644084cc08aa6f67bf2e09a960860"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/reference_outputs.rs",
+          "sha256": "7af216ce2b43061ec76d903700a02fe567a07005da6a001b53e259e3b1f558d8"
+        },
+        {
+          "path": "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/Cargo.toml",
+          "sha256": "d613e7b87f224c3fbf90d99b8db8ff48409a70d5db1b0dbfef92a9be02914db5"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}
