@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "cc79ab9e0a4cf32b53814c9e00d201c3c456663c",
-    "tree": "becb5f451bf13413ec8ef116095c948e9d2f0680",
+    "revision": "a1edb62eade07b2d3a98134f1b261be5a1336bdd",
+    "tree": "f1e1d15d3fc989e8eb312d252f91c8975c7badf6",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "f1f0655f9752ae6614af55c4273b9429eb2bbb3e",
+      "omega-rust": "5acf3758ac096e049d6c82b7138ef9d591f7b4a7",
       "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,27 +19,30 @@
     },
     "executables": {
       "cli": {
-        "sha256": "42d49fe6bfd76301dd871767d1a08227f8715d80f66655b66636feb4ec9a78cf",
+        "sha256": "41760a66618eda86157562a4615f812a0b5e9e0cd3aa0d4835b3933e0f4e710a",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "6c8024991226eaf42a5caf11d88d5eb56cc85fdc9cff43bd4fe8e23e1b947edc",
+        "sha256": "f9e3274e4a41b57f08ae8de6562d1df1e276685eb6316d50a582aac31b09fc20",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42203086993,
-    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cc79ab9e0a4cf32b53814c9e00d201c3c456663c"
+    "origin_run": 42210035007,
+    "cache_key": "compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-a1edb62eade07b2d3a98134f1b261be5a1336bdd"
   },
   "fixtures": [
-    "pass/borrows/runtime_mutable_reference_array_bounded_read_exit"
+    "pass/facts/provider_contract_endpoint_through_target_body_exit",
+    "fail/facts/provider_contract_endpoint_through_target_body_rejected"
   ],
-  "source_only": true,
-  "samples": [],
+  "source_only": false,
+  "samples": [
+    "samples/cli/facts/provider_contract_endpoint/target_body"
+  ],
   "cli_fixtures": []
 }
