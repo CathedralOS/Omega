@@ -325,6 +325,38 @@ struct StorageProjection {
     storage_carrier: Option<TypeReferenceHandle>,
 }
 
+/// The array or slice a fixed index selects. `data Name = [T; N]` stores the
+/// array on the declaration's structural origin; the name itself is not an
+/// array node. Layout storage stays in place so a later field keeps the plan
+/// that owns its physical width.
+fn structural_collection_carrier(
+    program: &dyn crate::CheckingInput,
+    mut carrier: TypeReferenceHandle,
+) -> Result<TypeReferenceHandle, ()> {
+    for _ in 0..8 {
+        carrier = places::unwrapped_type_reference(program, carrier).ok_or(())?;
+        match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {
+                return Ok(carrier);
+            }
+            TypeReferenceNode::Named { symbol, .. } => {
+                let Some(origin) = program
+                    .data_definition_by_symbol(*symbol)
+                    .and_then(|data| data.generic_instance)
+                    .filter(|origin| origin.is_valid() && *origin != carrier)
+                else {
+                    return Ok(carrier);
+                };
+                carrier = program
+                    .type_reference_table
+                    .unconstrained_type_reference(origin);
+            }
+            _ => return Ok(carrier),
+        }
+    }
+    Err(())
+}
+
 fn typed_storage_projection(
     program: &dyn crate::CheckingInput,
     mut carrier: TypeReferenceHandle,
@@ -375,6 +407,9 @@ fn typed_storage_projection(
                 // A literal selector on a slice has the same declared element
                 // encoding as a dynamic selector. Slice bounds remain a separate
                 // source obligation; this walk establishes only storage geometry.
+                // A transparent `data Name = [T; N]` keeps the array on its
+                // structural origin; the nominal name is not itself an array node.
+                carrier = structural_collection_carrier(program, carrier)?;
                 carrier = match program.type_reference_table.type_reference(carrier) {
                     TypeReferenceNode::FixedArray {
                         element_type,
