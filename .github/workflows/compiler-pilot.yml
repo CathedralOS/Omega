@@ -120,7 +120,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && matrix.native_host == 'windows_x86_64' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
       - name: Declare the single necessary fresh build on this host
-        run: python -c "print('No normally visible completed-reference/default-main host cache exists. One fresh optimized producer is required for source 804d, whose compiler and SDK inputs equal fixed main 43c. No repository-cache restore, fallback, active-branch borrowing or automatic retry. Corpus: one worker and 120 seconds per fixture. Canonical samples: two jobs and 300 seconds per CLI call.')"
+        run: |
+          python -c "print('No normally visible completed-reference/default-main host cache exists. One fresh optimized producer is required for source 804d, whose compiler and SDK inputs equal fixed main 43c. No repository-cache restore, fallback, active-branch borrowing or automatic retry. Corpus: one worker and 120 seconds per fixture. Canonical samples: two jobs and 300 seconds per CLI call.')"
       - name: Prepare the optimized producer under one build slot
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
