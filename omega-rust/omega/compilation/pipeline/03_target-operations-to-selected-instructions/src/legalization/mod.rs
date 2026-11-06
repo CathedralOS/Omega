@@ -68,23 +68,35 @@ pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 /// boundary facts the target plan was lowered from. It audits selected family calls with their immutable portable
 /// catalog and admitted deployment-tag selection, rather than reconstructing
 /// installation, and it does not admit an arbitrary optimization unit.
+/// The cycle roster is the optimizer's already-validated analysis for this
+/// exact final unit, retained by its published program. It is not inferred
+/// from the target graph and grants no execution or new cycle admission.
 pub fn verify_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
+    admitted_cycle_machines: &[semantic_vocabulary::MachineId],
     origins: target_operations::BoundaryOriginFacts<'_>,
 ) -> Result<(), LegalizationError> {
     validate_boundary_origins(target, unit, origins)?;
-    audit_target_operation_plan(target, abstract_plan, unit)
+    audit_target_operation_plan(target, abstract_plan, unit, admitted_cycle_machines)
 }
 
 fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
+    admitted_cycle_machines: &[semantic_vocabulary::MachineId],
 ) -> Result<(), LegalizationError> {
     source::validate_source_custody(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
+    let call_effects =
+        std::sync::Arc::new(scalar_graph_input::reference_custody::prepare_call_effects(
+            target,
+            abstract_plan,
+            unit,
+            admitted_cycle_machines,
+        ));
     for function in &target.functions {
         let mut abstracted = abstract_plan
             .functions
@@ -109,6 +121,7 @@ fn audit_target_operation_plan(
             target,
             abstract_plan,
             unit,
+            &call_effects,
         )
         .map_err(|error| error.attributed(function.machine, None))?;
     }

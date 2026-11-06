@@ -21,6 +21,7 @@ pub(super) fn validate(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    call_effects: &std::sync::Arc<super::super::reference_custody::CallEffects>,
 ) -> Result<super::super::BlockEntryCustody, LegalizationError> {
     if (function.attachment != optimized.attachment
         || function.nominal_cleanup_subject != optimized.nominal_cleanup_subject)
@@ -85,7 +86,7 @@ pub(super) fn validate(
     // each block enters with its dominator's exit state (ingress seeding at
     // the entry block), and every operation row validates against the custody
     // state it leaves suspended.
-    let block_entries = block_entry_states(optimized, native, plan, unit)?;
+    let block_entries = block_entry_states(optimized, native, plan, unit, call_effects)?;
     let dominators = sources::SourceDominators::new(optimized);
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
         let body_len = block

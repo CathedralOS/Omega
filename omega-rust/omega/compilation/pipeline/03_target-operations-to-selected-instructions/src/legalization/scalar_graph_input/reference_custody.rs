@@ -56,6 +56,9 @@ mod stored_calls;
 use occurrences::{
     CarrierContract, Formation, OccurrenceIdentity, merge_arrivals, re_home_bound_leaves,
 };
+pub(in crate::legalization) use stored_calls::{
+    Effects as CallEffects, prepare as prepare_call_effects,
+};
 
 /// One outstanding permission occurrence: its referent roots, immediate
 /// parents, actual receiving contract and every transported formation.
@@ -2891,6 +2894,7 @@ pub(in crate::legalization) fn apply(
                 structural_arguments,
                 *psi_operation,
                 &moved,
+                None,
             )?;
             stored_calls::commit(function, types, None, custody, stored)?;
         }
@@ -3369,6 +3373,7 @@ pub(in crate::legalization) fn block_entry_states(
     native: &target_operations::TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    call_effects: &std::sync::Arc<CallEffects>,
 ) -> Result<BTreeMap<BlockId, Custody>, LegalizationError> {
     let types = &plan.structural_types[..];
     let blocks = &function.blocks;
@@ -3452,7 +3457,7 @@ pub(in crate::legalization) fn block_entry_states(
         }
     }
     initial.descriptor_backing = descriptor_backing;
-    initial.stored_calls = std::sync::Arc::new(stored_calls::prepare(native, plan, unit));
+    initial.stored_calls = std::sync::Arc::clone(call_effects);
     // A false execution context contains no permissions, debt, or runtime
     // address. Keep its positive flow proof and immutable catalogs only, so
     // target row/type correspondence can still be checked for dead blocks.
@@ -3928,6 +3933,7 @@ fn call_transition(
         arguments,
         operation,
         &moved,
+        result,
     )?;
     let results = match (result_contract, result) {
         (Some(contract), Some(result)) => call_results(
@@ -3936,6 +3942,7 @@ fn call_transition(
         (None, None) => Vec::new(),
         _ => return Err(invalid()),
     };
+    stored.reconcile_returned(custody, result)?;
     for coordinate in moved.keys() {
         custody.leaves.remove(coordinate).ok_or_else(|| invalid())?;
     }

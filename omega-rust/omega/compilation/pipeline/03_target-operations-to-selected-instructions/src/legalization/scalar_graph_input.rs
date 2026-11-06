@@ -231,6 +231,7 @@ pub(super) fn match_input(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    call_effects: &std::sync::Arc<reference_custody::CallEffects>,
 ) -> Result<(), LegalizationError> {
     primitive_locals::validate(optimized, &unit.structural_types)?;
     let call_plan = if aggregate_results::uses(optimized) {
@@ -518,7 +519,16 @@ pub(super) fn match_input(
     }
     // Complete-unit custody admits cycles only after independent source proof
     // replay. Per-function matching below retains every executable edge.
-    validate_target(target, abstracted, optimized, native, plan, unit).map(|_| ())
+    validate_target(
+        target,
+        abstracted,
+        optimized,
+        native,
+        plan,
+        unit,
+        call_effects,
+    )
+    .map(|_| ())
 }
 pub(super) fn callee_plan(
     callee: impl Into<abstract_operations::AbstractCallTarget>,

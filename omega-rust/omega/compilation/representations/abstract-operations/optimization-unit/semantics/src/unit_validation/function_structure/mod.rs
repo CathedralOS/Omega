@@ -49,7 +49,7 @@ pub(crate) use structural_roots::{
 };
 mod structural_transfers;
 
-pub(crate) use control_flow::ControlCyclePolicy;
+pub(crate) use control_flow::{ControlCyclePolicy, FunctionControlFlow};
 pub(crate) use fact_index::reconstruct_fact_index;
 
 pub(crate) fn validate_function(
@@ -68,6 +68,49 @@ pub(crate) fn validate_function(
     ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
     reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let control_flow = prepare_function(
+        unit,
+        function,
+        functions,
+        boundary_machines,
+        services,
+        structural_types,
+        structural_domains,
+        cycle_policy,
+        call_accesses,
+        reference_memberships,
+    )?;
+    let requirements = current_ownership::validate_current_ownership_frontier_collecting(
+        unit.psi,
+        &unit.identities,
+        &unit.dynamic_dispatch,
+        function,
+        &control_flow.blocks,
+        &control_flow.predecessors,
+        functions,
+        boundary_machines,
+        structural_types,
+        call_accesses,
+        ownership_frontiers,
+    )?;
+    descriptor_requirements.extend(requirements);
+    Ok(())
+}
+
+/// Check a function's structure before using its ownership result.
+/// Return the checked graph for the later ownership replay.
+pub(crate) fn prepare_function<'a>(
+    unit: &PsiOptimizationUnit,
+    function: &'a PsiOptimizationFunction,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
+    services: &BTreeMap<ServiceId, &terminal_psi::ServiceDeclaration>,
+    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+    cycle_policy: &control_flow::ControlCyclePolicy,
+    call_accesses: &mut current_ownership::CallAccesses,
+    reference_memberships: Option<&mut ReferenceMembershipValidation<'_>>,
+) -> Result<FunctionControlFlow<'a>, OptimizationUnitValidationError> {
     if let Some(subject) = function.nominal_cleanup_subject
         && (function.attachment != Some(subject)
             || !structural_types.contains_key(&subject)
@@ -163,19 +206,5 @@ pub(crate) fn validate_function(
         call_accesses,
     )?;
     validate_places_and_claims(function)?;
-    let requirements = current_ownership::validate_current_ownership_frontier_collecting(
-        unit.psi,
-        &unit.identities,
-        &unit.dynamic_dispatch,
-        function,
-        &control_flow.blocks,
-        &control_flow.predecessors,
-        functions,
-        boundary_machines,
-        structural_types,
-        call_accesses,
-        ownership_frontiers,
-    )?;
-    descriptor_requirements.extend(requirements);
-    Ok(())
+    Ok(control_flow)
 }

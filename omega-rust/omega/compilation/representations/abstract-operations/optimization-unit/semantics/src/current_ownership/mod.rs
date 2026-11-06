@@ -67,6 +67,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
     OptimizationUnitValidationError,
 > {
     let entry = reconstruct_entry_ownership(function, structural_types)?;
+    let mut outputs = reference_output_builder(function, structural_types, &entry.live_references)?;
     replay::validate_current_ownership_cfg(
         function,
         identities,
@@ -80,6 +81,73 @@ pub(super) fn validate_current_ownership_frontier_collecting(
         entry,
         psi,
         facts,
+        &mut outputs,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn reconstruct_reference_outputs(
+    psi: terminal_psi::TerminalPsiIdentity,
+    identities: &terminal_psi::TerminalIdentityTable,
+    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    function: &PsiOptimizationFunction,
+    blocks: &BTreeMap<BlockId, &OptimizationBlock>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<
+        semantic_vocabulary::BoundaryMachineId,
+        &BoundaryMachineDeclaration,
+    >,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    call_accesses: &mut CallAccesses,
+) -> Result<crate::reference_outputs::ReferenceBodyCompletion, OptimizationUnitValidationError> {
+    let entry = reconstruct_entry_ownership(function, structural_types)?;
+    let mut outputs = reference_output_builder(function, structural_types, &entry.live_references)?;
+    let mut facts = Vec::new();
+    let compatibility_requirements = replay::validate_current_ownership_cfg(
+        function,
+        identities,
+        dynamic_dispatch,
+        blocks,
+        predecessors,
+        functions,
+        boundary_machines,
+        structural_types,
+        call_accesses,
+        entry,
+        psi,
+        &mut facts,
+        &mut outputs,
+    )?;
+    // The replay returns only after complete CFG joins and return coverage.
+    // A pure returned reference can have an independently checked interpretation
+    // even when this optional stored-output graph cannot represent its parent.
+    let unconditional = compatibility_requirements.is_empty();
+    Ok(crate::reference_outputs::ReferenceBodyCompletion {
+        unconditional,
+        outputs: outputs
+            .seal(function, structural_types, compatibility_requirements)
+            .map_err(str::to_owned),
+    })
+}
+
+fn reference_output_builder(
+    function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    entry: &[LiveReference],
+) -> Result<crate::reference_outputs::ReferenceOutputBuilder, OptimizationUnitValidationError> {
+    let declarations = structural_types
+        .values()
+        .copied()
+        .cloned()
+        .collect::<Vec<_>>();
+    crate::reference_outputs::ReferenceOutputBuilder::new(function, &declarations, entry).map_err(
+        |reason| OptimizationUnitValidationError::CurrentReferenceCustodyViolation {
+            machine: function.machine,
+            block: function.entry,
+            node: None,
+            reason,
+        },
     )
 }
 

@@ -173,8 +173,19 @@ pub fn call_source(
 ) -> Option<StructuralArgument> {
     let position =
         terminal_psi::structural_parameter_position(structural_parameters, formal.place)?;
+    call_source_at(arguments, position, &formal.path, formal.access)
+}
+
+/// Bind an already authenticated formal ordinal without searching its roster
+/// again. Signature/arity and occurrence custody remain the caller's duties.
+pub fn call_source_at(
+    arguments: &[StructuralArgument],
+    position: usize,
+    path: &[terminal_psi::StructuralPathSegment],
+    access: terminal_psi::StructuralAccess,
+) -> Option<StructuralArgument> {
     let mut source = arguments.get(position)?.clone();
-    source.path.extend(formal.path.iter().cloned());
-    source.access = formal.access;
+    source.path.extend_from_slice(path);
+    source.access = access;
     Some(source)
 }

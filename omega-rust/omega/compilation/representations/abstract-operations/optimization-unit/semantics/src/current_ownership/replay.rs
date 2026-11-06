@@ -212,6 +212,7 @@ pub(super) fn validate_current_ownership_cfg(
     entry: CurrentOwnership,
     psi: terminal_psi::TerminalPsiIdentity,
     facts: &mut Vec<OwnershipFrontierFact>,
+    reference_outputs: &mut crate::reference_outputs::ReferenceOutputBuilder,
 ) -> Result<
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
@@ -315,19 +316,6 @@ pub(super) fn validate_current_ownership_cfg(
             // owned-place checks below: establishment, release, record
             // relocation, call transfer, and suspended-root access all settle
             // before the ordinary custody roster is consumed.
-            let moved_reference_owner = match &node.operation {
-                O::EstablishReference { source, .. }
-                | O::EstablishAccessReference { source, .. } => {
-                    super::references::transferred_ingress_leaf(
-                        function,
-                        structural_types,
-                        &frontier.live_references,
-                        source,
-                    )
-                    .map(|_| source.place)
-                }
-                _ => None,
-            };
             super::references::apply_operation(
                 function,
                 functions,
@@ -567,7 +555,6 @@ pub(super) fn validate_current_ownership_cfg(
                 .collect::<Vec<_>>();
             // Moving the sole ingress leaf retires the old carrier, in the
             // same transaction that preserved its loan identity above.
-            consumed_places.extend(moved_reference_owner);
             // Releasing a reference consumes its carrier place; the referent
             // keeps its original home and is never disposed here. Copyable
             // carriers hold no owned-place slot — `release` already ended
@@ -1184,31 +1171,51 @@ pub(super) fn validate_current_ownership_cfg(
             let membership = |source, path: &[StructuralPathSegment], case, expected| {
                 membership_at(node_index as usize, source, path, case, expected)
             };
-            let cleanup_frontier = |actions, frontier: &CurrentOwnership| {
-                validate_return_cleanup_actions(
-                    function,
-                    functions,
-                    structural_types,
-                    &call_accesses.references,
-                    block_id,
-                    frontier,
-                    actions,
-                    &membership,
-                )
-            };
+            let cleanup_frontier =
+                |actions,
+                 frontier: &CurrentOwnership,
+                 returned: &[crate::unit_validation::references::LiveReference]| {
+                    validate_return_cleanup_actions(
+                        function,
+                        functions,
+                        structural_types,
+                        reference_outputs,
+                        returned,
+                        block_id,
+                        frontier,
+                        actions,
+                        &membership,
+                    )
+                };
             match &node.operation {
                 O::Return {
                     cleanup_actions, ..
                 } => {
-                    frontier = cleanup_frontier(cleanup_actions, &frontier)?;
+                    let (settled, cleared_slots) =
+                        cleanup_frontier(cleanup_actions, &frontier, &[])?;
+                    frontier = settled;
                     reject_live_linear_claim(function, block_id, &frontier)?;
+                    reference_outputs.record(
+                        block_id,
+                        Vec::new(),
+                        frontier.live_references.clone(),
+                        cleared_slots,
+                    );
                 }
                 O::ReturnUnit {
                     cleanup_actions, ..
                 } => {
                     // A unit exit has no retired structural rows to continue;
                     // the drained frontier retires with the activation.
-                    cleanup_frontier(cleanup_actions, &frontier)?;
+                    let (settled, cleared_slots) =
+                        cleanup_frontier(cleanup_actions, &frontier, &[])?;
+                    frontier = settled;
+                    reference_outputs.record(
+                        block_id,
+                        Vec::new(),
+                        frontier.live_references.clone(),
+                        cleared_slots,
+                    );
                 }
                 O::ReturnStructural {
                     source,
@@ -1216,6 +1223,17 @@ pub(super) fn validate_current_ownership_cfg(
                     cleanup_actions,
                     ..
                 } => {
+                    let returned_references = frontier
+                        .live_references
+                        .iter()
+                        .filter(|reference| {
+                            reference.carrier == *source
+                                && !reference
+                                    .carrier_path
+                                    .contains(&StructuralPathSegment::Referent)
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>();
                     // A returned carrier transfers its loans to the caller's
                     // checked result roster; the frame-local rows end here.
                     super::references::transfer_return(
@@ -1296,7 +1314,15 @@ pub(super) fn validate_current_ownership_cfg(
                     for binding in returned_claims {
                         frontier.claims.remove(&binding.claim);
                     }
-                    frontier = cleanup_frontier(cleanup_actions, &frontier)?;
+                    let (settled, cleared_slots) =
+                        cleanup_frontier(cleanup_actions, &frontier, &returned_references)?;
+                    frontier = settled;
+                    reference_outputs.record(
+                        block_id,
+                        returned_references,
+                        frontier.live_references.clone(),
+                        cleared_slots,
+                    );
                     if let Some(claim) = frontier.claims.keys().next().copied() {
                         return Err(
                             OptimizationUnitValidationError::CurrentClaimLiveAfterStructuralReturn {

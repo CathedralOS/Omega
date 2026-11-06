@@ -11,5 +11,5 @@ mod targets;
 pub use targets::AbstractCallTarget;
 mod signatures;
 pub use signatures::{
-    AbstractCallSignature, StructuralCallFormal, StructuralCallResult, call_source,
+    AbstractCallSignature, StructuralCallFormal, StructuralCallResult, call_source, call_source_at,
 };

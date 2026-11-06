@@ -40,7 +40,7 @@ pub(crate) struct CallAccesses<'unit> {
     /// completion; boundary bodies are not part of the unit.
     boundaries: Vec<&'unit BoundaryMachineDeclaration>,
     pub(crate) dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
-    pub(super) references: super::references::call_effects::ReferenceCallEffects,
+    pub(crate) references: super::references::call_effects::ReferenceCallEffects,
     view_graph: Option<Vec<DescriptorMachine>>,
     /// Origins prepared beside the mutation table, consumed by the ownership
     /// replay of each function; a taken entry falls back to reconstruction.
@@ -53,6 +53,7 @@ impl<'unit> CallAccesses<'unit> {
         boundaries: impl IntoIterator<Item = &'unit BoundaryMachineDeclaration>,
         dynamic_dispatch: &'unit terminal_psi::TerminalDynamicDispatchCatalog,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        catalog: &abstract_operations::StructuralTypeCatalog,
     ) -> Self {
         let boundaries = boundaries.into_iter().collect::<Vec<_>>();
         let references = super::references::call_effects::ReferenceCallEffects::new(
@@ -60,6 +61,7 @@ impl<'unit> CallAccesses<'unit> {
             &boundaries,
             dynamic_dispatch,
             types,
+            catalog,
         );
         let declarations = types.values().copied().cloned().collect::<Vec<_>>();
         let view_graph = crate::descriptor_results::optimized_catalog_graph(

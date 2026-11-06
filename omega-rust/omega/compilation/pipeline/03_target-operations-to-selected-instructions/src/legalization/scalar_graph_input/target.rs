@@ -26,6 +26,7 @@ pub(super) fn validate_target(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
+    call_effects: &std::sync::Arc<super::reference_custody::CallEffects>,
 ) -> Result<super::BlockEntryCustody, LegalizationError> {
     super::hosted_scalar::validate_normal_call_completions(native, optimized, plan)?;
     let operations = optimized
@@ -67,6 +68,7 @@ pub(super) fn validate_target(
         native,
         plan,
         unit,
+        call_effects,
     )
 }
 

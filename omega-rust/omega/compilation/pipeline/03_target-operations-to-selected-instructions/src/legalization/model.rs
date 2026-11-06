@@ -133,6 +133,12 @@ pub enum LegalizationError {
     UnsupportedSourceShape {
         function: usize,
     },
+    /// Preserve the failed body/parent reconstruction instead of requiring a
+    /// second instrumented build to discover why a call stayed unavailable.
+    ReferenceOutputCompletion {
+        machine: semantic_vocabulary::MachineId,
+        reason: String,
+    },
     ReferenceCompletion {
         reason: terminal_semantics::ReferenceCompletionError,
     },
