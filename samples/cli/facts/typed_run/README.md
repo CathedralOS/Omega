@@ -68,3 +68,8 @@ and the generic library Vec consumer. Retained Terminal evidence must carry the
 checked cell transformation into both engines without per-element runtime tags,
 custody tables or hidden occupancy updates. No part of that acceptance is closed
 by the presence of this first witness.
+
+The [zero-sized element witness](../../../../tests/omega/pass/layouts/runtime_run_zero_sized_element_exit/README.md)
+retains an empty record's cleanup through singleton storage and extraction,
+alongside an empty run with the same byte geometry. Its double-drop control
+rejects reuse; neither an empty schema nor zero backing bytes erase ownership.
