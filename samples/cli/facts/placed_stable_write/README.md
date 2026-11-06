@@ -116,3 +116,32 @@ inline allocation; it cannot become an address or permission grant. Pointer
 crossings, unknown element families and unresolved roots remain conservative.
 The `placed_reference_results/two_live` pin distinguishes independent backing,
 while its overlap, stale-write and wrong-backing controls retain loan checks.
+
+## Current domain-access and Build migration
+
+The existing row is being migrated to the current domain-owned access policy
+and Build-selected implementation rules. `Value::StableAccess` attaches the
+field's Stable read/write demand to temporary ordinary mutable loans. It grants
+no backing or additional permission: the original RAM supplies the former, and
+the evaluated policy independently permits or denies the field operation. The
+qualified loan and all its descendants retain that restriction until they end.
+Default record layout remains independently checked as offset 0, size 8 and
+alignment 8 for `Value { number: u64 }`.
+
+All nine places preserve the write from 17 to 29 while the disjoint companion
+remains 43, followed by native/Terminal exit 0. The target-body place now calls
+`SelectedStableUpdate` and its four ordinary named implementations chosen by
+explicit Build rows. Every invalid example still removes only write permission,
+including `PermitWrite` in the const-name place. The existing corpus and sample
+diagnostic fragments are preserved, including their different access-plan and
+placement-plan wording.
+
+The original target-prefixed source passed the focused Linux baseline at actual
+observer `10ac47c715e5`, using optimized compiler `dfb79c300aae` in
+[run 42238076093](https://github.com/CathedralOS/Omega/actions/runs/42238076093):
+one positive check, the corpus permission rejection and one native/Terminal 0/0
+pair. No ordinary samples ran in that baseline. Historical measurements above
+also keep their original sources and hosts; neither validates this migration.
+The current domain-access source has not yet been checked or executed. Full
+nine-place, unchanged-reject and matching-host acceptance remains pending, as
+does the broader BUILD-OWNED-TARGET-SELECTION task.

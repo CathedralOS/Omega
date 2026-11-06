@@ -4,4 +4,9 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::accept_boundary<SelectedStableUpdate>(builder);
+    Build::select_provider<SelectedStableUpdate, WindowsStableUpdate>(builder, windows_x86_64);
+    Build::select_provider<SelectedStableUpdate, LinuxX86StableUpdate>(builder, linux_x86_64);
+    Build::select_provider<SelectedStableUpdate, MacosStableUpdate>(builder, macos_arm64);
+    Build::select_provider<SelectedStableUpdate, LinuxArmStableUpdate>(builder, linux_arm64);
 }
