@@ -1,6 +1,7 @@
 mod boolean_requirements;
 mod captured_boolean;
 mod contradictory_edge;
+mod debug_contexts;
 mod guard_observations;
 mod labels;
 mod predicate_domains;
@@ -371,6 +372,14 @@ pub(super) fn check_call_requires(
                     constant_obligations.push(obligation);
                     continue;
                 }
+                debug_contexts::trace_unproved_call(
+                    program,
+                    facts,
+                    state_flow,
+                    call_flow,
+                    fact,
+                    &entry_contexts,
+                );
                 let requirement = present_captured_parameter(&semantic_fact_requirement_label(
                     program,
                     &facts.semantic,
