@@ -170,14 +170,7 @@ jobs:
       - name: Declare the single necessary fresh ARM build
         if: inputs.native_host == 'linux_arm64'
         run: python -c "print('No normally visible completed-ref/default-main ARM cache exists. One fresh build is required for changed integrated source; no cache fallback, active branch borrowing or automatic retry. Prior cold ARM preparation took about 18 minutes; fixture limits remain unchanged.')"
-      - name: Check the exact integration candidate
-        id: compiler-check
-        shell: python
-        run: |
-          import os, subprocess
-          environment = dict(os.environ, GITHUB_SHA='d32f1cbab4094e6ae280975fa0febb19b5ee4bc4')
-          subprocess.run(['cargo', 'check', '--locked', '-p', 'omega'], env=environment, check=True)
-      - name: Prepare and retain the optimized producer
+      - name: Check and prepare the optimized producer under one build slot
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -187,9 +180,54 @@ jobs:
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         shell: python
         run: |
-          import os, subprocess
-          environment = dict(os.environ, GITHUB_SHA='d32f1cbab4094e6ae280975fa0febb19b5ee4bc4')
-          subprocess.run(['python', 'tools/ci/compiler_pilot.py', '--phase', 'prepare'], env=environment, check=True)
+          import datetime, hashlib, json, os, shutil, subprocess, sys, time
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / 'tools'))
+          import build_slot
+          output = Path('build/compiler-pilot')
+          driver = json.loads((output / 'driver.json').read_text())
+          source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert source == driver['compiler_program_source'] == 'd32f1cbab4094e6ae280975fa0febb19b5ee4bc4'
+          tool = shutil.which('mbx') or 'cargo'
+          def command(name, arguments, environment):
+              started = datetime.datetime.now(datetime.timezone.utc).isoformat()
+              clock = time.monotonic()
+              print(json.dumps(dict(stage=name, command=arguments, started=started,
+                                    source=source, driver=driver['driver_revision'])), flush=True)
+              stdout = output / (name + '.stdout')
+              stderr = output / (name + '.stderr')
+              with stdout.open('xb') as out, stderr.open('xb') as err:
+                  try:
+                      result = subprocess.run(arguments, env=environment, stdin=subprocess.DEVNULL,
+                                              stdout=out, stderr=err)
+                      code = result.returncode
+                  except OSError as error:
+                      err.write((str(error) + chr(10)).encode())
+                      code = 1
+              record = dict(command=arguments, exit_code=code, seconds=time.monotonic() - clock,
+                            started=started, finished=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            source=source, driver=driver['driver_revision'],
+                            source_tree=subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(),
+                            stdout=dict(file=stdout.name, bytes=stdout.stat().st_size,
+                                        sha256=hashlib.sha256(stdout.read_bytes()).hexdigest()),
+                            stderr=dict(file=stderr.name, bytes=stderr.stat().st_size,
+                                        sha256=hashlib.sha256(stderr.read_bytes()).hexdigest()))
+              (output / (name + '.json')).write_text(json.dumps(record, indent=2) + chr(10))
+              print(json.dumps(dict(stage=name, **record)), flush=True)
+              return code
+          # The child inherits the held-slot marker, so canonical preparation
+          # uses this same hold instead of taking a second slot.
+          with build_slot.hold(Path.cwd()):
+              environment = dict(os.environ, GITHUB_SHA=source)
+              code = command('compiler-check', [tool, 'check', '--locked', '-p', 'omega'], environment)
+              if code:
+                  raise SystemExit(code)
+              with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
+                  stream.write('compiler_check=success' + chr(10))
+              code = command('producer-command', [sys.executable, 'tools/ci/compiler_pilot.py',
+                                                 '--phase', 'prepare'], environment)
+              if code:
+                  raise SystemExit(code)
       - name: Upload the prepared producer and build receipts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
@@ -202,7 +240,7 @@ jobs:
       # Save compiled objects before any program consumer can use the job budget.
       # A failed preparation still retains useful objects and keeps the job red.
       - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.producer-preparation.outputs.compiler_check == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
@@ -211,7 +249,7 @@ jobs:
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
       - name: Retain the fresh ARM build objects before consumers
-        if: always() && !cancelled() && inputs.native_host == 'linux_arm64' && steps.compiler-check.outcome == 'success'
+        if: always() && !cancelled() && inputs.native_host == 'linux_arm64' && steps.producer-preparation.outputs.compiler_check == 'success'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
