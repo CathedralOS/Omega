@@ -1331,6 +1331,8 @@ fail/borrows/fresh_selector_borrow_has_no_parent_capture rejected 2934ms expecte
 	statement 3 creates local borrow `fresh` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 borrows `main.bytes[main.position]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 4 mutates `held` while local borrow `fresh` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/generic_call_output_source_write rejected 9185ms expected @c011c9b7fe43
+	statement 2 mutates `source` while local borrow `slot` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 648ms expected @ccdb99ca2214
 	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/generic_result_keeps_lifetime_source rejected 1851ms expected @ccdb99ca2214
@@ -1977,7 +1979,7 @@ fail/borrows/stored_writeonly_carrier_shared_outer rejected 675ms expected @ccdb
 fail/borrows/stored_writeonly_carrier_shared_widening rejected 826ms expected @ccdb99ca2214
 	machine `update` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `value` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
-fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden rejected 4246ms expected @ceec2d4e7d8b
+fail/borrows/supplied_output_ordinary_helper_saved_reference_forbidden rejected 8919ms expected @c011c9b7fe43
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/borrows/supplied_output_shared_stored_input_no_mutable_upgrade rejected 2145ms expected @70822431ff39
 	machine `exercise` state `entry` local `forbidden` requires mutable source access; shared or immutable storage cannot supply it
@@ -2037,6 +2039,13 @@ fail/borrows/template_sibling_stored_view_local_escape rejected 2586ms expected 
 	machine `replace` stores a borrowed value without a complete normal-exit backing relation
 fail/borrows/temporary_backing_loan_survives_reference_last_use rejected 2111ms expected @ccdb99ca2214
 	statement 3 reads `counter[0]` while local borrow `__hoist_1` is still active (borrowed at statement 1)
+fail/borrows/terminal_call_keeps_caller_cleanup_loan rejected 8966ms expected @c011c9b7fe43
+	state `entered` receives `counter` while local borrow `cleanup` is still active
+	state `entered` receives `counter` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	state `entered` receives `counter` while local borrow `wrapper` is still active
+	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
+	statement 2 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+	statement 3 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0)
 fail/borrows/terminal_call_returned_loan_live_write rejected 1601ms expected @ccdb99ca2214
 	statement 1 mutates `container.cell.value` while local borrow `value` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/terminal_carrier_retained_observation rejected 2001ms expected @ccdb99ca2214
@@ -19744,14 +19753,13 @@ pass/borrows/static_carrier_bounded_reference_read_exit checked 60204ms check-ta
 pass/borrows/static_carrier_reference_read_exit checked 57827ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/static_projected_local_reference_exit checked 18221ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/static_record_reference_return_exit checked 3524ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/stored_parameter_referent_descriptor_write_exit checked 3308ms @f5bf0a27e599
+pass/borrows/stored_parameter_referent_descriptor_write_exit checked 9161ms check-target:macos_arm64 @c011c9b7fe43
 pass/borrows/stored_primitive_reference_observations_exit checked 16418ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/supplied_output_ordinary_helper_saved_reference_exit rejected 1835ms check-target:macos_arm64 @70822431ff39
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/borrows/supplied_output_ordinary_helper_saved_reference_exit checked 13262ms check-target:macos_arm64 @c011c9b7fe43
 pass/borrows/supplied_output_shared_stored_input_ceiling_exit rejected 2271ms check-target:macos_arm64 @70822431ff39
 	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
 pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 5499ms check-target:macos_arm64 @d68d95fa82f8
@@ -26650,13 +26658,7 @@ pass/ownership/runtime_selected_reference_local_exit checked 3241ms check-target
 pass/ownership/runtime_selective_constructed_owner_custody_exit checked 23900ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_staged_read_before_owned_move_exit checked 3401ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_stored_byte_view_return_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_successor_cleanup_before_writes_exit rejected 6835ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	state `entered` receives `counter` while local borrow `cleanup` is still active
-	state `entered` receives `counter` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	state `entered` receives `counter` while local borrow `wrapper` is still active
-	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
-	statement 2 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 3 mutates `counter.value` while local borrow `wrapper` is still active (borrowed at statement 0)
+pass/ownership/runtime_successor_cleanup_before_writes_exit checked 9390ms check-target:macos_arm64 @c011c9b7fe43
 pass/ownership/runtime_unknown_affine_case_discard_exit checked 3711ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_view_parameter_element_window_exit checked 12600ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_whole_borrowed_transform_exit checked 99374ms check-target:macos_arm64 @6b1c338126fa
