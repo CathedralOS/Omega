@@ -589,8 +589,12 @@ mod constructor_identity_tests {
             source::SourceSpan::new(source_id, source::Span::new(0, 6))
         });
         let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
-        let owners =
-            spans.map(|span| symbols.insert_root(SymbolKind::Data, SymbolNameRef::Source(span)));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            spans.map(|span| (SymbolKind::Data, SymbolNameRef::Source(span))),
+        );
+        let owners = [declarations.handle_at(0), declarations.handle_at(1)];
         let cases = owners.map(|owner| {
             symbols.insert_children(
                 owner,
