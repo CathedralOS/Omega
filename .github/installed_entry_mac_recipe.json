@@ -1,0 +1,177 @@
+{
+  "schema": "omega-installed-entry-retained-mac-v1",
+  "label": "installed-entry-macos-062",
+  "source": "062d0753ff087261229656f1b646aaec2d0961f8",
+  "tree": "ffbb21689c9b10b57031eb34dcb272ef91a834c8",
+  "target": "macos_arm64",
+  "compiler_inputs": {
+    "omega-rust": "32decbbcf67ad5a7c403a4294bdb69757997697d",
+    "source/library": "0d8f76e96537348f44a8e168d83f4d1cc46f7548",
+    "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+    "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+    "bootstrap": "42230c0aa7138a175590d9dd6a57d8ee71934df1",
+    "tools/benchmark": "6c1a4399e3f037c808a23ad59825e76664482e2f",
+    "Cargo.toml": "2699e0a8d0be49c789639cbd3c603521634145d9",
+    "Cargo.lock": "e881ca0c250750753b5cf7294ce69621add8dfee",
+    "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+    ".cargo": null
+  },
+  "published_fixture_source": "c35f4550249860b906dc7819989f879b09acc66b",
+  "origin_run": 42184669999,
+  "origin_driver": "a69fb33f57d38e3d0f4ac8f1f78682aa53e8af03",
+  "expected_artifact_name": "core-float-constructor-identity-integration-preparation-macos_arm64-42184669999",
+  "producer_metadata_complete": true,
+  "artifact_id": 13488183649,
+  "artifact": {
+    "name": "core-float-constructor-identity-integration-preparation-macos_arm64-42184669999",
+    "size_in_bytes": 429968464,
+    "digest": "sha256:7691d07efad789804f47a4ad20b87e365b604cb5debc82e4edfd435dab946e55"
+  },
+  "expected_unit_scopes": [
+    {
+      "filter": "term_identity::resolution_payload_tests",
+      "count": 2,
+      "names": [
+        "proof_contracts::contract_entailment::structural_judgment::term_identity::resolution_payload_tests::repeated_array_traversal_and_substitution_are_independent_of_extent",
+        "proof_contracts::contract_entailment::structural_judgment::term_identity::resolution_payload_tests::payload_comparison_keeps_hidden_descriptors_and_nested_authority"
+      ]
+    },
+    {
+      "filter": "resolution_queries::",
+      "count": 19,
+      "names": [
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::completed_queries_keep_full_authority_depth_and_premise_context",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::bucket_collisions_preserve_capture_proofs_and_recurrence_inputs",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::static_selection_landings_survive_completed_query_reuse",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::static_selection_landings_remain_distinct_recurrence_inputs",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::recurrence_reads_allow_unrelated_frames_but_reject_changed_cycle_answers",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::cached_child_reads_reach_the_parent_without_exporting_local_cycles",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::changed_query_inputs_decline_dependency_reuse",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::conditional_reuse_matches_uncached_queries_for_every_three_question_stack",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::field_dependency_recording_reuses_only_the_same_accumulating_trace",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::body_reads_reach_current_and_ancestor_field_observers",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::tests::changing_field_observers_invalidates_enclosing_queries_not_recurrence",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::work_domain_tests::bucket_eviction_keeps_recent_queries_and_removes_old_indices",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::work_domain_tests::cheap_leaf_queries_do_not_evict_completed_applications",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::predicate_tests::value_resolution_and_predicate_answers_remain_distinct",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::depth_tests::nested_arithmetic_queries_keep_the_active_resolution_budget",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::guard_depth_tests::completed_guards_keep_the_active_resolution_depth",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::term_mode_tests::entering_a_question_preserves_its_caller_term_mode",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::term_mode_tests::completed_reads_keep_the_observed_mode_across_caller_mode_changes",
+        "proof_contracts::contract_entailment::structural_judgment::resolution_queries::term_mode_tests::cached_child_reads_replay_their_original_mode_into_the_parent"
+      ]
+    },
+    {
+      "filter": "stored_values::tests",
+      "count": 6,
+      "names": [
+        "proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::finds_each_slot_and_no_absent_one",
+        "proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::walks_past_unequal_coordinates_that_share_a_key",
+        "proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::updates_reach_the_first_equal_value",
+        "proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::repeated_coordinate_resolves_to_first_position",
+        "proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::removal_keeps_lookups_exact",
+        "proof_contracts::contract_entailment::structural_judgment::storage_effects::stored_values::tests::values_at_yields_each_equal_value_in_stored_order"
+      ]
+    }
+  ],
+  "archive_expanded_bytes": 429965384,
+  "archive_largest_member_bytes": 216073040,
+  "producer_record": "producer-cnsbw6hw/producer.json",
+  "original_producer": {
+    "revision": "062d0753ff087261229656f1b646aaec2d0961f8",
+    "tree": "ffbb21689c9b10b57031eb34dcb272ef91a834c8",
+    "target": "macos_arm64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: aarch64-apple-darwin\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "cli": "/Users/runner/work/Omega/Omega/build/compiler-pilot/constructor-identity-integration-host/producer-cnsbw6hw/omega",
+    "runner": "/Users/runner/work/Omega/Omega/build/compiler-pilot/constructor-identity-integration-host/producer-cnsbw6hw/corpus_runner",
+    "cli_profile": {
+      "binary": "/Users/runner/work/Omega/Omega/build/compiler-pilot/constructor-identity-integration-host/producer-cnsbw6hw/omega",
+      "sha256": "d9b896625bb697858582d5defccf2d8885eafeaec88164f0ef8d7799be5827f6",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "runner_profile": {
+      "binary": "/Users/runner/work/Omega/Omega/build/compiler-pilot/constructor-identity-integration-host/producer-cnsbw6hw/corpus_runner",
+      "sha256": "76f7a260c473893dd8ee1c0767efc0eb0dc6748384a6c061a51e3b6e9ac6804f",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "original_driver_record": {
+    "source": "062d0753ff087261229656f1b646aaec2d0961f8",
+    "driver": "a69fb33f57d38e3d0f4ac8f1f78682aa53e8af03",
+    "target": "macos_arm64"
+  },
+  "source_checks": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit",
+    "fail/build/installed_entry_ram_invalid_extent",
+    "fail/build/installed_entry_ram_invalid_padding",
+    "fail/build/installed_entry_ram_missing_backing",
+    "fail/build/installed_entry_ram_overlapping_exclusive_roots",
+    "fail/build/installed_entry_ram_wrong_occurrence"
+  ],
+  "both": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit"
+  ],
+  "samples": [
+    "samples/cli/facts/installed_entry_storage",
+    "samples/cli/facts/installed_entry_storage/call_result",
+    "samples/cli/facts/installed_entry_storage/call_result/invalid",
+    "samples/cli/facts/installed_entry_storage/const_name",
+    "samples/cli/facts/installed_entry_storage/const_name/invalid",
+    "samples/cli/facts/installed_entry_storage/field",
+    "samples/cli/facts/installed_entry_storage/field/invalid",
+    "samples/cli/facts/installed_entry_storage/local",
+    "samples/cli/facts/installed_entry_storage/local/invalid",
+    "samples/cli/facts/installed_entry_storage/match_join",
+    "samples/cli/facts/installed_entry_storage/match_join/invalid",
+    "samples/cli/facts/installed_entry_storage/other_machine",
+    "samples/cli/facts/installed_entry_storage/other_machine/invalid",
+    "samples/cli/facts/installed_entry_storage/other_state",
+    "samples/cli/facts/installed_entry_storage/other_state/invalid",
+    "samples/cli/facts/installed_entry_storage/parameter",
+    "samples/cli/facts/installed_entry_storage/parameter/invalid",
+    "samples/cli/facts/installed_entry_storage/target_body",
+    "samples/cli/facts/installed_entry_storage/target_body/invalid"
+  ],
+  "observer_files": {
+    "run_installed_entry_mac_retained.py": "da557269f4064512f4ba32fc81c27fb965be7c82938ce183335c56a81d121f14",
+    "installed_entry_samples.py": "beb28001c02efa5a3fd0b481d7ae810d3bbc340a1feeaa57bb476ad2c6d5988e",
+    "installed_entry_mac_inputs.json": "7b9bca916ee51a5a7d5ace5366baf7c21841587db67570fa111850d6dd2765d9"
+  },
+  "limits": {
+    "corpus_seconds": 120,
+    "sample_cli_seconds": 300,
+    "workers": 1,
+    "phase_profile": false
+  },
+  "disposition": "Final prepared recipe only. Immutable artifact and all27 named tests authenticated; origin state/conclusion recorded separately. Root exact observer/custody approval required before push/dispatch. No new compiler build or host outcome."
+}
