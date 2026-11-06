@@ -167,6 +167,7 @@ jobs:
         run: |
           import json, os, subprocess, sys, time
           from pathlib import Path
+          sys.path.insert(0, str(Path.cwd()))
           sys.path.insert(0, str(Path.cwd() / 'tools'))
           import build_slot, compiler_profile
           from tools.ci import compiler_pilot
