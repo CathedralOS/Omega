@@ -1,0 +1,46 @@
+{
+  "schema": "omega-installed-entry-arm-resource-prefix-v1",
+  "parent": "9c7c875a0d66ec7ab149fa524b91663980b101b1",
+  "compiler_source": "63c75ba6ad0e978d540e3ca9af29f9c95c079766",
+  "origin_run": 42202380872,
+  "source_checks": [
+    "pass/facts/installed_entry_storage_through_call_result_exit",
+    "pass/facts/installed_entry_storage_through_const_name_exit",
+    "pass/facts/installed_entry_storage_through_field_exit",
+    "pass/facts/installed_entry_storage_through_local_exit",
+    "pass/facts/installed_entry_storage_through_match_join_exit",
+    "pass/facts/installed_entry_storage_through_other_machine_exit",
+    "pass/facts/installed_entry_storage_through_other_state_exit",
+    "pass/facts/installed_entry_storage_through_parameter_exit",
+    "pass/facts/installed_entry_storage_through_target_body_exit",
+    "pass/build/installed_entry_ram_live_stack_exit",
+    "pass/build/installed_entry_ram_stack_occurrence_exit",
+    "pass/build/installed_entry_ram_two_occurrences_exit",
+    "pass/layouts/placed_view_source_access_exit",
+    "fail/build/installed_entry_ram_invalid_extent",
+    "fail/build/installed_entry_ram_invalid_padding",
+    "fail/build/installed_entry_ram_missing_backing",
+    "fail/build/installed_entry_ram_overlapping_exclusive_roots",
+    "fail/build/installed_entry_ram_wrong_occurrence"
+  ],
+  "cli_sha256": "624349119e5c36cdad0235d626793d5d0fe969926dcead3584d2758234f545b2",
+  "runner_sha256": "48a105111a81cba5a18e7f0b881f30cb490fd4612f751c45ebf2d48f8f0b14e6",
+  "limits": {
+    "original_fixture_seconds": 120,
+    "prefix_seconds": 105,
+    "term_wait_until_seconds": 110,
+    "kill_wait_until_seconds": 116,
+    "reap_until_seconds": 118,
+    "cleanup_ceiling_seconds": 120,
+    "workers": 1,
+    "phase_profile": false,
+    "resource_interval_seconds": 5
+  },
+  "scope": "One original eighteen-fixture Source selection as diagnostic prefix only; no engines or samples. Full18/13/19 acceptance remains missing.",
+  "privacy": "Read only owned process/descendant IDs, held start identity, executable paths and resource counters. No arguments, environment, credentials, host-wide process/memory capture, stacks, kernel logs or settings.",
+  "preservation": "Protocol rows flush to ordinary workflow stdout every five seconds and at owned launch/signal/cleanup boundaries. Final artifact loss does not erase stdout already received by the service. Service loss may still interrupt the observer and cleanup; retain any actual limitation.",
+  "failure_evidence": [
+    "remaining-arm-shutdown-audit.json",
+    "remaining-arm-replay-shutdown-audit.json"
+  ]
+}
