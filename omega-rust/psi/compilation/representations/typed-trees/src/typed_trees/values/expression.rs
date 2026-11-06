@@ -1694,7 +1694,9 @@ pub struct TableCallExpression {
     /// Zero denotes a call without designated product operands. The payload
     /// belongs to this expression table, not to an interpreter side channel.
     pub build_selection: Handle<BuildSelectionRequest>,
-    /// Zero until specialization erases this call's authored static operands.
+    /// Source application retaining the supplying declaration and static
+    /// operands, including after specialization removes them from the call.
+    /// Zero when no retained static application is needed.
     pub authored_machine_application: StaticMachineApplicationHandle,
     /// An Exact carrier coercion elaborated to this conversion requirement.
     /// The zero handle denotes an ordinary named call. Keep the authored

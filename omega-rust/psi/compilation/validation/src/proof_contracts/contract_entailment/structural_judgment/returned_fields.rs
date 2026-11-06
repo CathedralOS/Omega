@@ -163,6 +163,9 @@ impl StructuralJudge<'_> {
         judge.returned_field_trace = Some(std::sync::Arc::clone(&trace));
         let mut diagnostics = Vec::new();
         let Some(leaves) = phase_profile::scope("psi.05.returned_fields.recognize", || {
+            let _subject = phase_profile::subject("psi.05.returned_fields.recognize", || {
+                program.symbols.profile_label(callee.symbol)
+            });
             recognize_structural_case_arms(
                 program,
                 callee,

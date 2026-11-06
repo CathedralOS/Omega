@@ -16,6 +16,7 @@ use validation::selected_construction_field_type;
 
 struct ConstructionCall {
     target: SymbolHandle,
+    source_owner: SymbolHandle,
     static_arguments: Vec<StaticMachineArgument>,
     arguments: Vec<ExpressionHandle>,
 }
@@ -58,6 +59,11 @@ pub(crate) fn prepare(
             ExpressionNode::Call(call) => collect_call_destinations(
                 program,
                 call.target_symbol,
+                call_source_owner(
+                    program,
+                    call.authored_machine_application,
+                    SymbolHandle::invalid(),
+                ),
                 &call.machine_arguments,
                 program.expression_table.expression_handles(call.arguments),
                 &mut calls,
@@ -98,6 +104,11 @@ pub(crate) fn prepare(
                     StatementNode::Call(call) => collect_call_destinations(
                         program,
                         call.target_symbol,
+                        call_source_owner(
+                            program,
+                            call.authored_machine_application,
+                            machine.symbol,
+                        ),
                         &call.machine_arguments,
                         program.statement_table.expression_handles(call.arguments),
                         &mut calls,
@@ -122,6 +133,7 @@ pub(crate) fn prepare(
                                     collect_call_destinations(
                                         program,
                                         path.symbol,
+                                        machine.symbol,
                                         &[],
                                         program.statement_table.expression_handles(*arguments),
                                         &mut calls,
@@ -157,10 +169,16 @@ pub(crate) fn prepare(
         if binders.len() != call.static_arguments.len() {
             continue;
         }
+        if !call.static_arguments.is_empty() && !call.source_owner.is_valid() {
+            // Detached arena expressions have no caller-owned application to
+            // infer from. Decline the hint; ordinary source checks still own
+            // admission of every live call and its explicit static arguments.
+            continue;
+        }
         let mut substitutions = Vec::with_capacity(binders.len());
         for (binder, argument) in binders.iter().zip(&call.static_arguments) {
             let actual = program
-                .static_operand_type_reference(argument)
+                .static_operand_type_reference_in_scope(argument, call.source_owner)
                 .map_err(Diagnostic::error)?;
             substitutions.push((binder.symbol, actual));
         }
@@ -190,6 +208,7 @@ pub(crate) fn prepare(
 fn collect_call_destinations(
     program: &TypedTrees,
     target_symbol: SymbolHandle,
+    source_owner: SymbolHandle,
     static_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
     calls: &mut Vec<ConstructionCall>,
@@ -203,9 +222,27 @@ fn collect_call_destinations(
     }
     calls.push(ConstructionCall {
         target: target_symbol,
+        source_owner,
         static_arguments: static_arguments.to_vec(),
         arguments: arguments.to_vec(),
     });
+}
+
+fn call_source_owner(
+    program: &TypedTrees,
+    application: typed_trees::expression::StaticMachineApplicationHandle,
+    lexical_owner: SymbolHandle,
+) -> SymbolHandle {
+    if application.is_valid() {
+        let owner = program
+            .expression_table
+            .static_machine_application(application)
+            .lexical_owner;
+        if owner.is_valid() {
+            return owner;
+        }
+    }
+    lexical_owner
 }
 
 fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {

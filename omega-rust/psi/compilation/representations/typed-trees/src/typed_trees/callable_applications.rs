@@ -579,6 +579,24 @@ impl TypedTrees {
         lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        // The declaration supplies unbound regions throughout its type, even
+        // below arrays or generic arguments without their own lifetime slots.
+        // Scope a fresh input root: substitution may return a caller-owned
+        // actual, which must never acquire the receiving declaration's scope.
+        let original = if original.is_valid()
+            && declaration.is_valid()
+            && !self
+                .type_reference_table
+                .operand_lifetime_owner(original)
+                .is_valid()
+        {
+            let scoped = self.type_reference_table.fresh_occurrence(original);
+            self.type_reference_table
+                .retain_operand_lifetime_owner(scoped, declaration)?;
+            scoped
+        } else {
+            original
+        };
         CallableApplication {
             region_scope: declaration,
             types: substitutions.to_vec(),

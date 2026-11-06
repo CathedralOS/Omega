@@ -181,6 +181,13 @@ pub(crate) fn check_checked_facts_recording(
         "after content composition",
         "psi.05.check_checked_facts.content_composition",
     );
+    if phase_profile::enabled() {
+        // A timeout can prevent the final report. Keep the completed helper
+        // timings visible before checking the caller's remaining obligations.
+        use std::io::Write;
+        let report = phase_profile::render_subjects(8);
+        let _ = std::io::stderr().lock().write_all(report.as_bytes());
+    }
 
     match phase_profile::scope(
         "psi.05.check_checked_facts.check_flow_call_contracts",
