@@ -192,6 +192,18 @@ impl PreparedCheckedSource {
         Ok(self)
     }
 
+    pub fn prepare_build_source_input(
+        &self,
+        package_inputs: Option<&PackageCompilationInputs>,
+        snapshot: Option<&package_compilation::BuildSnapshotRequest>,
+    ) -> Result<
+        Option<package_compilation::build_execution::PreparedBuildSourceInput>,
+        Vec<Diagnostic>,
+    > {
+        self.source_checkpoint
+            .prepare_build_source_input(package_inputs, snapshot)
+    }
+
     pub fn admit_root(&self, root_path: &Path) -> Result<(), Vec<Diagnostic>> {
         self.source_checkpoint.admit_root(root_path)
     }

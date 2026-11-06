@@ -149,6 +149,31 @@ impl SourceStorage {
             .collect()
     }
 
+    pub(crate) fn prepare_build_source_input(
+        &self,
+        root_path: &Path,
+        package_inputs: Option<&crate::PackageCompilationInputs>,
+        request: &crate::BuildSourceCaptureRequest,
+    ) -> Result<crate::build_execution::PreparedBuildSourceInput, Vec<Diagnostic>> {
+        let anonymous_input = self
+            .anonymous_capture
+            .as_ref()
+            .map(|capture| crate::source::source_snapshot::retained_source_input(capture))
+            .transpose()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let retained = package_inputs
+            .and_then(|inputs| inputs.captured_source_input(inputs.root()))
+            .or(anonymous_input.as_ref());
+        crate::build_execution::PreparedBuildSourceInput::prepare(
+            root_path,
+            &self.default_package_root,
+            &self.filesystem,
+            retained,
+            &self.sources,
+            request,
+        )
+    }
+
     pub(crate) fn default_package_root(&self) -> &Path {
         &self.default_package_root
     }

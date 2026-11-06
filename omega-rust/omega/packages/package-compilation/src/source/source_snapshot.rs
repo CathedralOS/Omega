@@ -205,7 +205,7 @@ pub(crate) fn retained_scoped_source_input(
                 .collect())
         },
     )?;
-    require_source_members(&selected, required_members)?;
+    require_source_members(|path| selected.contains_key(path), required_members)?;
     retained_entries_input(
         selected
             .into_iter()
@@ -307,13 +307,13 @@ pub(crate) fn capture_relative_path_bytes(path: &Path) -> Result<Vec<u8>, String
     Ok(relative)
 }
 
-fn require_source_members<Member>(
-    selected: &BTreeMap<Vec<u8>, Member>,
+pub(crate) fn require_source_members(
+    contains: impl Fn(&[u8]) -> bool,
     required_members: impl IntoIterator<Item = PathBuf>,
 ) -> Result<(), String> {
     for member in required_members {
         let relative = capture_relative_path_bytes(&member)?;
-        if !selected.contains_key(&relative) {
+        if !contains(&relative) {
             return Err(format!(
                 "scoped source inventory omits required source member {}",
                 member.display()

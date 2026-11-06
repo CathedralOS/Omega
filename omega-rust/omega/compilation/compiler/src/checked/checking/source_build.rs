@@ -29,6 +29,7 @@ pub(super) struct SourceBuild {
 }
 
 struct PendingRoot {
+    prepared_source_input: Option<package_compilation::build_execution::PreparedBuildSourceInput>,
     root: std::path::PathBuf,
     source: PreparedCheckedSource,
     target: Option<target::TargetProfile>,
@@ -61,6 +62,9 @@ impl SourceBuild {
         compilation: &build_settings::PureBuildCompilation,
     ) -> Result<Self, CompileFailure> {
         child.admit_package_inputs()?;
+        source.admit_root(root)?;
+        let prepared_source_input = source
+            .prepare_build_source_input(child.package_inputs, child.build.snapshot.as_ref())?;
         let core_root = package_compilation::source_imports::bundled_core_root()?;
         let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
         // The supplier is an independent source invocation. Its coordinates and
@@ -92,12 +96,14 @@ impl SourceBuild {
             core_child,
             Some(compilation),
             BuildSourcePurpose::Defaults,
+            None,
         )?;
         Ok(Self {
             state: State::Defaults {
                 invocation: Box::new(invocation),
                 capture,
                 root: Box::new(PendingRoot {
+                    prepared_source_input,
                     root: root.to_path_buf(),
                     source,
                     target: child.selected_target_profile,
@@ -173,6 +179,7 @@ impl SourceBuild {
             observation,
         )?;
         let PendingRoot {
+            prepared_source_input,
             root,
             source,
             target,
@@ -195,6 +202,7 @@ impl SourceBuild {
             },
             Some(&compilation),
             BuildSourcePurpose::Source(&defaults),
+            prepared_source_input,
         )?;
         self.state = State::Root {
             invocation: Box::new(invocation),

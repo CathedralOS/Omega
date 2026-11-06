@@ -37,6 +37,7 @@ pub(super) fn prepare_build_invocation(
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
     purpose: super::source_build::BuildSourcePurpose<'_>,
+    prepared_source_input: Option<package_compilation::build_execution::PreparedBuildSourceInput>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
     let (execution_purpose, toolchain_defaults) = match purpose {
@@ -72,6 +73,7 @@ pub(super) fn prepare_build_invocation(
     let evaluation = build_settings::prepare_build_evaluation(
         build_settings::BuildEvaluationRequest {
             execution_purpose,
+            prepared_source_input,
             pure_build_compilation,
             toolchain_defaults,
             root_path,

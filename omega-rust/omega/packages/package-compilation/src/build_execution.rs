@@ -23,7 +23,7 @@ mod snapshot_request;
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
 pub use execution_inputs::{BuildExecutionContract, BuildExecutionInputs};
-pub use filesystem_scope::preparation::prepare_filesystem_scope;
+pub use filesystem_scope::preparation::{PreparedBuildSourceInput, prepare_filesystem_scope};
 pub use filesystem_scope::runtime::{BuildFilesystemEffects, BuildFilesystemRuntime};
 pub use filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,

@@ -25,10 +25,21 @@ pub fn prepare_filesystem_scope(
     build_dir: Option<&Path>,
     filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
     build_snapshot: Option<&crate::BuildSnapshotRequest>,
+    prepared_source: Option<PreparedBuildSourceInput>,
 ) -> Result<BuildMachineFilesystemScope, Vec<Diagnostic>> {
     if package_inputs.is_some() && anonymous_source.is_some() {
         return Err(vec![Diagnostic::error(
             "Build scope cannot combine anonymous source custody with supplied package inputs",
+        )]);
+    }
+    if prepared_source.is_some()
+        && !matches!(
+            build_snapshot.map(crate::BuildSnapshotRequest::capture),
+            Some(crate::BuildSnapshotCapture::Scoped(_))
+        )
+    {
+        return Err(vec![Diagnostic::error(
+            "prepared Build source inventory requires its scoped snapshot request",
         )]);
     }
     let anonymous_input = anonymous_source
@@ -160,55 +171,26 @@ pub fn prepare_filesystem_scope(
                 }
             }
             crate::BuildSnapshotCapture::Scoped(request) => {
-                let captured = if let Some(complete) = retained_input {
-                    let filesystem = package_inputs
-                        .map(|inputs| inputs.source_filesystem())
-                        .or_else(|| anonymous_source.map(|source| source.filesystem()))
-                        .ok_or_else(|| {
-                            vec![Diagnostic::error(
-                                "retained Build input lost its source namespace",
-                            )]
-                        })?;
-                    let mut required_members = Vec::new();
-                    let authored_members = required_sources.selected_files().filter(|file| {
-                        file.origin == source::SourceOrigin::User
-                            && file.resolution_stratum == source::SourceResolutionStratum::Base
-                            && file.package_root == source_root
-                    });
-                    // The requested Product root is required even while its
-                    // loading waits for Build's join. Resolve its identity and
-                    // authored import spellings in the same retained namespace.
-                    for path in std::iter::once(root_path)
-                        .chain(authored_members.map(|file| file.path.as_path()))
-                    {
-                        let resolved = filesystem.canonicalize(path).map_err(|error| {
-                            vec![Diagnostic::error(format!(
-                                "could not resolve required source member {} in the invocation namespace: {error}",
-                                path.display()
-                            ))]
-                        })?;
-                        let relative = resolved.strip_prefix(&source_root).map_err(|error| {
-                            vec![Diagnostic::error(format!(
-                                "required source member {} is outside its captured root: {error}",
-                                path.display()
-                            ))]
-                        })?;
-                        required_members.push(relative.to_path_buf());
-                    }
-                    crate::source::source_snapshot::retained_scoped_source_input(
-                        complete,
-                        request,
-                        required_members,
-                    )
-                } else {
-                    crate::capture_scoped_source_input(
+                let captured = match prepared_source {
+                    Some(prepared) => prepared.admit(
+                        root_path,
                         &source_root,
+                        package_inputs
+                            .map(|inputs| inputs.source_filesystem())
+                            .or_else(|| anonymous_source.map(|source| source.filesystem())),
+                        required_sources,
                         request,
-                        required_sources
-                            .selected_files()
-                            .map(|file| file.path.clone())
-                            .chain(std::iter::once(root_path.to_path_buf())),
-                    )
+                    ),
+                    None => prepare_scoped_source_input(
+                        root_path,
+                        &source_root,
+                        package_inputs
+                            .map(|inputs| inputs.source_filesystem())
+                            .or_else(|| anonymous_source.map(|source| source.filesystem())),
+                        retained_input,
+                        required_sources,
+                        request,
+                    ),
                 };
                 captured.map_err(|reason| {
                     vec![Diagnostic::error(format!(
@@ -250,4 +232,123 @@ pub fn prepare_filesystem_scope(
             .with_required_outputs(build_snapshot.required_outputs().iter().cloned())?;
     }
     Ok(build_machine_filesystem_scope)
+}
+
+/// An admitted selection from an immutable source inventory. It carries no
+/// filesystem grant or executable authority; the activation binds those later.
+pub struct PreparedBuildSourceInput {
+    source_root: std::path::PathBuf,
+    request: crate::BuildSourceCaptureRequest,
+    input: build_output::CapturedBuildSourceInput,
+}
+
+impl PreparedBuildSourceInput {
+    pub(crate) fn prepare(
+        root_path: &Path,
+        source_root: &Path,
+        filesystem: &source::SourceFileSystem,
+        retained_input: Option<&build_output::CapturedBuildSourceInput>,
+        required_sources: &source::SourceMap,
+        request: &crate::BuildSourceCaptureRequest,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let input = prepare_scoped_source_input(
+            root_path,
+            source_root,
+            Some(filesystem),
+            retained_input,
+            required_sources,
+            request,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "could not capture the build source snapshot: {reason}"
+            ))]
+        })?;
+        Ok(Self {
+            source_root: source_root.to_path_buf(),
+            request: request.clone(),
+            input,
+        })
+    }
+
+    fn admit(
+        self,
+        root_path: &Path,
+        source_root: &Path,
+        filesystem: Option<&source::SourceFileSystem>,
+        required_sources: &source::SourceMap,
+        request: &crate::BuildSourceCaptureRequest,
+    ) -> Result<build_output::CapturedBuildSourceInput, String> {
+        if self.source_root != source_root || self.request != *request {
+            return Err("prepared Build source inventory belongs to another request".to_owned());
+        }
+        // Supplier declarations may extend the Build prefix. Check the final
+        // required set against the retained selection without recapturing it.
+        let required =
+            required_source_members(root_path, source_root, filesystem, required_sources)?;
+        crate::source::source_snapshot::require_source_members(
+            |path| self.input.retained_entry(path).is_some(),
+            required,
+        )?;
+        Ok(self.input)
+    }
+}
+
+fn prepare_scoped_source_input(
+    root_path: &Path,
+    source_root: &Path,
+    filesystem: Option<&source::SourceFileSystem>,
+    retained_input: Option<&build_output::CapturedBuildSourceInput>,
+    required_sources: &source::SourceMap,
+    request: &crate::BuildSourceCaptureRequest,
+) -> Result<build_output::CapturedBuildSourceInput, String> {
+    match retained_input {
+        Some(complete) => crate::source::source_snapshot::retained_scoped_source_input(
+            complete,
+            request,
+            required_source_members(root_path, source_root, filesystem, required_sources)?,
+        ),
+        None => crate::capture_scoped_source_input(
+            source_root,
+            request,
+            required_sources
+                .selected_files()
+                .map(|file| file.path.clone())
+                .chain(std::iter::once(root_path.to_path_buf())),
+        ),
+    }
+}
+
+fn required_source_members(
+    root_path: &Path,
+    source_root: &Path,
+    filesystem: Option<&source::SourceFileSystem>,
+    required_sources: &source::SourceMap,
+) -> Result<Vec<std::path::PathBuf>, String> {
+    let filesystem =
+        filesystem.ok_or_else(|| "retained Build input lost its source namespace".to_owned())?;
+    let authored_members = required_sources.selected_files().filter(|file| {
+        file.origin == source::SourceOrigin::User
+            && file.resolution_stratum == source::SourceResolutionStratum::Base
+            && file.package_root == source_root
+    });
+    // The explicit Product entry is required while its body remains unloaded.
+    std::iter::once(root_path)
+        .chain(authored_members.map(|file| file.path.as_path()))
+        .map(|path| {
+            let resolved = filesystem.canonicalize(path).map_err(|error| format!(
+                "could not resolve required source member {} in the invocation namespace: {error}",
+                path.display()
+            ))?;
+            resolved
+                .strip_prefix(source_root)
+                .map(Path::to_path_buf)
+                .map_err(|error| {
+                    format!(
+                        "required source member {} is outside its captured root: {error}",
+                        path.display()
+                    )
+                })
+        })
+        .collect()
 }

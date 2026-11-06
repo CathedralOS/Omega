@@ -260,6 +260,23 @@ impl DeferredProductSources {
 }
 
 impl ImmutableSourceParseCheckpoint {
+    /// Admit the caller's explicit inventory before any companion can execute.
+    /// The already-parsed Build prefix supplies required members; Product bodies
+    /// remain unopened until the Build result joins.
+    pub fn prepare_build_source_input(
+        &self,
+        package_inputs: Option<&PackageCompilationInputs>,
+        snapshot: Option<&crate::BuildSnapshotRequest>,
+    ) -> Result<Option<crate::build_execution::PreparedBuildSourceInput>, Vec<Diagnostic>> {
+        match snapshot.map(crate::BuildSnapshotRequest::capture) {
+            Some(crate::BuildSnapshotCapture::Scoped(request)) => self
+                .source_storage
+                .prepare_build_source_input(&self.root_path, package_inputs, request)
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
+
     /// Source capture normalizes the physical root before parsing. The public
     /// request may keep a relative or symlink spelling of that same entry;
     /// resolve both through the retained capture, never through reopened bytes.

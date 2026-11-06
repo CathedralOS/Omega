@@ -386,6 +386,7 @@ fn prepare_build_source_invocation(
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
     purpose: source_build::BuildSourcePurpose<'_>,
+    prepared_source_input: Option<package_compilation::build_execution::PreparedBuildSourceInput>,
 ) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
@@ -403,6 +404,7 @@ fn prepare_build_source_invocation(
         timings,
         pure_build_compilation,
         purpose,
+        prepared_source_input,
     )
     .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))
 }

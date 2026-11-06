@@ -21,6 +21,10 @@ use typed_trees::TypedTrees;
 /// Inputs to one activation. Source assembly and typing have already finished;
 /// this operation neither discovers source nor compiles generated continuations.
 pub struct BuildEvaluationRequest<'request> {
+    /// Caller-selected immutable input admitted before a sequential supplier.
+    /// Filesystem and executable authority are still checked for this activation.
+    pub prepared_source_input:
+        Option<package_compilation::build_execution::PreparedBuildSourceInput>,
     /// Measurement only; source custody and admission independently establish authority.
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     /// Completed core selections for this Build's own admitted execution scope.
@@ -141,6 +145,7 @@ pub fn prepare_build_evaluation(
     timings: &mut CompileTimings,
 ) -> Result<PreparedBuildEvaluation, CompileFailure> {
     let BuildEvaluationRequest {
+        prepared_source_input,
         execution_purpose,
         pure_build_compilation,
         toolchain_defaults,
@@ -238,6 +243,7 @@ pub fn prepare_build_evaluation(
         build_directory,
         filesystem_sponsor,
         snapshot,
+        prepared_source_input,
     )?;
     let admitted = crate::admit_build_program(
         prepared,
