@@ -1360,11 +1360,25 @@ impl TerminalExecution<'_> {
         let claims = self
             .stage_window_store_claims(destination, &storage, path, &hole, value, &mut frontier)
             .map_err(|error| failure("restored claims", error))?;
-        let publishes_value = reserved.is_none()
-            || hole.path == storage.path
-            || claims
-                .values()
-                .any(|claim| claim.place == Some(destination));
+        // Installing a complete value in a vacant declared home establishes
+        // its storage representation too. Leaf writes would split a byte-array
+        // backing into unrelated scalar cells, so later byte loans could not
+        // find the initialized array. Existing borrowed storage instead keeps
+        // its pinned endpoints and uses the ordinary replacement writes.
+        let initializes_home = disposition == terminal_psi::StructuralStoreDisposition::Vacant
+            && path.is_empty()
+            && field.is_none()
+            && machine
+                .producing_operation(destination)
+                .is_some_and(|(producer, ty)| {
+                    matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
+                        && producer.result.structural().is_some_and(|result| {
+                            result.place == destination && result.structural_type == ty
+                        })
+                });
+        // A complete value comes from the whole establishing store. A claim
+        // already held at this home cannot establish its other fields.
+        let publishes_value = reserved.is_none() || initializes_home;
         // Completed primitive arrays keep their payload outside the opaque
         // structural-place map. Resolve both representations, and stage their
         // exact typed leaves before publishing the same window transaction.
@@ -1463,22 +1477,6 @@ impl TerminalExecution<'_> {
         // opaque maps. Descriptor-bearing values keep the construction storage
         // transaction, including standalone view descriptors and their custody.
         let destination_path = window.path;
-        // Installing a complete value in a vacant declared home establishes
-        // its storage representation too. Leaf writes would split a byte-array
-        // backing into unrelated scalar cells, so later byte loans could not
-        // find the initialized array. Existing borrowed storage instead keeps
-        // its pinned endpoints and uses the ordinary replacement writes.
-        let initializes_home = disposition == terminal_psi::StructuralStoreDisposition::Vacant
-            && path.is_empty()
-            && field.is_none()
-            && machine
-                .producing_operation(destination)
-                .is_some_and(|(producer, ty)| {
-                    matches!(producer.kind, OperationKind::EstablishStructuralLocal {})
-                        && producer.result.structural().is_some_and(|result| {
-                            result.place == destination && result.structural_type == ty
-                        })
-                });
         // Reserved linear storage has no initialized endpoints to overwrite.
         let writes = if initializes_home || reserved.is_some() {
             None
