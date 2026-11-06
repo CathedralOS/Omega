@@ -19848,8 +19848,7 @@ pass/borrows/write_projection_loan checked 3150ms @ccdb99ca2214
 pass/borrows/writeonly_record_field_store checked 89396ms check-target:macos_arm64 @898dd1bf8987
 pass/borrows/writeonly_record_field_store_variants checked 18054ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/interleaved_structural_crash_formal_exit checked 4048ms check-target:macos_arm64 @ccdb99ca2214
-pass/boundary/later_state_requirement_scalar_result_exit rejected 16018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/boundary/later_state_requirement_scalar_result_exit checked 93308ms check-target:macos_arm64 @c989b75f08a9
 pass/boundary/named_target_foreign_provider_exit checked 3648ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/native_provider_unoffered_read checked 3963ms check-target:linux_x86_64 @ccdb99ca2214
 pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check-target:macos_arm64 @ccdb99ca2214
@@ -20025,8 +20024,7 @@ pass/calls/borrowed_float_argument_scalar_result_exit checked 19277ms check-targ
 pass/calls/borrowed_float_result_exit checked 21667ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/borrowed_float_scalar_result_exit checked 19476ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/borrowed_scalar_result_with_binding_exit checked 17242ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/boundary_call_nested_call_argument_exit rejected 18383ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/calls/boundary_call_nested_call_argument_exit checked 93796ms check-target:windows_x86_64 @c989b75f08a9
 pass/calls/builtin_named_machine_call_exit checked 17782ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/by_value_case_param_self_write_exit checked 21790ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/call_local_reassign checked 4318ms @ccdb99ca2214
@@ -26083,9 +26081,7 @@ pass/host/runtime_encoded_record_view_observation_exit rejected 3253ms check-tar
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	cannot establish assignment invariants: source storage interpretation is unavailable
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11523ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 17200ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/host/runtime_foreign_scalar_loan_writeback_exit checked 86236ms check-target:windows_x86_64 @c989b75f08a9
 pass/host/runtime_foreign_zero_argument_import_exit checked 16999ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_foreground_window_exit checked 12325ms check-target:windows_x86_64 @ccdb99ca2214
 pass/host/runtime_gui_window_lifecycle_exit checked 16186ms check-target:windows_x86_64 @ccdb99ca2214
@@ -27127,8 +27123,7 @@ pass/providers/runtime_boundary_primitive_array_argument_exit checked 13816ms ch
 pass/providers/runtime_boundary_qualified_state_exit checked 7306ms check-target:macos_arm64 @b31668d9a31f
 pass/providers/runtime_checked_completion_forwarding_exit checked 5044ms check-target:macos_arm64 @fa76e9a8d5e2
 pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/runtime_foreign_allocation_across_component_exit rejected 7656ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
+pass/providers/runtime_foreign_allocation_across_component_exit checked 10338ms check-target:macos_arm64 @c989b75f08a9
 pass/providers/runtime_foreign_allocation_overflow_zero_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit rejected 12569ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(Measure::measure),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(u8\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:3f2c5661e5d2637d19b14265b39528f1136931314c0fa586389ddd4806de99b4\\\\\\)\\\\\\,path\\\\\\(Words\\\\\\)\\\\\\)\\)\\)\\)\\)),result-dispatch())` has duplicate canonical realizations
