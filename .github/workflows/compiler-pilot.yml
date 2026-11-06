@@ -130,13 +130,13 @@ jobs:
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
-            compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-e86b500e8753c99ddd86d11a7c1512fcd03c94a7
+            compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cdf97e9f3110edc9b99785ff3a47f173f190feb2
           fail-on-cache-miss: true
       - name: Verify the exact restored warm cache before Cargo
         if: github.event_name == 'workflow_dispatch' && !startsWith(inputs.fixtures, '@')
         env:
           OMEGA_RESTORED_CACHE_KEY: ${{ steps.build-cache.outputs.cache-matched-key }}
-        run: python -c "import os; expected = 'compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-e86b500e8753c99ddd86d11a7c1512fcd03c94a7'; observed = os.environ.get('OMEGA_RESTORED_CACHE_KEY'); assert observed == expected, f'Restored cache {observed!r} differs from the required retained cache {expected!r}'; print('Verified exact retained warm cache:', observed)"
+        run: python -c "import os; expected = 'compiler-regression-Linux-X64-7135618a4bfe730430fbfc3d26f5b93b503943b2d582e8596952657b4775c4f5-cdf97e9f3110edc9b99785ff3a47f173f190feb2'; observed = os.environ.get('OMEGA_RESTORED_CACHE_KEY'); assert observed == expected, f'Restored cache {observed!r} differs from the required retained cache {expected!r}'; print('Verified exact retained warm cache:', observed)"
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
