@@ -239,11 +239,11 @@ impl Captures<'_> {
                 }
                 captured = true;
             }
-            for origin in origins
+            let leaf_origins = origins
                 .iter()
-                .filter(|origin| origin.result_path == result_path)
-            {
-                let mut covered = false;
+                .filter(|origin| origin.result_path == result_path);
+            let mut invocation_input = false;
+            if leaf_origins.clone().next().is_some() {
                 for loan in site_loans.iter().filter(|loan| {
                     self.returned_loan_owner_path(state, loan).as_deref()
                         == Some(owner_path.as_slice())
@@ -280,6 +280,12 @@ impl Captures<'_> {
                     {
                         return None;
                     }
+                    invocation_input = true;
+                }
+            }
+            for origin in leaf_origins {
+                let mut covered = invocation_input;
+                if invocation_input {
                     let source = self.captured_parameter_origin(state, &leaf, origin)?;
                     let returned = CheckedReturnedReferencePlan {
                         path: leaf.path.clone(),
@@ -288,7 +294,6 @@ impl Captures<'_> {
                     if !output.contains(&returned) {
                         output.push(returned);
                     }
-                    covered = true;
                 }
                 for loan in site_loans.iter().filter(|loan| {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
