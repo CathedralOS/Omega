@@ -138,17 +138,17 @@ impl StructuralJudge<'_> {
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
-                    data: data_l,
-                    case: case_l,
+                    identity: identity_l,
                     fields: fields_l,
+                    ..
                 },
                 StructuralTerm::Constructor {
-                    data: data_r,
-                    case: case_r,
+                    identity: identity_r,
                     fields: fields_r,
+                    ..
                 },
-            ) if data_l == data_r => {
-                if case_l != case_r {
+            ) if identity_l.same_carrier(*identity_r) => {
+                if identity_l != identity_r {
                     self.hypotheses_contradictory = true;
                     return;
                 }

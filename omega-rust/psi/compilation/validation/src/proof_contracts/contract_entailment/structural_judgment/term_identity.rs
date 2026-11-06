@@ -102,6 +102,16 @@ impl StructuralTerm {
             return false;
         }
         if let (
+            Self::Constructor { identity: left, .. },
+            Self::Constructor {
+                identity: right, ..
+            },
+        ) = (self, other)
+            && !left.same_resolution_payload(*right)
+        {
+            return false;
+        }
+        if let (
             Self::ObservedValue {
                 observed_type,
                 value,
@@ -386,16 +396,18 @@ impl PartialEq for StructuralTerm {
                 };
                 value == other_value
             }
-            Self::Constructor { data, case, fields } => {
+            Self::Constructor {
+                identity, fields, ..
+            } => {
                 let Self::Constructor {
-                    data: other_data,
-                    case: other_case,
+                    identity: other_identity,
                     fields: other_fields,
+                    ..
                 } = other
                 else {
                     return false;
                 };
-                (data, case, fields) == (other_data, other_case, other_fields)
+                (identity, fields) == (other_identity, other_fields)
             }
             Self::Application {
                 result_type,
@@ -592,10 +604,11 @@ impl std::fmt::Debug for StructuralTerm {
                 .field("right", right)
                 .finish(),
             Self::Float(value) => formatter.debug_tuple("Float").field(value).finish(),
-            Self::Constructor { data, case, fields } => formatter
+            Self::Constructor {
+                identity, fields, ..
+            } => formatter
                 .debug_struct("Constructor")
-                .field("data", data)
-                .field("case", case)
+                .field("identity", identity)
                 .field("fields", fields)
                 .finish(),
             Self::Application {
@@ -717,7 +730,16 @@ mod resolution_payload_tests {
             value: Box::new(integer(7)),
             descriptor,
         };
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let carrier = identities.intern("Carrier");
         let nested = |value| StructuralTerm::Constructor {
+            identity: super::super::ConstructorIdentity::Nominal {
+                carrier,
+                reference: TypeReferenceHandle::from_arena_index(1),
+                declaration: symbols::SymbolHandle::from_arena_index(1),
+                case: None,
+                member: None,
+            },
             data: "Carrier".to_owned(),
             case: "Only".to_owned(),
             fields: vec![("value".to_owned(), value)],

@@ -2251,6 +2251,8 @@ fail/build/opaque_nested_field_receipt_unadmitted rejected 107ms expected @ccdb9
 	opaque boundary data `Token` cannot claim `[copy]` without an admitted property receipt
 fail/build/opaque_representation_double_selection rejected 577ms expected @ccdb99ca2214
 	build selects opaque representation `Token` more than once
+fail/build/optional_wrong_home rejected 3525ms expected @7790304360ab
+	machine `default_is_none` ensures contract proof fact `zero_value<type>() == Optional::Some` is disproved structurally: under the requires hypotheses the sides resolve to constructor forms that contradict the claim
 fail/build/package_local_calling_copy rejected 23684ms unexpected @d83ddecd7693+wt
 	\\\\?\\tests\\omega\\fail\\build\\package_local_calling_copy\\calling.omg:86:13: expected `:` after data field `where` (alternatives are spelled `case where;`)
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
@@ -19894,6 +19896,8 @@ pass/build/native_component_reuse checked 7177ms check-target:macos_arm64 @ccdb9
 pass/build/native_component_reuse_foreign checked 6215ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_generated_dependency_dual_purpose checked 4792ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/nested_provider_readiness checked 11097ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/optional_build_product_exit checked 5825ms check-target:macos_arm64 @7790304360ab
+pass/build/optional_product_only_exit checked 5638ms check-target:macos_arm64 @7790304360ab
 pass/build/package_batch_distinct_builds checked 4446ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/package_owned_callable_identity checked 1635ms check-target:macos_arm64 @946b56944a1b
 pass/build/policy_array_entry_context_exit checked 6336ms check-target:macos_arm64 @911f6617ba9e
