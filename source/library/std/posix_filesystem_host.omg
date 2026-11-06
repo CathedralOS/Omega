@@ -159,20 +159,24 @@ public boundary trait PosixFilesystemHost {
     // only the native record is written, not the rest of a larger caller view.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery
     invokes PosixFilesystemLinux
+    invokes PosixFilesystemLinuxArm64Metadata
     invokes PosixFilesystemDarwin;
     // `fstat`, the same record for an open descriptor.
     machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery
     invokes PosixFilesystemLinux
+    invokes PosixFilesystemLinuxArm64Metadata
     invokes PosixFilesystemDarwin;
     // `lstat`: like `read_metadata` but a final symlink reports its own record.
     machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32 reaches FilesystemMetadataQuery
     invokes PosixFilesystemLinux
+    invokes PosixFilesystemLinuxArm64Metadata
     invokes PosixFilesystemDarwin;
     // `fstatat`: query a trusted listing component relative to its open
     // directory. Flags are native; no-follow classification must request the
     // target's AT_SYMLINK_NOFOLLOW. Refuse undersized output before the OS call.
     machine read_metadata_at(directory_descriptor: i32, name: &[u8], buffer: &mut [u8], flags: i32) -> i32 reaches FilesystemMetadataQuery
     invokes PosixFilesystemLinux
+    invokes PosixFilesystemLinuxArm64Metadata
     invokes PosixFilesystemDarwin;
     // `ftruncate`.
     machine set_len(fd: i32, length: i64) -> i32 reaches FilesystemContentWrite + FilesystemMetadataMutation

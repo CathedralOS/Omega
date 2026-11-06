@@ -452,9 +452,9 @@ machine configure_posix_filesystem(builder: &mut Build) {
         ForeignBinding::Syscall { number: 78 });
     Build::bind<PosixFilesystemLinuxArm64ByteViews::getdents64>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 61 });
-    Build::bind<PosixFilesystemLinux::newfstatat>(builder, linux_arm64,
+    Build::bind<PosixFilesystemLinuxArm64Metadata::newfstatat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 79 });
-    Build::bind<PosixFilesystemLinux::fstat>(builder, linux_arm64,
+    Build::bind<PosixFilesystemLinuxArm64Metadata::fstat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 80 });
     Build::bind<PosixFilesystemLinux::ftruncate>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 46 });

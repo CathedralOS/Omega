@@ -136,6 +136,7 @@ pub(super) fn write_word(
         return Err(invalid());
     }
     let mut storage = CapturedStorage::capture(
+        0,
         buffers,
         StructuralAccess::MutableBorrow,
         None,
