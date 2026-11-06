@@ -31,7 +31,17 @@ pub fn run_psi_optimization(
     selections: PsiOptimizationSelections,
 ) -> Result<PsiOptimizationStageResult, PsiOptimizationStageError> {
     let input_semantic = carrier_identity(&lowered)?;
+    // Only a pass that runs a rule can change the module; with none, the
+    // output is the input and its identity is the one already computed.
+    let mut rewritten = false;
     for selected in selections.as_slice() {
+        rewritten |= !matches!(
+            selected,
+            PsiOptimization::ProofCheckElision
+                | PsiOptimization::StateSpecialization
+                | PsiOptimization::RepresentationSpecialization
+                | PsiOptimization::LoopInvariantScalarMotion
+        );
         match selected {
             PsiOptimization::ControlFlowCleanup => {
                 lowered = control_flow_cleanup::cleanup(lowered)?;
@@ -55,7 +65,11 @@ pub fn run_psi_optimization(
         }
     }
 
-    let output_semantic = carrier_identity(&lowered)?;
+    let output_semantic = if rewritten {
+        carrier_identity(&lowered)?
+    } else {
+        input_semantic
+    };
     let execution =
         PsiOptimizationExecutionRecord::new(selections, input_semantic, output_semantic)
             .map_err(PsiOptimizationStageError::InvalidExecutionRecord)?;

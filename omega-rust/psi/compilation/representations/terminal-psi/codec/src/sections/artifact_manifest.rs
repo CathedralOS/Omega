@@ -91,6 +91,16 @@ pub fn build_artifact_manifest(
 ) -> Result<TerminalArtifactManifest, ArtifactManifestError> {
     let semantic =
         terminal_psi_identity(semantic_module).map_err(ArtifactManifestError::Semantic)?;
+    manifest_for_semantic(semantic, optimization, installation_record, debug_maps)
+}
+
+/// The manifest of a module whose identity the caller already holds.
+pub(crate) fn manifest_for_semantic(
+    semantic: TerminalPsiIdentity,
+    optimization: &PsiOptimizationExecutionRecord,
+    installation_record: Option<&[u8]>,
+    debug_maps: Option<&[u8]>,
+) -> Result<TerminalArtifactManifest, ArtifactManifestError> {
     optimization
         .validate_output(semantic)
         .map_err(ArtifactManifestError::Optimization)?;
