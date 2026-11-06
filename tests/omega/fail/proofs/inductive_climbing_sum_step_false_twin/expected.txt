@@ -1,1 +1,1 @@
-machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `__transition_subject#21 == true`
+machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit`
