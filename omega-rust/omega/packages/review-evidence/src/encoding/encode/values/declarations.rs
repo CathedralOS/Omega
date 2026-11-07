@@ -1,3 +1,6 @@
+// Canonical encoding for proposition shapes, constant shapes, operator coordinates, and evidence interfaces.
+// Equal scalar layout answers on `u8` (`size` and `alignment` both equal 1) must retain distinct public dependencies in target-dependent constant shapes.
+
 use super::super::declarations::{encode_data_properties, encode_type_identity};
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
@@ -189,7 +192,6 @@ mod constant_meaning_tests {
 
     #[test]
     fn equal_scalar_layout_answers_keep_distinct_public_dependencies() {
-        // Both queries on u8 answer 1, but their public dependencies differ.
         let query = |kind, operand: &str| {
             PackageReviewConstMeaning::TargetDependent(Expression::LayoutQuery {
                 kind,

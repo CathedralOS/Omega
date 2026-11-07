@@ -22,3 +22,24 @@ fn call_site_owner_preserves_disjoint_operation_and_cleanup_action_identities() 
     assert_eq!(operation_owner.cleanup_action_ordinal(), None);
     assert_ne!(operation_owner, edge_owner);
 }
+
+#[test]
+fn installation_helpers_keep_source_operation_and_distinct_roles() {
+    use super::InstallationCallRole;
+    let operation = OperationId::new(7).expect("operation");
+    let validate = CallSiteOwner::Installation {
+        operation,
+        role: InstallationCallRole::Validate,
+    };
+    let work = CallSiteOwner::Installation {
+        operation,
+        role: InstallationCallRole::Work,
+    };
+    for helper in [validate, work] {
+        assert_eq!(helper.operation(), Some(operation));
+        assert_eq!(helper.edge(), None);
+        assert_eq!(helper.cleanup_action_ordinal(), None);
+        assert_ne!(helper, CallSiteOwner::Operation(operation));
+    }
+    assert_ne!(validate, work);
+}

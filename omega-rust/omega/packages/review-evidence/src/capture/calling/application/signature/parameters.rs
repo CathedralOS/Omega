@@ -1,4 +1,7 @@
-//! Clone-local instantiation of nested static parameter signatures.
+// Clone-local instantiation of nested static parameter signatures. A nested
+// declaration introduces fresh lifetime binders even when its authored names shadow
+// an outer telescope, so we assign distinct generated names before the shared ordinal
+// projector appends it to that telescope.
 
 use super::instantiation;
 use crate::capture::calling::rejected;
@@ -41,10 +44,6 @@ pub(crate) fn instantiate(
                 contract: MachineParameterContract::Structural(signature),
             } => {
                 let original_signature = signature.clone();
-                // A nested declaration introduces new binders even when its
-                // authored names shadow an outer telescope. Give its clone
-                // distinct names before the shared ordinal projector appends
-                // it to that telescope; source names never enter the record.
                 let mut nested_binders = containing_lifetime_binders.to_vec();
                 let mut nested_lifetimes = Vec::new();
                 for (ordinal, name) in signature.lifetime_parameters.iter_mut().enumerate() {

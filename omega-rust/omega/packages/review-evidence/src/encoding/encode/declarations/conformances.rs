@@ -1,3 +1,5 @@
+// Canonical encoding for conformance bounds in declaration signatures.
+
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::values::identity::encode_nominal;

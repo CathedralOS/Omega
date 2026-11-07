@@ -1,4 +1,4 @@
-//! Structural associations for inert provider policy, never compiler replay.
+// Structural associations for inert provider policy plans, rows, and families without compiler replay.
 use super::binding_validation::matches_owner;
 use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
@@ -26,10 +26,6 @@ impl PackagePolicySelectedProviders {
         ordered_by(&self.plans, PackagePolicyProviderPlan::compare_canonical)?;
         for plan in &self.plans {
             plan.schema_declaration.validate_resolved()?;
-            // A toolchain-owned plan (realizing package `None`, no provider
-            // declaration) may still carry its readable toolchain provider
-            // label; an authored plan's non-empty provider type always needs
-            // its exact declaration.
             if plan.plan_name.is_empty()
                 || (plan.provider_type.is_empty() != plan.provider_type_declaration.is_none()
                     && !(plan.provider_type_declaration.is_none()
@@ -71,14 +67,11 @@ impl PackagePolicySelectedProviders {
                             );
                         }
                     }
-                    // Build-owned supply names its actual Build producer,
-                    // independently of a runtime realization declaration.
                     None if row.native_build.as_ref().is_some_and(|producer| {
                         producer.package == plan.realizing_package
                             && producer.package.is_some()
                             && matches_owner(producer.declaration.owner, producer.package)
                     }) => {}
-                    // A toolchain-settled row names no authored machine.
                     None if plan.realizing_package.is_none() && row.native_build.is_none() => {}
                     None => {
                         return Err("provider row omits its realization under a realizing package");

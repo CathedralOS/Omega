@@ -324,24 +324,43 @@ impl RequestedTerminalCompilation {
                 request,
                 rollback,
             } => {
-                let terminal = {
-                    let request =
-                        checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                    produced.prepare(request)
-                }?;
-                let accepted_package_permissions =
-                    native_inputs::accepted_terminal_authority_permission_policy(&checked)
-                        .map_err(|diagnostics| CompilationProductError::ProductionAttempt {
-                            diagnostics,
-                            accounting: std::mem::take(
-                                settlement.source_completion_accounting_mut(),
-                            ),
-                        })?;
+                let native_request =
+                    checked.terminal_native_proposal_request(rollback.effective(), &[])?;
+                // Save inputs while their checked owner is available. Keep
+                // capture failures pending until ordinary preparation succeeds.
+                let captured_inputs = request.retain_native_inputs.then(|| {
+                    let permissions =
+                        native_inputs::accepted_terminal_authority_permission_policy(&checked)?;
+                    let bytes = native_compiler::retain_native_derivation_inputs(
+                        &produced.receipt,
+                        produced.physical_entry_adapter,
+                        &produced.provider_proposals,
+                        &native_request,
+                        &permissions,
+                        &request.installation_assumptions,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    Ok::<_, Vec<Diagnostic>>((bytes, permissions))
+                });
+                let terminal = produced.prepare(native_request)?;
+                let inputs = match captured_inputs {
+                    Some(captured) => {
+                        captured.map(|(bytes, permissions)| (Some(bytes), permissions))
+                    }
+                    None => native_inputs::accepted_terminal_authority_permission_policy(&checked)
+                        .map(|permissions| (None, permissions)),
+                };
+                let (retained_native_inputs, accepted_package_permissions) =
+                    inputs.map_err(|diagnostics| CompilationProductError::ProductionAttempt {
+                        diagnostics,
+                        accounting: std::mem::take(settlement.source_completion_accounting_mut()),
+                    })?;
                 let subsystem = checked.build().config.settings.subsystem;
                 let settlement = settlement.with_timings(checked.timings().phases().to_vec());
                 return Ok(CompilationOutput::Native(Box::new(
                     compilation_products::PendingNativeProduct {
                         terminal,
+                        retained_native_inputs,
                         components: checked.into_independent_components(),
                         accepted_package_permissions,
                         request,

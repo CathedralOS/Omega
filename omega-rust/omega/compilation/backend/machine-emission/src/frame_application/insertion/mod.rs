@@ -20,7 +20,7 @@ mod compute;
 mod error;
 mod reflow;
 mod validation;
-mod validation_branch;
+pub(super) mod validation_branch;
 
 use crate::frame_protocol::TargetFrameProtocolEncodingPlan;
 pub(crate) use error::FrameApplicationError;

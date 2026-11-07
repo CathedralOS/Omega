@@ -1,3 +1,5 @@
+// Canonical encoding for selected-provider service signatures, schema arguments, and formals.
+
 use super::{Encoder, PackageReviewEncodingError};
 use crate::encoding::encode::declarations::encode_type_identity;
 use crate::encoding::encode::public_api::formal;

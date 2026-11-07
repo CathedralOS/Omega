@@ -475,7 +475,7 @@ fn walk_state_write_prefix_body(
     let mut locals = Vec::new();
     let mut isolated_local_roots = Vec::new();
     let mut local_alias_origins = Vec::<(String, FramePlaceOrigin)>::new();
-    // Exclusive-reference locals bound to a divergent conditional result keep
+    // Reference locals bound to a divergent conditional result keep
     // their whole proven referent set here rather than a single origin. A
     // write through such a binding lands on one of its candidates, so the
     // frame unions every route, including through nested call substitution.
@@ -750,7 +750,10 @@ fn walk_state_write_prefix_body(
         {
             return None;
         }
-        if !replaces_local_binding && !divergent_alias_origins.is_empty() {
+        if (!origin_transfer_only || queried_assignment)
+            && !replaces_local_binding
+            && !divergent_alias_origins.is_empty()
+        {
             let divergent_roots = divergent_alias_origins
                 .iter()
                 .map(|(name, _)| name.clone())
@@ -951,27 +954,35 @@ fn walk_state_write_prefix_body(
                     replacement?.install(inference, &mut stored);
                     continue;
                 }
-                let relative = stable_assignment_target_path(
-                    program,
-                    machine,
-                    &machine_symbols,
-                    inference,
-                    assignment.target,
-                    parameters,
-                    &isolated_local_roots,
-                    &local_alias_origins,
-                    symbols,
-                )?;
-                let paths = expand_write_path(program, &relative, &local_alias_origins, &stored)?;
-                push_queried_assignment_and_visible_paths(
-                    queried_assignment,
-                    &mut assignments,
-                    statement_index,
-                    &paths,
-                    &mut written,
-                    parameters,
-                    &locals,
-                )?;
+                // A content write need not have caller-relative coordinates
+                // to preserve the next statement's captured references. The
+                // complete slot relation and assignment transfer above still
+                // account for descriptor replacement and operand exposure.
+                // Explicit assignment queries still record their destination.
+                if !origin_transfer_only || queried_assignment {
+                    let relative = stable_assignment_target_path(
+                        program,
+                        machine,
+                        &machine_symbols,
+                        inference,
+                        assignment.target,
+                        parameters,
+                        &isolated_local_roots,
+                        &local_alias_origins,
+                        symbols,
+                    )?;
+                    let paths =
+                        expand_write_path(program, &relative, &local_alias_origins, &stored)?;
+                    push_queried_assignment_and_visible_paths(
+                        queried_assignment,
+                        &mut assignments,
+                        statement_index,
+                        &paths,
+                        &mut written,
+                        parameters,
+                        &locals,
+                    )?;
+                }
                 // The write target and returned origins are captured before
                 // RHS effects. Install the final store after those effects.
                 assignment_replacement = replacement;
@@ -1212,7 +1223,7 @@ fn walk_state_write_prefix_body(
                         })
                         .flatten()
                     {
-                        // A divergent exclusive-reference binding keeps its
+                        // A divergent reference binding keeps its
                         // whole proven referent set for later assignment and
                         // call substitution, including copies of this binding.
                         divergent_alias_origins.push((local.name.as_str().to_owned(), origins));

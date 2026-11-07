@@ -1,4 +1,10 @@
-//! Complete checked callable policy for one root activation and target.
+// Complete checked callable policy projection for one root activation and target.
+// This captures semantics only and neither accepts assumptions nor reconstitutes
+// compiler certificates, build replay, or native authority. Selected dispatch
+// changes no checked body, so the settled trees are the authored source the policy
+// callables classify. A source checked in both the product scope and the build scope
+// yields two machine instances with identical policy facts, so identical sorted rows
+// collapse via `dedup()`.
 
 use super::surface;
 use crate::capture::PackageReviewInput;
@@ -18,8 +24,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 use typed_trees_to_checked_trees::infer_checked_crash_causes;
 
-/// Capture semantics only; this neither accepts assumptions nor reconstitutes
-/// compiler certificates, build replay, or native authority.
 pub(crate) fn project_checked_callable_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
@@ -44,8 +48,6 @@ pub(crate) fn project_checked_callable_policy<'a>(
         ..input
     };
     let build = compilation.custody.build().selected_build_machine_symbol;
-    // Selected dispatch changes no checked body, so the settled trees are the
-    // authored source the policy callables classify.
     let source = compilation.checking_input;
     crate::capture::behavior::policy::validate_call_receiver_roots(source, &compilation.facts)?;
     let mutation_resolver = validation::CallFrameResolver::new(source)
@@ -187,10 +189,6 @@ pub(crate) fn project_checked_callable_policy<'a>(
             .cmp(&right.identity)
             .then(left.role.cmp(&right.role))
     });
-    // A source checked in both the product scope and the build scope yields
-    // two machine instances with identical policy facts; the projection is a
-    // fact set, so identical rows collapse. Same identity with different
-    // content still fails canonical-structure validation below.
     callables.dedup();
     let policy = PackagePolicyCallables {
         package,

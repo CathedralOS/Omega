@@ -1,5 +1,4 @@
-//! Inverse of the evidence owner's length-framed semantic wrappers. Only
-//! designated identity fields enter here; strings in literals/paths are opaque.
+// Inverse reader of length-framed semantic identity wrappers (`signature-type`, `conformance-callable`, and topology constraints) for package membership verification.
 
 use super::{Observer, PackagePolicyMembershipError as Error, visitor::Visitor};
 use semantic_vocabulary::PackageKeyIdentity;
@@ -86,14 +85,10 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
                 }
                 "boundary-operator-policy" => {
                     visitor.visit_name(fields.next()?)?;
-                    // These are unqualified overload coordinates. The source-
-                    // qualified signature is retained separately as typed fields.
                     fields.next()?;
                     fields.next()?;
                 }
                 "conformance-callable" => {
-                    // Original declaration paths and dispatch-overload spelling
-                    // are coordinates, not a second package-qualified type API.
                     for _ in 0..4 {
                         if fields.next()?.is_empty() {
                             return Err(Error::MalformedIdentity);
@@ -202,7 +197,6 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
                 _ => return Err(Error::MalformedIdentity),
             }
             label.finish()?;
-            // The producer emits these topology rows only for domains with arguments.
             visitor.topology(arguments.next()?)?;
             while !arguments.0.is_empty() {
                 visitor.topology(arguments.next()?)?;

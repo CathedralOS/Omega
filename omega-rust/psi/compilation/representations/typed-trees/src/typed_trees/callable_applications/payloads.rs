@@ -648,6 +648,11 @@ impl CallableApplication {
                         self.type_reference(program, call.requirement_application)?;
                     call.exact_coercion_target =
                         self.type_reference(program, call.exact_coercion_target)?;
+                    if let Some(request) = &mut call.installed_interrupt_operation {
+                        request.invalidate_preparation();
+                        self.static_arguments(program, std::slice::from_mut(&mut request.registrar))?;
+                        self.static_arguments(program, std::slice::from_mut(&mut request.timer_slot))?;
+                    }
                     self.static_arguments(program, &mut call.machine_arguments)?;
                     if let Some(query) = &mut call.native_code_layout {
                         self.static_arguments(program, std::slice::from_mut(&mut query.operand))?;
@@ -818,6 +823,19 @@ impl CallableApplication {
                     *lifetime = self.lifetime(lifetime);
                 }
                 self.static_arguments(program, &mut application.arguments)?;
+                if application.member.is_valid() {
+                    let mut member = program
+                        .expression_table
+                        .static_member(application.member)
+                        .ok_or("qualified static member has no owning expression record")?
+                        .clone();
+                    self.static_arguments(program, std::slice::from_mut(&mut member))?;
+                    *program
+                        .expression_table
+                        .static_member_mut(application.member)
+                        .ok_or("qualified static member lost its owning expression record")? =
+                        member;
+                }
             }
         }
         Ok(())

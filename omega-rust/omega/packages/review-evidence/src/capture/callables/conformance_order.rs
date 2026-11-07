@@ -1,4 +1,5 @@
-//! Canonical exact association ordering for callable policy rows.
+// Canonical exact association ordering and duplicate-row rejection for callable
+// policy conformances, operator realizations, and requirement realizations.
 
 use crate::record::{PackagePolicyCallableConformance, PackageReviewOperatorRealization};
 use diagnostics::Diagnostic;

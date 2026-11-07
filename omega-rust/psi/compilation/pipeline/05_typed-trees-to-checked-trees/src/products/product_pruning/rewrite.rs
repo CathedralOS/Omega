@@ -197,6 +197,16 @@ fn apply_fact_pruning(
             checked_trees::NominalMachineUseSite::Expression(_) => true,
         });
 
+    facts
+        .installed_interrupt_registrations
+        .retain(|row| match row.site {
+            checked_trees::NominalMachineUseSite::Statement(statement) => index
+                .statement_machine
+                .get(&statement)
+                .is_some_and(|owner| retained.contains(owner)),
+            checked_trees::NominalMachineUseSite::Expression(_) => true,
+        });
+
     // Contract evidence rows keyed by an owner machine.
     facts
         .proof

@@ -1,4 +1,10 @@
-//! Source-free results of reviewing one checked package activation.
+// Source-free results of reviewing one checked package activation.
+//
+// `PackageReviewEvidence` carries compiler findings rather than accepted
+// package policy; the package manager joins these to resolver custody, scopes
+// nominations, and obtains consumer decisions. `PackageReviewSourceFacts`
+// records carry/cache source units from the same activation; `None` cannot
+// authorize cache publication.
 
 use super::{PackagePolicyBaseline, SemanticBindingReviewCandidate};
 use package_compilation::{
@@ -6,8 +12,6 @@ use package_compilation::{
     PackageBuildHandoff, PackageSourceConsumptionCommitment, RestrictedBuildRequest,
 };
 
-/// Compiler findings, not accepted package policy. The package manager joins
-/// these to resolver custody, scopes nominations, and obtains consumer decisions.
 #[derive(Debug)]
 pub struct PackageReviewEvidence {
     pub source_consumption_commitment: PackageSourceConsumptionCommitment,
@@ -23,8 +27,6 @@ pub struct PackageReviewEvidence {
     pub policy_canonical_bytes: usize,
 }
 
-/// Carry/cache facts from the same activation as the review. Consumed units
-/// exist only for a package subject; absence cannot authorize cache publication.
 #[derive(Debug)]
 pub struct PackageReviewSourceFacts {
     pub consumed_units: Option<Vec<ConsumedSourceUnit>>,

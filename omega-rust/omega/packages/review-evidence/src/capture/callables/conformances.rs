@@ -1,3 +1,6 @@
+// Trait, operator, and top-level requirement realization projection for non-external
+// callables. External callables are projected by `project_checked_external_supply_policy`.
+
 use super::super::api::operators::project_operator_coordinate;
 use super::super::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use super::super::semantics::types::review_signature_type_identity_with_binders;
@@ -13,9 +16,6 @@ use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 use typed_trees::machine::resolve_satisfied_declaration;
 
-/// Project the trait, operator and top-level requirement realizations of one
-/// non-external callable. External callables are projected by
-/// `project_checked_external_supply_policy`.
 pub(super) fn callable_conformance(
     compilation: &PackageReviewInput<'_>,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,

@@ -191,6 +191,7 @@ pub struct TerminalModule {
     pub boundary_application_candidates: Vec<crate::BoundaryApplicationCandidate>,
     /// Checked callback applications joined to their emitted registrar operations.
     pub callback_applications: Vec<crate::TerminalCallbackApplication>,
+    pub installed_interrupt_registrations: Vec<crate::TerminalInstalledInterruptRegistration>,
     /// Interfaces and implementation tables runtime selectors name.
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
     /// Source-handle-free proof-only float projections. These rows are
@@ -256,6 +257,26 @@ pub struct TerminalModule {
 }
 
 impl TerminalModule {
+    /// The checked callback selected at an ordinary call or an installation.
+    /// Application indexes belong to one shared namespace; installation keeps
+    /// its own registrar subject without inventing an ordinary registrar call.
+    pub fn callback_application(&self, index: u32) -> Option<&crate::TerminalCallbackApplication> {
+        self.callback_applications
+            .binary_search_by_key(&index, |row| row.application_index)
+            .ok()
+            .map(|ordinal| &self.callback_applications[ordinal])
+            .or_else(|| {
+                self.installed_interrupt_registrations
+                    .iter()
+                    .find_map(|registration| {
+                        registration
+                            .callbacks
+                            .binary_search_by_key(&index, |row| row.application_index)
+                            .ok()
+                            .map(|ordinal| &registration.callbacks[ordinal])
+                    })
+            })
+    }
     /// Exact declaration ABI selected by this concrete boundary occurrence.
     pub fn calling_abi_identity(
         &self,
@@ -410,6 +431,7 @@ impl TerminalModule {
             provider_instance_requirements: Vec::new(),
             boundary_application_candidates: Vec::new(),
             callback_applications: Vec::new(),
+            installed_interrupt_registrations: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
             quotients: Default::default(),
             float_meaning_projections: Vec::new(),

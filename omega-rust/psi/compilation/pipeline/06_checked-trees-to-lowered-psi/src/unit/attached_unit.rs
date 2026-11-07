@@ -707,6 +707,7 @@ pub(crate) fn lower_unit_closure(
             mathematical_carriers,
             identity_formations,
             callback_applications: Vec::new(),
+            installed_interrupt_registrations: Vec::new(),
             boundary_application_candidates: Vec::new(),
             boundary_application_demands: Vec::new(),
             scalar_qualifications,

@@ -1,3 +1,8 @@
+// Boundary-trait inheritance traversal for calling requirement applications. Because
+// lifetime zipping resolves by first source-name match, repeated lifetime binders on
+// intermediate inherited traits are rejected rather than silently collapsing to the
+// earlier argument.
+
 use super::instantiation;
 use crate::capture::calling::rejected;
 use diagnostics::Diagnostic;
@@ -38,10 +43,6 @@ pub(super) fn collect(
             "calling requirement application has stale telescope arity",
         ));
     }
-    // The lifetime zip below resolves by first source-name match, so a
-    // repeated binder on an inherited trait would silently collapse to the
-    // earlier argument. Boundary and method telescopes reject repeats; the
-    // intermediate declaring scopes must not be the one silent case.
     if application
         .owner
         .lifetime_parameters

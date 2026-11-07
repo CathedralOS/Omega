@@ -1,11 +1,11 @@
+// Generic markup framing decoder reconstructing canonical binary scalar streams from named-text policies.
+// Names and container shape are subsequently verified by exact policy rerender so this reader cannot interpret a renamed field as accepted policy meaning.
+
 use super::tokens::{Tokens, decoded, nibble};
 use crate::encoding::encode::encoder::text::{HEADER, MAXIMUM_MARKUP_DEPTH, label};
 use crate::encoding::{PackagePolicyRecoveryError as Error, PackagePolicyRecoveryLimits};
 use std::str::FromStr;
 
-/// The generic grammar reconstructs the existing canonical scalar stream.
-/// Names and container shape are subsequently checked by exact policy rerender;
-/// this reader cannot interpret a renamed field as accepted policy meaning.
 pub(in crate::encoding) fn binary(
     text: &str,
     limits: PackagePolicyRecoveryLimits,

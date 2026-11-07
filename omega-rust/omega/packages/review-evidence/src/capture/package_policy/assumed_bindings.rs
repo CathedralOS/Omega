@@ -1,7 +1,12 @@
-//! Root relationships are risk decisions, independent of checked provider rows.
-//! The full consumed source commitment includes private supplier bodies and
-//! transitive semantic dependencies. Keeping it in each accepted meaning makes
-//! a resolution-only update unable to silently preserve changed trust.
+// Assumed-binding risk projection and literal integer interval audit. Root
+// relationships are risk decisions independent of checked provider rows, and the
+// full consumed source commitment includes private supplier bodies and transitive
+// semantic dependencies so a resolution-only update cannot silently preserve changed
+// trust. `PreparedAssumedContracts` saves only contracts named by Build's explicit
+// assumed relationships, and `assessment` performs audit classification over
+// retained literal integer bounds on the result and positional parameters without
+// vetoing accepted semantic links or granting propositions.
+
 use crate::capture::contracts::facts::project_trait_requirement_contracts;
 use crate::capture::{PackageReviewInput, SourceDeclarationInput};
 use crate::record::PackageReviewCallableContract;
@@ -16,9 +21,6 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
     )
 }
 
-/// Save only contracts named by Build's explicit assumed relationships. A
-/// dormant declaration's projection error is reported only if a selected
-/// relationship needs that declaration during permission comparison.
 pub(crate) struct PreparedAssumedContracts {
     declarations: Vec<(
         String,
@@ -190,14 +192,6 @@ fn render(
     Ok(rows)
 }
 
-/// Audit classification only: a recognized contradiction does not veto an
-/// explicitly accepted semantic link or grant any proposition. Unknown clauses
-/// retain their complete canonical text above and establish no consistency.
-///
-/// The comparison is the retained literal integer bounds on the result and on
-/// each positional parameter. A missing bound is the whole integer range, so
-/// one side's precondition is unproved rather than refuted. Authority
-/// qualifications are not integer bounds and stay outside this classification.
 fn assessment(
     required: &[PackageReviewCallableContract],
     supplied: &[PackageReviewCallableContract],

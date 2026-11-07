@@ -120,6 +120,17 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
 }
 
 fn validate_request(request: &BuildRequest, profiles: &[TargetProfile]) -> Result<(), BuildError> {
+    if let ProjectProduct::Native {
+        installation_assumptions,
+        ..
+    } = &request.product
+    {
+        compilation_products::compile_request::validate_installation_assumption_targets(
+            installation_assumptions,
+            profiles,
+        )
+        .map_err(|reason| BuildError::Diagnostics(vec![Diagnostic::error(reason)]))?;
+    }
     if matches!(request.product, ProjectProduct::Check) {
         compiler::RequestedCompileProduct::Check
             .validate_optimization_rollback(&request.optimization_rollback)

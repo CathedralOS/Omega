@@ -23,6 +23,16 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(RegisterViewId, Option<RegisterViewId>), X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        Kind::Store64 {
+            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+            ..
+        }
+    ) || matches!(kind, Kind::FrameAddress { slot: selected_instructions::FrameStorageSlotId::ActivationBase, byte_offset } if byte_offset != 0)
+    {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     let (family, store) = match kind {
         Kind::Store64 { .. } => (Family::Store64, true),
         Kind::FrameAddress { .. } => (Family::FrameAddress, false),
@@ -49,6 +59,16 @@ pub fn encode(
     displacement: i64,
     alignment_bytes: u16,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        Kind::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+            ..
+        }
+    ) && (displacement != 0 || alignment_bytes != 1)
+    {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     let (address, value) = request(physical, kind, alternative, operands)?;
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
@@ -97,6 +117,16 @@ pub fn validate(
     alignment_bytes: u16,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    if matches!(
+        kind,
+        Kind::FrameAddress {
+            slot: selected_instructions::FrameStorageSlotId::ActivationBase,
+            ..
+        }
+    ) && (displacement != 0 || alignment_bytes != 1)
+    {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
     let (address, value) = request(physical, kind, alternative, operands)?;
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::ImmediateOutsideU12)?;
@@ -212,7 +242,11 @@ mod tests {
             assert_eq!(encoded.footprint.register_writes, vec![address]);
             assert_eq!(
                 encoded.footprint.encoded.implicit_unit_clobbers,
-                physical.model().view_named("rflags").unwrap().units
+                physical
+                    .model()
+                    .view_named("condition_flags")
+                    .unwrap()
+                    .units
             );
             // The address mask is followed by the member LEA, never vice versa.
             assert_eq!(

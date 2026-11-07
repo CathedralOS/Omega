@@ -195,12 +195,52 @@ fn admit_project(
             },
         };
     }
+    let profiles = targets
+        .iter()
+        .map(|target| target.profile)
+        .collect::<Vec<_>>();
+    let mut product = request.product;
+    let groups = match &mut product {
+        CompilationProduct::Native(native) => {
+            compilation_products::compile_request::partition_installation_assumptions(
+                std::mem::take(&mut native.installation_assumptions),
+                &profiles,
+            )
+        }
+        _ => Ok(vec![Vec::new(); profiles.len()]),
+    };
+    let groups = match groups {
+        Ok(groups) => groups,
+        Err(reason) => {
+            return AdmittedProjectCompilation {
+                requests: Vec::new(),
+                completion: ProjectCompilationCompletion {
+                    root: root.clone(),
+                    targets: targets
+                        .iter()
+                        .map(|target| TargetCompletion {
+                            target: target.profile,
+                            receipt: Err(ProjectCompilationError::Review(failure(
+                                &root,
+                                reason.clone(),
+                            ))),
+                        })
+                        .collect(),
+                    _source_closure: None,
+                },
+            };
+        }
+    };
     let mut requests = Vec::new();
     let mut completions = Vec::new();
     // Inspection never exercises retained restricted-action grants, even when
     // an application constructs its admission request directly.
-    let verify = request.verify || matches!(request.product, CompilationProduct::Inspection(_));
-    for target in targets {
+    let verify = request.verify || matches!(product, CompilationProduct::Inspection(_));
+    for (target, assumptions) in targets.into_iter().zip(groups) {
+        let mut target_product = product.clone();
+        if let CompilationProduct::Native(native) = &mut target_product {
+            native.installation_assumptions = assumptions;
+        }
         let receipt = match target.accepted {
             Err(error) => Err(ProjectCompilationError::Prepare(error)),
             Ok(accepted) => {
@@ -211,7 +251,7 @@ fn admit_project(
                     snapshot: request.snapshot,
                     verify,
                     timings: request.timings,
-                    product: request.product.clone(),
+                    product: target_product,
                 };
                 match prepare(inputs, session) {
                     Ok((plan, packages, identity)) => {

@@ -1,10 +1,12 @@
+// Complete selected conformance application (`PackagePolicyClosedConformanceApplication`),
+// independent of compiler replay receipts.
+//
+// Lifetime ordinals refer to the containing policy's ordered binder telescope,
+// and static argument categories preserve their order within the named
+// declaration's telescope (including independently typed const carriers).
+
 use crate::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
 
-/// The complete selected application, independent of compiler replay receipts.
-/// Lifetime ordinals refer to the containing policy's ordered binder telescope.
-/// Static argument categories preserve their order within the exact named
-/// declaration's telescope, including the independently typed const carriers.
-/// This records policy meaning; it grants no conformance or package authority.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyClosedConformanceApplication {
     pub(crate) declaration: PackageReviewNominalIdentity,

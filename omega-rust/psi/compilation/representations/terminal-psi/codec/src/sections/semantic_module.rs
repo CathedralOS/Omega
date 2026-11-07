@@ -160,12 +160,12 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 240 keeps the binder-selected calling owner for inherited callbacks.
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
-// Input observation lifetimes and provider application roles share this layout.
-// Layout inputs retain target-owned case-tag size and alignment.
-// Lifecycle placements retain their checked target input for installation.
-// Relocation retains separate source and destination profile requirements.
-// Id formation rows and relocation profile requirements share this layout.
-pub(crate) const FORMAT_MARKER: u16 = 252;
+// Marker 253 combines checked Id formations with installed interrupt
+// registrations and execution kinds, retaining input/result lifetimes, provider
+// application roles, target case-tag geometry, lifecycle target inputs and
+// separate source/destination relocation requirements. Both independently
+// extended 252 layouts, and all earlier layouts, are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 253;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -344,10 +344,11 @@ mod format_marker_tests {
 
     #[test]
     fn legacy_semantic_markers_are_refused_before_payload_interpretation() {
-        // The independently extended Id and relocation layouts both used 251.
+        // Independent Id and interrupt layouts both used 252 (and earlier
+        // independent Id and relocation layouts both used 251).
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker.
-        for legacy in [250u16, 251] {
+        for legacy in [250u16, 251, 252] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

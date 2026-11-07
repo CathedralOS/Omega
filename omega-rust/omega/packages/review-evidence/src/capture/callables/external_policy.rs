@@ -1,4 +1,8 @@
-//! Lossless executable-supply policy from exact checked machine handles.
+// Lossless executable-supply policy projection from exact checked machine handles.
+// Because a legacy review row cannot recover result absence or nested static policy,
+// we resolve the exact checked leaf and project those fields directly from their
+// declaration owners.
+
 mod bindings;
 mod requirements;
 mod signatures;
@@ -10,8 +14,6 @@ use crate::record::{PackagePolicyExternalBinding, PackagePolicyExternalExecutabl
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-/// A legacy review row cannot recover result absence or nested static policy.
-/// Resolve the exact checked leaf and project those fields from their owners.
 pub(crate) fn project_checked_external_supply_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     symbol: SymbolHandle,

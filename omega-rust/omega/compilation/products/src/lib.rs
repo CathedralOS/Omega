@@ -27,6 +27,14 @@
 //! and image receipt construction remain with `native_artifact`; filesystem
 //! mechanics remain with `platform_custody`.
 
+pub use terminal_psi_to_abstract_operations::{
+    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
+    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
+};
+pub use terminal_psi_to_abstract_operations::{
+    decode_installation_assumptions, encode_installation_assumptions,
+};
+
 mod checked_compilation;
 mod compilation_products;
 mod compile_outcomes;

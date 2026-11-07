@@ -4,7 +4,7 @@ impl TableCallExpression {
     /// Whether the call reaches its callee through the ordinary nominal route,
     /// so `target_symbol` alone names the operation that runs.
     ///
-    /// Three retained requests each redirect a call away from that route, and a
+    /// Retained requests redirect a call away from that route, and a
     /// consumer modelling an ordinary application must exclude every one of
     /// them:
     ///
@@ -30,6 +30,7 @@ impl TableCallExpression {
         self.static_requirement_dispatch.is_none()
             && self.quotient_operation.is_none()
             && self.private_layout_operation.is_none()
+            && self.installed_interrupt_operation.is_none()
             && self.layout_query.is_none()
             && self.native_code_layout.is_none()
     }

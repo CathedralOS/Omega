@@ -459,6 +459,10 @@ impl SourceCorrespondence {
                         || !type_matches(left.exact_coercion_target, right.exact_coercion_target)
                         || left.quotient_operation != right.quotient_operation
                         || left.private_layout_operation != right.private_layout_operation
+                        || !installed_interrupt_payloads_match(
+                            left.installed_interrupt_operation.as_ref(),
+                            right.installed_interrupt_operation.as_ref(),
+                        )
                         || left.layout_query != right.layout_query
                         || left.native_code_layout != right.native_code_layout
                         || left.build_selection.is_valid()
@@ -581,11 +585,34 @@ fn neutral_call_payload(call: &typed_trees::expression::TableCallExpression) -> 
         && !call.exact_coercion_target.is_valid()
         && call.quotient_operation.is_none()
         && call.private_layout_operation.is_none()
+        && call.installed_interrupt_operation.is_none()
         && call.layout_query.is_none()
         && call.native_code_layout.is_none()
         && !call.build_selection.is_valid()
         && !call.operational_acknowledgement.acknowledges_suspend
         && !call.operational_acknowledgement.acknowledges_block
+}
+
+fn installed_interrupt_payloads_match(
+    left: Option<&typed_trees::expression::InstalledInterruptOperationRequest>,
+    right: Option<&typed_trees::expression::InstalledInterruptOperationRequest>,
+) -> bool {
+    match (left, right) {
+        (None, None) => true,
+        (Some(left), Some(right)) => {
+            let same = super::super::structural_judgment::same_static_selection_payload;
+            left == right
+                && same(
+                    std::slice::from_ref(&left.registrar),
+                    std::slice::from_ref(&right.registrar),
+                )
+                && same(
+                    std::slice::from_ref(&left.timer_slot),
+                    std::slice::from_ref(&right.timer_slot),
+                )
+        }
+        _ => false,
+    }
 }
 
 /// Closed-value normalization already owns value correspondence across source

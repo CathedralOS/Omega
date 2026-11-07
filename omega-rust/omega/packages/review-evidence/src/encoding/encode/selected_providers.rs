@@ -1,4 +1,4 @@
-//! Full inert selected-provider policy, sharing one bounded writer.
+// Full inert selected-provider policy encoding sharing one bounded writer.
 
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderPlan, PackagePolicyProviderRow,

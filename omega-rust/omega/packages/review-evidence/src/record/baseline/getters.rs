@@ -1,3 +1,5 @@
+// Read-only field accessors for `PackagePolicyBaseline`.
+
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyBoundaryApplications;
 use crate::record::PackagePolicyCallables;
@@ -53,8 +55,6 @@ impl PackagePolicyBaseline {
     field_projection_accessors!(sliced slack_uses: &[PackageReviewDangerousAuthoritySlack]);
     field_projection_accessors!(sliced semantic_dependencies: &[PackagePolicySemanticDependency]);
     field_projection_accessors!(borrowed boundary_applications: &PackagePolicyBoundaryApplications);
-    /// Restricted build-host requests this package's admitted build activation
-    /// asked of the host before it executed, in issue order.
     pub fn restricted_build_requests(&self) -> &[PackagePolicyRestrictedBuildRequest] {
         &self.restricted_build_requests
     }

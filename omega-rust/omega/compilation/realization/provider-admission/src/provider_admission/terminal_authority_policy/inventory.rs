@@ -11,7 +11,7 @@ use symbols::BuiltinFunction;
 
 // The builtin owner already publishes its closed count. Preserve the exact
 // non-builtin roster check without mirroring every catalog addition here.
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 490 + BuiltinFunction::COUNT as u32;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 494 + BuiltinFunction::COUNT as u32;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
     ArithmeticDomain::Exact,
@@ -27,6 +27,10 @@ pub(super) fn committed_policy_mechanisms() -> &'static [CompilerIntrinsicExecut
 
 pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdentity> {
     let mut mechanisms = Vec::with_capacity(CLOSED_POLICY_ROW_COUNT as usize);
+    mechanisms.extend(
+        language_core::static_interrupts::StaticInterruptOperation::ALL
+            .map(CompilerIntrinsicExecutionIdentity::StaticInterrupt),
+    );
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedReadByte);
