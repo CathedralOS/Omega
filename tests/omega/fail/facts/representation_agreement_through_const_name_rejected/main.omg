@@ -8,7 +8,7 @@ data SecondFrame [copy] { tag: u8; first: u8; last: u8; }
 data Failure [copy] { case InvalidTag; }
 
 // A transparent mathematical wrapper carries the same exact identity value.
-let same_result<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>(left, right);
+let same_result<u: core::Level, A: core::Type<u>>(left: A, right: A): core::Type<u> = core::Identity<A>(left, right);
 
 // This refinement describes only the selected value maps used in this law.
 // Base TryFrom remains available to resource-backed and effectful conversions.
