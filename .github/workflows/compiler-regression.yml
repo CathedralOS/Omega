@@ -100,9 +100,11 @@ jobs:
           key: ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-      - name: Execute native and Terminal smoke with rejection controls
+      - name: Execute length sample with native/Psi agreement and rejection control
         if: ${{ !inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
-        run: cargo xtask sample-gate --filter samples/cli/hello
+        run: |
+          cargo test --locked -p xtask samples::tests
+          cargo xtask sample-gate --filter samples/cli/facts/length/local
       - name: Check native provider frames and retained mapped homes
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
         run: cargo test --locked -p native-compiler -p machine-emission -p native-provider-runtime
