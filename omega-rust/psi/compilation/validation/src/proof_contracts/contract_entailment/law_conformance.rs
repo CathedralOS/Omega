@@ -24,7 +24,8 @@ pub use law_guarantees::{MatchedLawGuarantee, matched_machine_law_guarantees};
 pub(crate) use operator_contracts::check_operator_contract_conformance;
 pub(crate) use proposition_laws::indexed_law_binder_arguments;
 pub(crate) use slot_bindings::{
-    TraitOperationSlots, diagnostic_shape_match, display_structural_term, term_mentions_variable,
+    TraitOperationSlots, diagnostic_shape_match, display_structural_term, select_slot_candidate,
+    term_mentions_variable,
 };
 
 use super::{

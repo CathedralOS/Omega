@@ -11,6 +11,11 @@ use typed_trees::expression::StaticMachineArgument;
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
+mod conformances;
+use conformances::{
+    SlotCarriers, conformance_slot_carriers_uncached, law_has_operations, selected_operation,
+};
+
 /// REARRANGE-MODE license (settle 2026-07-18, rung C): a carrier EARNS ring
 /// canonicalization over an op through EXPLICIT conformance, never
 /// scope-sniffing. A license exists for op machine `add_machine` when some
@@ -619,175 +624,6 @@ pub(super) fn term_uses_application(term: &StructuralTerm, op: &SymbolHandle) ->
         || term.any_child(|child| term_uses_application(child, op))
 }
 
-/// Each requirement symbol owns one carrier group. The source declaration is
-/// validated before its dense slot is read, and the retained full handle and
-/// trait prevent a reused generation from selecting another declaration.
-#[derive(Default)]
-struct SlotCarriers {
-    requirements: Vec<Option<SlotCarrierGroup>>,
-}
-
-struct SlotCarrierRow {
-    carrier: TypeReferenceHandle,
-    entry: SymbolHandle,
-    application: typed_trees::type_identity::NormalizedTypeIdentity,
-    declaring_applications: Vec<(
-        SymbolHandle,
-        typed_trees::type_identity::NormalizedTypeIdentity,
-    )>,
-}
-
-impl SlotCarrierRow {
-    fn from_scope<'program>(
-        program: &'program dyn crate::CheckingInput,
-        scope: &typed_trees::trait_definition::AppliedTraitScope<'program>,
-        carrier: TypeReferenceHandle,
-        entry: SymbolHandle,
-    ) -> Option<Self> {
-        let application = scope.application_identity(program.typed_program())?;
-        let mut declaring_applications = Vec::new();
-        scope.visit(program.typed_program(), &mut |scope| {
-            if let Some(identity) = scope.application_identity(program.typed_program()) {
-                declaring_applications.push((scope.declaration.symbol, identity));
-            }
-        });
-        Some(Self {
-            carrier,
-            entry,
-            application,
-            declaring_applications,
-        })
-    }
-
-    fn operation_application(
-        &self,
-        program: &dyn crate::CheckingInput,
-        operation: SymbolHandle,
-    ) -> Option<(
-        SymbolHandle,
-        SymbolHandle,
-        typed_trees::type_identity::NormalizedTypeIdentity,
-    )> {
-        let (owner, template) = program
-            .closed_requirement_application(operation)
-            .map_or_else(
-                || (program.symbols.get(operation).parent, operation),
-                |closed| (closed.declaring_trait, closed.template),
-            );
-        let mut applications = self
-            .declaring_applications
-            .iter()
-            .filter(|(candidate, _)| *candidate == owner);
-        let application = applications.next()?.1;
-        // The source law already selected its declaring scope. A produced
-        // row transports that scope as a whole; an ambiguous inherited tuple
-        // cannot be recovered from a bare declaration symbol.
-        if applications.any(|(_, other)| *other != application) {
-            return None;
-        }
-        Some((owner, template, application))
-    }
-}
-
-struct SlotCarrierGroup {
-    requirement: SymbolHandle,
-    declaring_trait: SymbolHandle,
-    rows: Vec<SlotCarrierRow>,
-}
-
-impl SlotCarriers {
-    fn insert(
-        &mut self,
-        program: &dyn crate::CheckingInput,
-        declaring_trait: SymbolHandle,
-        requirement: SymbolHandle,
-        row: SlotCarrierRow,
-    ) {
-        if !requirement.is_valid() {
-            return;
-        }
-        program.symbols.get(requirement);
-        let Some(declaration) = program.trait_definition_by_symbol(declaring_trait) else {
-            return;
-        };
-        if program
-            .trait_machine_signature_by_symbol(declaration, requirement)
-            .is_none()
-        {
-            return;
-        }
-        let position = requirement.arena_index() as usize;
-        if self.requirements.len() <= position {
-            self.requirements.resize_with(position + 1, || None);
-        }
-        let group = self.requirements[position].get_or_insert_with(|| SlotCarrierGroup {
-            requirement,
-            declaring_trait,
-            rows: Vec::new(),
-        });
-        if group.requirement == requirement && group.declaring_trait == declaring_trait {
-            group.rows.push(row);
-        }
-    }
-
-    fn get(
-        &self,
-        program: &dyn crate::CheckingInput,
-        declaring_trait: SymbolHandle,
-        requirement: SymbolHandle,
-    ) -> Option<&[SlotCarrierRow]> {
-        if !requirement.is_valid() {
-            return None;
-        }
-        program.symbols.get(requirement);
-        let group = self
-            .requirements
-            .get(requirement.arena_index() as usize)?
-            .as_ref()?;
-        (group.requirement == requirement && group.declaring_trait == declaring_trait)
-            .then_some(group.rows.as_slice())
-    }
-}
-
-/// The (trait symbol, requirement symbol) -> conforming (carrier, entry
-/// symbol) index: conformances are fixed for the build, so both the per-law
-/// slot membership test and each candidate scan read this instead of
-/// re-walking every machine and conformance per license.
-fn conformance_slot_carriers_uncached(program: &dyn crate::CheckingInput) -> SlotCarriers {
-    let mut slot_carriers = SlotCarriers::default();
-    for candidate in program.machines() {
-        for conformance in program.machine_trait_conformances(candidate) {
-            if !conformance.requirement_symbol.is_valid() {
-                continue;
-            }
-            let Some((candidate_entry, carrier)) = entry_carrier(program, candidate) else {
-                continue;
-            };
-            let Some(scope) =
-                typed_trees::trait_definition::AppliedTraitScope::from_machine_conformance(
-                    program.typed_program(),
-                    candidate,
-                    conformance,
-                )
-            else {
-                continue;
-            };
-            let Some(row) =
-                SlotCarrierRow::from_scope(program, &scope, carrier, candidate_entry.symbol)
-            else {
-                continue;
-            };
-            slot_carriers.insert(
-                program,
-                conformance.symbol,
-                conformance.requirement_symbol,
-                row,
-            );
-        }
-    }
-    slot_carriers
-}
-
 /// Compute the program's REARRANGE licenses (settle 2026-07-18): for every
 /// trait, find op slots carrying BOTH a commutativity law and an
 /// associativity law (matched by SHAPE over the trait's own requirement
@@ -1007,33 +843,20 @@ fn ring_license_candidates(
                 continue;
             };
             for row in rows {
-                if slot_satisfier(
+                let Some(add_machine) = selected_operation(slot_carriers, program, row, *operation)
+                else {
+                    continue;
+                };
+                if !law_has_operations(
                     slot_carriers,
                     program,
                     trait_definition.symbol,
                     *assoc_law,
-                    row.carrier,
-                    row.application,
-                )
-                .is_none()
-                {
+                    row,
+                    &[(*operation, add_machine)],
+                ) {
                     continue;
                 }
-                let Some((owner, template, application)) =
-                    row.operation_application(program, *operation)
-                else {
-                    continue;
-                };
-                let Some(add_machine) = slot_satisfier(
-                    slot_carriers,
-                    program,
-                    owner,
-                    template,
-                    row.carrier,
-                    application,
-                ) else {
-                    continue;
-                };
                 candidates.push(RingCandidate {
                     trait_symbol: trait_definition.symbol,
                     comm_law: *comm_law,
@@ -1045,30 +868,6 @@ fn ring_license_candidates(
         }
     }
     candidates
-}
-
-/// A law or operation row belongs to one complete conformance application.
-/// Sharing only its first carrier cannot import another tuple's evidence.
-fn slot_satisfier(
-    slot_carriers: &SlotCarriers,
-    program: &dyn crate::CheckingInput,
-    trait_symbol: SymbolHandle,
-    requirement: SymbolHandle,
-    carrier: TypeReferenceHandle,
-    application: typed_trees::type_identity::NormalizedTypeIdentity,
-) -> Option<SymbolHandle> {
-    slot_carriers
-        .get(program, trait_symbol, requirement)?
-        .iter()
-        .find_map(|row| {
-            (row.application == application
-                && crate::value_custody::type_references::type_references_match(
-                    program,
-                    row.carrier,
-                    carrier,
-                ))
-            .then_some(row.entry)
-        })
 }
 
 /// `R(x, y) == R(y, x)` with `x`/`y` DISTINCT requirement parameters -> the
@@ -1193,49 +992,32 @@ fn semiring_license_candidates(
                 continue;
             };
             for row in rows {
-                if !law_slots.iter().all(|law| {
-                    slot_satisfier(
+                let Some(add_machine) = selected_operation(slot_carriers, program, row, *add)
+                else {
+                    continue;
+                };
+                let Some(mul_machine) = selected_operation(slot_carriers, program, row, *multiply)
+                else {
+                    continue;
+                };
+                let laws = [
+                    (*add_comm, *add, add_machine),
+                    (*add_assoc, *add, add_machine),
+                    (*mul_comm, *multiply, mul_machine),
+                    (*mul_assoc, *multiply, mul_machine),
+                ];
+                if !laws.iter().all(|(law, operation, selected)| {
+                    law_has_operations(
                         slot_carriers,
                         program,
                         trait_definition.symbol,
                         *law,
-                        row.carrier,
-                        row.application,
+                        row,
+                        &[(*operation, *selected)],
                     )
-                    .is_some()
                 }) {
                     continue;
                 }
-                let Some((add_owner, add_template, add_application)) =
-                    row.operation_application(program, *add)
-                else {
-                    continue;
-                };
-                let Some((mul_owner, mul_template, mul_application)) =
-                    row.operation_application(program, *multiply)
-                else {
-                    continue;
-                };
-                let Some(add_machine) = slot_satisfier(
-                    slot_carriers,
-                    program,
-                    add_owner,
-                    add_template,
-                    row.carrier,
-                    add_application,
-                ) else {
-                    continue;
-                };
-                let Some(mul_machine) = slot_satisfier(
-                    slot_carriers,
-                    program,
-                    mul_owner,
-                    mul_template,
-                    row.carrier,
-                    mul_application,
-                ) else {
-                    continue;
-                };
                 candidates.push(SemiringCandidate {
                     trait_symbol: trait_definition.symbol,
                     law_slots,
@@ -1714,130 +1496,6 @@ mod tests {
                 &parameters
             )
             .is_none()
-        );
-    }
-    #[test]
-    fn same_carrier_different_trait_application_cannot_supply_a_law() {
-        use super::{SlotCarrierRow, SlotCarriers, slot_satisfier};
-        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
-        use typed_trees::{
-            TypedTrees,
-            data::TypeParameter,
-            name::Identifier,
-            signature::StateSignature,
-            trait_definition::{AppliedTraitScope, TraitDefinition},
-            types::TypeReferenceNode,
-        };
-        let mut symbols = SymbolTableBuilder::default();
-        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let top = symbols.insert_children(
-            root,
-            [
-                (SymbolKind::Trait, SymbolNameRef::Static("Algebra")),
-                (SymbolKind::Machine, SymbolNameRef::Static("first")),
-                (SymbolKind::Machine, SymbolNameRef::Static("second")),
-            ],
-        );
-        let owner = top.handle_at(0);
-        let members = symbols.insert_children(
-            owner,
-            [
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("Carrier")),
-                (SymbolKind::TypeParameter, SymbolNameRef::Static("Other")),
-                (SymbolKind::State, SymbolNameRef::Static("law")),
-            ],
-        );
-        let requirement = members.handle_at(2);
-        let mut program = TypedTrees {
-            symbols: symbols.finish(),
-            ..Default::default()
-        };
-        let carrier = program.type_reference_table.insert(TypeReferenceNode::Unit);
-        let other = program
-            .type_reference_table
-            .insert(TypeReferenceNode::Slice {
-                element_type: carrier,
-            });
-        let mut declaration = TraitDefinition {
-            symbol: owner,
-            name: Identifier::from("Algebra"),
-            ..Default::default()
-        };
-        declaration.type_parameters = program.data_type_parameters.insert_many([
-            TypeParameter {
-                symbol: members.handle_at(0),
-                name: Identifier::from("Carrier"),
-                ..Default::default()
-            },
-            TypeParameter {
-                symbol: members.handle_at(1),
-                name: Identifier::from("Other"),
-                ..Default::default()
-            },
-        ]);
-        program.push_trait_machine_signature(
-            &mut declaration,
-            StateSignature {
-                symbol: requirement,
-                name: Identifier::from("law"),
-                return_type: carrier,
-                ..Default::default()
-            },
-        );
-        program.push_trait_definition(declaration);
-        let declaration = program.trait_definition_by_symbol(owner).unwrap();
-        let mut first = AppliedTraitScope::abstract_scope(declaration);
-        first.substitutions = vec![
-            (members.handle_at(0), carrier),
-            (members.handle_at(1), carrier),
-        ];
-        let mut second = AppliedTraitScope::abstract_scope(declaration);
-        second.substitutions = vec![
-            (members.handle_at(0), carrier),
-            (members.handle_at(1), other),
-        ];
-        let first_row =
-            SlotCarrierRow::from_scope(&program, &first, carrier, top.handle_at(1)).unwrap();
-        let second_row =
-            SlotCarrierRow::from_scope(&program, &second, carrier, top.handle_at(2)).unwrap();
-        let first_application = first_row.application;
-        let second_application = second_row.application;
-        assert_ne!(first_application, second_application);
-        let mut rows = SlotCarriers::default();
-        rows.insert(&program, owner, requirement, second_row);
-        assert!(
-            slot_satisfier(
-                &rows,
-                &program,
-                owner,
-                requirement,
-                carrier,
-                first_application
-            )
-            .is_none()
-        );
-        assert_eq!(
-            slot_satisfier(
-                &rows,
-                &program,
-                owner,
-                requirement,
-                carrier,
-                second_application
-            ),
-            Some(top.handle_at(2))
-        );
-        rows.insert(&program, owner, requirement, first_row);
-        assert_eq!(
-            slot_satisfier(
-                &rows,
-                &program,
-                owner,
-                requirement,
-                carrier,
-                first_application
-            ),
-            Some(top.handle_at(1))
         );
     }
 }
