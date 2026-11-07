@@ -36,6 +36,7 @@ pub(super) fn build(
         return None;
     }
     let flow = super::super::types::state_flow(facts, machine.symbol, state.symbol)?;
+    let call_roster = facts.flow.control.calls.span_or_empty(flow.calls);
     let calls = flow
         .calls
         .handles()
@@ -66,6 +67,7 @@ pub(super) fn build(
                 preamble,
                 &CheckedControlResultPlan::Unit,
                 0,
+                call_roster,
                 call,
                 call.target_symbol,
                 statement,
