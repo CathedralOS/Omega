@@ -47,7 +47,15 @@ impl<'a> Elaborator<'a> {
         if let Some(term) = self.carrier_for_symbol(symbol) {
             return Ok(term);
         }
-        Err(self.refuse(format!("`{name}` is not a mathematical term")))
+        let owner = self.program.symbols.display_path(self.source_owner, "::");
+        let owner = if owner.is_empty() {
+            "an expression without a retained source owner"
+        } else {
+            owner.as_str()
+        };
+        Err(self.refuse(format!(
+            "`{name}` is not a mathematical term: its exact binding is unavailable in {owner}"
+        )))
     }
 
     /// A `Variable` for the scope entry carrying `symbol`, if any —

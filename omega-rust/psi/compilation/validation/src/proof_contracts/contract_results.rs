@@ -470,6 +470,24 @@ pub(crate) fn source_contract_parameters(
     Some(program.state_parameters.span_or_empty(parameters))
 }
 
+/// Source contracts retain the exact formal telescope of every live authored
+/// or applied signature. A prepared view has fresh symbols and substituted
+/// carriers; its declaring template cannot supply those bindings.
+pub(crate) fn retained_callable_signatures(
+    program: &dyn crate::CheckingInput,
+) -> impl Iterator<Item = &typed_trees::signature::StateSignature> {
+    program
+        .traits()
+        .iter()
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .chain(program.prepared_callable_signatures())
+        .chain(
+            machine_parameter_contract_signatures(program)
+                .into_iter()
+                .map(|(_, signature)| signature),
+        )
+}
+
 /// Every callable contract in the order owner resolution visits them:
 /// machines with an entry state, operators, then authored and applied requirement
 /// signatures and reachable machine-parameter contracts.
@@ -496,24 +514,14 @@ pub fn callable_contract_scopes(
             program.machine_contracts(machine),
         ))
     });
-    let requirements = program
-        .traits()
-        .iter()
-        .flat_map(|definition| program.trait_machine_signatures(definition))
-        .chain(program.prepared_callable_signatures())
-        .chain(
-            machine_parameter_contract_signatures(program)
-                .into_iter()
-                .map(|(_, signature)| signature),
+    let requirements = retained_callable_signatures(program).map(|signature| {
+        (
+            signature.symbol,
+            signature.return_type,
+            signature.parameters,
+            program.state_signature_contracts(signature),
         )
-        .map(|signature| {
-            (
-                signature.symbol,
-                signature.return_type,
-                signature.parameters,
-                program.state_signature_contracts(signature),
-            )
-        });
+    });
     let operators = program.operators().iter().map(|operator| {
         (
             operator.symbol,

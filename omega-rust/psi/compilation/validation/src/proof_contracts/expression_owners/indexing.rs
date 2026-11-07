@@ -109,18 +109,17 @@ pub(super) fn index_authored_contract_environments(
             );
         }
     }
-    for definition in program.traits() {
-        for signature in program.trait_machine_signatures(definition) {
-            add_contracts(
-                program.state_signature_contracts(signature),
-                environment_from_parameters(
-                    signature.symbol,
-                    program.state_signature_parameters(signature),
-                    signature.return_type,
-                    None,
-                ),
-            );
-        }
+    for signature in crate::proof_contracts::contract_results::retained_callable_signatures(program)
+    {
+        add_contracts(
+            program.state_signature_contracts(signature),
+            environment_from_parameters(
+                signature.symbol,
+                program.state_signature_parameters(signature),
+                signature.return_type,
+                None,
+            ),
+        );
     }
     for operator in program.all_operators() {
         add_contracts(
@@ -323,15 +322,14 @@ pub(super) fn index_parameter_constraint_environments(
             }
         }
     }
-    for definition in program.traits() {
-        for signature in program.trait_machine_signatures(definition) {
-            index_telescope_parameters(
-                program,
-                signature.symbol,
-                program.state_signature_parameters(signature),
-                index,
-            );
-        }
+    for signature in crate::proof_contracts::contract_results::retained_callable_signatures(program)
+    {
+        index_telescope_parameters(
+            program,
+            signature.symbol,
+            program.state_signature_parameters(signature),
+            index,
+        );
     }
     for operator in program.all_operators() {
         index_telescope_parameters(
