@@ -269,6 +269,32 @@ impl StructuralJudge<'_> {
         else {
             return false;
         };
+        let reference = super::super::structural_terms::owned_observation_type(self.program, value)
+            .or_else(|| {
+                super::super::structural_terms::shared_inline_observation_type(self.program, value)
+            });
+        let declaration = if let Some(reference) = reference {
+            let Some(observed) = super::ConstructorIdentity::at_reference(
+                self.program,
+                reference,
+                declaration,
+                None,
+            ) else {
+                return false;
+            };
+            if !identity.same_carrier(observed) {
+                return false;
+            }
+            let Some(selected) = self
+                .program
+                .data_constructor_definition(reference, declaration.symbol)
+            else {
+                return false;
+            };
+            selected
+        } else {
+            declaration
+        };
         let members = self.program.data_members(declaration);
         if members
             .iter()
@@ -291,12 +317,23 @@ impl StructuralJudge<'_> {
             let Some(actual) = actual_by_name.get(field.name.as_str()) else {
                 return false;
             };
-            let Some(expected) = super::super::observed_projections::project_declared_field(
-                self.program,
-                self,
-                value.clone(),
-                field.name.as_str(),
-            ) else {
+            let expected = if let Some(reference) = reference {
+                super::super::observed_projections::project_observed_value_in_scope(
+                    self.program,
+                    self,
+                    reference,
+                    value.clone(),
+                    &[facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }],
+                )
+            } else {
+                super::super::observed_projections::project_field(
+                    value.clone(),
+                    field.name.as_str(),
+                )
+            };
+            let Some(expected) = expected else {
                 return false;
             };
             let expected = self.resolve_at(expected, depth + 1);

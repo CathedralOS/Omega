@@ -58,7 +58,14 @@ fn read_term(
         return None;
     }
     let read = |term| read_term(program, view, application, term, captures, depth + 1);
-    if let Some((carrier, [left, right])) = view.identity_value(application, term) {
+    let source_captures = view
+        .applications
+        .captures
+        .span_or_empty(application.captures)
+        .len();
+    let inserted_binders = u32::try_from(captures.len().checked_sub(source_captures)?).ok()?;
+    if let Some((carrier, [left, right])) = view.identity_value(application, term, inserted_binders)
+    {
         return Some(StructuralTerm::Identity {
             carrier: carrier.type_identity,
             left: Box::new(read(left)?),

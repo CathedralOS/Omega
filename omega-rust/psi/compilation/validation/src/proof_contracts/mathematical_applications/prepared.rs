@@ -202,6 +202,7 @@ impl<'program> PreparedMathematicalView<'program> {
         self,
         application: &PreparedApplication,
         term: TermHandle,
+        inserted_binders: u32,
     ) -> Option<(&'program PreparedIdentityValue, [TermHandle; 2])> {
         let (declaration, arguments) = application_spine(self, term)?;
         if !matches!(
@@ -219,7 +220,10 @@ impl<'program> PreparedMathematicalView<'program> {
             .span_or_empty(application.identity_values)
             .iter()
             .filter(|row| {
-                row.type_identity.is_valid() && self.arena.structurally_equal(row.term, term)
+                row.type_identity.is_valid()
+                    && self
+                        .arena
+                        .structurally_equal_shifted(row.term, term, inserted_binders)
             });
         let carrier = matches.next()?;
         if matches.any(|other| other.type_identity != carrier.type_identity) {

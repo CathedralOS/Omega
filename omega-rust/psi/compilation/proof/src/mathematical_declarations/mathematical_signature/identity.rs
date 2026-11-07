@@ -59,7 +59,13 @@ impl Elaborator<'_> {
                 argument: value,
             });
         }
-        self.record_identity_emission(term, application.carrier, self.source_owner, Vec::new());
+        self.record_identity_emission(
+            term,
+            application.carrier,
+            self.source_owner,
+            Vec::new(),
+            Vec::new(),
+        );
         self.span = Some(self.program.expression_table.source_span(expression));
         Ok(term)
     }
@@ -129,6 +135,7 @@ impl Elaborator<'_> {
         source_type: TypeReferenceHandle,
         source_owner: SymbolHandle,
         source_scopes: Vec<IdentitySourceScope>,
+        pending: Vec<IdentitySourceParameter>,
     ) {
         let mut abstraction = value;
         for entry in self.scope.iter().rev() {
@@ -147,6 +154,7 @@ impl Elaborator<'_> {
             source_type,
             source_owner,
             source_scopes,
+            pending,
         });
     }
 
@@ -201,9 +209,6 @@ impl Elaborator<'_> {
             .program
             .expression_table
             .expression_handles(call.arguments);
-        if formals.len() != actuals.len() {
-            return Err(self.refuse("Id application changed its ordinary subject arity".into()));
-        }
         arguments.extend(
             formals.iter().zip(actuals).map(|(formal, actual)| {
                 (formal.symbol, IdentitySourceArgument::Expression(*actual))
@@ -240,7 +245,37 @@ impl Elaborator<'_> {
             let mut scopes = Vec::with_capacity(row.source_scopes.len() + 1);
             scopes.push(scope.clone());
             scopes.extend(row.source_scopes);
-            self.record_identity_emission(value, row.source_type, row.source_owner, scopes);
+            let trailing = actuals.iter().skip(formals.len()).collect::<Vec<_>>();
+            for (parameter, actual) in row.pending.iter().zip(&trailing) {
+                let Some(scope) = scopes
+                    .iter_mut()
+                    .find(|scope| scope.declaration == parameter.declaration)
+                else {
+                    return Err(
+                        self.refuse("Id prefix application lost its supplying telescope".into())
+                    );
+                };
+                scope.arguments.push((
+                    parameter.binder,
+                    IdentitySourceArgument::Expression(**actual),
+                ));
+            }
+            let mut pending = formals
+                .iter()
+                .skip(actuals.len())
+                .map(|formal| IdentitySourceParameter {
+                    declaration: definition.symbol,
+                    binder: formal.symbol,
+                })
+                .collect::<Vec<_>>();
+            pending.extend(row.pending.into_iter().skip(trailing.len()));
+            self.record_identity_emission(
+                value,
+                row.source_type,
+                row.source_owner,
+                scopes,
+                pending,
+            );
         }
         Ok(())
     }
@@ -255,6 +290,28 @@ impl Elaborator<'_> {
         let mut values = Vec::with_capacity(emissions.len());
         for position in emissions.clone() {
             let row = &self.identity_emissions[position];
+            let term = super::normalization::normalize(
+                &mut self.arena,
+                signature,
+                row.value,
+                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
+                &|declaration| retained_constants.contains(&declaration),
+            )
+            .map_err(|error| self.refuse(format!("Id value substitution failed: {error:?}")))?;
+            let mut head = term;
+            let mut arity = 0;
+            while let Term::Apply { function, .. } = self.arena.get(head) {
+                arity += 1;
+                head = function;
+            }
+            if arity != 3
+                || !matches!(self.arena.get(head), Term::Constant { declaration, .. } if Some(declaration) == self.identity_declaration)
+            {
+                continue;
+            }
+            if !row.pending.is_empty() {
+                return Err(self.refuse("formed Id retains unapplied source subjects".into()));
+            }
             let arguments = row
                 .source_scopes
                 .iter()
@@ -295,14 +352,6 @@ impl Elaborator<'_> {
                             "Id application lost its exact source carrier substitution".into(),
                         )
                     })?;
-            let term = super::normalization::normalize(
-                &mut self.arena,
-                signature,
-                row.value,
-                &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-                &|declaration| retained_constants.contains(&declaration),
-            )
-            .map_err(|error| self.refuse(format!("Id value substitution failed: {error:?}")))?;
             let ty = proof_admission::infer_type(
                 &mut self.arena,
                 context,
@@ -327,6 +376,7 @@ pub(super) struct IdentityEmission {
     source_type: TypeReferenceHandle,
     source_owner: SymbolHandle,
     source_scopes: Vec<IdentitySourceScope>,
+    pending: Vec<IdentitySourceParameter>,
 }
 
 #[derive(Clone)]
@@ -339,4 +389,10 @@ struct IdentitySourceScope {
 enum IdentitySourceArgument {
     Static(StaticMachineArgument),
     Expression(ExpressionHandle),
+}
+
+#[derive(Clone)]
+struct IdentitySourceParameter {
+    declaration: SymbolHandle,
+    binder: SymbolHandle,
 }

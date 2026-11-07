@@ -599,7 +599,7 @@ impl<'a> Elaborator<'a> {
                     });
                     inputs.push(input);
                 }
-                self.transport_identity_emissions(call, callee, &inputs)?;
+                self.transport_identity_emissions(&call, callee, &inputs)?;
                 Ok(self.apply_source_inputs(handle, callee, inputs))
             }
             ExpressionNode::Integer(literal) => {
