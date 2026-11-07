@@ -2235,6 +2235,10 @@ fail/build/helper_contract_context rejected 256ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from incorrect at statement 0: result == 4
 fail/build/hosted_program_entry_visible_parameter rejected 3189ms expected @ccdb99ca2214
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
+fail/build/installed_arrival_without_context rejected 381509ms expected @d34b7f0d8bd0
+	installed interrupt entry: installation requires an explicit bootstrap environment assumption through publication
+fail/build/installed_arrival_wrong_controller rejected 391110ms expected @d34b7f0d8bd0
+	installed interrupt arrival: completion at OperationId(10879) selects another installation's controller
 fail/build/installed_entry_ram_invalid_extent rejected 5528ms expected @ccdb99ca2214
 	private entry RAM requires the complete nonempty bounded schema extent
 fail/build/installed_entry_ram_invalid_padding rejected 4500ms expected @ccdb99ca2214
