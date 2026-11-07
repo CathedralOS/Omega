@@ -32,7 +32,7 @@ use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use syntax_trees::types::TypeReferenceNode;
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     ClosedDeclarationConstantUses, closed_array_extent_expressions,
     resolve_deferred_initializer_probe,
@@ -74,7 +74,6 @@ fn evaluate_requested_calls(
     context: crate::BuildTimeSources<'_>,
     requested: Option<&ClosedDeclarationConstantUses>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let _profile = phase_profile::guard("pre_resolution.constant_calls");
     loop {
         // Readiness precedes admission: a provisional carrier can reveal exact
         // dependencies but must not supply an executable layout. Every layer
@@ -98,9 +97,6 @@ fn evaluate_application_group(
     let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
     let selection_authority = context.selection_authority.clone();
     let mut endpoint_leaves = Vec::new();
-    if requested.is_none() {
-        collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
-    }
     let has_call_const_expression = type_references(&syntax)
         .const_expression_nodes()
         .into_iter()
@@ -518,68 +514,6 @@ fn evaluate_application_group(
         }
     }
     Ok((syntax, progress))
-}
-
-/// Every authored call leaf inside declared range endpoints of generic
-/// arguments. Synthesis needs those canonical intervals before resolution, so
-/// each call's position is marked here; the typed probe fold supplies values.
-fn collect_generic_range_endpoint_call_leaves(
-    syntax: &SyntaxTrees,
-    pending: &mut Vec<(ExpressionHandle, source::SourceSpan)>,
-) {
-    let mut visited = Vec::new();
-    let mut worklist = syntax.type_references.generic_nodes();
-    while let Some(reference) = crate::worklist::unvisited(&mut worklist, &mut visited) {
-        match syntax.type_references.type_reference(reference) {
-            TypeReferenceNode::Generic { arguments, .. } => {
-                worklist.extend(syntax.type_references.type_reference_handles(*arguments));
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                worklist.push(*base_type);
-                for constraint in syntax.type_references.constraints(*constraints) {
-                    let TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } = constraint
-                    else {
-                        continue;
-                    };
-                    collect_endpoint_call_leaves(syntax, *minimum, pending);
-                    collect_endpoint_call_leaves(syntax, *maximum, pending);
-                }
-            }
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => worklist.push(*element_type),
-            TypeReferenceNode::Reference { referee, .. } => worklist.push(*referee),
-            _ => {}
-        }
-    }
-}
-
-/// Call leaves of one range endpoint, matching the shared typed fold's
-/// traversal: binary operands and call arguments may each contain the next
-/// authored invocation. Calls with runtime receivers or unresolved static
-/// applications are still marked; the probe gate leaves them authored.
-fn collect_endpoint_call_leaves(
-    syntax: &SyntaxTrees,
-    expression: ExpressionHandle,
-    pending: &mut Vec<(ExpressionHandle, source::SourceSpan)>,
-) {
-    match syntax.expressions.expression(expression) {
-        ExpressionNode::Binary(binary) => {
-            collect_endpoint_call_leaves(syntax, binary.left, pending);
-            collect_endpoint_call_leaves(syntax, binary.right, pending);
-        }
-        ExpressionNode::Call(call) => {
-            pending.push((expression, syntax.expressions.source_span(expression)));
-            for argument in syntax.expressions.expression_handles(call.arguments) {
-                collect_endpoint_call_leaves(syntax, *argument, pending);
-            }
-        }
-        _ => {}
-    }
 }
 
 /// Route the whole scalar expression through checked invocation admission.

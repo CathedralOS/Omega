@@ -153,7 +153,7 @@ reaches Console
 Acquire and review the dependencies, using your target from the table above:
 
 ```sh
-omega update --project . --target windows_x86_64
+omega packages update --project . --target windows_x86_64
 ```
 
 Exit status 3 means review is required. Read the reported audit and the generated
@@ -161,7 +161,7 @@ Exit status 3 means review is required. Read the reported audit and the generate
 than automatically accepting unfamiliar dependencies. Then resume:
 
 ```sh
-omega update --resume --project . --offline
+omega packages update --resume --project . --offline
 omega --offline main.omg
 ```
 
@@ -178,7 +178,7 @@ your project. Keep the old directory until you have verified the new one; rollin
 back is selecting the old installation again. Do not overwrite only the executable
 or mix library sources from different compiler versions.
 
-`omega update` reviews and updates **project dependencies**. It does not upgrade
+`omega packages update` reviews and updates **project dependencies**. It does not upgrade
 the Omega executable. A compiler upgrade does not itself authorize rewriting a
 project's `omega.lock`. If new compiler behavior or a requested dependency change
 requires review, inspect it through the normal package workflow.

@@ -32,6 +32,9 @@ pub(crate) struct StorageCoordinate {
     pub place: CanonicalPlace,
     pub preserves_scalar_value: bool,
     pub preserves_primitive_bits: bool,
+    /// An enclosing footprint can invalidate this place without replacing its
+    /// whole value. It cannot establish a missing field or its declared domain.
+    pub replaces_place: bool,
 }
 
 impl ScalarStorageCoordinate {
@@ -61,6 +64,66 @@ impl ScalarStorageCoordinate {
 }
 
 impl LocalWriteSource {
+    /// Invalidation consumes the complete captured write footprint even when
+    /// an observation cannot identify one physical scalar cell. The frame's
+    /// original enclosure supplies that footprint, never scalar equality or
+    /// whole-field establishment. Unknown origins and descriptor protocols
+    /// remain unavailable rather than becoming empty writes.
+    pub(crate) fn write_storage_coordinate(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+    ) -> Result<StorageCoordinate, &'static str> {
+        let reason = match self.storage_coordinate(program, state) {
+            Ok(coordinate) => return Ok(coordinate),
+            Err(reason) => reason,
+        };
+        if self.invocation_output.is_some()
+            || self.invocation_result.is_some()
+            || self.is_image_storage
+        {
+            return Err(reason);
+        }
+        let first = self.recasts.first().ok_or(reason)?;
+        if first.representation.is_some() {
+            return Err("original write enclosure retains an unresolved representation");
+        }
+        let (carrier, path) = self.representation.as_ref().ok_or(reason)?;
+        let mut carrier = *carrier;
+        crate::project_type_reference_from_segments(program, carrier, path)
+            .ok_or("logical write projection has no declared type")?;
+        // A coarse footprint cannot conceal a missing formation, mismatched
+        // carrier, or invalid predecessor path anywhere in the retained chain.
+        for recast in self.recasts.iter().rev() {
+            let (previous_carrier, previous_path) =
+                retained_view_predecessor(program, state, recast, carrier)?;
+            let prefix_length = previous_path.len()
+                - usize::from(matches!(
+                    previous_path.last(),
+                    Some(PlaceSegment::FixedRange { .. })
+                ));
+            crate::project_type_reference_from_segments(
+                program,
+                previous_carrier,
+                &previous_path[..prefix_length],
+            )
+            .ok_or("retained write predecessor has no declared projection")?;
+            carrier = previous_carrier;
+        }
+        let place = super::write_coordinates::captured_write_scope(first)
+            .ok_or("write enclosure has no original declaration")?;
+        let root_type = source_root_type(program, state, first.root)
+            .ok_or("write enclosure has no declared root type")?;
+        crate::project_type_reference_from_segments(program, root_type, &place.segments)
+            .ok_or("write enclosure has no declared projection")?;
+        Ok(StorageCoordinate {
+            place,
+            preserves_scalar_value: false,
+            preserves_primitive_bits: false,
+            replaces_place: false,
+        })
+    }
+
     /// Project one captured scalar source through every retained recast. An
     /// unresolved route withholds precision; callers retain their opaque or
     /// coarse write answer rather than treating absence as purity.
@@ -144,26 +207,10 @@ impl LocalWriteSource {
         };
         let mut preserves_scalar_value = true;
         let mut preserves_primitive_bits = true;
+        let mut replaces_place = true;
         for recast in self.recasts.iter().rev() {
-            // A accessor is an operation capability, not an ordinary
-            // scalar coordinate. Failed precision retains the backing footprint.
-            let formation =
-                crate::reference_formation_source(program, recast.formation.expression())
-                    .ok_or("retained view has no exact reference formation")?;
-            if formation.interpretation.is_access_view() {
-                return Err("accessor storage is not a declaration reference view");
-            }
-            if carrier != recast.target_type || formation.view_type != recast.target_type {
-                return Err("retained view carrier does not match its exact formation target");
-            }
-            let (previous_carrier, mut previous_path) = match &recast.representation {
-                Some((carrier, path)) => (*carrier, path.clone()),
-                None => (
-                    source_root_type(program, state, recast.root)
-                        .ok_or("retained view predecessor has no declared root type")?,
-                    recast.segments.clone(),
-                ),
-            };
+            let (previous_carrier, mut previous_path) =
+                retained_view_predecessor(program, state, recast, carrier)?;
             let range = match previous_path.last() {
                 Some(PlaceSegment::FixedRange { start, end }) => Some((*start, *end)),
                 _ => None,
@@ -211,6 +258,7 @@ impl LocalWriteSource {
                 .ok_or("physical reference view has no exact scalar storage translation")?;
                 preserves_scalar_value &= translated.preserves_scalar_value;
                 preserves_primitive_bits &= translated.preserves_primitive_bits;
+                replaces_place &= translated.covers_source;
                 previous_path.truncate(prefix_length);
                 previous_path.extend(translated.path.into_iter().map(|segment| match segment {
                     crate::RecastLeafSegment::Field(symbol) => PlaceSegment::Field { symbol },
@@ -231,8 +279,33 @@ impl LocalWriteSource {
             },
             preserves_scalar_value,
             preserves_primitive_bits,
+            replaces_place,
         };
         Ok(coordinate)
+    }
+}
+
+fn retained_view_predecessor(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    recast: &super::RecastSource,
+    carrier: TypeReferenceHandle,
+) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), &'static str> {
+    let formation = crate::reference_formation_source(program, recast.formation.expression())
+        .ok_or("retained view has no exact reference formation")?;
+    if formation.interpretation.is_access_view() {
+        return Err("accessor storage is not a declaration reference view");
+    }
+    if carrier != recast.target_type || formation.view_type != recast.target_type {
+        return Err("retained view carrier does not match its exact formation target");
+    }
+    match &recast.representation {
+        Some((carrier, path)) => Ok((*carrier, path.clone())),
+        None => Ok((
+            source_root_type(program, state, recast.root)
+                .ok_or("retained view predecessor has no declared root type")?,
+            recast.segments.clone(),
+        )),
     }
 }
 

@@ -107,9 +107,9 @@ pub(crate) fn static_realization_targets(
     let control = &flow_facts(checked).control;
     let mut targets = Vec::new();
     for (_, state) in control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == machine)
+        .machine_states(machine)
+        .into_iter()
+        .map(|state| ((), state))
     {
         for call in control.calls.span_or_empty(state.calls) {
             if call.static_requirement_dispatch.is_none()
@@ -120,10 +120,10 @@ pub(crate) fn static_realization_targets(
             // The target's checked flow state names its machine. A target with
             // no flow state is not a separate body this roster can emit;
             // conformance retention still rejects that dispatch.
-            let Some(owner) = control.states.iter().find_map(|(_, target_state)| {
-                (target_state.state_symbol == call.target_symbol)
-                    .then_some(target_state.machine_symbol)
-            }) else {
+            let Some(owner) = control
+                .state_by_symbol(call.target_symbol)
+                .map(|target_state| target_state.machine_symbol)
+            else {
                 continue;
             };
             if owner != machine && !targets.contains(&owner) {

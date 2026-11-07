@@ -1,32 +1,40 @@
-//! Private completed Pure Build ownership inside the execution issuer.
-//!
-//! Keeping insertion here matters: a public product constructor could pair an
-//! old configuration with a new owner without executing it. Only this crate's
-//! successful admission/value/output protocol may publish a completed value;
-//! public callers can share its owner, but cannot extract or inject carriers.
+/*
+Session-local completed `Pure` `Build` retention and matching
+(`PureBuildCompilation`, `CompletedPureBuildInputs`, `CompletedPureBuild`).
 
+Why `PureBuildCompilation` is encapsulated inside `build-settings` with no
+public carrier constructor or global registry:
+1. Only a fresh admission (`CompletedPureBuildInputs::from_admitted`) followed by
+   verified output-free completion (`CompletedPureBuild::from_completed`) can
+   insert a retained entry into `PureBuildCompilation`. Callers may clone the
+   `PureBuildCompilation` handle within a `BuildSession`, but cannot forge or
+   import carriers across sessions.
+2. `CompletedPureBuildInputs::matches` compares the complete checked `Build`
+   program (`CheckedBuildProgram`), `BuildProviderPlans`, measurement schedule,
+   sponsor limits, selected entry symbol, initial `BuildTimeValue` (using IEEE
+   bit equality for floats), source assembly inputs, dependency handoff
+   commitments (preserving both consumer import scope and producer purpose),
+   snapshot request, activation identity, and captured source inventory.
+3. Because full `CheckedBuildProgram` comparison traverses the checked trees and
+   `CheckFacts`, both `matching_result` and `retain_completed` clone the
+   append-only `Arc<CompletedPureBuild>` slice under the mutex and run the deep
+   structural comparison outside the lock.
+*/
+
+use super::CompletedBuildSource;
 use crate::ComputedBuildConfig;
 use build_time_evaluation::BuildTimeValue;
 use evaluation_accounting::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity};
 use package_compilation::SourceAssemblyInputs;
 use std::sync::{Arc, Mutex};
 
-/// Exact content and custody of an admitted Pure Build. Product selections
-/// remain fresh admission inputs; only their complete checked Build program
-/// can establish that two consumers observe the same computation.
 #[derive(Clone)]
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
-    // Retain the judgment that produced this exact program. It is a candidate
-    // for Psi's full input/authority match, never a replacement for admission
-    // or another field in the completed-value key.
-    retained_check: Option<Arc<psi_compiler::RetainedCheck>>,
+    retained_check: Option<Arc<psi_compiler::RetainedCheck>>, // Candidate for Psi check reuse; never a substitute for admission or key equality.
     providers: crate::admission::provider_execution::BuildProviderPlans,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
-    // Absence is the ordinary per-invocation policy, not a reason to repeat
-    // pure execution. Sponsored usage carries different ceilings and units;
-    // retain that distinction without retaining the account's authority.
-    sponsor_policy: Option<(EvaluationMeasurementIdentity, BuildEvaluationSponsorLimits)>,
+    sponsor_policy: Option<(EvaluationMeasurementIdentity, BuildEvaluationSponsorLimits)>, // Distinguishes sponsored ceilings/units without retaining account authority.
     selected_entry: symbols::SymbolHandle,
     initial_build: BuildTimeValue,
     source: SourceAssemblyInputs,
@@ -38,8 +46,6 @@ pub(crate) struct CompletedPureBuildInputs {
     default_source: bool,
 }
 
-/// The consumer's import scope and the producer's checked purpose can differ:
-/// an ordinary dependency of a Build helper is still produced for Build.
 #[derive(Clone, PartialEq, Eq)]
 struct CompletedPureBuildDependency {
     consumer_scope: build_declarations::DependencyPurpose,
@@ -51,9 +57,6 @@ struct CompletedPureBuildDependency {
 }
 
 impl CompletedPureBuildInputs {
-    /// Called only after the current program's semantic, package, operational,
-    /// and authority admission. Keeping this construction separate from the
-    /// completed carrier prevents an admitted-but-unexecuted value from reuse.
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
         retained_check: Option<psi_compiler::RetainedCheck>,
@@ -78,10 +81,6 @@ impl CompletedPureBuildInputs {
         }
         let activation = scope.activation();
         let captured_inventory = scope.captured_source_inventory();
-        // A captured source can be checked before it has a package identity.
-        // Its complete immutable inventory still binds the same private Pure
-        // value; an uncaptured anonymous source supplies no reuse custody.
-        // Fresh semantic/grant admission and completion checks remain required.
         if packages.is_none() && captured_inventory.is_none() {
             return None;
         }
@@ -131,24 +130,15 @@ impl CompletedPureBuildInputs {
     }
 }
 
-/// One compilation's private completed-Build store. Clones are explicit
-/// consumers of this owner; a fresh owner cannot import another's carriers.
-/// No global registry, public carrier constructor, decoder, or carrier export
-/// turns equal content into cross-compilation reuse.
 /// ```compile_fail
 /// let _ = build_settings::PureBuildCompilation::retain_completed;
 /// ```
 #[derive(Clone, Default)]
 pub struct PureBuildCompilation {
-    // Append-only: the length is the publication generation. Entries never
-    // change or disappear while any consumer can hold this owner.
-    completed: Arc<Mutex<Vec<Arc<CompletedPureBuild>>>>,
+    completed: Arc<Mutex<Vec<Arc<CompletedPureBuild>>>>, // Append-only store whose length is the publication generation.
 }
 
 impl PureBuildCompilation {
-    /// Completed Pure inputs retain the immutable language judgment that
-    /// produced them. The checker still matches its full preparation input and
-    /// admits this request before taking any earlier result.
     pub(crate) fn completed_checks(
         &self,
     ) -> Result<Vec<Arc<psi_compiler::RetainedCheck>>, Vec<diagnostics::Diagnostic>> {
@@ -163,12 +153,10 @@ impl PureBuildCompilation {
             .collect())
     }
 
-    pub(crate) fn matching_configuration(
+    pub(crate) fn matching_result(
         &self,
         inputs: &CompletedPureBuildInputs,
-    ) -> Result<Option<Arc<ComputedBuildConfig>>, Vec<diagnostics::Diagnostic>> {
-        // Snapshot only shared immutable entries while locked. Exact checked
-        // program equality can traverse the whole program and all CheckFacts.
+    ) -> Result<Option<Arc<CompletedPureBuild>>, Vec<diagnostics::Diagnostic>> {
         let completed = self
             .completed
             .lock()
@@ -180,18 +168,18 @@ impl PureBuildCompilation {
             .clone();
         Ok(completed
             .iter()
-            .find_map(|completed| completed.matching_configuration(inputs)))
+            .find(|completed| completed.inputs.matches(inputs))
+            .cloned())
     }
 
-    /// Evaluation publishes here only after successful value/output settlement.
-    /// Consumers cannot obtain or insert an already-issued carrier from a
-    /// different compilation; only the completed configuration is observable.
     pub(crate) fn retain_completed(
         &self,
         inputs: CompletedPureBuildInputs,
         configuration: Arc<ComputedBuildConfig>,
+        source: Arc<CompletedBuildSource>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        let Some(completed) = CompletedPureBuild::from_completed(inputs, configuration) else {
+        let Some(completed) = CompletedPureBuild::from_completed(inputs, configuration, source)
+        else {
             return Ok(());
         };
         let completed = Arc::new(completed);
@@ -203,17 +191,12 @@ impl PureBuildCompilation {
                         "completed Pure Build owner is unavailable",
                     )]
                 })?;
-                // Only append if every published entry has been compared.
-                // A competing append changes the length, so compare its new
-                // suffix outside the lock before attempting publication again.
                 if compared_count == retained.len() {
                     retained.push(completed);
                     return Ok(());
                 }
                 retained[compared_count..].to_vec()
             };
-            // A test may make competing writers observe the same prefix.
-            // Wait only after unlocking and only before the first comparison.
             compared_count += candidates.len();
             if candidates
                 .iter()
@@ -225,21 +208,18 @@ impl PureBuildCompilation {
     }
 }
 
-/// One completed, output-free Pure Build retained only by its compilation.
-/// No prepared entry token, host grant, checked product, or consuming account
-/// receipt survives here. Each consumer must independently admit and charge.
 #[derive(Clone)]
-struct CompletedPureBuild {
+pub(crate) struct CompletedPureBuild {
     inputs: CompletedPureBuildInputs,
-    configuration: Arc<ComputedBuildConfig>,
+    pub(crate) configuration: Arc<ComputedBuildConfig>,
+    pub(crate) source: Arc<CompletedBuildSource>,
 }
 
 impl CompletedPureBuild {
-    /// Issue only after execution, Build value validation, and output settlement.
-    /// Missing usage or evidence declines retention rather than inventing facts.
     fn from_completed(
         inputs: CompletedPureBuildInputs,
         configuration: Arc<ComputedBuildConfig>,
+        source: Arc<CompletedBuildSource>,
     ) -> Option<Self> {
         let usage = configuration.evaluation_usage?;
         let observations = configuration.observation_summary.as_ref()?;
@@ -264,18 +244,8 @@ impl CompletedPureBuild {
         Some(Self {
             inputs,
             configuration,
+            source,
         })
-    }
-
-    /// Content match is not admission or a policy charge. The evaluator calls
-    /// this only after fresh admission and charges before returning the result.
-    fn matching_configuration(
-        &self,
-        inputs: &CompletedPureBuildInputs,
-    ) -> Option<Arc<ComputedBuildConfig>> {
-        self.inputs
-            .matches(inputs)
-            .then(|| Arc::clone(&self.configuration))
     }
 }
 

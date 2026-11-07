@@ -47,7 +47,7 @@ mod contracts;
 mod declarations;
 mod expressions;
 mod type_reference;
-pub use access_borrow_factory::access_borrow_factory;
+pub use access_borrow_factory::{access_borrow_factory, access_borrow_factory_of};
 
 // Beneath `declarations`, not a step: the interface vocabulary every
 // declaration form binds through.

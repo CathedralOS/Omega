@@ -293,26 +293,38 @@ pub(crate) fn instantiate_requirement_applications(
         program
             .prepare_closed_conformance_scopes()
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        let signatures = program
-            .prepare_applied_callable_signatures()
+        let (signatures, wrote) = program
+            .prepare_applied_callable_signatures_reporting_change()
             .map_err(|message| {
                 vec![Diagnostic::error(format!(
                     "applied logical signatures: {message}"
                 ))]
             })?;
+        // A preparation that wrote nothing returned no signatures and left the
+        // program as it found it: the views are settled, and preparing again
+        // would write nothing either.
+        if !wrote {
+            debug_assert!(signatures.is_empty());
+            break;
+        }
         super::finalize_callable_signature_identities(program, signatures)
             .map_err(|diagnostic| vec![diagnostic])?;
         if program.prepared_callable_signatures().count() == signature_count {
+            // New executable projections retain their own logical refined
+            // views before calls borrow them; the shared nominal contract is
+            // never strengthened. This round wrote without adding a row, so
+            // prepare once more on what it left. Looping until a round writes
+            // nothing need not end: a view whose nominal application is
+            // declined is materialized again, and so counts as a write, on
+            // every round.
+            let signatures = program
+                .prepare_applied_callable_signatures()
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            super::finalize_callable_signature_identities(program, signatures)
+                .map_err(|diagnostic| vec![diagnostic])?;
             break;
         }
     }
-    // New executable projections retain their own logical refined views before
-    // calls borrow them; the shared nominal contract is never strengthened.
-    let signatures = program
-        .prepare_applied_callable_signatures()
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-    super::finalize_callable_signature_identities(program, signatures)
-        .map_err(|diagnostic| vec![diagnostic])?;
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())

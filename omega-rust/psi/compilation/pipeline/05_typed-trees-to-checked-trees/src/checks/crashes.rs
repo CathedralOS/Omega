@@ -101,7 +101,7 @@ pub(crate) fn check_operator_invocation_custody(
     )?;
     let actual = facts
         .contract_plans
-        .machines
+        .machines()
         .iter()
         .flat_map(|machine| {
             machine
@@ -139,13 +139,13 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     for machine in program.machines() {
         let Some(contract_index) = facts
             .contract_plans
-            .machines
+            .machines()
             .iter()
             .position(|contract| contract.machine == machine.symbol)
         else {
             continue;
         };
-        let crash_plan = &facts.contract_plans.machines[contract_index].crash;
+        let crash_plan = &facts.contract_plans.machines()[contract_index].crash;
         let operations = operations_by_machine
             .get(&machine.symbol)
             .map(Vec::as_slice)
@@ -338,12 +338,15 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                 )).with_source_span(program.expression_table.source_span(operation.expression)));
             }
         }
-        facts.contract_plans.machines[contract_index].crash = crash_plan
+        let crash = crash_plan
             .clone()
             .with_checked_sites(checked_sites)
             .expect("path-conditioned coverage retains valid checked-site identity")
             .with_checked_calls(checked_calls)
             .expect("path-conditioned coverage retains valid checked-call identity");
+        facts
+            .contract_plans
+            .update_plan(contract_index, |plan| plan.crash = crash);
     }
     diagnostics
 }
@@ -594,7 +597,7 @@ pub(crate) fn check_published_ceiling_coverage(
     let mut diagnostics = Vec::new();
     for caller in facts
         .contract_plans
-        .machines
+        .machines()
         .iter()
         .filter(|plan| plan.crash.interface() == CrashInterface::PublishedCeiling)
     {

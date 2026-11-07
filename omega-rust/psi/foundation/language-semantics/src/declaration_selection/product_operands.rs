@@ -105,11 +105,7 @@ pub enum ProductOperandConstraint {
     #[default]
     Invalid,
     Named(Handle<ProductOperandName>),
-    Range {
-        minimum: Handle<ProductOperandExpression>,
-        maximum: Handle<ProductOperandExpression>,
-        inclusive: bool,
-    },
+
     Arithmetic(numerics::arithmetic::ArithmeticDomain),
     Domain {
         name: Handle<ProductOperandName>,

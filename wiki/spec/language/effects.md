@@ -101,7 +101,10 @@ not reach, inheritance, authority or attenuation.
 Suspension, blocking, and crashes retain their independent rules. On published
 surfaces omitted `suspends` means never parks, omitted `blocks` means never blocks
 a worker, and an omitted crash cause is forbidden. Private checked bodies may
-omit these operational clauses to request inference.
+omit these operational clauses to request inference. A public generic that
+admits a suspending or blocking callback declares the corresponding ceiling.
+Its published [operational dependency summary](#static-callback-operational-dependencies)
+separately records which static selections contribute those possibilities.
 
 May-ceilings permit behavior; they do not assert that every run performs it.
 [`terminates`](termination.md) has the opposite polarity: a positive progress promise under its
@@ -183,7 +186,7 @@ components. Known private helpers are included transitively. Imported checked
 machines supply their published summaries, without requiring access to private
 source. Boundary calls and dynamic calls without retained narrower evidence use
 their pinned requirement ceilings, not a narrower provider body eventually
-selected by Build or at run time. A check-time dynamic coercion instead retains
+selected by Build or at run time. A checked machine-value construction instead retains
 the selected implementation's available checked contract as described below.
 Static generic calls follow the dependency rule below. Service union and
 suspension/blocking booleans remain separate; operational acknowledgements use
@@ -194,24 +197,27 @@ Every known checked helper on the path propagates the corresponding obligations.
 
 Named decision: `known-dynamic-contract-narrowing`, ratified 2026-11-02.
 
-When checking establishes which implementation a `dyn` value selects, its calls
-use that implementation's retained checked operational contract rather than the
-trait's potentially wider bound. A known in-memory reader can therefore contribute
-no filesystem reach and no suspension even when the trait permits both. Coercion,
+When checking establishes which machine a callable value selects, its calls
+use that machine's retained checked operational contract rather than the
+callable type's potentially wider bound. A known in-memory reader can contribute
+no filesystem reach and no suspension even when the callable contract permits
+both. Construction,
 forwarding and storage do not by themselves discard that established evidence.
 Joins retain all possible demands and only guarantees justified for every possible
 selection; an unknown alternative contributes the requirement ceiling.
 
 Narrowing uses an available checked contract, not private-source inspection or
 an optimization's prediction. Public and explicitly annotated callable ceilings
-remain published contracts; a smaller implementation body does not silently
-rewrite one. A reusable body accepting an unknown `dyn Reader` must remain valid
+remain published bounds; a smaller implementation body does not silently
+rewrite one. Substituting a published static-callback dependency is ordinary
+contract application, not inspection-based shrinking of that ceiling. A reusable
+body accepting an unknown machine value must remain valid
 for every fitting selection. It may publish checked dependencies on the input's
 envelope, but cannot assume the harmless selection used by one current caller.
 A narrower authored requirement or retained checked specialization/dependency
 justifies a narrower application, not the observed set of callers.
 
-This follows [dynamic operational envelopes](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+This follows [runtime callable envelopes](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
 It changes neither boundary requirements selected by Build nor their admission,
 and it creates no runtime authority. Missing selection evidence falls back to
 the governing requirement contract, not to a guessed implementation.
@@ -276,11 +282,94 @@ evaluation admission. A no-reach callback can leave a traversal with empty reach
 a Console-reaching callback contributes Console. Empty reach alone establishes
 none of the other evaluation obligations.
 
-Suspension and blocking do not acquire binder projections or conditional markers.
-They remain fixed by the callback requirement: calls use its exact acknowledgement
-envelope and, if it permits suspension, the restricted syntactic positions for
-all selections. Preconditions, postconditions, crashes, termination, and resource
-composition remain independently checked; no whole-contract forwarding exists.
+### Static callback operational dependencies
+
+Named decision: `static-callback-operational-dependencies`, ratified 2026-11-06.
+
+A checked generic calling a nominal or structural static callback publishes
+suspension and blocking dependencies. Nominal callback reach retains the union
+rule above; structural callable reach retains its declared bound. Each
+operational axis is a finite Boolean OR of a fixed contribution and exact
+callback-binder projections,
+bounded by the respective requirement permissions. The compiler derives this
+summary from checked calls; there is no authored effect variable or new marker.
+Forwarded [callback requirements](generics.md#forwarded-callback-requirements)
+retain the same exact origins and substitutions.
+
+A public generic declares `suspends` and/or `blocks` whenever its body under
+the callback requirements' upper bounds needs them. Those clauses authorize
+possibilities; the published dependency summary determines which are possible
+for each application. An omitted public clause still forbids that behavior
+for every admitted selection. Private checked bodies may infer their ceilings.
+
+Each application substitutes its selected callbacks' available published
+contracts into the summary before caller admission. A callback that cannot
+park contributes false to suspension. An independent potentially suspending
+call contributes true regardless of that callback. Blocking follows the same
+rule independently. Unknown/opaque selections use their requirement ceilings;
+a callback's observed behavior, private body or predicted optimizer target
+cannot supply a narrower contract. A fixed published ceiling without an
+applicable checked dependency remains conservative.
+
+Check the generic body once against the complete callback requirements:
+its authored `suspend`/`block` markers acknowledge their upper bounds and its
+suspending calls occupy the permitted syntactic positions. This also applies
+to forwarding calls with unresolved static selections. Do not re-reject those
+markers as redundant after substitution removes a possibility. At a caller
+with known selections, markers must include the specialized envelope; extra
+acknowledgements remain permitted.
+The template acknowledgement and the instantiated operational envelope are
+retained separately through checking and lowering.
+
+Carry, loan, invariant-window and outcome checks inside the generic body also
+use those upper bounds. A synchronous application cannot repair an invalid
+generic body. Ordinary loans may cross a permitted suspension when their
+preservation obligations hold; forbidden live resources or unclosed windows
+still reject. This decision introduces no conditional carry obligations.
+Use a narrower originating callback contract when the body needs that guarantee.
+
+```omega
+public machine apply<machine F>(value: u32) -> u32
+requires machine F(value: u32) -> u32
+    suspends;
+suspends
+{
+    suspend F(value)
+}
+
+public machine local(value: u32) -> u32 {
+    value
+}
+
+public machine example() -> u32 {
+    apply<local>(42)
+}
+```
+
+This example uses an authored structural callable contract. A nominal slot
+additionally requires the selected machine's exact satisfaction edge; inferred
+wrapper requirements do not create one.
+
+The body of `apply` acknowledges possible suspension. Its summary is
+`suspend(F)`; `example` substitutes the published non-suspending `local` and
+needs no marker or suspension permission. A selected callback whose published
+contract permits suspension requires `suspend apply<Callback>(42)` and a
+caller context admitting suspension, even if a particular execution never parks.
+
+Operational dependency summaries compose through wrapper calls, including
+recursive components with an anchored contract, and belong to interface
+identity and dependency invalidation. Normalize OR associatively,
+commutatively and idempotently; preserve exact requirement identities and
+substitutions. Adding a fixed effect or changing a callback contract requires
+ordinary revalidation. No current-consumer enumeration or optimizer pruning
+changes the published summary. Closed lowering realizes the specialized
+envelope, without manufacturing continuation or blocking requirements solely
+from the template's wider acknowledgement.
+
+Preconditions, postconditions, crashes, termination and resource composition
+retain their own checks. Forwarding a static callable requirement does not
+automatically forward arbitrary runtime guarantees from that callback to its
+wrapper's callers.
 
 Callable effect rows have no service subtraction, negation, masking, scoped
 allowance, or algebraic-effect handlers. Independent product exclusions do not
@@ -319,11 +408,23 @@ block may_wait();
 suspend block may_do_either();
 ```
 
-The marker set must equal the statically known call envelope: `suspend` exactly
-when suspension is possible, `block` exactly when blocking is possible. Missing,
-partial, or redundant markers reject. Combined order is `suspend block`.
-A pinned transparent refinement removing an operational possibility removes its
-marker; observing a non-waiting run does not.
+The marker set must include the statically known call envelope: `suspend`
+when suspension is possible and `block` when blocking is possible. In a generic
+body, use the abstract envelope under its callback requirements; at a closed
+application, use the specialized published dependency summary. Missing or partial
+acknowledgements reject. Redundant acknowledgements are permitted without a
+warning, including after specialization or a checked refinement removes an
+operational possibility. Observing a non-waiting run cannot narrow the envelope.
+The two axes are independent: `block` cannot replace a required `suspend` or
+conversely. Combined order is `suspend block`; duplicate or reversed markers reject.
+
+Named decision: `conservative-call-acknowledgements`, ratified 2026-11-06.
+Authored markers and the checked envelope remain separate through checking and
+lowering. Effects, carry, loans, invariant-window crossings, context admission
+and continuation creation follow that envelope, not the presence of extra
+markers. Generic bodies still satisfy their callback upper bounds; a synchronous
+application cannot excuse an invalid template. Ordinary call-boundary and
+invariant obligations remain even when the envelope permits no pause.
 
 Markers acknowledge held borrows, claims, guards, and authority across possible
 pauses. They do not force execution to pause, create a task/future, change ABI or
@@ -332,14 +433,21 @@ parks an activation and requires a continuation; blocking retains its stack and
 worker. Carry policy may reject a crossing with particular live values but
 cannot rewrite the callee's envelope.
 
-A suspending call may occur only as a complete statement, simple `let`
-right-hand side, transition subject, or terminal expression, including a
+A call written with `suspend`, including a redundant acknowledgement, may occur
+only as a complete statement, simple `let` right-hand side, transition subject,
+or terminal expression, including a
 [terminal machine call in a transition arm](state_contracts.md#terminal-calls-in-transition-arms).
-Such an arm uses the exact call markers, including when its target is a nested
-machine. Nesting and later jump/frame-reuse lowering grant no exemption.
-A suspending call cannot nest inside an argument, operator, aggregate
-construction, or condition. A blocking-only call may nest because it creates
-no continuation boundary.
+Such an arm acknowledges every required effect, including when its target is a
+nested machine. Nesting and later jump/frame-reuse lowering grant no exemption.
+A `suspend`-marked call cannot nest inside an argument, operator, aggregate
+construction, or condition. A call marked only `block` may nest when its checked
+envelope permits no suspension. Keeping a redundant `suspend` reserves a legal
+suspension position; it does not promise that live values could survive a later
+change to the callee's envelope.
+
+The opt-in [source rewrite](../build/command_line.md#source-rewriting) can remove
+unnecessary markers from the checked source context. Formatting or ordinary
+compilation does not remove them.
 
 Borrowed arguments and other live loans may cross suspension under ordinary
 [loan and carry preservation](../resources/carry.md#borrows-across-suspension).
@@ -352,7 +460,8 @@ adapters retain diagnostic/audit acknowledgement metadata without invented
 source tokens. A marker cannot bypass an execution context's operational floor:
 automatic [cleanup](../../language_guide/chapter_17_drops_and_cleanup.md#cleanup-machines)
 and [hermetic semantic evaluation](evaluation.md#invocation-admission) forbid
-source suspension and blocking.
+source suspension and blocking in the checked envelope. A redundant marker alone
+does not violate that floor.
 Interpreter budget suspension is not a source `suspends` permission.
 
 Starting a task is separate: `runtime.start<M>` acknowledges only what `start`
@@ -410,11 +519,12 @@ surviving components. Process exit is a distinct outcome, not an `Abort` route.
 
 ## Published identity and installation rows
 
-Deterministic normalizers own published service rows and reach dependencies,
-invocation contracts, suspension/blocking ceilings, and crash buckets. Proof may
-discharge legality or enable optimization; it cannot shrink an authored export, rewrite its guards,
-or change interface identity. Specializing a published reach dependency is
-contract substitution, not proof-based shrinking of an authored opaque ceiling.
+Deterministic normalizers own published service rows, reach and operational
+dependencies, invocation contracts, suspension/blocking ceilings, and crash
+buckets. Proof may discharge legality or enable optimization; it cannot shrink
+an authored export, rewrite its guards, or change interface identity.
+Specializing a published reach or operational dependency is contract
+substitution, not proof-based shrinking of an authored opaque ceiling.
 Stable syntactic/control-flow normalization is
 not heuristic entailment. Exact authored member/keyword spans explain review;
 inferred rows and parent closure receive no invented source locations.
@@ -432,7 +542,7 @@ base requirement; it does not create another installation-row declaration form.
 [Installed roots](../build/external_roots.md#installation-bound-reach) owns
 manifest and lineage requirements; equal rows never establish protocol identity.
 
-Automatic reach propagation does not introduce general callback-contract
-projections or conditional call acknowledgements. Named callbacks retain fixed
-suspension/blocking requirement envelopes.
+Automatic dependency propagation is limited to the specified reach unions
+and suspension/blocking OR summaries. It introduces neither arbitrary
+callback-contract projections nor new source acknowledgement syntax.
 No anonymous-machine or lambda surface is accepted.

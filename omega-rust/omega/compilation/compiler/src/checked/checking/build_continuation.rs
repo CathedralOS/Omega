@@ -80,21 +80,18 @@ fn type_core_product(
     // Core timings are never collected (its source is prepared without them).
     let mut timings = CompileTimings::default();
     let preparation = &fork.preparation;
-    let (count, syntax) = phase_profile::scope("omega.source.product_assembly", || {
+    let (count, syntax) =
         pending
             .sources()
-            .assemble(None, &mut timings, &mut *preparation.catalogue()?)
-    })?;
-    let frontier = phase_profile::scope("omega.source.product_frontier", || {
-        lower_typed_frontier(
-            preparation.clone(),
-            count,
-            syntax,
-            build_execution_profile,
-            None,
-            &mut timings,
-        )
-    })?;
+            .assemble(None, &mut timings, &mut *preparation.catalogue()?)?;
+    let frontier = lower_typed_frontier(
+        preparation.clone(),
+        count,
+        syntax,
+        build_execution_profile,
+        None,
+        &mut timings,
+    )?;
     Ok(SpeculativeProduct {
         pending,
         fork,
@@ -225,11 +222,11 @@ impl BuildSourceInvocation {
             self.build_execution_profile,
         )
     }
-    pub(super) fn validate_return(
-        &self,
-        returned: &build_settings::ReturnedBuild,
-    ) -> Result<(), CompileFailure> {
-        self.evaluation.validate_return(returned)
+    pub(super) fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut build_settings::ReturnedBuild>,
+    ) -> Result<build_settings::BuildSourceResult<'result>, CompileFailure> {
+        self.evaluation.source_result(returned)
     }
     pub(super) fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.evaluation.execution()
@@ -314,11 +311,7 @@ impl BuildSourceInvocation {
             inputs.validate_execution_context(selected_target_profile, build_execution_profile)?;
         }
         let initial_sources = frontier.base_sources.clone();
-        if let Some(returned) = &returned {
-            returned
-                .validate_source_join(package_inputs, initially_unbound)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        }
+        evaluation.validate_source_join(returned.as_ref(), package_inputs, initially_unbound)?;
         let evaluated = evaluation.complete(returned).map_err(|failure| {
             super::attribute_failure(failure, &initial_sources, package_inputs)
         })?;
@@ -454,25 +447,20 @@ fn complete_build_source(
         let product = match pending.retained(&inputs, package_inputs)? {
             Some(product) => product,
             None => {
-                let (count, syntax) =
-                    phase_profile::scope("omega.source.product_assembly", || {
-                        pending.sources().assemble(
-                            package_inputs,
-                            timings,
-                            &mut *preparation.catalogue()?,
-                        )
-                    })?;
+                let (count, syntax) = pending.sources().assemble(
+                    package_inputs,
+                    timings,
+                    &mut *preparation.catalogue()?,
+                )?;
                 let diagnostic_sources = syntax.sources.clone();
-                let product = phase_profile::scope("omega.source.product_frontier", || {
-                    lower_typed_frontier(
-                        preparation.clone(),
-                        count,
-                        syntax,
-                        build_execution_profile,
-                        package_inputs,
-                        timings,
-                    )
-                })
+                let product = lower_typed_frontier(
+                    preparation.clone(),
+                    count,
+                    syntax,
+                    build_execution_profile,
+                    package_inputs,
+                    timings,
+                )
                 .map_err(|mut diagnostics| {
                     super::attribute_diagnostics(
                         &mut diagnostics,
@@ -514,13 +502,11 @@ fn complete_build_source(
     }
     Arc::make_mut(&mut computed_build_config).toolchain_provider_defaults =
         toolchain_provider_defaults;
-    phase_profile::scope("omega.build.product_selections", || {
-        super::product_selections::admit(
-            &mut source,
-            Arc::make_mut(&mut computed_build_config),
-            package_inputs,
-        )
-    })?;
+    super::product_selections::admit(
+        &mut source,
+        Arc::make_mut(&mut computed_build_config),
+        package_inputs,
+    )?;
     let sources = BuildSourceCustody {
         source_file_count,
         build_execution_profile,

@@ -46,6 +46,20 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Demand>, Vec<Diagn
         else {
             continue;
         };
+        // The Run descriptor is movable even when its retained elements are
+        // not. Relocation changes their addresses, so check the actual T of
+        // this invocation before erasing qualifications for layout selection.
+        if arguments.operation == AccessLifecycleOperation::Relocate
+            && validation::effective_type_carry_policy(program, &[], arguments.schema).address
+                != language_semantics::CarryAddress::Movable
+        {
+            return Err(vec![
+                Diagnostic::error(
+                    "run relocation requires address: movable for the retained element type",
+                )
+                .with_source_span(call.source),
+            ]);
+        }
         let nominal = |reference| match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
             _ => None,

@@ -1,12 +1,9 @@
-# Kernel metatheory and implementation evidence
+# Kernel metatheory
 
-This document carries the combined rule/encoding justification the
-`PROOF-KERNEL-CORE` board item and the
-[inductive profile](inductive_profile.md#typed-function-eta) require before a
-verified profile can be claimed: substitution, preservation, normalization
-and decidable conversion for the rules the reference checker implements, the
-derived-encoding correspondence, and the implementation evidence each
-obligation already has.
+This document carries the combined rule/encoding justification required by the
+[foundation](foundation.md) and [inductive profile](inductive_profile.md#typed-function-eta):
+substitution, preservation, normalization, decidable conversion and
+derived-encoding correspondence.
 
 It is a justification at the level of the reference paper's section 4 — an
 argument over the rules the checker actually implements — not a mechanized
@@ -15,9 +12,11 @@ proof and not an imported acceptance verdict. Each claim names its status:
 named test), or *by construction* (the implementation cannot do otherwise).
 Code anchors are `omega-rust/psi/compilation/proof/admission/src/` paths.
 
-## The implemented calculus
+<a id="the-implemented-calculus"></a>
 
-The judgments, as implemented, are:
+## Calculus and checking judgments
+
+The checking judgments are:
 
 | Judgment | Implementation | Meaning |
 | --- | --- | --- |
@@ -188,7 +187,7 @@ of the reference paper's section 4:
   prefix-checked, so each step strictly lowers the greatest reachable
   declaration index and recursion is impossible.
 
-*Status:* argued at paper level, not mechanized — matching the reference
+*Justification:* argued at paper level, not mechanized — matching the reference
 core's own section-4 status. The checker's soundness never relies on
 normalization; normalization is what makes the conversion relation
 decidable in principle.
@@ -349,8 +348,8 @@ operands visible without new axioms or kernel rules. Boolean equality applies
 one fixed closed lambda, storing each supplied operand once rather than
 duplicating nested operands into both case branches. Proposition equality
 remains `Id Two`, not that Boolean comparison. Unknown Boolean values remain
-distinct constants; other Boolean-valued operations remain opaque when their
-denotation is not implemented. If bounded normalization reduces a reflexive
+distinct constants; a Boolean-valued operation without a checked denotation
+must remain opaque. If bounded normalization reduces a reflexive
 result equality to `Truth`, `refl` proves the expanded result before the
 stored value equations transport it back. This does not prove every Boolean
 identity on neutral values.
@@ -515,50 +514,17 @@ Lemma 4.1, Theorem 4.2). It covers the matching and restricted rows. It does
 not cover the mixed-sort Σ extension until that rule is selected and given its
 own argument. Section 4.4's UIP extension remains excluded.
 
-## Evidence ledger
+<a id="evidence-ledger"></a>
 
-| Obligation | Evidence |
-| --- | --- |
-| Closed primitive integer orders | `closed_primitive_order_does_not_assume_its_conclusion` and `a_closed_order_uses_only_the_fixed_numeral_law_closure` replace conclusion-specific decision assumptions with the existing checked numeral derivations. Missing numeral equations, changed operands and false comparisons reject. `samples/cli/facts/closed_integer_bound` carries the source assignment bound into exact subtraction through nine places with assignment-of-6 twins. Each source positive produces one three-node bounded certificate: 19 declarations, exact closure size 12 and 1,617 post-check arena slots, versus baseline 11/7/182. The larger closure contains reusable fixed arithmetic laws instead of assuming the requested orders; this is not an assumption-free arithmetic model or a performance improvement claim. |
-| Formation/typing rules, sorts, pairs, eta, ceiling | `type_checking.rs` (9 tests) — including `dependent_pair_type_tracks_component_sorts` and `conversion_refuses_at_the_step_ceiling`. No current test retains a storage receipt for the polymorphic identity. |
-| `Id`/`Two`/`W` formation, dependent elimination, computation, neutral controls | `identity_and_w_types.rs` (11 tests) — including `stuck_identity_eliminations_compare_componentwise` and `w_types_convert_componentwise_and_sup_has_no_eta`. No current test pins the absence of UIP or of function extensionality; those remain non-claims below, not witnessed rejections. |
-| Strict layer: `sEmpty` ex falso, squash formation/introduction/elimination/computation, box formation/introduction/elimination/computation, irrelevance boundaries, derived `sUnit`, declaration checking, `sEmpty` level and Σ sort classification | `strict_layer.rs` (10 tests) |
-| Level scope, parametric checking, declaration discipline, closure | `levels_and_declarations.rs` (6 tests) |
-| Indexed + quotient schemes checked as signatures, applications, boundaries | `schemes_and_quotients/` |
-| Acceptance families: vector length, mutual, nested, derivation context/conclusion, level polymorphism | `tests/indexed_{vector,mutual,nested,derivation,levels}.rs` — each pins constructor computation on neutral children, rejection controls, exact closures and measured receipts |
-| Source-produced scalar-indexed vector fragment | `samples/cli/facts/source_indexed_family` and `tests/omega/{pass,fail}/facts/source_indexed_family*`: exact closed constructor fibers and payloads, generic erased call/result transport, source W induction and a bounded executing consumer. With integrated producer 11 and receiver runner 14 (format 174, vocabulary 130) on Linux x86_64, the focused production/receiver-control run completed in 47.237s with native/Terminal exit 0; exact source-signature matching, all eight actual-argument/root/missing-law controls passed their assertions. Four Vector positives ran native/interpreter exit 0, and the affected runtime Value fixture agreed at exit 17. |
-| Source open-constructor transport | `samples/cli/facts/source_indexed_family/{local,field,parameter,call_result,match_join,const_name,other_state,other_machine,target_body}` plus original/open roots and ordinary erased forwarding composition: all twelve positives ran native/Terminal exit 0 and all twelve constructor-input twins rejected with optimized producer `6df2edcab75dab12d2d5963fbc553f81a115dbf6` on main `b558cbfd1583c32450a8a65aa7546f3bb8aa7946` (Linux x86_64, format 176). The complete public capture took 49.853s. Constructor functions remain closed; independent receiving binds exact checked-source invocation rosters, carrier keys and existing assumption grants. |
-| Open-constructor source storage and receiving cost | Parameter artifact: 100,550 bytes (100,421 semantic), two carriers/two roots; source arena 6,789,463 slots including scratch, 82 declarations. Actual receiving: two source-bound invocation formals, 45,752 steps, 162.440ms. Forwarding artifact: 102,866 bytes (102,737 semantic), source arena 6,789,505 slots/82 declarations; three source-bound formals, 45,752 steps, 163.837ms. Default budget remains 65,536; these focused costs are not a general performance result or compact term/storage count. |
-| Source dependent two-child positions | `samples/cli/facts/source_indexed_binary_tree` constructs `Tree<3,7>` from distinct `Tree<1,2>`/`Tree<1,4>` children. Optimized producer `92056ecd9701e193d25984955d0205ae70c50b78` on Linux x86-64 executed eleven public positives at native/Terminal exit 0 and rejected twelve head/fiber controls. The ordinary corpus checked fourteen positives and eighteen invalid controls; twelve runnable Tree fixtures agreed at exit 0, including a direct-call Boolean-scope composition. Shared dependent selection uses existing `Two`/pair/empty elimination and full Pi/Sup checking, with no new kernel rule. |
-| Two-child source receiving costs | Root/parameter/Boolean-scope actual receiving used 50,653/52,586/54,313 steps under the unchanged 65,536-step budget. Root: 9,374,420 source arena slots including scratch, 95 declarations, 184,206 artifact bytes (184,077 semantic), four carriers/two indexed roots/three source-bound formals. Parameter: 9,869,410 slots/107 declarations, 203,573 bytes (203,444 semantic), four carriers/two roots/three formals. Boolean scope: 9,869,881 slots/119 declarations, 171,365 bytes (171,236 semantic), three carriers/two roots/two formals. Focused receiving times under concurrent host work were 327.909/456.421/442.517ms; these are observations, not general performance bounds. |
-| Source copy-Type0 payload telescope | `samples/cli/facts/source_indexed_type_parameter` and its 23 fact fixtures: exact bool/u64 Type arguments, scalar indices, generic payload and source induction preserve the same bound and exact subtraction through all nine places. Actual optimized producer `b669ba71892204116a96dcab9c4a954b17c24b9f` on Linux x86-64 checks eleven positives/twelve intended rejects; all eleven runnable fixtures agree at native/Terminal exit 0. Unrecorded corpus exit 1 is retained as new-row movement and paired with a strict authored-addition companion, not described as a green golden gate. Ordinary checked dependent-pair eta equality and identity elimination transport the induction result; the core calculus and its 65,536-step budget are unchanged. |
-| Source mixed-actual receiving | The focused bool parameter/u64 variation use 3,860/3,850 receiving steps. Source carrier keys are independently formed; the expected exact SSA vector comes from the trusted source-produced Terminal module. Seven source-produced scalar identity/type/carrier, erased scope/tail, missing-lane and order mutations reject. Each instantiated Pi domain and result carrier must independently form closed; no runtime scalar is granted as a mathematical assumption. An explicit mixed wire tag preserves the old erased-only canonical bytes. These observations do not establish open dependent/premise carrier transport or higher universes. |
-| Bounded rule families | `tests/{equality_symmetry,predicate_conversion,predicate_denotation,value_equality_transport,integer_order_weakening}.rs` |
-| Canonical wire: byte-identical re-encode, independent re-verification, closure through the wire | `terminal-codec` tests `mathematical_certificate`, `theorem_certificate`, `bounded_certificate` |
-| Source vector storage and receiving cost | Producer arena: 6,839,578 slots including scratch, not a compact term count. Canonical artifact: 740,824 bytes (740,695 semantic); 81 declarations, two roots, two carriers and one actual argument. Root certificates: 12,522/12,575 bytes; decoded arenas: 1,206/1,211 slots; closures: 17/14. Root verification: 45,042 steps, 321.987ms; actual-argument verification: 45,109 steps, 231.921ms; decode: 5.495ms. The default 65,536-step budget is unchanged. |
-| Measured cost examples | derivation `next` family checking: 28_946 budgeted steps; a derivation certificate: 4_794 steps with 278_515 retained arena slots (`indexed_derivation.rs`) |
+## Evidence requirements
 
-The affected ordinary constant-recursion canary ran native/interpreter exit 70
-in 31.908s after repairing a body-completion reset of pending ordinary-ranking
-evidence using exact resolved source builtin identities. Its strict gate reports
-a slowdown against the historical 9.085s row; this remains a performance
-observation, separate from semantic acceptance. The six-program capture took 162.875s wall time and retained twelve files
-totaling 4,519,223 bytes.
-
-The source vector evidence above covers all-Value scalar indices, closed
-construction and exact open-constructor schemas. The distinct binary-tree row
-additionally establishes dependent selection among two differently indexed direct
-erased children; it does not establish mutual or nested families. Portable function applications presently require independently
-closed instantiated input/result carrier keys. Exact source
-carrier, binder and capture identities remain elaboration obligations, and
-source-only recursive citations require independently checked positive
-termination before erasure. This does not establish source derivation,
-mutual/nested families, higher type/level indices, general runtime-
-dependent carrier/telescope transport, or physical recursive-frame evidence.
-The copy-Type0 payload row additionally covers exact concrete bool/u64 fibers
-and ordered mixed actuals only when all instantiated carrier domains/results
-are independently closed. The stronger Rust-built
-scheme tests remain separate from source delivery.
+Checked examples and rejection controls witness their particular judgments;
+they do not establish consistency or the absence of arbitrary derivations.
+Kernel-built encodings do not establish faithful source elaboration. Source
+carrier, binder and capture identities, positivity, recursive termination and
+exact assumption dependencies must be checked independently and preserved
+through receiving and execution. The [foundation's acceptance examples](foundation.md#migration-acceptance)
+require source-level witnesses as well as kernel checks.
 
 ## Trust boundary and explicit non-claims
 

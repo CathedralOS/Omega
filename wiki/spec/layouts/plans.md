@@ -1,14 +1,18 @@
 # Layout policies and plans
 
+[Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
+have uniform descriptor/reference fields in the borrowed V1 representation.
+A layout cannot inline an unknown witness, vary field offsets by that witness,
+or reinterpret descriptor bits as type authority. New admissible call targets
+or witnesses do not change a semantic global roster or the package layout;
+ordinary code/state dependencies and boundary-layout contracts still apply.
+
 Named decision: `library-authored-representation-families`, settled 2026-10-27.
 
 Data declarations define semantic structure, never an ambient storage layout.
 A storage declaration or parameter chooses a representation of that structure.
 Library-authored policies compute its geometry; one general compiler mechanism
 validates and applies the result. No format name receives special recognition.
-This contract describes the accepted language, not completed implementation;
-the [implementation boundary](../../../omega-rust/psi/compilation/build-time-evaluation/layouts.md)
-identifies the supported subset and legacy migration.
 
 Firmware structures follow the same rule: their target package supplies data
 and layout policies, while the compiler validates and consumes the resulting

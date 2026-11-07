@@ -292,6 +292,11 @@ an assembly block from the instruction catalog, reinterpret an assembly contract
 assumption, admit raw emitted bytes, or suppress instruction obligations. The
 checked body consumes authority under its own contract, just like non-assembly
 code; the potentially false relationship belongs to the root-selected boundary.
+Low-level instructions alone do not justify this escape hatch. If ordinary
+assembly fails an ownership, authority or instruction check, repair its contract
+and implementation or the checker; do not introduce an assumed binding to
+silence that failure. The [exceptional-use rule](../build/assumed_binding_contracts.md)
+applies equally to assembly and other code.
 
 ## Interpreted execution
 
@@ -414,5 +419,4 @@ scoped installation authority and reach; ordinary bytes cannot supply them.
 
 [Hardware materialization](../build/hardware_materialization.md) separates checked
 writers, consumer validation and publication. The instruction catalog owns `lidt`
-requirements, not an OS's table carrier or lifecycle. Current catalog coverage
-and source realization limits live [beside the catalog](../../../omega-rust/psi/foundation/language-core/inline_assembly.md).
+requirements, not an OS's table carrier or lifecycle.

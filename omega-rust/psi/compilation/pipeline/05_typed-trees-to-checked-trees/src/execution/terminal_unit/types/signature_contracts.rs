@@ -232,15 +232,7 @@ pub(in crate::execution::terminal_unit) fn qualification_carriers(
                         // for aggregate contents as well as scalar parameters;
                         // any accompanying predicate keeps its own custody.
                         TypeConstraintNode::ArithmeticDomain(_) => continue,
-                        TypeConstraintNode::Range { .. } => {
-                            // A scalar range is a receiving restriction, not a
-                            // nominal membership. Admit it only after the
-                            // complete exact carrier retained that restriction;
-                            // unresolved bounds cannot become an unqualified loan.
-                            let identity = shapes.add_type(type_reference, binders, &[])?;
-                            shapes.types.get(&identity)?.scalar_restriction.as_ref()?;
-                            continue;
-                        }
+
                         // Carry is permission on the value's existing claims,
                         // checked and retained by the carry channel. It names
                         // no value-domain membership or runtime storage theory.

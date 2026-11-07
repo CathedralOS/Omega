@@ -67,5 +67,4 @@ effect identity.
 
 A local growth bound proves only the stated carrier/request fits. It does not
 prove global peak storage, fragmentation, reuse, or allocator selection. Cycle
-summaries and their Terminal evidence must obey these same rules even where
-the current implementation supports only a narrower inference fragment.
+summaries and their Terminal evidence must obey these same rules.

@@ -30,8 +30,14 @@ mod indexed_family_controls;
 mod mathematical_actuals;
 #[path = "native_layout_controls.rs"]
 mod native_layout_controls;
+#[path = "optimization_catalog_controls.rs"]
+mod optimization_catalog_controls;
+#[path = "ownership_claim_controls.rs"]
+mod ownership_claim_controls;
 #[path = "provider_choice_controls.rs"]
 mod provider_choice_controls;
+#[path = "result_claim_controls.rs"]
+mod result_claim_controls;
 #[path = "scalar_issuer_controls.rs"]
 mod scalar_issuer_controls;
 #[path = "synchronous_provider_controls.rs"]
@@ -59,6 +65,9 @@ enum InspectionControls<'selection> {
     CallbackBodies,
     NativeLayouts,
     ScalarIssuer,
+    ResultClaims,
+    OwnershipClaims,
+    OptimizationCatalog,
 }
 
 #[derive(Clone, Copy)]
@@ -165,12 +174,23 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "scalar-issuer-controls"] => {
                 (*machine, false, Some(InspectionControls::ScalarIssuer))
             }
+            [machine, "optimization-catalog-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::OptimizationCatalog),
+            ),
+            [machine, "result-claim-controls"] => {
+                (*machine, false, Some(InspectionControls::ResultClaims))
+            }
+            [machine, "ownership-claim-controls"] => {
+                (*machine, false, Some(InspectionControls::OwnershipClaims))
+            }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -383,6 +403,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     closed_conformance_controls(&decoded)?
                 }
                 InspectionControls::ScalarIssuer => scalar_issuer_controls::inspect(&decoded)?,
+                InspectionControls::ResultClaims => result_claim_controls::inspect(&decoded)?,
+                InspectionControls::OptimizationCatalog => {
+                    optimization_catalog_controls::inspect(&decoded)?
+                }
+                InspectionControls::OwnershipClaims => ownership_claim_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {
                     closed_reach_controls::inspect_captures(&decoded)?

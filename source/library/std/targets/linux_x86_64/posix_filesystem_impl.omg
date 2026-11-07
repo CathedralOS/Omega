@@ -32,7 +32,7 @@ boundary trait PosixFilesystemLinux {
     reaches;
     machine lseek(fd: i32, offset: i64, whence: i32) -> i64
     reaches;
-    machine mkdirat(dirfd: i32, path: &u8, mode: i32) -> i32
+    machine mkdirat(dirfd: i32, path: &[u8; 4096], mode: i32) -> i32
     reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
     // The kernel reads a NUL-terminated path. The loan is the whole terminated
     // buffer the caller already built, the same extent `openat` publishes. A
@@ -49,9 +49,9 @@ boundary trait PosixFilesystemLinux {
     reaches FilesystemNamespaceMutation;
     machine symlinkat(target: &u8, link_dirfd: i32, link: &u8) -> i32
     reaches FilesystemNamespaceMutation;
-    machine newfstatat(dirfd: i32, path: &u8, buffer: &mut u8, flags: i32) -> i32
+    machine newfstatat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
     reaches FilesystemMetadataQuery;
-    machine fstat(fd: i32, buffer: &mut u8) -> i32
+    machine fstat(fd: i32, buffer: &mut [u8; 144]) -> i32
     reaches FilesystemMetadataQuery;
     machine ftruncate(fd: i32, length: i64) -> i32
     reaches FilesystemContentWrite + FilesystemMetadataMutation;
@@ -190,7 +190,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated[0], mode);
+    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -224,7 +224,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated[0], mode);
+    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -421,7 +421,7 @@ reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 144 { true -> query(fd, buffer) _ -> -22 }
     machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 144 {
-        PosixFilesystemLinux::fstat(fd, &mut buffer[0])
+        PosixFilesystemLinux::fstat(fd, &mut buffer[0] as &mut [u8; 144])
     }
 }
 
@@ -447,7 +447,7 @@ reaches FilesystemMetadataQuery
     machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
     requires buffer.len >= 144
     {
-        PosixFilesystemLinux::newfstatat(directory_descriptor, &terminated[0], &mut buffer[0], flags)
+        PosixFilesystemLinux::newfstatat(directory_descriptor, &terminated, &mut buffer[0] as &mut [u8; 144], flags)
     }
 }
 

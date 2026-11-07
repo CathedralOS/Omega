@@ -68,6 +68,14 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         None
     }
+
+    fn cut_reads(&self) -> u64 {
+        self.input.cut_reads()
+    }
+
+    fn shared_memos(&self) -> Option<&CheckingMemos> {
+        None
+    }
     fn proof_only_classification(&self) -> Arc<ProofOnlyClassification> {
         // Containment and erasure are fixed by the typed program, not this
         // geometry guard. Share only this query, never the guarded memos.

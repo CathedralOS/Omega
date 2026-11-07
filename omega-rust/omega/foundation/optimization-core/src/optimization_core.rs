@@ -125,7 +125,6 @@ macro_rules! optimization_vocabulary {
         $(
             $variant:ident = $tag:literal => {
                 case: $case:literal,
-                counter: $counter:literal,
                 phase: $phase:ident
             }
         ),+ $(,)?
@@ -145,10 +144,6 @@ macro_rules! optimization_vocabulary {
 
             pub const fn build_case_name(self) -> &'static str {
                 match self { $(Self::$variant => $case),+ }
-            }
-
-            pub const fn build_counter_field(self) -> &'static str {
-                match self { $(Self::$variant => $counter),+ }
             }
 
             /// Resolve one exact source-visible case name. Release tooling
@@ -186,284 +181,229 @@ macro_rules! optimization_vocabulary {
     };
 }
 
-// This is the only declaration of exact names, stable tags, build counters,
+// This is the only declaration of exact names, stable tags,
 // phases, and canonical order. Build preludes are exhaustively checked against
-// the generated `ALL`, `build_case_name`, and `build_counter_field` views.
+// the generated `ALL` and `build_case_name` views.
 optimization_vocabulary! {
     55;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
-        counter: "control_flow_cleanup",
         phase: Psi
     },
     SparseConditionalConstantPropagation = 2 => {
         case: "SparseConditionalConstantPropagation",
-        counter: "sparse_conditional_constant_propagation",
         phase: Psi
     },
     CopyPropagation = 3 => {
         case: "CopyPropagation",
-        counter: "copy_propagation",
         phase: Psi
     },
     GlobalValueNumbering = 4 => {
         case: "GlobalValueNumbering",
-        counter: "global_value_numbering",
         phase: Psi
     },
     DeadPureScalarElimination = 5 => {
         case: "DeadPureScalarElimination",
-        counter: "dead_pure_scalar_elimination",
         phase: Psi
     },
     ProofCheckElision = 6 => {
         case: "ProofCheckElision",
-        counter: "proof_check_elision",
         phase: Psi
     },
     SelectedIncomingU12ExactAddImmediate = 7 => {
         case: "SelectedIncomingU12ExactAddImmediate",
-        counter: "selected_incoming_u12_exact_add_immediate",
         phase: SelectedLowering
     },
     X86RelaxConditionalBranchesToRel8V1 = 8 => {
         case: "X86RelaxConditionalBranchesToRel8V1",
-        counter: "x86_relax_conditional_branches_to_rel8_v1",
         phase: FunctionRelativeLayout
     },
     SelectedIncomingU12ExactSubtractImmediate = 9 => {
         case: "SelectedIncomingU12ExactSubtractImmediate",
-        counter: "selected_incoming_u12_exact_subtract_immediate",
         phase: SelectedLowering
     },
     Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 = 10 => {
         case: "Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1",
-        counter: "aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1",
         phase: PostAllocationMachine
     },
     SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 = 11 => {
         case: "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1",
-        counter: "shared_entry_fixed_view_copy_after_compare_before_branch_v1",
         phase: AllocationRecovery
     },
     ActiveResidentImmediateU64MultiUseRematerializationV1 = 12 => {
         case: "ActiveResidentImmediateU64MultiUseRematerializationV1",
-        counter: "active_resident_immediate_u64_multi_use_rematerialization_v1",
         phase: AllocationRecovery
     },
     Aarch64SelectShortestMovnSeededI64MaterializationV1 = 13 => {
         case: "Aarch64SelectShortestMovnSeededI64MaterializationV1",
-        counter: "aarch64_select_shortest_movn_seeded_i64_materialization_v1",
         phase: PostAllocationMachine
     },
     X86SelectXorZeroI64MaterializationV1 = 14 => {
         case: "X86SelectXorZeroI64MaterializationV1",
-        counter: "x86_select_xor_zero_i64_materialization_v1",
         phase: PostAllocationMachine
     },
     X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1 = 15 => {
         case: "X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1",
-        counter: "x86_select_mov_r32_imm32_zero_extended_i64_materialization_v1",
         phase: PostAllocationMachine
     },
     X86SelectMovR64Imm32SignExtendedI64MaterializationV1 = 16 => {
         case: "X86SelectMovR64Imm32SignExtendedI64MaterializationV1",
-        counter: "x86_select_mov_r64_imm32_sign_extended_i64_materialization_v1",
         phase: PostAllocationMachine
     },
     Aarch64ElideSameViewCopyI64BeforeReturnV1 = 17 => {
         case: "Aarch64ElideSameViewCopyI64BeforeReturnV1",
-        counter: "aarch64_elide_same_view_copy_i64_before_return_v1",
         phase: PostAllocationMachine
     },
     Aarch64ElideSameViewCopyI64BeforeCompareZeroV1 = 18 => {
         case: "Aarch64ElideSameViewCopyI64BeforeCompareZeroV1",
-        counter: "aarch64_elide_same_view_copy_i64_before_compare_zero_v1",
         phase: PostAllocationMachine
     },
     Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1 = 19 => {
         case: "Aarch64ElideSameViewCopyI64BeforeCompareI64LeftOperandV1",
-        counter: "aarch64_elide_same_view_copy_i64_before_compare_i64_left_operand_v1",
         phase: PostAllocationMachine
     },
     Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1 = 20 => {
         case: "Aarch64ElideSameViewCopyI64BeforeCompareI64RightOperandV1",
-        counter: "aarch64_elide_same_view_copy_i64_before_compare_i64_right_operand_v1",
         phase: PostAllocationMachine
     },
     SelectedIncomingU12CompareImmediate = 21 => {
         case: "SelectedIncomingU12CompareImmediate",
-        counter: "selected_incoming_u12_compare_immediate",
         phase: SelectedLowering
     },
     CheckedTreeProductPruning = 22 => {
         case: "CheckedTreeProductPruning",
-        counter: "checked_tree_product_pruning",
         phase: CheckedTrees
     },
     SelectedIncomingLiteralExtensionElimination = 23 => {
         case: "SelectedIncomingLiteralExtensionElimination",
-        counter: "selected_incoming_literal_extension_elimination",
         phase: SelectedLowering
     },
     SelectedIncomingU12Load8IndexedOffset = 24 => {
         case: "SelectedIncomingU12Load8IndexedOffset",
-        counter: "selected_incoming_u12_load8_indexed_offset",
         phase: SelectedLowering
     },
     SelectedIncomingLiteralCopyMaterialization = 25 => {
         case: "SelectedIncomingLiteralCopyMaterialization",
-        counter: "selected_incoming_literal_copy_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingU12ByteViewAddressOffset = 26 => {
         case: "SelectedIncomingU12ByteViewAddressOffset",
-        counter: "selected_incoming_u12_byte_view_address_offset",
         phase: SelectedLowering
     },
     SelectedIncomingExactDivideIdentityCopy = 27 => {
         case: "SelectedIncomingExactDivideIdentityCopy",
-        counter: "selected_incoming_exact_divide_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingWrappingRemainderOneZeroMaterialization = 28 => {
         case: "SelectedIncomingWrappingRemainderOneZeroMaterialization",
-        counter: "selected_incoming_wrapping_remainder_one_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingBitwiseAndZeroMaterialization = 29 => {
         case: "SelectedIncomingBitwiseAndZeroMaterialization",
-        counter: "selected_incoming_bitwise_and_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingBitwiseXorZeroIdentityCopy = 30 => {
         case: "SelectedIncomingBitwiseXorZeroIdentityCopy",
-        counter: "selected_incoming_bitwise_xor_zero_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingWrappingAddZeroIdentityCopy = 31 => {
         case: "SelectedIncomingWrappingAddZeroIdentityCopy",
-        counter: "selected_incoming_wrapping_add_zero_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingBitwiseAndOnesIdentityCopy = 32 => {
         case: "SelectedIncomingBitwiseAndOnesIdentityCopy",
-        counter: "selected_incoming_bitwise_and_ones_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization = 33 => {
         case: "SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization",
-        counter: "selected_incoming_wrapping_remainder_zero_dividend_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingExactDivideZeroDividendZeroMaterialization = 34 => {
         case: "SelectedIncomingExactDivideZeroDividendZeroMaterialization",
-        counter: "selected_incoming_exact_divide_zero_dividend_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingAddZeroIdentityCopy = 35 => {
         case: "SelectedIncomingSaturatingAddZeroIdentityCopy",
-        counter: "selected_incoming_saturating_add_zero_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingSubtractZeroIdentityCopy = 36 => {
         case: "SelectedIncomingSaturatingSubtractZeroIdentityCopy",
-        counter: "selected_incoming_saturating_subtract_zero_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingDivideOneIdentityCopy = 37 => {
         case: "SelectedIncomingSaturatingDivideOneIdentityCopy",
-        counter: "selected_incoming_saturating_divide_one_identity_copy",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization = 38 => {
         case: "SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization",
-        counter: "selected_incoming_saturating_divide_zero_dividend_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization = 39 => {
         case: "SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization",
-        counter: "selected_incoming_saturating_subtract_zero_minuend_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingAddUpperBoundMaterialization = 40 => {
         case: "SelectedIncomingSaturatingAddUpperBoundMaterialization",
-        counter: "selected_incoming_saturating_add_upper_bound_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingWrappingRemainderMinusOneZeroMaterialization = 41 => {
         case: "SelectedIncomingWrappingRemainderMinusOneZeroMaterialization",
-        counter: "selected_incoming_wrapping_remainder_minus_one_zero_materialization",
         phase: SelectedLowering
     },
     SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization = 42 => {
         case: "SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization",
-        counter: "selected_incoming_saturating_subtract_upper_bound_subtrahend_zero_materialization",
         phase: SelectedLowering
     },
     StateSpecialization = 43 => {
         case: "StateSpecialization",
-        counter: "state_specialization",
         phase: Psi
     },
     RepresentationSpecialization = 44 => {
         case: "RepresentationSpecialization",
-        counter: "representation_specialization",
         phase: Psi
     },
     SelectedSameBlockCopyI64RemovalV1 = 45 => {
         case: "SelectedSameBlockCopyI64RemovalV1",
-        counter: "selected_same_block_copy_i64_removal_v1",
         phase: PreAllocation
     },
     SelectedRedundantExtensionRemovalV1 = 46 => {
         case: "SelectedRedundantExtensionRemovalV1",
-        counter: "selected_redundant_extension_removal_v1",
         phase: PreAllocation
     },
     SelectedAddressOffsetFoldV1 = 47 => {
         case: "SelectedAddressOffsetFoldV1",
-        counter: "selected_address_offset_fold_v1",
         phase: PreAllocation
     },
     SelectedConstantBooleanFoldV1 = 48 => {
         case: "SelectedConstantBooleanFoldV1",
-        counter: "selected_constant_boolean_fold_v1",
         phase: PreAllocation
     },
     SelectedConstantBranchFoldV1 = 49 => {
         case: "SelectedConstantBranchFoldV1",
-        counter: "selected_constant_branch_fold_v1",
         phase: PreAllocation
     },
     SelectedDeadCompareRemovalV1 = 50 => {
         case: "SelectedDeadCompareRemovalV1",
-        counter: "selected_dead_compare_removal_v1",
         phase: PreAllocation
     },
     SelectedRedundantCompareRemovalV1 = 51 => {
         case: "SelectedRedundantCompareRemovalV1",
-        counter: "selected_redundant_compare_removal_v1",
         phase: PreAllocation
     },
     SelectedEquivalentCompareRemovalV1 = 52 => {
         case: "SelectedEquivalentCompareRemovalV1",
-        counter: "selected_equivalent_compare_removal_v1",
         phase: PreAllocation
     },
     LoopInvariantScalarMotion = 53 => {
         case: "LoopInvariantScalarMotion",
-        counter: "loop_invariant_scalar_motion",
         phase: Psi
     },
     SelectedCopiedCallOperandFoldV1 = 54 => {
         case: "SelectedCopiedCallOperandFoldV1",
-        counter: "selected_copied_call_operand_fold_v1",
         phase: PreAllocation
     },
     SelectedStoredLoadForwardingV1 = 55 => {
         case: "SelectedStoredLoadForwardingV1",
-        counter: "selected_stored_load_forwarding_v1",
         phase: PreAllocation
     },
 }

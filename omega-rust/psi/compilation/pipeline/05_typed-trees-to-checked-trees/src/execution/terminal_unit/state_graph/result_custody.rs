@@ -1332,18 +1332,14 @@ fn view_loan_releases(
         }
         facts::PlaceRoot::Expression(formation)
     };
-    let mut states = facts
+    let rows = facts
         .borrow
-        .states
-        .iter()
-        .map(|(_, borrowing)| borrowing)
-        .filter(|borrowing| borrowing.machine_symbol == machine && borrowing.state_symbol == state);
-    let Some(borrowing) = states.next() else {
-        return Ok((false, false, 0));
+        .with_state_borrows(machine, state, |rows| rows.to_vec());
+    let borrowing = match rows.as_slice() {
+        [] => return Ok((false, false, 0)),
+        [row] => facts.borrow.states.get(*row),
+        _ => return Err("state graph: view result has ambiguous borrow states"),
     };
-    if states.next().is_some() {
-        return Err("state graph: view result has ambiguous borrow states");
-    }
     let loans = facts
         .borrow
         .storage_loans(borrowing, owner, result.statement_index as usize)
@@ -1496,16 +1492,7 @@ fn view_formation_claims(
     if !formation.is_valid() {
         return None;
     }
-    let mut states = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, row)| row)
-        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing = facts.borrow.unique_state_borrow(machine, state)?;
     let loans = facts
         .borrow
         .loan_group(borrowing.loans)?

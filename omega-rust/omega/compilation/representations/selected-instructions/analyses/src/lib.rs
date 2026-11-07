@@ -621,10 +621,8 @@ impl UnsealedRecoveryFacts {
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 liveness_functions[index] = Arc::new(
-                    phase_profile::scope("omega.05.batch_reanalyze.liveness", || {
-                        liveness::compute::compute_function_for_ranges(index, function)
-                    })
-                    .map_err(RecoveryReanalysisError::Liveness)?,
+                    liveness::compute::compute_function_for_ranges(index, function)
+                        .map_err(RecoveryReanalysisError::Liveness)?,
                 );
                 liveness_materialized[index] = false;
             }
@@ -633,13 +631,11 @@ impl UnsealedRecoveryFacts {
         for (index, function) in next_plan.functions.iter().enumerate() {
             if changed[index] {
                 range_functions[index] = Arc::new(
-                    phase_profile::scope("omega.05.batch_reanalyze.live_ranges", || {
-                        live_ranges::compute::compute_function(
-                            index,
-                            function,
-                            &liveness_functions[index],
-                        )
-                    })
+                    live_ranges::compute::compute_function(
+                        index,
+                        function,
+                        &liveness_functions[index],
+                    )
                     .map_err(RecoveryReanalysisError::Ranges)?,
                 );
             }
@@ -652,16 +648,14 @@ impl UnsealedRecoveryFacts {
                     .get(index)
                     .zip(self.legality_functions.get(index))
                     .map(|(r, l)| (r.as_ref(), l.as_ref()));
-                let computed = phase_profile::scope("omega.05.batch_reanalyze.legality", || {
-                    allocation_legality::compute::compute_function_reusing(
-                        index,
-                        &range_functions[index],
-                        availability,
-                        physical,
-                        reservations,
-                        prior_pair,
-                    )
-                })
+                let computed = allocation_legality::compute::compute_function_reusing(
+                    index,
+                    &range_functions[index],
+                    availability,
+                    physical,
+                    reservations,
+                    prior_pair,
+                )
                 .map_err(RecoveryReanalysisError::Legality)?;
                 allocation_legality::validate::FunctionCounts::new(&computed, index)
                     .map_err(RecoveryReanalysisError::Legality)?;

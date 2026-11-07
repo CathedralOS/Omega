@@ -46,7 +46,6 @@ use const_evaluable::require_const_evaluable_result;
 use selection_authority::selection_authority_violation;
 pub(crate) use selection_authority::{
     expression_children, require_call_expression_selection, require_closed_expression_custody,
-    require_closed_integer_argument,
 };
 
 pub use validation::DeclarationSelectionAuthority as BuildTimeSelectionAuthority;
@@ -686,10 +685,7 @@ impl BuildTimeAdmissionPlan {
                     &[root],
                     &[],
                 );
-                let checked =
-                    phase_profile::scope("compile_time.admission.recursive_program_check", || {
-                        concrete_invocation::checked_demanded_closure(&domain, execution)
-                    })?;
+                let checked = concrete_invocation::checked_demanded_closure(&domain, execution)?;
                 RecursiveCheckingInput::Selected(Box::new(checked))
             }
             None => match input {

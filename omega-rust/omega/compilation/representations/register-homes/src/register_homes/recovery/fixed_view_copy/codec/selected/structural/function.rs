@@ -258,6 +258,8 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
             0 => SelectedMemoryAccessRole::ReadPlace,
             18 => SelectedMemoryAccessRole::ReadBacking,
             19 => SelectedMemoryAccessRole::WriteBacking,
+            20 => SelectedMemoryAccessRole::ReadBackingSpan,
+            21 => SelectedMemoryAccessRole::WriteBackingSpan,
             17 => SelectedMemoryAccessRole::ReadLocal {
                 slot: decode_local_slot(cursor)?,
             },

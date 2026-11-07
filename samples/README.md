@@ -167,8 +167,7 @@ CLI subdomains:
 - `cli/proofs/`: proof/domain-surface samples.
 - `cli/probes/`: compact compiler/runtime behavior probes.
 - `cli/interpreters/`: calculators, stack/token interpreters, and VM-ish samples.
-- `cli/independent/`: complete bounded domain applications, with private algorithms,
-  input variants, independent oracles and separate source-invalid controls.
-- `cli/scientific/`: scientific models and reusable numerical-contract consumers;
-  groups such as W100 contain multiple independently discoverable projects.
-- `cli/device/`: device and extent-access programs exercising ordinary providers.
+- `cli/scientific/`: complete scientific, engineering, and numerical applications,
+  with private algorithms, input variants, independent oracles, and separate
+  source-invalid controls; groups such as W100 contain multiple independently
+  discoverable projects.

@@ -1,5 +1,10 @@
 # macOS arm64 RC gate measurements at 04d2099ae110
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 Host-run evidence for `RC-NATIVE-MATRIX-MACOS-ARM64` (TASKS.md). The
 recorder in `tools/release/README.md` writes a lane record only with a
 passing `--native-execution` observation; these gates are red, so the

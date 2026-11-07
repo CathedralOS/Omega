@@ -7,7 +7,9 @@ use crate::boundary::values::StructuralByteSequenceRuntimeField;
 use crate::boundary::values::StructuralRuntimePlace;
 use crate::boundary::values::TerminalStructuralValue;
 use crate::engine::calls::arguments::StructuralCallArguments;
-use crate::engine::custody::bind_active_structural_arguments;
+use crate::engine::custody::{
+    StructuralArgumentSources, bind_active_retained_arguments, bind_active_structural_arguments,
+};
 use crate::engine::execution::TerminalExecution;
 use crate::storage::byte_sequences::ByteSequenceView;
 use crate::storage::byte_sequences::binding::ByteSequenceBinding;
@@ -85,6 +87,7 @@ impl BoundaryArguments {
             crate::boundary::values::StructuralRuntimePlace,
             crate::boundary::structural_inputs::case_membership::StructuralCaseContents,
         >,
+        sources: Option<StructuralArgumentSources<'_, '_>>,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
         if parameters.len() != self.byte_sequences.len()
@@ -105,9 +108,21 @@ impl BoundaryArguments {
                 value.absorb_qualifications(&parameter.qualifications);
             }
         }
-        let values =
-            bind_active_structural_arguments(parameters, &self.values, types, cases, account)
-                .map_err(|error| error.in_argument_preparation("bind source memberships"))?;
+        let values = match sources {
+            Some(sources) => bind_active_retained_arguments(
+                parameters,
+                sources.arguments,
+                &self.values,
+                sources.provenance,
+                types,
+                cases,
+                account,
+            ),
+            None => {
+                bind_active_structural_arguments(parameters, &self.values, types, cases, account)
+            }
+        }
+        .map_err(|error| error.in_argument_preparation("bind source memberships"))?;
         let aggregate_backings =
             RuntimeRows::from_rows(
                 account,

@@ -574,7 +574,7 @@ pub fn record_unresolved_subject_source_obligations(
     );
 }
 
-/// Append structural expression handles in preorder, once per existing roster.
+/// Append structural expression handles in preorder, once per existing list.
 /// Atomic result edges are structural evidence too; executable occurrence
 /// traversal deliberately has a different edge contract.
 pub fn collect_expression_tree(
@@ -582,8 +582,29 @@ pub fn collect_expression_tree(
     expression: ExpressionHandle,
     handles: &mut Vec<ExpressionHandle>,
 ) {
+    collect_expression_trees(program, std::iter::once(expression), handles);
+}
+
+/// Append several structural roots to one list. Reuse its visited set across
+/// roots instead of copying the accumulated list before every root. Existing
+/// entries, including duplicates, remain in order; append each new node once
+/// in preorder.
+/// The program stays borrowed for this collection, so visitation cannot outlive
+/// the input or conceal a later mutation.
+pub fn collect_expression_trees(
+    program: &dyn crate::CheckingInput,
+    roots: impl IntoIterator<Item = ExpressionHandle>,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    let mut roots = roots.into_iter();
+    let Some(first) = roots.next() else {
+        return;
+    };
     let mut seen: HashSet<_, symbols::BuildSymbolHasher> = handles.iter().copied().collect();
-    collect_expression_nodes(program, expression, handles, &mut seen);
+    collect_expression_nodes(program, first, handles, &mut seen);
+    for expression in roots {
+        collect_expression_nodes(program, expression, handles, &mut seen);
+    }
 }
 
 /// Collect the structural roots rewritten by typed preparation. An assembly
@@ -597,18 +618,25 @@ pub fn collect_statement_expression_trees(
     match statement {
         typed_trees::statement::StatementNode::Assembly(_) => {}
         typed_trees::statement::StatementNode::AssemblyFact(fact) => {
-            for expression in program.tables.proof_fact_expression_roots(fact.fact) {
-                collect_expression_tree(program, expression, handles);
-            }
+            collect_expression_trees(
+                program,
+                program.tables.proof_fact_expression_roots(fact.fact),
+                handles,
+            );
         }
         typed_trees::statement::StatementNode::Assignment(assignment) => {
-            collect_expression_tree(program, assignment.target, handles);
-            collect_expression_tree(program, assignment.value, handles);
+            collect_expression_trees(program, [assignment.target, assignment.value], handles);
         }
         typed_trees::statement::StatementNode::Call(call) => {
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                collect_expression_tree(program, *argument, handles);
-            }
+            collect_expression_trees(
+                program,
+                program
+                    .statement_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+                handles,
+            );
         }
         typed_trees::statement::StatementNode::Expression(expression) => {
             collect_expression_tree(program, *expression, handles)
@@ -617,11 +645,24 @@ pub fn collect_statement_expression_trees(
             collect_expression_tree(program, local.initial_value, handles)
         }
         typed_trees::statement::StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression_tree(program, guard, handles);
-            }
-            collect_transition_target_expression_trees(program, transition.target, handles);
-            collect_transition_target_expression_trees(program, transition.continuation, handles);
+            let guard = match transition.guard {
+                typed_trees::statement::TransitionGuardNode::When(guard) => Some(guard),
+                _ => None,
+            };
+            collect_expression_trees(
+                program,
+                guard
+                    .into_iter()
+                    .chain(transition_target_expression_roots(
+                        program,
+                        transition.target,
+                    ))
+                    .chain(transition_target_expression_roots(
+                        program,
+                        transition.continuation,
+                    )),
+                handles,
+            );
         }
     }
 }
@@ -660,12 +701,6 @@ pub fn collect_type_expressions(
             collect_type_expressions(program, *base_type, visited, expressions);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        collect_expression_tree(program, *minimum, expressions);
-                        collect_expression_tree(program, *maximum, expressions);
-                    }
                     TypeConstraintNode::Domain(domain) => {
                         for argument in &domain.arguments {
                             collect_type_expressions(program, *argument, visited, expressions);
@@ -689,20 +724,31 @@ pub fn collect_transition_target_expression_trees(
     target: typed_trees::statement::TransitionTargetHandle,
     handles: &mut Vec<ExpressionHandle>,
 ) {
-    if !target.is_valid() {
-        return;
-    }
-    match program.statement_table.transition_target(target) {
-        typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-            for argument in program.statement_table.expression_handles(*arguments) {
-                collect_expression_tree(program, *argument, handles);
+    collect_expression_trees(
+        program,
+        transition_target_expression_roots(program, target),
+        handles,
+    );
+}
+
+fn transition_target_expression_roots(
+    program: &dyn crate::CheckingInput,
+    target: typed_trees::statement::TransitionTargetHandle,
+) -> impl Iterator<Item = ExpressionHandle> + '_ {
+    let roots = if !target.is_valid() {
+        &[]
+    } else {
+        match program.statement_table.transition_target(target) {
+            typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+                program.statement_table.expression_handles(*arguments)
             }
+            typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                std::slice::from_ref(expression)
+            }
+            typed_trees::statement::TransitionTargetNode::Terminal => &[],
         }
-        typed_trees::statement::TransitionTargetNode::Value(expression) => {
-            collect_expression_tree(program, *expression, handles)
-        }
-        typed_trees::statement::TransitionTargetNode::Terminal => {}
-    }
+    };
+    roots.iter().copied()
 }
 
 /// Append the roots a proof fact carries without traversing their children.
@@ -730,20 +776,111 @@ pub fn collect_contract_facts(
     facts: arena::HandleSpan<ProofFact>,
     handles: &mut Vec<ExpressionHandle>,
 ) {
-    for fact in program.proof_facts.span_or_empty(facts) {
-        match fact {
-            ProofFact::Expression(expression) => {
-                collect_expression_tree(program, *expression, handles)
-            }
-            ProofFact::Membership(membership) => {
-                collect_expression_tree(program, membership.value, handles)
-            }
-            ProofFact::Proposition(application) => {
-                for argument in expression_table(program).expression_handles(application.arguments)
-                {
-                    collect_expression_tree(program, *argument, handles);
+    collect_proof_fact_expression_trees(program, program.proof_facts.span_or_empty(facts), handles);
+}
+
+/// Collect one caller-owned group of proof facts, including prepared facts that
+/// are not attached to a declaration. Different declaration scopes supply
+/// separate lists; sharing traversal state does not join their meanings.
+pub fn collect_proof_fact_expression_trees<'program>(
+    program: &'program dyn crate::CheckingInput,
+    facts: impl IntoIterator<Item = &'program ProofFact>,
+    handles: &mut Vec<ExpressionHandle>,
+) {
+    collect_expression_trees(
+        program,
+        facts.into_iter().flat_map(|fact| {
+            let roots = match fact {
+                ProofFact::Expression(expression) => std::slice::from_ref(expression),
+                ProofFact::Membership(membership) => std::slice::from_ref(&membership.value),
+                ProofFact::Proposition(application) => {
+                    expression_table(program).expression_handles(application.arguments)
                 }
-            }
-        }
+            };
+            roots.iter().copied()
+        }),
+        handles,
+    );
+}
+
+#[cfg(test)]
+mod collection_tests {
+    use super::*;
+    use typed_trees::{
+        TypedTrees, domain::ProofMembershipFact, proposition::PropositionApplication,
+    };
+
+    #[test]
+    fn batched_roots_keep_seed_order_full_generations_and_shared_children() {
+        let mut program = TypedTrees::default();
+        let first = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let shared = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let last = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let left_children = program
+            .expression_table
+            .insert_expression_handles([first, shared]);
+        let left = program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(left_children));
+        let right_children = program
+            .expression_table
+            .insert_expression_handles([shared, last]);
+        let right = program
+            .expression_table
+            .insert(ExpressionNode::ArrayLiteral(right_children));
+        let other_generation =
+            ExpressionHandle::from_parts(right.arena_index(), right.generation().wrapping_add(1));
+        let seed = vec![first, first, other_generation];
+        let mut nodes = seed.clone();
+        collect_expression_trees(
+            &program,
+            [left, right, left, ExpressionHandle::invalid()],
+            &mut nodes,
+        );
+        let mut expected = seed;
+        expected.extend([left, shared, right, last]);
+        assert_eq!(nodes, expected);
+    }
+
+    #[test]
+    fn proof_fact_roots_keep_order_and_independent_lists() {
+        let mut program = TypedTrees::default();
+        let first = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let second = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let third = program
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let arguments = program
+            .expression_table
+            .insert_expression_handles([third, first]);
+        let facts = [
+            ProofFact::Expression(first),
+            ProofFact::Membership(ProofMembershipFact {
+                value: second,
+                ..Default::default()
+            }),
+            ProofFact::Proposition(PropositionApplication {
+                proposition: symbols::SymbolHandle::invalid(),
+                name: typed_trees::name::Identifier::from("Predicate"),
+                binder_arguments: Vec::new().into(),
+                arguments,
+            }),
+        ];
+        let mut first_scope = Vec::new();
+        let mut second_scope = Vec::new();
+        collect_proof_fact_expression_trees(&program, &facts, &mut first_scope);
+        collect_proof_fact_expression_trees(&program, &facts, &mut second_scope);
+        assert_eq!(first_scope, [first, second, third]);
+        assert_eq!(second_scope, first_scope);
     }
 }

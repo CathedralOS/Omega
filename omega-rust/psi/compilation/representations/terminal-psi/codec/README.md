@@ -11,26 +11,20 @@ in the vocabulary reference while that part is consolidated.
   ordering, representation checks, encoding, decoding, and semantic identity.
   Its `*_wire` children own individual payloads; `module_foundation_validation`
   checks representation shape and `wire` owns byte cursors.
-- [canonical_artifact.rs](src/canonical_artifact.rs) binds semantic, proof,
+- [canonical_artifact.rs](src/canonical_artifact.rs) binds semantic,
   optimization, and optional debug bytes into the handoff envelope.
   Producer construction takes ownership of the module; external ingress
   decodes once and retains that storage. Views borrow it without fallible
-  decoding or replay caches. Canonical section checks remain at construction,
-  independently of proof admission.
-  [publication.rs](src/publication.rs) stages and publishes canonical semantic bytes.
-- [artifact_admission.rs](src/artifact_admission.rs) checks receiver policy,
-  independently replays proofs, and compares the complete reconstructed claim
-  before issuing a qualified verdict. Canonical decoding alone does not admit proofs.
-- [proof_sidecar.rs](src/sections/proof_sidecar.rs) owns sidecar claim encoding;
-  [psi_claim.rs](src/sections/proof_sidecar/psi_claim.rs) reconstructs Psi profiles,
-  guarantees, assumptions, and dependencies for producers and receivers.
-- [trust_graph.rs](src/trust_graph.rs) owns the current implementation's trust
-  closure, with construction, identity, and validation in its children.
-  [verified_program.rs](src/verified_program.rs) projects program-local producer
-  schemas from verifier-owned evidence. Neither is an encoded artifact section.
+  decoding or replay caches. The manifest is reconstructed from the sections.
 
-The other `sections/` owners retain independently identified proof, manifest,
-debug, optimization, obligation-ledger, and observation-profile encodings.
+The portable envelope carries no proof certificate. Decoding checks canonical
+encoding and representation shape; consumers perform the structural, contract
+and authority checks required by the [Terminal product contract](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+and rely on Psi for discharged source judgments. Encoding alone grants no
+execution or provider-installation authority.
+
+The other `sections/` owners encode manifest, debug, optimization and
+observation-profile data.
 [codec_error.rs](src/codec_error.rs) owns the shared encoding error vocabulary.
 Do not infer one section's identity from another section's current version.
 
@@ -65,8 +59,8 @@ in declaration order. Each field binds an already evaluated scalar value and,
 for a bounded integer field, its declaration-derived range obligation. The case,
 operand identities, and obligation identities all participate in semantic identity;
 an empty roster is the payloadless case of the same operation. Encoding a module
-does not establish its proofs. Artifact acceptance independently verifies the
-range obligations before treating the constructed payload as valid.
+does not establish its proofs. Source checking establishes the range facts;
+receiving checks validate their structural correspondence under producer trust.
 
 ## Observation-profile implementation
 

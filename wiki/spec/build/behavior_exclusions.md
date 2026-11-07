@@ -3,8 +3,6 @@
 An authoritative build may forbid behavior in its exact selected executable
 composition, independently of conservative callable declarations. This is a
 product-admission requirement, not an effect mask or an assertion-specific mode.
-The contract is normative; implementation and protocol coverage remain tracked
-in [the execution board](../../../TASKS.md#build-level-behavior-exclusions).
 
 The first customers are one source library built with checking or no-op assertion
 implementations, and optional logging without editing public contracts between

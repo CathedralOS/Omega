@@ -20,7 +20,6 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
 };
 use std::sync::Mutex;
-use symbols::SymbolKeyMap as HashMap;
 use symbols::SymbolKind;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
@@ -397,7 +396,6 @@ pub(super) fn assignment_write_paths(
     program: &dyn CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
-    machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
     state_prefix: &dyn Fn(&State, usize) -> Option<CollectedStatementPrefix>,
@@ -415,7 +413,6 @@ pub(super) fn assignment_write_paths(
         program,
         machine,
         symbols,
-        machine_symbols,
         statement,
         state_assignments,
         state_prefix,
@@ -451,7 +448,6 @@ pub(super) fn assignment_storage_origins(
     program: &dyn CheckingInput,
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
-    machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
     state_prefix: &dyn Fn(&State, usize) -> Option<CollectedStatementPrefix>,
@@ -488,38 +484,6 @@ pub(super) fn assignment_storage_origins(
         program, machine, state, assignment,
     )
     .ok_or("assignment has no exact receiving storage type")?;
-    let mut inference = FrameInference::for_state(state.symbol);
-    if let Some(evidence) = evidence {
-        for local in &evidence.stored {
-            inference.record_local(local);
-        }
-    }
-    // Alias-sensitive destinations and operand exposure belong to this same
-    // write prefix. Reconstructing a shared-reference transport prefix rejects
-    // an earlier established exclusive reborrow, even when it cannot replace
-    // the destination binding. Current operand effects must still preserve the
-    // captured slots: neither a complete write frame nor a scalar result alone
-    // proves that the address remains the one recorded before evaluation.
-    let prefix_preserved = evidence.is_some_and(|evidence| {
-        !super::stored_origins::expression_exposes_frozen_binding(
-            program,
-            machine,
-            state,
-            assignment.value,
-            &evidence.stored,
-            &evidence.aliases,
-            symbols,
-            &mut inference,
-        ) && !super::local_aliases::expression_reborrows_unresolved_reference_binding(
-            program,
-            machine,
-            assignment.value,
-            program.state_parameters(state),
-            &evidence.isolated_locals,
-            &evidence.aliases,
-            &evidence.divergent,
-        )
-    });
     // A place reached entirely through owned cells names those cells even
     // when the installed value is a reference. The initializer-origin query
     // deliberately follows the last descriptor to its referent and therefore
@@ -531,6 +495,35 @@ pub(super) fn assignment_storage_origins(
     if let Some(place) =
         declared_assignment_place(program, machine, state, assignment.target, receiving)
     {
+        let mut inference = FrameInference::for_state(state.symbol);
+        if let Some(evidence) = evidence {
+            for local in &evidence.stored {
+                inference.record_local(local);
+            }
+        }
+        // Fixed storage needs no descriptor capture. An unchanged incoming
+        // inventory may additionally supply reference rows; RHS replacement
+        // withholds those rows without erasing the fixed destination.
+        let prefix_preserved = evidence.is_some_and(|evidence| {
+            !super::stored_origins::expression_exposes_frozen_binding(
+                program,
+                machine,
+                state,
+                assignment.value,
+                &evidence.stored,
+                &evidence.aliases,
+                symbols,
+                &mut inference,
+            ) && !super::local_aliases::expression_reborrows_unresolved_reference_binding(
+                program,
+                machine,
+                assignment.value,
+                program.state_parameters(state),
+                &evidence.isolated_locals,
+                &evidence.aliases,
+                &evidence.divergent,
+            )
+        });
         let root = place
             .root
             .as_symbol()
@@ -564,69 +557,11 @@ pub(super) fn assignment_storage_origins(
         });
     }
     let evidence = evidence.ok_or("assignment has no complete incoming storage prefix")?;
-    if !prefix_preserved {
-        return Err("assignment operand does not preserve the captured storage prefix");
-    }
-    let origins = if crate::reference_shell(program, receiving).is_some() {
-        // Replacing a descriptor captures its home, after loading only the
-        // ancestor descriptors. Reusing a spelling here would leave an owned
-        // carrier's field confused with storage in its borrowed referent.
-        let source = super::frame_place_path(program, assignment.target)
-            .ok_or("reference-cell destination has no exact storage source")?;
-        super::stored_origins::canonical_storage_origins(
-            program,
-            &source,
-            &evidence.aliases,
-            &evidence.divergent,
-            &evidence.stored,
-        )
-        .into_iter()
-        .collect::<Option<Vec<_>>>()
-    } else {
-        super::alias_origins::stable_alias_initializer_origins(
-            program,
-            machine,
-            machine_symbols,
-            &mut inference,
-            assignment.target,
-            program.state_parameters(state),
-            &evidence.isolated_locals,
-            &evidence.aliases,
-            &evidence.divergent,
-            symbols,
-            true,
-            &evidence.stored,
-        )
-    }
-    .ok_or_else(|| {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            let describe = |origin: &FramePlaceOrigin| (
-                origin.source.root,
-                origin.source.segments.iter().take(16).copied().collect::<Vec<_>>(),
-                origin.source.output_identity(),
-                origin.source.is_static(),
-                origin.precision,
-            );
-            eprintln!("CHECKSITE assignment-origin-refusal receiving={:?} reference_cell={} raw={:?} aliases={:?} stored={:?}",
-                program.type_reference_table.type_reference(receiving),
-                crate::reference_shell(program, receiving).is_some(),
-                super::frame_place_path(program, assignment.target).as_ref().map(&describe),
-                evidence.aliases.iter().take(8).map(|(name, origin)| (name, describe(origin))).collect::<Vec<_>>(),
-                evidence.stored.iter().take(8).map(|local| (
-                    local.local_symbol,
-                    local.references.iter().take(12).map(|leaf| (
-                        leaf.kind,
-                        leaf.local_segments.iter().take(16).copied().collect::<Vec<_>>(),
-                        leaf.origin.as_ref().map(&describe),
-                        leaf.lifetime_dependencies.as_ref().map(|dependencies| dependencies.iter().take(8).map(|source| (source.lifetime_access, describe(&source.origin))).collect::<Vec<_>>()),
-                    )).collect::<Vec<_>>(),
-                )).collect::<Vec<_>>(),
-            );
-        }
-        "destination projection has no complete captured reference origins"
-    })?;
-    // The initializer owner completed every selected load against this entry
-    // inventory. These are captured addresses, not slots to read a second time.
+    let (origins, current) = super::stored_calls::assignment_storage_capture(
+        program, machine, state, statement, receiving, evidence, symbols,
+    )?;
+    // The ordered evaluator supplied these completed addresses before RHS
+    // effects. Their descriptor homes must not be loaded a second time.
     let mut destinations = Vec::new();
     for origin in origins {
         let destination = LocalWriteSource::from(origin);
@@ -639,9 +574,9 @@ pub(super) fn assignment_storage_origins(
         references: prefix_reference_origins(
             program,
             Some((state, index)),
-            &evidence.stored,
-            &evidence.aliases,
-            &evidence.divergent,
+            &current.stored,
+            &current.aliases,
+            &current.divergent,
         ),
     })
 }
@@ -751,9 +686,7 @@ pub(super) fn local_write_origins_before_statement(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<Vec<LocalWriteOrigin>> {
     let site = caller_prefix_site(
         program,
@@ -1022,9 +955,7 @@ pub(super) fn with_caller_origins(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
     let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
@@ -1042,9 +973,7 @@ pub(super) fn with_caller_origin_context<T>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
     resolve: impl FnOnce(&mut FrameInference, Option<&CallOriginContext<'_>>) -> Option<T>,
 ) -> Option<T> {
     let (state, _statement, index) = caller_statement_at_site(program, machine, symbols, site)?;
@@ -1259,9 +1188,7 @@ fn caller_aliases_at_site<'program>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let site = caller_prefix_site(program, machine, symbols, site)?;
     caller_aliases_at_prefix(program, machine, symbols, site, collections)
@@ -1398,9 +1325,7 @@ fn caller_prefix_entry<'program>(
 /// state's recorded prefix, unless the statement it names exposes a frozen
 /// binding at that slot.
 fn tracked_prefix_evidence<'program>(
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
     program: &'program dyn CheckingInput,
     machine: &Machine,
     state: &'program State,
@@ -1448,9 +1373,7 @@ fn caller_aliases_at_prefix<'program>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerPrefixSite<'program>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let CallerPrefixSite::Tracked {
         state,

@@ -194,12 +194,22 @@ impl SymbolResolvedTreeTables {
             );
         }
 
+        // Sorted keys answer "was this machine completed" without scanning the
+        // completed list once per machine.
+        let mut completed = completed_machines
+            .iter()
+            .map(|symbol| (symbol.arena_index(), symbol.generation()))
+            .collect::<Vec<_>>();
+        completed.sort_unstable();
         for (_, machine) in roots
             .machines
             .iter()
             .enumerate()
             .filter(|(ordinal, machine)| {
-                *ordinal >= frontier.machines.len() || completed_machines.contains(&machine.symbol)
+                *ordinal >= frontier.machines.len()
+                    || completed
+                        .binary_search(&(machine.symbol.arena_index(), machine.symbol.generation()))
+                        .is_ok()
             })
         {
             tables.insert_machine_with_state_spans(

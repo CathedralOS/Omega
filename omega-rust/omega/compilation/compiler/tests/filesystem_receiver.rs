@@ -245,9 +245,9 @@ fn windows_canonicalize_receiver() {
     let optimizations = optimization_core::PostTerminalOptimizationSelections::default();
     eprintln!("Windows receiver: preparing restricted native admission");
     let prepare = |receiver| {
-        let mut prepared_native = native_production::prepare(
+        let mut prepared_native = native_compiler::prepare(
             &retained,
-            native_production::NativeCompileRequest {
+            native_compiler::NativeCompileRequest {
                 private_entry_ram: &[],
                 optimization_selections: &optimizations,
                 terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
@@ -315,7 +315,7 @@ fn windows_canonicalize_receiver() {
         prepared_native
     };
     eprintln!("Windows receiver: checking the restricted receiver policy");
-    let product = native_production::compile(prepare(receiver))
+    let product = native_compiler::compile(prepare(receiver))
         .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
 
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
@@ -333,7 +333,7 @@ fn windows_canonicalize_receiver() {
     // Reuse the same accepted retained Terminal input. Runtime admission shares
     // the provider/receiver review and stops before image production; this is
     // a policy refusal control, not a second source review or runtime claim.
-    let refusal = match native_production::admit_runtime(prepare(filesystem_only)) {
+    let refusal = match native_compiler::admit_runtime(prepare(filesystem_only)) {
         Err((_, diagnostics)) => diagnostics,
         Ok(_) => panic!("filesystem-only input must refuse console-capable WriteFile"),
     };

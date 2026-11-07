@@ -134,16 +134,6 @@ pub(crate) fn validate_transition_target_node(
     // visible nested/sibling targets; qualification does not create a receiver
     // or a separate syntax mode. Preserve argument and completion checks below.
     let arguments = program.statement_table.expression_handles(*arguments);
-    crate::proof_contracts::contract_entailment::validate_const_range_call_in_environment(
-        program,
-        current_machine,
-        current_state,
-        path.symbol,
-        &[],
-        arguments,
-        Some(value_environment),
-        diagnostics,
-    );
 
     // Source invocations and compiler-owned control edges retain exact
     // selected identities. Generated body coordinates have no authored names.

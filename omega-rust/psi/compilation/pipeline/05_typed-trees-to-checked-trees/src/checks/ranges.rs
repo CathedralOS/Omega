@@ -12,8 +12,7 @@
 //! invariants (`loop_invariants`). For each state it starts a new
 //! `facts::RangeFacts`, defines the state parameters as locals, and seeds, in
 //! order: the state's `requires` (`requirements`), the state argument facts,
-//! dependent parameter orderings (`dependent_params`), the incoming guard
-//! facts and the loop invariant facts. It then runs
+//! the incoming guard facts and the loop invariant facts. It then runs
 //! `statements::check_statement` on each statement.
 //! Branch-local facts share the state's collection query context. Exact bounds
 //! consume the normal-return observation owner used by call requirements and
@@ -33,9 +32,7 @@
 //! `ranges_seam_owns` for the operator `requires` check.
 
 // What a state starts with before its statements run: its `requires`, the
-// facts its incoming edges' arguments carry, dependent parameter orderings,
-// incoming guards and loop invariants.
-mod dependent_params;
+// facts its incoming edges' arguments carry, incoming guards and loop invariants.
 pub(in crate::checks) mod incoming_guards;
 mod loop_invariants;
 pub(in crate::checks) mod requirements;
@@ -65,7 +62,6 @@ pub(crate) mod types;
 use ::diagnostics::Diagnostic;
 use arrays::fixed_array_field_lengths;
 pub(in crate::checks) use arrays::fixed_array_type_length;
-use dependent_params::seed_dependent_param_orderings;
 pub(in crate::checks) use expressions::folded_integer_binary;
 use facts::RangeFacts;
 use incoming_guards::{IncomingGuardIndex, seed_incoming_guard_facts};
@@ -118,90 +114,84 @@ pub(crate) fn check_indexed_accesses(
                 {
                     return None;
                 }
-                let mut machine_diagnostics = Vec::new();
-                let mut machine_verdicts = indexes::IndexVerdicts::default();
                 let non_entry_has_indexed = state_has_indexed
                     .get(1..)
                     .is_some_and(|rest| rest.iter().copied().any(std::convert::identity));
-                let calls: Vec<_> = phase_profile::scope(
-                    "psi.05.check_checked_facts.check_indexed_accesses.range_call_context",
-                    || {
-                        let states = if non_entry_has_indexed {
-                            machine_states
-                        } else {
-                            &machine_states[..1]
-                        };
-                        states
-                            .iter()
-                            .map(|state| {
-                                facts::RangeCallContext::new(
-                                    machine,
-                                    state,
-                                    borrows,
-                                    flow,
-                                    semantic,
-                                    call_frames,
-                                )
-                            })
-                            .collect()
-                    },
-                );
-                let state_argument_facts = if non_entry_has_indexed {
-                    phase_profile::scope(
-                        "psi.05.check_checked_facts.check_indexed_accesses.state_argument_facts",
-                        || {
-                            collect_state_argument_facts(
-                                program,
-                                &field_lengths,
-                                &bound_lookup,
+                let calls: Vec<_> = {
+                    let states = if non_entry_has_indexed {
+                        machine_states
+                    } else {
+                        &machine_states[..1]
+                    };
+                    states
+                        .iter()
+                        .map(|state| {
+                            facts::RangeCallContext::new(
                                 machine,
+                                state,
+                                borrows,
+                                flow,
+                                semantic,
                                 call_frames,
-                                &calls,
-                                operators,
-                                mutation_summaries,
                             )
-                        },
+                        })
+                        .collect()
+                };
+                let state_argument_facts = if non_entry_has_indexed {
+                    collect_state_argument_facts(
+                        program,
+                        &field_lengths,
+                        &bound_lookup,
+                        machine,
+                        call_frames,
+                        &calls,
+                        operators,
+                        mutation_summaries,
                     )
                 } else {
                     Vec::new()
                 };
                 let incoming_guard_facts = incoming_guards.for_machine(machine.symbol);
-                let loop_invariant_facts = phase_profile::scope(
-                    "psi.05.check_checked_facts.check_indexed_accesses.loop_invariant_facts",
-                    || collect_loop_invariant_facts(program, machine, call_frames),
-                );
-                for ((state, calls), has_indexed) in
-                    machine_states.iter().zip(&calls).zip(state_has_indexed)
-                {
-                    if !has_indexed {
-                        continue;
-                    }
-                    let collection_bounds =
-                        validation::CollectionBoundsObservations::new(program, machine, state);
-                    let mut facts = RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
-                    facts.collection_bounds = Some(&collection_bounds);
-                    facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
-                    facts.checked_operators = Some(operators);
-                    facts.checked_calls = Some(calls);
-                    // State parameters are stable named places for the duration of
-                    // the state, just like locals introduced by `let`. Retain a
-                    // literal fixed-array referee's length even through a reference
-                    // access mode so ordinary index checking—not an access-mode-
-                    // specific gate—owns every dynamic bounds obligation.
-                    for parameter in program.state_parameters(state) {
-                        facts.define_local(
-                            parameter.symbol,
-                            parameter.name.to_string(),
-                            fixed_array_type_length(program, parameter.type_reference),
-                            None,
-                        );
-                    }
-                    phase_profile::scope(
-                        "psi.05.check_checked_facts.check_indexed_accesses.seed_state",
-                        || {
+                let loop_invariant_facts =
+                    collect_loop_invariant_facts(program, machine, call_frames);
+                // Invocation and private-arrival walks own a whole machine,
+                // so defer its actual bounds demands together across states.
+                // Each request retains its state and pre-operation cut.
+                let collection_bounds =
+                    validation::CollectionBoundsObservations::new(program, machine);
+                let check = || {
+                    let mut machine_diagnostics = Vec::new();
+                    let mut machine_verdicts = indexes::IndexVerdicts::default();
+                    for ((state, calls), has_indexed) in machine_states
+                        .iter()
+                        .zip(&calls)
+                        .zip(state_has_indexed.iter().copied())
+                    {
+                        if !has_indexed {
+                            continue;
+                        }
+                        let mut facts =
+                            RangeFacts::new(machine.symbol, &field_lengths, &bound_lookup);
+                        facts.collection_bounds = Some(&collection_bounds);
+                        facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
+                        facts.checked_operators = Some(operators);
+                        facts.checked_calls = Some(calls);
+                        // State parameters are stable named places for the duration of
+                        // the state, just like locals introduced by `let`. Retain a
+                        // literal fixed-array referee's length even through a reference
+                        // access mode so ordinary index checking—not an access-mode-
+                        // specific gate—owns every dynamic bounds obligation.
+                        for parameter in program.state_parameters(state) {
+                            facts.define_local(
+                                parameter.symbol,
+                                parameter.name.to_string(),
+                                fixed_array_type_length(program, parameter.type_reference),
+                                None,
+                            );
+                        }
+                        {
                             seed_state_requires(program, &mut facts, machine, state);
                             seed_state_argument_facts(&mut facts, state, &state_argument_facts);
-                            seed_dependent_param_orderings(program, &mut facts, machine, state);
                             seed_incoming_guard_facts(
                                 program,
                                 machine,
@@ -216,28 +206,36 @@ pub(crate) fn check_indexed_accesses(
                                 state,
                                 &loop_invariant_facts,
                             );
-                        },
-                    );
-                    let _s = phase_profile::guard(
-                        "psi.05.check_checked_facts.check_indexed_accesses.check_statements",
-                    );
-                    for (statement_index, statement) in program
-                        .statement_table
-                        .admitted_execution_statements(state.statement_nodes)
-                    {
-                        facts.statement_index = statement_index;
-                        check_statement(
-                            program,
-                            machine,
-                            state,
-                            call_frames,
-                            &mut facts,
-                            statement,
-                            &mut machine_diagnostics,
-                            &mut machine_verdicts,
-                        );
+                        };
+                        for (statement_index, statement) in program
+                            .statement_table
+                            .admitted_execution_statements(state.statement_nodes)
+                        {
+                            facts.statement_index = statement_index;
+                            check_statement(
+                                program,
+                                machine,
+                                state,
+                                call_frames,
+                                &mut facts,
+                                statement,
+                                &mut machine_diagnostics,
+                                &mut machine_verdicts,
+                            );
+                        }
                     }
-                }
+                    (machine_diagnostics, machine_verdicts)
+                };
+                // Only a successful deferred proof needs a fresh cheap walk.
+                // Recreate its facts from the same seeds, never from the end
+                // of the provisional walk or another state's premises.
+                let provisional = check();
+                let (machine_diagnostics, machine_verdicts) =
+                    if collection_bounds.resolve_deferred() {
+                        check()
+                    } else {
+                        provisional
+                    };
                 Some((machine_diagnostics, machine_verdicts))
             })
             .collect()

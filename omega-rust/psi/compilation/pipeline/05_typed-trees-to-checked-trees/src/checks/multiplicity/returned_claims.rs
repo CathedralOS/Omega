@@ -203,11 +203,8 @@ pub(crate) fn completed_owned_claims(
     let owner = facts
         .flow
         .control
-        .states
-        .iter()
-        .find_map(|(_, state)| {
-            (state.state_symbol == operand.state_symbol).then_some(state.machine_symbol)
-        })
+        .state_by_symbol(operand.state_symbol)
+        .map(|state| state.machine_symbol)
         .ok_or("completed owner has no state flow")?;
     let consumer = ClaimConsumption {
         machine: owner,
@@ -821,13 +818,7 @@ fn check_frontier(
     claims: &[ReturnedClaim],
     conditions: &mut SelectionConditions,
 ) -> Result<(), &'static str> {
-    let measured = phase_profile::guard("psi.05.returned_claim_frontier");
     let frontier = super::linear_claim_frontier(program, operand.type_reference);
-    phase_profile::count(
-        "psi.05.returned_claim_frontier.paths",
-        frontier.len() as u64,
-    );
-    phase_profile::count("psi.05.returned_claim_frontier.claims", claims.len() as u64);
     // Most fields own different resources. Group exact paths and identities so
     // their checks need not repeatedly visit every unrelated field. Keep the
     // original indices and walk the original lists to preserve diagnostic order.
@@ -891,21 +882,6 @@ fn check_frontier(
     {
         return Err("returned permission frontier contains an undeclared claim path");
     }
-    drop(measured);
-    if frontier.len() >= 256 {
-        phase_profile::checkpoint(
-            "large returned resource check",
-            "psi.05.returned_claim_frontier",
-        );
-        phase_profile::checkpoint(
-            "returned resource paths",
-            "psi.05.returned_claim_frontier.paths",
-        );
-        phase_profile::checkpoint(
-            "returned resource claims",
-            "psi.05.returned_claim_frontier.claims",
-        );
-    }
     Ok(())
 }
 
@@ -919,13 +895,7 @@ fn completed_call_claims(
     operand: &FlowOperandFact,
     conditions: &SelectionConditions,
 ) -> Result<Vec<ReturnedClaim>, &'static str> {
-    let Some(state_flow) = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == operand.state_symbol).then_some(state))
-    else {
+    let Some(state_flow) = facts.flow.control.state_by_symbol(operand.state_symbol) else {
         return Err("completed result has no state flow");
     };
     let mut calls = crate::flow::call_flows(&facts.flow.control, state_flow.calls)

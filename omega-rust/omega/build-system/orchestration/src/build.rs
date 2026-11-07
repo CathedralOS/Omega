@@ -1,4 +1,31 @@
-//! Admit output locations, prepare a project, compile products, then publish.
+/*
+
+Top-level `build(request)` lifecycle for a single or multi-target project request.
+
+Every `build` call executes five steps in order:
+1. `build_directory::admit_outputs`: claims per-target or single-target output
+   directories (holding the `.omega-occupant` guards for the duration of `build`)
+   or allocates a disposable `check` temporary workspace when `ProjectProduct::Check`
+   or `ProjectProduct::Inspection` is requested. When a caller does not pass
+   `build_directory`, the default path is anchored to the authored `root_path`
+   rather than any resolver snapshot.
+2. `packages::begin_local_project_preparation`: discovers whether `root_path`
+   belongs to a package project (`build.omg`) and performs any pending package
+   transaction recovery. This runs even when `require_package_project` is set or
+   every target output directory was refused, so interrupted package transactions
+   still recover cleanly.
+3. `resolve_project_sources`: if `root_path` is a package project and at least
+   one target output directory was admitted, opens a `BuildSession` and executes
+   the project's `build.omg` graph to obtain `ResolvedProjectBuilds`.
+4. `products::compile`: compiles all admitted targets in one pass (either through
+   `project_compilation::compile_returned` for package projects or
+   `compile_sources` / `produce_source` for standalone `.omg` files).
+5. `publication::publish_products`: joins each target's directory admission outcome
+   with its compilation outcome and publishes native artifacts where requested,
+   preserving target order even when a subset of targets failed directory admission
+   or compilation.
+
+*/
 
 use crate::project::{build_directory, products, publication};
 use crate::{BuildError, BuildRequest, BuildTargets, ProjectProduct, TargetBuildOutcome};
@@ -8,51 +35,22 @@ use package_manager::operations as packages;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use target::TargetProfile;
 
-/// Build all requested targets through one project preparation. Refused output
-/// locations and failed products retain their own ordered outcome; siblings
-/// continue. A check uses a private workspace and publishes no product files.
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
-    if matches!(request.product, ProjectProduct::Check) {
-        compiler::RequestedCompileProduct::Check
-            .validate_optimization_rollback(&request.optimization_rollback)
-            .map_err(|error| BuildError::Diagnostics(vec![error]))?;
-    }
-    if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
-        return Err(BuildError::Diagnostics(vec![Diagnostic::error(
-            "Terminal inspection requires one exact target context",
-        )]));
-    }
+    validate_request(&request, &profiles)?;
     let mut timings = if request.timings {
         CompileTimings::enabled()
     } else {
         CompileTimings::default()
     };
-    let check_workspace = match &request.product {
-        ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
-            Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
-        }
-        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
-    };
-    // Placement belongs to the authored source, never its resolver snapshot.
-    let base_directory = match &check_workspace {
-        Some(workspace) => workspace.path().to_path_buf(),
-        None => compiler::CompileOptions {
-            root_path: request.root_path.clone(),
-            build_dir: request.build_directory.clone(),
-            target_name: None,
-        }
-        .build_dir(),
-    };
-    let (work, _occupancies) = phase_profile::scope("build.admit_outputs", || {
-        build_directory::admit_outputs(
-            &profiles,
-            &base_directory,
-            &request.root_path,
-            matches!(request.targets, BuildTargets::Batch(_)),
-            check_workspace.is_some(),
-        )
-    });
+    let (check_workspace, base_directory) = select_base_directory(&request)?;
+    let (work, _occupancies) = build_directory::admit_outputs(
+        &profiles,
+        &base_directory,
+        &request.root_path,
+        matches!(request.targets, BuildTargets::Batch(_)),
+        check_workspace.is_some(),
+    );
     let prepared = timings
         .record_result(
             StageMeta::new("prepare", "project", "prepared sources"),
@@ -65,8 +63,6 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
             },
         )
         .map_err(BuildError::Preparation)?;
-    // Discovery performs pending-transaction recovery, including when the
-    // caller requires a package or every output directory was refused.
     if request.require_package_project && prepared.is_none() {
         return Err(BuildError::Diagnostics(vec![Diagnostic::error(
             "compilation requires a package project with a sibling build.omg",
@@ -82,29 +78,19 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     } else {
         let prepared = match prepared {
             Some(preparation) => {
-                let host = TargetProfile::host_if_supported().ok_or_else(|| {
-                    BuildError::Diagnostics(vec![Diagnostic::error(
-                        "Build execution needs an admitted host profile",
-                    )])
-                })?;
-                let mut session = phase_profile::scope("build.create_session", || {
-                    crate::BuildSession::create_retained(&base_directory)
-                })
-                .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
-                let resolved = phase_profile::scope("build.resolve_sources", || {
-                    crate::resolve_project_sources(
-                        &mut session,
-                        crate::ProjectSourceRequest {
-                            preparation,
-                            execution: package_compilation::BuildExecutionInputs {
-                                profile: Some(host),
-                                snapshot: request.build_snapshot.clone(),
-                                ..Default::default()
-                            },
-                            collect_timings: request.timings,
+                let mut session = crate::BuildSession::create_retained(&base_directory)
+                    .map_err(|error| BuildError::BuildDirectory(error.to_string()))?;
+                let resolved = crate::resolve_project_sources(
+                    &mut session,
+                    crate::ProjectSourceRequest {
+                        preparation,
+                        execution: package_compilation::BuildExecutionInputs {
+                            snapshot: request.build_snapshot.clone(),
+                            ..Default::default()
                         },
-                    )
-                });
+                        collect_timings: request.timings,
+                    },
+                );
                 let resolved = match resolved {
                     Ok(resolved) => resolved,
                     Err(error) => {
@@ -131,6 +117,41 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         &request.product,
         &mut timings,
     ))
+}
+
+fn validate_request(request: &BuildRequest, profiles: &[TargetProfile]) -> Result<(), BuildError> {
+    if matches!(request.product, ProjectProduct::Check) {
+        compiler::RequestedCompileProduct::Check
+            .validate_optimization_rollback(&request.optimization_rollback)
+            .map_err(|error| BuildError::Diagnostics(vec![error]))?;
+    }
+    if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
+        return Err(BuildError::Diagnostics(vec![Diagnostic::error(
+            "Terminal inspection requires one exact target context",
+        )]));
+    }
+    Ok(())
+}
+
+fn select_base_directory(
+    request: &BuildRequest,
+) -> Result<(Option<TemporaryDirectory>, std::path::PathBuf), BuildError> {
+    let check_workspace = match &request.product {
+        ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
+            Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
+        }
+        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
+    };
+    let base_directory = match &check_workspace {
+        Some(workspace) => workspace.path().to_path_buf(),
+        None => compiler::CompileOptions {
+            root_path: request.root_path.clone(),
+            build_dir: request.build_directory.clone(),
+            target_name: None,
+        }
+        .build_dir(),
+    };
+    Ok((check_workspace, base_directory))
 }
 
 fn target_profiles(targets: &BuildTargets) -> Result<Vec<TargetProfile>, BuildError> {

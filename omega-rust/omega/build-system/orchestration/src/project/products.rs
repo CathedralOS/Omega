@@ -1,4 +1,4 @@
-//! Translate project product demands into package or standalone facade requests.
+// Route a `BuildRequest` to package-batch compilation (`project_compilation::compile_returned`) when `build.omg` is present, or to standalone single-source (`produce_source` for `Inspection`) / multi-target (`compile_sources`) compilation when compiling a standalone `.omg` root.
 
 use crate::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
 use compiler::{CompilationOutput, CompileRequest, RequestedCompileProduct};
@@ -11,28 +11,7 @@ pub(crate) fn compile(
     directory: &Path,
     targets: &[TargetProfile],
 ) -> Result<Vec<(TargetProfile, Result<CompilationOutput, BuildError>)>, BuildError> {
-    let mut reports = Vec::with_capacity(targets.len());
     if let Some((resolved, session)) = prepared {
-        let product = match &request.product {
-            ProjectProduct::Check => compiler::CompilationProduct::Check,
-            ProjectProduct::Terminal => {
-                compiler::CompilationProduct::Terminal(request.optimization_rollback.clone())
-            }
-            ProjectProduct::Inspection { machine } => {
-                compiler::CompilationProduct::Inspection(machine.clone())
-            }
-            ProjectProduct::Native {
-                destination,
-                private_entry_ram,
-            } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-                image: destination.image_demand(),
-                private_entry_ram: private_entry_ram.clone(),
-                terminal_authority_policy:
-                    compilation_products::compile_request::current_terminal_authority_policy(),
-                terminal_authority_permission_policy: None,
-                optimization_rollback: request.optimization_rollback.clone(),
-            }),
-        };
         let outcomes = crate::project::project_compilation::compile_returned(
             crate::project::project_compilation::ProjectCompilationRequest {
                 prepared: resolved.prepared,
@@ -40,7 +19,9 @@ pub(crate) fn compile(
                 snapshot: request.build_snapshot.as_ref(),
                 verify: request.verify,
                 timings: request.timings,
-                product,
+                product: request
+                    .product
+                    .to_compilation_product(&request.optimization_rollback),
             },
             resolved.builds,
             session,
@@ -56,68 +37,79 @@ pub(crate) fn compile(
             })
             .collect());
     }
-    match &request.product {
-        ProjectProduct::Inspection { machine } => {
-            let [profile] = targets else {
-                return Err(BuildError::Diagnostics(vec![
-                    diagnostics::Diagnostic::error(
-                        "Terminal inspection lost its single target context",
-                    ),
-                ]));
-            };
-            let output = {
-                let target = (!matches!(request.targets, BuildTargets::Host))
-                    .then_some(profile.target_name());
-                let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
-                source.build.directory = Some(directory.to_path_buf());
-                crate::produce_source(
-                    &mut crate::build_session::compiler_session(),
-                    source,
-                    compiler::CompilationProduct::Inspection(machine.clone()),
-                )
-                .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))
-            };
-            reports.push((*profile, output));
-        }
-        ProjectProduct::Check => {
-            return compile_standalone_reports(
-                request,
-                directory,
-                targets,
-                RequestedCompileProduct::Check,
-                &[],
-                Default::default(),
-            );
-        }
-        ProjectProduct::Terminal => {
-            return compile_standalone_reports(
-                request,
-                directory,
-                targets,
-                RequestedCompileProduct::TerminalArtifact,
-                &[],
-                Default::default(),
-            );
-        }
+    if let ProjectProduct::Inspection { machine } = &request.product {
+        let [profile] = targets else {
+            return Err(BuildError::Diagnostics(vec![
+                diagnostics::Diagnostic::error(
+                    "Terminal inspection lost its single target context",
+                ),
+            ]));
+        };
+        let target =
+            (!matches!(request.targets, BuildTargets::Host)).then_some(profile.target_name());
+        let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
+        source.build.directory = Some(directory.to_path_buf());
+        let output = crate::produce_source(
+            &mut crate::build_session::compiler_session(),
+            source,
+            compiler::CompilationProduct::Inspection(machine.clone()),
+        )
+        .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()));
+        return Ok(vec![(*profile, output)]);
+    }
+    let (product, private_entry_ram, native_image) = match &request.product {
+        ProjectProduct::Check => (RequestedCompileProduct::Check, &[][..], Default::default()),
+        ProjectProduct::Terminal => (
+            RequestedCompileProduct::TerminalArtifact,
+            &[][..],
+            Default::default(),
+        ),
         ProjectProduct::Native {
             destination,
             private_entry_ram,
-        } => {
-            return compile_standalone_reports(
-                request,
-                directory,
-                targets,
-                RequestedCompileProduct::NativeArtifact,
-                private_entry_ram,
-                destination.image_demand(),
-            );
-        }
-    }
-    Ok(reports)
+        } => (
+            RequestedCompileProduct::NativeArtifact,
+            private_entry_ram.as_slice(),
+            destination.image_demand(),
+        ),
+        ProjectProduct::Inspection { .. } => unreachable!(),
+    };
+    compile_standalone_reports(
+        request,
+        directory,
+        targets,
+        product,
+        private_entry_ram,
+        native_image,
+    )
 }
 
-/// Standalone check/Terminal/native reports use the batch compiler facade. Inspection
-/// has a different terminal product, selected above rather than flattened here.
+impl ProjectProduct {
+    fn to_compilation_product(
+        &self,
+        optimization_rollback: &compiler::OptimizationRollback,
+    ) -> compiler::CompilationProduct {
+        match self {
+            Self::Check => compiler::CompilationProduct::Check,
+            Self::Terminal => compiler::CompilationProduct::Terminal(optimization_rollback.clone()),
+            Self::Inspection { machine } => {
+                compiler::CompilationProduct::Inspection(machine.clone())
+            }
+            Self::Native {
+                destination,
+                private_entry_ram,
+            } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+                image: destination.image_demand(),
+                private_entry_ram: private_entry_ram.clone(),
+                terminal_authority_policy:
+                    compilation_products::compile_request::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: optimization_rollback.clone(),
+            }),
+        }
+    }
+}
+
 fn compile_standalone_reports(
     request: &BuildRequest,
     directory: &Path,

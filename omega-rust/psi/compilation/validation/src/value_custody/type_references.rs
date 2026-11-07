@@ -76,9 +76,8 @@ mod float_ranges;
 pub use float_ranges::{closed_float_range_endpoint, ieee_float_range_ordered};
 mod integer_ranges;
 pub use integer_ranges::{
-    closed_integer_range_bound, closed_integer_range_maximum, constrained_range_bounds,
-    declared_integer_range, is_arithmetic_policy_only_integer, is_plain_scalar_storage,
-    unrestricted_builtin_primitive,
+    closed_integer_range_bound, closed_integer_range_maximum, is_arithmetic_policy_only_integer,
+    is_plain_scalar_storage, unrestricted_builtin_primitive,
 };
 pub(crate) use open_index_expressions::validate_indexed_qualification_arguments;
 
@@ -530,12 +529,7 @@ pub(crate) fn validate_type_reference_handle(
     // non-Exact domain is ill-formed
     // (checked once per declared handle; the accessors walk nested
     // Reference/Constrained spellings transitively).
-    crate::proof_contracts::arithmetic_domains::check_range_under_non_exact_domain(
-        program,
-        type_reference,
-        owner,
-        diagnostics,
-    );
+
     validate_type_reference_node(
         program,
         type_reference,
@@ -771,12 +765,7 @@ fn validate_type_reference_node(
             );
             // Element spelling of `range-constraints-require-exact-domain`
             // (`[u8 [0..=9] in Wrapping; 3]`).
-            crate::proof_contracts::arithmetic_domains::check_range_under_non_exact_domain(
-                program,
-                *element_type,
-                owner,
-                diagnostics,
-            );
+
             validate_node!(*element_type);
         }
         TypeReferenceNode::Slice { element_type } => {

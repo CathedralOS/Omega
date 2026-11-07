@@ -1126,6 +1126,7 @@ pass/collections/runtime_whole_array_value_copy_exit built 13773ms exit:70 inter
 pass/collections/shared_slice_view_dropped_receiver built 12702ms exit:181 interpreter-exit:181 interpreter:agrees @5f668826adf3+wt
 pass/collections/std_option_runtime_match_exit built 12556ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/collections/std_option_surface checked 2627ms @5f668826adf3+wt
+pass/collections/typed_run_relocation_exit built 151424ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @7192df6ce03f
 pass/collections/view_record_element_member_read_exit built 6628ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/collections/zero_length_byte_array_admission checked 1263ms @5f668826adf3+wt
 pass/components/independent_same_spelling_packages built 3857ms exit:0 interpreter-exit:0 interpreter:agrees @33b52245267f
@@ -3051,6 +3052,16 @@ pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit built 16079ms 
 pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit built 16355ms exit:0 interpreter-exit:0 interpreter:agrees @5ee8ffe84a9c497e989f9016f01f2536da4bfabf
 pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit built 16526ms exit:0 interpreter-exit:0 interpreter:agrees @5ee8ffe84a9c497e989f9016f01f2536da4bfabf
 pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit built 18595ms exit:0 interpreter-exit:0 interpreter:agrees @5ee8ffe84a9c497e989f9016f01f2536da4bfabf
+pass/facts/fixed_layout_reference_readback_exit built 12126ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_call_result_exit built 12303ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_const_name_exit built 12122ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_field_exit built 12148ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_local_exit built 12170ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_match_join_exit built 12098ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_other_machine_exit built 12383ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_other_state_exit built 12445ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_parameter_exit built 12404ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_target_body_exit built 12882ms exit:0 interpreter-exit:0 interpreter:agrees @bc53b23707f6
 pass/facts/float_comparison_route_through_call_result_exit built 9974ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/float_comparison_route_through_const_name_exit built 10227ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/float_comparison_route_through_field_exit built 9808ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -4797,7 +4808,7 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit built 62135
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit built 133925ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit built 182201ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/typed_run_singleton built 32458ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9a26074461a7
-pass/facts/typed_run_singleton_rejection built 24906ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @9a26074461a7
+pass/facts/typed_run_singleton_rejection built 19762ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @600199213086
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit built 2041ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit built 1931ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/unannotated_direct_boundary_call_through_field_exit built 1796ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

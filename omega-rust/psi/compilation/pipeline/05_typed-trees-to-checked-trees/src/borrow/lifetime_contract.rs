@@ -531,7 +531,12 @@ pub(crate) fn completed_output_retention(
             return Err("output loan has an unavailable identity");
         }
         let incoming = borrow.incoming_references.get(loan.incoming_reference);
-        if incoming.origin == (checked_trees::IncomingReferenceOrigin::Output { identity }) {
+        // One output parameter can install several descriptor leaves at this
+        // call, each with its own permission row under the same identity. Only
+        // this leaf's row answers here; a sibling leaf is not a mismatch.
+        if incoming.origin == (checked_trees::IncomingReferenceOrigin::Output { identity })
+            && borrow.owner_segments.span_or_empty(incoming.owner_path) == output_path
+        {
             if borrow.supplied_output_call(handle) != Some(performed) {
                 return Err("output permission has no normal-call source correspondence");
             }
@@ -540,9 +545,6 @@ pub(crate) fn completed_output_retention(
             }
             if incoming.carrier_type != carrier_type {
                 return Err("output permission does not match the captured carrier type");
-            }
-            if borrow.owner_segments.span_or_empty(incoming.owner_path) != output_path {
-                return Err("output permission does not match the captured descriptor leaf");
             }
             if loan.root != facts::PlaceRoot::InvocationOutput(identity)
                 || !loan.segments.is_empty()

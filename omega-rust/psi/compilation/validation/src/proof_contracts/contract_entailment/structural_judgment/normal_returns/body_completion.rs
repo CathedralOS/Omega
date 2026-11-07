@@ -111,29 +111,27 @@ impl<'program> StructuralJudge<'program> {
         // This operation reads the selected body directly, rather than through
         // application unfolding or a returned-field correspondence query.
         captured.record_returned_field_dependency(callee.symbol);
-        let arms = phase_profile::scope("psi.05.body_completion.recognize", || {
-            recognize_structural_state_leaves(
-                program,
-                theorem,
-                &captured,
-                &classification,
-                &mut diagnostics,
-                program.machine_states(callee),
-                entry,
-                &parameter_names,
-                incoming,
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-                true,
-                &mut Vec::new(),
-                &mut StructuralArrivalLog::new(),
-                usize::MAX,
-                &mut 0,
-                &mut [],
-                CitationFacts::default(),
-            )
-        })?;
+        let arms = recognize_structural_state_leaves(
+            program,
+            theorem,
+            &captured,
+            &classification,
+            &mut diagnostics,
+            program.machine_states(callee),
+            entry,
+            &parameter_names,
+            incoming,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            true,
+            &mut Vec::new(),
+            &mut StructuralArrivalLog::new(),
+            usize::MAX,
+            &mut 0,
+            &mut [],
+            CitationFacts::default(),
+        )?;
         if !diagnostics.is_empty() {
             return None;
         }

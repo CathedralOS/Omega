@@ -182,9 +182,9 @@ Terminal verification and abstract lowering. That verifier checks the exact
 grouped control-cycle evidence, including slice-decrease proofs; the route does
 not require or manufacture a fixed-work ceiling. The abstract graph retains its
 cyclic edges and structural bindings, and the separately verified optimizer input
-retains the canonical Terminal module and proof bundle. Native artifact admission
-alone does not establish downstream optimization, target lowering, or publication
-support for these cycles.
+retains the canonical Terminal module and checked producer facts. Native artifact
+admission alone does not establish downstream optimization, target lowering, or
+publication support for these cycles.
 
 Whole plain owned structural block arrivals retain exact source/destination
 types, access, multiplicity, and ordered bindings. Independent current ownership
@@ -247,10 +247,15 @@ and proof joins are implemented.
 
 ## Dynamic dispatch
 
+The following describes the legacy selector implementation pending replacement
+by [runtime machine values and some packages](../../../../../wiki/drafts/designs/machine_values_some.md).
+Source `dyn` and whole-trait runtime tables are retired. Preserve the argument,
+contract, result and custody behavior below while migrating the representation;
+these implementation notes do not authorize the old source form.
+
 The [dynamic-dispatch contract](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
-owns selection identity, forwarding roles, and complete tables. Its governing
-model is runtime selection of named implementations with separately supplied
-data arguments. `SelectImplementation` retains its exact table and a scalar
+owns the replacement descriptor and package evidence. The legacy implementation
+selects named implementations with separately supplied data arguments. `SelectImplementation` retains its exact table and a scalar
 result home; `CallDynamic` becomes an ordinary abstract call with a dynamic
 target, separately retaining selector, interface, slot and value arguments.
 The u64 is only the opaque physical carrier, not permission to substitute an

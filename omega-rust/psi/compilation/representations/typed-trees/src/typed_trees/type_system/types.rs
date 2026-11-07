@@ -66,6 +66,7 @@ pub struct TypeReferenceTable {
     named_rows: NamedRowIndex,
     arithmetic_rows: ArithmeticRowIndex,
     slice_views: SliceViewIndex,
+    policy_shells: PolicyShellIndex,
     type_alias_applications: Arena<crate::type_aliases::TypeAliasApplication>,
 }
 
@@ -147,6 +148,41 @@ impl PartialEq for SliceViewIndex {
 
 impl Eq for SliceViewIndex {}
 
+/// For each target row, its policy shells: `Constrained` rows over exactly that
+/// target whose only constraint is one arithmetic domain, first row per domain.
+/// Typing asks for a shell per qualified cast and collection element, and each
+/// ask scanned every row. The index covers the rows seen so far under one
+/// append epoch of both the row and the constraint arenas: appended rows
+/// extend it, and any rewrite, free or rewind of either rebuilds it. A row
+/// whose constraint span did not yet resolve could match once constraints are
+/// appended, so seeing one also rebuilds on constraint growth. Derived
+/// content, so it never takes part in equality or storage.
+#[derive(Default)]
+struct PolicyShellIndex(std::sync::Mutex<PolicyShells>);
+
+#[derive(Default)]
+struct PolicyShells {
+    covered: Option<((u64, usize), (u64, usize))>,
+    unresolved: bool,
+    /// Indexed by the target's arena index; each entry keeps the exact
+    /// target handle, since a recycled slot can carry another generation.
+    shells: Vec<Vec<(TypeReferenceHandle, ArithmeticDomain, TypeReferenceHandle)>>,
+}
+
+impl Clone for PolicyShellIndex {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for PolicyShellIndex {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for PolicyShellIndex {}
+
 impl TypeReferenceTable {
     pub fn new() -> Self {
         Self {
@@ -163,6 +199,7 @@ impl TypeReferenceTable {
             named_rows: NamedRowIndex::default(),
             arithmetic_rows: ArithmeticRowIndex::default(),
             slice_views: SliceViewIndex::default(),
+            policy_shells: PolicyShellIndex::default(),
             type_alias_applications: Arena::new(),
         }
     }
@@ -1044,19 +1081,69 @@ impl TypeReferenceTable {
         if !self.contains_type_reference(target) {
             return None;
         }
-        self.type_references.iter().find_map(|(handle, node)| {
+        let mut index = self
+            .policy_shells
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let rows = self.type_references.append_epoch();
+        let constraints = self.constraints.append_epoch();
+        let start = match (rows, constraints, index.covered) {
+            (
+                Some((revision, length)),
+                Some((constraint_revision, constraint_length)),
+                Some((
+                    (covered_revision, covered),
+                    (covered_constraint_revision, covered_constraints),
+                )),
+            ) if revision == covered_revision
+                && covered <= length
+                && constraint_revision == covered_constraint_revision
+                && (!index.unresolved || constraint_length == covered_constraints) =>
+            {
+                covered
+            }
+            _ => {
+                index.shells.clear();
+                index.unresolved = false;
+                0
+            }
+        };
+        for (handle, node) in self.type_references.iter_from(start) {
             let TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
             } = node
             else {
-                return None;
+                continue;
             };
-            (*base_type == target
-                && matches!(self.constraint_span(*constraints)?,
-                    [TypeConstraintNode::ArithmeticDomain(retained)] if *retained == domain))
-            .then_some(handle)
-        })
+            let Some(span) = self.constraint_span(*constraints) else {
+                index.unresolved = true;
+                continue;
+            };
+            let [TypeConstraintNode::ArithmeticDomain(retained)] = span else {
+                continue;
+            };
+            let slot = base_type.arena_index() as usize;
+            if index.shells.len() <= slot {
+                index.shells.resize_with(slot + 1, Vec::new);
+            }
+            let shells = &mut index.shells[slot];
+            if !shells
+                .iter()
+                .any(|(base, policy, _)| base == base_type && policy == retained)
+            {
+                shells.push((*base_type, *retained, handle));
+            }
+        }
+        index.covered = rows.zip(constraints);
+        index
+            .shells
+            .get(target.arena_index() as usize)?
+            .iter()
+            .find_map(|(base, policy, handle)| {
+                (*base == target && *policy == domain).then_some(*handle)
+            })
     }
 
     /// Collection arithmetic policy qualifies numeric element values and
@@ -1371,13 +1458,7 @@ impl TypeReferenceNode {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(Identifier),
-    Range {
-        minimum: ExpressionHandle,
-        maximum: ExpressionHandle,
-        /// Describes the authored endpoint, not an already-subtracted value.
-        /// Normalize exclusive ends in proof integers after checking them.
-        end_inclusive: bool,
-    },
+
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),
     /// A declared domain on a carrier (`[u8] in Utf8`); ch8.
     Domain(DomainConstraint),
@@ -1457,29 +1538,6 @@ impl DomainConstraint {
 impl fmt::Display for DomainConstraint {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.name.fmt(formatter)
-    }
-}
-
-impl TypeConstraintNode {
-    fn copy_from(
-        &self,
-        source_expressions: &crate::expression::ExpressionTable,
-        target_expressions: &mut crate::expression::ExpressionTable,
-    ) -> Self {
-        match self {
-            TypeConstraintNode::Named(name) => Self::Named(name.clone()),
-            TypeConstraintNode::Domain(domain) => Self::Domain(domain.clone()),
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => Self::Range {
-                minimum: target_expressions.copy_from(source_expressions, *minimum),
-                maximum: target_expressions.copy_from(source_expressions, *maximum),
-                end_inclusive: *end_inclusive,
-            },
-            TypeConstraintNode::ArithmeticDomain(domain) => Self::ArithmeticDomain(*domain),
-        }
     }
 }
 
@@ -1824,11 +1882,26 @@ impl compiler_storage::Record for SliceViewIndex {
     }
 }
 
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for PolicyShellIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
-        FixedArrayLength, SliceViewIndex, TypeConstraintNode, TypeOperandOrigin, TypeReferenceNode,
-        TypeReferenceTable,
+        FixedArrayLength, PolicyShellIndex, SliceViewIndex, TypeConstraintNode, TypeOperandOrigin,
+        TypeReferenceNode, TypeReferenceTable,
     };
     use crate::name::Identifier;
     use language_core::ReferenceAccess;
@@ -2017,6 +2090,73 @@ mod tests {
 
         let mut without_index = table.clone();
         without_index.slice_views = SliceViewIndex::default();
+        assert_eq!(table, without_index);
+        assert_eq!(format!("{table:?}"), format!("{without_index:?}"));
+    }
+
+    #[test]
+    fn policy_shell_index_agrees_with_a_row_scan_through_appends_and_rewrites() {
+        use numerics::arithmetic::ArithmeticDomain::{self, Saturating, Trapping, Wrapping};
+        let mut table = TypeReferenceTable::new();
+        let target = table.insert(TypeReferenceNode::Unit);
+        let other = table.insert(TypeReferenceNode::Unit);
+        let scan = |table: &TypeReferenceTable, target, domain| {
+            table.type_references.iter().find_map(|(handle, node)| {
+                let TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } = node
+                else {
+                    return None;
+                };
+                (*base_type == target
+                    && matches!(table.constraint_span(*constraints)?,
+                        [TypeConstraintNode::ArithmeticDomain(retained)] if *retained == domain))
+                .then_some(handle)
+            })
+        };
+        macro_rules! agree {
+            ($($target:expr, $domain:expr => $expected:expr);+) => {
+                $(
+                    assert_eq!(table.find_policy_qualified_type_reference($target, $domain), $expected);
+                    assert_eq!(scan(&table, $target, $domain), $expected);
+                )+
+            };
+        }
+        let shell = |table: &mut TypeReferenceTable, base_type, domain: ArithmeticDomain| {
+            let constraints =
+                table.insert_constraints([TypeConstraintNode::ArithmeticDomain(domain)]);
+            let handle = table.insert(TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            });
+            (handle, constraints)
+        };
+        agree!(target, Wrapping => None; other, Wrapping => None);
+        let (first, first_constraints) = shell(&mut table, target, Wrapping);
+        agree!(target, Wrapping => Some(first); target, Saturating => None);
+        // A later shell for the same pair never displaces the first.
+        let (repeat, _) = shell(&mut table, target, Wrapping);
+        let (saturating, _) = shell(&mut table, target, Saturating);
+        let (on_other, _) = shell(&mut table, other, Wrapping);
+        agree!(
+            target, Wrapping => Some(first);
+            target, Saturating => Some(saturating);
+            other, Wrapping => Some(on_other)
+        );
+
+        // Rewrites keep the row count and must still be seen.
+        table.set_constraint_at_offset(
+            first_constraints,
+            0,
+            TypeConstraintNode::ArithmeticDomain(Trapping),
+        );
+        agree!(target, Wrapping => Some(repeat); target, Trapping => Some(first));
+        table.substitute_node(on_other, TypeReferenceNode::Unit);
+        agree!(other, Wrapping => None; target, Trapping => Some(first));
+
+        let mut without_index = table.clone();
+        without_index.policy_shells = PolicyShellIndex::default();
         assert_eq!(table, without_index);
         assert_eq!(format!("{table:?}"), format!("{without_index:?}"));
     }

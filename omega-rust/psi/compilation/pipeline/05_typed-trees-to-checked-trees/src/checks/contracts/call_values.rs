@@ -1361,7 +1361,11 @@ pub(crate) fn operand_erases_membership(
     if operand.backing.is_valid() {
         let mut combined = control
             .operand_child_paths
-            .span_or_empty(operand.address_projection.unwrap_or_default())
+            .span_or_empty(
+                operand
+                    .address_projection
+                    .map_or_else(Default::default, |projection| projection.segments()),
+            )
             .to_vec();
         combined.extend_from_slice(path);
         if operand_erases_membership(

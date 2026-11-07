@@ -1,9 +1,8 @@
 //! The closed import-thunk form x86-64 image emission produces:
 //! `jmp qword ptr [rip+disp32]` — six bytes whose whole machine effect is a
 //! single instruction-pointer write through an absolute slot the displacement
-//! addresses. Image emission owns production; the PCC evidence layer replays
-//! the emitted bytes against this specification rather than trusting a
-//! producer-claimed form or extent.
+//! addresses. Image emission owns production; decoding checks the emitted
+//! form against this specification rather than accepting a claimed extent.
 
 use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
 

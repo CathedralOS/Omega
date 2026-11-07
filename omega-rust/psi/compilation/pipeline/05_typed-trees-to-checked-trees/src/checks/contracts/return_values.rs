@@ -100,11 +100,10 @@ pub(super) fn exit_return_call<'facts>(
     let calls = facts
         .flow
         .control
-        .states
-        .iter()
-        .filter(|(_, state)| {
-            state.machine_symbol == exit.machine_symbol && state.state_symbol == exit.state_symbol
-        })
+        .machine_states(exit.machine_symbol)
+        .into_iter()
+        .filter(|state| state.state_symbol == exit.state_symbol)
+        .map(|state| ((), state))
         .flat_map(|(_, state)| facts.flow.control.calls.span_or_empty(state.calls));
     matching_exit_return_call(program, exit, returned, calls)
 }

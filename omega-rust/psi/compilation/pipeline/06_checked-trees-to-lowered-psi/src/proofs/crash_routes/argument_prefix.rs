@@ -32,14 +32,12 @@ pub(crate) fn captured_crash_argument(
         return Ok(argument.clone());
     };
     let flow = &checked.facts.flow;
-    let state = flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == coordinate.state).then_some(state))
-        .ok_or(LoweringError::Unsupported(
-            "crash observation has no checked caller state",
-        ))?;
+    let state =
+        flow.control
+            .state_by_symbol(coordinate.state)
+            .ok_or(LoweringError::Unsupported(
+                "crash observation has no checked caller state",
+            ))?;
     let call_handle = state
         .calls
         .handles()

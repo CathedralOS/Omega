@@ -133,29 +133,8 @@ pub fn completed_value_content_conservation_dependencies(
         expression,
         reference,
         (true, Vec::new()),
-        |(complete, _)| *complete,
-        |(complete, dependencies), observation| {
-            let Some((judge, value)) = observation else {
-                *complete = false;
-                return ControlFlow::Break(());
-            };
-            let (judgment, conditional) = judge_content_conservation_with_dependencies(
-                program,
-                judge,
-                &value,
-                plan,
-                projections,
-            );
-            match (judgment, conditional) {
-                (StructuralJudgment::Proven, _) => {}
-                (_, Some(proof)) => dependencies.push(proof),
-                _ => {
-                    *complete = false;
-                    return ControlFlow::Break(());
-                }
-            }
-            ControlFlow::Continue(())
-        },
+        conservation_fold_succeeds,
+        conservation_fold(program, plan, projections),
     );
     let result = result?;
     (result.complete && result.state.0).then_some(result.state.1)
@@ -184,6 +163,138 @@ pub fn completed_value_has_content_conservation_candidate(
         projections,
     )
     .is_some()
+}
+
+type ConservationFoldState = (bool, Vec<ContentConservationDependencies>);
+
+fn conservation_fold_succeeds((complete, _): &ConservationFoldState) -> bool {
+    *complete
+}
+
+/// Judge `plan` on each completed-value alternative, keeping the conditional
+/// law proof of an alternative that is not proved outright.
+fn conservation_fold<'a>(
+    program: &'a dyn crate::CheckingInput,
+    plan: &'a ContentConservationPlan,
+    projections: &'a [ContentProjectionPlan],
+) -> impl Fn(
+    &mut ConservationFoldState,
+    Option<(&StructuralJudge<'_>, StructuralTerm)>,
+) -> ControlFlow<()>
++ 'a {
+    move |(complete, dependencies), observation| {
+        let Some((judge, value)) = observation else {
+            *complete = false;
+            return ControlFlow::Break(());
+        };
+        let (judgment, conditional) =
+            judge_content_conservation_with_dependencies(program, judge, &value, plan, projections);
+        match (judgment, conditional) {
+            (StructuralJudgment::Proven, _) => {}
+            (_, Some(proof)) => dependencies.push(proof),
+            _ => {
+                *complete = false;
+                return ControlFlow::Break(());
+            }
+        }
+        ControlFlow::Continue(())
+    }
+}
+
+/// Every conservation question one body completion can raise about one
+/// completed value: whether it is a candidate for each plan, and whether it
+/// proves each output projection's declared domain.
+pub struct CompletedConservationQueries<'a> {
+    pub statement_index: usize,
+    pub expression: ExpressionHandle,
+    /// The captured type the candidate questions observe the value at.
+    pub reference: typed_trees::types::TypeReferenceHandle,
+    pub plans: &'a [&'a ContentConservationPlan],
+    pub projections: &'a [ContentProjectionPlan],
+    pub domains: &'a [(symbols::SymbolHandle, &'a [facts::PlaceSegment])],
+}
+
+/// The questions in `queries` answered by one shared walk of the state prefix
+/// instead of one walk per question. A `true` is exactly the answer of
+/// `completed_value_has_content_conservation_candidate` (per plan) or
+/// `completed_value_proves_domain_predicate` (per domain); a `false` decides
+/// nothing, and the caller asks that function alone. Each question used to
+/// repeat the same walk, including every callee arm the value comes from.
+pub fn completed_value_conservation_answers(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    queries: &CompletedConservationQueries<'_>,
+) -> (Vec<bool>, Vec<bool>) {
+    let CompletedConservationQueries {
+        statement_index,
+        expression,
+        reference,
+        plans,
+        projections,
+        domains,
+    } = *queries;
+    // A plan another callable owns is declined before any walk; it never
+    // joins the batch, so its solo question is asked unchanged.
+    let mut candidates = plans
+        .iter()
+        .map(|plan| {
+            (plan.owner == machine.symbol && plan.callable == state.symbol).then(|| {
+                super::completed_observations::CompletedObservation::new(
+                    program,
+                    state,
+                    statement_index,
+                    expression,
+                    reference,
+                    (true, Vec::new()),
+                    conservation_fold_succeeds,
+                    conservation_fold(program, plan, projections),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut domain_members = domains
+        .iter()
+        .map(|(domain, path)| {
+            super::completed_domains::completed_domain_member(
+                program,
+                machine,
+                state,
+                statement_index,
+                expression,
+                *domain,
+                path,
+            )
+        })
+        .collect::<Vec<_>>();
+    let recognized = {
+        let mut members =
+            candidates
+                .iter_mut()
+                .flatten()
+                .map(|member| member as &mut dyn super::structural_prefix::StructuralPrefixVisitor)
+                .chain(domain_members.iter_mut().flatten().map(|member| {
+                    member as &mut dyn super::structural_prefix::StructuralPrefixVisitor
+                }))
+                .collect::<Vec<_>>();
+        !members.is_empty()
+            && super::completed_observations::observe_completed_values_batched(
+                program,
+                machine,
+                state,
+                &mut members,
+            )
+    };
+    (
+        candidates
+            .into_iter()
+            .map(|member| member.is_some_and(|member| member.shared_success(recognized).is_some()))
+            .collect(),
+        domain_members
+            .into_iter()
+            .map(|member| member.is_some_and(|member| member.shared_success(recognized).is_some()))
+            .collect(),
+    )
 }
 
 /// Final consumers accept conditional equations only through the one rooted

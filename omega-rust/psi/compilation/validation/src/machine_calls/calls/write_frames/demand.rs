@@ -166,12 +166,10 @@ pub(crate) struct CallFrameCaches {
     /// One prefix-walk snapshot per statement index, built once per
     /// (machine, state): replaces a fresh O(index) prefix walk per demand
     /// site with a single O(statements) walk per state.
-    state_write_collections:
-        Mutex<HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>>,
+    state_write_collections: Mutex<super::state_write_walk::CollectedPrefixMap>,
     /// The shared-accumulator flavor of the same collection, serving
     /// `ReferenceBefore` boundaries.
-    state_write_shared_collections:
-        Mutex<HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>>,
+    state_write_shared_collections: Mutex<super::state_write_walk::CollectedPrefixMap>,
     expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
     statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
@@ -1230,20 +1228,19 @@ impl<'program> CallFrameResolver<'program> {
 
     /// Declared fixed homes retain their typed addresses independently of
     /// reference-prefix availability. Interior reference loads and aliases
-    /// still require the captured prefix and exposure checks; unknown reference
+    /// still require completed operand captures and effects; unknown reference
     /// inventory remains explicit. An empty set denotes binding replacement.
     pub fn assignment_storage_origins(
         &self,
         machine: &Machine,
         statement: &StatementNode,
     ) -> Result<super::caller_aliases::AssignmentStorageOrigins, &'static str> {
+        self.machine_symbols(machine)
+            .ok_or("assignment machine has no retained symbol inventory")?;
         super::caller_aliases::assignment_storage_origins(
             self.program,
             machine,
             &self.tables.symbols,
-            self.machine_symbols(machine)
-                .ok_or("assignment machine has no retained symbol inventory")?
-                .as_ref(),
             statement,
             &|state| self.state_assignments(machine, state),
             &|state, index| {
@@ -1314,12 +1311,11 @@ impl<'program> CallFrameResolver<'program> {
             (current_machine.symbol, std::ptr::from_ref(statement).addr()),
             || {
                 self.machine_symbols(current_machine)
-                    .and_then(|machine_symbols| {
+                    .and_then(|_| {
                         super::caller_aliases::assignment_write_paths(
                             self.program,
                             current_machine,
                             &self.tables.symbols,
-                            &machine_symbols,
                             statement,
                             &|state| self.state_assignments(current_machine, state),
                             &|state, index| {

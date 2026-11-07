@@ -26,6 +26,7 @@ use terminal_psi::{
 
 mod initialization;
 mod outcome;
+mod relocation;
 mod resource_profile;
 mod result_layout;
 #[cfg(test)]
@@ -76,6 +77,9 @@ pub(super) fn emit(
             return initialization::emit(source, row, builder, plan);
         }
         AccessLifecycleOperands::View { .. } => return view::emit(source, row, builder, plan),
+        AccessLifecycleOperands::Relocate { .. } => {
+            return relocation::emit(source, row, builder, plan);
+        }
         AccessLifecycleOperands::MoveOut { storage, profile } => (storage, profile),
     };
     let terminal_psi::TerminalAccessLifecycleExecution::CompilerPrimitive {

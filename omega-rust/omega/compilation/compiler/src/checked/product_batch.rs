@@ -53,19 +53,14 @@ impl CompilationSession {
                 .built
                 .computed_build_config
                 .independent_components();
-            let checked = phase_profile::scope("omega.product.frontend", || {
-                complete_prepared_build(prepared, Some(&inputs))
-            })
-            .and_then(|source| {
-                phase_profile::scope("omega.product.check", || {
-                    check_product_source(
-                        source,
-                        Some(&inputs),
-                        &rollback,
-                        self.reuse(),
-                        &mut self.selections,
-                    )
-                })
+            let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
+                check_product_source(
+                    source,
+                    Some(&inputs),
+                    &rollback,
+                    self.reuse(),
+                    &mut self.selections,
+                )
             });
             match checked {
                 Ok(mut source) => {
@@ -151,9 +146,7 @@ impl CompilationSession {
             outcomes.push((
                 position,
                 owner,
-                phase_profile::scope("omega.product.select_target", || {
-                    crate::execution_settlement::select_product_target(&source, prepared)
-                }),
+                crate::execution_settlement::select_product_target(&source, prepared),
             ));
         }
         // Cohorts finish together; restore the authored request order before
@@ -185,11 +178,7 @@ fn capture_beside_publication(
     } else {
         artifacts::compile_timings::CompileTimings::default()
     };
-    let capture = || {
-        phase_profile::scope("omega.product.capture_target", || {
-            PreparedProductTarget::capture(source, Some(target), Some(inputs))
-        })
-    };
+    let capture = || PreparedProductTarget::capture(source, Some(target), Some(inputs));
     let prepared = std::thread::scope(|scope| {
         let publish = super::checking::compile_thread::spawn_compile_worker(scope, || {
             // The result is retained in the source; settlement reads it there.

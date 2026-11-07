@@ -452,9 +452,16 @@ machine configure_posix_filesystem(builder: &mut Build) {
         ForeignBinding::Syscall { number: 78 });
     Build::bind<PosixFilesystemLinuxArm64ByteViews::getdents64>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 61 });
+    // The shared raw schema lends 144 bytes, which also contains ARM64's
+    // 128-byte stat record. Keep that complete schema bound on both targets;
+    // the ARM64 provider below lends its own exact 128-byte output window.
     Build::bind<PosixFilesystemLinux::newfstatat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 79 });
     Build::bind<PosixFilesystemLinux::fstat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 80 });
+    Build::bind<PosixFilesystemLinuxArm64Metadata::newfstatat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 79 });
+    Build::bind<PosixFilesystemLinuxArm64Metadata::fstat>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 80 });
     Build::bind<PosixFilesystemLinux::ftruncate>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 46 });

@@ -6,7 +6,7 @@ use crate::interpreter::evaluator::{
     FilesystemLogicalHandles, FilesystemMetadataLayout, Frame, FrameLocal, Halt, Machine,
     PrimitiveType, State, StatementNode, SymbolHandle, TextByteMeter, TransitionDecision,
     TypedTrees, Value, ambient_step_budget, expression_table, statement_table, trap,
-    type_reference_table, unsupported, wrap_to_width,
+    type_reference_table, unsupported,
 };
 use validation::field_domains::data_definition_by_symbol_or_name;
 impl<'program> Evaluator<'program> {
@@ -267,64 +267,6 @@ impl<'program> Evaluator<'program> {
             ));
         }
         Ok(Vec::new())
-    }
-
-    /// CONST EVALUATION: run `machine_name` (zero arguments, fresh default
-    /// instance) to its terminal value. The machine's declared integer return
-    /// type fixes the result's width semantics via `wrap_to_width` (target
-    /// widths, never host widths). Non-integer terminal values are errors.
-    pub(in crate::interpreter) fn run_const_machine(
-        &mut self,
-        machine_name: &str,
-    ) -> EvalResult<i64> {
-        let machine = self
-            .find_machine_by_name(machine_name)
-            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?;
-        let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
-            Halt::Trap(format!(
-                "machine `{machine_name}` has no states to evaluate"
-            ))
-        })?;
-        // The declared INTEGER return type fixes the result's width semantics
-        // (checked before running so the diagnostic names the type, not
-        // whatever value the body happened to produce).
-        let return_primitive = match self
-            .program
-            .primitive_type_reference(entry_state.return_type)
-        {
-            Some(primitive)
-                if primitive != PrimitiveType::Bool
-                    && primitive != PrimitiveType::F32
-                    && primitive != PrimitiveType::F64 =>
-            {
-                primitive
-            }
-            Some(primitive) => {
-                return Err(Halt::Trap(format!(
-                    "machine `{machine_name}` returns `{}`, not an integer type",
-                    primitive.name()
-                )));
-            }
-            None => {
-                return Err(Halt::Trap(format!(
-                    "machine `{machine_name}` does not declare an integer return type"
-                )));
-            }
-        };
-
-        let returned = self.run_state_collect(machine, entry_state, Vec::new())?;
-        let value = returned.ok_or_else(|| {
-            Halt::Trap(format!(
-                "machine `{machine_name}` terminated without producing a value"
-            ))
-        })?;
-        let raw = value.as_int().ok_or_else(|| {
-            Halt::Trap(format!(
-                "machine `{machine_name}` produced a non-integer value"
-            ))
-        })?;
-
-        Ok(wrap_to_width(raw, return_primitive))
     }
 
     /// STRUCTURED build-time evaluation: bind compiler-built arguments to the

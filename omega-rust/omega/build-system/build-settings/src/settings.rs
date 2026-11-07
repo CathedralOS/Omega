@@ -1,10 +1,21 @@
-//! Decode settings from the original Build backing after normal return.
-//!
-//! The admitted initial value supplies result-descriptor labels, not nominal
-//! authority. Runtime paths and selected cases come from this instance's own
-//! canonical catalog. The existing Build admission still validates the source
-//! vocabulary, and its ordinary result validator owns configuration rules.
-//! Host facets and product selections are not settings and are never copied.
+/*
+Decode plain `Build` configuration settings from the root `&mut Build` parameter
+after normal Terminal interpreter return.
+
+`extract` reads the seven plain configuration fields (`subsystem`, `identifier`,
+`freestanding`, `optimizations`, `x86_deployment_features`,
+`privileged_services`, `elf_interpreter`) out of borrowed entry `0` of the
+completed `TerminalInstance` and passes the reconstructed `BuildTimeValue::Struct`
+to `BuildValueAdmission::extract`.
+
+Why we use `initial` only as a descriptor template:
+The admitted initial `BuildTimeValue` provides the field names and nested struct
+labels expected by `BuildValueAdmission::extract`, while every runtime path,
+active sum case, scalar value, and fixed-array element (`Optimizations.selected`
+has a closed literal extent) is observed directly from the instance's own
+canonical structural catalog. Erased fields, references, host facets, and
+product selections are never copied as plain settings.
+*/
 
 use build_time_evaluation::BuildTimeValue;
 use optimization_core::OptimizationReportRequest;
@@ -17,9 +28,6 @@ use terminal_interpreter::{
 };
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
-/// Read the same settings consumed by checked-tree Build execution. The caller
-/// retains the admission and initial value of this activation; this operation
-/// neither runs Build nor creates an execution/accounting receipt.
 pub fn extract(
     instance: &TerminalInstance<'_, '_>,
     admission: BuildValueAdmission,
@@ -135,7 +143,8 @@ fn read_structural(
             let observed = instance
                 .observe_borrowed_entry(0, path)
                 .map_err(|error| format!("Build case readback: {error:?}"))?;
-            let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(selected)) = observed
+            let TerminalStorageObservationValue::Storage(TerminalStorageContents::Case(selected)) =
+                observed
             else {
                 return Err("Build sum readback did not retain its selected case".to_owned());
             };
@@ -154,7 +163,30 @@ fn read_structural(
         StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
             read_leaf(instance, path)
         }
-        _ => Err("Build setting has no plain result representation; references and host facets cannot be published as settings".to_owned()),
+        StructuralTypeShape::FixedArray { element, length } => {
+            let length = length
+                .literal()
+                .ok_or_else(|| "Build array setting has no literal extent".to_owned())?;
+            let templates = match template {
+                Some(BuildTimeValue::Array(elements)) => elements.as_slice(),
+                _ => &[][..],
+            };
+            let mut elements = Vec::new();
+            for index in 0..length {
+                let template = usize::try_from(index)
+                    .ok()
+                    .and_then(|index| templates.get(index));
+                path.push(Path::FixedIndex(index));
+                let element = read_structural(instance, path, *element, template);
+                path.pop();
+                elements.push(element?);
+            }
+            Ok(BuildTimeValue::Array(elements))
+        }
+        _ => Err(
+            "Build setting has no plain result representation; references and host facets cannot be published as settings"
+                .to_owned(),
+        ),
     }
 }
 

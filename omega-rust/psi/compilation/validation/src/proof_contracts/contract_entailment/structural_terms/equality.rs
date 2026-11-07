@@ -32,8 +32,9 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
     // This entrance consumes formed fact operands. Id of complete data is
     // independent of executable Equatable selection and can retain symbolic
     // fields. Known IEEE comparisons keep their separate relation fence.
-    if let Some(references) =
-        data_identity_operand_references(program, scope, parameters, expression)
+    if !super::is_case_observation(program, expression)
+        && let Some(references) =
+            data_identity_references_for_types(program, [binary.left, binary.right], types)
     {
         return references
             .into_iter()
@@ -80,12 +81,24 @@ pub(in crate::proof_contracts::contract_entailment) fn data_identity_operand_ref
     {
         return None;
     }
-    let [Some(left), Some(right)] = [binary.left, binary.right].map(|operand| {
+    let operands = [binary.left, binary.right];
+    let references = operands.map(|operand| {
         crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
-    }) else {
+    });
+    data_identity_references_for_types(program, operands, references)
+}
+
+/// Both callers infer operand types under their existing guards. Reuse those
+/// types here rather than infer them again.
+fn data_identity_references_for_types(
+    program: &dyn crate::CheckingInput,
+    operands: [ExpressionHandle; 2],
+    references: [Option<TypeReferenceHandle>; 2],
+) -> Option<[TypeReferenceHandle; 2]> {
+    let [Some(left), Some(right)] = references else {
         return None;
     };
-    let identities = [(binary.left, left), (binary.right, right)].map(|(operand, reference)| {
+    let identities = [(operands[0], left), (operands[1], right)].map(|(operand, reference)| {
         crate::contextual_identity_subject_type(
             program,
             reference,

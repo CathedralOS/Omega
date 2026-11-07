@@ -2,10 +2,9 @@
 # Prepare a Linux host so an agent can build and test Omega immediately.
 #
 # A fresh cloud container has Rust but not the repository's pinned nightly,
-# mbx, cargo-nextest or zstd, so the first build, the first `mbx nextest run`
-# and the SessionStart warm-build restore (tools/warm_build.py) all fail or
-# fall back to slower paths. This script installs each of them once, from the
-# documented release channels, and is safe to rerun.
+# mbx, cargo-nextest or zstd, so the first build and the first `mbx nextest run`
+# fail or fall back to slower paths. This script installs each of them once,
+# from the documented release channels, and is safe to rerun.
 #
 #   bash tools/agent_setup.sh             # from anywhere; finds its checkout
 #
@@ -20,14 +19,26 @@ set -euo pipefail
 # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
 # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
 MBX_VERSION=1.29.2
-# tools/doctor.py requires cargo-nextest 0.9.140 or newer.
+# cargo xtask doctor requires cargo-nextest 0.9.140 or newer.
 NEXTEST_VERSION=0.9.150
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+os=$(uname -s)
 arch=$(uname -m)
-if [ "$(id -u)" = 0 ]; then bin=/usr/local/bin; else bin=$HOME/.local/bin; fi
+if [ "$arch" = "arm64" ]; then arch="aarch64"; fi
+case "$os" in
+  Darwin)
+    mbx_target="aarch64-apple-darwin"
+    nextest_target="universal-apple-darwin"
+    ;;
+  *)
+    mbx_target="$arch-unknown-linux-gnu"
+    nextest_target="$arch-unknown-linux-gnu"
+    ;;
+esac
+if [ "$(id -u)" = 0 ]; then bin=/usr/local/bin; else bin=$HOME/.cargo/bin; fi
 mkdir -p "$bin"
-export PATH="$bin:$HOME/.cargo/bin:$PATH"
+export PATH="$bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -49,19 +60,24 @@ step "pinned Rust toolchain (rust-toolchain.toml)"
 
 step "mbx $MBX_VERSION"
 if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
-  archive=mbx-$arch-unknown-linux-gnu.tar.gz
+  archive=mbx-$mbx_target.tar.gz
   release=https://github.com/jdx/mr-boxington/releases/download/v$MBX_VERSION
   (cd "$work" &&
     curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
-    grep " $archive\$" SHA256SUMS | sha256sum --check --strict - &&
+    if command -v sha256sum >/dev/null; then
+      grep " $archive\$" SHA256SUMS | sha256sum --check --strict -
+    else
+      grep " $archive\$" SHA256SUMS | shasum -a 256 --check -
+    fi &&
     tar -xzf "$archive" -C "$bin" mbx)
 fi
 mbx --version
+mbx setup --yes || true
 
 step "cargo-nextest $NEXTEST_VERSION"
 if ! cargo nextest --version 2>/dev/null | grep -q "^cargo-nextest $NEXTEST_VERSION "; then
   # get.nexte.st is not reachable from cloud sessions; GitHub releases are.
-  curl -fsSL "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-$NEXTEST_VERSION/cargo-nextest-$NEXTEST_VERSION-$arch-unknown-linux-gnu.tar.gz" |
+  curl -fsSL "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-$NEXTEST_VERSION/cargo-nextest-$NEXTEST_VERSION-$nextest_target.tar.gz" |
     tar -xzf - -C "$bin"
 fi
 cargo nextest --version | head -n 1
@@ -79,4 +95,4 @@ fi
 git -C "$repo" submodule update --init --recursive ||
   echo "submodule samples/apps/squalr skipped"
 
-step "done; check with: python3 tools/doctor.py"
+step "done; check with: cargo xtask doctor"

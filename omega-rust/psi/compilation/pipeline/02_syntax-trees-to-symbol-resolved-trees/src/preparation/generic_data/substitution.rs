@@ -713,24 +713,7 @@ fn substitute_constrained_type_reference(
                     (TypeConstraintNode::Domain(domain), false)
                 }
             }
-            TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                let substituted_minimum =
-                    substitute_bound_expression(syntax, snapshot, minimum, substitution);
-                let substituted_maximum =
-                    substitute_bound_expression(syntax, snapshot, maximum, substitution);
-                (
-                    TypeConstraintNode::Range {
-                        minimum: substituted_minimum,
-                        maximum: substituted_maximum,
-                        end_inclusive,
-                    },
-                    substituted_minimum != minimum || substituted_maximum != maximum,
-                )
-            }
+
             constraint => (constraint, false),
         };
         changed |= constraint_changed;
@@ -792,22 +775,6 @@ fn substitute_domain_index_argument(
             warnings,
         ),
     }
-}
-
-/// Copy one range endpoint into the instance when it mentions a substituted
-/// binder (the caller's const-binder rewrite then reduces the fresh `Name`
-/// leaf to the closed literal). A parameter-free endpoint keeps the template's
-/// authored expression handle.
-fn substitute_bound_expression(
-    syntax: &mut SyntaxTrees,
-    snapshot: &SyntaxTrees,
-    endpoint: ExpressionHandle,
-    substitution: &HashMap<String, TypeReferenceHandle>,
-) -> ExpressionHandle {
-    if !expression_mentions_parameter(syntax, endpoint, substitution) {
-        return endpoint;
-    }
-    syntax.copy_expression_from(snapshot, endpoint)
 }
 
 /// Whether an expression mentions a bare name the substitution rewrites. Only
@@ -875,12 +842,7 @@ pub(crate) fn type_reference_mentions_parameter(
                             .any(|&argument| {
                                 type_reference_mentions_parameter(syntax, argument, substitution)
                             }),
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            expression_mentions_parameter(syntax, *minimum, substitution)
-                                || expression_mentions_parameter(syntax, *maximum, substitution)
-                        }
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
                             false
                         }

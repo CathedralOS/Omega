@@ -1,8 +1,18 @@
-//! Execute an admitted package batch; package management never calls back here.
-//!
-//! Admission retains source/consent identity. The application retains the
-//! package session through scheduling and package-owned closure. Accepted
-//! targets run together, sharing source work and invocation-wide budgets.
+/*
+
+Compile an admitted package project across all requested targets (`compile_returned`).
+
+Source discovery (`resolve_project_sources`) has already executed the project's
+`build.omg` activations and returned `Vec<ResolvedPackageBuild>`. Here we:
+1. Settle those returned builds (`settle_source_builds`) into `CompletedBuild`s
+   without re-running `build.omg` or opening a second resource grant.
+2. Admit the target-product requests through
+   `package_manager::operations::admit_project_products`.
+3. Compile all admitted package plans together (`compile_packages`) so targets
+   share source checking and invocation-wide budgets.
+4. Reconcile the results and dispose staging via `admitted.completion.complete`.
+
+*/
 
 use crate::BuildSession;
 use package_manager::operations::{ProjectCompilationAdmissionRequest, ProjectCompilationOutcome};
@@ -16,9 +26,6 @@ pub(crate) struct ProjectCompilationRequest<'request> {
     pub product: compiler::CompilationProduct,
 }
 
-/// Source discovery already executed these Builds. Settle their exact returns,
-/// admit Product contexts, then use the ordinary dependency/product scheduler.
-/// No fresh execution request or grant is discarded at this boundary.
 pub(crate) fn compile_returned(
     request: ProjectCompilationRequest<'_>,
     builds: Vec<crate::ResolvedPackageBuild>,
@@ -33,12 +40,14 @@ pub(crate) fn compile_returned(
         timings: request.timings,
         product: request.product,
     };
-    let mut completed = Vec::with_capacity(builds.len());
-    for build in builds {
-        let inputs = build.package_inputs().clone();
-        match build.settle(&mut session.compiler, execution_profile, inputs) {
-            Ok(build) => completed.push(build),
-            Err(error) => {
+    let mut completed =
+        match crate::compile::build_execution::source_resolution::settle_source_builds(
+            builds,
+            &mut session.compiler,
+            execution_profile,
+        ) {
+            Ok(completed) => completed,
+            Err(crate::ProjectSourceResolutionError::Compilation(error)) => {
                 let mut reason = error
                     .into_diagnostics()
                     .iter()
@@ -50,8 +59,14 @@ pub(crate) fn compile_returned(
                 }
                 return request.refuse(reason);
             }
-        }
-    }
+            Err(error) => {
+                let mut reason = error.to_string();
+                if let Err(error) = session.close() {
+                    reason.push_str(&format!("; session disposal: {error}"));
+                }
+                return request.refuse(reason);
+            }
+        };
     let admitted = package_manager::operations::admit_project_products(
         request,
         &mut session.packages,

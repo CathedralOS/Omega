@@ -1,13 +1,23 @@
-//! One-shot source consumers drive the same Build executor as package work.
-//!
-//! Compiler preparation retains source and target policy in opaque invocations.
-//! This application owns execution between preparation and completion; the
-//! compiler never steps a Build or repeats its effects to satisfy another stop.
+/*
+
+Standalone source compilation entry points (`compile_sources`, `check_source`, `produce_source`).
+
+Standalone `.omg` compilations (without an enclosing package project) still
+execute any local `build.omg` activation through the shared `build_execution::execute_build`
+loop between `begin_*` and `complete_*`, so the compiler crate itself never
+steps a `build.omg` interpreter:
+- `compile_sources`: compiles a single or multi-target `CompileRequest` batch
+  and finishes any native outputs through `native_completion::complete_products`.
+- `check_source`: runs type and proof checking on a single `CheckedCompileRequest`
+  for diagnostic callers.
+- `produce_source`: produces a single requested `CompilationProduct` (including
+  `CompilationProduct::Inspection(machine)`) and completes it via `complete_product`.
+
+*/
 
 use compiler::{CheckedCompileRequest, CompilationSession, CompileFailure};
 use diagnostics::Diagnostic;
 
-/// Compile a target batch with the caller's invocation-local compiler storage.
 pub fn compile_sources(
     compiler: &mut CompilationSession,
     request: compiler::CompileRequest,
@@ -45,24 +55,13 @@ pub fn compile_sources(
     })
 }
 
-/// Check source for diagnostic consumers, retaining discovery on later refusal.
 pub fn check_source(
     compiler: &mut CompilationSession,
     request: CheckedCompileRequest,
 ) -> compilation_products::CheckedCompileOutcome {
     let result = compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
-        let returned = loop {
-            let mut queries = prepared.product_queries();
-            let returned = crate::compile::build_execution::execute_build(
-                prepared.execution(),
-                Some(&mut queries),
-            );
-            match prepared.advance(returned)? {
-                compiler::BuildAdvance::Continue => continue,
-                compiler::BuildAdvance::Complete(returned) => break returned,
-            }
-        };
+        let returned = execute_prepared_source_build(&mut prepared)?;
         Ok::<_, CompileFailure>(compiler.complete_source_check(prepared, returned))
     });
     match result {
@@ -74,7 +73,6 @@ pub fn check_source(
     }
 }
 
-/// Produce one requested artifact or named inspection without exposing stages.
 pub fn produce_source(
     compiler: &mut CompilationSession,
     mut request: CheckedCompileRequest,
@@ -87,21 +85,27 @@ pub fn produce_source(
             .map_err(|failure| {
                 compiler::CompilationProductError::Production(failure.into_diagnostics())
             })?;
-        let returned = loop {
-            let mut queries = prepared.product_queries();
-            let returned = crate::compile::build_execution::execute_build(
-                prepared.execution(),
-                Some(&mut queries),
-            );
-            match prepared.advance(returned).map_err(|failure| {
-                compiler::CompilationProductError::Production(failure.into_diagnostics())
-            })? {
-                compiler::BuildAdvance::Continue => continue,
-                compiler::BuildAdvance::Complete(returned) => break returned,
-            }
-        };
+        let returned = execute_prepared_source_build(&mut prepared).map_err(|failure| {
+            compiler::CompilationProductError::Production(failure.into_diagnostics())
+        })?;
         compiler
             .complete_source_product(prepared, returned, product)
             .and_then(crate::complete_product)
     })
+}
+
+fn execute_prepared_source_build(
+    prepared: &mut compiler::SourceCompilation,
+) -> Result<Result<Option<build_settings::ReturnedBuild>, CompileFailure>, CompileFailure> {
+    loop {
+        let mut queries = prepared.product_queries();
+        let returned = crate::compile::build_execution::execute_build(
+            prepared.execution(),
+            Some(&mut queries),
+        );
+        match prepared.advance(returned)? {
+            compiler::BuildAdvance::Continue => continue,
+            compiler::BuildAdvance::Complete(returned) => return Ok(returned),
+        }
+    }
 }

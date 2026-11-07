@@ -183,7 +183,11 @@ pub(crate) struct TypingCohort<'completed> {
     pub(crate) generic_application_origins: usize,
     /// Retained machine bodies this run completes in place, in declaration
     /// order. Their destinations land beside the appended machines'.
-    pub(crate) completed_machines: &'completed [SymbolHandle],
+    completed_machines: &'completed [SymbolHandle],
+    /// `completed_machines` as sorted symbol keys. Every machine of the run
+    /// asks whether it is completed; scanning the list made that quadratic
+    /// when a run completes every machine.
+    completed_keys: Vec<(u32, u32)>,
     /// Typed checkpoint: machines, type references and expressions the
     /// retained base already published.
     pub(crate) typed_machines: usize,
@@ -212,6 +216,7 @@ impl<'completed> TypingCohort<'completed> {
             wire_schemas: resolved.wire_schemas.len(),
             generic_application_origins: resolved.tables.types.generic_application_origins.len(),
             completed_machines: &[],
+            completed_keys: Vec::new(),
             typed_machines: typed.machines().len(),
             typed_type_parameters: typed.data_type_parameters.len(),
             typed_type_references: typed.type_reference_table.type_reference_count(),
@@ -222,8 +227,22 @@ impl<'completed> TypingCohort<'completed> {
     /// Name the retained bodies this run completes in place.
     pub(crate) fn completing(mut self, machines: &'completed [SymbolHandle]) -> Self {
         self.completed_machines = machines;
+        self.completed_keys = machines.iter().map(|symbol| symbol_key(*symbol)).collect();
+        self.completed_keys.sort_unstable();
         self
     }
+
+    /// Whether this run completes `symbol`'s retained body in place.
+    pub(crate) fn completes(&self, symbol: SymbolHandle) -> bool {
+        self.completed_keys
+            .binary_search(&symbol_key(symbol))
+            .is_ok()
+    }
+}
+
+/// A symbol's full identity, generation included, as a sort key.
+pub(crate) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
 }
 
 /// Type the resolved declarations one cohort still owes, in the order the
@@ -283,13 +302,29 @@ pub(crate) fn type_resolved_cohort(
         )?;
         lowerer.typed_trees.push_mathematical_definition(definition);
     }
+    // Find every completed body's typed row before any is rewritten. Each
+    // rewrite is mutable machine access, which retires the typed position
+    // index; looking the next body up after it rebuilt that index once per
+    // machine. Rewrites keep every row in place, so the positions hold.
+    let completed_positions = source
+        .machines
+        .iter()
+        .take(cohort.machines)
+        .map(|machine| {
+            cohort.completes(machine.symbol).then(|| {
+                lowerer
+                    .typed_trees
+                    .machine_position_by_symbol(machine.symbol)
+            })
+        })
+        .collect::<Vec<_>>();
     for (ordinal, machine) in source.machines.iter().enumerate() {
         if ordinal < cohort.machines {
             // A retained machine keeps its typed declaration; only a body this
             // run was handed is retyped, before the run's appended machines,
             // where the authored completion route has always lowered it.
-            if cohort.completed_machines.contains(&machine.symbol) {
-                complete_retained_machine_body(lowerer, machine.symbol)?;
+            if let Some(position) = completed_positions[ordinal] {
+                complete_retained_machine_body(lowerer, machine.symbol, position)?;
             }
             continue;
         }
@@ -332,17 +367,23 @@ pub(crate) fn type_resolved_cohort(
 fn complete_retained_machine_body(
     lowerer: &mut Lowerer<'_>,
     symbol: SymbolHandle,
+    position: Option<usize>,
 ) -> Result<(), Diagnostic> {
     let lost_base = || {
         Diagnostic::error(
             "authored-body completion changed its retained declaration or implementation frontier",
         )
     };
-    let ordinal = lowerer
+    let ordinal = position.ok_or_else(lost_base)?;
+    // The position was found before earlier bodies were rewritten in place;
+    // a row that no longer names this machine is a lost base, not a target.
+    let mut declaration = lowerer
         .typed_trees
-        .machine_position_by_symbol(symbol)
-        .ok_or_else(lost_base)?;
-    let mut declaration = lowerer.typed_trees.machines()[ordinal].clone();
+        .machines()
+        .get(ordinal)
+        .filter(|declaration| declaration.symbol == symbol)
+        .ok_or_else(lost_base)?
+        .clone();
     let implementation = lowerer.source_trees.machine(symbol).ok_or_else(lost_base)?;
     crate::declarations::machine::complete_machine_body(lowerer, implementation, &mut declaration)?;
     lowerer.typed_trees.machines_mut()[ordinal] = declaration;

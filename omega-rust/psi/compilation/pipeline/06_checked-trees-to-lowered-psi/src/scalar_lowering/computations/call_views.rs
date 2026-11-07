@@ -87,11 +87,7 @@ pub(crate) fn reserved_place(
         return None;
     }
     let flow = &checked.facts.flow;
-    let state = flow
-        .control
-        .states
-        .iter()
-        .find_map(|(_, state_flow)| (state_flow.state_symbol == state).then_some(state_flow))?;
+    let state = flow.control.state_by_symbol(state)?;
     let expression = state.calls.handles().find_map(|handle| {
         let call = flow.control.calls.get(handle);
         (call.statement_index == coordinate.statement_index as usize

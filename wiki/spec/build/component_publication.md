@@ -5,12 +5,12 @@ govern [interpreted components](embedding.md#replacement-and-native-equivalence)
 Native mappings and relocations below belong to the native realization, not to
 an interpreter's implementation. A source module is not automatically a component.
 
-[Terminal Psi](../terminal-psi/product.md) is the portable compilation boundary.
+[Psi](../terminal-psi/product.md) is the portable compilation boundary.
 This contract distinguishes compilation products from installed component
 publication. Writing artifact bytes for later consumption does not establish a
 running installation. The deployment requirements below apply to the installed
 component claim, not to ordinary artifact serialization. Platform container layouts
-are separate, and specified deployment routes are not necessarily implemented.
+are separate.
 
 ## Selection and component closure
 
@@ -80,6 +80,14 @@ proves the requested cut, reports an enlarged cohort for explicit owner acceptan
 or rejects; it cannot silently label a smaller cut independent. The cohort may
 be the whole program.
 
+[Machine values](../language/machine_values.md) and
+[some packages](../language/some_packages.md) publish code/conformance, concrete
+layout and captured-borrow custody dependencies into this closure. Their indirect
+uniform representation has no semantic global target/witness roster. Adding a
+machine or a new package witness does not by itself change every holder's layout.
+Changes to actual code, contracts or state layout retain their ordinary closure
+edges; Independent components join only when those edges require it.
+
 Artifacts retain attributable closure edges. Source diagnostics identify the
 occurrence/span; a source-free manifest still names consuming artifact and
 declaration, selected conformance/implementation, and the edge enlarging the cut.
@@ -140,8 +148,7 @@ identity detects substitution but discharges no semantic premise.
 This API exposes existing closed component evidence, not a topology analyzer or
 mutable compiler-query service. Reflection alone cannot certify absence of hidden
 executable authority. The [topology package](../packages/topology.md) is one
-consumer alongside independent component admission and replacement. Producer and
-consumer coverage must be demonstrated before claiming this interface implemented.
+consumer alongside independent component admission and replacement.
 
 ### Consumer acceptance and Build attenuation
 
@@ -199,7 +206,7 @@ intent constrained by this acceptance, not independent authority to approve it.
 
 A deployment-agnostic checked capsule for one exact slot retains symbolic
 imports/exports, resource/lifecycle demands, target dependencies and the evidence
-required for its claims. A portable Psi capsule contains canonical Terminal Psi
+required for its claims. A portable Psi capsule contains canonical Psi
 and reconstructed obligations. A native-only capsule supplies independently
 checkable native evidence; any intermediate definitions needed by that evidence
 are included or exact accepted dependencies, not a missing separate Psi product.
@@ -262,8 +269,8 @@ binding argument is inserted into requirement signatures. Several simultaneous
 static roles use distinct exact applications, such as `Console<Interactive>` and
 `Console<Audit>`, or separately named wrapper traits. Build selects each slot
 independently. Runtime multiplicity instead uses the protocol's ordinary handles,
-sessions, descriptors, `dyn` values, or other explicit domain data; it does not
-clone provider slots into generic binding objects.
+sessions, machine descriptors, `some` packages, or other explicit domain data;
+it does not clone provider slots into generic binding objects.
 
 The compiler may retain an internal provider-slot record joining exact
 requirement, selected plan, target, occurrence, lifecycle, and evidence. This is
@@ -325,9 +332,17 @@ movement, and physical finalization under
 A state-migration theorem cannot reinterpret a live inline carrier under a new
 descriptor: rebuild its fused producers/consumers, enlarge the cohort, or reject.
 Stable indirect descriptors can retain varying provider-owned backing while
-outstanding non-copy handles pin the interpreting era. Local `dyn` tables do not
-cross an independently reclaimable boundary; a local proxy may call the service,
-and the boundary returns detached data or an explicit era-pinning handle instead.
+outstanding non-copy handles pin the interpreting era. Local machine descriptors
+do not cross an independently reclaimable boundary; a local proxy may call the
+service, and the boundary returns detached data or an explicit era-pinning handle.
+
+A paused container can still hold code descriptors and borrowed state in `some`
+packages. Quiescence alone cannot reinterpret old state through a new callable.
+Drain the packages, retain their interpreting era, or consume their borrows,
+explicitly migrate or recreate state, and construct new packages. Removing an
+entry only transfers its custody until the removed value and dependent loans
+are disposed of. There is no global roster to rebuild, but outstanding code,
+layout and custody dependencies still constrain the replacement cut.
 
 ## Replacement and coexistence
 
@@ -434,9 +449,7 @@ Omega owns normalized identities, contract/resource validation, relocatable
 artifacts, and generic entry/quiescence obligations. Cathedral or another runtime
 owns selection policy, provision, mapping cohorts, scheduler/device quiescence,
 era/drain limits, migration, rollback/retention, and concrete entry algorithms.
-No compiler-owned runtime implementation supplies those responsibilities;
-these contracts do not claim ordinary source `Independent` execution is
-implemented.
+No compiler-owned runtime implementation supplies those responsibilities.
 
 ## Products and authority
 

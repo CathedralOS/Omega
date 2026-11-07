@@ -37,7 +37,7 @@ Linux x86-64; no foreign native host is claimed.
   the others fail the establishing domain write. Focused controls retain false
   mathematical calls, changed operands, IEEE NaN-sensitive order and selected
   custom comparisons. Existing kernel closure and malformed-equation controls
-  remain separate coverage; no calculus rule or PCC replay is added.
+  remain separate coverage; the calculus rules are unchanged.
 - Psi 06–08: checking retains the complete predicate/requirement roster before
   temporary mathematical preparation expires. Lowering consumes that result,
   erases proof-only mathematics and preserves the scalar operation in Terminal.

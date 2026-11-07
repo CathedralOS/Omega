@@ -77,25 +77,22 @@ fn prepare_typed_frontier(
         };
     counters::record_source_assembly();
     let assembly_started = std::time::Instant::now();
-    let (source_file_count, syntax) = phase_profile::scope("omega.source.assembly", || {
-        sources.assemble(package_inputs, &mut timings, &mut *preparation.catalogue()?)
-    })?;
+    let (source_file_count, syntax) =
+        sources.assemble(package_inputs, &mut timings, &mut *preparation.catalogue()?)?;
     timings.add_completed(
         artifacts::compile_timings::SOURCE_ASSEMBLY,
         assembly_started.elapsed().as_micros(),
     );
     let base_sources = syntax.sources.clone();
     let frontend_started = std::time::Instant::now();
-    let frontier = phase_profile::scope("omega.source.typed_frontier", || {
-        build_continuation::lower_typed_frontier(
-            preparation,
-            source_file_count,
-            syntax,
-            build_execution_profile,
-            package_inputs,
-            &mut timings,
-        )
-    })
+    let frontier = build_continuation::lower_typed_frontier(
+        preparation,
+        source_file_count,
+        syntax,
+        build_execution_profile,
+        package_inputs,
+        &mut timings,
+    )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
         diagnostics
@@ -132,16 +129,14 @@ impl PreparedPackageInvocation {
     }
     pub(super) fn settle_catalog(
         self,
-        returned: build_settings::ReturnedBuild,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
         let capture = self.capture.ok_or_else(|| {
             vec![Diagnostic::error(
                 "workspace settlement requires acquired unbound source custody",
             )]
         })?;
-        let settled = self
-            .source
-            .settle(Some(returned), None, Some(self.target))?;
+        let settled = self.source.settle(returned, None, Some(self.target))?;
         let declaration = settled
             .evaluated
             .configuration
@@ -163,10 +158,10 @@ impl PreparedPackageInvocation {
         ))
     }
     pub(super) fn observe_declaration(
-        &self,
-        returned: &build_settings::ReturnedBuild,
+        &mut self,
+        returned: Option<&mut build_settings::ReturnedBuild>,
     ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
-        self.source.validate_return(returned)?;
+        let result = self.source.source_result(returned)?;
         let capture = self.capture.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "source declaration observation requires acquired unbound source custody",
@@ -174,12 +169,18 @@ impl PreparedPackageInvocation {
         })?;
         Ok(super::package_compilation::SourceBuildDeclaration::new(
             capture.clone(),
-            returned.declaration().cloned().ok_or_else(|| {
+            result.declaration().cloned().ok_or_else(|| {
                 vec![Diagnostic::error(
                     "default Build has no authored named project declaration",
                 )]
             })?,
         ))
+    }
+    pub(super) fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut build_settings::ReturnedBuild>,
+    ) -> Result<build_settings::BuildSourceResult<'result>, CompileFailure> {
+        self.source.source_result(returned)
     }
     pub(super) fn join_product_context(
         &mut self,
@@ -390,7 +391,6 @@ fn prepare_build_source_invocation(
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
     purpose: source_build::BuildSourcePurpose<'_>,
 ) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
-    let _scope = phase_profile::guard("omega.build.source_invocation");
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
 

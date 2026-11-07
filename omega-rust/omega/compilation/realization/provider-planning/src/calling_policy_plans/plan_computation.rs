@@ -385,10 +385,6 @@ fn publish_materialized_application(
     Ok(application)
 }
 
-/// The interpreter recurses as deeply as a compile does, so policy workers
-/// carry the compile thread's stack budget rather than the host default.
-const POLICY_STACK_SIZE: usize = 256 * 1024 * 1024;
-
 /// Run `activate` over `items` on up to one worker per CPU, returning results
 /// in `items` order. A worker that cannot start leaves its share to the caller.
 fn activate_in_parallel<Item: Sync, Output: Send>(
@@ -410,7 +406,6 @@ fn activate_in_parallel<Item: Sync, Output: Send>(
             .map(|worker| {
                 std::thread::Builder::new()
                     .name(format!("omega-calling-{worker}"))
-                    .stack_size(POLICY_STACK_SIZE)
                     .spawn_scoped(scope, move || {
                         (worker..items.len())
                             .step_by(workers)

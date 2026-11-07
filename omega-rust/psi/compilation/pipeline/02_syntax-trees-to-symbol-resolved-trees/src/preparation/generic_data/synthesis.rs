@@ -31,7 +31,6 @@ use super::substitution::variant_fact_verdict;
 use crate::preparation::declaration_selection::ConstantSelection;
 use crate::preparation::generic_data::replace_const_expression_names_from;
 use crate::preparation::generic_data::replace_machine_const_expression_names_from;
-use crate::preparation::generic_data::selected_data_item;
 use crate::preparation::generic_data::substitute_member;
 use crate::preparation::type_equations::normalized_boolean_argument;
 use arena::Handle;
@@ -109,10 +108,14 @@ pub(crate) fn desugar_generic_data_instances_in(
     // Attachments belong to the carrier selected in their declaring source,
     // not to every generic declaration with the same leaf spelling.
     let mut attached_machines: HashMap<syntax_trees::item::ItemHandle, Vec<usize>> = HashMap::new();
+    // One lookup per attached machine: index the root declarations once
+    // instead of scanning every root item for each machine.
+    let roots = crate::preparation::declaration_selection::RootDeclarations::of(syntax);
     for (item_index, item) in syntax.root_items().enumerate() {
         if let Some(machine) = item.as_machine()
             && let Some(attached) = &machine.attached_data
-            && let Some(declaration) = selected_data_item(syntax, selection, attached)
+            && let Some(declaration) =
+                super::discovery::selected_data_item_in(&roots, selection, attached)
         {
             attached_machines
                 .entry(declaration)

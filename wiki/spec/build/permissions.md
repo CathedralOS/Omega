@@ -250,7 +250,7 @@ retain the same recursive reach rules. See
 
 An untrusted binary's manifest is only a claim: permitted CPU instructions can
 bypass it. Source-derived contracts rely on the trusted compiler. Locally
-interpreting or lowering portable Terminal Psi does not admit supplied native
+interpreting or lowering portable Psi does not admit supplied native
 bytes. [Executable installation](executable_installation.md) requires exact
 admitted artifact and placed-byte provenance. Lower-rooted bootstrap assurance
 and hardware control-flow hardening are separate assurance layers. Admitted

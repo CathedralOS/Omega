@@ -126,178 +126,163 @@ pub(crate) fn build_contract_plans(
     Vec<diagnostics::Diagnostic>,
 > {
     let content_conservation = validation::content_conservation_plans(program);
-    let trapping_index = phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.trapping_index",
-        || {
-            PrecomputedTrappingSites::build(
-                scalar_expressions,
-                scalar_computations,
-                structural_values,
-                operators,
-            )
-        },
+    let trapping_index = PrecomputedTrappingSites::build(
+        scalar_expressions,
+        scalar_computations,
+        structural_values,
+        operators,
     );
-    let (mut machines, mut publications) = phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.per_machine_plans",
-        || {
-            use rayon::prelude::*;
-            let results: Result<
-                Vec<(checked_trees::MachineContractPlan, ContractPublication<'_>)>,
-                Vec<diagnostics::Diagnostic>,
-            > = validation::checking_thread_pool().install(|| {
-                program
-                    .machines()
-                    .par_iter()
-                    .enumerate()
-                    .map(|(machine_index, machine)| {
-                        let service_fact = service_reaches
-                            .machines()
-                            .get(machine_index)
-                            .filter(|fact| fact.machine == machine.symbol)
-                            .or_else(|| service_reaches.for_machine(machine.symbol));
-                        let published_service_row = service_fact
-                            .map(|fact| fact.published_ceiling)
-                            .unwrap_or(language_semantics::ServiceReachRowTable::EMPTY_ROW);
-                        let published_service_names = service_reaches
-                            .rows
-                            .services(published_service_row)
-                            .iter()
-                            .filter_map(|service| service_reaches.services.definition(*service))
-                            .map(|definition| definition.name.clone())
-                            .collect::<Vec<_>>();
-                        let synchronous_invocation = synchronous_invocations
-                            .machines
-                            .get(machine_index)
-                            .filter(|fact| fact.machine == machine.symbol)
-                            .map(|fact| &fact.plan)
-                            .or_else(|| synchronous_invocations.for_machine(machine.symbol))
-                            .expect(
-                                "every checked machine must publish synchronous invocation facts",
-                            );
-                        let suspension = suspensions
-                            .machines
-                            .get(machine_index)
-                            .filter(|fact| fact.machine == machine.symbol)
-                            .map(|fact| fact.plan)
-                            .or_else(|| suspensions.for_machine(machine.symbol))
-                            .expect("every checked machine must publish suspension facts");
-                        let blocking = blocking
-                            .machines
-                            .get(machine_index)
-                            .filter(|fact| fact.machine == machine.symbol)
-                            .map(|fact| fact.plan)
-                            .or_else(|| blocking.for_machine(machine.symbol))
-                            .expect("every checked machine must publish blocking facts");
-                        let termination = termination
-                            .machines
-                            .get(machine_index)
-                            .filter(|fact| fact.machine == machine.symbol)
-                            .map(|fact| &fact.plan)
-                            .or_else(|| termination.for_machine(machine.symbol))
-                            .expect("every checked machine must publish termination facts");
-                        let generics = generic_binders(program.machine_type_parameters(machine));
-                        let mut callables = program
-                            .machine_states(machine)
-                            .iter()
-                            .map(|state| {
-                                declared_callable(
-                                    program,
-                                    program.state_parameters(state),
-                                    state.return_type,
-                                    program.state_contracts(state),
-                                    &generics,
-                                    &content_conservation,
-                                    true,
-                                )
-                            })
-                            .collect::<Result<Vec<_>, _>>()
-                            .map_err(|diagnostic| vec![diagnostic])?;
-                        callables.sort();
-                        // Positional parameter normalization: a contract fact naming the
-                        // machine's Nth parameter encodes as P<N>, so RENAMES never change
-                        // the identity (the substitutable contract is positional).
-                        let parameter_names = machine_entry_parameter_names(program, machine);
-                        let crash = build_published_crash_plan(
-                            program,
-                            machine,
-                            &parameter_names,
-                            &content_conservation,
-                            operators,
-                            exact_integer_casts,
-                        )
-                        .map_err(|diagnostic| vec![diagnostic])?
-                        .with_trapping_sites(trapping_index.sites_for_machine(program, machine)?);
-                        let binders = program
-                            .machine_states(machine)
-                            .first()
-                            .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
-                            .unwrap_or_else(|| generics.clone());
-                        let declaration = checked_trees::DeclaredContractStructure {
-                            callables,
-                            clauses: declared_contracts(
+    let (mut machines, mut publications) = {
+        use rayon::prelude::*;
+        let results: Result<
+            Vec<(checked_trees::MachineContractPlan, ContractPublication<'_>)>,
+            Vec<diagnostics::Diagnostic>,
+        > = validation::checking_thread_pool().install(|| {
+            program
+                .machines()
+                .par_iter()
+                .enumerate()
+                .map(|(machine_index, machine)| {
+                    let service_fact = service_reaches
+                        .machines()
+                        .get(machine_index)
+                        .filter(|fact| fact.machine == machine.symbol)
+                        .or_else(|| service_reaches.for_machine(machine.symbol));
+                    let published_service_row = service_fact
+                        .map(|fact| fact.published_ceiling)
+                        .unwrap_or(language_semantics::ServiceReachRowTable::EMPTY_ROW);
+                    let published_service_names = service_reaches
+                        .rows
+                        .services(published_service_row)
+                        .iter()
+                        .filter_map(|service| service_reaches.services.definition(*service))
+                        .map(|definition| definition.name.clone())
+                        .collect::<Vec<_>>();
+                    let synchronous_invocation = synchronous_invocations
+                        .machines
+                        .get(machine_index)
+                        .filter(|fact| fact.machine == machine.symbol)
+                        .map(|fact| &fact.plan)
+                        .or_else(|| synchronous_invocations.for_machine(machine.symbol))
+                        .expect("every checked machine must publish synchronous invocation facts");
+                    let suspension = suspensions
+                        .machines
+                        .get(machine_index)
+                        .filter(|fact| fact.machine == machine.symbol)
+                        .map(|fact| fact.plan)
+                        .or_else(|| suspensions.for_machine(machine.symbol))
+                        .expect("every checked machine must publish suspension facts");
+                    let blocking = blocking
+                        .machines
+                        .get(machine_index)
+                        .filter(|fact| fact.machine == machine.symbol)
+                        .map(|fact| fact.plan)
+                        .or_else(|| blocking.for_machine(machine.symbol))
+                        .expect("every checked machine must publish blocking facts");
+                    let termination = termination
+                        .machines
+                        .get(machine_index)
+                        .filter(|fact| fact.machine == machine.symbol)
+                        .map(|fact| &fact.plan)
+                        .or_else(|| termination.for_machine(machine.symbol))
+                        .expect("every checked machine must publish termination facts");
+                    let generics = generic_binders(program.machine_type_parameters(machine));
+                    let mut callables = program
+                        .machine_states(machine)
+                        .iter()
+                        .map(|state| {
+                            declared_callable(
                                 program,
-                                program.machine_contracts(machine),
-                                &binders,
+                                program.state_parameters(state),
+                                state.return_type,
+                                program.state_contracts(state),
+                                &generics,
                                 &content_conservation,
                                 true,
                             )
-                            .map_err(|diagnostic| vec![diagnostic])?,
-                        };
-                        let published_termination =
-                            declared_termination(program, &termination.interface, &binders);
-                        let closed_scalar_values =
-                            build_closed_scalar_value_contract_plan(program, machine, operators);
-                        let external_binding = match machine.supply_mode {
-                            language_semantics::MachineSupplyMode::ExternalRealization {
-                                binding: Some(binding),
-                                ..
-                            } => Some(
-                                program
-                                    .external_bindings
-                                    .identity(binding)
-                                    .cloned()
-                                    .ok_or_else(|| {
-                                        vec![diagnostics::Diagnostic::error(
-                                            "checked external supply lost its owning binding identity",
-                                        )]
-                                    })?,
-                            ),
-                            _ => None,
-                        };
-                        let publication = ContractPublication {
-                            type_identities: &program.type_identities,
-                            supply: machine.supply_mode,
-                            external_binding,
-                            services: published_service_names,
-                            invocations: synchronous_invocation.interface,
-                            published_invocations: synchronous_invocation.published.clone(),
-                            suspension: suspension.interface,
-                            blocking: blocking.interface,
-                            termination: published_termination,
-                            declaration,
-                        };
-                        let plan = checked_trees::MachineContractPlan {
-                            machine: machine.symbol,
-                            closed_scalar_values,
-                            crash,
-                            // No consumer observes these construction coordinates. Family
-                            // envelopes settle before each final contract identity is minted.
-                            report_fingerprint: 0,
-                            commitment: checked_trees::MachineContractCommitment::from_digest(
-                                [0; 32],
-                            ),
-                        };
-                        Ok((plan, publication))
-                    })
-                    .collect()
-            });
-            results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
-        },
-    )?;
-    let operator_crashes = phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.operator_crashes",
-        || operator_crashes::build(program, operators, flow, semantic),
-    )?;
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|diagnostic| vec![diagnostic])?;
+                    callables.sort();
+                    // Positional parameter normalization: a contract fact naming the
+                    // machine's Nth parameter encodes as P<N>, so RENAMES never change
+                    // the identity (the substitutable contract is positional).
+                    let parameter_names = machine_entry_parameter_names(program, machine);
+                    let crash = build_published_crash_plan(
+                        program,
+                        machine,
+                        &parameter_names,
+                        &content_conservation,
+                        operators,
+                        exact_integer_casts,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic])?
+                    .with_trapping_sites(trapping_index.sites_for_machine(program, machine)?);
+                    let binders = program
+                        .machine_states(machine)
+                        .first()
+                        .map(|entry| callable_binders(&generics, program.state_parameters(entry)))
+                        .unwrap_or_else(|| generics.clone());
+                    let declaration = checked_trees::DeclaredContractStructure {
+                        callables,
+                        clauses: declared_contracts(
+                            program,
+                            program.machine_contracts(machine),
+                            &binders,
+                            &content_conservation,
+                            true,
+                        )
+                        .map_err(|diagnostic| vec![diagnostic])?,
+                    };
+                    let published_termination =
+                        declared_termination(program, &termination.interface, &binders);
+                    let closed_scalar_values =
+                        build_closed_scalar_value_contract_plan(program, machine, operators);
+                    let external_binding = match machine.supply_mode {
+                        language_semantics::MachineSupplyMode::ExternalRealization {
+                            binding: Some(binding),
+                            ..
+                        } => Some(
+                            program
+                                .external_bindings
+                                .identity(binding)
+                                .cloned()
+                                .ok_or_else(|| {
+                                    vec![diagnostics::Diagnostic::error(
+                                        "checked external supply lost its owning binding identity",
+                                    )]
+                                })?,
+                        ),
+                        _ => None,
+                    };
+                    let publication = ContractPublication {
+                        type_identities: &program.type_identities,
+                        supply: machine.supply_mode,
+                        external_binding,
+                        services: published_service_names,
+                        invocations: synchronous_invocation.interface,
+                        published_invocations: synchronous_invocation.published.clone(),
+                        suspension: suspension.interface,
+                        blocking: blocking.interface,
+                        termination: published_termination,
+                        declaration,
+                    };
+                    let plan = checked_trees::MachineContractPlan {
+                        machine: machine.symbol,
+                        closed_scalar_values,
+                        crash,
+                        // No consumer observes these construction coordinates. Family
+                        // envelopes settle before each final contract identity is minted.
+                        report_fingerprint: 0,
+                        commitment: checked_trees::MachineContractCommitment::from_digest([0; 32]),
+                    };
+                    Ok((plan, publication))
+                })
+                .collect()
+        });
+        results.map(|pairs| pairs.into_iter().unzip::<_, _, Vec<_>, Vec<_>>())
+    }?;
+    let operator_crashes = operator_crashes::build(program, operators, flow, semantic)?;
     let mut operator_crashes_by_machine = symbols::SymbolKeyMap::<
         symbols::SymbolHandle,
         Vec<checked_trees::CheckedCrashOperatorSite>,
@@ -327,63 +312,45 @@ pub(crate) fn build_contract_plans(
             "selected operator crash invocation has no owning machine contract",
         )]);
     }
-    let crash_capsules = phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.crash_capsules",
-        || {
-            build_crash_contract_capsules(program, &content_conservation, operators)
-                .map_err(|diagnostic| vec![diagnostic])
-        },
-    )?;
-    let summary_graph = phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.summary_graph",
-        || {
-            crash_calls::prepare_crash_summary_graph(
-                program,
-                proof,
-                operators,
-                flow,
-                &crash_capsules,
-                &machines,
-                &content_conservation,
-            )
-        },
+    let crash_capsules = build_crash_contract_capsules(program, &content_conservation, operators)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    let summary_graph = crash_calls::prepare_crash_summary_graph(
+        program,
+        proof,
+        operators,
+        flow,
+        &crash_capsules,
+        &machines,
+        &content_conservation,
     )?;
     publish_family_crash_envelopes(
         &mut machines,
         &mut publications,
         summary_graph.family_potential_crash_causes(),
     )?;
-    phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.identities",
-        || {
-            use rayon::prelude::*;
-            validation::checking_thread_pool().install(|| {
-                machines
-                    .par_iter_mut()
-                    .zip(publications.par_iter())
-                    .for_each(|(contract, publication)| {
-                        let identity = publication.identity(contract.crash.interface());
-                        contract.report_fingerprint = identity.report_fingerprint;
-                        contract.commitment = identity.commitment;
-                    });
-            });
-        },
-    );
-    let completed_crashes = phase_profile::scope(
-        "psi.05.build_check_facts.post_flow_facts.contract_plans.attach_crash_calls",
-        || {
-            crash_calls::attach_checked_crash_calls(
-                program,
-                operators,
-                exact_integer_casts,
-                semantic,
-                flow,
-                &content_conservation,
-                &crash_capsules,
-                &mut machines,
-                &summary_graph,
-            )
-        },
+    {
+        use rayon::prelude::*;
+        validation::checking_thread_pool().install(|| {
+            machines
+                .par_iter_mut()
+                .zip(publications.par_iter())
+                .for_each(|(contract, publication)| {
+                    let identity = publication.identity(contract.crash.interface());
+                    contract.report_fingerprint = identity.report_fingerprint;
+                    contract.commitment = identity.commitment;
+                });
+        });
+    };
+    let completed_crashes = crash_calls::attach_checked_crash_calls(
+        program,
+        operators,
+        exact_integer_casts,
+        semantic,
+        flow,
+        &content_conservation,
+        &crash_capsules,
+        &mut machines,
+        &summary_graph,
     );
     let mut capabilities_by_machine = symbols::SymbolKeyMap::<
         symbols::SymbolHandle,
@@ -490,11 +457,8 @@ pub(crate) fn build_contract_plans(
             }
             })
             .collect();
-    let plans = checked_trees::MachineContractPlans {
-        machines,
-        crash_capsules,
-        realized_envelopes,
-    };
+    let plans =
+        checked_trees::MachineContractPlans::new(machines, crash_capsules, realized_envelopes);
     plans.validate_resource_envelopes().map_err(|error| {
         vec![diagnostics::Diagnostic::error(format!(
             "checked resource-envelope replay failed: {error}"
@@ -514,7 +478,7 @@ fn validate_checked_resource_envelope_coverage(
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     for (machine_index, machine) in program.machines().iter().enumerate() {
         let contract = plans
-            .machines
+            .machines()
             .get(machine_index)
             .filter(|contract| contract.machine == machine.symbol)
             .or_else(|| plans.for_machine(machine.symbol))

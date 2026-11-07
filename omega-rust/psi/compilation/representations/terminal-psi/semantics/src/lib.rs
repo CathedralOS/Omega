@@ -120,9 +120,9 @@ pub use bytes::byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use bytes::byte_sequence_predicates::{
-    ScalarConstantOrigin, byte_copied_field_predicates_at_transfer, byte_field_root,
-    byte_literal_qualifications_hold, byte_literal_qualifications_hold_in, byte_owned_call_result,
-    byte_owned_result_predicates, byte_parameter_predicates,
+    MachineScalarIndex, ScalarConstantOrigin, byte_copied_field_predicates_at_transfer,
+    byte_field_root, byte_literal_qualifications_hold, byte_literal_qualifications_hold_in,
+    byte_owned_call_result, byte_owned_result_predicates, byte_parameter_predicates,
     byte_parameter_predicates_from_domains, byte_parameter_predicates_in, byte_predicate_carrier,
     byte_predicate_requirement, byte_qualification_predicates_in,
     byte_sequence_concatenation_predicates, byte_sequence_source_predicates, byte_view_call_result,
@@ -263,7 +263,8 @@ pub use storage::collection_backing::{
 };
 
 pub use structural::structural_claims::{
-    result_claim_catalog_matches_returns, result_claim_paths_match_returns,
+    ResultClaimCatalogError, result_claim_paths_match_returns, structural_claim_paths_may_overlap,
+    validate_result_claim_catalog,
 };
 pub use structural::structural_effect::{
     ElementViewLeaf, element_view_leaf, element_view_write_goal,

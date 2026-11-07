@@ -2,8 +2,6 @@
 
 Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
 
-<a id="pcc-removal"></a>
-
 ### Development-health outcomes
 
 - **ITERATION-PERFORMANCE.** Restore a usable edit/build/run workflow when a bottleneck measurably obstructs development.
@@ -25,15 +23,15 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Migrate all customers ([range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md)) and qualify filesystem oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: all sources pass `omega run --both`; suffix parsing (`parse_type.rs`) and `TypeConstraintNode::Range` are deleted.
 
-- **STATIC-MACHINE-MIGRATION.** (covers **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**, **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**) Complete [static machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state), [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent), and `dropped by`.
-  - Complete const-expression closure, package projection, calling policies, and `source/psi/` evidence-binder parity.
-  - Qualify `positional_implementation_binder`, `open_const_implementation`, `open_record_const_implementation`, `named_conformance_dispatch`, `generic_calling_policy`, and `domain_selected_cleanup` on all hosts.
-  - Move Build facet calls to `Build::*`, retire `machine Data::operation` and attached helpers, and finish suspension loans.
-  Acceptance: 9-place `dropped by` rows, `generic_counters`, clock/GUI samples, and `traits/,layouts/,progress/` pass `--both`.
+- **STATIC-MACHINE-MIGRATION.** (covers **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION**, **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**) Finish [static machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state), [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent) and `dropped by`.
+  - Finish const-expression closure, package projection, calling policies and `source/psi/` evidence-binder parity.
+  - Qualify `positional_implementation_binder`/`open_const_implementation`/`open_record_const_implementation`/`named_conformance_dispatch`/`generic_calling_policy`/`domain_selected_cleanup` on all hosts.
+  - Move Build facets to `Build::*`, retire `machine Data::operation`/attached helpers; finish suspension loans and conservative markers.
+  Acceptance: 9-place `dropped by`, `generic_counters`, clock/GUI and `traits/,layouts/,progress/` pass `--both`.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Complete `dyn` dispatch ([dynamic_dispatch.md](wiki/spec/terminal-psi/dynamic_dispatch.md)).
-  - Complete envelope refinement under [known-selection narrowing](wiki/spec/language/effects.md#known-dynamic-selections) and preserve 8-byte dispatch tables across all hosts.
-  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (`runtime_dyn_*_exit`) passes on Windows, macOS, and Linux.
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Replace `dyn` with [machine values and some](wiki/drafts/designs/machine_values_some.md).
+  - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.
+  Acceptance: migrated `traits/` and package controls pass `--both` on all hosts; replacement edges are checked.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.
@@ -48,10 +46,10 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises end to end ([executable supply](wiki/spec/language/expressions.md#executable-supply), [contracts.md](wiki/spec/proofs/contracts.md#licensed-normalization)).
-  - Implement 64-summand canonical index normalization.
-  - Carry generic compatibility through specialization, retire the `operator` introducer ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)), and lower `f64 in D` / `i32 in D` operator shapes.
-  Acceptance: `declared_operator_match_result` and `body_bearing_comparison`/`generic_comparison_body`/`open_index_distributivity` pass `--both`.
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [landing](wiki/drafts/designs/explicit_integer_landing.md).
+  - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
+  - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
+  Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
 
 ## Pipeline route
 
@@ -63,7 +61,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
   Acceptance: two-target builds share one Terminal artifact, and `pass/float/float_computation_route_exit` passes `--both`.
 
-## Lowering, checker, data-flow, and PCC simplification
+## Lowering, checker, and data-flow
 
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
   Acceptance: generic sealed access proves whole contracts, retains exact Terminal evidence and passes both engines/negative controls; retire independent bounds admission.
@@ -135,7 +133,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## P3 - Terminal Psi, proofs, and observation
 
-- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Complete [`&write T` and structural borrows](wiki/spec/terminal-psi/structural_access.md), [loans](wiki/spec/terminal-psi/loans.md), and [slice views](wiki/spec/terminal-psi/byte_views.md#element-typed-slice-views) (`view_subslice.rs`).
+- **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Finish [structural borrows](wiki/spec/terminal-psi/structural_access.md), [loans](wiki/spec/terminal-psi/loans.md) and [slice views](wiki/spec/terminal-psi/byte_views.md), including nested element-view copies.
   Acceptance: `write_only`, `computed_nested_state_loan`, [reference_recast_backing_footprint](samples/cli/facts/reference_recast_backing_footprint/README.md), `disjoint_mut_subslice_windows_compile`, and `fletcher_checksum` pass `--both`.
 
 <a id="normalized-abi-lowering"></a>
@@ -143,7 +141,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
-- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Complete [proofs](wiki/spec/proofs/foundation.md), [quotients](wiki/spec/proofs/quotients.md), and [identity](wiki/drafts/designs/explicit_identity.md).
+- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Finish [proofs](wiki/spec/proofs/foundation.md), identity and metatheory; source mutual/nested/derivation families, higher indices and open carrier transport; polymorphic-identity storage receipts and UIP/extensionality rejection controls.
   Acceptance: `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}` and `proofs/quotient_*` pass `--both`.
 
 ## Build-level behavior exclusions
@@ -163,7 +161,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Embedding and interpreted components
 
-- **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Implement [embedding](wiki/spec/build/embedding.md) (`embedding/{program,instance,adapters}.rs`, `composition_modes.rs`) and run Cathedral startup/events/replacement in `terminal-interpreter`.
+- **EMBEDDING-SOURCE-TO-HOST.** (covers **INTERPRETED-CATHEDRAL**) Finish [embedding](wiki/spec/build/embedding.md), evidence-bearing qualified host inputs, and interpreted Cathedral.
   Acceptance: embedding host-import/fuel-pause/replacement fixtures and Cathedral's interpreted startup/event/replacement sequence pass.
 
 ## Parallel language and compiler lanes
@@ -183,8 +181,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 
 ## Rust compiler release closure
 
-- **RC-RELEASE-RECORD-AND-CLOSURE.** (covers **RC-BUILD-AND-PACKAGES**, **MACOS-X64-HOST-PROFILE**) Produce the 4-host release record via `tools/release/release_record.py` under [rust_compiler_completion.md](wiki/drafts/reference/rust_compiler_completion.md).
-  Acceptance: `fmt.py --check`, Clippy, nextest, `RC-NATIVE-MATRIX`, `RC-BUILD-AND-PACKAGES`, and `sample_native_gate.py` pass across all 4 hosts.
+- **RC-RELEASE-RECORD-AND-CLOSURE.** (covers **RC-BUILD-AND-PACKAGES**, **MACOS-X64-HOST-PROFILE**) Deliver [4-host release](wiki/drafts/reference/rust_compiler_completion.md), per-root lock/closure/target/acceptance isolation and [CLI](wiki/spec/build/command_line.md).
+  Acceptance: `fmt.py --check`, Clippy, nextest, `RC-NATIVE-MATRIX`/`RC-BUILD-AND-PACKAGES`/`sample_native_gate.py` and CLI migration controls pass on 4 hosts.
 
 ## Omega-written compiler (after Rust completion)
 

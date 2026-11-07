@@ -436,48 +436,7 @@ fn constraint_requires_establishment(
             }
         }
         TypeConstraintNode::Named(_) => true,
-        TypeConstraintNode::Range {
-            minimum,
-            maximum,
-            end_inclusive,
-        } => {
-            // IEEE endpoints keep their declared format and boundary kind.
-            // Integer predecessor arithmetic cannot decide a fractional bound
-            // or whether +0 lies beneath an exclusive signed-zero endpoint.
-            if let Some(
-                primitive @ (typed_trees::types::PrimitiveType::F32
-                | typed_trees::types::PrimitiveType::F64),
-            ) = program.primitive_type_reference(carrier)
-            {
-                let Some(minimum) =
-                    crate::closed_float_range_endpoint(program, *minimum, primitive)
-                else {
-                    return true;
-                };
-                let Some(maximum) =
-                    crate::closed_float_range_endpoint(program, *maximum, primitive)
-                else {
-                    return true;
-                };
-                let zero = if primitive == typed_trees::types::PrimitiveType::F32 {
-                    semantic_vocabulary::IeeeFloatValue::Binary32(0)
-                } else {
-                    semantic_vocabulary::IeeeFloatValue::Binary64(0)
-                };
-                return !crate::ieee_float_range_ordered(minimum, zero)
-                    || !crate::ieee_float_range_ordered(zero, maximum)
-                    || (!end_inclusive && crate::ieee_float_range_ordered(maximum, zero));
-            }
-            let Some(minimum) = crate::closed_integer_range_bound(program, *minimum) else {
-                return true;
-            };
-            let Some(maximum) =
-                crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)
-            else {
-                return true;
-            };
-            minimum > BigInt::zero() || maximum < BigInt::zero()
-        }
+
         TypeConstraintNode::ArithmeticDomain(_) => false,
     }
 }

@@ -593,6 +593,9 @@ pub fn source_type_application_from_segments(
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
                 reference = collection_element_type_reference(program, reference)?;
             }
+            extent if *extent == crate::field_domains::WHOLE_ELEMENT_EXTENT => {
+                reference = collection_element_type_reference(program, reference)?;
+            }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
                 return None;
             }
@@ -610,6 +613,48 @@ pub fn project_type_reference_from_segments(
     segments: &[facts::PlaceSegment],
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     project_type_reference_from_segment_iter(program, current, segments)
+}
+
+/// Select the declared leaf of a pointwise field qualification. This reads
+/// type metadata only: finite extents stay unchanged and introduce no address,
+/// membership, access, or executable bounds evidence. A terminal window needs
+/// its own carrier and an unknown extent cannot select a field declaration.
+pub fn qualification_storage_type_reference(
+    program: &dyn crate::CheckingInput,
+    root: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<TypeReferenceHandle> {
+    if !root.is_valid() {
+        return None;
+    }
+    let mut projection = ProjectionTypeCursor::new(root);
+    for (ordinal, segment) in segments.iter().enumerate() {
+        match segment {
+            facts::PlaceSegment::FixedRange { start, end }
+                if *segment != crate::field_domains::WHOLE_ELEMENT_EXTENT =>
+            {
+                let current = projection.normalize(program);
+                let length = crate::fixed_array_type_length(program, current)?;
+                if ordinal + 1 == segments.len() || start > end || *end > length {
+                    return None;
+                }
+                projection.current =
+                    indexed_element_type_reference(program, current, &projection.substitutions)?;
+            }
+            facts::PlaceSegment::OpaqueRange => return None,
+            facts::PlaceSegment::Index { expression }
+                if !expression.is_valid()
+                    || matches!(
+                        program.expression_table.expression(*expression),
+                        typed_trees::expression::ExpressionNode::Range(_)
+                    ) =>
+            {
+                return None;
+            }
+            _ => projection.advance(program, segment)?,
+        }
+    }
+    Some(projection.normalize(program))
 }
 
 /// Project only through the value's owned storage. A stored reference is a
@@ -751,6 +796,9 @@ impl ProjectionTypeCursor {
                 field_type_reference(program, self.current, *symbol, &mut self.substitutions)?
             }
             facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                indexed_element_type_reference(program, self.current, &self.substitutions)?
+            }
+            extent if *extent == crate::field_domains::WHOLE_ELEMENT_EXTENT => {
                 indexed_element_type_reference(program, self.current, &self.substitutions)?
             }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {

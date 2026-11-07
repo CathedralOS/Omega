@@ -415,57 +415,6 @@ fn index_reference(
     }
 }
 
-/// Resolve only a direct endpoint binder. Substituting an expression retains its
-/// source-selected arithmetic; decoded static integers need no synthetic AST.
-pub(super) fn range_endpoint(
-    program: &TypedTrees,
-    symbol: SymbolHandle,
-    end_inclusive: bool,
-    context: &TypeIdentityContext<'_>,
-) -> Option<String> {
-    open_selected_substitution!(context, symbol, active, reference, nested);
-    Some(
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::ConstExpression(expression) => {
-                crate::typed_trees::type_system::type_identity::constraint_identity::normalized_range_endpoint(program, *expression, end_inclusive, &nested)
-            }
-            TypeReferenceNode::Named { symbol, name } => {
-                if let Some(identity) = range_endpoint(program, *symbol, end_inclusive, &nested) {
-                    return Some(identity);
-                }
-                if let Some(value) = integer(program, *symbol, name.as_str()) {
-                    let value = crate::closed_numeric::canonical_integer_range_endpoint(
-                        numerics::bignum::BigInt::from_i128(value),
-                        end_inclusive,
-                    );
-                    crate::typed_trees::type_system::type_identity::constraint_identity::normalized_range_integer(&value, &nested)
-                } else {
-                    let identity = normalize_const_or_nominal_name(
-                        program,
-                        *symbol,
-                        name.as_str(),
-                        IndexForm::ConstName,
-                        &nested,
-                    );
-                    if end_inclusive {
-                        identity
-                    } else {
-                        compound(IndexForm::ExclusiveEnd, [identity])
-                    }
-                }
-            }
-            _ => {
-                let identity = normalize_type_reference(program, reference, &nested);
-                if end_inclusive {
-                    identity
-                } else {
-                    compound(IndexForm::ExclusiveEnd, [identity])
-                }
-            }
-        },
-    )
-}
-
 pub(super) fn array_length(
     program: &TypedTrees,
     symbol: SymbolHandle,

@@ -833,9 +833,10 @@ fn forms_checked_loan(
         ReferenceAccess::Mutable => BorrowAccessKind::Mutable,
         ReferenceAccess::WriteOnly => BorrowAccessKind::WriteOnly,
     };
-    let Some((_, state)) = facts.borrow.states.iter().find(|(_, state)| {
-        state.machine_symbol == machine && state.state_symbol == operand.state_symbol
-    }) else {
+    let Some((_, state)) = facts
+        .borrow
+        .first_state_borrow(machine, operand.state_symbol)
+    else {
         return false;
     };
     let local = facts

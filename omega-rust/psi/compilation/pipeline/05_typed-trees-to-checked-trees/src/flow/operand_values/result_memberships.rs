@@ -45,21 +45,16 @@ impl<'facts> CapturedResultMemberships<'facts> {
         domain: symbols::SymbolHandle,
         identity: language_semantics::SemanticDomainId,
     ) -> bool {
-        let _profile = phase_profile::guard("psi.05.captured_result_membership");
         if !value.operand.belongs_to(&self.facts.flow.control) {
             return false;
         }
         let source = value.operand.row();
-        let Some(writes) = phase_profile::scope("psi.05.captured_result_membership.writes", || {
+        let Some(writes) =
             operand_contents_writes_between(program, &self.facts.flow, source, observation)
-        }) else {
+        else {
             return false;
         };
-        let prepare = || {
-            phase_profile::scope("psi.05.captured_result_membership.prepare", || {
-                prepare_promises(self.facts, source)
-            })
-        };
+        let prepare = || prepare_promises(self.facts, source);
         let promises = if let Some(handle) = value.operand.recorded_in(&self.facts.flow.control) {
             self.sources
                 .entry((handle.arena_index(), handle.generation()))

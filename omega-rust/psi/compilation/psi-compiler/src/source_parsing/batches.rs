@@ -24,7 +24,11 @@ pub(super) fn parse(
         count.max(1)
     } else {
         count
-            .min(rayon::current_num_threads().max(1).saturating_mul(4))
+            .min(
+                tokens_to_syntax_trees::parser::parse_worker_count()
+                    .max(1)
+                    .saturating_mul(4),
+            )
             .max(1)
     };
     let chunk_size = count.max(1).div_ceil(desired_pages);

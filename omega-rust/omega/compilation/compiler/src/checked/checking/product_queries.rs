@@ -40,6 +40,14 @@ impl ProductQueries {
         query: &BuildProductQuery,
         dependencies: Vec<ProductQueryDependency>,
     ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
+        super::compile_thread::run_on_compile_thread(|| self.describe_inline(query, dependencies))
+    }
+
+    fn describe_inline(
+        &mut self,
+        query: &BuildProductQuery,
+        dependencies: Vec<ProductQueryDependency>,
+    ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
         let inputs = ProductQueryInputs::new(self.inputs.clone(), dependencies).map_err(refuse)?;
         if self
             .retained

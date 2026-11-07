@@ -2006,7 +2006,9 @@ impl<'program> StructuralJudge<'program> {
                     ]);
                 }
                 let receiver_changed = (scalar_storage_read || scalar_reference_read)
-                    && judge.storage_write_sequence != receiver_write_sequence;
+                    && judge.storage_write_sequence != receiver_write_sequence
+                    && !(scalar_storage_read
+                        && judge.completed_read_address_is_current(scope.0, scope.1, expression));
                 // Keep an already observed shared binding's selected contents.
                 // Otherwise every possible supplier contributes a proof path.
                 // Neither route narrows physical origins or grants permission.
@@ -2764,7 +2766,7 @@ impl<'program> NormalReturnPath<'program> {
         // current caller storage.
         let mut context = self.judge.clone();
         context.returned_value_source = None;
-        context.completed_resolutions = None;
+        context.query_state.completed_resolutions = None;
         self.source = Some(CompletedValueSource {
             machine: scope.0.symbol,
             state: scope.1.symbol,

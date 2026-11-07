@@ -8,6 +8,11 @@ remains an ordinary call. There is no bare spawn, implicit detach, future
 transformation, or privileged supervisor. [Call acknowledgements](../language/effects.md#call-site-acknowledgements)
 describe only what the start/control operation may do to its caller.
 
+Runtime machine values are a separate facility. Their acceptance does not change
+these static entry APIs or grant task authority: use a statically selected
+trampoline with explicitly passed callable/context data when required, under
+all ordinary entry, lifetime, effect and custody contracts.
+
 Root profiles may select default providers and owners may override their slots,
 but starting/controlling a task still requires a held runtime capability.
 Selection does not grant ambient authority.
@@ -188,6 +193,3 @@ restricted synchronous graph; an ordinary hosted blocking executor is a package,
 not a task-runtime mode. Pooling guarded native stacks can spare no-block workers
 but cannot prove completion, cancellation, or shutdown. Post-return storage
 moves into a linear protocol claim; pre-return storage may be borrowed.
-
-The [task-plans implementation note](../../../omega-rust/omega/compilation/backend/runtime/task-plans/README.md)
-records current static binding/accounting support and missing execution joins.

@@ -272,15 +272,7 @@ fn validate_expression_call_bounds(
             expression,
         ),
     };
-    crate::proof_contracts::contract_entailment::validate_const_range_call(
-        program,
-        current_machine,
-        Some(current_state),
-        call.target_symbol,
-        &call.machine_arguments,
-        expression_table(program).expression_handles(call.arguments),
-        diagnostics,
-    );
+
     let evidence_receiver = super::generic_requirement::expression_conformance_receiver(
         program,
         current_machine,

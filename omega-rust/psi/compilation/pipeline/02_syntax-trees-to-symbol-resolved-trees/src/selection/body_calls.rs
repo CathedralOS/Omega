@@ -95,7 +95,7 @@ pub(crate) fn retarget_machine_calls(
     }) else {
         return;
     };
-    let mut visited = Vec::new();
+    let mut visited = VisitedExpressions::default();
     for expression in declaration_expressions {
         retarget_expression(program, expression, decide, &mut visited);
     }
@@ -124,7 +124,7 @@ pub(crate) fn retarget_signature_contract_calls(
             .map(|(_, contract)| contract),
         &mut expressions,
     );
-    let mut visited = Vec::new();
+    let mut visited = VisitedExpressions::default();
     for expression in expressions {
         retarget_expression(program, expression, decide, &mut visited);
     }
@@ -154,6 +154,7 @@ fn retarget_statement_span(
     statements: arena::HandleSpan<StatementNode>,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
+    let mut visited = VisitedExpressions::default();
     for handle in statements.handles() {
         let statement = program.tables.bodies.statements.statement(handle).clone();
         let mut expressions = Vec::new();
@@ -235,7 +236,9 @@ fn retarget_statement_span(
                 }
             }
         }
-        let mut visited = Vec::new();
+        // Each statement is its own walk, as it was when every statement
+        // allocated a fresh visited list.
+        visited.clear();
         for expression in expressions {
             retarget_expression(program, expression, decide, &mut visited);
         }
@@ -294,12 +297,11 @@ fn retarget_expression(
     program: &mut SymbolResolvedTrees,
     expression: ExpressionHandle,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
-    visited: &mut Vec<ExpressionHandle>,
+    visited: &mut VisitedExpressions,
 ) {
-    if !expression.is_valid() || visited.contains(&expression) {
+    if !expression.is_valid() || !visited.insert(expression) {
         return;
     }
-    visited.push(expression);
     let node = body_expressions(program).expression(expression).clone();
     let mut children = Vec::new();
     match node {
@@ -390,5 +392,43 @@ fn retarget_expression(
     }
     for child in children {
         retarget_expression(program, child, decide, visited);
+    }
+}
+
+/// The expressions one retarget walk has already reached. The walk asked a
+/// `Vec` whether it held each handle, which made a program-wide contract walk
+/// quadratic in its expression count. Handles are dense arena positions, so one
+/// bit per position answers the same question in constant time; the visit
+/// order is unchanged because only the membership test moved.
+#[derive(Default)]
+struct VisitedExpressions {
+    words: Vec<u64>,
+    /// Words holding a set bit, so a per-statement walk clears what it touched
+    /// rather than the whole table.
+    touched: Vec<usize>,
+}
+
+impl VisitedExpressions {
+    /// Mark `expression` reached; false when an earlier step reached it.
+    fn insert(&mut self, expression: ExpressionHandle) -> bool {
+        let index = expression.arena_index() as usize;
+        let (word, bit) = (index / 64, 1u64 << (index % 64));
+        if word >= self.words.len() {
+            self.words.resize(word + 1, 0);
+        }
+        if self.words[word] & bit != 0 {
+            return false;
+        }
+        if self.words[word] == 0 {
+            self.touched.push(word);
+        }
+        self.words[word] |= bit;
+        true
+    }
+
+    fn clear(&mut self) {
+        for word in self.touched.drain(..) {
+            self.words[word] = 0;
+        }
     }
 }

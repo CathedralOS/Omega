@@ -1,13 +1,33 @@
-//! Execute each immutable Build once, preparing dependencies at readiness pauses.
-//!
-//! Acquisitions own transport and graph validity. This scheduler owns only live
-//! continuations and returned/settled compiler work. A helper's completed graph
-//! can settle early; the enclosing graph must later agree with that same source
-//! custody before any Product is published.
+/*
+
+Iterative work-stack scheduler for `build.omg` execution and readiness pauses (`ReadinessScheduler`).
+
+Every immutable `build.omg` source is executed at most once per invocation. When
+a running `build.omg` activation pauses on `awaiting_query` (a product-entry
+query) or `awaiting_provider` (a `Build`-dependency provider readiness request),
+or when a workspace catalog must be evaluated to select a named workspace member,
+we do not recurse on the Rust call stack. Instead, `drive_work` pushes explicit
+`Work` continuation frames (`Work::Dependencies`, `Work::InstallProvider`,
+`Work::QueryGraph`, `Work::WorkspaceMembers`, `Work::Graph`, etc.) onto `pending`
+and keeps the suspended `LiveBuild` (both the guest `TerminalBuildActivation`
+and its `PackageBuildInvocation`) inside the frame until its child dependencies
+finish.
+
+Similarly, `prepare_product` resolves helper `DependencyPurpose::Build` products
+using an explicit `Vec<PendingProduct>` stack rather than recursive calls. Once a
+helper dependency graph is resolved, `settle_graph` settles its `SourceBuild`
+into `ResolvedBuild::Settled` early so `prepare_product` can compile the helper's
+provider implementation; `join_sources` later verifies that the enclosing
+project's final `ResolvedBuildSources` graph agrees with that settled source
+capture. Unselected workspace members that are absent from the final Product
+graph are verified against the `catalog_builds` dependency graphs they were
+observed under.
+
+*/
 
 use super::{
     CatalogMemberBuild, ProjectSourceResolutionError, ResolvedBuild, ResolvedPackageBuild,
-    normal_return,
+    source_result,
 };
 use crate::BuildSession;
 use crate::compile::build_execution::ReturnedPackageBuild;
@@ -26,9 +46,7 @@ use ProjectSourceResolutionError::{Compilation, Resources, Source};
 struct SourceBuild {
     acquired: AcquiredBuildSource,
     declared: DeclaredBuildSource,
-    // Taken only during settlement or final transfer; a failed transition
-    // aborts this invocation instead of replaying the original Build.
-    build: Option<ResolvedBuild>,
+    build: Option<ResolvedBuild>, // Taken once during settlement or final transfer.
 }
 
 struct ExecutedSourceBuild {
@@ -42,9 +60,6 @@ struct QueryDependencies {
     selections: Vec<build_settings::BuildDependencySelection>,
 }
 
-/// Invocation scratch for one Product waiting on its generated-source inputs.
-/// A dependency's completed bundle returns to this frame, not a recursive Rust
-/// call. The same source may still have distinct Build and Product occurrences.
 struct PendingProduct {
     source: usize,
     purpose: DependencyPurpose,
@@ -98,9 +113,6 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 .take()
                 .ok_or_else(|| Source("Build work was already consumed".into()))?;
             if !resolved.contains(identity) {
-                // Unselected members are declarations, not Product roots. Only
-                // their actually demanded dependency closures can account for a
-                // source absent from the selected Product graph.
                 let mut observed = false;
                 for catalog in &self.catalog_builds {
                     for graph in catalog.observation.dependency_graphs() {
@@ -149,9 +161,6 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         self.run_work(Work::Graph(resolution))?.graph()
     }
 
-    /// Dependency pauses keep their activation in the pending work, not on the
-    /// Rust call stack. Every child completes before its parent resumes; a failure
-    /// drops this invocation's pending jobs without replaying any Build.
     fn run_work(&mut self, root: Work) -> Result<CompletedWork, ProjectSourceResolutionError> {
         let active_depth = self.active.len();
         let result = self.drive_work(root);
@@ -205,9 +214,9 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     }
                 }
                 Work::Declare(acquired) => {
-                    let build = take_completed(&mut completed)?.build()?.build;
+                    let mut build = take_completed(&mut completed)?.build()?.build;
                     let declared = acquired
-                        .declare_build(normal_return(&build)?)
+                        .declare_source_result(&source_result(&mut build)?)
                         .map_err(Source)?;
                     let position = self.sources.len();
                     self.sources.push(SourceBuild {
@@ -262,21 +271,91 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                                 dependencies,
                             }),
                             compiler::BuildAdvance::Complete(returned) => {
-                                completed = Some(CompletedWork::Build(ExecutedSourceBuild {
+                                let mut build = ExecutedSourceBuild {
                                     build: ReturnedPackageBuild {
                                         invocation,
                                         returned: returned.map_err(Compilation)?,
                                     },
                                     dependencies,
-                                }));
+                                };
+                                let demands = source_result(&mut build.build)?
+                                    .demanded_sources()
+                                    .to_vec()
+                                    .into_iter();
+                                pending.push(Work::CompletedDependencies {
+                                    acquired,
+                                    build,
+                                    demands,
+                                });
                             }
                         }
                     }
                 }
-                Work::Run(mut build) => {
-                    let step =
-                        phase_profile::scope("omega.build.run", || build.activation.advance(1024))
+                Work::CompletedDependencies {
+                    acquired,
+                    mut build,
+                    mut demands,
+                } => {
+                    if let Some(demand) = demands.next() {
+                        let selection = self
+                            .acquisitions
+                            .acquire_completed(
+                                &acquired,
+                                &source_result(&mut build.build)?,
+                                demand.purpose,
+                                demand.request_ordinal,
+                            )
                             .map_err(Source)?;
+                        pending.push(Work::CompletedDependencySource {
+                            acquired,
+                            build,
+                            demands,
+                            demand,
+                        });
+                        pending.push(Work::ExecuteAcquired);
+                        pending.push(Work::Acquire(selection));
+                    } else {
+                        completed = Some(CompletedWork::Build(build));
+                    }
+                }
+                Work::CompletedDependencySource {
+                    acquired,
+                    build,
+                    demands,
+                    demand,
+                } => {
+                    let source = take_completed(&mut completed)?.source()?;
+                    let declared = &self.sources[source].declared;
+                    declared.require_dependency().map_err(Source)?;
+                    if declared.identity() != demand.package {
+                        return Err(Source(
+                            "completed Build demand selected a different dependency source".into(),
+                        ));
+                    }
+                    let resolution = declared.clone().resolve().map_err(Source)?;
+                    pending.push(Work::CompletedDependencyGraph {
+                        acquired,
+                        build,
+                        demands,
+                    });
+                    pending.push(Work::Graph(resolution));
+                }
+                Work::CompletedDependencyGraph {
+                    acquired,
+                    mut build,
+                    demands,
+                } => {
+                    let graph = Arc::new(take_completed(&mut completed)?.graph()?);
+                    self.settle_graph(&graph)?;
+                    build.dependencies.push(graph);
+                    pending.push(Work::CompletedDependencies {
+                        acquired,
+                        build,
+                        demands,
+                    });
+                }
+                Work::Run(mut build) => {
+                    let step = build.activation.advance(1024).map_err(Source)?;
                     if let Some(query) = step.awaiting_query {
                         pending.push(Work::Dependencies(PendingDependencies::new(
                             build,
@@ -298,9 +377,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                             ..
                         } = *build;
                         let returned = Some(activation.complete().map_err(Source)?);
-                        let advanced = phase_profile::scope("omega.build.advance", || {
-                            invocation.advance(Ok(returned))
-                        });
+                        let advanced = invocation.advance(Ok(returned));
                         match advanced.map_err(Compilation)? {
                             compiler::BuildAdvance::Continue => pending.push(Work::Start {
                                 acquired,
@@ -523,13 +600,10 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 }
                 Work::WorkspaceRoot(workspace) => {
                     let build = take_completed(&mut completed)?.build()?.build;
-                    let returned = build.returned.ok_or_else(|| {
-                        Source("workspace catalog has no executed declaration".into())
-                    })?;
                     let root = self
                         .session
                         .compiler
-                        .settle_source_catalog(build.invocation, returned)
+                        .settle_source_catalog(build.invocation, build.returned)
                         .map_err(Compilation)?;
                     let members = self
                         .acquisitions
@@ -578,16 +652,16 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                 } => {
                     let executed = take_completed(&mut completed)?.build()?;
                     self.active.pop();
-                    let build = executed.build;
+                    let mut build = executed.build;
                     let declaration = build
                         .invocation
-                        .observe_declaration(normal_return(&build)?)
+                        .observe_declaration(build.returned.as_mut())
                         .map_err(Compilation)?;
                     let observation =
                         package_manager::resolution::source::WorkspaceMemberObservation::new(
                             &acquired,
                             declaration,
-                            normal_return(&build)?,
+                            &source_result(&mut build)?,
                             executed.dependencies,
                         )
                         .map_err(Source)?;
@@ -806,12 +880,9 @@ fn join_source(
     build: &mut ResolvedBuild,
 ) -> Result<package_compilation::PackageCompilationInputs, ProjectSourceResolutionError> {
     match build {
-        ResolvedBuild::Returned(build) => {
-            let returned = build.returned.as_mut().ok_or_else(|| {
-                Source("acquired source has no executed Build declaration".into())
-            })?;
-            resolved.join_build(identity, returned).map_err(Source)
-        }
+        ResolvedBuild::Returned(build) => resolved
+            .join_source_result(identity, &mut source_result(build)?)
+            .map_err(Source),
         ResolvedBuild::Settled(build) => {
             let inputs = resolved.compilation_inputs(identity).map_err(Source)?;
             if inputs.source_inputs() != build.package_inputs().source_inputs() {
@@ -824,7 +895,6 @@ fn join_source(
     }
 }
 
-/// A running guest and its compiler continuation move together across pauses.
 struct LiveBuild {
     acquired: AcquiredBuildSource,
     invocation: compiler::PackageBuildInvocation,
@@ -862,8 +932,6 @@ struct PendingDependencies {
 
 impl PendingDependencies {
     fn new(build: Box<LiveBuild>, demand: Demand) -> Self {
-        // Only the cursor and display aliases are copied. Acquisition still
-        // consumes the original activation's authenticated request ledger.
         let mut requests = Vec::new();
         let mut ordinal = 0;
         for issued in build.activation.requests() {
@@ -903,9 +971,6 @@ struct PendingWorkspace {
     declarations: Vec<package_manager::resolution::source::WorkspaceMemberObservation>,
 }
 
-// These are application dependency continuations, not compiler-stage jobs.
-// The next operation consumes the one completed child; live guest state never
-// resides in a callback, recursive call, or serializable checkpoint.
 enum Work {
     Start {
         acquired: AcquiredBuildSource,
@@ -921,6 +986,22 @@ enum Work {
     Build {
         acquired: AcquiredBuildSource,
         request: CheckedCompileRequest,
+    },
+    CompletedDependencies {
+        acquired: AcquiredBuildSource,
+        build: ExecutedSourceBuild,
+        demands: std::vec::IntoIter<build_settings::BuildDependencySelection>,
+    },
+    CompletedDependencySource {
+        acquired: AcquiredBuildSource,
+        build: ExecutedSourceBuild,
+        demands: std::vec::IntoIter<build_settings::BuildDependencySelection>,
+        demand: build_settings::BuildDependencySelection,
+    },
+    CompletedDependencyGraph {
+        acquired: AcquiredBuildSource,
+        build: ExecutedSourceBuild,
+        demands: std::vec::IntoIter<build_settings::BuildDependencySelection>,
     },
     Run(Box<LiveBuild>),
     Dependencies(PendingDependencies),

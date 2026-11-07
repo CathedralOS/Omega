@@ -127,6 +127,13 @@ pub enum TerminalInterpretError {
         actual: StructuralTypeId,
     },
     StructuralQualificationsNonCanonical,
+    StructuralCallResultContract {
+        callee: MachineId,
+        place: PlaceId,
+        actual: StructuralTypeId,
+        expected: Option<StructuralTypeId>,
+        reason: &'static str,
+    },
     StructuralArgumentPreparation {
         stage: &'static str,
         detail: String,

@@ -1,6 +1,5 @@
 use crate::unit_validation::operation_contracts::claim_transfers::proposition_structural_roots;
 use crate::unit_validation::operation_contracts::plain_calls::plain_structural_call;
-use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
@@ -9,7 +8,6 @@ use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
 use terminal_psi::StructuralDomainDeclaration;
 use terminal_psi::StructuralTypeDeclaration;
-use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn plain_scalar_sum_call(
     operation: &O,
@@ -277,14 +275,25 @@ pub(crate) fn validate_structural_call_result(
             .windows(2)
             .any(|pair| pair[0] >= pair[1])
         || result.claims.windows(2).any(|pair| pair[0] >= pair[1])
-        || result.claims.iter().any(|claim| {
-            resolve_structural_path(types, result.structural_type, &claim.path).is_none()
-        })
-        || result.claims.iter().enumerate().any(|(index, claim)| {
-            result.claims[index + 1..]
-                .iter()
-                .any(|other| structural_paths_may_overlap(&claim.path, &other.path))
-        })
+    {
+        return false;
+    }
+    if terminal_semantics::validate_result_claim_catalog(
+        types.values().copied(),
+        result.structural_type,
+        &result.claims,
+        callee
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .filter_map(|node| match &node.operation {
+                O::ReturnStructural {
+                    returned_claims, ..
+                } => Some(returned_claims.as_slice()),
+                _ => None,
+            }),
+    )
+    .is_err()
     {
         return false;
     }
@@ -298,7 +307,7 @@ pub(crate) fn validate_structural_call_result(
     {
         return false;
     }
-    let claim_shape = match result.multiplicity {
+    match result.multiplicity {
         terminal_psi::StructuralMultiplicity::Linear => {
             matches!(result.claims.as_slice(), [claim] if claim.path.is_empty())
         }
@@ -306,20 +315,5 @@ pub(crate) fn validate_structural_call_result(
             result.claims.iter().all(|claim| !claim.path.is_empty())
         }
         terminal_psi::StructuralMultiplicity::Unrestricted => result.claims.is_empty(),
-    };
-    claim_shape
-        && terminal_semantics::result_claim_catalog_matches_returns(
-            &result.claims,
-            callee
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .filter_map(|node| match &node.operation {
-                    abstract_operations::AbstractOperation::ReturnStructural {
-                        returned_claims,
-                        ..
-                    } => Some(returned_claims.as_slice()),
-                    _ => None,
-                }),
-        )
+    }
 }

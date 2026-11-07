@@ -1,5 +1,10 @@
 # Distance to completion: Rust reference compiler
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 A retrospective measuring how far the repository is from the
 [completion contract](../reference/rust_compiler_completion.md): eight gates
 plus four hosted platform runs, all green at one clean commit. Assembled

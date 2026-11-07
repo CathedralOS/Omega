@@ -216,8 +216,8 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         writer.u32(realization.0);
     }
     let graph = &scope.calls;
-    writer.len("proof scope call summaries", graph.machines.len())?;
-    for (_, row) in graph.machines.iter() {
+    writer.len("proof scope call summaries", graph.machines().len())?;
+    for (_, row) in graph.machines().iter() {
         writer.u32(row.machine.0);
         let calls =
             graph
@@ -474,12 +474,13 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
         })?;
         let calls = graph.calls.insert_many(calls);
         let cleanup = read_references(reader, &mut graph.cleanup)?;
-        graph.machines.insert(ProofCallMachine {
+        graph.insert_machine(ProofCallMachine {
             machine,
             calls,
             cleanup,
         });
     }
+    graph.index_machines();
     let component_count = reader.count()?;
     for _ in 0..reader.count()? {
         result
@@ -568,7 +569,7 @@ mod tests {
             } else {
                 HandleSpan::default()
             };
-            scope.calls.machines.insert(ProofCallMachine {
+            scope.calls.insert_machine(ProofCallMachine {
                 machine: ProofDeclarationId(owner),
                 calls,
                 cleanup,

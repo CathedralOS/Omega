@@ -72,6 +72,7 @@ pub(super) fn read(
         return Err(invalid());
     }
     let mut storage = CapturedStorage::capture(
+        0,
         buffers,
         StructuralAccess::MutableBorrow,
         Some(layout),
@@ -134,6 +135,7 @@ pub(super) fn sleep(
         .first()
         .ok_or_else(invalid)?;
     let storage = CapturedStorage::capture(
+        0,
         buffers,
         parameter.access,
         Some(layout),

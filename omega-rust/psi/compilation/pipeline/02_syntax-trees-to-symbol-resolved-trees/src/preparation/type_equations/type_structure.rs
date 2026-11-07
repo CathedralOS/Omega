@@ -92,12 +92,6 @@ pub(super) fn collect_binder_mentions(
             collect_binder_mentions(syntax, *base_type, parameters, mentions);
             for constraint in syntax.type_references.constraints(*constraints) {
                 match constraint {
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        collect_expression_binder_mentions(syntax, *minimum, parameters, mentions);
-                        collect_expression_binder_mentions(syntax, *maximum, parameters, mentions);
-                    }
                     TypeConstraintNode::Domain(domain) => {
                         if let Some(position) = parameters
                             .iter()

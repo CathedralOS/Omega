@@ -1,16 +1,31 @@
-//! Assert whole-invocation work through the public application Build API.
-//!
-//! Run alone: counters are process-wide. The measurement starts before source
-//! preparation and ends after every requested outcome joins, including refusal.
-//! Cross-target artifacts are produced but foreign native images are not executed.
-//! Terminal mode interprets each target context and requires an empty Unit result.
-//!
-//! Usage: package_batch [--check | --terminal] [--targets name,name]
-//! [--rollback path] [--native-evidence] [--compare-single-targets] [--run]
-//! [--reject target --reason text --reject-through-stage number] [root [sources
-//! [terminals [builds [settled_checks]]]]]. Defaults describe the two-target
-//! shared_program_distinct_roots_exit fixture: 1 source, 1 Terminal, 1 Build,
-//! and 2 checks (Build + Product). Check-only defaults to zero Terminal work.
+/*
+Whole-invocation work measurement harness for the public `orchestration::build`
+API.
+
+We run this binary in a standalone process because the compilation counters in
+`artifacts::compile_timings::counters` are process-wide. The measurement window
+starts before source preparation and closes after every requested target outcome
+joins, including refused targets.
+
+We spawn the measurement on a 256 MiB worker thread to match the shipped CLI
+command worker, since package resolution precedes the compiler's own worker
+pool and still traverses recursive syntax and directory trees. We assert work
+counts before unpacking `result?` so an unrelated early refusal cannot silently
+pass as having checked an invalid unrequested target row, and we capture the
+whole-invocation counters and entered native stage records before running any
+optional `--compare-single-targets` comparison builds (which each obtain their
+own independent Build and source custody).
+
+Usage:
+  package_batch [--check | --terminal] [--targets name,name]
+  [--rollback path] [--native-evidence] [--compare-single-targets] [--run]
+  [--reject target --reason text --reject-through-stage number] [root [sources
+  [terminals [builds [settled_checks]]]]]
+
+Defaults describe the two-target `shared_program_distinct_roots_exit` fixture:
+1 source completion, 1 Terminal production (0 in `--check` mode), 1 Build
+execution, and 2 settled checks (Build + Product).
+*/
 
 use artifacts::compile_timings::counters;
 use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build};
@@ -76,12 +91,6 @@ impl Product {
 }
 
 fn main() -> Result<(), String> {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return Ok(());
-    }
-    // Match the shipped command worker: resolution precedes the compiler's
-    // worker and still contains recursive tree walks.
     std::thread::Builder::new()
         .name("package-batch-measurement".to_owned())
         .stack_size(256 * 1024 * 1024)
@@ -146,9 +155,6 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
     if (native_evidence || compare_single_targets || run_host) && product != Product::Native {
         return Err("native observations require the native product".into());
     }
-    if native_evidence && !phase_profile::enabled() {
-        return Err("native invocation observations require OMEGA_PHASE_PROFILE=1".into());
-    }
     if rejected_through_stage.is_some() && (!native_evidence || rejected_target.is_none()) {
         return Err("a rejected native stage requires --native-evidence and --reject".into());
     }
@@ -201,15 +207,13 @@ fn request() -> Result<Request, Box<dyn std::error::Error>> {
 fn measure() -> Result<(), Box<dyn std::error::Error>> {
     let before = WorkCounts::snapshot();
     let request = request()?;
-    let native_before = native_production::native_pipeline_invocations().len();
+    let native_before = native_compiler::native_pipeline_invocations().len();
     let result = produce(&request);
     let actual = WorkCounts::since(&before);
     println!(
         "whole_invocation_builds={} whole_invocation_settled_checks={} source_completions={} terminal_productions={}",
         actual.builds, actual.settled_checks, actual.sources, actual.terminals
     );
-    // Assert on failures too: an unrelated early refusal must not count as
-    // checking the invalid unrequested row. Preserve its original diagnostic.
     assert_eq!(
         actual,
         request.expected,
@@ -423,7 +427,7 @@ fn observe_native_products(
     });
     if let Some(directory) = &directory {
         std::fs::create_dir_all(directory)?;
-        let invocations = native_production::native_pipeline_invocations()
+        let invocations = native_compiler::native_pipeline_invocations()
             .into_iter()
             .skip(before)
             .collect::<Vec<_>>();
@@ -431,7 +435,7 @@ fn observe_native_products(
             assert!(request.targets.contains(&invocation.profile));
             assert_eq!(
                 invocation.unit,
-                native_production::NativePipelineUnit::Application
+                native_compiler::NativePipelineUnit::Application
             );
             assert!(invocation.stages.iter().all(|count| *count <= 1));
         }
@@ -495,8 +499,6 @@ fn observe_native_products(
         }
         println!("native_pipeline_evidence={}", directory.display());
     }
-    // Whole-invocation counts and entered stage records were captured before
-    // these separate invocations. Each obtains its own Build/source custody.
     if request.compare_single_targets {
         for (profile, shared) in &reports {
             let mut outcomes = build_targets(

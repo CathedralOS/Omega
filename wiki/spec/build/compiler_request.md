@@ -46,8 +46,7 @@ they do not encode the anonymous-owner record and default-build provenance.
 Supporting that logical input requires an explicit request extension shared by
 D and C, not fake names, host-path lineages, or reinterpreting existing tags.
 This wire limitation does not revoke anonymous compilation or require an authored
-build file in the language. Its implementation is tracked with
-MODULE-NAMESPACE-RESOLUTION and OMEGA-D/OMEGA-C.
+build file in the language.
 
 External admissions cover the assumptions and authority required by the requested
 compilation, including actual build execution. Ordinary artifact production does
@@ -129,12 +128,10 @@ canonical name/lineage inputs must produce identical keys in package management,
 D and C. Their canonical identity encoding and hashing must be specified once
 and exercised by shared vectors, not independently invented per consumer.
 
-The old two-tag `external_local`/`git` plus opaque lineage-text encoding is
-superseded. Completing the shared structured encoding, including its tags,
-field framing and canonical identity preimage, is engineering under OMEGA-D
-and OMEGA-PRODUCT-COMPILER-SOURCE. Record those bytes here alongside the
-implementation before claiming interoperability. The source-lineage model must
-preserve the [package identity rules](declarations.md#names-lineage-and-resolution);
+The structured source-lineage encoding must specify its tags, field framing
+and canonical identity preimage. The superseded two-tag `external_local`/`git`
+encoding with opaque lineage text must not be reinterpreted as this structure.
+The encoding must preserve the [package identity rules](declarations.md#names-lineage-and-resolution);
 private implementation fields do not override those rules.
 
 ### Source snapshots
@@ -153,9 +150,9 @@ or a prior build-operation trace cannot replace snapshot facts. Delegated
 filesystem observations and private writable/CoW backing retain their exact
 execution context under [staged Build execution](scoped_execution.md#execution-contexts-and-reuse).
 Compiler publication captures immutable bytes; a mutable overlay or a library
-changeset is not itself a successful product receipt. Retained schema updates
-for these contexts are implementation work, not permission to reinterpret old
-snapshot/facet records as the new meaning.
+changeset is not itself a successful product receipt. Retained schemas must preserve
+these contexts; old snapshot/facet records must not be reinterpreted as the new
+meaning.
 
 ### Subject field/tag table
 
@@ -445,8 +442,7 @@ names a folded operator result unrepresentable in the declared carrier;
 domain — a zero divisor or a shift count at or above the carrier width.
 Coordinates follow the selection rule below: declaration start for
 declaration failures, the refused name, call, transition row, or operator for
-these failures, source extent for EOF. Diagnostics beyond this inventory —
-refusals produced by semantic phases the decoded fields do not yet implement —
+these failures, source extent for EOF. Diagnostics beyond this inventory
 stay unpublished until the table assigns them.
 
 Coordinate spaces:
@@ -582,19 +578,19 @@ parser capacities are private D budgets over its fixed tables, not Omega source
 limits. The tape capacities bound the emitted artifact's payload and
 relocation records; their coordinates are payload-relative byte offsets.
 Codes 15–25 are coverage provisions, not capacities: each names a
-valid-Omega construct family the current scalar slice does not implement.
-Their limit is 0 — the slice provisions no capacity for the family — and the
+valid-Omega construct family unavailable under the compiler's provision.
+Their limit is 0, indicating no provision for that family, and the
 requested amount is the refused occurrence count (one refused construct), or
 zero for `coverage_empty_subject`, which reports a subject with no compilable
-root declaration. `coverage_source_forms` names the parser's unretained source
-shapes; the remaining codes name retained-but-unimplemented checking coverage:
+root declaration. `coverage_source_forms` names source
+shapes outside the parser's provision; the other codes identify checking coverage:
 non-machine roots, machine header forms, entry and authored-state signatures,
 non-call statement kinds, call shapes (explicit value and static arguments),
 expression forms (unsupported operators and literal spellings), and
 transition forms (multi-arm subjectless blocks, non-`Always` subjectless
 guards, guard/subject class mismatches, post-block statements, and mixed
 subjects within a block). `coverage_request_semantics` names the request
-boundary's unimplemented semantic phases — package-key recomputation,
+boundary's unavailable semantic phases — package-key recomputation,
 canonical ordering, graph resolution, snapshot materialization, admission
 verification, and commitment — for a request that survives phases 0, 1, 2,
 and 6 complete and well-formed: the refusal carries no coordinate and no

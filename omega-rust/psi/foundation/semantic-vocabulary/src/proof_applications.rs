@@ -206,6 +206,20 @@ pub struct ProofInvocationEdge<Declaration> {
 pub struct ProofApplications<'a, Declaration: 'static, Calls> {
     plan: &'a ProofApplicationPlan<Declaration>,
     operational: &'a Calls,
+    rows: std::sync::OnceLock<MachineRows<'a, Declaration>>,
+}
+
+/// The plan's machine rows in arena order, with each row's machine symbol
+/// and each of its state symbols sorted once by `declaration_order`.
+///
+/// Every program machine is a walk root, and each step of the walk looked
+/// its callee up by scanning every plan row, which made one walk quadratic
+/// in the machine count. Ties keep arena order, so the first match of an
+/// equal range is the row the scan found first.
+struct MachineRows<'a, Declaration: 'static> {
+    rows: Vec<&'a ProofApplicationMachine<Declaration>>,
+    by_machine: Vec<(Declaration, usize)>,
+    by_state: Vec<(Declaration, usize)>,
 }
 
 /// One walk retains executable owners and invoked coordinates separately.
@@ -220,7 +234,96 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
     ProofApplications<'a, Declaration, Calls>
 {
     pub fn new(plan: &'a ProofApplicationPlan<Declaration>, operational: &'a Calls) -> Self {
-        Self { plan, operational }
+        Self {
+            plan,
+            operational,
+            rows: std::sync::OnceLock::new(),
+        }
+    }
+
+    fn rows(&self) -> &MachineRows<'a, Declaration> {
+        self.rows.get_or_init(|| {
+            let rows = self
+                .plan
+                .machines
+                .iter()
+                .map(|(_, row)| row)
+                .collect::<Vec<_>>();
+            let mut by_machine = rows
+                .iter()
+                .enumerate()
+                .map(|(position, row)| (row.machine, position))
+                .collect::<Vec<_>>();
+            by_machine
+                .sort_by_key(|(symbol, position)| (Calls::declaration_order(*symbol), *position));
+            let mut by_state = rows
+                .iter()
+                .enumerate()
+                .flat_map(|(position, row)| {
+                    self.plan
+                        .symbols
+                        .span_or_empty(row.states)
+                        .iter()
+                        .map(move |state| (*state, position))
+                })
+                .collect::<Vec<_>>();
+            by_state
+                .sort_by_key(|(symbol, position)| (Calls::declaration_order(*symbol), *position));
+            MachineRows {
+                rows,
+                by_machine,
+                by_state,
+            }
+        })
+    }
+
+    /// `ProofApplicationPlan::matching_machine` through the sorted rows.
+    fn matching_machine(
+        &self,
+        symbol: Declaration,
+        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
+    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        let rows = self.rows();
+        let find = |sorted: &[(Declaration, usize)]| {
+            let key = Calls::declaration_order(symbol);
+            let start = sorted.partition_point(|(row, _)| Calls::declaration_order(*row) < key);
+            sorted[start..]
+                .iter()
+                .take_while(|(row, _)| Calls::declaration_order(*row) == key)
+                .filter(|(row, _)| *row == symbol)
+                .map(|(_, position)| rows.rows[*position])
+                .find(|row| accepts(row))
+        };
+        find(&rows.by_machine).or_else(|| find(&rows.by_state))
+    }
+
+    fn called_machine(
+        &self,
+        symbol: Declaration,
+    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        self.matching_machine(symbol, |row| row.product_selected)
+    }
+
+    /// `ProofApplicationPlan::target_machine` through the sorted rows.
+    fn target_machine(
+        &self,
+        machine: &'a ProofApplicationMachine<Declaration>,
+        target: &str,
+    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        if machine.family_interface {
+            let member = self
+                .plan
+                .target_members
+                .span_or_empty(machine.family_members)
+                .iter()
+                .find(|member| member.target == target)?;
+            return self.matching_machine(member.machine, |row| row.product_selected);
+        }
+        machine
+            .authored_target
+            .as_deref()
+            .is_none_or(|declared| declared == target)
+            .then_some(machine)
     }
 
     pub fn scopes<'request>(&'request self, primary: &'request str) -> Vec<&'request str> {
@@ -369,20 +472,27 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         provider_edges: &[(Declaration, Declaration)],
         mut pending: Vec<Application<Declaration>>,
     ) -> ProofApplicationReachability<Declaration> {
-        let mut visited = Vec::new();
+        // Membership tests over everything reached so far made one walk
+        // quadratic in the machine count. These sets answer the same exact
+        // questions (`declaration_order` is injective), and each list keeps
+        // first-reached order.
+        let mut visited =
+            std::collections::BTreeMap::<Calls::Order, Vec<Application<Declaration>>>::new();
         let mut machines = Vec::new();
+        let mut seen_machines = std::collections::BTreeSet::new();
         let mut calls = Vec::new();
+        let mut seen_calls = std::collections::BTreeSet::new();
         let mut invocations = Vec::new();
         while let Some(mut application) = pending.pop() {
             if application.machine != Declaration::default()
-                && !calls.contains(&application.machine)
+                && seen_calls.insert(Calls::declaration_order(application.machine))
             {
                 calls.push(application.machine);
             }
-            let Some(declaration) = self.plan.called_machine(application.machine) else {
+            let Some(declaration) = self.called_machine(application.machine) else {
                 continue;
             };
-            let Some(machine) = self.plan.target_machine(declaration, target) else {
+            let Some(machine) = self.target_machine(declaration, target) else {
                 continue;
             };
             if declaration.machine != machine.machine {
@@ -400,17 +510,22 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 }
             }
             application.machine = machine.machine;
-            if visited.contains(&application) {
+            let same_machine = visited
+                .entry(Calls::declaration_order(application.machine))
+                .or_default();
+            if same_machine.contains(&application) {
                 continue;
             }
-            visited.push(application.clone());
-            if !machines.contains(&machine.machine) {
+            same_machine.push(application.clone());
+            if seen_machines.insert(Calls::declaration_order(machine.machine)) {
                 machines.push(machine.machine);
             }
             let mut call_ordinal = 0;
             let has_summary = self.operational.visit_calls(machine.machine, |call| {
                 for coordinate in [call.state, call.operator] {
-                    if coordinate != Declaration::default() && !calls.contains(&coordinate) {
+                    if coordinate != Declaration::default()
+                        && seen_calls.insert(Calls::declaration_order(coordinate))
+                    {
                         calls.push(coordinate);
                     }
                 }
@@ -437,7 +552,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                     static_delegation: selected.is_some(),
                 });
                 pending.push(invoked);
-                let requirement_machine = self.plan.called_machine(callee).map(|row| row.machine);
+                let requirement_machine = self.called_machine(callee).map(|row| row.machine);
                 for (requirement, realization) in provider_edges {
                     if *requirement == callee
                         || Some(*requirement) == requirement_machine
@@ -513,8 +628,8 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         // Resolve state/family coordinates and their binders exactly as the
         // visited application does; no display identity participates.
         for edge in &mut invocations {
-            if let Some(declaration) = self.plan.called_machine(edge.target.machine)
-                && let Some(machine) = self.plan.target_machine(declaration, target)
+            if let Some(declaration) = self.called_machine(edge.target.machine)
+                && let Some(machine) = self.target_machine(declaration, target)
             {
                 if declaration.machine != machine.machine {
                     for binding in &mut edge.target.bindings {
@@ -604,14 +719,36 @@ pub trait ProofApplicationCalls<Declaration> {
 
 /// Source-free operational projection. Only the relationships used by proof
 /// scope are published; effect summaries remain with their existing owner.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct ProofCallGraph<Declaration: 'static> {
-    pub machines: Arena<ProofCallMachine<Declaration>>,
+    /// Private: the only writers are `insert_machine` and `update_machine`, so
+    /// `machine_index` and its revision stamp always describe this arena.
+    machines: Arena<ProofCallMachine<Declaration>>,
     pub calls:
         Arena<ProofApplicationCall<Declaration, HandleSpan<ProofStaticBinding<Declaration>>>>,
     pub bindings: Arena<ProofStaticBinding<Declaration>>,
     pub cleanup: Arena<Declaration>,
+    /// `machines` sorted by machine, published by the producer once the rows
+    /// are final (`index_machines`); ties keep arena order. A walk reads one
+    /// row per reached machine, and scanning every row for each made a walk
+    /// over every program machine quadratic. It is derived from `machines`,
+    /// so equality ignores it.
+    machine_index: Vec<(Declaration, arena::Handle<ProofCallMachine<Declaration>>)>,
+    /// The `machines` revision and length the index was built at; any later
+    /// mutation retires it.
+    indexed_at: Option<(u64, usize)>,
 }
+
+impl<Declaration: PartialEq> PartialEq for ProofCallGraph<Declaration> {
+    fn eq(&self, other: &Self) -> bool {
+        self.machines == other.machines
+            && self.calls == other.calls
+            && self.bindings == other.bindings
+            && self.cleanup == other.cleanup
+    }
+}
+
+impl<Declaration: Eq> Eq for ProofCallGraph<Declaration> {}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofCallMachine<Declaration: 'static> {
@@ -645,12 +782,7 @@ where
         machine: Declaration,
         mut visit: impl FnMut(ProofApplicationCall<Declaration, Self::Bindings>),
     ) -> bool {
-        let Some(row) = self
-            .machines
-            .iter()
-            .map(|(_, row)| row)
-            .find(|row| row.machine == machine)
-        else {
+        let Some(row) = self.machine_row(machine) else {
             return false;
         };
         for call in self.calls.span_or_empty(row.calls) {
@@ -670,16 +802,74 @@ where
     }
 
     fn visit_cleanup(&self, machine: Declaration, mut visit: impl FnMut(Declaration)) {
-        if let Some(row) = self
-            .machines
-            .iter()
-            .map(|(_, row)| row)
-            .find(|row| row.machine == machine)
-        {
+        if let Some(row) = self.machine_row(machine) {
             for target in self.cleanup.span_or_empty(row.cleanup) {
                 visit(*target);
             }
         }
+    }
+}
+
+impl<Declaration: Default + 'static> ProofCallGraph<Declaration> {
+    /// Every machine row, in arena order.
+    pub fn machines(&self) -> &Arena<ProofCallMachine<Declaration>> {
+        &self.machines
+    }
+
+    /// Append one machine row. The index stops matching the arena revision,
+    /// so lookups read the rows until `index_machines` runs again.
+    pub fn insert_machine(
+        &mut self,
+        row: ProofCallMachine<Declaration>,
+    ) -> arena::Handle<ProofCallMachine<Declaration>> {
+        self.machines.insert(row)
+    }
+
+    /// Edit one machine row, with the same index rule as `insert_machine`.
+    pub fn update_machine(
+        &mut self,
+        row: arena::Handle<ProofCallMachine<Declaration>>,
+        edit: impl FnOnce(&mut ProofCallMachine<Declaration>),
+    ) {
+        edit(self.machines.get_mut(row));
+    }
+}
+
+impl<Declaration: Copy + Ord + Default + 'static> ProofCallGraph<Declaration> {
+    /// Publish `machine_index` over the final `machines` rows.
+    pub fn index_machines(&mut self) {
+        let mut index = self
+            .machines
+            .iter()
+            .enumerate()
+            .map(|(position, (handle, row))| (row.machine, position, handle))
+            .collect::<Vec<_>>();
+        index.sort_by_key(|left| (left.0, left.1));
+        self.machine_index = index
+            .into_iter()
+            .map(|(machine, _, handle)| (machine, handle))
+            .collect();
+        self.indexed_at = Some((self.machines.revision(), self.machines.len()));
+    }
+
+    /// The first row for `machine`, through the published index when it
+    /// is current.
+    fn machine_row(&self, machine: Declaration) -> Option<&ProofCallMachine<Declaration>> {
+        if self.indexed_at != Some((self.machines.revision(), self.machines.len())) {
+            return self
+                .machines
+                .iter()
+                .map(|(_, row)| row)
+                .find(|row| row.machine == machine);
+        }
+        let start = self
+            .machine_index
+            .partition_point(|(row, _)| *row < machine);
+        self.machine_index[start..]
+            .iter()
+            .take_while(|(row, _)| *row == machine)
+            .map(|(_, handle)| self.machines.get(*handle))
+            .find(|row| row.machine == machine)
     }
 }
 
@@ -823,7 +1013,7 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofCallGraph<Declaration> {
             let cleanup = result
                 .cleanup
                 .insert_many(cleanup.into_iter().collect::<Result<Vec<_>, Error>>()?);
-            result.machines.insert(ProofCallMachine {
+            result.insert_machine(ProofCallMachine {
                 machine: map(machine)?,
                 calls,
                 cleanup,

@@ -97,7 +97,7 @@ pub fn parse_source_pages_from(
     let lexed_sources = lexed.sources.span_mut_or_empty(lexed.batch);
     let source_count = lexed_sources.len();
     let desired_pages = source_count
-        .min(rayon::current_num_threads().max(1).saturating_mul(4))
+        .min(parse_worker_count().max(1).saturating_mul(4))
         .max(1);
     parse_source_pages_with_count(lexed_sources, desired_pages, first_page_identity)
 }
@@ -118,6 +118,12 @@ pub fn parse_source_units(mut lexed: LexedSources) -> Result<ParsedSyntaxPages, 
 /// caller — CLI, tests, and embedding drivers — gets the contract without
 /// configuring the process-wide Rayon pool.
 const PARSE_STACK_SIZE: usize = 256 * 1024 * 1024;
+
+/// Worker count of the dedicated parse pool without initializing Rayon's
+/// default global pool.
+pub fn parse_worker_count() -> usize {
+    parse_thread_pool().current_num_threads()
+}
 
 /// Run source parsing under the grammar's required stack budget. The facade
 /// may combine lexical scratch and parsing in one independently owned task.

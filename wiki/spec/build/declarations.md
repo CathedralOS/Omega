@@ -18,7 +18,7 @@ Project description is one logical interpreted Omega activation, not a
 privileged syntax subset or replayed discovery program. Psi checks and admits
 the initial prefix against core, local Build declarations and available exact
 dependencies, then resumes subsequent checked continuations as dependencies
-are explicitly prepared. The Terminal interpreter preserves the same mutable
+are explicitly prepared. The Psi interpreter preserves the same mutable
 Build and live storage without rerunning earlier statements. The compiler owns
 stage checking, dependency/source identity and publication; ordinary libraries
 own filesystem and attenuation algorithms. No source-text call scanner decides
@@ -73,9 +73,8 @@ The compiler derives the native candidate and executable plan from that intent.
 Exact contract, lifetime, memory-access, calling-policy, native applicability,
 foreign admission, provenance, and runtime-authority obligations remain.
 There is no source `via` clause or per-symbol forwarding realization, and no
-author API for manufacturing trusted plan rows. This accepted operation is
-implementation work under `BUILD-OWNED-NATIVE-BINDINGS`; it does not change the
-existing entry-binding overload of `Build::bind`.
+author API for manufacturing trusted plan rows.
+The entry-binding overload of `Build::bind` is a separate operation.
 
 ## Project role
 
@@ -229,6 +228,9 @@ evaluated root-authorized product selection under the
 [assumed-binding contract](assumed_binding_contracts.md), not a statically
 projected project/dependency declaration. Its exact product references do not
 execute either requirement or grant any assumption to the build-host context.
+Ordinary applications should not use this selection. Build helpers and libraries
+must not insert it as a workaround for a failed provider contract or checker
+diagnostic; the exceptional-use rationale belongs to the consuming root.
 
 Filesystem operations use ordinary explicitly supplied backing and selected
 implementations. The old BuildSource/BuildOutput filesystem facets are retired
@@ -266,8 +268,6 @@ semantic definition of a source. There is no independent package version field:
 the exact resolved source supplies instance identity.
 
 The workspace owns its lock; dependency locks do not pin the consumer's graph.
-Membership does not merge acceptance across roots. The current
-[lock codec](../../../omega-rust/omega/packages/package-manager/src/lock/README.md)
-retains one selected source closure with target sections, not a complete
-multi-root workspace lock. Multi-root storage remains implementation work;
+Membership does not merge acceptance across roots. A multi-root workspace lock
+must retain each root's source closure, target sections and acceptance separately;
 neither catalog membership nor another root's acceptance can fill missing state.

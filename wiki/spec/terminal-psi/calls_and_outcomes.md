@@ -1,5 +1,11 @@
 # Calls and outcomes
 
+Indirect calls through [machine values](../language/machine_values.md) retain
+these same argument, result, proof and custody rules. [Package openings](../language/some_packages.md#opening-by-stable-subject)
+add exact witness/subject evidence, not another result kind or an implicit
+receiver. A concrete returned borrow keeps its input-relative origin; an
+opened witness cannot escape without a valid enclosing package.
+
 Checking reconstructs call obligations and outcome guards under the
 [fact-validity rules](fact_validity.md).
 [Observations](observations.md) defines which outcomes an execution exposes.
@@ -71,8 +77,8 @@ These declarations do not encode predicate proofs or routed authority. Those
 theories require their own evidence vocabulary rather than an assertion that
 they are obligation-free. Qualification adds no runtime tag, storage or operation;
 the ordinary edge transports the payload. Host scalar arguments alone do not
-establish a qualified entry contract. Current interpreter entry therefore rejects
-qualified host inputs until an evidence-bearing input interface exists.
+establish a qualified entry contract.
+An interpreter must reject qualified host inputs without the required evidence.
 
 ### Primitive array construction
 

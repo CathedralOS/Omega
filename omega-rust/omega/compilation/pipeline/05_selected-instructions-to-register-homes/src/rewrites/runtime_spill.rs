@@ -167,6 +167,7 @@ mod admission;
 mod case_payload_address;
 mod rewrite;
 mod slot;
+mod snapshot_copy;
 mod unit_effects;
 mod validation;
 
@@ -278,7 +279,8 @@ pub(crate) enum StoragePosition {
 /// snapshot source — naming the victim. The binding sits on an edge-transfer
 /// continuation in `block`; its snapshot loads carry `ReadPlace` memory
 /// accesses for `edge`/`place` in `byte_size`'s chunk decomposition, and
-/// `loads` is their instruction identities in byte order. `dedicated_reload`
+/// `loads` is their pointer-reading instruction identities in byte order (the
+/// copy itself, or its exact offset producer, for a bulk snapshot). `dedicated_reload`
 /// records that the loads cannot all name one register — pinned operands,
 /// a block keeping no shared reload, or a span-closing instruction at or
 /// after the first load — so the binding reads the victim's edge-time value
@@ -1838,8 +1840,8 @@ pub(super) fn derive_runtime_spill<'source>(
                 .collect();
         }
     }
-    // Every recorded binding must resolve to exactly the snapshot chunk-load
-    // stream its transport describes — `ReadPlace` accesses for its edge and
+    // Every recorded binding must resolve to exactly the snapshot read stream
+    // its transport describes (bounded chunks or one exact-count CopyBytes) — `ReadPlace` accesses for its edge and
     // source place in the transport's chunk decomposition, each in this
     // bridge block reading the victim. The binding's `argument` field then
     // names one register holding the victim's edge-time value: the single
@@ -1892,30 +1894,73 @@ pub(super) fn derive_runtime_spill<'source>(
             return Err(RuntimeSpillError::WorkBudgetExceeded);
         }
         for pending in &mut structural_uses {
+            // Empty homes have no physical read. Keep only the continuation's
+            // pointer metadata through its own end-of-block reload.
+            if pending.byte_size == 0 {
+                pending.dedicated_reload = true;
+                use_positions[pending.block].end_of_block = true;
+                continue;
+            }
             let Some(accesses) = chunk_loads.get(&(pending.edge, pending.place)) else {
                 return Err(RuntimeSpillError::UnsupportedUse);
             };
             let block = &function.blocks[pending.block];
             let mut positions = Vec::with_capacity(accesses.len());
+            let mut read_instructions = Vec::with_capacity(accesses.len());
             let mut pinned = false;
             let mut offset = 0u32;
             for access in accesses.iter().filter(|access| {
                 access.byte_offset >= pending.source_byte_offset
                     && access.byte_offset - pending.source_byte_offset < pending.byte_size
                     && pending.source_read_roles.contains(&access.role)
-                    && function
-                        .blocks
-                        .instruction_index_in_block(pending.block, access.instruction)
-                        .is_some_and(|position| {
-                            block.instructions[position]
-                                .operands
-                                .first()
-                                .is_some_and(|operand| operand.virtual_register == register)
-                        })
             }) {
+                let Some(index) = function
+                    .blocks
+                    .instruction_index_in_block(pending.block, access.instruction)
+                else {
+                    continue;
+                };
+                let instruction = &block.instructions[index];
+                if instruction.kind == SelectedInstructionKind::CopyBytes {
+                    let Some(use_index) = snapshot_copy::source_use(
+                        block,
+                        index,
+                        register,
+                        pending.source_byte_offset,
+                        pending.byte_size,
+                        &mut steps,
+                        ceiling,
+                    )?
+                    else {
+                        continue;
+                    };
+                    let source_use = &block.instructions[use_index];
+                    if read_instructions.contains(&access.instruction) {
+                        continue;
+                    }
+                    if offset != 0
+                        || access.byte_offset != pending.source_byte_offset
+                        || access.byte_count != pending.byte_size
+                    {
+                        return Err(RuntimeSpillError::UnsupportedUse);
+                    }
+                    pinned |= source_use.operands[0].fixed_view.is_some();
+                    positions.push(use_index);
+                    pending.loads.push(source_use.id);
+                    read_instructions.push(access.instruction);
+                    offset = pending.byte_size;
+                    continue;
+                }
+                if !instruction
+                    .operands
+                    .first()
+                    .is_some_and(|operand| operand.virtual_register == register)
+                {
+                    continue;
+                }
                 // A multidimensional selector contributes several evidence
                 // rows to one physical snapshot load. Reload that load once.
-                if pending.loads.contains(&access.instruction) {
+                if read_instructions.contains(&access.instruction) {
                     continue;
                 }
                 let Some(width) = next_chunk(pending.byte_size, offset) else {
@@ -1961,6 +2006,7 @@ pub(super) fn derive_runtime_spill<'source>(
                 pinned |= address.fixed_view.is_some();
                 positions.push(index);
                 pending.loads.push(access.instruction);
+                read_instructions.push(access.instruction);
                 offset += u32::from(width);
             }
             if offset != pending.byte_size {

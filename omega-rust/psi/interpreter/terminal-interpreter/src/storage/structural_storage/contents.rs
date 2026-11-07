@@ -3,7 +3,7 @@
 //! Direct common and payload scalar fields keep their separate cell namespaces.
 
 use crate::boundary::effects::scalar_loans::{
-    satisfies_source_restriction, scalar_qualification_owner,
+    captured_scalar_restoration_owner, satisfies_source_restriction,
 };
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::values::{
@@ -557,15 +557,12 @@ pub(crate) fn capture(
                 if logical != *scalar {
                     return Err(malformed());
                 }
-                // A re-view's authenticated projection can use a different
-                // descriptor namespace from its physical cells. Preserve the
-                // actual source owner's memberships, not that presentation's
-                // incidental path. The captured endpoint/region still bounds
-                // access; this ancestor scope grants no additional cells.
-                let restoration_owner = aggregate
-                    .and_then(|_| scalar_qualification_owner(&storage))
-                    .cloned()
-                    .unwrap_or_else(|| StructuralRuntimePlace::from(referent));
+                let presentation = StructuralRuntimePlace::from(referent);
+                let restoration_owner = if access == StructuralAccess::MutableBorrow {
+                    captured_scalar_restoration_owner(&storage, presentation)?
+                } else {
+                    presentation
+                };
                 // Owned payload snapshots publish no replacement or loan. Their
                 // qualifications remain on the consumed argument; a read cannot
                 // weaken that owner or manufacture another qualified value.

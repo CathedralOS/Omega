@@ -522,19 +522,7 @@ fn lower_type_constraint_handle(
                 arguments,
             }))
         }
-        syntax::types::TypeConstraintNode::Range {
-            minimum,
-            maximum,
-            end_inclusive,
-        } => {
-            let minimum = lower_expression_into_table(lowerer, syntax_trees, *minimum)?;
-            let maximum = lower_expression_into_table(lowerer, syntax_trees, *maximum)?;
-            Ok(TypeConstraint::Range {
-                minimum,
-                maximum,
-                end_inclusive: *end_inclusive,
-            })
-        }
+
         syntax::types::TypeConstraintNode::ArithmeticDomain(domain) => {
             Ok(TypeConstraint::ArithmeticDomain(*domain))
         }

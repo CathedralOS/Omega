@@ -88,9 +88,6 @@ fn main() {
                 println!("published native output to {}", artifact.display());
             }
             eprintln!("  1.25 ms  Stage fixture");
-            if std::env::var_os("OMEGA_PHASE_PROFILE").is_some() {
-                eprintln!("  0.75 ms         2 x  fixture.pass\n          42 n  fixture.nodes");
-            }
         }
     }
 }

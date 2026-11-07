@@ -34,23 +34,23 @@ old encodings reject through the stale-marker rule rather than being accepted
 as a compatibility dialect. Access, multiplicity, qualifications and custody
 remain independently checked for every ordinary parameter.
 
-`STATIC-MACHINE-MIGRATION` tracks completion of the coordinated producer,
-codec and consumer migration. These byte layouts do not claim that
-the remaining consumer migration or end-to-end validation is complete.
+Legacy runtime conformance selectors are not callable-package evidence.
+[Machine values](../language/machine_values.md) and [some packages](../language/some_packages.md)
+replace source `dyn`; static named conformances remain. `SelectImplementation`
+(109), `CallDynamic` (110), and section 25 describe legacy wire forms. They do not
+authorize source `dyn` and must not be silently decoded as runtime callable
+and package evidence. Earlier instance-bearing tags 48, 49, 52, 53, 54 and
+suspension targets 3 and 4 remain unassigned and reject.
 
-The same distinction applies to the legacy conformance subject field. The
-[named-implementation contract](../language/conformances.md#data-and-code-are-independent)
-has no subject. The [dynamic contract](dynamic_dispatch.md) retains an
-implementation selector separately from zero or more ordinary call arguments.
-`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` must remove the legacy subject field
-across producers, codecs, interpreters and consumers together. The retired
-data-attached dynamic operations, catalog sections and suspension targets have
-no wire form: their former operation tags 48, 49, 52, 53 and 54 and suspension
-target tags 3 and 4 are unassigned and reject, and
-`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` adds the selector route's own rows.
-The byte tables record the current implementation during that migration; they
-do not authorize retaining the old semantic model or decoding it as a
-compatibility dialect.
+The migration must retain exact callable contracts/applications, construction
+refinement, package witnesses, subject/version openings, dependent projections,
+argument/reborrow mappings and result/custody evidence. Uniform package layout
+requires no global witness/target roster. Source checking produces these plans;
+lowering carries them; independent verification validates them. Update the
+semantic marker, producer, codec, interpreter, verifier and consumers together.
+New numeric tags and their byte payloads must be specified with that
+implementation, not guessed here. The [migration plan](../../drafts/designs/machine_values_some.md)
+owns replacement of the legacy rows and retirement of their decoders.
 
 Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
@@ -71,15 +71,26 @@ is empty; older markers reject rather than selecting an optional dialect:
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
 
-Canonical identity-table references retain the semantic identity governed by
-[bounded index normalization](../proofs/contracts.md#bounded-canonical-index-normalization).
-Producers must agree on the canonical typed structure, selected operation and
-law authority, ordering, and encoding, including the fixed cutoff policy for
-open indices. Compiler-local handles and storage compression cannot change the
-published identity. Transported generic compatibility evidence and separately
-evaluated closed values keep their distinct obligations. This does not require
-runtime expressions to use a polynomial representation or add a new wire
-operation for distributivity.
+Canonical identity-table references retain
+[stable index identity](../proofs/contracts.md#stable-canonical-index-identity).
+Producers agree on canonical typed structure, selected operation/application,
+arithmetic policy, fixed core simplifications, ordering, and encoding. No
+expansion cutoff or caller-selected law set enters open-index key normalization.
+Compiler-local handles and compression cannot change published identity.
+
+[Compatibility evidence](../proofs/contracts.md#exact-matching-and-evidence-transport)
+retains its exact proposition, subjects, substitution and selected law authority
+separately from keys. Proof-discovery policy and usage are provenance/accounting;
+they neither rename applications nor replace the evidence. Published proofs
+are verified at trust boundaries without repeating producer search.
+Artifact bytes or cache provenance may differ with proof records while semantic
+identities remain fixed. Closed values retain their own evaluation obligations.
+
+The migration must update identity-profile provenance and evidence serialization
+together, rejecting or explicitly migrating artifacts with legacy law-sensitive
+keys rather than silently reinterpreting them. No new numeric wire tags are
+assigned by this documentation change. Distributivity requires no runtime
+polynomial representation or executable wire operation.
 
 An optional predicate is a presence Boolean, followed when present by its
 subject value id and one canonical proposition. Its domain-local subject is
@@ -149,11 +160,10 @@ completion instead. Erasure retains the existing strict subset rule.
 
 ### Retained scalar conditions and application scope
 
-The reference compiler's target-closure migration retains scalar applications,
-captured integer and Boolean conditions, and their declaration scope before the folded
-constant table. These rows are outstanding requirements, not successful proof
-or execution authority. The migration's unresolved-execution fences remain
-until a receiving target can discharge the complete requirements.
+Scalar applications, captured integer and Boolean conditions, and their
+declaration scope precede the folded constant table. These rows are requirements,
+not successful proof or execution authority. A receiving target must discharge
+the complete requirements before execution.
 
 The condition section encodes counted integer-range rows, counted predicate
 rows, then counted completion rows:
@@ -185,7 +195,7 @@ handles; every child precedes its parent. Integer payloads use the canonical
 sign/magnitude encoding also used by bound steps.
 
 Ingress checks every operand's kind and requires a Boolean root, including
-operands that selective evaluation may skip. Observations currently denote
+operands that selective evaluation may skip. Observations denote
 integers; Boolean constants and combinations retain their selected builtin
 meaning. Evaluation shares the ordinary scalar-predicate evaluator and cannot
 establish formation by short-circuiting. Recipe equality retains both independent
@@ -488,7 +498,6 @@ An empty path observes the whole byte descriptor; a nonempty path observes its
 exact byte field. The term has Boolean type and supplies no assertion that its
 predicate holds.
 
-
 A scalar-read projection is a tag followed by its payload: `1` selects a field
 id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
 index term. Tag `5` is `Referent`, has no payload, and crosses one readable
@@ -504,7 +513,6 @@ carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
 Selector terms participate in ordinary depth limits, value substitution and
 structural-root substitution. A term supplies no bounds, access or truth evidence.
-
 
 ## Integer math terms
 
@@ -722,8 +730,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 106 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id + predicate obligation id |
 | 107 | EstablishStructuralArray | counted structural arguments, the ordered owned elements |
 | 108 | ReleaseReference | place id + structural path; projected form requires a nonempty path (tag 70 spells the root release) |
-| 109 | SelectImplementation | `u32` dynamic-dispatch table index |
-| 110 | CallDynamic | selector value id + `u32` interface + `u32` slot + counted value ids + counted family actual value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 109 | SelectImplementation (legacy; migration above) | `u32` dynamic-dispatch table index |
+| 110 | CallDynamic (legacy; migration above) | selector value id + `u32` interface + `u32` slot + counted value ids + counted family actual value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
 | 111 | EstablishReference | structural argument + byte-offset value id + `u8` stored-scalar flag (1 + scalar type; 0 aggregate view); storage-view form |
 | 112 | ElementViewLength | source place id + structural access + structural path |
 | 113 | ByteSequenceSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
@@ -959,7 +967,7 @@ Older markers are rejected before their payload is read.
 | 22 | unoptimized behavior | counted pre-optimization behavior rows |
 | 23 | external providers | counted external provider conformances |
 | 24 | provider candidates | counted provider candidate rows |
-| 25 | dynamic dispatch | counted interfaces and implementation tables |
+| 25 | legacy dynamic dispatch | counted interfaces and implementation tables |
 | 26 | float-meaning projections | counted projection rows |
 | 27 | float-meaning equalities | counted equality rows |
 | 28 | proposition declarations | counted proposition declaration rows |
@@ -2043,8 +2051,8 @@ Both forms require every exact internal call occurrence and one common rank type
 
 ### Closed conformance applications
 
-Implementation migration: the `optional subject identity` below is retired
-semantic state. The replacement identity is the named implementation, its
+The legacy `optional subject identity` below is not part of conformance
+identity. The replacement identity is the named implementation, its
 complete telescope and trait application, rows, laws and callable identities.
 Do not infer a subject from the first type argument or emit a permanent empty
 subject field as the new representation.
@@ -2435,7 +2443,7 @@ installation record can describe one.
 Register events with service authority retain operation tag 121, followed by
 the nonzero `ServiceId`, the `u16` catalog operation identity and its declared
 scalar input IDs. Tag 126 encodes a register observation without service
-authority, followed by the catalog identity and declared input IDs. The current
+authority, followed by the catalog identity and declared input IDs. The
 no-authority observation is exactly `SystemRead(Rflags)`, whose semantics are
 the x86 PUSHFQ image. Both decoding and structural admission reject a tag whose
 service presence differs from the catalog. Target and environment admission

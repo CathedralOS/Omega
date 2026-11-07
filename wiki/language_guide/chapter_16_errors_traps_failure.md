@@ -163,7 +163,7 @@ it does not resume abandoned computation. See [recovery contracts](../spec/langu
 Recoverable outcomes follow ordinary cleanup-bearing edges. Crashes have no
 successor and do no cleanup; their explicit abandonment record is not an absent
 cleanup list. A supervisor cannot turn that record into permission to resume
-the abandoned activation. [Terminal outcomes](../spec/terminal-psi/calls_and_outcomes.md#crash)
+the abandoned activation. [Psi outcomes](../spec/terminal-psi/calls_and_outcomes.md#crash)
 retain this distinction through verification and execution.
 
 ## Host Failure

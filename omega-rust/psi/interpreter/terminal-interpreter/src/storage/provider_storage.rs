@@ -39,6 +39,7 @@ pub(crate) mod initialization;
 mod lifecycle;
 mod profile_values;
 pub(crate) mod profiles;
+mod relocation;
 pub(crate) mod value_image;
 pub(crate) mod view;
 pub use entry::{

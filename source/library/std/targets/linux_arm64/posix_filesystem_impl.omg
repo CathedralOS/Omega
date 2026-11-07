@@ -17,6 +17,15 @@ boundary trait PosixFilesystemLinuxArm64ByteViews: Calling<LinuxArm64ByteViewCal
     machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration;
 }
 
+// Linux arm64 writes its 128-byte kernel stat record. The caller lends that
+// complete checked window rather than the first byte of a larger view.
+boundary trait PosixFilesystemLinuxArm64Metadata {
+    machine newfstatat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8; 128], flags: i32) -> i32
+    reaches FilesystemMetadataQuery;
+    machine fstat(fd: i32, buffer: &mut [u8; 128]) -> i32
+    reaches FilesystemMetadataQuery;
+}
+
 use filesystem_host;
 use targets::linux_x86_64::posix_filesystem_impl;
 
@@ -140,7 +149,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated[0], mode);
+    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -174,7 +183,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated[0], mode);
+    let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, &terminated, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -371,7 +380,7 @@ reaches FilesystemMetadataQuery
 {
     transition buffer.len >= 128 { true -> query(fd, buffer) _ -> -22 }
     machine query(fd: i32, buffer: &mut [u8]) -> i32 requires buffer.len >= 128 {
-        PosixFilesystemLinux::fstat(fd, &mut buffer[0])
+        PosixFilesystemLinuxArm64Metadata::fstat(fd, &mut buffer[0] as &mut [u8; 128])
     }
 }
 
@@ -397,7 +406,7 @@ reaches FilesystemMetadataQuery
     machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: &mut [u8], flags: i32) -> i32
     requires buffer.len >= 128
     {
-        PosixFilesystemLinux::newfstatat(directory_descriptor, &terminated[0], &mut buffer[0], flags)
+        PosixFilesystemLinuxArm64Metadata::newfstatat(directory_descriptor, &terminated, &mut buffer[0] as &mut [u8; 128], flags)
     }
 }
 

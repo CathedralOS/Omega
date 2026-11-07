@@ -147,7 +147,7 @@ fn scalar_closure_derives_supplemental_scope_from_shared_condition_owner() {
                 ..Default::default()
             },
         ]);
-        scope.calls.machines.insert(ProofCallMachine {
+        scope.calls.insert_machine(ProofCallMachine {
             machine: caller,
             calls,
             ..Default::default()

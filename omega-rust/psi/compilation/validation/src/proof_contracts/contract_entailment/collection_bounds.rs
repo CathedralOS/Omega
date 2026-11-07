@@ -9,9 +9,12 @@
 mod geometry;
 use super::structural_prefix::{PrefixObservation, StructuralPrefixSite, StructuralPrefixVisitor};
 pub(super) use geometry::proves_observed_bounds;
+use std::collections::BTreeMap;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+
+type BoundsCoordinate = ((u32, u32), usize, (u32, u32));
 
 /// Declaration-bound context for exact collection-operation observations.
 /// Each query observes the operation after its actual children, before its
@@ -19,32 +22,213 @@ use typed_trees::state::State;
 pub struct CollectionBoundsObservations<'program> {
     program: &'program dyn crate::CheckingInput,
     machine: &'program Machine,
-    state: &'program State,
+    states: Vec<&'program State>,
     acyclic: std::cell::Cell<Option<bool>>,
+    demands: std::cell::RefCell<BTreeMap<BoundsCoordinate, BoundsDemand>>,
+    resolved: std::cell::Cell<bool>,
+}
+
+struct BoundsDemand {
+    state: symbols::SymbolHandle,
+    statement: usize,
+    expression: ExpressionHandle,
+    proven: bool,
+}
+
+impl BoundsDemand {
+    fn coordinate(&self) -> BoundsCoordinate {
+        (
+            (self.state.arena_index(), self.state.generation()),
+            self.statement,
+            checked_trees::operators::handle_position(self.expression),
+        )
+    }
 }
 
 impl<'program> CollectionBoundsObservations<'program> {
-    pub fn new(
-        program: &'program dyn crate::CheckingInput,
-        machine: &'program Machine,
-        state: &'program State,
-    ) -> Self {
+    pub fn new(program: &'program dyn crate::CheckingInput, machine: &'program Machine) -> Self {
+        let mut states = program.machine_states(machine).iter().collect::<Vec<_>>();
+        states.sort_by_key(|state| (state.symbol.arena_index(), state.symbol.generation()));
         Self {
             program,
             machine,
-            state,
+            states,
             acyclic: std::cell::Cell::new(None),
+            demands: std::cell::RefCell::new(BTreeMap::new()),
+            resolved: std::cell::Cell::new(false),
         }
     }
 
-    pub fn proves(&self, statement_index: usize, expression: ExpressionHandle) -> bool {
-        let mut query = Bounds {
+    /// The inexpensive range walk records only obligations it could not close.
+    /// Until resolution, false is provisional and cannot publish a proof.
+    pub fn proves(
+        &self,
+        state: &State,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let mut demand = BoundsDemand {
+            state: state.symbol,
+            statement: statement_index,
+            expression,
+            proven: false,
+        };
+        let coordinate = demand.coordinate();
+        let mut demands = self.demands.borrow_mut();
+        if let Some(demand) = demands.get(&coordinate) {
+            return demand.proven;
+        }
+        // A replayed request absent from the collected roster still gets the
+        // original judgment. Batching cannot turn a missed demand into a new
+        // refusal or an assumed proof.
+        let proven = if self.resolved.get() {
+            drop(demands);
+            let proven = self.prove_one(state.symbol, statement_index, expression);
+            demands = self.demands.borrow_mut();
+            proven
+        } else {
+            false
+        };
+        demand.proven = proven;
+        demands.insert(coordinate, demand);
+        proven
+    }
+
+    /// Resolve actual deferred demands together. A successful result causes the
+    /// caller to replay its cheap range walk from the same initial facts; failed
+    /// batches retain the original single-occurrence fallback below.
+    pub fn resolve_deferred(&self) -> bool {
+        self.resolved.set(true);
+        let mut demands = std::mem::take(&mut *self.demands.borrow_mut())
+            .into_values()
+            .collect::<Vec<_>>();
+        if demands.is_empty() {
+            return false;
+        }
+        let Some(mut queries) = demands
+            .iter()
+            .map(|demand| self.query(demand.state, demand.statement, demand.expression))
+            .collect::<Option<Vec<_>>>()
+        else {
+            self.retain_demands(demands);
+            return false;
+        };
+        let recognized = if self.is_acyclic() {
+            let mut visitors = queries
+                .iter_mut()
+                .map(|query| query as &mut dyn StructuralPrefixVisitor)
+                .collect::<Vec<_>>();
+            let recognized = super::structural_prefix::observe_acyclic_invocation_prefixes(
+                self.program,
+                self.machine,
+                &mut visitors,
+            )
+            .is_some();
+            vec![recognized; visitors.len()]
+        } else {
+            let mut recognized = vec![false; queries.len()];
+            // Coordinates order by complete state identity. Form the actual
+            // recurrent groups once, rather than scanning all demands for
+            // every state declaration.
+            let mut offset = 0;
+            for group in queries.chunk_by_mut(|left, right| left.site.state == right.site.state) {
+                let length = group.len();
+                let Some(state) = self.state(group[0].site.state) else {
+                    offset += length;
+                    continue;
+                };
+                let mut visitors = group
+                    .iter_mut()
+                    .map(|query| query as &mut dyn StructuralPrefixVisitor)
+                    .collect::<Vec<_>>();
+                let state_results = super::structural_prefix::observe_runtime_state_prefixes(
+                    self.program,
+                    self.machine,
+                    state,
+                    &mut visitors,
+                );
+                recognized[offset..offset + length].copy_from_slice(&state_results);
+                offset += length;
+            }
+            recognized
+        };
+        for ((demand, query), recognized) in demands.iter_mut().zip(&queries).zip(recognized) {
+            demand.proven = recognized && query.seen && query.proven;
+        }
+        let pending = demands
+            .iter()
+            .enumerate()
+            .filter_map(|(index, demand)| (!demand.proven).then_some(index))
+            .collect::<Vec<_>>();
+        if !pending.is_empty() {
+            let accepted = {
+                let mut members = queries
+                    .iter_mut()
+                    .zip(&demands)
+                    .filter_map(|(query, demand)| {
+                        if demand.proven {
+                            return None;
+                        }
+                        query.seen = false;
+                        query.proven = true;
+                        Some(query)
+                    })
+                    .collect::<Vec<_>>();
+                super::structural_prefix::observe_private_arrivals_batch(
+                    self.program,
+                    self.machine,
+                    &mut members,
+                    false,
+                )
+                .into_iter()
+                .zip(members)
+                .map(|(recognized, query)| recognized == Some(true) && query.seen && query.proven)
+                .collect::<Vec<_>>()
+            };
+            for (index, accepted) in pending.into_iter().zip(accepted) {
+                demands[index].proven = accepted;
+            }
+        }
+        for demand in &mut demands {
+            if !demand.proven {
+                demand.proven = self.prove_one(demand.state, demand.statement, demand.expression);
+            }
+        }
+        let proven = demands.iter().any(|demand| demand.proven);
+        self.retain_demands(demands);
+        proven
+    }
+
+    fn retain_demands(&self, demands: Vec<BoundsDemand>) {
+        *self.demands.borrow_mut() = demands
+            .into_iter()
+            .map(|demand| (demand.coordinate(), demand))
+            .collect();
+    }
+
+    fn state(&self, symbol: symbols::SymbolHandle) -> Option<&'program State> {
+        self.states
+            .binary_search_by_key(&(symbol.arena_index(), symbol.generation()), |state| {
+                (state.symbol.arena_index(), state.symbol.generation())
+            })
+            .ok()
+            .map(|index| self.states[index])
+    }
+
+    fn query(
+        &self,
+        state: symbols::SymbolHandle,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> Option<Bounds> {
+        let state = self.state(state)?;
+        Some(Bounds {
             site: StructuralPrefixSite {
-                state: self.state.symbol,
+                state: state.symbol,
                 statement_index,
                 in_transition_target: super::structural_prefix::expression_is_transition_target(
                     self.program,
-                    self.state,
+                    state,
                     statement_index,
                     expression,
                 ),
@@ -52,8 +236,11 @@ impl<'program> CollectionBoundsObservations<'program> {
             expression,
             seen: false,
             proven: true,
-        };
-        let acyclic = self.acyclic.get().unwrap_or_else(|| {
+        })
+    }
+
+    fn is_acyclic(&self) -> bool {
+        self.acyclic.get().unwrap_or_else(|| {
             let computed = self
                 .program
                 .machine_states(self.machine)
@@ -67,18 +254,32 @@ impl<'program> CollectionBoundsObservations<'program> {
                 });
             self.acyclic.set(Some(computed));
             computed
-        });
-        let recognized = if acyclic {
+        })
+    }
+
+    fn prove_one(
+        &self,
+        state: symbols::SymbolHandle,
+        statement_index: usize,
+        expression: ExpressionHandle,
+    ) -> bool {
+        let Some(mut query) = self.query(state, statement_index, expression) else {
+            return false;
+        };
+        let recognized = if self.is_acyclic() {
             super::structural_prefix::observe_acyclic_invocation_prefix(
                 self.program,
                 self.machine,
                 &mut query,
             )
         } else {
+            let Some(state) = self.state(state) else {
+                return false;
+            };
             super::structural_prefix::observe_runtime_state_prefix(
                 self.program,
                 self.machine,
-                self.state,
+                state,
                 &mut query,
             )
         };

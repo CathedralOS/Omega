@@ -788,7 +788,6 @@ pub fn collect_program_references_with_roles(
     selection: &DeclarationSelection,
     classify_static_arguments: Option<StaticArgumentClassifier>,
 ) -> ProgramReferences {
-    let _guard = phase_profile::guard("typed_trees::collect_program_references");
     let mut roots = ReferenceCollector {
         selection: selection.clone(),
         classify_static_arguments,
@@ -1107,7 +1106,6 @@ pub fn program_proof_facts(
 pub fn program_scoped_proof_facts(
     program: &TypedTrees,
 ) -> impl Iterator<Item = (SymbolHandle, arena::Handle<ProofFact>, &ProofFact)> {
-    let _guard = phase_profile::guard("typed_trees::program_scoped_proof_facts");
     let mut roots = ProofFactCollector::default();
     visit_program(program, &mut roots);
     let mut facts = roots.facts.into_iter().collect::<Vec<_>>();
@@ -1204,6 +1202,7 @@ fn visit_callable_symbol(
             schema,
             policy_machine,
             storage,
+            profile_carrier,
             ..
         } = plan
             && *callable == symbol
@@ -1212,6 +1211,9 @@ fn visit_callable_symbol(
             visit_symbol(retained, *schema);
             visit_symbol(retained, *policy_machine);
             visit_type_reference(program, retained, storage.carrier);
+            if let Some(profile) = profile_carrier {
+                visit_type_reference(program, retained, *profile);
+            }
             for field in [&storage.base, &storage.length] {
                 visit_symbol(retained, field.symbol);
                 visit_type_reference(program, retained, field.type_reference);
@@ -2081,16 +2083,6 @@ pub fn visit_type_reference(
             visit_type_reference(program, retained, *base_type);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    crate::types::TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        if retained.type_expression(*minimum) {
-                            visit_expression(program, retained, *minimum);
-                        }
-                        if retained.type_expression(*maximum) {
-                            visit_expression(program, retained, *maximum);
-                        }
-                    }
                     crate::types::TypeConstraintNode::Domain(domain) => {
                         visit_symbol(retained, domain.symbol);
                         for argument in &domain.arguments {

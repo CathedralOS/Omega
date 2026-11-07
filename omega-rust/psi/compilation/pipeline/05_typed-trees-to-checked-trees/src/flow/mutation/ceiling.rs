@@ -448,10 +448,7 @@ fn carried_exclusive_referents(
     reference: TypeReferenceHandle,
     resolver: &CallFrameResolver<'_>,
 ) -> Option<Vec<CarriedStorage>> {
-    let (_, caller_state) = borrow
-        .states
-        .iter()
-        .find(|(_, row)| row.state_symbol == state.symbol)?;
+    let (_, caller_state) = borrow.first_state_borrow_by_symbol(state.symbol)?;
     let mut referents = Vec::new();
     // Constructors contribute their evaluated children; a named aggregate
     // contributes its retained descriptor inventory. The shared projection
@@ -555,10 +552,7 @@ pub(super) fn retained_loan_write_regions(
     let order = program
         .statement_table
         .admitted_execution_order(source_state.statement_nodes);
-    let (_, state) = borrow
-        .states
-        .iter()
-        .find(|(_, row)| row.state_symbol == state_symbol)?;
+    let (_, state) = borrow.first_state_borrow_by_symbol(state_symbol)?;
     let site = find_call_site(
         program,
         machine_symbol,

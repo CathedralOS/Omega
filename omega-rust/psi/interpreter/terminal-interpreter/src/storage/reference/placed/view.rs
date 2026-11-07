@@ -72,7 +72,7 @@ impl TerminalExecution<'_> {
             &profile_argument.path,
             profile_argument.access,
         )?;
-        let (binding, supplied) = self.lifecycle_profile(plan, &backing, &profile)?;
+        let (binding, supplied) = self.lifecycle_profile(plan, 0, &backing, &profile)?;
         let assessment = self
             .provider_storage
             .prepare_view(binding, &supplied, &plan.placement)?;

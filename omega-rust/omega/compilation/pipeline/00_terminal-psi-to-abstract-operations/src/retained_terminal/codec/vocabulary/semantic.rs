@@ -194,4 +194,5 @@ record_variants!(terminal_psi::TerminalAccessLifecycleOperation {
     0 => Initialize,
     1 => MoveOut,
     2 => View,
+    3 => Relocate,
 });

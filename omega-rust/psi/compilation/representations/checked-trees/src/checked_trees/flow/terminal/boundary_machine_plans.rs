@@ -107,6 +107,7 @@ pub enum CheckedBoundaryExecutionPlan {
     AccessInitialize,
     AccessMoveOut,
     AccessView,
+    AccessRelocate,
     EmptyRunRelease,
 }
 

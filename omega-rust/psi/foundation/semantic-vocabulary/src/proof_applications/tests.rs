@@ -83,7 +83,7 @@ fn family_binder_rebasing_keeps_distinct_static_applications() {
             ..Default::default()
         },
     ]);
-    graph.machines.insert(ProofCallMachine {
+    graph.insert_machine(ProofCallMachine {
         machine: 1,
         calls,
         ..Default::default()
@@ -92,7 +92,7 @@ fn family_binder_rebasing_keeps_distinct_static_applications() {
         binder: 11,
         ..Default::default()
     }]);
-    graph.machines.insert(ProofCallMachine {
+    graph.insert_machine(ProofCallMachine {
         machine: 3,
         calls,
         ..Default::default()
@@ -194,7 +194,7 @@ fn invocation_roots_do_not_seed_uninvoked_scoped_branches() {
         callee: 10,
         ..Default::default()
     }]);
-    graph.machines.insert(ProofCallMachine {
+    graph.insert_machine(ProofCallMachine {
         machine: 1,
         calls,
         ..Default::default()

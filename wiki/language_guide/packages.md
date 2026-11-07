@@ -78,11 +78,11 @@ command list below does not imply a new build-dependency CLI option.
 ## Install and update
 
 ```text
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
-omega update [package-or-alias...] [--to <revision>]
-omega install --resume
-omega update --resume
-omega <install|update> --discard-review
+omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
+omega packages update [package-or-alias...] [--to <revision>]
+omega packages install --resume
+omega packages update --resume
+omega packages <install|update> --discard-review
 ```
 
 The command resolves and checks the candidate, then compares it with `omega.lock`.
@@ -97,6 +97,12 @@ calls for auditing the candidate directly. Keep the lock under the project's
 normal review controls: it records your decisions, not a certificate of safety.
 
 ### Assumed binding contracts are extremely high risk
+
+**Reject these in ordinary applications.** A library asking you to approve one
+to work around a borrow error, missing proof, broken contract or compiler
+limitation is asking you to inherit its implementation problem as a trust
+assumption. Repair that problem instead. Exceptional use must identify a
+deliberate requirement outside the checked model; a failing build is not one.
 
 `Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
 asks the root to accept a semantic relationship that ordinary conformance
@@ -145,7 +151,7 @@ Project package acceptance and build-host grants do not authorize execution ther
 ## Inspect without accepting
 
 ```text
-omega audit packages [--project <dir>] [--target <name>]... [--details]
+omega packages audit [--project <dir>] [--target <name>]... [--details]
 ```
 
 Inspection shows fresh graph, API, authority, and assumption findings beside

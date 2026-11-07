@@ -22,6 +22,137 @@ pub(super) struct PermissionSupplier {
     pub(super) backing: checked_trees::CapturedPlace,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PermissionFailureStep {
+    source: Handle<FlowOperandFact>,
+    state: symbols::SymbolHandle,
+    statement_index: usize,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    expected: Option<typed_trees::types::TypeReferenceHandle>,
+    projection: [Option<facts::PlaceSegment>; 8],
+    projection_count: usize,
+    rule: &'static str,
+}
+
+/// Failure scratch stays on the request's stack. Successful paths emit nothing.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct PermissionFailures {
+    steps: [Option<PermissionFailureStep>; 4],
+    kept: usize,
+    total: usize,
+}
+
+impl PermissionFailures {
+    fn record(
+        &mut self,
+        source: Handle<FlowOperandFact>,
+        capture: Option<&FlowOperandFact>,
+        projection: &[facts::PlaceSegment],
+        expected: Option<typed_trees::types::TypeReferenceHandle>,
+        rule: &'static str,
+    ) {
+        self.total = self.total.saturating_add(1);
+        if self.kept == self.steps.len() {
+            return;
+        }
+        let mut path = [None; 8];
+        for (selected, segment) in path.iter_mut().zip(projection) {
+            *selected = Some(*segment);
+        }
+        self.steps[self.kept] = Some(PermissionFailureStep {
+            source,
+            state: capture.map_or_else(Default::default, |capture| capture.state_symbol),
+            statement_index: capture.map_or(0, |capture| capture.statement_index),
+            carrier: capture.map_or_else(Default::default, |capture| capture.type_reference),
+            expected,
+            projection: path,
+            projection_count: projection.len(),
+            rule,
+        });
+        self.kept += 1;
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct PermissionSourceFailure {
+    reason: &'static str,
+    details: Option<Box<PermissionFailures>>,
+}
+
+impl From<&'static str> for PermissionSourceFailure {
+    fn from(reason: &'static str) -> Self {
+        Self {
+            reason,
+            details: None,
+        }
+    }
+}
+
+impl From<PermissionSourceFailure> for &'static str {
+    fn from(failure: PermissionSourceFailure) -> Self {
+        failure.reason
+    }
+}
+
+impl std::fmt::Display for PermissionSourceFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.reason)
+    }
+}
+
+impl PermissionSourceFailure {
+    pub(super) fn describe(&self, program: &dyn validation::CheckingInput) -> String {
+        use std::fmt::Write;
+        let mut message = self.reason.to_owned();
+        let Some(details) = &self.details else {
+            return message;
+        };
+        for step in details.steps.iter().take(details.kept).flatten() {
+            let state = if step.state.is_valid() {
+                program
+                    .symbols
+                    .display_path(step.state, "::")
+                    .chars()
+                    .take(128)
+                    .collect::<String>()
+            } else {
+                "<unavailable>".to_owned()
+            };
+            let carrier = step.carrier.is_valid().then(|| {
+                program
+                    .normalized_type_identity_text(step.carrier)
+                    .chars()
+                    .take(256)
+                    .collect::<String>()
+            });
+            let expected =
+                step.expected
+                    .filter(|reference| reference.is_valid())
+                    .map(|reference| {
+                        program
+                            .normalized_type_identity_text(reference)
+                            .chars()
+                            .take(256)
+                            .collect::<String>()
+                    });
+            let path = &step.projection[..step.projection_count.min(step.projection.len())];
+            let _ = write!(
+                message,
+                "; source {:?} in {state} statement {}: {}; carrier {carrier:?}, expected {expected:?}, path {path:?} ({} segments)",
+                step.source, step.statement_index, step.rule, step.projection_count
+            );
+        }
+        if details.total > details.kept {
+            let _ = write!(
+                message,
+                "; {} further failed source checks omitted",
+                details.total - details.kept
+            );
+        }
+        message
+    }
+}
+
 /// Find the permission lending a new view, separately from the complete call
 /// input debt. Stored descriptor alternatives retain their own parents; the
 /// call's conservative ancestry union cannot choose a parent for one leaf.
@@ -36,7 +167,7 @@ pub(super) fn lending_sources(
     source: Handle<FlowOperandFact>,
     projection: &[facts::PlaceSegment],
     access: &checked_trees::BorrowAccessKind,
-) -> Result<(Vec<PermissionSupplier>, Arena<Handle<BorrowLoanFact>>), &'static str> {
+) -> Result<(Vec<PermissionSupplier>, Arena<Handle<BorrowLoanFact>>), PermissionSourceFailure> {
     use super::super::formation_captures::{AddressReceiver, address_receiver, formation_capture};
     let capture = facts.flow.control.operands.get(source);
     let mut lending = source;
@@ -79,7 +210,7 @@ pub(super) fn lending_sources(
             }
             AddressReceiver::InlineValue => argument_grant = true,
             AddressReceiver::Unavailable => {
-                return Err("the formation receiver has no complete descriptor path");
+                return Err("the formation receiver has no complete descriptor path".into());
             }
         }
     }
@@ -92,6 +223,7 @@ pub(super) fn lending_sources(
     };
     let mut suppliers = Vec::new();
     let mut parents = Arena::new();
+    let mut failures = PermissionFailures::default();
     let complete = collect(
         program,
         facts,
@@ -105,9 +237,13 @@ pub(super) fn lending_sources(
         &mut Vec::new(),
         &mut suppliers,
         &mut parents,
+        &mut failures,
     );
     if !complete || suppliers.is_empty() {
-        return Err("the saved descriptor has no complete checked borrowing source");
+        return Err(PermissionSourceFailure {
+            reason: "the saved descriptor has no complete checked borrowing source",
+            details: Some(Box::new(failures)),
+        });
     }
     if !argument_grant {
         for supplier in &mut suppliers {
@@ -233,6 +369,7 @@ pub(super) fn collect(
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
     output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
+    failures: &mut PermissionFailures,
 ) -> bool {
     macro_rules! push_stored_loan {
         ($loan:expr, $row:expr) => {
@@ -267,6 +404,7 @@ pub(super) fn collect(
                 active,
                 output,
                 parents,
+                failures,
             )
         };
     }
@@ -274,16 +412,38 @@ pub(super) fn collect(
         .borrow
         .first_state_borrow(state.machine_symbol, state.state_symbol)
     else {
+        failures.record(
+            source,
+            None,
+            projection,
+            None,
+            "source has no checked borrow state",
+        );
         return false;
     };
+    let failure_start = (failures.kept, failures.total);
     let query = (source, projection.to_vec());
     if active.contains(&query) {
+        failures.record(
+            source,
+            None,
+            projection,
+            None,
+            "source association is cyclic",
+        );
         return false;
     }
     active.push(query);
     let before = output.len();
     if !facts.flow.control.operands.is_valid(source) {
         active.pop();
+        failures.record(
+            source,
+            None,
+            projection,
+            None,
+            "source capture is unavailable",
+        );
         return false;
     }
     let capture = facts.flow.control.operands.get(source);
@@ -300,6 +460,7 @@ pub(super) fn collect(
         FrozenReferenceSelection::ThroughReference => "through-reference",
         FrozenReferenceSelection::Unavailable => "unavailable",
     };
+    let rule;
     let mut resolved = if let Some(complete) = collect_completed_invocation(
         program,
         facts,
@@ -309,6 +470,7 @@ pub(super) fn collect(
         output_access,
         output,
     ) {
+        rule = "completed invocation did not supply permission";
         complete
     } else if let Some(complete) = collect_completed_output(
         program,
@@ -319,8 +481,10 @@ pub(super) fn collect(
         output_access,
         output,
     ) {
+        rule = "completed output did not supply permission";
         complete
     } else if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
+        rule = "frozen reference selection is unavailable";
         false
     } else if collect_formed_projection(
         program,
@@ -331,9 +495,11 @@ pub(super) fn collect(
         output_access,
         output,
     ) {
+        rule = "checked formation supplied permission";
         true
     } else if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion
     {
+        rule = "selected descriptor has an unresolved alternative";
         facts
             .flow
             .control
@@ -359,7 +525,9 @@ pub(super) fn collect(
         active,
         output,
         parents,
+        failures,
     ) {
+        rule = "completed descriptor formation is unresolved";
         complete
     } else if let Some(complete) = collect_descriptor_captures(
         program,
@@ -374,7 +542,9 @@ pub(super) fn collect(
         active,
         output,
         parents,
+        failures,
     ) {
+        rule = "saved descriptor capture is unresolved";
         complete
     } else if let FrozenReferenceSelection::Endpoint {
         owner,
@@ -382,6 +552,7 @@ pub(super) fn collect(
         path: leaf_path,
     } = frozen
     {
+        rule = "frozen descriptor has no matching stored loan or invocation access";
         if let Some(suppliers) = validation::completed_storage::descriptor_suppliers(
             &facts.flow.control,
             leaf.retention,
@@ -478,6 +649,7 @@ pub(super) fn collect(
             }
         }
     } else if let Some(suppliers) = retained_suppliers {
+        rule = "retained descriptor supplier is unresolved";
         !suppliers.is_empty()
             && suppliers.iter().all(|supplier| {
                 collect_supplier!(
@@ -506,7 +678,9 @@ pub(super) fn collect(
         active,
         output,
         parents,
+        failures,
     ) {
+        rule = "retained reborrow projection is unresolved";
         complete
     } else if collect_binding_observation(
         program,
@@ -517,8 +691,10 @@ pub(super) fn collect(
         output_access,
         output,
     ) {
+        rule = "binding observation supplied permission";
         true
     } else {
+        rule = "no exact invocation access supplies this descriptor";
         match collect_invocation_accesses(
             program,
             facts,
@@ -562,7 +738,58 @@ pub(super) fn collect(
             resolved = true;
         }
     }
+    if resolved {
+        failures.kept = failure_start.0;
+        failures.total = failure_start.1;
+    } else {
+        failures.record(source, Some(capture), projection, None, rule);
+    }
     resolved
+}
+
+/// Match a checked projection's result presentation, without granting access.
+fn validate_reborrow_projection_type(
+    program: &dyn validation::CheckingInput,
+    source: typed_trees::types::TypeReferenceHandle,
+    projection: &[facts::PlaceSegment],
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> Result<(), &'static str> {
+    let Some((selector, prefix)) = projection.split_last() else {
+        return if validation::storage_origin_types_match(program, source, expected) {
+            Ok(())
+        } else {
+            Err("unprojected reference carrier differs from its result")
+        };
+    };
+    if matches!(
+        selector,
+        facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange
+    ) {
+        // A checked window returns a view, not one collection element. Its
+        // exact bounds and original permission stay in the captured suffix.
+        let expected = validation::peel_declared_constraints(program, expected);
+        let typed_trees::types::TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(expected)
+        else {
+            return Err("retained window result is not a slice");
+        };
+        let collection = validation::owned_projection_type_reference(program, source, prefix)
+            .ok_or("retained window prefix has no owned source type")?;
+        let element = validation::collection_element_type_reference(program, collection)
+            .ok_or("retained window source has no collection element")?;
+        return if validation::storage_origin_types_match(program, element, *element_type) {
+            Ok(())
+        } else {
+            Err("retained window element differs from its result element")
+        };
+    }
+    let selected = validation::owned_projection_type_reference(program, source, projection)
+        .ok_or("retained element projection has no owned source type")?;
+    if validation::storage_origin_types_match(program, selected, expected) {
+        Ok(())
+    } else {
+        Err("retained element carrier differs from its result")
+    }
 }
 
 /// A helper may save a narrower view of an evaluated argument. Its source
@@ -582,6 +809,7 @@ fn collect_reborrow_sources(
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
     output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
+    failures: &mut PermissionFailures,
 ) -> Option<bool> {
     let control = &facts.flow.control;
     let capture = control.operands.get(source);
@@ -592,37 +820,55 @@ fn collect_reborrow_sources(
     if profile.reborrow_sources.is_empty() {
         return None;
     }
-    let resolve = || -> Option<Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>, Vec<facts::PlaceSegment>)>> {
+    let mut resolve = || -> Result<Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>, Vec<facts::PlaceSegment>)>, &'static str> {
         if !projection.is_empty() {
-            return None;
+            return Err("retained reborrow does not select a whole descriptor");
         }
-        let result = validation::reference_shell(program, capture.type_reference)?;
-        checked_trees::BorrowAccessKind::from(result.access).direct_reborrow_effect(access)?;
-        let sources = control.operand_reborrow_sources.span(profile.reborrow_sources)?;
+        let result = validation::reference_shell(program, capture.type_reference)
+            .ok_or("retained reborrow result is not a reference")?;
+        checked_trees::BorrowAccessKind::from(result.access).direct_reborrow_effect(access)
+            .ok_or("retained reborrow result cannot supply the requested access")?;
+        let sources = control.operand_reborrow_sources.span(profile.reborrow_sources)
+            .ok_or("retained reborrow has no complete source roster")?;
         let mut selected = Vec::new();
         for source in sources {
-            if !control.operands.is_valid(source.operand) { return None; }
+            if !control.operands.is_valid(source.operand) { return Err("retained reborrow source capture is unavailable"); }
             let value = control.operands.get(source.operand);
-            let path = control.operand_retained_paths.span(source.source_path)?;
-            let reference = validation::owned_projection_type_reference(program, value.type_reference, path)?;
-            let reference = validation::reference_shell(program, reference)?;
-            checked_trees::BorrowAccessKind::from(reference.access).direct_reborrow_effect(access)?;
+            let path = control.operand_retained_paths.span(source.source_path)
+                .ok_or("retained reborrow source path is unavailable")?;
+            let reference = validation::owned_projection_type_reference(program, value.type_reference, path)
+                .ok_or("retained reborrow source path has no owned type")?;
+            let reference = validation::reference_shell(program, reference)
+                .ok_or("retained reborrow source path does not select a descriptor")?;
+            checked_trees::BorrowAccessKind::from(reference.access).direct_reborrow_effect(access)
+                .ok_or("retained reborrow source cannot supply the requested access")?;
             let suffix = validation::corresponding_place_projection(
-                program, reference.referee, control.operand_retained_paths.span(source.projection)?,
-            )?;
+                program, reference.referee, control.operand_retained_paths.span(source.projection)
+                    .ok_or("retained reborrow suffix is unavailable")?,
+            ).ok_or("retained reborrow suffix has no exact declaration correspondence")?;
             // The producer records the last crossed descriptor, so this suffix
             // contains only owned projections. A further descriptor crossing
             // must supply its own captured source and permission instead.
-            let referee = validation::owned_projection_type_reference(program, reference.referee, &suffix)?;
-            if !validation::storage_origin_types_match(program, referee, result.referee) {
-                return None;
-            }
+            validate_reborrow_projection_type(program, reference.referee, &suffix, result.referee)
+                .inspect_err(|&reason| {
+                    failures.record(source.operand, Some(value), &suffix, Some(result.referee), reason);
+                })?;
             selected.push((source.operand, path.to_vec(), suffix));
         }
-        (!selected.is_empty()).then_some(selected)
+        if selected.is_empty() { Err("retained reborrow selected no source") } else { Ok(selected) }
     };
-    let Some(selected) = resolve() else {
-        return Some(false);
+    let selected = match resolve() {
+        Ok(selected) => selected,
+        Err(reason) => {
+            failures.record(
+                source,
+                Some(capture),
+                projection,
+                Some(capture.type_reference),
+                reason,
+            );
+            return Some(false);
+        }
     };
     let before = output.len();
     for (source, path, suffix) in selected {
@@ -640,17 +886,26 @@ fn collect_reborrow_sources(
             active,
             output,
             parents,
+            failures,
         ) {
             output.truncate(before);
             return Some(false);
         }
         for supplier in &mut output[start..] {
-            supplier.backing.segments.extend_from_slice(&suffix);
-            if crate::flow::compose_captured_view_segments(&mut supplier.backing.segments).is_none()
-            {
+            let Some(projected) =
+                facts::project_captured_view_segments(&supplier.backing.segments, &suffix)
+            else {
+                failures.record(
+                    source,
+                    Some(control.operands.get(source)),
+                    &suffix,
+                    Some(capture.type_reference),
+                    "retained suffix does not compose with its captured source boundary",
+                );
                 output.truncate(before);
                 return Some(false);
-            }
+            };
+            supplier.backing.segments = projected;
         }
     }
     Some(output.len() > before)
@@ -738,6 +993,7 @@ fn collect_descriptor_captures(
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
     output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
+    failures: &mut PermissionFailures,
 ) -> Option<bool> {
     let capture = facts.flow.control.operands.get(source);
     let selected = validation::completed_storage::reference_captures_at_path(
@@ -793,6 +1049,7 @@ fn collect_descriptor_captures(
                     active,
                     output,
                     parents,
+                    failures,
                 )
             }),
     )
@@ -923,6 +1180,7 @@ fn collect_completed_formations(
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
     output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
+    failures: &mut PermissionFailures,
 ) -> Option<bool> {
     let selected = validation::completed_storage::predecessors_in_control(
         program,
@@ -971,6 +1229,7 @@ fn collect_completed_formations(
             active,
             output,
             parents,
+            failures,
         ) {
             if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(

@@ -272,6 +272,19 @@ cache before program consumers begin. Later consumer failures stay red without
 hiding the already prepared producer. The final observations and compact records
 use separate artifact names; the original producer upload is not overwritten.
 
+When corpus fixtures need a new producer, preparation first checks the exact
+`compiler` test target `corpus_runner` before optimized code generation. A failed
+check retains its stdout/stderr and stops before building the CLI. CLI-only and
+authenticated retained-producer requests do not run this additional check.
+
+Fresh pilot cache keys end in `prepared-v1-cli` or `prepared-v1-with-runner`,
+matching the executable roster prepared for the selected consumers. Only a
+successful authenticated preparation publishes these keys; failed preparation
+and check-only jobs cannot reserve them with partial Cargo objects. Ordinary
+Cargo caches remain restore fallbacks. Replay plans retain the exact original
+cache key, including this suffix for new producers; older keys and observations
+keep their original identities.
+
 For an ordinary CLI runtime failure, `compiler_diagnostics: true` also records
 the interpreter's operation, block and scalar values in that fixture's
 `both.stderr`. `OMEGA_TERMINAL_TRACE=1` enables the same trace directly. It is
@@ -530,8 +543,8 @@ reruns, artifact integrity or review required for the submitted change.
 
 Record evidence against the source actually tested. A new integration SHA alone
 does not require author rebase, tests or review. GitHub's [merge queue](landing.md)
-checks the integrated candidate with `python tools/fmt.py --check` and
-`cargo clippy --locked -p omega -- -D warnings`; local
+checks the integrated candidate with `mbx xtask fmt --check` and
+`mbx clippy --locked -p omega -- -D warnings`; local
 exact-SHA build receipts are retired. Review and rerun affected checks when the
 author edits source, resolves a conflict or discovers a changed semantic premise.
 Independent-workspace checks remain part of focused author validation, not a
@@ -1361,14 +1374,14 @@ is the sweep to run before reporting sample coverage. About twelve minutes
 for a historical 148-project tree; current selection comes from discovery, not
 that historical count.
 
-`tools/sample_native_gate.py` runs each sample's `omega update`, then builds
-and runs it. Without `--cli` it first builds the opt-level 1 CLI (with `mbx`,
-or Cargo when `mbx` is absent) in the checkout's own Cargo target directory
+`mbx xtask sample-gate` runs each sample's `omega update`, then builds
+and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
+(direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
 (`target/`, or `CARGO_TARGET_DIR`) and measures that. Package review of a
 std-using sample takes minutes with an unoptimized binary: 31 projects took
 66 s with the optimized CLI against 436 s unoptimized, with identical results.
 The dev profile is opt-level 1, so the gate's build and a plain
-`cargo build -p omega` share every artifact, and a compiler the session already
+`mbx build -p omega` share every artifact, and a compiler the session already
 built costs the gate under a second. A separate gate directory used to compile
 the whole compiler a second time, 12 minutes cold on a 4-core cloud session.
 A run never executes the shared image: it copies the built binary aside under
@@ -1469,7 +1482,7 @@ mbx nextest run --workspace --lib --no-fail-fast
 
 The native-boundary gate walks Cargo's declared production path dependencies,
 including optional, build and target-specific edges. It rejects source/compiler,
-package and interpreter owners anywhere behind `native-production`. Its seeded
+package and interpreter owners anywhere behind `native-compiler`. Its seeded
 negative controls run with `python tools/tests/test_native_boundary.py -v`.
 This is a check of the native facade, not a claim that all workspace topology
 has converged to the two-driver contract. The same script's
@@ -1505,8 +1518,8 @@ with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
 installs everything doctor checks for; it is also the setup script for Claude
 Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
 
-The selector requires Python 3.9+, Git, the pinned Rust toolchain, and
-`cargo-nextest` 0.9.140 or newer. It uses `mbx` when available, otherwise Cargo.
+The selector requires Git, the pinned Rust toolchain, `mbx` 1.29.0 or newer, and
+`cargo-nextest` 0.9.140 or newer (`mbx` is mandatory; direct Cargo fallback is forbidden).
 `mbx` is [Mr Boxington](https://mr-boxington.jdx.dev/), a shared build cache
 that wraps Cargo ([source](https://github.com/jdx/mr-boxington)); installation
 instructions are at <https://mr-boxington.jdx.dev/installation>.

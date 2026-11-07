@@ -1,5 +1,11 @@
 # Normalized call-inventory unification design
 
+The measured implementation below predates the 2026-11-06 retirement of source
+`dyn`. Its call-shape/custody work remains useful, but selector-table types are
+legacy implementation vocabulary. [Machine values and some packages](machine_values_some.md)
+own the replacement semantics; this design does not reauthorize whole-trait
+runtime tables or mandatory global witness rosters.
+
 NEW-NAL-CALL-INVENTORY-UNIFICATION-DESIGN. Measured at `d7d4a88331b` on
 linux x86-64 (z157). This draft designs the call-inventory unification
 flagged in **NORMALIZED-ABI-LOWERING** (TASKS.md ~:3126): "dynamic

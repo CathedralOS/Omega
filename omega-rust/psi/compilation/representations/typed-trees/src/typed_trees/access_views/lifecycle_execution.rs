@@ -41,7 +41,117 @@ pub struct AccessExecutionDeclaration {
     template: symbols::SymbolHandle,
 }
 
+/// A backing owner is forwarded, not issued, by a private lifecycle operation.
+/// Paths are relative to the named outcome and input parameter. Consumers must
+/// resolve them against the exact applied signature and check live claims.
+pub struct AccessBackingTransfer {
+    pub parameter: usize,
+    pub input: &'static str,
+    pub output: &'static str,
+}
+
+pub struct AccessBackingOutcome {
+    pub case: &'static str,
+    pub transfers: &'static [AccessBackingTransfer],
+}
+
 impl AccessExecutionDeclaration {
+    /// The operation's ownership contract is independent of its scalar geometry
+    /// facts. Every outcome returns each consumed backing exactly once; content
+    /// establishment/extraction remains a separate operation-specific judgment.
+    pub fn backing_outcomes(&self) -> &'static [AccessBackingOutcome] {
+        use AccessBackingOutcome as Outcome;
+        use AccessBackingTransfer as Transfer;
+        match (self.operation, self.content) {
+            (AccessLifecycleOperation::Initialize, AccessContentShape::Run) => &[
+                Outcome {
+                    case: "Ready",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "view.storage",
+                    }],
+                },
+                Outcome {
+                    case: "Rejected",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "returned.source",
+                    }],
+                },
+            ],
+            (AccessLifecycleOperation::Initialize, AccessContentShape::Resident) => &[
+                Outcome {
+                    case: "Ready",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "view",
+                    }],
+                },
+                Outcome {
+                    case: "Rejected",
+                    transfers: &[Transfer {
+                        parameter: 0,
+                        input: "",
+                        output: "returned.source",
+                    }],
+                },
+            ],
+            (AccessLifecycleOperation::MoveOut, AccessContentShape::Run) => &[Outcome {
+                case: "Moved",
+                transfers: &[Transfer {
+                    parameter: 0,
+                    input: "storage",
+                    output: "storage",
+                }],
+            }],
+            (AccessLifecycleOperation::MoveOut, AccessContentShape::Resident) => &[Outcome {
+                case: "Moved",
+                transfers: &[Transfer {
+                    parameter: 0,
+                    input: "",
+                    output: "storage",
+                }],
+            }],
+            (AccessLifecycleOperation::Relocate, AccessContentShape::Run) => &[
+                Outcome {
+                    case: "Ready",
+                    transfers: &[
+                        Transfer {
+                            parameter: 1,
+                            input: "",
+                            output: "view.run.storage",
+                        },
+                        Transfer {
+                            parameter: 0,
+                            input: "storage",
+                            output: "view.vacated",
+                        },
+                    ],
+                },
+                Outcome {
+                    case: "Rejected",
+                    transfers: &[
+                        Transfer {
+                            parameter: 0,
+                            input: "storage",
+                            output: "returned.source.storage",
+                        },
+                        Transfer {
+                            parameter: 1,
+                            input: "",
+                            output: "returned.custody",
+                        },
+                    ],
+                },
+            ],
+            (AccessLifecycleOperation::View, _)
+            | (AccessLifecycleOperation::Relocate, AccessContentShape::Resident) => &[],
+        }
+    }
+
     pub const fn content(&self) -> AccessContentShape {
         self.content
     }
@@ -70,7 +180,7 @@ impl AccessExecutionDeclaration {
         program: &TypedTrees,
         owner: symbols::SymbolHandle,
         application: crate::static_applications::StaticMachineApplicationHandle,
-    ) -> Result<[(symbols::SymbolHandle, TypeReferenceHandle); 3], Diagnostic> {
+    ) -> Result<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>, Diagnostic> {
         self.invocation_application(program, owner, application)?;
         let declaration = program.machine(self.template).ok_or_else(|| {
             Diagnostic::error("placement source contract lost its exact template declaration")
@@ -107,12 +217,17 @@ impl AccessExecutionDeclaration {
         program: &TypedTrees,
         application: crate::static_applications::StaticMachineApplicationHandle,
         parameters: &[crate::data::TypeParameter],
-    ) -> Result<[(symbols::SymbolHandle, TypeReferenceHandle); 3], Diagnostic> {
-        let [policy, schema, role] = parameters else {
+    ) -> Result<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>, Diagnostic> {
+        let expected = if self.operation == AccessLifecycleOperation::Relocate {
+            4
+        } else {
+            3
+        };
+        if parameters.len() != expected {
             return Err(Diagnostic::error(
                 "placement execution lost its original policy/schema/supply-role binders",
             ));
-        };
+        }
         let bindings = program.static_machine_application_bindings(application);
         if bindings.len() != parameters.len() {
             return Err(Diagnostic::error(
@@ -137,11 +252,10 @@ impl AccessExecutionDeclaration {
                 )),
             }
         };
-        Ok([
-            operand(policy.symbol)?,
-            operand(schema.symbol)?,
-            operand(role.symbol)?,
-        ])
+        parameters
+            .iter()
+            .map(|parameter| operand(parameter.symbol))
+            .collect()
     }
 
     /// The P/T of this invocation, not the representative caller cached by a
@@ -163,21 +277,25 @@ impl AccessExecutionDeclaration {
                     program.symbols.name(owner),
                 ))
             })?;
-        let [policy, schema, _role] = self.invocation_bindings(
+        let bindings = self.invocation_bindings(
             program,
             application,
             program
                 .data_type_parameters
                 .span_or_empty(specialization.template_parameters),
         )?;
-        Ok((policy.1, schema.1))
+        Ok((bindings[0].1, bindings[1].1))
     }
 
     /// The closed supply role belongs to the primitive's exact specialization.
     /// It selects a requirement application, never storage or profile authority.
     /// Keep the typed binding: neither a diagnostic type name nor a neighboring
     /// profile call can supply this operand after lowering.
-    pub fn profile_role(&self, program: &TypedTrees) -> Result<TypeReferenceHandle, Diagnostic> {
+    pub fn profile_role(
+        &self,
+        program: &TypedTrees,
+        role_position: usize,
+    ) -> Result<TypeReferenceHandle, Diagnostic> {
         let specialization = program
             .machine_specialization(self.machine)
             .ok_or_else(|| {
@@ -188,14 +306,20 @@ impl AccessExecutionDeclaration {
                 "placement execution lost its supply-role binding application",
             ));
         }
-        let [_, _, role] = program
+        let parameters = program
             .data_type_parameters
-            .span_or_empty(specialization.template_parameters)
-        else {
+            .span_or_empty(specialization.template_parameters);
+        let expected = if self.operation == AccessLifecycleOperation::Relocate {
+            4
+        } else {
+            3
+        };
+        if parameters.len() != expected || role_position >= expected - 2 {
             return Err(Diagnostic::error(
                 "placement execution lost its original supply-role binder",
             ));
-        };
+        }
+        let role = &parameters[2 + role_position];
         let mut bindings = program
             .static_machine_application_bindings(specialization.binding_application)
             .iter()
@@ -270,6 +394,7 @@ impl AccessExecutionDeclaration {
             Some(
                 "toolchain::Access::view_from_profile" | "toolchain::Access::view_mut_from_profile",
             ) => AccessLifecycleOperation::View,
+            Some("toolchain::Run::relocate_from_profiles") => AccessLifecycleOperation::Relocate,
             _ => return Ok(None),
         };
         let malformed = |reason| {
@@ -304,6 +429,7 @@ impl AccessExecutionDeclaration {
         let expected = match operation {
             AccessLifecycleOperation::Initialize => 3,
             AccessLifecycleOperation::MoveOut | AccessLifecycleOperation::View => 2,
+            AccessLifecycleOperation::Relocate => 4,
         };
         if parameters.len() != expected
             || parameters.iter().any(|parameter| {

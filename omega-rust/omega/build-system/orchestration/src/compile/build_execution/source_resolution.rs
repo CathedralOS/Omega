@@ -1,9 +1,28 @@
-//! Execute acquired Build sources, reconcile their actual requests, retain work.
-//!
-//! Package management owns acquisition and graph validity. This application
-//! owner runs the requested code and keeps each returned invocation through the
-//! final source join. That work remains available to Product admission/review
-//! rather than requiring Build replay. No source IR crosses this boundary.
+/*
+
+Execute acquired `build.omg` sources, resolve dependency requests, and retain
+returned invocations (`resolve_project_sources`, `resolve_acquired_sources`).
+
+`package_manager` owns source acquisition and dependency-graph validation, while
+this module executes the `build.omg` activations through `ReadinessScheduler`
+and retains each `ResolvedPackageBuild` (its compiler invocation paired with its
+resolved `PackageCompilationInputs`) through the final source join:
+- `ProjectSourceRequest` supplies the inputs known before the root `build.omg`
+  executes (the `LocalProjectPreparation`, root `BuildExecutionInputs`, and
+  whether timings are enabled). Execution inputs apply only to the root
+  activation; dependencies run under session resources.
+- `ResolvedProjectBuilds` holds the discovery-ordered `Vec<ResolvedPackageBuild>`
+  alongside `PreparedLocalProject` and the host `execution_profile`.
+- `ResolvedPackageBuild::settle` (and batch `settle_source_builds`) joins the
+  product context and settles the original `build.omg` execution into a
+  `CompletedBuild` without re-running `build.omg` or typing a `Product` yet. If
+  a helper dependency's `build.omg` was already settled early during a provider
+  readiness pause (`ResolvedBuild::Settled`), `settle` verifies that its source
+  inputs match the final resolved graph.
+- `ResolvedPackageBuild::complete` settles the build and immediately prepares
+  the target `PackageBuild` product.
+
+*/
 
 mod readiness;
 
@@ -46,28 +65,18 @@ impl std::fmt::Display for ProjectSourceResolutionError {
 
 impl std::error::Error for ProjectSourceResolutionError {}
 
-/// Inputs known before the anonymous root executes. Product targets and
-/// accepted package bindings join after its declaration; input inventory and
-/// required outputs and resource sponsors cannot wait until then. Execution
-/// inputs belong only to the root activation; dependencies use session resources.
 pub struct ProjectSourceRequest {
     pub preparation: LocalProjectPreparation,
     pub execution: package_compilation::BuildExecutionInputs,
     pub collect_timings: bool,
 }
 
-/// Source acquisition and returned Build work share one lifetime. The roster
-/// is discovery-ordered, not dependency completion order; consumers schedule
-/// its exact package identities using the resolved inputs, never source paths.
 pub struct ResolvedProjectBuilds {
     pub prepared: PreparedLocalProject,
-    pub builds: Vec<ResolvedPackageBuild>,
+    pub builds: Vec<ResolvedPackageBuild>, // Discovery-ordered; consumers match by package identity, not path.
     pub execution_profile: TargetProfile,
 }
 
-/// A Build whose complete request ledger has joined its acquired source graph.
-/// Accepted grants and generated sources remain explicit later inputs. This is
-/// not a portable compiled product and cannot be cloned or replayed.
 pub struct ResolvedPackageBuild {
     build: ResolvedBuild,
     inputs: PackageCompilationInputs,
@@ -89,8 +98,6 @@ impl ResolvedPackageBuild {
         &self.inputs
     }
 
-    /// Settle the original execution before independently admitted Product
-    /// contexts are prepared. No Product is typed and no live grant is retained.
     pub fn settle(
         self,
         compiler: &mut CompilationSession,
@@ -114,10 +121,6 @@ impl ResolvedPackageBuild {
         }
     }
 
-    /// Complete the original invocation after package admission has joined
-    /// generated inputs and any accepted policy. The Product target is chosen
-    /// here, independently of the discovery/Build host. Compiler completion
-    /// compares the graph with its executed receipt before Product typing.
     pub fn complete(
         self,
         compiler: &mut CompilationSession,
@@ -129,9 +132,6 @@ impl ResolvedPackageBuild {
     }
 }
 
-/// Review consumes Product contexts from the same settled source roster.
-/// Settlement joins each original activation; it neither replays Build nor
-/// prepares a Product. Commands and inspection share this completion step.
 pub(crate) fn settle_source_builds(
     builds: Vec<ResolvedPackageBuild>,
     compiler: &mut CompilationSession,
@@ -149,12 +149,6 @@ pub(crate) fn settle_source_builds(
     Ok(completed)
 }
 
-/// Resolve actual dependency requests without static Build projection.
-/// The shared execution owner is also used by ordinary compilation and review.
-/// This migration entry retains normal returns for subsequent admission; it
-/// does not authorize effects, refresh locks, or realize native dependencies.
-/// Named Git/workspace selection still requires executed workspace declarations;
-/// it never falls back to static declaration projection here.
 pub fn resolve_project_sources(
     session: &mut BuildSession,
     request: ProjectSourceRequest,
@@ -197,9 +191,6 @@ pub fn resolve_project_sources(
     })
 }
 
-/// One execution/discovery loop for live projects and staged package commands.
-/// The caller keeps its transaction and acquisition policy; this owner retains
-/// the exact activations whose declarations produced the resolved source graph.
 pub(crate) fn resolve_acquired_sources(
     session: &mut BuildSession,
     acquired: AcquiredBuildSource,
@@ -224,12 +215,11 @@ pub(crate) fn resolve_acquired_sources(
     Ok((resolved, builds))
 }
 
-fn normal_return(
-    build: &ReturnedPackageBuild,
-) -> Result<&build_settings::ReturnedBuild, ProjectSourceResolutionError> {
-    build.returned.as_ref().ok_or_else(|| {
-        ProjectSourceResolutionError::Source(
-            "acquired source has no executed Build declaration".into(),
-        )
-    })
+fn source_result(
+    build: &mut ReturnedPackageBuild,
+) -> Result<build_settings::BuildSourceResult<'_>, ProjectSourceResolutionError> {
+    build
+        .invocation
+        .source_result(build.returned.as_mut())
+        .map_err(ProjectSourceResolutionError::Compilation)
 }

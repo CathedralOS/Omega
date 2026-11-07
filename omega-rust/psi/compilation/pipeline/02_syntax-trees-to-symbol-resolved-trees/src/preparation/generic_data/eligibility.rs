@@ -361,7 +361,6 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                                 TypeReferenceNode::Named(_) | TypeReferenceNode::ConstExpression(_)
                             ) || !type_reference_mentions_parameter(syntax, argument, parameters)
                         }),
-                    TypeConstraintNode::Range { .. } => true,
                 })
         }
         _ => !type_reference_mentions_parameter(syntax, type_reference, parameters),

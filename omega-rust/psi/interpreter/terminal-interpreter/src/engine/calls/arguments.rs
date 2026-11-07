@@ -7,6 +7,7 @@
 //! Every constructed sum owns ordinary placed discriminator/payload storage.
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::values::{TerminalScalarValue, TerminalStructuralValue};
+use crate::engine::custody::StructuralArgumentSources;
 use crate::engine::execution::TerminalExecution;
 use crate::storage::byte_sequences::binding::ByteSequenceBinding;
 use crate::storage::runtime_rows::RuntimeRows;
@@ -71,7 +72,9 @@ impl TerminalExecution<'_> {
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
     ) -> Result<(Vec<TerminalScalarValue>, StructuralCallArguments), TerminalInterpretError> {
-        let scalar_arguments = self.scalar_values_at(arguments)?;
+        let scalar_arguments = self
+            .scalar_values_at(arguments)
+            .map_err(|error| error.in_argument_preparation("read scalar call arguments"))?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         Ok((scalar_arguments, prepared_arguments))
@@ -110,6 +113,7 @@ impl TerminalExecution<'_> {
         }
         // One tuple preparation owns every descriptor, independent of its
         // neighbors. External buffer staging is a separate later operation.
+        let provenance = self.structural_argument_provenance(&opaque_arguments)?;
         let mut prepared = self
             .prepare_boundary_arguments(&opaque_parameters, &opaque_arguments)
             .map_err(|error| error.in_argument_preparation("resolve argument carriers"))?
@@ -117,6 +121,10 @@ impl TerminalExecution<'_> {
                 &opaque_parameters,
                 &self.structural_types(),
                 self.structural_cases.as_map(),
+                Some(StructuralArgumentSources {
+                    arguments: &opaque_arguments,
+                    provenance: &provenance,
+                }),
                 self.account.as_ref(),
             )
             .map_err(|error| error.in_argument_preparation("admit argument carriers"))?;

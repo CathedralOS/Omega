@@ -37,7 +37,7 @@ pub(super) fn call_plan() -> CallPlan {
     }
 }
 
-fn aligned_placement() -> access_plans::ValidatedAccessPlan {
+pub(super) fn aligned_placement() -> access_plans::ValidatedAccessPlan {
     use access_plans::{
         AccessExposure, AccessFields, AccessPlan, FieldAccess, validate_access_plan,
     };
@@ -108,7 +108,7 @@ fn initializer_emits_original_inputs_complete_image_and_typed_outcomes() {
         operation: TerminalAccessLifecycleOperation::Initialize,
         execution: TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: Some(profile_type),
-            profile_requirement: None,
+            profile_requirements: Vec::new(),
         },
         storage: TerminalAccessStorage {
             owner: terminal_psi::TerminalAccessOwner::Extent,

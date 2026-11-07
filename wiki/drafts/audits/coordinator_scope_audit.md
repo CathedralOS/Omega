@@ -1,5 +1,10 @@
 # Coordinator scope audit
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 Audit of coordinator and entry files against the two rules they answer to:
 "Coordinators stay boring — sequence typed phases and stop"
 ([omega-rust/pipeline.md](../../../omega-rust/pipeline.md)) and the discoverability rule that an entry

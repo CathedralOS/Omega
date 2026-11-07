@@ -397,7 +397,7 @@ fn measure(
         .iter()
         .map(|argument| argument.replace("{build}", &build.display().to_string()))
         .collect();
-    let environment = BTreeMap::from([("OMEGA_PHASE_PROFILE".to_owned(), "1".to_owned())]);
+    let environment = BTreeMap::new();
     // Wall and CPU time swing with other work on a shared VM; user-space
     // instruction counts barely move, so Linux runs go through `perf stat`
     // when it is installed. perf itself then sits in the timed process tree.
@@ -448,10 +448,9 @@ fn measure(
         "instructions_u": instructions_u,
         "load_average_start": load_average_start,
         "load_average_end": load_average_end,
-        "phases_ms": parse_phase_profile(&String::from_utf8_lossy(&output.stderr)),
         "stderr_tail": (observation.exit_code != Some(0)).then(|| {
             let text = String::from_utf8_lossy(&output.stderr);
-            text.lines().filter(|line| !is_phase_line(line)).rev().take(5).collect::<Vec<_>>().join("\n")
+            text.lines().rev().take(5).collect::<Vec<_>>().join("\n")
         }),
     }))
 }
@@ -487,30 +486,6 @@ fn load_average() -> Option<[f64; 3]> {
         .split_whitespace()
         .filter_map(|field| field.parse::<f64>().ok());
     Some([values.next()?, values.next()?, values.next()?])
-}
-
-fn is_phase_line(line: &str) -> bool {
-    phase_row(line).is_some() || line.starts_with("CHECKPOINT ")
-}
-
-fn phase_row(line: &str) -> Option<(&str, f64)> {
-    let (milliseconds, rest) = line.trim_start().split_once(" ms  ")?;
-    let (count, name) = rest.trim_start().split_once(" x  ")?;
-    count.trim().parse::<u64>().ok()?;
-    let milliseconds = milliseconds.trim().parse::<f64>().ok()?;
-    milliseconds
-        .is_finite()
-        .then_some((name.trim_end(), milliseconds))
-}
-
-/// `OMEGA_PHASE_PROFILE=1` prints `<ms> ms  <count> x  <scope>` rows. Rows are
-/// process-cumulative inclusive wall time, and `CHECKPOINT` blocks repeat a
-/// row before the final table, so the last value for a scope is its total.
-pub fn parse_phase_profile(text: &str) -> BTreeMap<String, f64> {
-    text.lines()
-        .filter_map(phase_row)
-        .map(|(name, milliseconds)| (name.to_owned(), milliseconds))
-        .collect()
 }
 
 fn median(values: &mut [f64]) -> Option<f64> {
@@ -674,8 +649,8 @@ pub fn validate_record(record: &Value) -> Result<(), String> {
                 return Err(format!("row.{field} must be a string"));
             }
         }
-        if !row["wall_s"].is_f64() || !row["ok"].is_boolean() || !row["phases_ms"].is_object() {
-            return Err("row needs wall_s, ok and phases_ms".into());
+        if !row["wall_s"].is_f64() || !row["ok"].is_boolean() {
+            return Err("row needs wall_s and ok".into());
         }
         for field in [
             "user_cpu_s",
@@ -754,19 +729,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn phase_profile_keeps_last_cumulative_value_per_scope() {
-        let text = "CHECKPOINT checked pid=1 thread=ThreadId(1) process-cumulative completed inclusive-wall\n\
-                      12.500 ms         1 x  psi.check\n\
-                    error: something unrelated\n\
-                      30.250 ms         4 x  psi.check\n\
-                       2.000 ms        17 x  omega.emit image\n\
-                             9 n  counter.rows\n";
-        let phases = parse_phase_profile(text);
-        assert_eq!(phases.len(), 2);
-        assert_eq!(phases["psi.check"], 30.25);
-        assert_eq!(phases["omega.emit image"], 2.0);
-        assert!(is_phase_line("CHECKPOINT x"));
-        assert!(!is_phase_line("error: something unrelated"));
+    fn perf_instructions_parses_count_and_rejects_unsupported() {
         assert_eq!(
             parse_perf_instructions(
                 "
@@ -790,7 +753,7 @@ mod tests {
         let row = json!({"workload": "one_line_check", "phase": "measured", "index": 0,
             "exit_code": 0, "ok": true, "wall_s": 0.5, "user_cpu_s": 0.4, "sys_cpu_s": 0.1,
             "peak_rss_bytes": 1024, "instructions_u": 1000, "load_average_start": [1.0, 2.0, 3.0],
-            "load_average_end": null, "phases_ms": {"psi.check": 1.0}});
+            "load_average_end": null});
         let mut record = json!({"schema": SCHEMA, "benchmark_set": BENCHMARK_SET,
             "key": {"commit": "abc", "host": "h", "target": "linux_x86_64", "build_profile": "release",
                 "compiler_version": "omega 0", "recorded_utc": utc_timestamp(0)},
