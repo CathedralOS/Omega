@@ -397,6 +397,30 @@ impl SourceCorrespondence {
             }
             let left = program.expression_table.expression(required);
             let right = program.expression_table.expression(provided);
+            let call_value_difference = matches!(
+                (left, right),
+                (
+                    ExpressionNode::Call(_),
+                    ExpressionNode::StructLiteral(_)
+                        | ExpressionNode::Integer(_)
+                        | ExpressionNode::Boolean(_)
+                ) | (
+                    ExpressionNode::StructLiteral(_)
+                        | ExpressionNode::Integer(_)
+                        | ExpressionNode::Boolean(_),
+                    ExpressionNode::Call(_)
+                )
+            );
+            if call_value_difference {
+                if !neutral_operation_payloads(program, required)
+                    || !neutral_operation_payloads(program, provided)
+                {
+                    return false;
+                }
+                // This grants no equation. Only the subsequent checked
+                // closed-value normalization can compare these different forms.
+                continue;
+            }
             match (left, right) {
                 (ExpressionNode::Call(left), ExpressionNode::Call(right)) => {
                     // Proof labels are not resolved value binders in this
@@ -426,19 +450,7 @@ impl SourceCorrespondence {
                 }
                 (ExpressionNode::Call(call), ExpressionNode::Binary(_))
                 | (ExpressionNode::Binary(_), ExpressionNode::Call(call)) => {
-                    if !call.evidence_arguments.is_empty()
-                        || call.static_machine_parameter.is_valid()
-                        || call.static_requirement_dispatch.is_some()
-                        || call.requirement_application.is_valid()
-                        || call.exact_coercion_target.is_valid()
-                        || call.quotient_operation.is_some()
-                        || call.private_layout_operation.is_some()
-                        || call.layout_query.is_some()
-                        || call.native_code_layout.is_some()
-                        || call.build_selection.is_valid()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block
-                    {
+                    if !neutral_call_payload(call) {
                         return false;
                     }
                 }
@@ -536,6 +548,53 @@ impl SourceCorrespondence {
         }
         true
     }
+}
+
+fn neutral_call_payload(call: &typed_trees::expression::TableCallExpression) -> bool {
+    call.evidence_arguments.is_empty()
+        && !call.static_machine_parameter.is_valid()
+        && call.static_requirement_dispatch.is_none()
+        && !call.requirement_application.is_valid()
+        && !call.exact_coercion_target.is_valid()
+        && call.quotient_operation.is_none()
+        && call.private_layout_operation.is_none()
+        && call.layout_query.is_none()
+        && call.native_code_layout.is_none()
+        && !call.build_selection.is_valid()
+        && !call.operational_acknowledgement.acknowledges_suspend
+        && !call.operational_acknowledgement.acknowledges_block
+}
+
+/// Closed-value normalization already owns value correspondence across source
+/// forms. Before using it, refuse operations whose omitted metadata would need
+/// a paired source judgment. Constructor identities/fields remain in the typed
+/// structural terms compared by that existing normalization.
+fn neutral_operation_payloads(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    let mut pending = vec![(expression, 0usize)];
+    while let Some((expression, depth)) = pending.pop() {
+        if !expression.is_valid() {
+            continue;
+        }
+        if depth >= 128 || !program.expression_table.expression_is_valid(expression) {
+            return false;
+        }
+        let node = program.expression_table.expression(expression);
+        match node {
+            ExpressionNode::Call(call) if !neutral_call_payload(call) => return false,
+            ExpressionNode::Cast(_) | ExpressionNode::Member(_) | ExpressionNode::Match(_) => {
+                return false;
+            }
+            _ => {}
+        }
+        crate::queries::expression_traversal::children(program, node, |child| {
+            pending.push((child, depth + 1))
+        });
+    }
+    true
 }
 
 /// Join the retained symbol roster to positional roles once. Sorting is
