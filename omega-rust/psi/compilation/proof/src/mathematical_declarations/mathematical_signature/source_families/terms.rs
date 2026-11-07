@@ -517,6 +517,32 @@ impl Builder<'_> {
             })
             .collect()
     }
+    fn shared_payload_type_function(
+        &mut self,
+        arena: &mut TermArena,
+        type_domains: &[TermHandle],
+    ) -> Result<TermHandle, &'static str> {
+        let Some(last) = self.cases.len().checked_sub(1) else {
+            return Err("source payload lift has no constructor cases");
+        };
+        let mut body = self.raw_payload_type(last);
+        for case in (0..last).rev() {
+            let binder = self.terms.fresh();
+            body = sigma(binder, self.raw_payload_type(case), body);
+        }
+        for &(symbol, domain) in self
+            .common
+            .iter()
+            .rev()
+            .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+        {
+            body = lam(Key::Source(symbol), self.domain(symbol, domain), body);
+        }
+        for (&symbol, &domain) in self.type_parameters.iter().zip(type_domains).rev() {
+            body = lam(Key::Source(symbol), S::Closed(domain), body);
+        }
+        body.term(arena, &mut Vec::new())
+    }
     fn sum_type(&mut self, start: usize) -> S {
         if start == self.cases.len() {
             return self.terms.empty();
@@ -672,9 +698,9 @@ pub(super) fn constructor_children(
 
 pub(super) struct SourceDescription {
     pub family: IndexedFamily,
-    /// Unpadded complete case types, each abstracted over the ordered Type
-    /// parameters then common value fields. All constructor and eliminator
-    /// paths use these same functions as the universe lift's carriers.
+    /// One shared product of complete case types, abstracted over ordered
+    /// Type parameters and common values. All constructor and eliminator
+    /// paths use this same definition as the universe lift's carrier.
     pub payload_lifts: Vec<TermHandle>,
 }
 
@@ -692,7 +718,7 @@ pub(super) fn description(
     cases: &[Case],
     type_parameters: &[SymbolHandle],
     external_parameters: &[SymbolHandle],
-    declarations: &[Declaration],
+    declarations: &mut Vec<Declaration>,
     type_domains: &[TermHandle],
     level_arity: u32,
 ) -> Result<SourceDescription, String> {
@@ -718,7 +744,23 @@ pub(super) fn description(
         payload_level = payload_level.maximum(result_sort_level_in(arena, &context, function)?);
     }
     let payload_lifts = if cases.len() > 1 && payload_level != Level::Constant(0) {
-        functions
+        // A single shared product has the maximum of all complete branch
+        // sorts. Unit(product) needs no branch inhabitant and adds only one
+        // component per alternative, rather than a quadratic padding roster.
+        let body = b.shared_payload_type_function(arena, type_domains)?;
+        let ty = proof_admission::infer_type(
+            arena,
+            &context,
+            body,
+            &mut proof_admission::Budget::new(proof_admission::DEFAULT_CONVERSION_STEPS),
+        )
+        .map_err(|error| format!("shared source payload carrier fails formation: {error:?}"))?;
+        let declaration = declarations.len() as u32;
+        declarations.push(Declaration::definition(level_arity, ty, body));
+        vec![arena.insert(Term::Constant {
+            declaration,
+            levels: (0..level_arity).map(Level::Parameter).collect(),
+        })]
     } else {
         Vec::new()
     };
@@ -1441,12 +1483,12 @@ mod induction_tests {
             &cases,
             &[a_symbol],
             &[a_symbol],
-            &declarations,
+            &mut declarations,
             &[sort],
             1,
         )
         .unwrap();
-        assert_eq!(described.payload_lifts.len(), 2);
+        assert_eq!(described.payload_lifts.len(), 1);
         let family =
             intern_description(&mut arena, &mut declarations, described.family, &[sort], 1)
                 .unwrap();
@@ -1467,10 +1509,10 @@ mod induction_tests {
                 proof_admission::instantiate_levels(&mut arena, function, &[Level::Constant(0)])
                     .unwrap();
             for argument in [two, zero, one] {
-                let Term::Lambda { body, .. } = arena.get(domain) else {
-                    unreachable!()
-                };
-                domain = substitute(&mut arena, body, argument);
+                domain = arena.insert(Term::Apply {
+                    function: domain,
+                    argument,
+                });
             }
             lift_domains.push(domain);
         }
@@ -1489,7 +1531,7 @@ mod induction_tests {
         });
         check_type(
             &mut arena,
-            &Context::empty().with_signature(signature),
+            &Context::empty().with_signature(signature.clone()),
             label,
             carrier,
             &mut Budget::default(),
@@ -1500,7 +1542,7 @@ mod induction_tests {
         assert!(
             check_type(
                 &mut arena,
-                &Context::empty(),
+                &Context::empty().with_signature(signature),
                 unit_value,
                 lift_domains[0],
                 &mut Budget::default()
@@ -1531,14 +1573,14 @@ mod induction_tests {
             &phantom_cases,
             &[a_symbol],
             &[a_symbol],
-            &declarations,
+            &mut declarations,
             &[sort],
             1,
         )
         .unwrap();
-        assert!(phantom_described.payload_lifts.is_empty());
+        assert!(phantom_description.payload_lifts.is_empty());
         assert_eq!(
-            phantom_described.family.levels,
+            phantom_description.family.levels,
             [Level::Constant(0), Level::Constant(0), Level::Constant(0)]
         );
     }
@@ -1691,7 +1733,7 @@ mod induction_tests {
             &cases,
             &[],
             &[],
-            &declarations,
+            &mut declarations,
             &[],
             0,
         )
@@ -2051,7 +2093,7 @@ mod indexed_vector_budget_tests {
             &cases,
             &[],
             &[],
-            &declarations,
+            &mut declarations,
             &[],
             0,
         )

@@ -673,12 +673,10 @@ impl Elaborator<'_> {
                     .iter()
                     .chain(common.iter().skip(stored_type_count))
                 {
-                    let Term::Lambda { body, .. } = self.arena.get(domain) else {
-                        return Err(
-                            self.refuse("source payload lift lost its Type telescope".into())
-                        );
-                    };
-                    domain = proof_admission::substitute(&mut self.arena, body, actual);
+                    domain = self.arena.insert(Term::Apply {
+                        function: domain,
+                        argument: actual,
+                    });
                 }
                 lift_domains.push(domain);
             }

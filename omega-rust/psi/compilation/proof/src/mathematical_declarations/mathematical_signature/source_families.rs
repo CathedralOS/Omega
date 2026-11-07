@@ -366,7 +366,7 @@ pub(super) struct SourceFamily {
     pub symbol: SymbolHandle,
     pub parameters: Vec<TypeParameter>,
     pub type_levels: Vec<Level>,
-    /// Complete case-type functions over Type parameters and common values.
+    /// Shared complete-payload product over Type parameters and common values.
     pub payload_lifts: Vec<TermHandle>,
     pub common: Vec<DataField>,
     pub cases: Vec<SourceCase>,
@@ -877,7 +877,7 @@ impl Elaborator<'_> {
             &schemes,
             &type_symbols,
             &external_symbols,
-            &self.declarations,
+            &mut self.declarations,
             &type_domains,
             type_levels.len() as u32,
         )
