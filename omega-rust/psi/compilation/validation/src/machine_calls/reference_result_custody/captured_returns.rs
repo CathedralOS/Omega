@@ -18,6 +18,7 @@ mod completions;
 mod descriptor_sources;
 mod incoming_origins;
 mod input_views;
+mod invocation_inputs;
 mod invocation_returns;
 mod loaded_origins;
 mod presence;
@@ -332,6 +333,13 @@ impl Captures<'_> {
             for (transition_target, expression, call) in sites {
                 completed = true;
                 if let Some(call) = call {
+                    // The relation may already describe this callee while an
+                    // evaluated nested argument still awaits its own return
+                    // equation. Keep the private approximation empty until
+                    // their normal completion is independently established.
+                    if !self.observe_return_invocation(call)? {
+                        continue;
+                    }
                     for source in self.invocation_return_sources(
                         state,
                         transition_target,
@@ -346,7 +354,6 @@ impl Captures<'_> {
                             }
                         }
                     }
-                    self.observe_return_invocation(call)?;
                     continue;
                 }
                 let expression = expression?;
@@ -430,16 +437,22 @@ impl Captures<'_> {
 
     /// A forwarded result also needs the actual operands to complete. A
     /// constructor around a recursive child cannot establish an empty result.
-    fn observe_return_invocation(&self, call: &checked_trees::FlowCallFact) -> Option<()> {
+    fn observe_return_invocation(&self, call: &checked_trees::FlowCallFact) -> Option<bool> {
         if let Some(observed) = self.observed {
-            observed.completed(completions::ReturnCoverage::invocation(
+            let coverage = completions::ReturnCoverage::invocation(
                 &self.facts.flow.control,
                 call,
                 self.completion_target(call)?,
                 |operand| self.completion_calls(operand),
-            )?);
+            )?;
+            let ready = coverage.established(|state| {
+                self.relations
+                    .is_some_and(|relations| relations.productive(state))
+            });
+            observed.completed(coverage);
+            return Some(ready);
         }
-        Some(())
+        Some(true)
     }
 
     fn completion_target(
