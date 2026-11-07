@@ -1776,14 +1776,32 @@ impl CanonicalHandleState {
                         ));
                     }
                     (None, None) => {
-                        if geometry.carrier(&transfer.source)?
-                            != geometry.carrier(&transfer.destination)?
-                            || geometry.carrier(&transfer.source)?.is_none()
-                            || source.byte_length() != destination.byte_length()
+                        let source_carrier = geometry.carrier(&transfer.source)?;
+                        let destination_carrier = geometry.carrier(&transfer.destination)?;
+                        if !geometry.matches_resident_copy(
+                            operation,
+                            transfer,
+                            (source_carrier, destination_carrier),
+                        )? || source.byte_length() != destination.byte_length()
                         {
-                            return Err(
-                                "handle aggregate copy changes its complete representation".into(),
-                            );
+                            return Err(format!(
+                                "handle aggregate copy changes its complete representation at {:?}/{position:?}/{:?}: operation {:?}, result {:?}; source {:?}, carrier {source_carrier:?} ({:?}), stored access {:?}, borrowed root access {:?}, bytes {source:?}; destination {:?}, carrier {destination_carrier:?} ({:?}), stored access {:?}, bytes {destination:?}",
+                                body.id,
+                                operation.id,
+                                operation.kind,
+                                operation.result,
+                                transfer.source,
+                                source_carrier
+                                    .and_then(|carrier| geometry.carrier_identity(carrier)),
+                                source_carrier
+                                    .and_then(|carrier| geometry.stored_carrier_access(carrier)),
+                                geometry.borrowed_root_access(transfer.source.root),
+                                transfer.destination,
+                                destination_carrier
+                                    .and_then(|carrier| geometry.carrier_identity(carrier)),
+                                destination_carrier
+                                    .and_then(|carrier| geometry.stored_carrier_access(carrier)),
+                            ));
                         }
                         stores.push(CapturedStore::Bytes(destination, self.capture(&source)));
                     }

@@ -15,7 +15,7 @@ use terminal_psi::{
 use terminal_semantics::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, descriptor_path,
 };
-use terminal_semantics::descriptor_results::DescriptorMachine;
+use terminal_semantics::descriptor_results::{DescriptorMachine, ResidentValueTransfer};
 use terminal_semantics::{ReferenceStorageGeometry, ReferenceStorageRegion, StorageGeometryError};
 
 use super::windows_handle_aliases::{
@@ -349,6 +349,68 @@ fn unchanged_storage_presentation(
                     expected,
                 ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged))
     })
+}
+
+/// A leaf copy can publish the same shared descriptor under its canonical
+/// value type. Reuse the copy rule, not geometry alone: the original operation
+/// must select this source and result, and both descriptor values must retain
+/// shared access. This does not admit reference formation or another writer.
+fn shared_leaf_copy_presentation(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    operation: &Operation,
+    transfer: &ResidentValueTransfer,
+    source_root_type: StructuralTypeId,
+    carriers: (Option<StructuralTypeId>, Option<StructuralTypeId>),
+    root_access: Option<terminal_psi::StructuralAccess>,
+) -> bool {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    let Some(result) = operation.result.structural() else {
+        return false;
+    };
+    let selected = match &operation.kind {
+        OperationKind::StructuralLeafCopy { source, path } => {
+            terminal_semantics::descriptor_lifetimes::descriptor_location(
+                types,
+                *source,
+                source_root_type,
+                path,
+                None,
+            )
+        }
+        OperationKind::StructuralCaseLeafCopy { source, path } => {
+            terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
+                types,
+                *source,
+                source_root_type,
+                path,
+            )
+        }
+        _ => return false,
+    };
+    let (Some(source_type), Some(destination_type)) = carriers else {
+        return false;
+    };
+    selected.as_ref() == Some(&transfer.source)
+        && transfer.destination == DescriptorLocation::whole(result.place)
+        && destination_type == result.structural_type
+        && root_access != Some(StructuralAccess::WriteOnlyBorrow)
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && (result.multiplicity == StructuralMultiplicity::Unrestricted
+            || (result.multiplicity == StructuralMultiplicity::Affine
+                && terminal_semantics::is_copyable_carrier(types.iter(), result.structural_type)))
+        && terminal_semantics::shared_descriptor_copy_matches(
+            types.iter(),
+            source_type,
+            transfer
+                .source
+                .path
+                .is_empty()
+                .then_some(root_access)
+                .flatten(),
+            result.structural_type,
+            result.multiplicity,
+        )
 }
 
 impl<'a> HandleStorageGeometry<'a> {
@@ -841,6 +903,26 @@ impl<'a> HandleStorageGeometry<'a> {
         self.module.identities.text(declaration.identity)
     }
 
+    pub(super) fn stored_carrier_access(
+        &self,
+        carrier: StructuralTypeId,
+    ) -> Option<terminal_psi::StructuralAccess> {
+        let declaration =
+            terminal_psi::find_structural_type(&self.module.structural_types, carrier)?;
+        terminal_semantics::stored_reference_access(&declaration.shape)
+    }
+
+    pub(super) fn borrowed_root_access(
+        &self,
+        place: PlaceId,
+    ) -> Option<terminal_psi::StructuralAccess> {
+        self.bindings
+            .rows
+            .get(place)
+            .and_then(Option::as_ref)
+            .map(|slot| slot.access)
+    }
+
     pub(super) fn matches_carrier(
         &self,
         actual: Option<StructuralTypeId>,
@@ -848,6 +930,29 @@ impl<'a> HandleStorageGeometry<'a> {
         access: terminal_psi::StructuralAccess,
     ) -> bool {
         unchanged_storage_presentation(&self.module.structural_types, actual, expected, access)
+    }
+
+    pub(super) fn matches_resident_copy(
+        &self,
+        operation: &Operation,
+        transfer: &ResidentValueTransfer,
+        carriers: (Option<StructuralTypeId>, Option<StructuralTypeId>),
+    ) -> Result<bool, String> {
+        if carriers.0.is_some() && carriers.0 == carriers.1 {
+            return Ok(true);
+        }
+        // Borrowed roots retain their actual declaration access in the same
+        // bounded binding table used by physical resolution. No access is
+        // guessed for an owned canonical descriptor with no stored ceiling.
+        let root_access = self.borrowed_root_access(transfer.source.root);
+        Ok(shared_leaf_copy_presentation(
+            &self.module.structural_types,
+            operation,
+            transfer,
+            self.place_type(&transfer.source)?,
+            carriers,
+            root_access,
+        ))
     }
 
     /// A runtime-selected write can touch any member of its first collection.
@@ -1287,6 +1392,19 @@ mod tests {
                     IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
                 )),
             ),
+            declaration(
+                6,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                }),
+            ),
+            declaration(
+                7,
+                StructuralTypeShape::FixedArray {
+                    element: id(5),
+                    length: terminal_psi::ArrayExtent::Literal(12),
+                },
+            ),
         ];
         assert!(unchanged_storage_presentation(
             &types,
@@ -1322,6 +1440,105 @@ mod tests {
             Some(id(4)),
             id(3),
             StructuralAccess::SharedBorrow,
+        ));
+
+        // Copying an already shared descriptor is a separate admitted
+        // operation from presenting an owned argument under another type.
+        // Bind the actual source, result and occurrence multiplicity here.
+        use semantic_vocabulary::OperationId;
+        use terminal_psi::{OperationResult, StructuralMultiplicity, StructuralOperationResult};
+        let source = PlaceId::new(1).unwrap();
+        let destination = PlaceId::new(2).unwrap();
+        let mut operation = Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Structural(StructuralOperationResult {
+                place: destination,
+                structural_type: id(2),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+            OperationKind::StructuralLeafCopy {
+                source,
+                path: Vec::new(),
+            },
+        );
+        let mut transfer = ResidentValueTransfer {
+            source: DescriptorLocation::whole(source),
+            destination: DescriptorLocation::whole(destination),
+        };
+        let permits =
+            |operation: &Operation, transfer: &ResidentValueTransfer, source_type, root_access| {
+                let destination_type = operation.result.structural().unwrap().structural_type;
+                shared_leaf_copy_presentation(
+                    &types,
+                    operation,
+                    transfer,
+                    source_type,
+                    (Some(source_type), Some(destination_type)),
+                    root_access,
+                )
+            };
+        assert!(permits(&operation, &transfer, id(1), None));
+        let mut other_writer = operation.clone();
+        other_writer.kind = OperationKind::MoveStructuralValue {
+            source: terminal_psi::StructuralArgument::whole(source, StructuralAccess::Owned),
+        };
+        assert!(!permits(&other_writer, &transfer, id(1), None));
+        assert!(permits(
+            &operation,
+            &transfer,
+            id(2),
+            Some(StructuralAccess::SharedBorrow),
+        ));
+        // Shape alone cannot copy an exclusive stored descriptor, infer a
+        // canonical source's access or open write-only source storage.
+        assert!(!permits(&operation, &transfer, id(6), None));
+        assert!(!permits(&operation, &transfer, id(2), None));
+        assert!(!permits(
+            &operation,
+            &transfer,
+            id(1),
+            Some(StructuralAccess::WriteOnlyBorrow),
+        ));
+        transfer.destination = DescriptorLocation::whole(PlaceId::new(3).unwrap());
+        assert!(!permits(&operation, &transfer, id(1), None));
+        transfer.destination = DescriptorLocation::whole(destination);
+        transfer.source = DescriptorLocation::whole(PlaceId::new(3).unwrap());
+        assert!(!permits(&operation, &transfer, id(1), None));
+        transfer.source = DescriptorLocation::whole(source);
+        transfer.source.path.push(DescriptorPathSegment::Field(
+            semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+        ));
+        assert!(!permits(&operation, &transfer, id(1), None));
+        transfer.source = DescriptorLocation::whole(source);
+        // The canonical result's affine occurrence denotes exclusive access,
+        // so a shared input cannot silently change that backing permission.
+        if let OperationResult::Structural(result) = &mut operation.result {
+            result.multiplicity = StructuralMultiplicity::Affine;
+        }
+        assert!(!permits(&operation, &transfer, id(1), None));
+        if let OperationResult::Structural(result) = &mut operation.result {
+            result.multiplicity = StructuralMultiplicity::Unrestricted;
+            result.structural_type = id(3);
+        }
+        assert!(!permits(&operation, &transfer, id(4), None));
+        if let OperationResult::Structural(result) = &mut operation.result {
+            result.structural_type = id(7);
+        }
+        assert!(!permits(&operation, &transfer, id(4), None));
+        // No standalone source identity is reconstructed for an unknown
+        // inline endpoint, even when the expected descriptor shape is known.
+        assert!(!shared_leaf_copy_presentation(
+            &types,
+            &operation,
+            &transfer,
+            id(4),
+            (None, Some(id(7))),
+            None,
         ));
     }
 
