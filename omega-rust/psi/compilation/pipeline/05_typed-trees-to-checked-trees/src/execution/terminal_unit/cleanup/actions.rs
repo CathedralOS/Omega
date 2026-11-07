@@ -247,6 +247,7 @@ pub(super) fn disposition_actions(
                 if removed.cause != checked_trees::ContextualCleanupExclusionCause::Unestablished
                     && !case_evidence.definitely_transferred(excluded)
                 {
+                    trace_exclusion_refusal(program, facts, disposition_handle, removed, excluded);
                     return Err("cleanup exclusion has no selected transfer custody");
                 }
             }
@@ -497,6 +498,72 @@ pub(super) fn disposition_actions(
         return Err("cleanup region partition did not select every hook");
     }
     Ok(actions)
+}
+
+/// Inspect only the disposition whose existing custody check refused. These
+/// retained rows are the producer's answers, not a second case/transfer query.
+fn trace_exclusion_refusal(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
+    removed: &checked_trees::ContextualCleanupExcludedRegion,
+    excluded: &[facts::PlaceSegment],
+) {
+    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_none() {
+        return;
+    }
+    const PATH_LIMIT: usize = 16;
+    const ROW_LIMIT: usize = 4;
+    let cleanup = &facts.contextual_cleanup;
+    let disposition = cleanup.dispositions.get(handle);
+    let owner = disposition.root.as_symbol().map(|symbol| {
+        program
+            .symbols
+            .name(symbol)
+            .chars()
+            .take(64)
+            .collect::<String>()
+    });
+    let path = facts.flow.ownership.segments.span(disposition.path);
+    eprintln!(
+        "CLEANUP_EXCLUSION_REFUSAL disposition={handle:?} root={:?} owner={owner:?} source={:?} exit={:?} selection={:?} completion={:?} selected={} disposed_type={:?} disposed_path={:?} disposed_path_count={:?} excluded_cause={:?} excluded_path={:?} excluded_path_count={}",
+        disposition.root,
+        disposition.source,
+        disposition.exit,
+        disposition.selection,
+        disposition.completion,
+        cleanup.is_selected_disposition(handle),
+        disposition.disposed_type,
+        path.map(|path| &path[..path.len().min(PATH_LIMIT)]),
+        path.map(<[_]>::len),
+        removed.cause,
+        &excluded[..excluded.len().min(PATH_LIMIT)],
+        excluded.len(),
+    );
+    for (name, span) in [
+        ("excluded", disposition.exclusions),
+        ("definite", disposition.definite_exclusions),
+        ("inactive", disposition.inactive_cases),
+    ] {
+        let Some(rows) = cleanup.exclusions.span(span) else {
+            eprintln!("CLEANUP_EXCLUSION_EVIDENCE roster={name} invalid_span={span:?}");
+            continue;
+        };
+        eprintln!(
+            "CLEANUP_EXCLUSION_EVIDENCE roster={name} row_count={}",
+            rows.len()
+        );
+        for (ordinal, row) in rows.iter().take(ROW_LIMIT).enumerate() {
+            let path = cleanup.segments.span(row.segments);
+            eprintln!(
+                "CLEANUP_EXCLUSION_EVIDENCE roster={name} ordinal={ordinal} root={:?} cause={:?} path={:?} path_count={:?}",
+                row.root,
+                row.cause,
+                path.map(|path| &path[..path.len().min(PATH_LIMIT)]),
+                path.map(<[_]>::len),
+            );
+        }
+    }
 }
 
 /// Join normalized cleanup geometry back to the exact checked source place.
