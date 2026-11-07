@@ -91,6 +91,24 @@ restores its original translation root before installation and does not reuse
 the private suffix. Actual reads corroborate the episode; they do not themselves
 grant memory permission or prove every page-table entry or future delivery.
 
+## Integrated compiler check
+
+After resolving the actual main conflict, compiler source
+`80a1badee90e1e3a24f1f622baec7c3c406e899d` completes the same saved native
+request in 248.108 seconds, with unchanged inputs, no resource stop and all
+33 entries retained. Its image bytes and artifact identity exactly equal R13.
+This is a fresh source-free native completion; source checking and the two VM
+observations keep their original identities. R17 result SHA256 is
+`7ff2172e72e17466b031eb474fa0df884f20a4f087cf8eb2bf1a991a39a829ed`.
+
+The exact current CLI also rejects the original borrowed-context use after
+acknowledgement consumption and the incompatible registrar handler. The first
+control reaches its intended live-borrow diagnostic in 7.442 seconds; the
+second reaches its original handler-satisfaction diagnostic in 6.417 seconds.
+The second recording check used a paraphrased sentence and remains failed;
+separate readback verifies the complete current diagnostic bytes equal the
+pinned historical diagnostic. No compiler run or original result was relabeled.
+
 ## Controls and retained evidence
 
 All 33 original entry/calling-plan controls pass. Altered state/origin metadata,
