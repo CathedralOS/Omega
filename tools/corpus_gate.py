@@ -754,7 +754,9 @@ def run_runner(binary: Path, root: Path = ROOT, *, freshly_built=False) -> list[
             elif (line.startswith("corpus_runner:")
                   or structural_trace
                   or phase_profile and profile_output.fullmatch(line)
-                  or check_sites and line.startswith("CHECKSITE ")):
+                  or check_sites and line.startswith("CHECKSITE ")
+                  or os.environ.get("OMEGA_STATE_REFERENCE_DIAGNOSTICS")
+                  and line.startswith("returned-field-contracts ")):
                 sys.stderr.write(line)
                 sys.stderr.flush()
             else:
