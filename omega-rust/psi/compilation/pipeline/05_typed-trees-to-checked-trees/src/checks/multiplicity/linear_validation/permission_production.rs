@@ -16,10 +16,10 @@ use crate::checks::multiplicity::linear_validation::claim_provenance::{
     completed_receiving_values, completed_statement_values, written_linear_targets,
     written_owner_targets,
 };
-use crate::checks::multiplicity::selected_evaluation::SelectedEvaluation;
 use crate::checks::multiplicity::selected_evaluation::place_bindings::{
-    SelectionSite, enter_produced,
+    SelectionEntry, SelectionSite, enter_produced,
 };
+use crate::checks::multiplicity::selected_evaluation::{ExpressionRoutes, SelectedEvaluation};
 use crate::checks::multiplicity::{projected_affine, projected_replacements, temporary_results};
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
@@ -106,7 +106,7 @@ pub(crate) fn evaluate_statement_permissions(
     cleanup_dispositions: &mut checked_trees::ContextualCleanupFacts,
     claim_outcomes: &mut super::super::claim_outcomes::ClaimOutcomePreparation,
     conservation_candidates: &[crate::checks::content::ConservationCandidate],
-) -> Result<Option<EvaluatedStorage>, diagnostics::Diagnostic> {
+) -> Result<Option<(EvaluatedStorage, ExpressionRoutes)>, diagnostics::Diagnostic> {
     // Destructure coverage markers are proof-only reads synthesized by the
     // parser; they neither transfer a value nor establish user storage.
     if matches!(statement, StatementNode::LocalData(local) if local.role == language_core::LocalBindingRole::ArmPattern)
@@ -294,6 +294,8 @@ pub(crate) fn evaluate_statement_permissions(
         statement: statement_index,
         evaluation,
     };
+    let routes =
+        ExpressionRoutes::from_steps(program, occurrences, &facts.flow.control, selection_site);
     // Every produced occurrence leaves each departing scope through the same
     // retirement route; the four occurrences (observe, arm-local move,
     // complete, and the statement's own exit) each restated the same
@@ -305,7 +307,10 @@ pub(crate) fn evaluate_statement_permissions(
                 &mut selected,
                 $route,
                 &mut custody,
-                selection_site,
+                SelectionEntry {
+                    site: selection_site,
+                    routes: &routes,
+                },
                 &mut facts.flow.ownership,
                 claim_identities,
                 |branch, current, ownership| {
@@ -882,16 +887,19 @@ pub(crate) fn evaluate_statement_permissions(
     for event in &mut permission_events[event_start..] {
         event.evaluation = evaluation;
     }
-    Ok(Some(EvaluatedStorage {
-        binding_changes,
-        transfers,
-        observations,
-        event_start,
-        checked_through,
-        written_targets,
-        calls,
-        projected_scopes,
-    }))
+    Ok(Some((
+        EvaluatedStorage {
+            binding_changes,
+            transfers,
+            observations,
+            event_start,
+            checked_through,
+            written_targets,
+            calls,
+            projected_scopes,
+        },
+        routes,
+    )))
 }
 
 /// Finish the receiving write only after all evaluated source arrivals have

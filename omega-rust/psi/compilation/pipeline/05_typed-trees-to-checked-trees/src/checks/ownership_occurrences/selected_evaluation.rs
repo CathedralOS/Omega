@@ -27,6 +27,17 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
         &mut self,
         route: &[EvaluationBranch],
         current: &mut Custody,
+        leave: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
+        join: impl FnMut(EvaluationBranch, &mut Custody, &Custody) -> Result<(), Diagnostic>,
+    ) -> Result<(), Diagnostic> {
+        self.enter_with(route, current, |_, _| Ok(()), leave, join)
+    }
+
+    pub(in crate::checks) fn enter_with(
+        &mut self,
+        route: &[EvaluationBranch],
+        current: &mut Custody,
+        mut begin: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
         mut leave: impl FnMut(EvaluationBranch, &mut Custody) -> Result<(), Diagnostic>,
         mut join: impl FnMut(EvaluationBranch, &mut Custody, &Custody) -> Result<(), Diagnostic>,
     ) -> Result<(), Diagnostic> {
@@ -49,11 +60,16 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
                 leave(decision.branch, current)?;
             }
             if let Some(decision) = self.decisions.pop() {
-                join(
-                    decision.branch,
-                    current,
-                    decision.sibling.as_ref().unwrap_or(&decision.entry),
-                )?;
+                if let Some(sibling) = decision.sibling {
+                    join(decision.branch, current, &sibling)?;
+                } else {
+                    // A scalar fallback can have no permission events. Its
+                    // remaining storage still enters the opposite decision
+                    // before meeting the branch that moved a payload.
+                    let mut sibling = decision.entry;
+                    begin(decision.branch.opposite(), &mut sibling)?;
+                    join(decision.branch, current, &sibling)?;
+                }
                 self.completed.push(decision.branch);
             }
         }
@@ -67,6 +83,7 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
             leave(decision.branch, current)?;
             decision.sibling = Some(std::mem::replace(current, decision.entry.clone()));
             decision.branch = route[common];
+            begin(decision.branch, current)?;
         }
         for branch in &route[retained..] {
             if self
@@ -78,9 +95,11 @@ impl<Custody: Clone> SelectedEvaluation<Custody> {
                     "permission occurrence follows the join of its expression branch",
                 ));
             }
+            let entry = current.clone();
+            begin(*branch, current)?;
             self.decisions.push(Decision {
                 branch: *branch,
-                entry: current.clone(),
+                entry,
                 sibling: None,
             });
         }

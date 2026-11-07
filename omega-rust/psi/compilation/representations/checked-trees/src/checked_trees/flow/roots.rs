@@ -195,6 +195,9 @@ pub struct FlowControlFacts {
     pub descriptor_context_observations: super::FlowDescriptorObservationTable,
     pub atomic_executions: Arena<super::FlowAtomicExecutionFact>,
     pub case_accesses: Arena<super::FlowCaseAccessFact>,
+    pub owned_case_selections: Arena<super::FlowOwnedCaseSelection>,
+    pub owned_cases_by_expression:
+        KeyedRows<typed_trees::expression::ExpressionHandle, super::FlowOwnedCaseSelection>,
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
     pub copied_values: Arena<super::FlowCopiedValue>,
@@ -240,6 +243,19 @@ pub struct FlowControlFacts {
 }
 
 impl FlowControlFacts {
+    pub fn with_owned_case_selections<R>(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        run: impl FnOnce(&[arena::Handle<super::FlowOwnedCaseSelection>]) -> R,
+    ) -> R {
+        self.owned_cases_by_expression.with_rows(
+            &self.owned_case_selections,
+            |selection| selection.expression,
+            &expression,
+            run,
+        )
+    }
+
     pub fn with_expression_operands<R>(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
@@ -254,6 +270,10 @@ impl FlowControlFacts {
     }
 
     pub fn seal_indexes(&mut self) {
+        self.owned_cases_by_expression
+            .seal(&self.owned_case_selections, |selection| {
+                selection.expression
+            });
         self.operands_by_expression
             .seal(&self.operands, |operand| operand.expression);
     }
@@ -289,6 +309,8 @@ impl FlowControlFacts {
             descriptor_context_observations: super::FlowDescriptorObservationTable::default(),
             atomic_executions: Arena::default(),
             case_accesses: Arena::default(),
+            owned_case_selections: Arena::default(),
+            owned_cases_by_expression: KeyedRows::default(),
             operator_invocations: Arena::default(),
             operands: Arena::default(),
             copied_values: Arena::default(),
@@ -588,6 +610,7 @@ paged_flow_roots!(FlowControlFacts {
         descriptor_context_observations,
         atomic_executions,
         case_accesses,
+        owned_case_selections,
         operator_invocations,
         operands,
         copied_values,
@@ -618,6 +641,6 @@ paged_flow_roots!(FlowControlFacts {
         exit_parameter_origins,
         states,
     ],
-    indexes: [operands_by_expression],
+    indexes: [operands_by_expression, owned_cases_by_expression],
     lists: [retired_calls],
 });
