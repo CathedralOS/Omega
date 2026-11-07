@@ -18,6 +18,13 @@
 //!   and clear its topic while keeping its warm `target/` cache.
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
 //!   non-pool worktrees, orphaned directories, and stray log files in parallel.
+//!
+//! Several sessions share this pool, and a reset (`checkout --detach origin/main` plus
+//! `clean -fd`) or a removal destroys whatever a worktree holds. So nothing is reset,
+//! moved or removed unless [`reset_refusal`] finds it safe: not locked, no tracked or
+//! untracked changes, and no commit that exists only in that worktree. A slot with a
+//! topic belongs to the session that acquired it until `release` clears the topic, so
+//! `acquire` and `clean` never take a claimed slot; only its own topic reuses it.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -138,21 +145,80 @@ fn open_pr_commits(root: &Path) -> BTreeSet<String> {
     oids
 }
 
+/// Tracked or untracked changes. Untracked files count because a reset ends with
+/// `git clean -fd`, which deletes them; ignored files such as `target/` survive it.
+/// A worktree whose status cannot be read counts as dirty, so it is left alone.
 fn is_dirty(worktree_path: &Path) -> bool {
     let Ok(out) = Command::new("git")
         .args([
             "status",
             "--porcelain",
-            "--untracked-files=no",
+            "--untracked-files=normal",
             "--ignore-submodules=dirty",
         ])
         .current_dir(worktree_path)
         .stdin(Stdio::null())
         .output()
     else {
-        return false;
+        return true;
     };
-    !String::from_utf8_lossy(&out.stdout).trim().is_empty()
+    !out.status.success() || !String::from_utf8_lossy(&out.stdout).trim().is_empty()
+}
+
+/// Whether `head` holds commits that exist only in this worktree: not on
+/// `origin/main` and not on any remote branch. Resetting such a worktree would
+/// leave those commits unreachable. An unreadable answer counts as unsaved.
+fn has_unsaved_commits(main_root: &Path, head: &str) -> bool {
+    if head.is_empty() {
+        return false;
+    }
+    let on_main = Command::new("git")
+        .args(["merge-base", "--is-ancestor", head, "origin/main"])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if on_main {
+        return false;
+    }
+    let Ok(out) = Command::new("git")
+        .args([
+            "for-each-ref",
+            "--count=1",
+            "--contains",
+            head,
+            "--format=%(refname)",
+            "refs/remotes",
+        ])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .output()
+    else {
+        return true;
+    };
+    !out.status.success() || String::from_utf8_lossy(&out.stdout).trim().is_empty()
+}
+
+/// Why a worktree must not be reset, moved or removed, or `None` when doing so
+/// loses nothing.
+fn reset_refusal(locked: bool, dirty: bool, unsaved: bool) -> Option<&'static str> {
+    if locked {
+        Some("it is locked")
+    } else if dirty {
+        Some("it has uncommitted or untracked changes")
+    } else if unsaved {
+        Some("its HEAD has commits that are on no remote branch")
+    } else {
+        None
+    }
+}
+
+fn refusal_for(main_root: &Path, wt: &WorktreeInfo) -> Option<&'static str> {
+    reset_refusal(
+        wt.locked,
+        is_dirty(&wt.path),
+        has_unsaved_commits(main_root, &wt.head),
+    )
 }
 
 fn reset_slot_to_main(worktree_path: &Path) -> bool {
@@ -354,10 +420,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     .iter()
                     .find(|w| w.slot_index.is_some() && w.topic.as_deref() == Some(t))
             {
-                if is_dirty(&existing.path) {
+                if let Some(reason) = refusal_for(&main_root, existing) {
                     eprintln!(
-                        "worktree acquire: `{}` has uncommitted changes; commit or discard them first",
-                        existing.path.display()
+                        "worktree acquire: `{}` carries topic `{}` but {reason}; push or discard that work first",
+                        existing.path.display(),
+                        topic.unwrap_or("-")
                     );
                     return Err(1);
                 }
@@ -368,15 +435,21 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 return Ok(());
             }
 
-            // 2. Reuse any idle `worker-N` slot in place (preserving its fixed path and warm `target/`).
+            // 2. Reuse a released `worker-N` slot in place (preserving its fixed path and warm
+            // `target/`). A slot with a topic is still claimed by another session.
             let mut idle_slots: Vec<&WorktreeInfo> = items
                 .iter()
-                .filter(|w| w.slot_index.is_some() && !w.open_pr && w.name != current_name)
+                .filter(|w| {
+                    w.slot_index.is_some()
+                        && w.topic.is_none()
+                        && !w.open_pr
+                        && w.name != current_name
+                })
                 .collect();
             idle_slots.sort_by_key(|w| (!w.has_warm_target, w.slot_index.unwrap_or(usize::MAX)));
 
             for slot in idle_slots {
-                if is_dirty(&slot.path) {
+                if refusal_for(&main_root, slot).is_some() {
                     continue;
                 }
                 if reset_slot_to_main(&slot.path) {
@@ -408,15 +481,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             legacy_donors.sort_by_key(|w| (!w.has_warm_target, w.name.clone()));
 
             for donor in legacy_donors {
-                if is_dirty(&donor.path) {
+                if refusal_for(&main_root, donor).is_some() {
                     continue;
-                }
-                if donor.locked {
-                    let _ = Command::new("git")
-                        .args(["worktree", "unlock", &donor.path.to_string_lossy()])
-                        .current_dir(&main_root)
-                        .stdin(Stdio::null())
-                        .status();
                 }
                 let move_ok = Command::new("git")
                     .args([
@@ -473,9 +539,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 eprintln!("worktree release: unknown worktree `{target_name}`");
                 return Err(1);
             };
-            if is_dirty(&wt.path) {
+            if let Some(reason) = refusal_for(&main_root, wt) {
                 eprintln!(
-                    "worktree release: `{}` has uncommitted changes; commit or discard them first",
+                    "worktree release: `{}` not released because {reason}; push or discard that work first",
                     wt.path.display()
                 );
                 return Err(1);
@@ -519,6 +585,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             let items = list_worktrees(&main_root);
             let mut to_delete_dirs: Vec<(String, PathBuf)> = Vec::new();
             let mut reset_slots = 0usize;
+            // Legacy worktrees refused for removal; their directories stay out of the
+            // orphan sweep below too.
+            let mut kept: BTreeSet<String> = BTreeSet::new();
 
             // Seed `worker-1` from a warm legacy worktree if no `worker-1` exists yet.
             let has_worker_1 = items.iter().any(|w| w.slot_index == Some(1));
@@ -531,17 +600,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                         && !w.open_pr
                         && !keep.contains(&w.name)
                         && w.has_warm_target
-                        && !is_dirty(&w.path)
+                        && refusal_for(&main_root, w).is_none()
                 })
             {
                 let worker1_path = wt_base.join("worker-1");
-                if donor.locked {
-                    let _ = Command::new("git")
-                        .args(["worktree", "unlock", &donor.path.to_string_lossy()])
-                        .current_dir(&main_root)
-                        .stdin(Stdio::null())
-                        .status();
-                }
                 let move_ok = Command::new("git")
                     .args([
                         "worktree",
@@ -569,8 +631,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     continue;
                 }
                 if wt.slot_index.is_some() {
-                    // Pool slots stay in the pool; reset idle slots back to origin/main.
-                    if !wt.at_main && !is_dirty(&wt.path) {
+                    // Pool slots stay in the pool; reset released slots back to origin/main.
+                    // A claimed slot (topic set) is another session's until it releases it.
+                    if !wt.at_main && wt.topic.is_none() && refusal_for(&main_root, wt).is_none() {
                         if dry_run {
                             println!("would reset pool slot `{}` to origin/main", wt.name);
                         } else if reset_slot_to_main(&wt.path) {
@@ -579,6 +642,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                         }
                         reset_slots += 1;
                     }
+                    continue;
+                }
+                if let Some(reason) = refusal_for(&main_root, wt) {
+                    println!("kept legacy worktree `{}` because {reason}", wt.name);
+                    kept.insert(wt.name.clone());
                     continue;
                 }
                 if dry_run {
@@ -599,6 +667,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 .iter()
                 .filter(|w| {
                     keep.contains(&w.name)
+                        || kept.contains(&w.name)
                         || w.open_pr
                         || w.slot_index.is_some()
                         || promoted_name.as_deref() == Some(w.name.as_str())
@@ -669,6 +738,25 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         other => {
             eprintln!("worktree: unknown subcommand `{other}`");
             Err(2)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reset_refusal;
+
+    // Every way a worktree can hold work blocks a reset; only an empty one passes.
+    #[test]
+    fn reset_is_refused_whenever_work_would_be_lost() {
+        assert_eq!(reset_refusal(false, false, false), None);
+        for (locked, dirty, unsaved) in [
+            (true, false, false),
+            (false, true, false),
+            (false, false, true),
+            (true, true, true),
+        ] {
+            assert!(reset_refusal(locked, dirty, unsaved).is_some());
         }
     }
 }
