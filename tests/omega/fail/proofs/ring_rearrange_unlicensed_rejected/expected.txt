@@ -1,1 +1,3 @@
 no entailment tier judges yet
+machine `mixed_application_associativity` ensures contract proof fact
+machine `mixed_family_associativity` ensures contract proof fact
