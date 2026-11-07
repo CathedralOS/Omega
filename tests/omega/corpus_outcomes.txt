@@ -20435,6 +20435,7 @@ pass/calls/value_tail_call_to_machine_exit checked 16258ms check-target:macos_ar
 pass/calls/whole_byte_array_view_loans_exit checked 18672ms check-target:macos_arm64 @ccdb99ca2214
 pass/capabilities/aarch64_hfa_import_compile checked 5391ms @ccdb99ca2214
 pass/capabilities/acquires_through_helper_return checked 3590ms check-target:macos_arm64 @ccdb99ca2214
+pass/capabilities/alternative_synchronous_provider_exit checked 5919ms check-target:macos_arm64 synchronous-provider-controls:match terminal-inspections:match @520abb8c67ee
 pass/capabilities/boundary_trait_multiple_effects checked 2256ms @ccdb99ca2214
 pass/capabilities/callback_direct_install_compile checked 20888ms check-target:linux_x86_64 @ccdb99ca2214
 pass/capabilities/derives_through_helper checked 3716ms check-target:macos_arm64 @ccdb99ca2214
@@ -21023,7 +21024,7 @@ pass/core/address_interval_partition_reverse_exit checked 16086ms check-target:m
 pass/core/address_interval_partition_unrelated_store_exit rejected 4822ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	exact arithmetic in construction of `Region` field `base` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `split` state `entry` local `right` may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
-pass/core/aggregate_snapshot_copy_exit checked 3297ms check-target:macos_arm64 @ccdb99ca2214
+pass/core/aggregate_snapshot_copy_exit checked 5379ms check-target:macos_arm64 terminal-inspections:match @520abb8c67ee
 pass/core/carry_permission_provider_adapter checked 4281ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/conjunctive_return_bound_projection_exit checked 15601ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/content_conservation_completed_direct_calls checked 3675ms @ccdb99ca2214
