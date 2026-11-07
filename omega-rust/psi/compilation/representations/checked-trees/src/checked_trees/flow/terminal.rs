@@ -116,11 +116,11 @@ pub use unit_call_plans::{
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
 };
 pub use unit_effect_plans::{
-    CheckedLayoutObservation, CheckedOperandSequence, CheckedStructuralInvocation,
-    CheckedStructuralLocalInitialization, CheckedStructuralValueCall, CheckedUnitCallableEntry,
-    CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan, CheckedUnitParameterStoragePlan,
-    CheckedUnitPlanGap, CheckedUnitPlanGapReason, CheckedUnitScalarControlPlan,
-    CheckedUnitSelectedReferenceRetirementPlan,
+    CheckedLayoutObservation, CheckedOperandSequence, CheckedScalarReturnCopies,
+    CheckedStructuralInvocation, CheckedStructuralLocalInitialization, CheckedStructuralValueCall,
+    CheckedUnitCallableEntry, CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitLocalBindingPlan,
+    CheckedUnitParameterStoragePlan, CheckedUnitPlanGap, CheckedUnitPlanGapReason,
+    CheckedUnitScalarControlPlan, CheckedUnitSelectedReferenceRetirementPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

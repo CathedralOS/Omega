@@ -9,7 +9,7 @@ use super::fused::fused_target_index;
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan,
     CheckedUnitEffectOperationPlan as OperationPlan, CheckedUnitStructuralParameterPlan,
-    Multiplicity, StatementNode, TransitionExit, TransitionTargetNode, control,
+    Multiplicity, StatementNode, control,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, parameter_qualifications};
@@ -109,22 +109,8 @@ pub(super) fn guarded(
     if arms.first()?.guard_statement_ordinal as usize != start {
         return None;
     }
-    let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let mut outgoing = std::collections::BTreeMap::new();
-    for row in facts.flow.control.outgoing.span(flow.outgoing)? {
-        if row.machine_symbol != machine.symbol || row.state_symbol != state.symbol {
-            return None;
-        }
-        let target = row.transition_target;
-        outgoing
-            .entry((
-                row.statement_index,
-                target.arena_index(),
-                target.generation(),
-            ))
-            .and_modify(|captured| *captured = None)
-            .or_insert(Some(row.copied_payloads));
-    }
+    let selected_copies =
+        control::selected_copies::SelectedCopies::new(program, facts, machine.symbol, state)?;
     let mut count = next_result_ordinal(operations)?;
     let mut return_values = Vec::new();
     let mut preamble = Vec::new();
@@ -142,51 +128,7 @@ pub(super) fn guarded(
             // custody owners; they cannot be relabeled as fresh value returns.
             return None;
         };
-        let (expression, target) =
-            match crate::flow::state_statements(program, state.statement_nodes)
-                .get(*statement_ordinal as usize)?
-            {
-                StatementNode::Expression(expression) if !is_continuation => {
-                    (*expression, Default::default())
-                }
-                StatementNode::Transition(transition)
-                    if transition.exit == TransitionExit::Ordinary =>
-                {
-                    let target = if *is_continuation {
-                        transition.continuation
-                    } else {
-                        transition.target
-                    };
-                    let TransitionTargetNode::Value(expression) =
-                        program.statement_table.transition_target(target)
-                    else {
-                        return None;
-                    };
-                    (*expression, target)
-                }
-                _ => return None,
-            };
-        let copied_payloads = outgoing
-            .get(&(
-                *statement_ordinal as usize,
-                target.arena_index(),
-                target.generation(),
-            ))
-            .copied()
-            .flatten()?;
-        for copy in facts.flow.control.operands.span(copied_payloads)? {
-            if copy.state_symbol != state.symbol
-                || copy.statement_index != *statement_ordinal as usize
-                || copy.evaluation
-                    != checked_trees::FlowPermissionEvaluation::TransitionTarget(target)
-                || !matches!(
-                    copy.completion,
-                    checked_trees::FlowOperandCompletion::Copied { .. }
-                )
-            {
-                return None;
-            }
-        }
+        let (expression, copies) = selected_copies.for_destination(destination)?;
         if validation::completing_call_transfer(program, expression)
             .is_some_and(|transfer| fused_target_index(program, fused, transfer.target).is_some())
         {
@@ -210,9 +152,9 @@ pub(super) fn guarded(
         return_values.push(checked_trees::CheckedGuardedReturnValue {
             statement_ordinal: *statement_ordinal,
             is_continuation: *is_continuation,
-            transition_target: target,
+            transition_target: copies.transition_target,
             operation,
-            copied_payloads,
+            copied_payloads: copies.copied_payloads,
         });
         preamble.extend(operand_calls);
     }

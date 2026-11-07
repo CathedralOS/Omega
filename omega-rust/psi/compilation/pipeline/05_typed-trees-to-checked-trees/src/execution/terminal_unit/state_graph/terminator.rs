@@ -243,7 +243,7 @@ pub(super) fn build(
             trace,
         )?;
         return Some((
-            complete_selected_return(program, transition, arm, operations)?,
+            complete_selected_return(program, facts, machine, state, transition, arm, operations)?,
             Some(selected_exit),
         ));
     }
@@ -1076,6 +1076,9 @@ fn crash_arm(
 /// transaction; normal-edge cleanup still runs on the resulting terminator.
 fn complete_selected_return(
     program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     transition: &TableTransition,
     arm: checked_trees::CheckedConditionalReturnArm,
     operations: &mut Vec<OperationPlan>,
@@ -1100,6 +1103,19 @@ fn complete_selected_return(
             completion: CheckedScalarReturnPlan::Exits(CheckedUnitScalarControlPlan {
                 primitive_type,
                 terminator: CheckedScalarStateTerminator::Return { statement_ordinal },
+                selected_copies: vec![
+                    control::selected_copies::SelectedCopies::new(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state,
+                    )?
+                    .for_destination(&checked_trees::CheckedScalarBranchDestination::Return {
+                        statement_ordinal,
+                        is_continuation: false,
+                    })?
+                    .1,
+                ],
             }),
         },
         Arm::Structural(operation) => {

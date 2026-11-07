@@ -90,6 +90,13 @@ pub(crate) fn scalar_returns(
     // orphan completion blocks and their obligations. Every selected return
     // still requires its unique, exact source-owned cleanup coordinate.
     let destinations = returning_destinations(checked, control)?;
+    let mut copies = std::collections::BTreeMap::new();
+    for row in &control.selected_copies {
+        copies
+            .entry((row.statement_ordinal, row.is_continuation))
+            .and_modify(|captured| *captured = None)
+            .or_insert(Some(row.copied_payloads));
+    }
     destinations
         .into_iter()
         .map(|destination| {
@@ -105,10 +112,27 @@ pub(crate) fn scalar_returns(
                 operations,
                 &mut actions,
             )?;
+            let CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation,
+            } = destination
+            else {
+                return Err(LoweringError::Unsupported(
+                    "scalar completion lost its return coordinate",
+                ));
+            };
+            let copied_payloads = copies
+                .get(&(statement_ordinal, is_continuation))
+                .copied()
+                .flatten()
+                .ok_or(LoweringError::Unsupported(
+                    "scalar completion lost its selected payload roster",
+                ))?;
             Ok(ScalarReturnCleanup {
                 exit,
                 destination,
                 actions,
+                copied_payloads,
             })
         })
         .collect()
