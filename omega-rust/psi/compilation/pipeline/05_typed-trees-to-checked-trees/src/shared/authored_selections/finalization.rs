@@ -230,7 +230,7 @@ pub(crate) fn finalize_checked_authored_selections(
                     ExpressionNode::Member(member),
                 ) => {
                     let _s = phase_profile::guard("psi.05.selections_custody_types_boundaries.finalize_selections.member");
-                    checked_member_target(program, facts, expression, member, Some(&owner_index))
+                    checked_member_target(program, facts, expression, member, Some(owner_index))
                 }
                 (
                     LateBinding::CheckedStaticPathSegment,
@@ -308,7 +308,7 @@ pub(crate) fn finalize_checked_authored_selections(
                         expression,
                         node,
                         occurrence,
-                        Some(&owner_index),
+                        Some(owner_index),
                     ))
                     .or_else(|| {
                         typed_operator_has_no_authored_selection(program, expression).then_some(
