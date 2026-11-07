@@ -548,12 +548,28 @@ pub(crate) fn projected_observed_path(
         place,
         local_selector,
     )?;
-    if let PlaceRoot::Symbol(root) = place.root
-        && let Some(state) = program.state_by_symbol(state_symbol)
-        && let Some((ordinal, local)) = program.state_local_declaration(state, root)
-        && ordinal < statement_index
-    {
-        let mut reference = local.type_reference;
+    // Locals and completed values own stored descriptors. Parameters already
+    // denote their supplied backing and keep the existing root presentation.
+    // This is geometry only; the consumer still requires the completed home
+    // and its exact read permission before executing the observation.
+    let stored_root = match place.root {
+        PlaceRoot::Symbol(root) => program
+            .state_by_symbol(state_symbol)
+            .and_then(|state| program.state_local_declaration(state, root))
+            .filter(|(ordinal, _)| *ordinal < statement_index)
+            .map(|(_, local)| local.type_reference),
+        PlaceRoot::Expression(_) => Some(canonical_place_type_reference(
+            program,
+            state_symbol,
+            statement_index,
+            &CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?),
+        _ => None,
+    };
+    if let Some(mut reference) = stored_root {
         let mut crossings = Vec::new();
         while let Some(shell) = reference_shell(program, reference) {
             if shell.access == ReferenceAccess::WriteOnly {
