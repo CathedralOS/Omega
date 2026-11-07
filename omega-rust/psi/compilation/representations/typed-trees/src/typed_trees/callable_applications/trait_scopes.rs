@@ -488,7 +488,9 @@ impl TypedTrees {
         // Every pending view checks for an existing row with its exact
         // requirement and trait key. Index those rows once, sorted, and add
         // each row as it is inserted: a scan of the whole table per pending
-        // view was quadratic in the prepared roster.
+        // view was quadratic in the prepared roster. The index is guarded by
+        // the table's revision: any table write other than this loop's own
+        // insert, from any callee, rebuilds it before the next lookup.
         let row_key =
             |requirement: SymbolHandle,
              declaration: SymbolHandle,
@@ -499,21 +501,28 @@ impl TypedTrees {
                     identity,
                 )
             };
-        let mut prepared_rows = self
-            .applied_callable_signatures
-            .iter()
-            .filter_map(|(_, prepared)| match prepared.owner {
-                AppliedCallableOwner::Trait {
-                    declaration,
-                    application,
-                } => Some(row_key(prepared.signature.symbol, declaration, application)),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        prepared_rows.sort_unstable();
+        let index_rows = |program: &Self| {
+            let mut rows = program
+                .applied_callable_signatures
+                .iter()
+                .filter_map(|(_, prepared)| match prepared.owner {
+                    AppliedCallableOwner::Trait {
+                        declaration,
+                        application,
+                    } => Some(row_key(prepared.signature.symbol, declaration, application)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            rows.sort_unstable();
+            (rows, program.applied_callable_signatures.revision())
+        };
+        let (mut prepared_rows, mut indexed_revision) = index_rows(self);
         let mut wrote = false;
         let mut produced = Vec::new();
         for (trait_symbol, owner, identity, requirement, environment, clauses) in pending {
+            if self.applied_callable_signatures.revision() != indexed_revision {
+                (prepared_rows, indexed_revision) = index_rows(self);
+            }
             if prepared_rows
                 .binary_search(&row_key(requirement, owner, identity))
                 .is_ok()
@@ -544,10 +553,8 @@ impl TypedTrees {
             };
             self.apply_callable_refinements(&mut applied, &clauses)?;
             let inserted = row_key(applied.symbol, owner, identity);
-            if let Err(position) = prepared_rows.binary_search(&inserted) {
-                prepared_rows.insert(position, inserted);
-            }
             produced.push(applied.clone());
+            let before_insert = self.applied_callable_signatures.revision();
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
                     owner: AppliedCallableOwner::Trait {
@@ -556,6 +563,18 @@ impl TypedTrees {
                     },
                     signature: applied,
                 });
+            // The insert moves the revision by exactly one. The index then
+            // gains just this row, but only if nothing else wrote the table
+            // since it was built; otherwise it is rebuilt from the table.
+            let after_insert = self.applied_callable_signatures.revision();
+            if before_insert == indexed_revision && after_insert == before_insert + 1 {
+                if let Err(position) = prepared_rows.binary_search(&inserted) {
+                    prepared_rows.insert(position, inserted);
+                }
+                indexed_revision = after_insert;
+            } else {
+                (prepared_rows, indexed_revision) = index_rows(self);
+            }
         }
         Ok((produced, wrote))
     }
