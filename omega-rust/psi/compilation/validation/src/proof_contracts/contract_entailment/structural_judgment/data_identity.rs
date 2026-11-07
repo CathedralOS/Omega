@@ -115,6 +115,7 @@ impl StructuralJudge<'_> {
         }) {
             StructuralJudgment::Proven
         } else {
+            self.trace_unknown_identity(&left, &right);
             StructuralJudgment::Unknown
         }
     }

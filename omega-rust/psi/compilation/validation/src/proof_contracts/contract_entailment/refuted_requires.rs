@@ -576,6 +576,13 @@ fn fresh_instantiated_fact_judgment(
     // Bind completed operands before walking their paths. Scalar cells and
     // descriptor measures share the typed owner; a symbolic formal alone
     // cannot authorize stored reference crossings or recover expired contents.
+    if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+        eprintln!(
+            "IDTRACE predicate-route owner={callee_owner:?} fact={fact:?} runtime={} machine_map={machine_map:?} type_map={type_map:?} captured_route={}",
+            judge.has_runtime_body_values(),
+            judge.has_runtime_body_values() && machine_map.is_empty(),
+        );
+    }
     if judge.has_runtime_body_values()
         && machine_map.is_empty()
         && matches!(
@@ -807,6 +814,7 @@ fn instantiated_operands(
     )?;
     let left = StructuralJudge::substitute_call_term(&left, map, machine_map);
     let right = StructuralJudge::substitute_call_term(&right, map, machine_map);
+    judge.trace_identity_terms("wide.before", [&left, &right].into_iter());
     let projection_uncertified =
         uncertified_call_projection(program, &left) || uncertified_call_projection(program, &right);
     let unreplayable_call = literal_replay
@@ -821,12 +829,10 @@ fn instantiated_operands(
         let _ = literal_replay;
         super::structural_terms::unfold_constant_applications(program, judge.resolve(term))
     };
-    Some((
-        declared_len_extent_term(program, caller_scope, normalize(left)),
-        declared_len_extent_term(program, caller_scope, normalize(right)),
-        projection_uncertified,
-        unreplayable_call,
-    ))
+    let left = declared_len_extent_term(program, caller_scope, normalize(left));
+    let right = declared_len_extent_term(program, caller_scope, normalize(right));
+    judge.trace_identity_terms("wide.after", [&left, &right].into_iter());
+    Some((left, right, projection_uncertified, unreplayable_call))
 }
 
 /// The instantiated fact as the values it compared, for the refutation

@@ -297,6 +297,10 @@ impl StructuralJudge<'_> {
         equations: Vec<CapturedResultEquation>,
     ) {
         for mut equation in equations {
+            self.trace_identity_terms(
+                "import.before",
+                [&equation.left, &equation.right].into_iter(),
+            );
             if !equation.is_completed_call_identity() {
                 // Declared guarantees name the values actually passed. Copies
                 // of one unchanged input share its saved source; they must not
@@ -305,6 +309,10 @@ impl StructuralJudge<'_> {
                 equation.left = self.completed_value_identity(equation.left);
                 equation.right = self.completed_value_identity(equation.right);
             }
+            self.trace_identity_terms(
+                "import.after",
+                [&equation.left, &equation.right].into_iter(),
+            );
             if equation.is_data_identity() {
                 // A public data Id relates complete values. Keep its meaning
                 // separate from equations that authorize scalar substitution.

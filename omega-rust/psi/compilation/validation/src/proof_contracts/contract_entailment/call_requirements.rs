@@ -810,6 +810,21 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 .zip(predicate_parameters)
                 .zip(arguments)
             {
+                if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
+                    eprintln!(
+                        "IDTRACE requirement caller={} expression={:?} owner={:?} parameter={:?} type={:?} node={:?} predicate={:?} predicate_type={:?} types={type_substitution:?} value={value:?}",
+                        machine.name,
+                        self.call_expression,
+                        self.callee_owner,
+                        parameter.symbol,
+                        parameter.type_reference,
+                        program
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        predicate_parameter.symbol,
+                        predicate_parameter.type_reference,
+                    );
+                }
                 let value = if self.call_expression.is_valid()
                     && crate::reference_shell(program, parameter.type_reference).is_some()
                 {
