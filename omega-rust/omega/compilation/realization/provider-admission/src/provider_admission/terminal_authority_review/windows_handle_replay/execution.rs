@@ -166,16 +166,22 @@ impl<'a, 'module> Execution<'a, 'module> {
                             "handle execution exceeds its bounded matched-call depth".into()
                         );
                     }
-                    let (frame, state) = work.state.clone().enter_call(
-                        HandleReplayInvocation {
-                            parent: work.activation,
-                            caller,
-                            callee,
-                        },
-                        self.inputs,
-                        &mut self.activations,
-                        self.context,
-                    )?;
+                    let (frame, state) = work
+                        .state
+                        .clone()
+                        .enter_call(
+                            HandleReplayInvocation {
+                                parent: work.activation,
+                                caller,
+                                callee,
+                            },
+                            self.inputs,
+                            &mut self.activations,
+                            self.context,
+                        )
+                        .map_err(|error| {
+                            format!("handle call {caller:?} to {callee:?}: {error}")
+                        })?;
                     let activation = frame.activation;
                     let mut frames = work.frames.clone();
                     frames.push(SuspendedCall {
@@ -233,12 +239,21 @@ impl<'a, 'module> Execution<'a, 'module> {
                         .arguments
                         .get(&caller)
                         .ok_or("handle native execution lost its checked arguments")?;
-                    let outcomes = work.state.clone().native(&HandleNativeReplay {
-                        machine: &machine,
-                        input,
-                        arguments,
-                        occurrence,
-                    })?;
+                    let outcomes = work
+                        .state
+                        .clone()
+                        .native(&HandleNativeReplay {
+                            machine: &machine,
+                            input,
+                            arguments,
+                            occurrence,
+                        })
+                        .map_err(|error| {
+                            format!(
+                                "native handle call {caller:?}, boundary {:?}, contract {:?}: {error}",
+                                occurrence.boundary, input.reviewed.contract,
+                            )
+                        })?;
                     if outcomes.states.is_empty() {
                         return Err("handle native execution produced no checked outcome".into());
                     }
@@ -528,7 +543,15 @@ impl<'a, 'module> Execution<'a, 'module> {
             let occurrence = self
                 .activations
                 .scalar(work.activation, ScalarUseSite::Operation(operation.id))?;
-            work.state = work.state.operation(position, &machine, occurrence)?;
+            work.state = work
+                .state
+                .operation(position, &machine, occurrence)
+                .map_err(|error| {
+                    format!(
+                        "handle operation {:?}/{position:?}/{:?} {:?}: {error}",
+                        body.id, operation.id, operation.kind,
+                    )
+                })?;
             work.control = next;
             return self.pending.push(work);
         }

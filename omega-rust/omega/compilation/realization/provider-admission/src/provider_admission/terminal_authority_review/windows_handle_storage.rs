@@ -876,7 +876,20 @@ impl<'a> HandleStorageGeometry<'a> {
             None,
         )
         .ok_or_else(|| {
-            format!("handle argument {place:?}/{path:?} has no exact storage coordinate")
+            let shape = terminal_psi::find_structural_type(&self.module.structural_types, root)
+                .map(|declaration| match &declaration.shape {
+                    shape @ (StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::ByteSequence(_)
+                    | StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::PrimitiveScalar(_)) => format!("{shape:?}"),
+                    _ => "aggregate (retain its original type identity)".into(),
+                });
+            format!(
+                "handle argument {:?}/{place:?}/{path:?} has no exact storage coordinate: root {root:?} ({:?}), shape {shape:?}",
+                self.body.id,
+                self.carrier_identity(root),
+            )
         })
     }
 
