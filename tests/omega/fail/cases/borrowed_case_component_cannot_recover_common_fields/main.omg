@@ -14,12 +14,28 @@ machine inspect(message: &Message) -> u64 {
     }
 }
 
+// A final match completes Unit work on the selected arm only.
+machine record(selected: bool, observed: &mut u64) {
+    match selected {
+        true -> write_observation(observed, 17)
+        false -> write_observation(observed, 29)
+    }
+}
+machine write_observation(observed: &mut u64, value: u64) {
+    observed = value;
+}
+
 machine main() crashes Trap {
     let received: Message = Message::Received { stamp: 11, value: 7 };
     let empty: Message = Message::Empty { stamp: 19 };
     let payload: u64 = inspect(&received);
     let fallback: u64 = inspect(&empty);
-    transition payload == 7 && fallback == 99 && received.stamp == 11 && empty.stamp == 19 {
+    let mut matching: u64 = 3;
+    let mut remaining: u64 = 5;
+    record(true, &mut matching);
+    record(false, &mut remaining);
+    transition payload == 7 && fallback == 99 && received.stamp == 11 && empty.stamp == 19
+        && matching == 17 && remaining == 29 {
         true -> done()
         false -> bad()
     }
