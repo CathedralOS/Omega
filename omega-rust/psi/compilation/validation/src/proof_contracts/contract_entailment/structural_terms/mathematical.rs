@@ -339,14 +339,35 @@ fn source_operation_term(
             }
         }
     }
+    let ambiguous_symbol = std::cell::Cell::new(false);
     let substitute = |candidate| {
-        bindings.iter().zip(&values).find_map(|(binding, value)| {
-            let same_symbol = binding.symbol.is_valid() && matches!(
-                program.expression_table.expression(candidate),
-                typed_trees::expression::ExpressionNode::Name(path) if path.symbol == binding.symbol
-            );
-            (binding.expressions.contains(&candidate) || same_symbol).then(|| value.clone())
-        })
+        if let Some((_, value)) = bindings
+            .iter()
+            .zip(&values)
+            .find(|(binding, _)| binding.expressions.contains(&candidate))
+        {
+            return Some(value.clone());
+        }
+        let typed_trees::expression::ExpressionNode::Name(path) =
+            program.expression_table.expression(candidate)
+        else {
+            return None;
+        };
+        if !path.symbol.is_valid() {
+            return None;
+        }
+        let mut candidates = bindings
+            .iter()
+            .zip(&values)
+            .filter(|(binding, _)| binding.symbol == path.symbol);
+        let (_, value) = candidates.next()?;
+        if candidates.next().is_some() {
+            // None alone would permit the observer to recover a raw formal.
+            // Preserve this refusal across that callback boundary instead.
+            ambiguous_symbol.set(true);
+            return None;
+        }
+        Some(value.clone())
     };
     let value = super::structural_term(
         program,
@@ -354,7 +375,11 @@ fn source_operation_term(
         Some((owner, &parameters)),
         expression,
         Some(&substitute),
-    ).ok_or_else(|| "the retained occurrence has no complete selected structural value after dependency substitution".to_owned())?;
+    );
+    if ambiguous_symbol.get() {
+        return Err("a source symbol has multiple actual dependency bindings without an exact occurrence association".to_owned());
+    }
+    let value = value.ok_or_else(|| "the retained occurrence has no complete selected structural value after dependency substitution".to_owned())?;
     Ok(if source_type.is_valid() {
         super::owned_projection_observation(program, source_type, value)
     } else {
