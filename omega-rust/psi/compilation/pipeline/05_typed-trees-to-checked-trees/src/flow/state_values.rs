@@ -927,6 +927,14 @@ fn delivers_here(
     destination: &typed_trees::state::State,
     delivery: impl FnOnce() -> Delivery,
 ) -> bool {
+    if build.replay_guard.is_some() {
+        let owner = build
+            .state_location(program, destination.symbol)
+            .map(|(owner, _)| owner);
+        if let Some(guard) = build.replay_guard.as_mut() {
+            guard.observe(owner);
+        }
+    }
     if build.input_recording.is_none() {
         return true;
     }
@@ -989,4 +997,111 @@ pub(super) fn replay_delivery(
         Delivery::Unreplayable => unreachable!("rejected above"),
     }
     true
+}
+
+/// While a split group replays its independent parts, every input row of a
+/// part state must change only through that part: its replayed visits or its
+/// own seeds. The solo run that recorded the part saw no other writer, so any
+/// other delivery into a part row means the recording no longer describes the
+/// serial run and the group must be built serially.
+#[derive(Debug)]
+pub(super) struct ReplayGuard {
+    /// The replayed part of each roster position, or `None` outside every part.
+    part_of: Vec<Option<u32>>,
+    /// The roster position whose visit or seeds are delivering now.
+    writer: Option<usize>,
+    broken: bool,
+}
+
+impl ReplayGuard {
+    pub(super) fn new(machine_count: usize, parts: &[Vec<usize>]) -> Self {
+        let mut part_of = vec![None; machine_count];
+        for (part, machines) in parts.iter().enumerate() {
+            let part = u32::try_from(part).expect("replayed parts exceed u32");
+            for &machine in machines {
+                part_of[machine] = Some(part);
+            }
+        }
+        Self {
+            part_of,
+            writer: None,
+            broken: false,
+        }
+    }
+
+    pub(super) fn set_writer(&mut self, writer: usize) {
+        self.writer = Some(writer);
+    }
+
+    /// One delivery into a row owned by roster position `destination`; an
+    /// unresolved destination cannot be shown to stay outside every part.
+    pub(super) fn observe(&mut self, destination: Option<usize>) {
+        let Some(destination) = destination else {
+            self.broken = true;
+            return;
+        };
+        let Some(part) = self.part_of.get(destination).copied().flatten() else {
+            return;
+        };
+        let writer_part = self
+            .writer
+            .and_then(|writer| self.part_of.get(writer).copied().flatten());
+        if writer_part != Some(part) {
+            self.broken = true;
+        }
+    }
+
+    pub(super) fn holds(&self) -> bool {
+        !self.broken
+    }
+}
+
+#[cfg(test)]
+mod replay_guard_tests {
+    use super::ReplayGuard;
+
+    #[test]
+    fn outside_delivery_into_a_replayed_part_breaks_the_replay() {
+        // Roster: part 0 = {0, 1}, outside = {2}, part 1 = {3}.
+        let parts = [vec![0, 1], vec![3]];
+        let mut guard = ReplayGuard::new(4, &parts);
+        guard.set_writer(0);
+        guard.observe(Some(1));
+        guard.observe(Some(2));
+        assert!(
+            guard.holds(),
+            "a part writing its own rows and outside rows is replayable"
+        );
+        guard.set_writer(2);
+        guard.observe(Some(2));
+        assert!(
+            guard.holds(),
+            "an outside machine writing outside rows is replayable"
+        );
+        guard.observe(Some(0));
+        assert!(
+            !guard.holds(),
+            "an outside machine wrote a replayed part's row"
+        );
+
+        let mut guard = ReplayGuard::new(4, &parts);
+        guard.set_writer(1);
+        guard.observe(Some(3));
+        assert!(!guard.holds(), "one part wrote another part's row");
+
+        let mut guard = ReplayGuard::new(4, &parts);
+        guard.observe(Some(3));
+        assert!(
+            !guard.holds(),
+            "a delivery with no writer reached a part row"
+        );
+
+        let mut guard = ReplayGuard::new(4, &parts);
+        guard.set_writer(0);
+        guard.observe(None);
+        assert!(
+            !guard.holds(),
+            "an unresolved destination is not shown outside the parts"
+        );
+    }
 }
