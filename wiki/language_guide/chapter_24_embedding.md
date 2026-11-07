@@ -1,11 +1,9 @@
-# Chapter 24: Embedding And Scripting
+# Chapter 24: Embedding and scripting
 
 An application can use Omega as a scripting language by depending on its
 interpreter library. Scripts are ordinary Omega programs compiled to Psi. They
 use the same contracts, ownership, and boundary interfaces as native programs.
-This chapter describes the accepted design, not a completed public SDK. The
-[embedding specification](../spec/build/embedding.md) defines its contract and
-[execution board](../../TASKS.md#embedding-and-interpreted-components) tracks delivery.
+The [embedding specification](../spec/build/embedding.md) defines loading, calls, and instance lifetimes.
 
 ## One interface, two implementations
 
@@ -32,33 +30,21 @@ reaches Game
 }
 ```
 
-The host and script depend on the same interface package. The build selects an
-exported entry for the script and supplies every demanded static import slot;
-the example does not implicitly export `reward`. There is no special script
-`main` name. Missing, ambiguous, or incompatible supply rejects before guest execution.
-`ScriptCalls` declares the context parameter rather than relying on an implicit
-receiver. An explicit installed export contract must establish and supply that
-argument from actual admitted instance storage. Merely selecting the declaration
-or declaring a mutable parameter allocates nothing; an ordinary in-language
-call supplies its argument explicitly.
+The host and script depend on the same interface package. The build selects
+`reward` as an export and binds `Game` to the host implementation. The installed
+export contract supplies the `RewardScript` context from instance storage.
 
-The exact boundary-trait application names the import slot. Native execution may
-use a direct selected provider; interpretation uses a checked adapter to the host
-implementation. Both must meet the same contract. Wrapping a native function
-does not prove it trustworthy.
-
-The bridge is ordinary dispatch:
+Native and interpreted calls use the same requirement. Interpretation reaches
+the host through a typed adapter:
 
 ```text
 guest call -> installed typed adapter -> native host call
            <- validated result       <- host result
 ```
 
-The reverse direction invokes a selected guest export and checks its complete
-entry obligations. Generated bindings remove repetitive marshalling; they cannot
-invent domain evidence or resource authority. Two static game roles use distinct
-applications such as `Game<PrimaryWorld>` and `Game<PreviewWorld>`; arbitrary
-runtime worlds use an ordinary world/session handle declared by the protocol.
+Calling a script export in the other direction checks its entry contract and
+arguments too. Generated bindings handle marshalling; host operations remain
+responsible for the guarantees they promise.
 
 ## Loading and running
 
@@ -76,29 +62,10 @@ omega run --engine psi main.omg
 omega run --both main.omg
 ```
 
-Native is the default. Psi runs the interpreted program without producing
-or launching a native image. `--both` compares the two engines and is not combined
-with `--engine`. The target environment is still selected separately: interpreted
-Linux code needs the admitted Linux contracts, not arbitrary host substitutes.
-Missing adapters prevent execution rather than silently switching engines.
-JIT behavior is a separate deferred decision.
-
-```text
-Filesystem::read(...)       -> selected portable filesystem slot
-LinuxRawSyscalls::read(...) -> selected Linux contract, not a similar host API
-```
-
-These names illustrate library contracts, not compiler-blessed services. Psi
-executes the program and dispatches its boundary calls. Target-aware host
-adapters live outside Psi and reuse Omega's ABI/mechanism libraries; the host
-installs them. An ordinary Omega provider body can itself run interpreted.
-An adapter is not required for every library or machine.
-
-Missing provider slots in the selected executable closure prevent execution and
-name the missing requirement. There is no silent service substitution, native fallback
-or extra authority. A likely-unused branch does not excuse a missing binding.
-The [test runner](chapter_23_testing.md#enablement-and-results) can schedule
-both engines explicitly and reports unavailable combinations separately.
+Native is the default. `--engine psi` interprets the program; `--both` runs and
+compares both routes. The target environment is selected separately, so an
+interpreted Linux operation still needs a provider for its Linux contract.
+Missing adapters prevent execution.
 
 The host owns a runtime, its host context, and script instances. An immutable
 admitted program can be shared by instances, while each instance owns its state.
@@ -171,18 +138,14 @@ the ordinary root and nested build files with their lock and attenuated authorit
 compiling one independent component need not rebuild every product. Fused callers
 or shared concrete layouts can require a larger rebuild.
 
-## Native and interpreted Cathedral
+## Native and interpreted cathedral
 
-The goal is actual Cathedral startup, event handling, and self-managed component
-replacement under an interpreter, using different selected bindings rather than
-execution-mode conditionals throughout its shared code. A host routine that
-implements Cathedral's boot or update logic would not demonstrate this goal.
-Native timing and real-device correctness remain separate from a host simulation.
+An interpreted OS executes its own boot, driver, scheduler, and update code.
+The host supplies the processor and device environment through selected
+bindings. This can exercise OS behavior without granting control of the real
+host's hardware.
 
-Inline assembly runs by interpreting supported instruction semantics against
-ordinary values/storage and a supplied target environment. Scratch registers
-are block-local; memory, device and contracted processor-state effects persist.
-Missing instruction/environment coverage rejects before execution, not as a
-no-op or native fallback. This preserves assembly-bearing OS code without
-requiring an alternate body per block or promising whole-host emulation. See the
-[assembly chapter](chapter_22_inline_assembly.md#running-assembly-under-interpretation).
+Assembly runs through supported instruction semantics. Memory, device, and
+processor-state effects persist; scratch registers stay local to their assembly
+region. Missing environment support prevents execution. Native timing and real
+hardware behavior require their own tests. See [interpreted assembly](chapter_22_inline_assembly.md#running-assembly-under-interpretation).

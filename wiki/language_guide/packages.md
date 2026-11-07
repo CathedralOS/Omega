@@ -5,43 +5,6 @@ reachable authority and contracts. It does not need a package-hosting service.
 The [acceptance contract](../spec/packages/acceptance.md) defines the guarantees;
 this page explains the workflow.
 
-## Compile without a build file
-
-No `build.omg` means default build configuration, not missing ownership. A loose
-root defaults to an application; executable output still needs ordinary target
-entry and provider selections. There is no special entry discovered merely by
-the name `main`, and default configuration grants no extra build-host authority.
-An already resolved package keeps its supplied role and owner. The compiler
-supplies ordinary Build source and runs it through the same one-entry execution,
-dependency join, and freeze path as an authored file.
-
-Dependency requests begin resolving when Build execution emits them. Recording a
-request does not wait; typed build-code acquisition may suspend the same Build
-continuation, and Build return joins every outstanding request before product
-compilation. Two libraries referring to the same resolved std instance share one
-graph node and its declarations; each consumer does not create another std.
-Different host/target build instances can still be required for that one owner.
-
-When a root has no supplied package identity, it uses an invocation-private
-identity while Build runs. After dependency requests join, the compiler derives
-the portable owner from captured source, exact dependencies and semantic build
-inputs.
-Published artifacts retain that owner and their declaration identities:
-
-```text
-compile anonymous source -> owner X, declaration (X, Token)
-import that artifact twice -> the same (X, Token)
-move it or clear the cache -> still (X, Token)
-edit its source and rebuild -> a new anonymous owner
-```
-
-No registry of previously compiled projects is needed. A named package's lineage
-provides continuity across edits; anonymous content identity deliberately does
-not. The [identity contract](../spec/build/declarations.md#default-builds-and-anonymous-owner-identity)
-defines the inputs and distinguishes declaration ownership from artifact digests.
-End-to-end default-build/owner transport remains implementation work under
-MODULE-NAMESPACE-RESOLUTION in [TASKS.md](../../TASKS.md).
-
 ## Declare the project
 
 A library declares its own name in `build.omg`:
@@ -63,17 +26,9 @@ stay the same. Existing locks require a fresh update/review after a declaration
 rename; old acceptance does not authorize the new identity. Hyphenated package
 declarations are not accepted through an implicit spelling conversion.
 
-Product and interpreted Build dependencies use separate atomic
-`Build::dependency` and `Build::build_dependency` registrations. An ordinary
-description is configured before registration, including any alias and delegated
-execution context. `use` performs only logical name selection; explicit
-`Build::prepare_dependency` admits the package before the dependent continuation
-is checked and executed. A child uses ordinary supplied filesystem capabilities,
-not an injected named-input registry. The
-[build dependency guide](chapter_15_modules_imports_visibility.md#build-and-product-dependencies)
-explains target separation, helper imports, and explicit legacy migration.
-Staged dependency and capability migration remains implementation work; the current
-command list below does not imply a new build-dependency CLI option.
+Product dependencies and build helpers are declared separately. `use` selects
+names from an admitted dependency. [Chapter 15](chapter_15_modules_imports_visibility.md#run-a-build-helper)
+shows the two dependency kinds.
 
 ## Install and update
 
@@ -164,11 +119,18 @@ including resume and historical-source diagnostics. It does not skip checking
 or authorize reuse of a cached branch when a new selection was requested.
 Missing required content fails without publishing a candidate.
 
-The [command reference](../../omega-rust/omega/packages/package-manager/src/package_manager/README.md)
-lists current options and limits; [inspection](../../omega-rust/omega/packages/package-manager/src/operations/inspect_packages/README.md)
-describes reporting. Corpus fixtures exercise cross-package behavior through
-path dependencies on the [library packages](../../tests/omega/packages/README.md);
-no local case establishes remote transport coverage.
+The [command reference](../spec/build/command_line.md) lists the full option set.
+
+## Compile without a build file
+
+A loose root uses default application configuration. It still needs target
+entry and provider selections. For repeated use, add a `build.omg` naming your
+application and dependencies.
+
+Unnamed source gets an owner identity derived from its source, dependencies,
+and semantic build inputs. Importing the same artifact twice retains the same
+declarations; editing and rebuilding anonymous source creates a new owner.
+Use a named package when you need continuity across updates.
 
 ## Live component replacement
 
@@ -182,6 +144,4 @@ Publication of new routing therefore does not imply reclamation of old code.
 Runtime packages coordinate admission, peak coexistence resources, state transfer,
 quiescence, and recovery inside an owner-authorized envelope. A migration theorem
 alone cannot discharge callbacks, borrows, or device claims. See the
-[component publication contract](../spec/build/component_publication.md) and its
-linked implementation note for the distinction between required protocol and
-available source support.
+[component publication contract](../spec/build/component_publication.md) for the complete update protocol.

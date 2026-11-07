@@ -1,32 +1,14 @@
-# Chapter 12: Dependent Types
+# Chapter 12: Dependent types
 
-A contract or view can name ordinary in-scope values, not only constants.
-The compiler tracks the relationship; the program does not acquire hidden
-witness storage or runtime type metadata merely because a fact names a value.
+A contract can relate one runtime value to another. An index can be bounded by
+a slice's length, or a counter by a capacity stored beside it.
 
-This also applies to [runtime-capable value binders](chapter_13_generics.md#runtime-capable-value-parameters):
-`Buffer<count>` may retain the exact runtime extent when Buffer declares a
-non-const value binder and supplies a valid representation. `const` remains an
-explicit requirement for static knowledge, not a universal property of generics.
-
-The [dependent-value specification](../spec/language/dependent_values.md) defines
-this systems fragment. The examples illustrate the required contracts, not a
-claim that every form is implemented. A strict relational bound also discharges
-representability through the ceiling's own
-carrier (`counter.count < counter.cap` proves `counter.count + 1` fits because `cap`'s
-declared type bounds it). Scalar writes can transport established equality
-through their retained value expressions when intervening writes are accounted
-for; this does not preserve a stale fact about the overwritten place.
-Solver-general proofs and dependent views remain narrower. General
-mathematical foundations have their separate
-[proof contract](../spec/proofs/contracts.md).
-
-## Dependent Contracts
+## Dependent contracts
 
 A parameter's contract may name another parameter:
 
 ```omega
-machine Buffer::get(items: &[u8], index: u64) -> u8
+machine get(items: &[u8], index: u64) -> u8
 requires index < items.len
 {
     items[index]
@@ -44,7 +26,9 @@ in `requires` does not invent a snapshot variable. For example, the caller can
 pass a scalar snapshot explicitly:
 
 ```omega
-machine Counter::bump(counter: &mut Counter, before: u32)
+data Counter { count: u32; cap: u32; }
+
+machine bump(counter: &mut Counter, before: u32)
 requires
     counter.count == before
     counter.count < counter.cap
@@ -55,12 +39,12 @@ ensures
 }
 ```
 
-This sketch assumes `count` and `cap` are `u32` fields. The strict bound also
+The strict bound also
 establishes representability of the increment. `old(place)` instead selects an
 existing structural place's callable-entry revision without copying an owned
-value; see [proof views](chapter_10_compile_time_proofs.md#proof-views).
+value; see [proof views](chapter_10_compile_time_proofs.md#refer-to-the-entry-value).
 
-## Dependent Data
+## Dependent data
 
 Fields can witness one another. Their coupling belongs to the data's default
 domain, expressed with `requires`:
@@ -118,7 +102,7 @@ validity, so those witnesses cannot change while the view remains live. Optional
 facts about only some values belong in ordinary domains, not the default domain
 of every instance.
 
-## Static Lowering
+## Fixed dimensions
 
 When dimensions are static, ordinary generics select a fixed shape:
 
@@ -133,46 +117,36 @@ obligations are checked. Static arguments enter application identity and need
 not be stored as runtime witnesses. [Generics](chapter_13_generics.md) explains
 those applications; runtime dimensions do not become const arguments by analogy.
 
-## Dynamic Lowering
+## Runtime dimensions
 
-A runtime witness remains its ordinary stored field, parameter, or view value.
-A runtime-capable generic index can use that same witness. Compile a shared body
-over its value where possible; static-only operations require a justified static
-selection or another supported realization. No new machine is generated for each
-value read from input. Index-only proof facts may erase, but executable size or
-offset computations retain their needed values.
+A slice stores its runtime length alongside a borrow of its elements. Use that
+length in ordinary contracts. Runtime-capable generic value parameters can
+retain similar relationships; see [Chapter 13](chapter_13_generics.md#runtime-capable-value-parameters).
 
-A strided access can lower to ordinary offset arithmetic; the proof establishes
-that its actual byte range lies in the backing region. Dynamic-sized data lives
-behind checked views or provisioned buffers/storage, not variable-sized stack
-locals or an implicit global layout descriptor.
+For row-major indexing, prove both coordinates and the backing extent:
 
-For a foreign memory map, the supplied stride determines where the next record
-starts. A useful access proof relates `i < count`, `count * stride <= len`, and
-the requested record's extent. Bounds are only part of establishing a typed
-view: alignment, selected representation, initialized content, and ownership
-still matter. Casting a byte's address does not silently prove all of them.
+```omega
+machine pixel(pixels: &[u8], width: u32, height: u32, x: u32, y: u32) -> u8
+requires width in 1..=1024
+requires height in 1..=1024
+requires x < width
+requires y < height
+requires pixels.len == width * height
+{
+    pixels[y * width + x]
+}
+```
 
-Use a checked view/recast or decoder under its exact
-[layout plan](../spec/layouts/plans.md) and [recast contract](../spec/layouts/recasts.md).
-The compiled record size cannot replace a foreign stride without the necessary
-relation. Runtime witnesses add no implicit boxing, hidden proof tuple, or
-arbitrary runtime computation of nominal types.
+The dimension bounds keep the arithmetic inside `u32`. The coordinate bounds
+put the selected element inside `pixels`. If automatic checking needs help
+with a product relationship, cite a checked theorem as shown in [Chapter 10](chapter_10_compile_time_proofs.md).
 
-## Products In Obligations
+Foreign records may have a runtime stride as well as a length. Use the supplied
+stride to locate them, then establish alignment, representation, and valid
+contents before creating a typed view. [Chapter 20](chapter_20_memory_layout_abi.md)
+explains those additional requirements.
 
-Row-major indexing needs more than two independent range checks. To justify
-`y * width + x`, relate the coordinates, dimensions, and total backing extent,
-and prove each arithmetic intermediate representable. Mathematical facts such
-as multiplying a nonnegative inequality by a nonnegative value are useful proof
-steps; they are not a promise of a complete nonlinear solver.
-
-The checker may discharge a supported instance, consume an explicitly cited
-theorem, or reject an unproved obligation. Current automation limits belong
-beside [validation](../../omega-rust/psi/compilation/validation/README.md), not in
-the definition of dependent values.
-
-## Facts Across Calls
+## Facts across calls
 
 The practical frame rule is preserve-unless-written, at exact storage granularity:
 
@@ -196,30 +170,35 @@ whole table needs a checked frame or an explicit preservation guarantee to retai
 that precision. Entry/current comparisons use `old(place)` or a real pre-state
 binding, not a name introduced by an equality expression.
 
-Machine signatures are arrival contracts. Every incoming call or transition proves them
-under the exact substitution, including backedges after mutation:
+The same requirements apply on every loop transfer. Here each step establishes
+the bound needed by the next:
 
 ```omega
-machine fill(buffer: &mut Buffer, i: u64)
-requires
-    i <= buffer.cap
+machine clear(buffer: &mut [u8], remaining: u64)
+requires remaining <= buffer.len
+terminates by remaining -> Nat::Descending
 {
-    transition i < buffer.cap {
-        true -> fill(&mut buffer, i + 1)
-        false -> done(&mut buffer)
+    transition remaining == 0 {
+        true -> {}
+        false -> step(buffer, remaining)
+    }
+
+    machine step(buffer: &mut [u8], remaining: u64)
+    requires remaining > 0
+    requires remaining <= buffer.len
+    terminates by remaining -> Nat::Descending
+    {
+        buffer[remaining - 1] = 0;
+        transition { _ -> clear(buffer, remaining - 1) }
     }
 }
 ```
 
-This sketch assumes a `u64` capacity and an enclosing
-`machine done(buffer: &mut Buffer)`. Each call explicitly carries the buffer's loan;
-the scalar cursor is a machine parameter, not persistent buffer scratch. The target
-may assume its own arrival facts, not stale machine-entry facts. Proof-only
-arguments obey the same substitution and validity rules before erasure; no hidden
-witness-transition syntax is needed. See [invocation contracts](../spec/language/state_contracts.md)
-and [mutation frames](../spec/language/dependent_values.md#mutation-frames).
+Start with `clear(buffer, buffer.len)`. The nonzero arm proves that the last
+remaining element is in bounds. Each cycle writes it, decreases `remaining`,
+and establishes the next invocation's requirements.
 
-## When The Checker Says No
+## When the checker says no
 
 An unproved dependent use rejects with the missing relationship and its subject.
 For a descriptor view, that might be the absence of `i < count`, or a missing
@@ -231,39 +210,15 @@ fact. An `as` qualification uses established evidence; it is not a hidden
 validation call. Omega does not insert residual runtime checks to make an
 unproved refinement true.
 
-## Scope
+## Indexed domains
 
-### Proof-static domain indices
-
-Static domain indices and runtime witnesses are different applications of
-value-dependent reasoning:
+A named domain can carry a static index too:
 
 ```omega
 domain<T, const U: Unit> T::Quantity<U>;
 ```
 
-This family binds its carrier and static index explicitly. Closed indices use
-canonical values; open expressions use licensed normalization or exact local
-facts for compatibility without rewriting interface identity. Qualifying the
-same carrier adds no representation, but a units library's scaling or rounding
-operation can still perform real work. See [indexed domains](../spec/language/domains.md#indexed-families).
-
-Runtime-capable generic value indices are distinct from arbitrary runtime
-creation or selection of nominal type declarations. They require an existing
-declared family and a valid realization, with no implicit runtime proof objects,
-storage allocation, or unlimited specialization. Existing const-indexed families
-retain their static requirement. These rules neither prohibit eligible static
-evaluation in layout plans nor restrict general proof-side quantification.
-The [mathematical foundation](../spec/proofs/foundation.md) supports arbitrary
-mathematical functions/predicates and noncomputable values independently of
-runtime representation. The [mathematical binding model](../spec/proofs/mathematical_bindings.md)
-and W-based foundation are selected; their implementation remains required,
-not limited by this systems fragment.
-
-## Relationship To Other Chapters
-
-Chapter 7 introduces default domains; Chapter 8 explains qualification;
-Chapter 11 explains restoring validity after mutation. Chapter 10 supplies
-proofs and explicit pre-state reasoning, Chapter 13 handles staged generic
-applications, and Chapter 20 explains the representation and view obligations
-that a dependent bound alone cannot establish.
+A units library can use this to distinguish meters from seconds while retaining
+the underlying numeric representation. Conversion between units remains a
+library operation. [Indexed domains](../spec/language/domains.md#indexed-families)
+and [generic indices](chapter_13_generics.md) give the declaration rules.

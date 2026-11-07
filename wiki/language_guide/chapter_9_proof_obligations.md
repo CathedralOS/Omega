@@ -1,4 +1,4 @@
-# Chapter 9: Proof Obligations
+# Chapter 9: Proof obligations
 
 An operation needs facts before it is safe to use. Checking establishes those
 facts from types, live program state, contracts, and explicit proofs. It does
@@ -9,37 +9,7 @@ not normally insert a runtime check when proof search fails.
 them to the compiler's obligations. The reference is
 [proof contracts](../spec/proofs/contracts.md).
 
-## Vocabulary
-
-| Term | Meaning |
-| --- | --- |
-| Fact | Something established for an exact subject and program point. |
-| Requirement | A condition a caller or incoming edge must establish. |
-| Guarantee | A conclusion available after the applicable outcome. |
-| Obligation | A judgment checking must discharge. |
-| Invariant | A condition restored at its required consumption boundaries. |
-| Contract | The invocation's logical and operational requirements/guarantees. |
-| Admission | Explicit acceptance of an exact assumption or opaque contract. |
-
-A boundary declaration does not prove its own guarantees. Checked implementations
-prove their contract; opaque ones retain the required admission. Inline assembly
-likewise needs the selected instruction's checked or admitted semantics, not a
-comment asserting its behavior.
-
-Ordinary operations create obligations without a separate proof declaration:
-
-- Indexing needs bounds and permitted access.
-- Arithmetic needs its selected policy's validity conditions.
-- Borrowing needs valid storage, compatible loans, and sufficient access.
-- A transition establishes its target frontier and requirements.
-- A return establishes its result and applicable guarantees.
-- Cleanup needs a legal disposition, prerequisites, and operational contract.
-- Task start needs ownership and resources, including accountable rejection.
-
-Logical proof does not create runtime authority. Resource establishment and
-conservation keep their own judgments.
-
-## Everyday Shape
+## Prove an operation is valid
 
 ```omega
 machine increment(value: u32) -> u32
@@ -59,7 +29,7 @@ postcondition would not establish it. Stronger theorems can be supplied by
 checked machines when automatic reasoning is insufficient; their exact premises
 still need to hold at each use.
 
-## Impossible Paths
+## Impossible paths
 
 If a machine requires `count >= 10`, a branch that requires `count < 5` cannot
 execute for that same value. The checker can prove the conditions contradict
@@ -73,28 +43,27 @@ generic specialization or compile-time selection normally does not warn. Neither
 the warning nor removal of the dead instructions is needed for the proof to be
 valid. See [unreachable branches](../spec/language/state_contracts.md#unreachable-branches).
 
-## Saved Values And Restored Storage
+## Restore a saved value
 
-Overwriting a slot does not change a scalar you already copied from it. Restoring
-that saved scalar gives the slot a newly established relationship to the copy:
+A copied value can supply a fact after a write:
 
-```text
-saved = items[index]
-items[index] = 0
-items[index] = saved
-
-if saved >= 48:
-    use_at_least_48(items[index])
+```omega
+machine restore(items: &mut [u8]) -> u8
+requires items.len > 0
+ensures result == 42
+{
+    items[0] = 42;
+    let saved: u8 = items[0];
+    items[0] = 0;
+    items[0] = saved;
+    items[0]
+}
 ```
 
-This illustrative sequence is valid when checking proves the restoration targets
-the same slot and no later effect breaks the equality. The guard establishes a
-fact about `saved`, and the restored equality transfers it to the current slot.
-Changing the index or writing another unproved value cannot borrow that argument.
-The checker need not retain unlimited history: if it loses the relationship,
-the use needs fresh evidence. See [restored scalar facts](../spec/language/state_contracts.md#restoring-a-saved-scalar-value).
+The final assignment restores the saved value to the same slot. For a variable
+index, checking must also establish that the index still selects that slot.
 
-## Termination Claims
+## Termination claims
 
 Termination is separate from a postcondition. `ensures` describes a reached
 return, not whether a return is eventually reached.
@@ -106,43 +75,38 @@ boundary trait FiniteReader {
 }
 ```
 
-The requirement promises a terminal outcome under its explicit premises.
-A checked cyclic implementation supplies a private ranking witness, for example:
+A checked cycle can prove termination by decreasing a nonnegative counter:
 
 ```omega
-terminates by remaining -> Nat::Descending
-terminates by items -> Slice::Length
-terminates by index -> Nat::IncreasingTo(limit) in 0..=limit
+machine countdown(remaining: u32)
+terminates by remaining
+{
+    transition remaining == 0 {
+        true -> {}
+        false -> countdown(remaining - 1)
+    }
+}
 ```
 
-These are illustrative clause forms, not complete algorithms. Every relevant
-cycle needs the selected well-founded decrease. A view owns its normalization;
-an increasing counter needs a finite bound. Short form `terminates by n`
-requires a carrier-declared canonical ranking, not the only visible measure.
+The false arm proves the subtraction is valid. Each transfer decreases the
+counter, so the cycle eventually reaches zero. More complex algorithms can
+choose a ranking view, such as a slice's remaining length. See
+[termination and progress](../spec/language/termination.md).
 
-Private acyclic bodies can derive a local summary. Exported or abstract calls
-rely on the authored/inherited promise; an omitted public promise cannot be
-inferred from today's implementation. Changing a valid private witness does not
-change the public guarantee.
+A server's event loop may intentionally run indefinitely. Leave off its
+termination promise. A finite task can still need separate response-time or
+work bounds; termination alone gives neither a deadline nor a fixed cost.
 
-Runtime recursive calls are tail-only and lower to iteration. Proof/compile-time
-recursion can be non-tail when admitted. Productive terminal-transfer cycles may omit a
-termination promise; that supplies neither fairness nor bounded response.
-
-A quantitative work bound is another obligation: proving eventual termination
-does not by itself calculate a fixed number of iterations. Opaque progress
-premises need exact admitted provenance. Reach alone is not progress evidence.
-See [termination and progress](../spec/language/termination.md) for mutual
-cycles, measures, and provider premises.
-
-## Example
+## Preserve a value constraint
 
 ```omega
-data Player {
-    health: i32 in 0..=100;
+data Player
+requires health in 0..=100
+{
+    health: i32;
 }
 
-machine Player::take_damage(player: &mut Player, damage: i32)
+machine take_damage(player: &mut Player, damage: i32)
 requires damage >= 0
 requires damage <= player.health
 {
@@ -151,7 +115,7 @@ requires damage <= player.health
 ```
 
 At entry, health is established in range and the explicit mutable parameter
-supplies exclusive access. A caller writes `Player::take_damage(&mut player, damage)`;
+supplies exclusive access. A caller writes `take_damage(&mut player, damage)`;
 the qualified name supplies no argument. The two requirements establish that
 subtraction neither overflows nor takes health below zero. Assignment preserves
 the field's domain.
