@@ -25,7 +25,7 @@ impl InstructionDispositions {
     pub(super) fn statement(
         &mut self,
         program: &dyn validation::CheckingInput,
-        facts: &mut CheckFacts,
+        facts: &mut checked_trees::CheckFactsWalk<'_>,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement: usize,
@@ -47,11 +47,12 @@ impl InstructionDispositions {
         let Some(flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
             return;
         };
-        let Some(row) = facts.flow.state_statement(flow, statement) else {
+        let Some(row) = facts.flow.view().state_statement(flow, statement) else {
             return;
         };
         let contexts = facts
             .flow
+            .view()
             .semantic_constraint_contexts(row.entry_constraints)
             .collect::<Vec<_>>();
         self.settle(
@@ -73,7 +74,7 @@ impl InstructionDispositions {
     pub(super) fn exit(
         &mut self,
         program: &dyn validation::CheckingInput,
-        facts: &mut CheckFacts,
+        facts: &mut checked_trees::CheckFactsWalk<'_>,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         coordinate: checked_trees::FlowClaimJoinExit,
@@ -110,11 +111,13 @@ impl InstructionDispositions {
         for exit in exits {
             let contexts = facts
                 .flow
+                .view()
                 .semantic_constraint_contexts(exit.entry_constraints)
                 .collect::<Vec<_>>();
             let mut contracts = Vec::new();
             for context in facts
                 .flow
+                .view()
                 .semantic_constraint_contexts(exit.ensures_constraints)
             {
                 for fact in facts
@@ -154,7 +157,7 @@ impl InstructionDispositions {
     fn settle(
         &mut self,
         program: &dyn validation::CheckingInput,
-        facts: &mut CheckFacts,
+        facts: &mut checked_trees::CheckFactsWalk<'_>,
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         statement: usize,
@@ -216,7 +219,7 @@ impl InstructionDispositions {
         };
         let Some(mut event) = crate::checks::contracts::prover::instruction_effect_evidence(
             program,
-            facts,
+            facts.view(),
             state.symbol,
             statement,
             contexts,

@@ -1,4 +1,4 @@
-//! Complete inert representation policy for one reviewed package and target.
+// Complete inert representation policy, availability, selections, and calling demands for one reviewed package and target.
 
 mod validation;
 
@@ -12,9 +12,6 @@ use crate::record::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
-/// Declarations and producer candidates do not accept a selection. Selected
-/// availability includes unused choices; only actual crossings create demands.
-/// Every collection is canonical and independently owned by the reviewed package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRepresentation {
     pub(crate) package: PackageKeyIdentity,
@@ -25,8 +22,6 @@ pub struct PackagePolicyRepresentation {
     pub(crate) demands: Vec<PackagePolicyRepresentationDemand>,
 }
 
-/// An exact public candidate, including its uninstantiated declaration telescope.
-/// This contains no invented closed application or consumer selection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRepresentationAvailability {
     pub(crate) opaque: PackageReviewNominalIdentity,
@@ -34,9 +29,6 @@ pub struct PackagePolicyRepresentationAvailability {
     pub(crate) carrier: PackageReviewNominalIdentity,
 }
 
-/// One independently rederived activation-wide selection. The authoritative
-/// build machine has no lifetime telescope, so its application is lifetime-free.
-/// Its package owner is policy; the build machine's name and span are not.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyRepresentationSelection {
     pub(crate) opaque: PackageReviewNominalIdentity,
@@ -48,8 +40,6 @@ pub struct PackagePolicyRepresentationSelection {
     pub(crate) copy_disposition: PackageReviewOpaqueRepresentationCopyDisposition,
 }
 
-/// One opaque declaration's actual use in a complete checked calling application.
-/// The calling graph owns every occurrence, path, and physical placement.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyRepresentationDemand {
     pub(crate) opaque: PackageReviewNominalIdentity,
@@ -81,8 +71,6 @@ impl PackagePolicyRepresentationDemand {
             .then_with(|| self.opaque.cmp(&other.opaque))
     }
 
-    // Supplying scopes distinguish applications even when their type operands
-    // coincide. Grouping and ordering must preserve the same semantic key.
     fn compare_calling_application(&self, other: &Self) -> std::cmp::Ordering {
         (
             &self.calling.abi,

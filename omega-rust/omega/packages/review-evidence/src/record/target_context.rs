@@ -1,9 +1,9 @@
-//! Authored deployment scope of a disclosed callable, not provider selection.
-//!
-//! One activation reviews every authored leaf, including inactive private
-//! external supplies. Its selected target therefore cannot stand in for each
-//! leaf's authored target. Uncatalogued tags remain valid inert disclosure for
-//! pure bodies; a physical binding still needs a catalogued profile.
+// Authored deployment scope of a disclosed callable (`PackagePolicyTargetContext`).
+//
+// One activation reviews every authored leaf, including inactive private
+// external supplies, so its selected target cannot stand in for each leaf's
+// authored target. Uncatalogued tags remain valid inert disclosure for pure
+// bodies, whereas a physical binding still requires a catalogued profile.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyTargetContext {

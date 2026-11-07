@@ -9,7 +9,7 @@ use crate::borrow::owner_place_segments;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::place_case_has_value;
 use crate::published::places::place_at;
-use checked_trees::{BorrowLoanFact, CheckFacts, FlowOperandFact, FlowStateFact};
+use checked_trees::{BorrowLoanFact, FlowOperandFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::machine::Machine;
@@ -26,7 +26,7 @@ use validation::{
 
 pub(crate) fn retained_outputs_are_attributed(
     program: &dyn CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     machine: &Machine,
     state_flow: &FlowStateFact,
     statement_index: usize,
@@ -66,7 +66,7 @@ pub(crate) fn retained_outputs_are_attributed(
                 .is_valid(completed.stored_destination)
                 .then(|| facts.semantic.places.get(completed.stored_destination))
                 .and_then(|place| {
-                    canonical_place_from_semantic_place(program, &facts.semantic, place)
+                    canonical_place_from_semantic_place(program, facts.semantic, place)
                 })
             else {
                 return false;
@@ -136,7 +136,7 @@ pub(crate) fn retained_outputs_are_attributed(
 }
 
 fn attributed(
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &FlowStateFact,
     statement_index: usize,
     destination: &CanonicalPlace,
@@ -156,7 +156,11 @@ fn attributed(
     })
 }
 
-fn owner_path_matches(facts: &CheckFacts, loan: &BorrowLoanFact, path: &[PlaceSegment]) -> bool {
+fn owner_path_matches(
+    facts: checked_trees::CheckFactsRef<'_>,
+    loan: &BorrowLoanFact,
+    path: &[PlaceSegment],
+) -> bool {
     owner_place_segments(facts.borrow.loan_owner_path(loan)) == path
 }
 
@@ -166,7 +170,7 @@ fn owner_path_matches(facts: &CheckFacts, loan: &BorrowLoanFact, path: &[PlaceSe
 /// crossing ends this snapshot: the pointee's tag may have changed since then.
 fn inactive_path(
     program: &dyn CheckingInput,
-    facts: &CheckFacts,
+    facts: checked_trees::CheckFactsRef<'_>,
     state: &FlowStateFact,
     operand: &FlowOperandFact,
     path: &[PlaceSegment],
@@ -191,7 +195,7 @@ fn inactive_path(
         if let PlaceSegment::Case { variant } = segment
             && place_case_has_value(
                 program,
-                &facts.semantic,
+                facts.semantic,
                 &contexts,
                 state.machine_symbol,
                 operand.state_symbol,

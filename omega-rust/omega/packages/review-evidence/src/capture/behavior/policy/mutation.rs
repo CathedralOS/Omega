@@ -1,3 +1,7 @@
+// Entry write-frame mutation policy projection replayed against the pre-settlement
+// typed call-frame resolver so retained envelopes cannot drift from transitive
+// typed write-frame derivation.
+
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;

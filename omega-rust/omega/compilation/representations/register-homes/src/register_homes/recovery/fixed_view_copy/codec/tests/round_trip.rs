@@ -173,6 +173,7 @@ fn artifact_current_retains_segment_home_evidence_and_rejects_older_authority() 
         with_stale_version(&plan, 44),
         with_stale_version(&plan, 45),
         with_stale_version(&plan, 46),
+        with_stale_version(&plan, 93),
     ] {
         let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
         assert_eq!(

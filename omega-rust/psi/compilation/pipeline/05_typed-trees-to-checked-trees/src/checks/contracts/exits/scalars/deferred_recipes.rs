@@ -305,6 +305,7 @@ fn closed_terms_identical(
                 && left.evidence_arguments == right.evidence_arguments
                 && left.quotient_operation == right.quotient_operation
                 && left.private_layout_operation == right.private_layout_operation
+                && left.installed_interrupt_operation == right.installed_interrupt_operation
                 && left.layout_query == right.layout_query
                 && left.native_code_layout == right.native_code_layout
                 && left.build_selection == right.build_selection

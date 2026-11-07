@@ -268,7 +268,7 @@ fn validate_source(
                         .filter(|other| *other != candidate)
                         .any(|other| {
                             crate::checks::borrows::aliases::retained_lineage(
-                                facts,
+                                facts.view(),
                                 loan_occurrences,
                                 state,
                                 *other,

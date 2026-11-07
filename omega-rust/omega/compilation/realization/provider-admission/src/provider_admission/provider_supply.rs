@@ -24,9 +24,12 @@ pub(super) fn require_reached_providers(
     input: &crate::AdmissionSource<'_>,
     target_profile: target::TargetProfile,
     selected: &effects::SelectedProviderPlanFacts,
+    installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
+    interrupt_mechanisms: &[super::AdmittedTerminalMechanism],
 ) -> Result<(), Vec<Diagnostic>> {
     let plan = input.plan();
     let reached = AuthorityGraph::new(input, target_profile)
+        .and_then(|graph| graph.with_installed_interrupts(installed_interrupts))
         .and_then(|graph| graph.reachable_authority_edges(plan.entry))
         .map_err(|error| realization_error("provider supply", error))?;
     let diagnostics = reached
@@ -42,6 +45,15 @@ pub(super) fn require_reached_providers(
                 row.execution == terminal_psi::CheckedBoundaryExecution::EmptyRunRelease)
             {
                 return None;
+            }
+            if let Some(kind) = declaration.declaration.as_ref().and_then(|callable|
+                callable.execution.static_interrupt_operation()) {
+                let expected = effects::TerminalMechanismIdentity::CompilerIntrinsic(
+                    effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(kind));
+                let admitted = interrupt_mechanisms.binary_search_by_key(boundary, |row| row.boundary)
+                    .ok().map(|position| &interrupt_mechanisms[position]);
+                return (admitted.is_none_or(|row| row.mechanism != expected)).then(|| Diagnostic::error(
+                    "static interrupt operation requires its exact admitted installation or arrival execution"));
             }
             // Private memory operations are not supplied by provider selection.
             // Their operation owner joins the installed profile call and keeps

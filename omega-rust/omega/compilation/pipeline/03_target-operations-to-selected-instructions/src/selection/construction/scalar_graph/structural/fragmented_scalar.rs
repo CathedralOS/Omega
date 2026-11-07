@@ -21,7 +21,10 @@ use semantic_vocabulary::{
 /// so alias analysis cannot forward a program value into an internal counter.
 #[derive(Clone, Copy)]
 pub(super) enum StorageAccess<'indices> {
-    Place(&'indices [LegalizedRuntimeIndexOperand]),
+    Place {
+        indices: &'indices [LegalizedRuntimeIndexOperand],
+        byte_offset: u32,
+    },
     Local(LocalStorageSlotId),
     Backing,
 }
@@ -37,8 +40,17 @@ impl StorageAccess<'_> {
         written: super::runtime_address::Written,
     ) -> Result<(), SelectedInstructionError> {
         match self {
-            Self::Place(indices) => super::runtime_address::footprint(
-                builder, row, place, offset, width, indices, written,
+            Self::Place {
+                indices,
+                byte_offset,
+            } => super::runtime_address::footprint(
+                builder,
+                row,
+                place,
+                byte_offset.checked_add(offset).ok_or_else(invalid)?,
+                width,
+                indices,
+                written,
             ),
             Self::Local(slot) => super::memory(
                 builder,
@@ -256,7 +268,10 @@ pub(super) fn read(
         pointer,
         envelope_offset,
         fragments,
-        StorageAccess::Place(indices),
+        StorageAccess::Place {
+            indices,
+            byte_offset: 0,
+        },
     )?;
     let output = builder.register(
         definition.value,
@@ -343,7 +358,10 @@ pub(super) fn write(
         pointer,
         envelope_offset,
         fragments,
-        StorageAccess::Place(indices),
+        StorageAccess::Place {
+            indices,
+            byte_offset: 0,
+        },
         value_register,
         Some(value),
     )

@@ -15,6 +15,17 @@ The C registrar reconstructs the handler address from three descriptor fragments
 calls it with 102, and requires 51. Both C and Omega check the selector, IST,
 attributes and reserved-word canaries. The native oracle remains exit 0.
 
+The selected callback additionally promises to preserve V31. The C registrar
+retains its ordinary 42-register clobber set; the callback's zero-demand
+signature has 41. This stronger callback promise requires a physical adapter
+without changing argument/result placement or the C provider. The native
+corpus control checks the real emitted adapter, then changes only its final
+CALL displacement and the corresponding mapped payload/plain byte digests.
+The public retained-image reader must reject the exact wrong destination,
+not a stale digest or loader mapping. A second source-derived control removes
+permission for the adapter's actual vector save/restore and requires refusal.
+The unchanged pre-strengthening fixture run remains historical evidence.
+
 The rejection twin at
 `tests/omega/fail/layouts/private_callback_inherited_policy_missing` changes only
 the binder's requirement to `Callback::call`. That parent has no calling policy.

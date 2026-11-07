@@ -1,4 +1,4 @@
-//! Typed callable recovery under one bounded policy reader.
+// Typed callable recovery under one bounded policy reader.
 
 use crate::record::{
     PackagePolicyCallable, PackagePolicyCallableConformance, PackagePolicyCallableRole,

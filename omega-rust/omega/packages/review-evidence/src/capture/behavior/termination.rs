@@ -1,3 +1,7 @@
+// Public signature termination guarantee projection (`project_trait_requirement_termination`
+// and `project_machine_parameter_termination`), verifying that every termination
+// premise names a public closed progress profile and a public-API-visible subject.
+
 use super::super::semantics::declarations::{
     nominal_identity, premise_projections, premise_subject, progress_profile,
 };
@@ -30,10 +34,6 @@ pub(crate) fn project_machine_parameter_termination(
     )
 }
 
-/// A public signature's termination guarantee, certified for review evidence:
-/// every premise names a public closed progress profile and a subject the
-/// public API can carry. Both public signature kinds reach review evidence
-/// through this one projection, so their certification cannot drift.
 fn project_public_signature_termination(
     compilation: &SourceDeclarationInput<'_>,
     signature: &StateSignature,

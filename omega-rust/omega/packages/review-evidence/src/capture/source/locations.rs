@@ -1,3 +1,5 @@
+// Canonical source span locations and UTF-8 package-relative path normalization for review evidence.
+
 use super::super::semantics::declarations::{
     is_canonical_virtual_toolchain_path, toolchain_source_identity,
 };

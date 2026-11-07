@@ -1,10 +1,9 @@
-# Chapter 5: Expressions And Evaluation
+# Chapter 5: Expressions and evaluation
 
 Expressions compute values; statements perform work in a machine.
 The [expression specification](../spec/language/expressions.md) defines their
 schedule and operation selection. This chapter shows how those rules affect
-ordinary code. Examples describe the language contract, not complete compiler
-support; current numeric limits are recorded [beside validation](../../omega-rust/psi/compilation/validation/numeric_proofs.md).
+ordinary code.
 
 ## Literals
 
@@ -22,7 +21,7 @@ arithmetic obligations. `Nat`, `Int`, and `Real` express mathematical values.
 `Real` is an ordinary proof-side abstraction, not a runtime float format or
 compiler numeric primitive.
 
-## Evaluation Schedule
+## Evaluation schedule
 
 Static calls evaluate their explicit arguments left to right. Strict
 binary operators evaluate left before right. Each evaluated child runs once.
@@ -172,43 +171,12 @@ meanings are relevant. The [operator declaration and family
 rules](../spec/language/expressions.md#operator-declarations) define visibility,
 overload identity, fixed vocabulary, and domain ownership.
 
-### Who supplies the body?
+The owner of a type or domain supplies its direct operators. Generic code can
+instead select a named trait conformance. This keeps an unrelated import from
+changing existing arithmetic. See [operator declarations](../spec/language/expressions.md#operator-declarations)
+for overloads and [Chapter 14](chapter_14_traits.md) for selected implementations.
 
-| Declaration | Executable supply |
-| --- | --- |
-| Ordinary `machine + Vec2::add(...) { ... }` | Its own checked body; delegating to another machine is an ordinary call. |
-| `machine < compare(...);` inside a trait | An explicitly selected conformance. |
-| `boundary machine + Float::add(...);` | The existing admitted boundary provider. |
-| Exact compiler-owned `machine Float::meaning32(...);` | Its automatic closed-catalog implementation. |
-
-The last two cases are different:
-
-```omega
-// Canonical core declarations, not user opt-in spellings.
-public boundary machine + Float::add(left: f32, right: f32) -> f32;
-machine Float::meaning32(value: f32) -> FloatMeaning;
-```
-
-The complete core float contracts still govern these abbreviated signatures.
-Target defaults supply float addition; `build.omg` may select another admitted
-implementation satisfying the same arithmetic contract. It does not define what
-addition means. The meaning projection is a compiler primitive and needs no
-build selection; its visibility and proof-only restrictions still apply.
-
-A bodyless ordinary direct declaration outside a requirement context or the exact
-compiler catalog rejects. Another machine writing `satisfies` does not select a
-body for it. A same-spelled declaration in another package cannot impersonate a
-compiler primitive.
-
-Closed direct families belong to their semantic-home owner. The owner checks
-duplicate participating token/operand shapes within its declaration set; foreign
-packages cannot inject another `+` into `Vec2`. They may use their own adapter
-type/domain or an explicitly selected trait conformance. Primitive families have
-toolchain-designated core owners. A package owning `Degrees` may nevertheless
-define its domain's arithmetic over `f64` without replacing bare float addition.
-Unrelated imports cannot change an existing selection or introduce a collision.
-
-## Core Collections And Views
+## Core collections and views
 
 Fixed arrays and vectors own storage; slices borrow it. UTF-8 qualifies the
 existing byte carrier rather than introducing a separate text owner hierarchy:
@@ -231,7 +199,7 @@ storage comes from an explicit allocator over qualified storage authority,
 not an ambient `Vec::with_capacity`. Appending must establish capacity,
 encoding, and unique-borrow obligations.
 
-## Indexing And Slices
+## Indexing and slices
 
 Indexing supplies the collection to a static machine's first parameter:
 
@@ -271,15 +239,9 @@ Both accesses need bounds evidence; `[0]` needs a nonempty view. Copying an
 element also requires an unrestricted element type; borrowing an element has
 its own access and lifetime obligations.
 
-Core indexing and slicing select ordinary contracted operations supplied by
-sealed compiler primitives. Their declarations directly carry the operator
-token, so indexing does not require a forwarding call or an inlining pass.
-For example, the authorized core by-copy read has this declaration shape:
-
-```omega
-machine [] read<Element [copy]>(items: &[Element], index: u64) -> Element
-requires index < items.len;
-```
+Core arrays and slices also expose indexing through contracted operations.
+Reading an element requires `index < items.len`; mutable access additionally
+requires an exclusive borrow.
 
 A caller can establish that requirement through its own contract:
 
@@ -290,24 +252,9 @@ requires index < items.len {
 }
 ```
 
-The bracket call selects the core read, substitutes `u8` and the two arguments,
-and proves its complete contract through ordinary call checking. Here the
-caller's precondition supplies the bound; a branch or checked theorem can do
-the same. Every caller of `read_at` must establish that precondition in turn.
-The primitive lowers directly to a memory read with evidence for this exact
-access. Copying the declaration into a user package does not grant primitive
-supply. See [generic sealed primitives](../spec/language/machines.md#generic-sealed-primitives).
-
-Ranges similarly require ordered endpoints within the source's live extent and
-retain the result's length, backing and lifetime. Mutable indexing adds the
-appropriate exclusive loan; it does not replace the bounds proof. A live
-`items[1..]` need not prevent a write to
-`items[0]`, but an overlapping write to `items[1]` conflicts.
-
-This architecture is ratified. The reference compiler's declaration-free
-indexing fallback and separate bounds checker are migration work under
-**CORE-INDEXING-CONTRACTS** in [TASKS.md](../../TASKS.md); the bodyless generic
-declaration above describes the accepted core surface, not completed delivery.
+The precondition supplies the bound for `items[index]`. A branch or checked
+theorem can establish it too. A live `items[1..]` can coexist with a write to
+`items[0]`, while an overlapping write to `items[1]` conflicts.
 
 `a..b` excludes `b`; `a..=b` includes it. Open forms are `a..`, `..b`, and `..`.
 An inclusive end is an indexed position, so it needs `b < len`, rather than
@@ -319,7 +266,7 @@ Text ranges count bytes. Character and grapheme indexing need separate
 operations. See [range formation](../spec/language/expressions.md#indexing-and-ranges)
 and [collection bounds](../spec/language/numeric_values.md#collection-bounds).
 
-### Creating And Forwarding Mutable Views
+### Creating and forwarding mutable views
 
 Creating a mutable subrange explicitly requests a mutable borrow:
 
@@ -342,11 +289,9 @@ Without `&mut`, the range is a shared view. Writing
 `let middle: &mut [u8] = view[2..4];` rejects: the annotation does not request
 a mutable borrow implicitly. The same rule applies when passing a range
 directly, returning it, passing it to a machine or storing it in a field.
-Neither form can exceed the backing's authority or bypass overlapping-loan
-checks. Local type annotations remain explicit; this borrowing decision does
-not introduce annotation-free `let` declarations.
+Both forms retain the backing's bounds and borrowing restrictions.
 
-## Numeric Semantics
+## Numeric semantics
 
 Numeric helpers such as `min`, `max`, `abs`, `clamp` and `sqrt` belong to the
 standard library's math machines. Import their declarations and call them like
@@ -356,8 +301,6 @@ conversion. The declared contract also determines exceptional numeric cases;
 do not assume a signed `abs` can represent every magnitude or that all floating
 minimum operations treat NaNs the same way. See
 [library numeric helpers](../spec/language/numeric_values.md#library-numeric-helpers).
-The existing compiler builtin paths still need removal; this describes the
-accepted library ownership, not a claim that the migration is complete.
 
 Machine integer arithmetic is Exact by default: each operation must be proved
 free of invalid operands and unrepresentable results. A safe final result
@@ -445,7 +388,6 @@ Without an expected result, the unqualified overload applies and its proof
 obligations remain. A predicate such as `Finite` adds a later proof obligation,
 not another overload. Directed one-step conversions have separate names;
 rounding then converting is not interchangeable if it causes double rounding.
-Failure-returning conversion names remain unsettled.
 
 `as` never calls arbitrary user code, rounds, allocates, or silently chooses a
 policy. Unit-scale conversion is an ordinary domain-library operation. See
@@ -468,7 +410,7 @@ the parent consumes its result. A known Trapping overflow remains a runtime
 trap. This does not let an anonymous initial value bypass landing: assigning
 an out-of-range literal to a Saturating target is not a saturating conversion.
 
-## Constants: Two Phases
+## Constants: two phases
 
 An anonymous constant has an exact mathematical value but no selected machine
 representation. `3.14` is exactly `157/50`. Landing chooses a type once: integer
@@ -552,38 +494,14 @@ the dividend's sign. This is not Euclidean modulo. Both operations require a
 nonzero divisor; fixed-width Exact also excludes signed `MIN / -1` and
 `MIN % -1`. See the [paired quotient/remainder laws](../spec/language/numeric_values.md#integer-quotient-and-remainder).
 
-### Landed target-semantic dependencies
-
-A target-dependent constant may stay symbolic until target closure. Folding
-it afterward does not erase the observation or selected-realization inputs
-from its signature, cache, proof or artifact. See
-[target-dependent applications](../spec/language/evaluation.md#target-dependent-applications).
-
-## Float Facts
+## Float facts
 
 `f32` and `f64` permanently mean binary32 and binary64. A target realizes
 those meanings; it cannot redefine them. Finite arithmetic computes exact
 meaning and rounds through the selected format, with separate special-value
 rules for zeros, infinity and NaN.
 
-### Operators are requirements
-
-Float operators use the ordinary resolver and selected provider plans:
-
-```text
-a + b
-  -> selected Float::add requirement
-  -> native instruction or checked software realization
-```
-
-Their contracts use executable `FloatSemantics`. Proof-only `FloatMeaning`
-distinguishes finite nonzero rationals, signed zeros, signed infinities and one
-payloadless NaN case. Its structural equality is not IEEE runtime comparison:
-the NaN proof case equals itself, while the two signed-zero proof cases differ.
-It has no runtime tagged-union ABI. See
-[float meaning](../spec/language/numeric_values.md#meaning-comparisons-and-representation).
-
-### Value domains — wellness facts
+### Require finite values
 
 ```omega
 data Particle
@@ -601,7 +519,7 @@ Bare floats may contain NaN or infinity. `Finite` excludes them; the finite
 bounds in `alpha`'s contract also imply `Finite`. These are invariant-window
 facts, not runtime metadata or optimization permissions.
 
-### Policy domains — operation behavior
+### Choose float overflow behavior
 
 Quiet float semantics allow non-finite results. Trapping checks the semantic
 result and traps on NaN or infinity. Saturating clamps finite-operand magnitude
@@ -611,6 +529,7 @@ such as `0.0f64 / 0.0`. Wrapping has no float candidate.
 Finite inputs alone therefore do not justify this result:
 
 ```omega
+// Rejected: the result could be infinite or NaN.
 machine divide(a: f32 in Finite, b: f32 in Finite) -> f32 in Finite {
     a / b
 }
@@ -644,22 +563,14 @@ Sorting selects total order explicitly:
 sort_by<F64::TotalOrder>(&mut samples);
 ```
 
-Core `F32::TotalOrder` and `F64::TotalOrder` are ordinary machines satisfying
-`Order<f32>::before` and `Order<f64>::before` over honest representation bits.
-These exact requirement edges do not declare whole-trait conformances or change
-arithmetic's partial order.
+This selects an order that covers NaNs and signed zeros as well as ordinary
+numbers. Arithmetic comparisons keep their IEEE meaning.
 
-### No ambient relaxation
+### Rounding
 
-`a * b + c` has two roundings; named FMA has one. The compiler never contracts
-the former silently. There is no ambient fast-math option; any future relaxed
-operation would need its own explicit contract.
-
-This specifies the answer, not an obligation to perform runtime rational
-arithmetic. Native instructions may implement that answer directly. FMA has
-its own single-rounding meaning because hardware can provide that operation;
-it does not get a separate compilation pipeline or image bookkeeping scheme.
-Build optimization choices cannot silently weaken the guarantees proofs use.
+`a * b + c` rounds twice. A named fused multiply-add rounds once, so choose it
+explicitly when that is the calculation you want. A `Finite` fact alone does
+not permit rearranging arithmetic.
 
 ### Literals and compile-time arithmetic
 
@@ -668,17 +579,8 @@ rounds once into the destination float format; already-landed arithmetic uses
 that format at each operation. Compile-time execution and runtime contracts
 share `FloatSemantics`, not the host compiler's preferred floating type.
 
-### Canonical floating control state
-
-Checked activations use nearest-even, gradual underflow and masked exceptions.
-Directed rounding is a separately named operation, never an ambient mode;
-Trapping checks results rather than unmasking hardware exceptions.
-
-Foreign bindings must preserve or restore semantic controls, and callbacks
-establish Omega controls before checked code and restore foreign controls on
-return. Sticky status flags are outside this invariant. The
-[realization note](../drafts/reference/float_realization.md)
-separates current provider support, image replay and native execution evidence.
+The [numeric reference](../spec/language/numeric_values.md) covers proof meaning,
+NaN representations, and the floating control state required at foreign calls.
 
 ## Temporaries
 
@@ -706,7 +608,7 @@ A block groups straight-line work and introduces local scope and cleanup edges:
 It does not create a machine. `room` belongs to this block's work;
 it need not become a field of the lookup, view, or surrounding context.
 
-## Terminal Expressions
+## Terminal expressions
 
 A terminal value completes the current invocation:
 

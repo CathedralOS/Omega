@@ -49,6 +49,13 @@ new spill-exhaustion route. Remote execution provisions the equivalent in its
 execution domain; inline execution still has an accountable stack provision.
 Alternate lowered representations are not runtime-selectable modes of this plan.
 
+The provider must guarantee usable backing for the full stack plan throughout
+the activation, including while parked. Its contract states the reservation and
+physical-commitment policy; deferred commitment must preserve that guarantee.
+Reserving an address range alone does not establish sufficient backing.
+Nonmoving frames preserve addresses relied on by live loans and outstanding
+operations across suspension.
+
 Target/provider selection and physical plans remain in the
 [build-owned companion](../terminal-psi/product.md#build-owned-companion), not
 Psi checked semantics. `05_task_activations.json` reports activation/stack plans,

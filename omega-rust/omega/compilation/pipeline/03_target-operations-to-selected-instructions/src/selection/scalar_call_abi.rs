@@ -270,7 +270,38 @@ pub(super) fn validate(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
-    let no_normal = matches!(owner, target_operations::CallSiteOwner::InvokeNoNormal(_));
+    let installation_role = if let target_operations::CallSiteOwner::Installation {
+        operation,
+        role,
+    } = owner
+    {
+        if input_site::installation_call(source, operation, role) != Some(call) {
+            return Err(SelectedInstructionError::custody_because(
+                "installation call differs from its exact source operation and helper role",
+            ));
+        }
+        let result_shape = match role {
+            target_operations::InstallationCallRole::Validate => scalar_shape(ScalarType::Boolean),
+            target_operations::InstallationCallRole::Work => None,
+        };
+        if call
+            .result_placement
+            .as_ref()
+            .map(|placement| placement.shape)
+            != result_shape
+            || call.structural_result.is_some()
+            || !call.descriptor_origins.is_empty()
+        {
+            return Err(SelectedInstructionError::custody_because(
+                "installation validator must return Boolean and work must have no receiving result",
+            ));
+        }
+        Some(role)
+    } else {
+        None
+    };
+    let no_normal = matches!(owner, target_operations::CallSiteOwner::InvokeNoNormal(_))
+        || installation_role == Some(target_operations::InstallationCallRole::Work);
     if no_normal {
         call.validate_no_normal_shape()
     } else {
@@ -292,7 +323,8 @@ pub(super) fn validate(
         .any(|argument| matches!(argument, LegalizedScalarArgument::Structural { .. }))
     {
         let operation = match owner {
-            target_operations::CallSiteOwner::Operation(operation) => {
+            target_operations::CallSiteOwner::Operation(operation)
+            | target_operations::CallSiteOwner::Installation { operation, .. } => {
                 semantic_vocabulary::InvocationSite::Operation(operation)
             }
             target_operations::CallSiteOwner::InvokeNoNormal(edge) => {
@@ -322,19 +354,23 @@ pub(super) fn validate(
         }
     }
     if no_normal {
-        let target_operations::CallSiteOwner::InvokeNoNormal(edge) = owner else {
-            return Err(invalid());
-        };
-        let declared_result = input_site::no_normal_result(
-            source,
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
-            call,
-        )
-        .ok_or_else(|| {
-            SelectedInstructionError::custody_because(
-                "no-normal call has no exact retained edge and declared result",
+        let declared_result = match owner {
+            target_operations::CallSiteOwner::Installation {
+                role: target_operations::InstallationCallRole::Work,
+                ..
+            } => &abstract_operations::AbstractFunctionResult::Unit,
+            target_operations::CallSiteOwner::InvokeNoNormal(edge) => input_site::no_normal_result(
+                source,
+                semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),
+                call,
             )
-        })?;
+            .ok_or_else(|| {
+                SelectedInstructionError::custody_because(
+                    "no-normal call has no exact retained edge and declared result",
+                )
+            })?,
+            _ => return Err(invalid()),
+        };
         let expected = no_normal_key(call, declared_result, environment).ok_or_else(|| {
             SelectedInstructionError::custody_because(
                 "no-normal declared ABI has no unique canonical constraint in its result family",

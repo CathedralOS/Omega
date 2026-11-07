@@ -1,4 +1,10 @@
-//! Stable public-domain evidence.
+// Stable public-domain evidence.
+//
+// `PackageReviewDomainSemanticRole` records closed compiler semantic roles
+// without exporting compiler-private semantic-domain IDs across the canonical
+// package-review boundary. `PackageReviewDomainEstablishmentRoute` records
+// inert issuer identity without inventing traits for concrete machines or
+// granting invocation/admission.
 
 use super::{
     contracts::PackageReviewContractFact,
@@ -11,12 +17,6 @@ pub enum PackageReviewDomainClassification {
     ProgressProfile,
 }
 
-/// One compiler-owned semantic role contributed by a public domain.
-///
-/// The role vocabulary is closed compiler semantics. The declaration's
-/// compiler-private semantic-domain ID is validated during projection but does
-/// not cross the canonical package-review boundary; the package-qualified
-/// domain identity is the persistent subject.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDomainSemanticRole {
     DenotationDimension,
@@ -30,8 +30,6 @@ pub enum PackageReviewDomainEstablishmentKind {
     ExactMachine,
 }
 
-/// Inert issuer identity. A concrete machine has no invented trait or
-/// requirement; no variant grants invocation or package admission.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewDomainEstablishmentRoute {
     CheckedRequirement {

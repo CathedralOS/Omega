@@ -1,13 +1,14 @@
-//! Normalized restricted build-host request meaning retained for comparison.
-//!
-//! These records mirror package build-execution requests in evidence vocabulary
-//! so an installer can retain accepted request meaning — in `omega.lock`, for
-//! example — without storing host paths, live handles, or ephemeral
-//! capabilities. A captured source inventory is recorded by presence only: the
-//! captured counts and identity bind source content, and folding them into the
-//! retained row would demand a fresh acceptance on every source edit even when
-//! the requested authority is unchanged
-//! (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
+// Normalized restricted build-host request meaning retained for comparison.
+//
+// These records mirror package build-execution requests in evidence vocabulary
+// so an installer can retain accepted request meaning (e.g. in `omega.lock`)
+// without storing host paths, live handles, or ephemeral capabilities. A
+// captured source inventory is recorded by presence (`captured: bool`) only:
+// captured counts and identity bind source content, and folding them into the
+// retained row would demand a fresh acceptance on every source edit even when
+// the requested authority is unchanged. `UnscopedFilesystemExecution` remains
+// in the enum so review surfaces it if an evaluator ever carries it, even
+// though build admission issues only scoped grants.
 
 use package_compilation::build_execution::{
     RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
@@ -15,41 +16,22 @@ use package_compilation::build_execution::{
 };
 use target::TargetProfile;
 
-/// The restricted operation one retained request asks of the host.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackagePolicyRestrictedBuildOperation {
-    /// Scoped real filesystem roots: reads under granted read roots, writes
-    /// under granted write roots, anything else refused.
     ScopedFilesystemExecution,
-    /// Real filesystem without path grants — the interpreter's opt-in
-    /// `FilesystemAccess::RealUnscoped` provider, carrying host
-    /// build-script authority. Build admission deliberately has no path
-    /// that produces it: every admitted scope issues scoped grants only,
-    /// and the grants are the audit surface, so admitting this mode is a
-    /// trust-boundary decision rather than a pending item. The variant
-    /// stays so a review surfaces it if an evaluator ever carries it.
     UnscopedFilesystemExecution,
 }
 
-/// The logical grant root a retained request names, by compiler vocabulary.
 pub(crate) type PackagePolicyRestrictedBuildGrantRoot =
     package_compilation::RestrictedBuildGrantRoot;
 
-/// One logical root grant inside a retained request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyRestrictedBuildGrant {
     pub(crate) root: PackagePolicyRestrictedBuildGrantRoot,
-    /// The granted root's canonical metadata index narrows every operation
-    /// to captured membership and kind.
-    pub(crate) narrowed: bool,
-    /// Whether an immutable captured inventory is bound to the root. The
-    /// inventory's entry counts and identity are source content, not request
-    /// meaning, and stay out of the retained row.
-    pub(crate) captured: bool,
+    pub(crate) narrowed: bool, // Canonical metadata index narrows operations to captured membership/kind.
+    pub(crate) captured: bool, // Whether an immutable captured inventory is bound to the root.
 }
 
-/// The shared filesystem sponsor account's staging ceilings, present when a
-/// caller-installed sponsor binds every granted operation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyFilesystemSponsorLimits {
     pub(crate) maximum_entries: u64,
@@ -57,8 +39,6 @@ pub(crate) struct PackagePolicyFilesystemSponsorLimits {
     pub(crate) maximum_object_extent: u64,
 }
 
-/// The evaluation sponsor's resource ceilings, present when a
-/// caller-installed sponsor caps this activation's evaluator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyEvaluationSponsorLimits {
     pub(crate) work_budget: u64,
@@ -71,43 +51,24 @@ pub(crate) struct PackagePolicyEvaluationSponsorLimits {
     pub(crate) maximum_result_text_bytes: u64,
 }
 
-/// The bounds admission attached to one retained request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyRestrictedBuildBounds {
     pub(crate) filesystem_sponsor_limits: Option<PackagePolicyFilesystemSponsorLimits>,
     pub(crate) evaluation_sponsor_limits: Option<PackagePolicyEvaluationSponsorLimits>,
-    /// Declared sealed outputs that must complete in the staged-output tree
-    /// before this activation's result may publish.
-    pub(crate) required_outputs: Vec<Vec<u8>>,
-    /// Whether this activation publishes retained outputs only.
-    pub(crate) artifact_only: bool,
+    pub(crate) required_outputs: Vec<Vec<u8>>, // Declared sealed outputs required in staged-output tree.
+    pub(crate) artifact_only: bool, // True when activation publishes retained outputs only.
 }
 
-/// One normalized restricted build-host request as retained comparison
-/// meaning. This is admission intent, not execution evidence and not an
-/// acceptance decision.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyRestrictedBuildRequest {
     pub(crate) operation: PackagePolicyRestrictedBuildOperation,
-    /// Logical roots this request may read, in grant order.
     pub(crate) read_grants: Vec<PackagePolicyRestrictedBuildGrant>,
-    /// Logical roots this request may write, in grant order.
     pub(crate) write_grants: Vec<PackagePolicyRestrictedBuildGrant>,
     pub(crate) bounds: PackagePolicyRestrictedBuildBounds,
-    /// The admitted build execution profile the request's build-scope
-    /// declarations were checked against; `None` names an admitted host no
-    /// catalogued profile describes.
     pub(crate) build_execution_profile: Option<TargetProfile>,
-    /// The product target the requesting compilation selected for this
-    /// activation.
     pub(crate) selected_target_profile: Option<TargetProfile>,
 }
 
-/// Retained-request meaning projects from the compiler's admitted request
-/// unchanged — logical grant roots by compiler vocabulary, narrowing and
-/// capture *presence*, sponsor ceilings, declared required outputs, and the
-/// activation profiles — never host paths, live handles, or ephemeral
-/// capability state.
 impl From<&RestrictedBuildRequest> for PackagePolicyRestrictedBuildRequest {
     fn from(request: &RestrictedBuildRequest) -> Self {
         let bounds = request.bounds();

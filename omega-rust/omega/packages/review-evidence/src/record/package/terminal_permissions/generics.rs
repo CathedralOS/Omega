@@ -1,4 +1,4 @@
-//! Exact declaration binder association without parsing or allocating identities.
+// Exact declaration binder association for terminal permissions without parsing or allocating identities.
 
 use super::PackagePolicyTerminalService;
 use crate::record::public_policy::validation::scope;
@@ -55,8 +55,6 @@ pub(super) fn validate(service: &PackagePolicyTerminalService) -> Result<(), &'s
     Ok(())
 }
 
-/// The typed Named projector produces named(name(service-parameter:N)) with
-/// Named lifetime topology. Reuse semantic framing rather than decoding text.
 pub(crate) fn write_service_parameter_identity(
     writer: &mut impl Write,
     ordinal: usize,

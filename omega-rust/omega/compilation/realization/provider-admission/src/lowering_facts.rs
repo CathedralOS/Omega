@@ -12,7 +12,7 @@ use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_installation::AdmittedTargetMachineSelections;
 use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
-use crate::AdmittedNativeCallbackArgument;
+use crate::{AdmittedInstalledInterruptEntry, AdmittedNativeCallbackArgument};
 
 /// The native callback arguments admitted for one Terminal program.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +38,44 @@ impl AdmittedNativeCallbackCohort {
 
     pub fn callbacks(&self) -> &[AdmittedNativeCallbackArgument] {
         &self.callbacks
+    }
+}
+
+/// Installed entries admitted for one Terminal program. These entries do not
+/// become foreign call arguments when carried through target lowering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedInstalledInterruptCohort {
+    pub(crate) psi: TerminalPsiIdentity,
+    pub(crate) entries: Vec<AdmittedInstalledInterruptEntry>,
+    pub(crate) scopes: Vec<crate::AdmittedInstalledInterruptScope>,
+    pub(crate) helpers: Vec<crate::AdmittedInstalledInterruptHelper>,
+}
+
+impl AdmittedInstalledInterruptCohort {
+    /// An empty cohort carries no installation permission.
+    pub const fn empty(psi: TerminalPsiIdentity) -> Self {
+        Self {
+            psi,
+            entries: Vec::new(),
+            scopes: Vec::new(),
+            helpers: Vec::new(),
+        }
+    }
+
+    pub const fn psi(&self) -> TerminalPsiIdentity {
+        self.psi
+    }
+
+    pub fn entries(&self) -> &[AdmittedInstalledInterruptEntry] {
+        &self.entries
+    }
+
+    pub fn scopes(&self) -> &[crate::AdmittedInstalledInterruptScope] {
+        &self.scopes
+    }
+
+    pub fn helpers(&self) -> &[crate::AdmittedInstalledInterruptHelper] {
+        &self.helpers
     }
 }
 
@@ -71,6 +109,7 @@ pub struct AdmittedLoweringFacts {
     pub assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     pub target_machine_selections: Option<AdmittedTargetMachineSelections>,
     pub native_callbacks: AdmittedNativeCallbackCohort,
+    pub installed_interrupts: AdmittedInstalledInterruptCohort,
 }
 
 impl AdmittedLoweringFacts {
@@ -88,6 +127,10 @@ impl AdmittedLoweringFacts {
 
     pub const fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
         self.target_machine_selections.as_ref()
+    }
+
+    pub const fn installed_interrupts(&self) -> &AdmittedInstalledInterruptCohort {
+        &self.installed_interrupts
     }
 
     pub const fn native_callbacks(&self) -> &AdmittedNativeCallbackCohort {

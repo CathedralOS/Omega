@@ -331,6 +331,32 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// The formal relation with dynamic selector paths fixed to proved
+    /// implementations. Unknown paths keep the requirement ceiling. These rows
+    /// never enter the state-only memo.
+    pub fn state_stored_reference_effects_for_selectors(
+        &self,
+        machine: &Machine,
+        state: &State,
+        indices: &[Option<usize>],
+        selectors: &[(SymbolHandle, Vec<facts::PlaceSegment>, SymbolHandle)],
+    ) -> Option<Vec<super::StoredReferenceEffect>> {
+        if self.program.state_parameters(state).len() != indices.len() || selectors.is_empty() {
+            return None;
+        }
+        let mut inference = FrameInference::default();
+        inference.with_dynamic_selectors(self.program, state, indices, selectors, |inference| {
+            super::stored_calls::state_effects(
+                self.program,
+                machine,
+                state,
+                &self.tables.symbols,
+                inference,
+            )
+            .and_then(super::stored_calls::public_effects)
+        })
+    }
+
     /// The slot relation of a dynamic call whose selector may be one the
     /// program never forms: the requirement's declared outputs, with lifetime
     /// debts only (dynamic_dispatch.md: an unknown selection retains the

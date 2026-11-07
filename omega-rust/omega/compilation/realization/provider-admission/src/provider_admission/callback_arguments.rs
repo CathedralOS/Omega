@@ -62,3 +62,33 @@ fn callback_error(message: impl std::fmt::Display) -> Vec<Diagnostic> {
         "Terminal callback custody: {message}"
     ))]
 }
+
+/// Freeze the entry recipe only after ordinary registrar admission succeeded.
+/// The expected recipe comes from the original occurrence and Calling roster.
+pub(super) fn admit_entries(
+    input: &super::NativeRealizationInput<'_>,
+    request: &super::ProviderAdmissionRequest<'_, '_>,
+    entries: &super::callback_entries::PreparedEntries<'_>,
+) -> Result<Vec<super::AdmittedNativeCallbackArgument>, String> {
+    request
+        .native_callbacks
+        .iter()
+        .map(|proposal| {
+            let occurrence = entries.occurrence(proposal.placement_index)?;
+            if occurrence.terminal_operation() != proposal.terminal_operation
+                || occurrence.callback_thunk_identity() != proposal.callback_function
+            {
+                return Err("callback argument changed its original entry occurrence".into());
+            }
+            let callback = input
+                .module()
+                .callback_application(occurrence.application_index())
+                .ok_or("callback entry lost its checked application")?;
+            let entry = entries.admit(callback, occurrence)?;
+            Ok(super::AdmittedNativeCallbackArgument::admit(
+                proposal.clone(),
+                entry,
+            ))
+        })
+        .collect()
+}

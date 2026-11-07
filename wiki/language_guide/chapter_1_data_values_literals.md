@@ -1,17 +1,12 @@
-# Chapter 1: Data, Values, And Literals
+# Chapter 1: Data, values, and literals
 
 Omega programs use explicit data shapes and ordinary machines. This chapter
 introduces values; [data and literal rules](../spec/language/data_and_literals.md)
 specify the source contract.
 
-Fields have no hidden default initializers. A record or case literal supplies
-every runtime field unless it ends with `..`. That marker requests zero for
-omitted fields, and construction must prove all field and aggregate validity
-requirements. Nonzero defaults belong in ordinary constructor machines.
-Erased proof fields use their [construction rule](../spec/proofs/contracts.md#explicit-erased-bindings),
-not zero-filling.
 
-## Hello World
+
+## Hello world
 
 A console entry uses its admitted Console provider:
 
@@ -39,14 +34,9 @@ These are the central source forms, not a complete package setup. The
 [build file](../../samples/cli/basics/cli_mvp/build.omg) include dependency
 declarations and target bindings.
 
-The invocation selects an exact target. The checked `Console::write_line` call
-demands one admitted provider for the exact `Console` application; missing or
-ambiguous build supply rejects compilation. Reach is inferred without an
-annotation on this checked body. The entry bridge invokes the selected machine;
-it does not construct a hidden application record. There is no discovery of a
-reserved `main` name and no binding of a machine to a data type. Application
-state uses ordinary local or static storage, or explicit arguments established
-by an installed entry contract. See [entry roots](../spec/build/entry_roots.md).
+The build selects the entry and the console provider for the target. A private
+machine such as `start` can infer its use of the console from its body.
+[Chapter 19](chapter_19_capabilities_effects_boundaries.md) explains providers.
 
 ## Data
 
@@ -69,10 +59,10 @@ requires player.health >= amount
 
 The ordinary `player` parameter supplies access; the machine does not implicitly
 own fields. `player.health` identifies stored state, while `amount` is another
-explicit input. Call it as `Player::take_damage(&mut player, amount)`. The
+explicit input. Call it as `take_damage(&mut player, amount)`. The
 preconditions establish that the subtraction is in range.
 
-## Explicit Zero Defaults
+## Explicit zero defaults
 
 An exhaustive literal asks the compiler to catch any field you forgot. Add
 `..` only when you intend omitted fields, including future additions, to use
@@ -99,7 +89,7 @@ occurs at most once and has no operand. It is not record update syntax. An
 explicitly written nested literal needs its own `..` if it omits fields.
 Erased-field construction retains its independent proof rules.
 
-## Case Members (Sum Shapes)
+## Case members (sum shapes)
 
 Alternatives are cases inside ordinary data:
 
@@ -169,18 +159,16 @@ data Reading {
     #3 sequence: u32;
 
     #10 case WarmingUp;
-    #11 case Sample(#1 temperature_celcius: i32);
+    #11 case Sample(#1 temperature_celsius: i32);
     #12 case Fault(#1 code: u32);
 }
 ```
 
-Only one case is active; the common fields are present in every case. Each
-payload has its own field-identity scope. The prefix changes neither schema
-identity nor runtime discriminator meaning. There is no case-group declaration
-or additional group number. The canonical numbered spelling is `#N case Name`;
-the old case-before-number spelling is migration debt, not another dialect.
+The common fields are present in every case. Each payload has its own
+field-number scope. Use these numbers for stable schema identity, as described
+in [Chapter 20](chapter_20_memory_layout_abi.md#relationship-to-serialized-bytes).
 
-## Constraints On Individual Cases
+## Constraints on individual cases
 
 Use the data's default domain to constrain its active case. `self` names the
 whole value in that predicate:
@@ -219,17 +207,11 @@ become Boolean: it is unestablished storage until valid construction. A generic
 body can observe zeroed storage only after proving it valid from its own
 contract and flow facts, not because one later instantiation happens to work.
 
-Cases have no separate `requires`; explicit subject binders such as
-`data Value<T>(item)` are not supported either. `self` is a predicate subject,
-not a machine receiver or stored field. Named domains use the same subject and
-reasoning, but a data default domain applies to every established value.
-No hidden case-local generic types or automatic boxing are introduced.
-See the [case-constraint specification](../spec/language/data_and_literals.md#case-constraints)
-and [matching rules](chapter_6_pattern_matching_dispatch.md). This is ratified
-source design; compiler migration and acceptance are tracked in
-[DOMAIN-DEFAULT-PREDICATE-UNIFICATION](../../TASKS.md), not claimed complete here.
+Named domains can express similar conditions for a subset of values. The data's
+default domain applies to every established value. See the
+[case-constraint specification](../spec/language/data_and_literals.md#case-constraints).
 
-## Cases Are Domains
+## Refine a value by its case
 
 Each case also names the domain of values inhabiting it:
 
@@ -249,7 +231,7 @@ need a fallback unless coverage is established. See
 [dispatch](chapter_6_pattern_matching_dispatch.md) and
 [domains](chapter_8_domains.md).
 
-### Equality Vs Membership
+### Equality vs membership
 
 `==` compares values; `in` asks domain membership:
 
@@ -311,7 +293,7 @@ access rules; static placement creates no ambient mutable capability or special
 entry instance. See [constants](../spec/language/constants.md) and
 [ordinary entry storage](../spec/build/entry_roots.md#entry-shape-and-arrival-bridge).
 
-## Lexical Profile V1
+## Names and whitespace
 
 Source is UTF-8 with ASCII syntax. Identifiers use
 `[A-Za-z_][A-Za-z0-9_]*`; whitespace is space, tab, carriage return, or line feed.
@@ -321,7 +303,7 @@ Invisible Unicode whitespace is not an alternative separator.
 The [lexical profile](../spec/language/data_and_literals.md#lexical-profile)
 keeps tokenization independent of host Unicode tables.
 
-## String Literals And Bytes
+## String literals and bytes
 
 A quoted literal is a shared byte view, not automatically text:
 
@@ -361,13 +343,15 @@ There is no implicit capture of ambient process state. Shared and exclusive
 access, transfers, and cleanup are covered in
 [Chapter 2](chapter_2_ownership_borrowing_moves.md).
 
-## Stored Values And Proof Facts
+## Stored values and proof facts
 
 A field's representation and its validity conditions are separate:
 
 ```omega
-data Player {
-    health: i32 in 0..=100;
+data Player
+requires health in 0..=100
+{
+    health: i32;
 }
 ```
 
@@ -375,9 +359,3 @@ The stored carrier is still `i32`. Construction and consumption must establish
 the range; mutation follows the invariant-window rules rather than adding hidden
 runtime checks. [Contracts and flow facts](chapter_7_types_constraints_invariants.md)
 introduces that model.
-
-## Foundation
-
-Data owns fields; machines receive access; terminal transfers transfer explicit
-values within an activation. Later chapters build on those rules without adding
-hidden storage or ambient authority.

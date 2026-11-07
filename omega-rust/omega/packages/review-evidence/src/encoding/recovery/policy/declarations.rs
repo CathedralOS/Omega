@@ -1,4 +1,4 @@
-//! Full public declaration vocabulary under the enclosing policy reader.
+// Full public declaration vocabulary recovery under the enclosing policy reader.
 
 pub(in crate::encoding::recovery) mod data;
 pub(in crate::encoding::recovery) mod domains;

@@ -1,4 +1,4 @@
-//! Typed structural runtime requirements under the enclosing policy budget.
+// Typed structural runtime requirement recovery under the enclosing policy budget.
 
 use crate::record::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,

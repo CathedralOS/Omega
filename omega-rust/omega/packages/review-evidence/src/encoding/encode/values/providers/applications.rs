@@ -1,3 +1,5 @@
+// Canonical encoding for boundary application arguments across type and evaluated constant binders.
+
 use crate::encoding::encode::declarations::encode_type_identity;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::PackageReviewBoundaryApplication;

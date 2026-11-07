@@ -144,6 +144,50 @@ pub fn apply_relocations(
     Ok(())
 }
 
+/// Replay a resolved relative field against its admitted symbol address. The
+/// instruction owner separately checks the form; an envelope alone only proves
+/// which bits may change and cannot establish the destination encoded in them.
+pub fn validate_relative_relocation_target(
+    kind: RelocationKind,
+    section_bytes: &[u8],
+    field_offset: usize,
+    section_address: u64,
+    expected_target: u64,
+) -> Result<(), Diagnostic> {
+    let (displacement, origin_bias) = match kind {
+        RelocationKind::X86_64Relative32 => (
+            i64::from(
+                patch_bytes::read_u32(section_bytes, field_offset, "relative target")? as i32,
+            ),
+            4,
+        ),
+        RelocationKind::Aarch64Branch26 => {
+            let word = patch_bytes::read_u32(section_bytes, field_offset, "relative target")?;
+            let mask = relocation_field_geometry(kind).mask as u32;
+            let immediate = ((word & mask) << 6) as i32 >> 6;
+            (i64::from(immediate) * 4, 0)
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "entry body call has no relative target field",
+            ));
+        }
+    };
+    let origin = section_address
+        .checked_add(
+            u64::try_from(field_offset)
+                .map_err(|_| Diagnostic::error("relative target field exceeds u64"))?,
+        )
+        .and_then(|address| address.checked_add(origin_bias))
+        .ok_or_else(|| Diagnostic::error("relative target origin overflows"))?;
+    if origin.checked_add_signed(displacement) != Some(expected_target) {
+        return Err(Diagnostic::error(
+            "relative field does not resolve to its exact selected target",
+        ));
+    }
+    Ok(())
+}
+
 /// The instruction set whose field encoding a relocation kind spells, or
 /// `None` for an address-sized slot that belongs to every instruction set.
 const fn kind_architecture(kind: RelocationKind) -> Option<Architecture> {

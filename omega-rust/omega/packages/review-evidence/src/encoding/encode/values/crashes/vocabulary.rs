@@ -1,12 +1,12 @@
-//! Stable numeric tags and spellings for structural arithmetic.
+// Stable numeric tags and spellings for structural arithmetic, primitive types, and integer comparisons.
+// Each row helper pairs the persisted wire tag with the authored canonical spelling so binary encoding, canonical text, and recovery share one roster.
+
 use crate::encoding::encode::values::crashes::Encoder;
 use crate::record::PackageReviewArithmeticDomain;
 use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewIntegerComparisonKind;
 use crate::record::PackageReviewPrimitiveType;
 
-/// One row per primitive type: the persisted tag and the authored spelling,
-/// so the tag byte and the canonical text read the same roster.
 pub(super) const fn primitive_type_row(
     primitive_type: PackageReviewPrimitiveType,
 ) -> (u8, &'static str) {
@@ -35,8 +35,6 @@ pub(crate) fn encode_primitive_type(
     encoder.tag(name, tag);
 }
 
-/// One row per structural integer comparison kind: the persisted tag and the
-/// authored spelling, so both directions read the same roster.
 pub(crate) const fn integer_comparison_row(
     kind: PackageReviewIntegerComparisonKind,
 ) -> (u8, &'static str) {
@@ -47,8 +45,6 @@ pub(crate) const fn integer_comparison_row(
     }
 }
 
-/// One row per structural integer binary kind: the persisted tag and the
-/// authored spelling. Recovery reads its inverse by tag from the same roster.
 pub(crate) const fn integer_binary_row(kind: PackageReviewIntegerBinaryKind) -> (u8, &'static str) {
     match kind {
         PackageReviewIntegerBinaryKind::ExactAdd => (0, "exact_add"),

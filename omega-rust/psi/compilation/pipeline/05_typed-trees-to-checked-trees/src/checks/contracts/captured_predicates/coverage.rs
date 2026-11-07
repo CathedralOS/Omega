@@ -56,7 +56,13 @@ fn aliases_agree(
     right: &Alias<'_>,
 ) -> bool {
     left.place == right.place
-        && operand_observations_agree(program, &facts.flow, left.epoch, right.epoch, &left.place)
+        && operand_observations_agree(
+            program,
+            facts.flow.view(),
+            left.epoch,
+            right.epoch,
+            &left.place,
+        )
 }
 
 pub(super) fn join_identities(
