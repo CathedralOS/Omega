@@ -25,6 +25,48 @@ pub fn unit_statement_call_is_admitted(
     {
         return true;
     }
+    let Some((position, terminal_arm)) = statement_occurrence(program, state, expression) else {
+        return false;
+    };
+    if terminal_arm {
+        // The selected result completes this caller. Match subjects, patterns
+        // and call arguments still have ordinary value-formation obligations.
+        return unit_type(program, state.return_type)
+            && completion_returns_unit(program, machine, expression);
+    }
+    if position + 1
+        == program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+    {
+        return call_completes_unit_state(program, machine, state, expression);
+    }
+    call_returns_unit(program, machine, expression)
+}
+
+pub fn unit_return_call_is_admitted(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> bool {
+    statement_occurrence(program, state, expression).is_some_and(|(position, terminal_arm)| {
+        !terminal_arm
+            && position + 1
+                == program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .len()
+    }) && call_completes_unit_state(program, machine, state, expression)
+}
+
+/// One exact statement root owns completion; reused operands do not inherit it.
+fn statement_occurrence(
+    program: &dyn CheckingInput,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(usize, bool)> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut occurrences = statements
         .iter()
@@ -43,33 +85,8 @@ pub fn unit_statement_call_is_admitted(
             }
             _ => None,
         });
-    let Some((position, terminal_arm)) = occurrences.next() else {
-        return false;
-    };
-    if occurrences.next().is_some() {
-        return false;
-    }
-    if terminal_arm {
-        // The selected result completes this caller. Match subjects, patterns
-        // and call arguments still have ordinary value-formation obligations.
-        return unit_type(program, state.return_type)
-            && completion_returns_unit(program, machine, expression);
-    }
-    if position + 1 == statements.len() {
-        return unit_return_call_is_admitted(program, machine, state, expression);
-    }
-    call_returns_unit(program, machine, expression)
-}
-
-pub fn unit_return_call_is_admitted(
-    program: &dyn CheckingInput,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-) -> bool {
-    matches!(program.statement_table.statements(state.statement_nodes).last(),
-        Some(typed_trees::statement::StatementNode::Expression(tail)) if *tail == expression)
-        && call_completes_unit_state(program, machine, state, expression)
+    let occurrence = occurrences.next()?;
+    occurrences.next().is_none().then_some(occurrence)
 }
 
 /// Result compatibility for a Unit completion. Only selected result arms

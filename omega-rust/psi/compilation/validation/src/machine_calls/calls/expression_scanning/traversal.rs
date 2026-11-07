@@ -224,7 +224,16 @@ pub(crate) fn validate_value_position_calls(
         StatementNode::Expression(expression) => {
             context.scan_at(
                 *expression,
-                CallExpressionUse::Statement,
+                if super::super::unit_returns::unit_return_call_is_admitted(
+                    program,
+                    machine,
+                    state,
+                    *expression,
+                ) {
+                    CallExpressionUse::TerminalResult
+                } else {
+                    CallExpressionUse::Statement
+                },
                 value_environment,
                 executes,
             );
