@@ -242,6 +242,12 @@ and asks no more from its caller:
 | Context-visible resources | Demand fits the promised ceiling. |
 | Atomicity, reentrancy, calling plan | Behavior is compatible with or stronger than the pinned promise. |
 
+For a selected generic application, substitute its published
+[operational dependencies](effects.md#static-callback-operational-dependencies)
+before applying the suspension/blocking refinement condition. The generic body
+must satisfy its declared ceiling for every admitted callback. A fixed opaque
+ceiling cannot be narrowed by inspecting a private implementation.
+
 Admission conjoins the independently checked axes; matching signatures or one
 successful analysis is insufficient. A stronger implementation does not acquire
 the requirement's identity. Remote execution, handoff, or scheduling that

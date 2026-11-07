@@ -148,6 +148,11 @@ Dated cost and failure evidence, superseded by a later run.
 
 ## Designs
 
+- [Callback composition and explicit field omissions](designs/callback_composition_and_explicit_defaults.md):
+  ratified source rules and compiler acceptance for `..`, forwarded callback
+  requirements and suspension/blocking dependencies; delete this migration
+  record when the acceptance coverage is implemented and the specs suffice.
+
 - [UEFI bootstrap migration](designs/uefi_bootstrap_migration.md): remaining Rust
   catalogs and protocol ownership to replace with authored source; delete when
   the existing UEFI entry and handoff tasks close.

@@ -98,7 +98,9 @@ contract. It remains eligible for specialization and direct calls. It is not a
 runtime parameter and is not removed by this feature. Conversely, a runtime
 callable does not become a static generic argument merely because the optimizer
 predicts its target. Explicit generic instantiations can produce callable values
-once their static arguments close.
+once their static arguments close. Their callable contracts use the checked
+application's substituted [operational dependencies](effects.md#static-callback-operational-dependencies);
+construction still proves refinement against the destination callable type.
 
 Machine values can share consumer code across runtime choices. Generics can
 specialize that consumer, and a program can combine both. Neither spelling
