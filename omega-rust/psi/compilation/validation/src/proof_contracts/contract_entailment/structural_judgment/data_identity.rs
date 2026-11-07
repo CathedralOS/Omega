@@ -133,29 +133,123 @@ impl StructuralJudge<'_> {
         let mut right_allowance = 64;
         let left = self.data_identity_forms(left, depth + 1, &mut left_allowance);
         let right = self.data_identity_forms(right, depth + 1, &mut right_allowance);
-        for left in &left {
+        if self.typed_identity_path(&left, &right, depth, remaining) {
+            StructuralJudgment::Proven
+        } else {
+            StructuralJudgment::Unknown
+        }
+    }
+
+    fn identity_edges(&self) -> impl Iterator<Item = (&StructuralTerm, &StructuralTerm)> + Clone {
+        self.captured_result_equations
+            .iter()
+            .filter(|equation| equation.is_data_identity())
+            .map(|equation| (&equation.left, &equation.right))
+            .chain(
+                self.rewrites
+                    .value_identities()
+                    .map(|(left, right)| (left, right)),
+            )
+    }
+
+    /// Join an available value to an established endpoint before traversing
+    /// its Id edge. Only existing endpoints enter this frontier; congruence
+    /// checks their own types, selected applications and constructor schemas.
+    /// The active question never becomes an assumption or a resolver rewrite.
+    fn typed_identity_path(
+        &self,
+        left: &[StructuralTerm],
+        right: &[StructuralTerm],
+        depth: usize,
+        remaining: &mut usize,
+    ) -> bool {
+        if depth >= 32 || *remaining == 0 {
+            return false;
+        }
+        let right = right
+            .iter()
+            .filter(|value| self.identity_value_is_available(value))
+            .collect::<Vec<_>>();
+        if right.is_empty() {
+            return false;
+        }
+        let mut pending = left.iter().rev().collect::<Vec<_>>();
+        let mut visited: Vec<&StructuralTerm> = Vec::new();
+        // Borrow the bounded roster once. Eligibility is stable in this
+        // immutable query context and is evaluated at most once per edge.
+        let mut edges = self
+            .identity_edges()
+            .take(*remaining)
+            .map(|(left, right)| (left, right, None))
+            .collect::<Vec<_>>();
+        while let Some(value) = pending.pop() {
+            if *remaining == 0 || visited.len() >= 64 {
+                return false;
+            }
+            if visited
+                .iter()
+                .any(|known| known.same_resolution_payload(value))
+            {
+                continue;
+            }
+            *remaining -= 1;
+            visited.push(value);
+            if !self.identity_value_is_available(value) {
+                continue;
+            }
             for right in &right {
                 if *remaining == 0 {
-                    return StructuralJudgment::Unknown;
+                    return false;
                 }
                 *remaining -= 1;
-                if self.identity_value_is_available(left)
-                    && self.identity_value_is_available(right)
-                    && matches!(
+                if matches!(
+                    self.exact_identity_congruence(
+                        value.clone(),
+                        (*right).clone(),
+                        depth + 1,
+                        remaining
+                    ),
+                    StructuralJudgment::Proven
+                ) {
+                    return true;
+                }
+            }
+            for (left, right, admitted) in &mut edges {
+                if *remaining == 0 {
+                    return false;
+                }
+                *remaining -= 1;
+                if !*admitted.get_or_insert_with(|| {
+                    self.identity_value_is_available(left)
+                        && self.identity_value_is_available(right)
+                }) {
+                    continue;
+                }
+                for (from, to) in [(*left, *right), (*right, *left)] {
+                    if *remaining == 0 {
+                        return false;
+                    }
+                    *remaining -= 1;
+                    if matches!(
                         self.exact_identity_congruence(
-                            left.clone(),
-                            right.clone(),
+                            value.clone(),
+                            from.clone(),
                             depth + 1,
                             remaining
                         ),
                         StructuralJudgment::Proven
-                    )
-                {
-                    return StructuralJudgment::Proven;
+                    ) && pending.len() < 64
+                        && !visited
+                            .iter()
+                            .chain(&pending)
+                            .any(|known| known.same_resolution_payload(to))
+                    {
+                        pending.push(to);
+                    }
                 }
             }
         }
-        StructuralJudgment::Unknown
+        false
     }
 
     fn exact_identity_congruence(
@@ -602,17 +696,7 @@ impl StructuralJudge<'_> {
             // admits owned value substitutions after its observation checks.
             // Consume both produced views here: a raw projection can reach a
             // cited reverse endpoint without discarding either side's payload.
-            for (left, right) in self
-                .captured_result_equations
-                .iter()
-                .filter(|equation| equation.is_data_identity())
-                .map(|equation| (&equation.left, &equation.right))
-                .chain(
-                    self.rewrites
-                        .value_identities()
-                        .map(|(left, right)| (left, right)),
-                )
-            {
+            for (left, right) in self.identity_edges() {
                 if left.same_resolution_payload(&value) {
                     follow(right.clone());
                 }
