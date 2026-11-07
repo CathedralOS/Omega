@@ -582,7 +582,7 @@ impl TypedTrees {
             return None;
         }
         self.with_type_parameter_declarations(symbol, |rows| {
-            rows.iter().find_map(|(_, handle)| {
+            rows.iter().find_map(|handle| {
                 let parameter = self.data_type_parameters.get(*handle);
                 let data::TypeParameterKind::Machine { contract } = &parameter.kind else {
                     return None;
@@ -851,7 +851,7 @@ impl TypedTrees {
         let parent_machine = self.machine(parent);
         self.with_state_positions_for_symbol(state_symbol, |positions| {
             let mut other = None;
-            for (_, (machine_position, _)) in positions {
+            for (machine_position, _) in positions {
                 let machine = &self.machines()[*machine_position as usize];
                 if parent_machine.is_some_and(|candidate| std::ptr::eq(candidate, machine)) {
                     return Some(machine);

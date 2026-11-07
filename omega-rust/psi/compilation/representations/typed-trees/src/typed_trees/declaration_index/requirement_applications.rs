@@ -6,15 +6,22 @@
 //! source arena revision covers insertion, replacement, removal and slot reuse;
 //! payload projection still reads the current complete application record.
 
-use super::relationships::{first_symbol_row, sort_symbol_rows, symbol_rows};
+use super::relationships::SymbolRows;
 use crate::typed_trees::callable_applications::AppliedCallableSignature;
 use arena::Handle;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Default)]
 pub(super) struct RequirementApplicationIndex {
-    rows: Vec<(SymbolHandle, Handle<AppliedCallableSignature>)>,
-    by_template: Vec<(SymbolHandle, Handle<AppliedCallableSignature>)>,
+    rows: SymbolRows<Handle<AppliedCallableSignature>>,
+    by_template: SymbolRows<Handle<AppliedCallableSignature>>,
+}
+
+impl RequirementApplicationIndex {
+    pub(super) fn densify(&mut self) {
+        self.rows.densify();
+        self.by_template.densify();
+    }
 }
 
 impl crate::TypedTrees {
@@ -35,9 +42,10 @@ impl crate::TypedTrees {
                         by_template.push((template, handle));
                     }
                 }
-                sort_symbol_rows(&mut rows);
-                sort_symbol_rows(&mut by_template);
-                RequirementApplicationIndex { rows, by_template }
+                RequirementApplicationIndex {
+                    rows: SymbolRows::new(rows),
+                    by_template: SymbolRows::new(by_template),
+                }
             },
             run,
         )
@@ -47,9 +55,8 @@ impl crate::TypedTrees {
         &self,
         symbol: SymbolHandle,
     ) -> Option<&AppliedCallableSignature> {
-        let handle = self.with_requirement_application_index(|index| {
-            first_symbol_row(&index.rows, symbol).map(|(_, handle)| *handle)
-        })?;
+        let handle =
+            self.with_requirement_application_index(|index| index.rows.first(symbol).copied())?;
         Some(self.applied_callable_signatures.get(handle))
     }
 
@@ -57,11 +64,6 @@ impl crate::TypedTrees {
         &self,
         template: SymbolHandle,
     ) -> Vec<Handle<AppliedCallableSignature>> {
-        self.with_requirement_application_index(|index| {
-            symbol_rows(&index.by_template, template)
-                .iter()
-                .map(|(_, handle)| *handle)
-                .collect()
-        })
+        self.with_requirement_application_index(|index| index.by_template.get(template).to_vec())
     }
 }

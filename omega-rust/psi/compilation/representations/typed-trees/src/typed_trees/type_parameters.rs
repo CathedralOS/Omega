@@ -1,14 +1,12 @@
 //! Parameter storage owns its complete symbol index, including negative answers.
 //! Mutable arena access invalidates it before exposing storage. Cloning or
 //! replacing the table carries only the index belonging to those declarations.
+use super::declaration_index::SymbolRows;
 use crate::data::TypeParameter;
 use arena::{Arena, Handle, OwnedIndex};
-use symbols::SymbolHandle;
 
-#[derive(Clone, Default)]
-pub(super) struct TypeParameterIndex {
-    pub(super) rows: Vec<(SymbolHandle, Handle<TypeParameter>)>,
-}
+/// Every parameter handle per symbol, in arena declaration order.
+pub(super) type TypeParameterIndex = SymbolRows<Handle<TypeParameter>>;
 
 #[derive(Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypeParameterTable {
@@ -46,23 +44,21 @@ impl TypeParameterTable {
         self.index.with(
             (),
             || {
-                let mut rows = self
-                    .arena
-                    .iter()
-                    .filter(|(_, parameter)| parameter.symbol.is_valid())
-                    .map(|(handle, parameter)| (parameter.symbol, handle))
-                    .collect::<Vec<_>>();
-                // Stable sorting retains arena declaration order for duplicate
-                // identities. Both halves of every generational symbol survive.
-                rows.sort_by_key(|(symbol, _)| (symbol.arena_index(), symbol.generation()));
-                TypeParameterIndex { rows }
+                // Rows keep arena declaration order for duplicate identities.
+                SymbolRows::new(
+                    self.arena
+                        .iter()
+                        .filter(|(_, parameter)| parameter.symbol.is_valid())
+                        .map(|(handle, parameter)| (parameter.symbol, handle))
+                        .collect(),
+                )
             },
             read,
         )
     }
     pub(super) fn seal(&mut self) {
         self.with_index(|_| ());
-        self.index.seal();
+        self.index.seal_with(SymbolRows::densify);
     }
     pub(super) fn unseal(&mut self) {
         self.index.unseal();
