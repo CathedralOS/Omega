@@ -26206,7 +26206,7 @@ pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_ar
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/private_callback_descriptor_fragments_exit checked 97736ms check-target:macos_arm64 @dd80ecfff375
-pass/layouts/private_callback_inherited_policy_exit checked 86083ms check-target:macos_arm64 @dd80ecfff375
+pass/layouts/private_callback_inherited_policy_exit checked 82567ms check-target:macos_arm64 @2d9bc08309a0
 pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_untaken_compile checked 1058ms @2ba727eefb59+wt
