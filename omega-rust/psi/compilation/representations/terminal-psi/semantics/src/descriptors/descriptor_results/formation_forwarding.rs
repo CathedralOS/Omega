@@ -4,6 +4,7 @@
 //! records obligations; it does not choose a provider or establish its promise.
 
 use super::*;
+use semantic_vocabulary::{BoundaryMachineId, OperationId};
 use terminal_psi::{
     BoundaryLifetimeDependency, BoundaryReferenceForwardingDemand, BoundaryReferenceSource,
 };
@@ -17,7 +18,7 @@ pub fn formation_reference_forwarding_requirements(
     let graph = terminal_borrowed_storage_graph(module);
     let mut analysis =
         DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-    let mut required = module.boundary_reference_forwarding.clone();
+    let mut required: Option<ForwardingRequirements<'_>> = None;
     for body in &module.machines {
         let Some(descriptor) = graph.iter().find(|candidate| candidate.id == body.id) else {
             continue;
@@ -128,12 +129,21 @@ pub fn formation_reference_forwarding_requirements(
                         continue;
                     };
                     for origin in origins {
-                        collect_origin(module, &origin, &mut required)?;
+                        if !matches!(origin, DescriptorSourceOrigin::Provider(_)) {
+                            continue;
+                        }
+                        required
+                            .get_or_insert_with(|| ForwardingRequirements::new(module))
+                            .collect_origin(&origin)?;
                     }
                 }
             }
         }
     }
+    let mut required = required.map_or_else(
+        || module.boundary_reference_forwarding.clone(),
+        |collection| collection.required,
+    );
     required.sort_by_key(|row| (row.machine, row.operation, row.output));
     for row in &mut required {
         row.sources.sort();
@@ -142,101 +152,188 @@ pub fn formation_reference_forwarding_requirements(
     Ok(required)
 }
 
-fn collect_origin(
-    module: &TerminalModule,
-    origin: &DescriptorSourceOrigin,
-    required: &mut Vec<BoundaryReferenceForwardingDemand>,
-) -> Result<(), &'static str> {
-    let DescriptorSourceOrigin::Provider(provider) = origin else {
-        return Ok(());
-    };
-    let declaration = module
-        .boundary_machine(provider.boundary)
-        .ok_or("the required provider output has no public declaration")?;
-    let output = declaration
-        .reference_outputs
-        .get(usize::try_from(provider.output).map_err(|_| "the provider output exceeds usize")?)
-        .ok_or("the required provider output is absent")?;
-    let mut sources = output
-        .dependencies
-        .iter()
-        .map(|source| match source {
-            BoundaryLifetimeDependency::Referent { argument_index, .. } => {
-                BoundaryReferenceSource::Reference {
-                    argument_index: *argument_index,
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct ForwardingRequestCoordinate {
+    machine: MachineId,
+    operation: OperationId,
+    output: u32,
+}
+
+/// Index the immutable module and the growing request roster at this collector's
+/// scope. Operation rows retain every duplicate within a machine; request keys
+/// name an invocation output, rather than an arena position or a raw-ID domain.
+struct ForwardingRequirements<'module> {
+    module: &'module TerminalModule,
+    machines: Vec<(MachineId, usize)>,
+    boundaries: Vec<(BoundaryMachineId, usize)>,
+    operations: Vec<(usize, OperationId, usize, usize)>,
+    required: Vec<BoundaryReferenceForwardingDemand>,
+    positions: BTreeMap<ForwardingRequestCoordinate, usize>,
+}
+
+impl<'module> ForwardingRequirements<'module> {
+    fn new(module: &'module TerminalModule) -> Self {
+        let mut machines = Vec::with_capacity(module.machines.len());
+        let mut operations = Vec::new();
+        for (machine_index, machine) in module.machines.iter().enumerate() {
+            machines.push((machine.id, machine_index));
+            for (block_index, block) in machine.blocks.iter().enumerate() {
+                for (operation_index, operation) in block.operations.iter().enumerate() {
+                    operations.push((machine_index, operation.id, block_index, operation_index));
                 }
             }
-            BoundaryLifetimeDependency::Stored {
-                argument_index,
-                path,
-                ..
-            } => BoundaryReferenceSource::Stored {
-                argument_index: *argument_index,
-                path: path.clone(),
-            },
-        })
-        .collect::<Vec<_>>();
-    sources.sort();
-    sources.dedup();
-    if sources.is_empty() {
-        return Err("the opaque output has no captured choices for a forwarding requirement");
-    }
-    let mut found = false;
-    for site in &provider.invocations {
-        let body = module
-            .machine(site.machine)
-            .ok_or("the provider invocation has no machine")?;
-        let mut operations = body
-            .blocks
+        }
+        machines.sort_unstable();
+        operations.sort_unstable();
+        let mut boundaries = module
+            .boundary_machines
             .iter()
-            .flat_map(|block| &block.operations)
-            .filter(|operation| operation.id == site.operation);
-        let operation = operations
-            .next()
-            .ok_or("the provider invocation operation is absent")?;
-        if operations.next().is_some() {
-            return Err("the provider invocation operation is ambiguous");
+            .enumerate()
+            .map(|(index, boundary)| (boundary.id, index))
+            .collect::<Vec<_>>();
+        boundaries.sort_unstable();
+        let required = module.boundary_reference_forwarding.clone();
+        let mut positions = BTreeMap::new();
+        for (index, row) in required.iter().enumerate() {
+            // Preserve the original first-row intersection rule. Independent
+            // module validation still owns duplicate declaration/request rows.
+            positions
+                .entry(ForwardingRequestCoordinate {
+                    machine: row.machine,
+                    operation: row.operation,
+                    output: row.output,
+                })
+                .or_insert(index);
         }
-        if !matches!(&operation.kind, OperationKind::BoundaryCall { boundary, .. } if *boundary == provider.boundary)
-        {
-            continue;
+        Self {
+            module,
+            machines,
+            boundaries,
+            operations,
+            required,
+            positions,
         }
-        found = true;
-        if let Some(row) = required.iter_mut().find(|row| {
-            row.machine == site.machine
-                && row.operation == site.operation
-                && row.output == provider.output
-        }) {
-            // Separate uses require both bounds. Union would weaken an older
-            // condition and could silently admit a previously excluded source.
-            row.sources.retain(|source| sources.contains(source));
-            if row.sources.is_empty() {
-                return Err("the reference uses require incompatible forwarding choices");
+    }
+
+    fn boundary(
+        &self,
+        id: BoundaryMachineId,
+    ) -> Result<&'module terminal_psi::BoundaryMachineDeclaration, &'static str> {
+        let index = self.boundaries.partition_point(|row| row.0 < id);
+        self.boundaries
+            .get(index)
+            .filter(|row| row.0 == id)
+            .map(|row| &self.module.boundary_machines[row.1])
+            .ok_or("the required provider output has no public declaration")
+    }
+
+    fn operation(
+        &self,
+        site: &DescriptorInvocationSite,
+    ) -> Result<&'module Operation, &'static str> {
+        let index = self.machines.partition_point(|row| row.0 < site.machine);
+        let machine_index = self
+            .machines
+            .get(index)
+            .filter(|row| row.0 == site.machine)
+            .map(|row| row.1)
+            .ok_or("the provider invocation has no machine")?;
+        let key = (machine_index, site.operation);
+        let first = self.operations.partition_point(|row| (row.0, row.1) < key);
+        let last = self.operations.partition_point(|row| (row.0, row.1) <= key);
+        match &self.operations[first..last] {
+            [(_, _, block, operation)] => {
+                Ok(&self.module.machines[machine_index].blocks[*block].operations[*operation])
             }
-        } else {
-            required.push(BoundaryReferenceForwardingDemand {
+            [] => Err("the provider invocation operation is absent"),
+            _ => Err("the provider invocation operation is ambiguous"),
+        }
+    }
+
+    fn collect_origin(&mut self, origin: &DescriptorSourceOrigin) -> Result<(), &'static str> {
+        let DescriptorSourceOrigin::Provider(provider) = origin else {
+            return Ok(());
+        };
+        let declaration = self.boundary(provider.boundary)?;
+        let output = declaration
+            .reference_outputs
+            .get(
+                usize::try_from(provider.output)
+                    .map_err(|_| "the provider output exceeds usize")?,
+            )
+            .ok_or("the required provider output is absent")?;
+        let mut sources = output
+            .dependencies
+            .iter()
+            .map(|source| match source {
+                BoundaryLifetimeDependency::Referent { argument_index, .. } => {
+                    BoundaryReferenceSource::Reference {
+                        argument_index: *argument_index,
+                    }
+                }
+                BoundaryLifetimeDependency::Stored {
+                    argument_index,
+                    path,
+                    ..
+                } => BoundaryReferenceSource::Stored {
+                    argument_index: *argument_index,
+                    path: path.clone(),
+                },
+            })
+            .collect::<Vec<_>>();
+        sources.sort();
+        sources.dedup();
+        if sources.is_empty() {
+            return Err("the opaque output has no captured choices for a forwarding requirement");
+        }
+        let mut found = false;
+        for site in &provider.invocations {
+            let operation = self.operation(site)?;
+            if !matches!(&operation.kind, OperationKind::BoundaryCall { boundary, .. } if *boundary == provider.boundary)
+            {
+                continue;
+            }
+            found = true;
+            let coordinate = ForwardingRequestCoordinate {
                 machine: site.machine,
                 operation: site.operation,
                 output: provider.output,
-                sources: sources.clone(),
-            });
-        }
-    }
-    if !found {
-        return Err("the provider origin has no matching boundary invocation");
-    }
-    if let Some(sources) = &provider.forwarded_sources {
-        for source in sources {
-            match source {
-                DescriptorForwardingSource::Value(origin)
-                | DescriptorForwardingSource::Address(origin) => {
-                    collect_origin(module, origin, required)?
+            };
+            if let Some(index) = self.positions.get(&coordinate) {
+                let row = &mut self.required[*index];
+                // Separate uses require both bounds. Union would weaken an older
+                // condition and could silently admit a previously excluded source.
+                row.sources.retain(|source| sources.contains(source));
+                if row.sources.is_empty() {
+                    return Err("the reference uses require incompatible forwarding choices");
                 }
-                DescriptorForwardingSource::ReferenceArgument { .. } => {
-                    return Err("a completed provider retains an unresolved forwarding argument");
+            } else {
+                let index = self.required.len();
+                self.required.push(BoundaryReferenceForwardingDemand {
+                    machine: site.machine,
+                    operation: site.operation,
+                    output: provider.output,
+                    sources: sources.clone(),
+                });
+                self.positions.insert(coordinate, index);
+            }
+        }
+        if !found {
+            return Err("the provider origin has no matching boundary invocation");
+        }
+        if let Some(sources) = &provider.forwarded_sources {
+            for source in sources {
+                match source {
+                    DescriptorForwardingSource::Value(origin)
+                    | DescriptorForwardingSource::Address(origin) => self.collect_origin(origin)?,
+                    DescriptorForwardingSource::ReferenceArgument { .. } => {
+                        return Err(
+                            "a completed provider retains an unresolved forwarding argument",
+                        );
+                    }
                 }
             }
         }
+        Ok(())
     }
-    Ok(())
 }

@@ -21,8 +21,31 @@ pub(super) fn instantiate(
     let invariants = std::mem::take(rows.scalar_block_invariants);
     let coercions = std::mem::take(rows.qualification_coercions);
     let source_checked = std::mem::take(rows.source_checked_obligations);
-    for instance in instances.iter_mut() {
+    let trace_calls = std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some();
+    let mut traced_calls = 0;
+    let instance_count = instances.len();
+    for (instance_index, instance) in instances.iter_mut().enumerate() {
         let namespace = &mut instance.namespace;
+        if trace_calls && instance_index < 64 {
+            let original_block = topology
+                .continuations
+                .get(instance.continuation)
+                .and_then(|continuation| machine.blocks.get(continuation.original_block))
+                .map(|block| block.id);
+            eprintln!(
+                "CHECKSITE continuation-instance machine={:?} instance={instance_index} instance_count={instance_count} continuation={} original_block={original_block:?} block_count={} first_4_blocks={:?} successor_count={} first_32_successors={:?} inherited_operation_count={} first_32_inherited_operations={:?}",
+                machine.id,
+                instance.continuation,
+                namespace.blocks.len(),
+                namespace.blocks.get(..namespace.blocks.len().min(4)),
+                instance.successors.len(),
+                instance.successors.get(..instance.successors.len().min(32)),
+                namespace.inherited_operations.len(),
+                namespace
+                    .inherited_operations
+                    .get(..namespace.inherited_operations.len().min(32)),
+            );
+        }
         for original in &returns {
             if let Some((_, edge)) = namespace
                 .edges
@@ -48,6 +71,33 @@ pub(super) fn instantiate(
             if owned {
                 let mut call = original.clone();
                 namespace.source_call(&mut call);
+                if trace_calls && traced_calls < 32 {
+                    traced_calls += 1;
+                    let frontier = &call.frontier_before_call;
+                    eprintln!(
+                        "CHECKSITE source-call-specialization machine={:?} first_32_position={traced_calls} instance={instance_index} origin={:?} source_site={:?} source_target={:?} before={:?} after={:?} frontier_counts=(loan,scalar,structural,claim) {:?} first_32_frontier={:?}",
+                        machine.id,
+                        call.origin,
+                        call.source_site,
+                        call.source_target,
+                        original.terminal_site,
+                        call.terminal_site,
+                        (
+                            frontier.loan_captures.len(),
+                            frontier.scalars.len(),
+                            frontier.structural.len(),
+                            frontier.claims.len(),
+                        ),
+                        (
+                            frontier
+                                .loan_captures
+                                .get(..frontier.loan_captures.len().min(32)),
+                            frontier.scalars.get(..frontier.scalars.len().min(32)),
+                            frontier.structural.get(..frontier.structural.len().min(32)),
+                            frontier.claims.get(..frontier.claims.len().min(32)),
+                        ),
+                    );
+                }
                 rows.source_calls.push(call);
             }
         }

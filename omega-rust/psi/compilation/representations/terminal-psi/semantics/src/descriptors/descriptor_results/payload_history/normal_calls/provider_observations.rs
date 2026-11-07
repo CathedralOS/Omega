@@ -339,11 +339,27 @@ impl NormalPayloadContext<'_> {
             let targets = analysis
                 .unchanged_payload_targets(caller, position, &query)
                 .ok_or("the selected provider write has no complete unchanged footprint")?;
-            writes.extend(
-                targets
-                    .into_iter()
-                    .map(|target| (target, performed.clone())),
-            );
+            for target in targets {
+                // Keep the physical prefix in the caller's root namespace.
+                // Selecting a scalar subject below it would lose an enclosing
+                // overlaid record before sibling-field separation is used.
+                let geometry: Result<super::primitive_writes::OrdinaryStoragePath, &'static str> =
+                    (|| {
+                        let carrier = *caller_graph
+                            .place_types
+                            .get(&target.root)
+                            .ok_or("the provider write footprint has no enclosing carrier")?;
+                        let path =
+                            descriptor_path(&self.module.structural_types, carrier, &target.path)
+                                .ok_or("the provider write footprint has no typed physical path")?;
+                        Ok(super::primitive_writes::OrdinaryStoragePath::new(
+                            &self.module.structural_types,
+                            carrier,
+                            path,
+                        ))
+                    })();
+                writes.push((target, performed.clone(), geometry));
+            }
         }
         for fact in required {
             // A predicate on an inline payload has no separately backed
@@ -367,14 +383,29 @@ impl NormalPayloadContext<'_> {
                 PayloadMembershipKind::Observed,
             )
             .ok_or("the captured lender has no current selected domain subject")?;
-            for (written, performed) in &writes {
-                if written.root != fact.location.root
-                    || !written
-                        .path
-                        .iter()
-                        .zip(&fact.location.path)
-                        .all(|(left, right)| left == right)
-                {
+            let mut subject_geometry = None;
+            for (written, performed, geometry) in &writes {
+                if written.root != fact.location.root {
+                    continue;
+                }
+                let written_geometry = geometry.as_ref().map_err(|reason| *reason)?;
+                if subject_geometry.is_none() {
+                    let path = descriptor_path(
+                        &self.module.structural_types,
+                        original.carrier,
+                        &fact.location.path,
+                    )
+                    .ok_or("the captured lender has no typed physical subject path")?;
+                    subject_geometry = Some(super::primitive_writes::OrdinaryStoragePath::new(
+                        &self.module.structural_types,
+                        original.carrier,
+                        path,
+                    ));
+                }
+                let subject_geometry = subject_geometry
+                    .as_ref()
+                    .ok_or("the captured lender has no physical subject path")?;
+                if !written_geometry.may_overlap(subject_geometry)? {
                     continue;
                 }
                 let relative = written
