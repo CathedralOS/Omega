@@ -1152,33 +1152,44 @@ pub(crate) fn build_checked_unit_effect_plans(
     );
     let stored_operand_identities = retained_operations()
         .flat_map(|(machine, state, operation)| {
-            byte_operands::store_operand_type_identities(
+            let mut identities = byte_operands::store_operand_type_identities(
                 program,
                 &mut shapes,
                 machine,
                 state,
                 operation,
-            )
+            );
+            if let CheckedUnitEffectOperationPlan::EstablishReference {
+                source_contract, ..
+            } = operation
+            {
+                shapes.retain_reference_contract_types(source_contract, &mut identities);
+            }
+            identities
         })
         .collect::<Vec<_>>();
     retained_type_identities.extend(stored_operand_identities.iter().copied());
     // A successor's retained address owns a descriptor independently of its
     // borrowed referent parameter. Keep that declaration through the same
     // transitive type roster as ordinary reference formations.
-    retained_type_identities.extend(
-        composed_machines
-            .iter()
-            .flat_map(|machine| &machine.states)
-            .flat_map(|state| state.successors())
-            .flat_map(|edge| &edge.transfers)
-            .filter_map(|transfer| match &transfer.source {
-                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                    carrier_type_identity,
-                    ..
-                } if carrier_type_identity.is_valid() => Some(*carrier_type_identity),
-                _ => None,
-            }),
-    );
+    for transfer in composed_machines
+        .iter()
+        .flat_map(|machine| &machine.states)
+        .flat_map(|state| state.successors())
+        .flat_map(|edge| &edge.transfers)
+    {
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            carrier_type_identity,
+            source_contract,
+            ..
+        } = &transfer.source
+        {
+            if carrier_type_identity.is_valid() {
+                retained_type_identities.insert(*carrier_type_identity);
+            }
+            shapes.retain_reference_contract_types(source_contract, &mut retained_type_identities);
+        }
+    }
     // A partial-affine return edge names the residual complement's shapes
     // beside the body's own call results.
     retained_type_identities.extend(partial_affine_machines.iter().flat_map(|plan| {
@@ -1203,7 +1214,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     };
     (
         EffectPlans {
-            cleanup_control: shapes.cleanup_control,
+            cleanup_control: shapes.cleanup_control.into_inner(),
             layout_observations,
             structural_types: shapes.types.into_values().collect(),
             structural_domains: {
@@ -1567,9 +1578,11 @@ fn retain_value_types(
             checked_trees::CheckedStructuralValueKind::Reference {
                 source,
                 source_value,
+                source_contract,
                 ..
             } => {
                 identities.push(source.type_identity);
+                shapes.retain_reference_contract_types(source_contract, &mut identities);
                 if source_value.is_valid() {
                     pending.push(*source_value);
                 }

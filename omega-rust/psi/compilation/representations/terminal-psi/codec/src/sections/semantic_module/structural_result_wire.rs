@@ -187,6 +187,7 @@ wire_record! {
         multiplicity: Multiplicity,
         qualifications: Ids,
         projected_qualifications: List<PathQualification>,
+        additional_input_qualifications: List<PathQualification>,
         qualification_establishments: List<Establishment>,
         claims: List<ClaimBinding>,
     }

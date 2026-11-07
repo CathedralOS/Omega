@@ -157,12 +157,7 @@ fn evidence_inner(
 ) -> Option<InstructionEffectEvidence> {
     let contract = validation::instruction_effect_contract(program, application)?;
     let operation = contract.operation;
-    let (_, flow) = facts
-        .flow
-        .control
-        .states
-        .iter()
-        .find(|(_, flow)| flow.state_symbol == state_symbol)?;
+    let flow = facts.flow.control.state_by_symbol(state_symbol)?;
     let (_, state) = program.state_flow_site(flow.machine_symbol, state_symbol)?;
     let order = program
         .statement_table

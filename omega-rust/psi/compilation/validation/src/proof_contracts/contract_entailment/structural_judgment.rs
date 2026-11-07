@@ -44,12 +44,15 @@ mod returned_fields;
 mod runtime_induction;
 pub(super) mod selected_contracts;
 mod storage_effects;
+pub(crate) use storage_effects::stored_encoding_preserves_field;
 mod traversal_inputs;
 pub(in crate::proof_contracts::contract_entailment) use traversal_inputs::StructuralTraversalInputs;
 mod value_correspondence;
 mod value_predicates;
 
-pub(crate) use licenses::{EntryMachines, LicenseCandidates, declared_index_algebra_laws};
+pub(crate) use licenses::{
+    EntryMachines, LicenseCandidates, declared_index_algebra_laws, literal_index_identities,
+};
 use licenses::{
     RingLicense, SemiringLicense, additive_addends, fold_scalar_binary, polynomial_normal_form,
     sorted_multiset_subtract, term_uses_application,
@@ -1093,6 +1096,24 @@ impl<'program> StructuralJudge<'program> {
             }
             judge.retain_declared_entry_scalar_reads(machine, state);
         }
+        judge
+    }
+
+    /// This judge's premises for an independent query. Clones share the
+    /// mutable query memos by design; an independent check must not see
+    /// resolutions another check completed, so each memo starts empty here,
+    /// as it does for a newly built judge.
+    pub(super) fn with_fresh_query_memos(&self) -> Self {
+        let mut judge = self.clone();
+        judge.completed_resolutions = self
+            .completed_resolutions
+            .as_ref()
+            .map(|_| Arc::new(std::sync::Mutex::new(Default::default())));
+        judge.prepared_integer_premises_cache = Arc::new(std::sync::Mutex::new(
+            integer_predicates::PreparedIntegerPremisesCache::default(),
+        ));
+        judge.frame_resolver = Arc::new(std::sync::OnceLock::new());
+        judge.returned_field_trace = None;
         judge
     }
 

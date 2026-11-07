@@ -137,6 +137,10 @@ enum Formal {
     Signed(u16),
     Unsigned(u16),
     UnsignedArray(u64, u16, StructuralAccess),
+    ByteWindow {
+        minimum: u64,
+        access: StructuralAccess,
+    },
     ByteView(StructuralAccess),
     IntegerReference(IntegerSign, u16, StructuralAccess),
     IntegerRecord {
@@ -403,6 +407,7 @@ impl FilesystemContext {
                     structural += 1;
                 }
                 ByteView(_)
+                | Formal::ByteWindow { .. }
                 | IntegerReference(_, _, _)
                 | Formal::IntegerRecord { .. }
                 | Formal::SignedRecordArray { .. } => structural += 1,
@@ -501,6 +506,27 @@ fn matches_parameters(
                 let value = declaration.structural_parameters.get(structural);
                 structural += 1;
                 match (value, expected) {
+                    (Some(value), Formal::ByteWindow { minimum, access })
+                        if value.access == *access =>
+                    {
+                        let Some(StructuralTypeShape::FixedArray { length, .. }) = program
+                            .structural_type(value.structural_type)
+                            .map(|row| &row.shape)
+                        else {
+                            return false;
+                        };
+                        let Some(count) = length.literal().filter(|count| count >= minimum) else {
+                            return false;
+                        };
+                        super::native_provider::matches_integer_storage(
+                            program,
+                            layouts,
+                            value.structural_type,
+                            IntegerSign::Unsigned,
+                            8,
+                            Some(count),
+                        )
+                    }
                     (Some(value), Formal::ByteView(access)) if value.access == *access => {
                         matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
                             Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { access: ceiling })) if ceiling.is_none_or(|ceiling| ceiling == *access))

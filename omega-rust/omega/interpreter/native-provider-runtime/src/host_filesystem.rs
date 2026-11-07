@@ -56,6 +56,151 @@ impl LinuxFilesystem {
         }
     }
 
+    /// Reposition one guest descriptor. The offset is the kernel `off_t`, not
+    /// a narrowed `i32`, and a failure stays the negated errno the POSIX
+    /// trait already returns. Standard streams are not guest resources.
+    pub fn lseek(&self, descriptor: i32, offset: i64, whence: i32) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            kernel_status(unsafe { libc::syscall(libc::SYS_lseek, descriptor, offset, whence) })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, offset, whence);
+            Err(unsupported())
+        }
+    }
+
+    /// Remove one directory entry. `AT_FDCWD` stays the host's current
+    /// directory; every other directory is a guest descriptor. The path is
+    /// the caller's already-terminated buffer.
+    pub fn unlinkat(&mut self, directory: i32, path: &CStr, flags: i32) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let directory = if directory == libc::AT_FDCWD {
+                directory
+            } else {
+                self.descriptor(directory)?
+            };
+            kernel_status(unsafe {
+                libc::syscall(libc::SYS_unlinkat, directory, path.as_ptr(), flags)
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (directory, path, flags);
+            Err(unsupported())
+        }
+    }
+
+    pub fn mkdirat(&self, directory: i32, path: &CStr, mode: i32) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let directory = if directory == libc::AT_FDCWD {
+                directory
+            } else {
+                self.descriptor(directory)?
+            };
+            // The owned C string supplies every byte the synchronous call reads.
+            kernel_status(unsafe {
+                libc::syscall(libc::SYS_mkdirat, directory, path.as_ptr(), mode)
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (directory, path, mode);
+            Err(unsupported())
+        }
+    }
+
+    pub fn stat_at(
+        &self,
+        directory: i32,
+        path: &CStr,
+        bytes: &mut [u8; 144],
+        flags: i32,
+    ) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let directory = if directory == libc::AT_FDCWD {
+                directory
+            } else {
+                self.descriptor(directory)?
+            };
+            // Both supported Linux kernel stat layouts fit this exact borrowed
+            // window. No host pointer or adjacent guest storage is exposed.
+            kernel_status(unsafe {
+                libc::syscall(
+                    libc::SYS_newfstatat,
+                    directory,
+                    path.as_ptr(),
+                    bytes.as_mut_ptr(),
+                    flags,
+                )
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (directory, path, bytes, flags);
+            Err(unsupported())
+        }
+    }
+
+    pub fn stat(&self, descriptor: i32, bytes: &mut [u8; 144]) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            // The array owns the complete fixed kernel output window.
+            kernel_status(unsafe { libc::syscall(libc::SYS_fstat, descriptor, bytes.as_mut_ptr()) })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, bytes);
+            Err(unsupported())
+        }
+    }
+
+    pub fn directory_entries(&self, descriptor: i32, bytes: &mut [u8]) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            // The kernel receives only the admitted live view, with its exact
+            // byte count. Preserve partial transfers, EOF and negative errno.
+            kernel_status(unsafe {
+                libc::syscall(
+                    libc::SYS_getdents64,
+                    descriptor,
+                    bytes.as_mut_ptr(),
+                    bytes.len(),
+                )
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, bytes);
+            Err(unsupported())
+        }
+    }
+
+    /// Read into the caller's already-bounded window. A short count, EOF, or
+    /// negated errno is the kernel status; this table does not retry or fill
+    /// past that window. Standard streams are not guest resources.
+    pub fn read(&self, descriptor: i32, bytes: &mut [u8]) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            kernel_status(unsafe {
+                libc::syscall(libc::SYS_read, descriptor, bytes.as_mut_ptr(), bytes.len())
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, bytes);
+            Err(unsupported())
+        }
+    }
+
     pub fn write(&self, descriptor: i32, bytes: &[u8]) -> io::Result<i64> {
         #[cfg(target_os = "linux")]
         {
@@ -140,4 +285,51 @@ fn unsupported() -> io::Error {
         io::ErrorKind::Unsupported,
         "Linux filesystem supply requires a Linux host",
     )
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::LinuxFilesystem;
+    use std::ffi::CString;
+
+    #[test]
+    fn directory_lifecycle_uses_private_descriptors() -> std::io::Result<()> {
+        let directory = std::env::temp_dir().join(format!(
+            "omega-directory-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(std::io::Error::other)?
+                .as_nanos()
+        ));
+        let path = CString::new(directory.as_os_str().as_encoded_bytes())?;
+        let mut filesystem = LinuxFilesystem::default();
+        assert_eq!(filesystem.mkdirat(-100, &path, 0o700)?, 0);
+        assert_eq!(
+            filesystem.mkdirat(-100, &path, 0o700)?,
+            -i64::from(libc::EEXIST)
+        );
+        let descriptor = i32::try_from(filesystem.open_at(-100, &path, libc::O_DIRECTORY, 0)?)
+            .map_err(std::io::Error::other)?;
+        let mut metadata = [0u8; 144];
+        assert_eq!(filesystem.stat(descriptor, &mut metadata)?, 0);
+        let mut directory_metadata = [0u8; 144];
+        assert_eq!(
+            filesystem.stat_at(-100, &path, &mut directory_metadata, 0)?,
+            0
+        );
+        assert_eq!(&metadata[..24], &directory_metadata[..24]);
+        let mut entries = [0u8; 512];
+        let moved = usize::try_from(filesystem.directory_entries(descriptor, &mut entries)?)
+            .map_err(std::io::Error::other)?;
+        assert!(moved > 0 && moved <= entries.len());
+        assert_eq!(filesystem.close(descriptor)?, 0);
+        assert_eq!(
+            filesystem.directory_entries(descriptor, &mut entries)?,
+            -i64::from(libc::EBADF)
+        );
+        assert_eq!(filesystem.unlinkat(-100, &path, libc::AT_REMOVEDIR)?, 0);
+        assert!(!directory.exists());
+        Ok(())
+    }
 }

@@ -8,7 +8,8 @@
 //! input's checkpoint. Every production request enforces crash admission.
 //!
 //! Whole-program reuse has one gate: the source facade compares the original
-//! program and complete preparation admission against a [`RetainedCheck`] from
+//! program, complete preparation admission and entries callable from outside the
+//! program against a [`RetainedCheck`] from
 //! this invocation. A miss prepares and checks afresh. Equal prepared trees
 //! and Copy receipts do not establish equal checking inputs: selected opaque
 //! carriers travel separately and determine structural plans. A second partial
@@ -89,6 +90,7 @@ pub struct RetainedCheck {
     /// equal request can take this judgment without preparing or checking.
     preparation_input: std::sync::Arc<typed_trees::TypedTrees>,
     preparation_admission: typed_trees_to_typed_trees::PreparationAdmission,
+    external_roots: Vec<symbols::SymbolHandle>,
     admits_pending_inputs: bool,
     checked: std::sync::Arc<CheckedTrees>,
     /// Dependency bodies whose declaration/state/expression correspondence
@@ -108,25 +110,28 @@ impl RetainedCheck {
         std::sync::Arc::ptr_eq(&self.checked, &other.checked)
     }
 
-    /// Whether this judgment was computed for `program` under `admission`.
-    /// Preparation is a pure function of the typed program and its admission
-    /// inputs, so an equal pair reproduces this judgment's preparation and
-    /// check exactly — [`reuse_retained_check`] may be taken without either.
+    /// Whether this judgment was computed for the complete source request.
+    /// Preparation depends on the program and its admission; checking also
+    /// depends on which entries can be invoked independently. Only an equal
+    /// request can take this judgment without preparing or checking again.
     pub fn judges_preparation_input(
         &self,
         program: &typed_trees::TypedTrees,
         admission: &typed_trees_to_typed_trees::PreparationAdmission,
+        external_roots: &[symbols::SymbolHandle],
     ) -> bool {
-        self.preparation_admission == *admission && *self.preparation_input == *program
+        self.judges_preparation_admission(admission, external_roots)
+            && *self.preparation_input == *program
     }
 
-    /// Whether this judgment's preparation ran under `admission`. With an
-    /// equal typed program this is [`Self::judges_preparation_input`].
+    /// Whether preparation and independent entries match this request. An
+    /// equal typed program then completes [`Self::judges_preparation_input`].
     pub fn judges_preparation_admission(
         &self,
         admission: &typed_trees_to_typed_trees::PreparationAdmission,
+        external_roots: &[symbols::SymbolHandle],
     ) -> bool {
-        self.preparation_admission == *admission
+        self.preparation_admission == *admission && self.external_roots == external_roots
     }
 
     /// Dependency-body entailment judgments a strict consumer may reuse.
@@ -168,6 +173,11 @@ pub fn reuse_retained_check(
     request: &CheckingRequest<'_>,
     retain: bool,
 ) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
+    if prior.external_roots != request.external_roots {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "retained source judgment has a different external invocation roster",
+        )]);
+    }
     let checked = prior.checked.clone();
     let retained = retain.then(|| prior.clone());
     phase_profile::scope("psi.05.request_admission", || {
@@ -213,6 +223,7 @@ pub fn lower_typed_trees_reusing(
         opaque_representation_selections,
         prior_dependency_bodies,
         prior_frozen_bodies,
+        request.external_roots,
         retain && !admits_pending_inputs && deferred_layout_applications.is_empty(),
     )?;
     let checked = std::sync::Arc::new(checked);
@@ -221,6 +232,7 @@ pub fn lower_typed_trees_reusing(
         preparation_admission,
         admits_pending_inputs: admits_pending_inputs || !deferred_layout_applications.is_empty(),
         checked: checked.clone(),
+        external_roots: request.external_roots.to_vec(),
         frozen_dependency_bodies,
         dependency_bodies,
     });
@@ -266,6 +278,7 @@ fn check_program(
     opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
     prior_frozen_bodies: &[validation::FrozenDependencyBody],
+    external_roots: &[symbols::SymbolHandle],
     record_dependency_bodies: bool,
 ) -> Result<
     (
@@ -280,6 +293,7 @@ fn check_program(
     // by thread or address. Metadata publication waits until checking ends.
     let typed_program = program;
     let program = validation::CheckingContext::new(&typed_program)
+        .with_external_invocation_roots(external_roots)
         .with_pending_layout_geometry(
             admits_pending_inputs || !deferred_layout_applications.is_empty(),
         )
@@ -433,14 +447,29 @@ fn check_program(
     }
     phase_profile::checkpoint("after checked-fact checks", "psi.05.check_checked_facts");
     let late_guard = phase_profile::guard("psi.05.finalize_execution_identities");
-    crate::products::quotient_eligibility::check(&program, &facts)?;
-    checks::validate_selected_cleanup_guarantees(&program, &facts)?;
-    validation::validate_runtime_proof_citations(&program, &|machine| {
-        facts
-            .termination
-            .for_machine(machine)
-            .map(|plan| plan.checked_summary.clone())
-    })?;
+    // Three read-only validators of the checked facts. They run together and
+    // report in this order, so the first refusal is the one reported before.
+    let (quotients, (cleanup, citations)) = validation::checking_thread_pool().install(|| {
+        rayon::join(
+            || crate::products::quotient_eligibility::check(&program, &facts),
+            || {
+                rayon::join(
+                    || checks::validate_selected_cleanup_guarantees(&program, &facts),
+                    || {
+                        validation::validate_runtime_proof_citations(&program, &|machine| {
+                            facts
+                                .termination
+                                .for_machine(machine)
+                                .map(|plan| plan.checked_summary.clone())
+                        })
+                    },
+                )
+            },
+        )
+    });
+    quotients?;
+    cleanup?;
+    citations?;
     facts
         .constant_recipe_obligations
         .extend(proof_recipe_obligations);
@@ -514,55 +543,91 @@ fn check_program(
     // Visibility and cleanup consume checked choices over the same immutable
     // source. No cloned typed program or consumer fallback supplies this ledger.
     let finalized = program.with_authored_declaration_selections(&facts.finalized_selections);
-    phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.visibility_and_cleanup_selections",
-        || -> Result<(), Vec<diagnostics::Diagnostic>> {
-            validation::validate_reserved_cleanup_selections(&finalized)?;
-            validation::validate_declaration_visibility(&finalized)?;
-            Ok(())
-        },
-    )?;
-
-    // Classify borrow custody last: `program`'s type, machine and state
-    // tables stopped growing in preparation, after monomorphization, so a
-    // row recorded before preparation would miss
-    // the references and specialized states those added. Nothing below
-    // takes `program` mutably — `CheckedTrees::with_roots` only pairs it
+    // Visibility, cleanup selections and the six classifications below each
+    // read only `finalized` and produce their own result, so they run
+    // together on the checking pool. Results are consumed in the order the
+    // passes used to run: a visibility refusal still wins, and every fact
+    // lands in the same field. `program`'s type, machine and state tables
+    // stopped growing in preparation, after monomorphization, so a row
+    // recorded before preparation would miss the references and specialized
+    // states those added; recording before specialization or
+    // authored-selection finalization would miss generated bodies. Nothing
+    // here takes `program` mutably — `CheckedTrees::with_roots` only pairs it
     // with the facts — so neither table can grow past this point.
-    facts.reference_custody = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.reference_custody",
-        || validation::reference_result_custody::classify_program_reference_custody(&finalized),
-    );
-    // Content classification rides the same placement, and for the same
-    // reason. The data-definition index it leans on is owned by `program`
-    // and keyed by table revision, so it still answers from cache here.
-    facts.content_classes = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.content_classes",
-        || validation::classify_program_content_classes(&finalized),
-    );
-    // Retain place/result decisions under final occurrence handles. Recording
-    // before specialization or authored-selection finalization would miss the
-    // generated bodies; lowering must not repair an incomplete table itself.
-    facts.resolved_types = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.resolved_types",
-        || crate::published::facts::resolved_types::resolve_program_types(&finalized),
-    );
-    facts.state_locals = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.state_locals",
-        || crate::published::facts::state_locals::record_state_locals(&finalized),
-    );
-    facts.provider_closed_requirements = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.provider_closed_requirements",
-        || {
-            crate::published::facts::provider_closed_requirements::record_provider_closed_requirements(
-                &finalized,
-            )
-        },
-    );
-    facts.executable_bindings = phase_profile::scope(
-        "psi.05.selections_custody_types_boundaries.executable_bindings",
-        || crate::published::facts::executable_bindings::record(&finalized),
-    );
+    let mut selections = None;
+    let mut reference_custody = None;
+    let mut content_classes = None;
+    let mut resolved_types = None;
+    let mut state_locals = None;
+    let mut provider_closed_requirements = None;
+    let mut executable_bindings = None;
+    {
+        let finalized = &finalized;
+        validation::checking_thread_pool().scope(|scope| {
+            scope.spawn(|_| {
+                selections = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.visibility_and_cleanup_selections",
+                    || -> Result<(), Vec<diagnostics::Diagnostic>> {
+                        validation::validate_reserved_cleanup_selections(finalized)?;
+                        validation::validate_declaration_visibility(finalized)?;
+                        Ok(())
+                    },
+                ));
+            });
+            scope.spawn(|_| {
+                reference_custody = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.reference_custody",
+                    || {
+                        validation::reference_result_custody::classify_program_reference_custody(
+                            finalized,
+                        )
+                    },
+                ));
+            });
+            scope.spawn(|_| {
+                content_classes = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.content_classes",
+                    || validation::classify_program_content_classes(finalized),
+                ));
+            });
+            scope.spawn(|_| {
+                resolved_types = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.resolved_types",
+                    || crate::published::facts::resolved_types::resolve_program_types(finalized),
+                ));
+            });
+            scope.spawn(|_| {
+                state_locals = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.state_locals",
+                    || crate::published::facts::state_locals::record_state_locals(finalized),
+                ));
+            });
+            scope.spawn(|_| {
+                provider_closed_requirements = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.provider_closed_requirements",
+                    || {
+                        crate::published::facts::provider_closed_requirements::record_provider_closed_requirements(
+                            finalized,
+                        )
+                    },
+                ));
+            });
+            scope.spawn(|_| {
+                executable_bindings = Some(phase_profile::scope(
+                    "psi.05.selections_custody_types_boundaries.executable_bindings",
+                    || crate::published::facts::executable_bindings::record(finalized),
+                ));
+            });
+        });
+    }
+    let filled = "every selection and classification pass ran";
+    selections.expect(filled)?;
+    facts.reference_custody = reference_custody.expect(filled);
+    facts.content_classes = content_classes.expect(filled);
+    facts.resolved_types = resolved_types.expect(filled);
+    facts.state_locals = state_locals.expect(filled);
+    facts.provider_closed_requirements = provider_closed_requirements.expect(filled);
+    facts.executable_bindings = executable_bindings.expect(filled);
     crate::published::facts::executable_bindings::freeze_contract_subjects(
         &finalized,
         &mut facts.proof,

@@ -22,6 +22,16 @@ pub(super) struct CallPlaceProjection {
     projection: Vec<PlaceSegment>,
 }
 
+fn stored_operand_is_incoming(source: &StoredOperand) -> bool {
+    match source {
+        StoredOperand::Incoming(_) => true,
+        StoredOperand::Alternatives(sources) => {
+            !sources.is_empty() && sources.iter().all(stored_operand_is_incoming)
+        }
+        StoredOperand::Unavailable | StoredOperand::Value { .. } => false,
+    }
+}
+
 impl Execution<'_, '_, '_> {
     /// Stop at the descriptor slot. Only intermediate reference crossings
     /// load descriptors, and each such load uses the same pre-call snapshot.
@@ -144,6 +154,18 @@ impl Execution<'_, '_, '_> {
             });
             if !window && reference_shell(self.program, projected.type_reference).is_some() {
                 return self.call_slot_values(actual, &source.segments, at);
+            }
+            // A reference field of an input is an incoming slot, not a produced
+            // capture. A window of that field still names the reference that
+            // was read; missing captures are not a missing source.
+            if window && stored_operand_is_incoming(&projected.sources) {
+                return self.incoming_reference_window(
+                    actual,
+                    &source.segments,
+                    &projected.projection,
+                    destination,
+                    at,
+                );
             }
             let (actual_type, expected_type) = if window {
                 (
@@ -328,6 +350,78 @@ impl Execution<'_, '_, '_> {
             }
         }
         (!values.is_empty()).then_some(values)
+    }
+
+    /// Record a window of an incoming reference field.
+    /// The input reference is the borrowing source. The field and the range
+    /// stay on the projection the returned loan compares, because that field
+    /// was not captured as its own descriptor.
+    fn incoming_reference_window(
+        &mut self,
+        actual: Handle<FlowOperandFact>,
+        path: &[PlaceSegment],
+        suffix: &[PlaceSegment],
+        destination: TypeReferenceHandle,
+        at: Handle<FlowStorageSnapshot>,
+    ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
+        if suffix.is_empty() || suffix.len() > path.len() {
+            return None;
+        }
+        let source_path = &path[..path.len() - suffix.len()];
+        let actual_value = *self.context.control.operands.get(actual);
+        let selected = project_type_reference_from_segments(
+            self.program,
+            actual_value.type_reference,
+            source_path,
+        )?;
+        let selected = reference_shell(self.program, selected)?;
+        let desired = reference_shell(self.program, destination)?;
+        if !(selected.access == desired.access
+            || selected.access == language_semantics::ReferenceAccess::Mutable)
+        {
+            return None;
+        }
+        let actual_element = collection_element_type_reference(self.program, selected.referee)?;
+        let expected_element = collection_element_type_reference(self.program, desired.referee)?;
+        if !storage_origin_types_match(self.program, actual_element, expected_element) {
+            return None;
+        }
+        let roots = super::super::operand_values::captured_lifetime_roots(
+            self.program,
+            &self.context.control,
+            &actual_value,
+        )?;
+        let retention = self.append_retention(&roots);
+        // Lend the input reference itself. The field selects which stored
+        // reference is windowed; that field is part of the projection the
+        // loan compares, not a separate descriptor the input did not capture.
+        let reborrow_sources = self.context.control.operand_reborrow_sources.insert_many([
+            checked_trees::FlowOperandReborrowSource {
+                operand: actual,
+                source_path: Default::default(),
+                projection: self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(path.iter().copied()),
+            },
+        ]);
+        if self.context.control.operand_retentions.is_valid(retention) {
+            self.context
+                .control
+                .operand_retentions
+                .get_mut(retention)
+                .reborrow_sources = reborrow_sources;
+        }
+        let value = self.context.control.operands.insert(FlowOperandFact {
+            type_reference: destination,
+            state_symbol: self.state.symbol,
+            statement_index: self.statement_index,
+            storage_snapshot: at,
+            retention,
+            ..Default::default()
+        });
+        Some(vec![(value, Vec::new())])
     }
 
     fn withhold_projected_pointer(

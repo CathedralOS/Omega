@@ -13,17 +13,20 @@ use crate::emission::operation_emission::place_declarations::operation_result_pl
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::retention::access_lifecycles::storage_fields;
 use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::{
+    stored_structural_identity, structural_declaration_by_identity,
+};
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
 /// Source coordinates stay in this producer companion, never in Terminal.
 pub(crate) struct Formation<'checked> {
     pub(crate) checked: &'checked checked_trees::CheckedTrees,
-    pub(crate) state: symbols::SymbolHandle,
     pub(crate) statement_index: usize,
     pub(crate) expression: checked_trees::expression::ExpressionHandle,
     /// The supplying endpoint, never the receiving reference annotation.
     pub(crate) backing_type: typed_trees::types::TypeReferenceHandle,
+    pub(crate) source_contract: &'checked checked_trees::CheckedReferenceSourceContract,
     pub(crate) qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
     pub(crate) domain_ids:
         &'checked [crate::shared::terminal_identities::StructuralDomainBinding],
@@ -142,7 +145,7 @@ pub(crate) fn emit_carrier(
         resident,
     } = storage
     {
-        let (root, _, _) = super::structural_values::member_memberships::source_memberships_in(
+        let (root, _, _, _) = super::structural_values::member_memberships::source_memberships_in(
             source.place,
             parameters.iter().copied(),
             operations.iter().chain(
@@ -259,31 +262,6 @@ pub(crate) fn emit_carrier(
             ));
         }
     };
-    // The ordinary and constructed-reference routes share this capture. The
-    // lowered source is already evaluated, including every selector snapshot.
-    // These rows associate checked occurrences with emitted coordinates; they
-    // neither replay the borrow judgment nor grant preservation permission.
-    let borrow = &formation.checked.facts.borrow;
-    if let Some(state) = borrow
-        .states
-        .iter()
-        .find_map(|(_, state)| (state.state_symbol == formation.state).then_some(state))
-    {
-        for loan in state.loans.handles().filter(|loan| {
-            let row = borrow.loans.get(*loan);
-            row.statement_index == formation.statement_index
-                && row.formation_expression == formation.expression
-        }) {
-            operations
-                .loan_captures
-                .push(lowered_psi::LoweredSourceLoanCapture {
-                    loan,
-                    formation: id,
-                    carrier: place,
-                    source: source.clone(),
-                });
-        }
-    }
     let mut result = structural_result_declaration(place, structural_type, multiplicity);
     if resident_source.is_none()
         && matches!(
@@ -302,7 +280,7 @@ pub(crate) fn emit_carrier(
                 "reference result is not structural",
             ));
         };
-        if let Some((root, whole, projected)) =
+        if let Some((root, whole, projected, additional)) =
             super::structural_values::member_memberships::source_memberships_in(
                 source.place,
                 parameters.iter().copied(),
@@ -319,12 +297,13 @@ pub(crate) fn emit_carrier(
                 root,
                 &source.path,
             );
-            result.projected_qualifications.extend(
-                terminal_semantics::reference_carrier_memberships(
+            let (captured, additional_input) =
+                terminal_semantics::reference_carrier_membership_contract(
                     declarations.iter(),
                     root,
                     whole,
                     projected,
+                    additional,
                     path,
                     source.access,
                     structural_type,
@@ -333,8 +312,9 @@ pub(crate) fn emit_carrier(
                         _ => None,
                     },
                 )
-                .map_err(LoweringError::Unsupported)?,
-            );
+                .map_err(LoweringError::Unsupported)?;
+            result.projected_qualifications.extend(captured);
+            result.additional_input_qualifications = additional_input;
             if let Some(field) =
                 terminal_semantics::runtime_structural_field(declarations.iter(), root, path)
                 && field.field_type.byte_sequence_carrier().is_some()
@@ -344,24 +324,15 @@ pub(crate) fn emit_carrier(
                         "inline field loan lost its supplying type",
                     ));
                 }
-                let terminal_psi::StructuralTypeShape::Reference { referent, access } =
+                let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
                     declaration.shape
                 else {
                     return Err(LoweringError::Unsupported(
                         "field loan lost its reference carrier",
                     ));
                 };
-                let mut domains = if access == terminal_psi::StructuralAccess::SharedBorrow {
-                    Vec::new()
-                } else {
-                    validation::field_domains::domain_constraint_identities(
-                        &formation.checked.typed,
-                        formation.backing_type,
-                    )
-                    .into_iter()
-                    .map(|(_, domain)| domain)
-                    .collect::<Vec<_>>()
-                };
+                // These are independent judgments on this checked occurrence,
+                // separate from the source type's standing obligations above.
                 let decisions = formation
                     .checked
                     .facts
@@ -371,8 +342,7 @@ pub(crate) fn emit_carrier(
                     .ok_or(LoweringError::Unsupported(
                         "field loan membership decisions are stale",
                     ))?;
-                domains.extend(decisions.iter().map(|decision| decision.semantic_domain));
-                for domain in domains {
+                for domain in decisions.iter().map(|decision| decision.semantic_domain) {
                     result.projected_qualifications.push(
                         terminal_psi::StructuralPathQualification {
                             path: vec![terminal_psi::StructuralPathSegment::Referent],
@@ -386,9 +356,124 @@ pub(crate) fn emit_carrier(
                 }
             }
         }
+        if matches!(
+            storage,
+            PublishedReferenceStorage::Declared | PublishedReferenceStorage::RepresentationView(_)
+        ) {
+            let required = source_contract_memberships(
+                identities,
+                &formation,
+                declaration,
+                source.access,
+                storage,
+                declarations,
+            )?;
+            // A fact can also be required by the original storage. Transporting
+            // its input origin cannot waive that independently recorded duty.
+            result.additional_input_qualifications.retain(|row| {
+                !terminal_psi::StructuralPathQualification::select(&[], &required, &row.path)
+                    .0
+                    .contains(&row.domain)
+            });
+            result.projected_qualifications.extend(required);
+        }
         result.projected_qualifications.sort();
         result.projected_qualifications.dedup();
+        result.additional_input_qualifications.sort();
+        result.additional_input_qualifications.dedup();
     }
+    // The ordinary and constructed-reference routes share this capture. The
+    // lowered source is already evaluated, including every selector snapshot.
+    // These rows associate checked occurrences with emitted coordinates; they
+    // neither replay the borrow judgment nor grant preservation permission.
+    for loan in operations
+        .reference_formations
+        .loans_for(formation.statement_index, formation.expression)
+    {
+        operations
+            .loan_captures
+            .push(lowered_psi::LoweredSourceLoanCapture {
+                loan,
+                formation: id,
+                carrier: place,
+                source: source.clone(),
+            });
+    }
+    operations.reference_backings.record(place, source);
     operations.push(Operation::unsuspended(id, result, kind));
     Ok(operation_result_place(place, id, structural_type))
+}
+
+/// A source contract belongs to the checked value, including when its storage
+/// home has no membership rows. Lower it independently of those live rows.
+fn source_contract_memberships(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    formation: &Formation<'_>,
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+    access: terminal_psi::StructuralAccess,
+    storage: PublishedReferenceStorage,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
+    let refuse = |reason: &str| LoweringError::InvalidReferenceContract {
+        supplying_type: formation.backing_type,
+        reason: reason.to_owned(),
+    };
+    let contract = match formation.source_contract {
+        checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } => contract,
+        checked_trees::CheckedReferenceSourceContract::Unavailable(reason) => {
+            return Err(refuse(reason));
+        }
+        checked_trees::CheckedReferenceSourceContract::SeparateStorage => {
+            return Err(refuse("pointer formation has no supplying contract"));
+        }
+    };
+    // A proved empty requirement list adds no membership and needs no
+    // definition for an otherwise identity-only abstract referent.
+    if contract.qualifications.is_empty() && contract.projected_qualifications.is_empty() {
+        return Ok(Vec::new());
+    }
+    if !formation.backing_type.is_valid() {
+        return Err(refuse("reference formation lost its supplying type"));
+    }
+    let supplying = structural_declaration_by_identity(
+        declarations,
+        identities,
+        formation.checked,
+        stored_structural_identity(formation.checked, formation.backing_type),
+        "reference formation lost its supplying carrier",
+    )?;
+    let terminal_psi::StructuralTypeShape::Reference { referent, .. } = declaration.shape else {
+        return Err(refuse("reference formation lost its reference carrier"));
+    };
+    if matches!(storage, PublishedReferenceStorage::Declared) && supplying.id != referent {
+        return Err(refuse(
+            "reference formation source differs from its exact referent",
+        ));
+    }
+    let projected = super::parameters::lower_projected_qualifications(
+        identities,
+        &contract.projected_qualifications,
+        formation.domain_ids,
+        supplying.id,
+        declarations,
+    )?;
+    let whole = contract
+        .qualifications
+        .iter()
+        .map(|domain| lookup_domain_id_for_carrier(formation.domain_ids, *domain, supplying.id))
+        .collect::<Result<Vec<_>, _>>()?;
+    terminal_semantics::reference_carrier_memberships(
+        declarations.iter(),
+        supplying.id,
+        &whole,
+        &projected,
+        &[],
+        access,
+        declaration.id,
+        match &storage {
+            PublishedReferenceStorage::RepresentationView(view) => Some(view),
+            _ => None,
+        },
+    )
+    .map_err(refuse)
 }

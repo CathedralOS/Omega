@@ -4,7 +4,10 @@
 //! still owes the exclusive `written` update the old encoder performed: one
 //! era varint, then each field's tag varint and, for a byte slice, its length
 //! varint plus payload. The store lands on the one referent the selector
-//! proved. An open selector or a field this walker cannot size fails the plan.
+//! proved. A local referent keeps a local root; a borrowed parameter is that
+//! parameter's own root, because lowering finds the formal by its authored
+//! position and has no local home for it. An open selector or a field this
+//! walker cannot size fails the plan.
 
 use checked_trees::CheckedUnitEffectOperationPlan;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -30,10 +33,11 @@ pub(super) fn written_store(
         program, machine, *written,
     )?;
     let path = store_path(program, &segments)?;
+    let store_root = cursor_store_root(program, state, root)?;
     let literal = facts::u64_integer_literal(length, PrimitiveType::U64)?;
     Some(CheckedUnitEffectOperationPlan::new_store(
         statement_index,
-        checked_trees::CheckedStoreRoot::Local { symbol: root },
+        store_root,
         path,
         checked_trees::CheckedStoreLeaf::Primitive {
             primitive_type: PrimitiveType::U64,
@@ -44,6 +48,38 @@ pub(super) fn written_store(
             literal,
         )),
     ))
+}
+
+/// The checked root of the one storage place the cursor names.
+///
+/// `choose(chosen, other, true)` returns the caller's `chosen` parameter when
+/// that input is already a reference, and a local when the caller wrote
+/// `&mut chosen`. Both are the same exclusive referent. Recording the
+/// parameter as a local asks lowering for a home the entry never established.
+fn cursor_store_root(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+    storage_root: symbols::SymbolHandle,
+) -> Option<checked_trees::CheckedStoreRoot> {
+    let declaration = program.symbols.get(storage_root);
+    if declaration.parent != state.symbol {
+        return None;
+    }
+    match declaration.kind {
+        symbols::SymbolKind::Local => Some(checked_trees::CheckedStoreRoot::Local {
+            symbol: storage_root,
+        }),
+        symbols::SymbolKind::Parameter => {
+            let position = program
+                .state_parameters(state)
+                .iter()
+                .position(|parameter| parameter.symbol == storage_root)?;
+            Some(checked_trees::CheckedStoreRoot::Parameter {
+                position: u32::try_from(position).ok()?,
+            })
+        }
+        _ => None,
+    }
 }
 
 fn store_path(

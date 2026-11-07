@@ -102,6 +102,10 @@ pub struct OpenIndexOperationSnapshot {
     pub commutativity_licensed: bool,
     pub associativity_licensed: bool,
     pub distributes_over: Vec<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub left_identity_literal: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub right_identity_literal: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -278,6 +282,8 @@ pub(crate) fn type_reference_snapshot(
                             commutativity_licensed: operation.commutativity_licensed,
                             associativity_licensed: operation.associativity_licensed,
                             distributes_over: operation.distributes_over.clone(),
+                            left_identity_literal: operation.left_identity_literal.clone(),
+                            right_identity_literal: operation.right_identity_literal.clone(),
                         })
                         .collect(),
                 }),

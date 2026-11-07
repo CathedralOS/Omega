@@ -909,10 +909,26 @@ pub(super) fn account<'calls>(
                 permits_disposal(None, false)
             }
             TerminatorPlan::ReturnStructural { result: returned } => {
-                matches!(returned.source,
+                let returns_this = matches!(
+                    returned.source,
                     SourcePlan::StructuralResult { binding_ordinal }
-                        if binding_ordinal == result.binding_ordinal)
-                    || permits_disposal(None, false)
+                        if binding_ordinal == result.binding_ordinal
+                );
+                // Returning an affine view hands that view to the caller.
+                // Its checked loans are established at the producing statement
+                // and consumed at state exit; that consume is the handoff,
+                // including a dynamic selector call whose public result has no
+                // private callee activation to inherit. Counting the returned
+                // binding beside that release books one transfer twice.
+                // A physical reference release or whole retirement already
+                // realizes the same loan, so it keeps the returned binding
+                // as the one disposition.
+                let release_is_separate = reference_releases == 0 && !retired_whole;
+                if returns_this && release_owned_view && view_releases != 0 && release_is_separate {
+                    false
+                } else {
+                    returns_this || permits_disposal(None, false)
+                }
             }
             TerminatorPlan::Jump { .. }
             | TerminatorPlan::Conditional { .. }
@@ -1316,18 +1332,14 @@ fn view_loan_releases(
         }
         facts::PlaceRoot::Expression(formation)
     };
-    let mut states = facts
+    let rows = facts
         .borrow
-        .states
-        .iter()
-        .map(|(_, borrowing)| borrowing)
-        .filter(|borrowing| borrowing.machine_symbol == machine && borrowing.state_symbol == state);
-    let Some(borrowing) = states.next() else {
-        return Ok((false, false, 0));
+        .with_state_borrows(machine, state, |rows| rows.to_vec());
+    let borrowing = match rows.as_slice() {
+        [] => return Ok((false, false, 0)),
+        [row] => facts.borrow.states.get(*row),
+        _ => return Err("state graph: view result has ambiguous borrow states"),
     };
-    if states.next().is_some() {
-        return Err("state graph: view result has ambiguous borrow states");
-    }
     let loans = facts
         .borrow
         .storage_loans(borrowing, owner, result.statement_index as usize)
@@ -1480,16 +1492,7 @@ fn view_formation_claims(
     if !formation.is_valid() {
         return None;
     }
-    let mut states = facts
-        .borrow
-        .states
-        .iter()
-        .map(|(_, row)| row)
-        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
-    let borrowing = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let borrowing = facts.borrow.unique_state_borrow(machine, state)?;
     let loans = facts
         .borrow
         .loan_group(borrowing.loans)?

@@ -1,7 +1,7 @@
 //! A structural bound on finite premise transport, not an iteration budget.
 
-use super::super::CheckedProgressSummary;
 use crate::checks::termination::progress::fact_subjects::fact_subject;
+use crate::checks::termination::progress::machine_summaries::ProgressSummaries;
 use crate::checks::termination::progress::machine_summaries::{
     call_argument_places, selected_call_summary,
 };
@@ -52,9 +52,9 @@ pub(super) fn prepare_component_geometry(
         }
         for (_, state) in flow
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| state.machine_symbol == machine.symbol)
+            .machine_states(machine.symbol)
+            .into_iter()
+            .map(|state| ((), state))
         {
             for call in flow.control.calls.span_or_empty(state.calls) {
                 let private_component_call = program
@@ -120,7 +120,7 @@ pub(super) fn finite_projection_limit(
     program: &dyn ::validation::CheckingInput,
     maximum_fact_projection_length: usize,
     geometry: Option<&ComponentProjectionGeometry>,
-    summaries: &[CheckedProgressSummary],
+    summaries: &ProgressSummaries<'_>,
 ) -> Option<usize> {
     let geometry = geometry?;
     let mut maximum_seed_length = maximum_fact_projection_length;
@@ -144,4 +144,11 @@ pub(super) fn finite_projection_limit(
             .checked_add(1)?
             .checked_mul(geometry.maximum_prefix_length)?,
     )
+}
+
+impl ComponentProjectionGeometry {
+    /// Targets whose summaries `finite_projection_limit` reads.
+    pub(super) fn external_call_targets(&self) -> &[SymbolHandle] {
+        &self.external_call_targets
+    }
 }

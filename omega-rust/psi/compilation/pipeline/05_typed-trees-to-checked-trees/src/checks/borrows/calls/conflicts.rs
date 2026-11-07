@@ -205,13 +205,22 @@ pub(super) fn check_call_access_conflicts<'p>(
                     )
                 })
         })
-        .map(|loan| (loan, facts.borrow.loans.get(loan)))
+        .map(|loan| {
+            let row = facts.borrow.loans.get(loan);
+            let inputs = super::staging::returned_loan_input_range(
+                &facts.borrow,
+                row,
+                borrow_call,
+                &accesses,
+            );
+            (loan, row, inputs)
+        })
         .collect();
 
     for transferred in
         crate::flow::owned_call_operand_places(program, facts, state_flow, borrow_call)
     {
-        for (loan_handle, loan) in &active_loans {
+        for (loan_handle, loan, _) in &active_loans {
             if canonical_place_non_interfering(
                 program,
                 &transferred,
@@ -439,7 +448,15 @@ pub(super) fn check_call_access_conflicts<'p>(
             continue;
         }
 
-        for (loan_handle, loan) in &active_loans {
+        for (loan_handle, loan, producing_inputs) in &active_loans {
+            // This result did not exist while its own call's inputs ran.
+            // Keep it active against the result access and every later sibling.
+            if producing_inputs
+                .as_ref()
+                .is_some_and(|range| range.contains(&index))
+            {
+                continue;
+            }
             // An owned carrier retains its backing with the transferred loan.
             // A caller-owned slot instead needs exact intermediate retention:
             // follow copies/replacements through successor slots, reject escape
@@ -518,14 +535,14 @@ pub(super) fn check_call_access_conflicts<'p>(
             }
             let detail =
                 active_loan_detail(state_flow, facts, *loan_handle, borrow_call.statement_index);
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            if std::env::var_os("OMEGA_STATE_REFERENCE_DIAGNOSTICS").is_some() {
                 eprintln!(
-                    "CHECKSITE call-live-loan-conflict state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
+                    "call-live-loan-conflict target={target_name} state={:?} statement={} ordinal={} access={access:?} loan={loan_handle:?} fact={loan:?}",
                     state_flow.state_symbol, borrow_call.statement_index, borrow_call.call_ordinal
                 );
                 for backing in &operand_backings[index].places {
                     eprintln!(
-                        "CHECKSITE call-live-loan-backing place={:?} lineage={:?}",
+                        "call-live-loan-backing place={:?} lineage={:?}",
                         backing.place, backing.lineage
                     );
                 }

@@ -14,6 +14,7 @@ use super::{CallExpressionUse, validate_expression_call_bounds};
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
+use crate::proof_contracts::contract_entailment::CallerEntryJudge;
 use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use diagnostics::Diagnostic;
@@ -191,6 +192,7 @@ pub(crate) fn validate_value_position_calls(
     writable_roots: &WritableRoots<'_, '_>,
     value_environment: &ValueEnvironment,
     transition_values: &crate::declarations::transitions::TransitionValueEnvironments,
+    entry_judge: &CallerEntryJudge<'_>,
     boundary_operator_applications: &mut Vec<crate::ValidatedBoundaryOperatorApplication>,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
@@ -198,6 +200,7 @@ pub(crate) fn validate_value_position_calls(
     let executes = true;
     let mut context = ScanContext {
         program,
+        entry_judge,
         machine,
         state,
         symbols,
@@ -322,8 +325,9 @@ fn unknown_field_read_reports(
     reports
 }
 
-struct ScanContext<'a> {
+struct ScanContext<'a, 'judge> {
     program: &'a (dyn crate::CheckingInput + 'a),
+    entry_judge: &'a CallerEntryJudge<'judge>,
     machine: &'a Machine,
     state: &'a State,
     symbols: &'a TopLevelSymbols<'a>,
@@ -333,7 +337,7 @@ struct ScanContext<'a> {
     formation_obligations: &'a mut Vec<checked_trees::IntegerRangeObligation>,
 }
 
-impl ScanContext<'_> {
+impl ScanContext<'_, '_> {
     /// A value-position call: the position every nested operand keeps unless a
     /// statement or terminal owner names it.
     fn scan(
@@ -364,6 +368,7 @@ impl ScanContext<'_> {
         let mut target_diagnostics = Vec::new();
         let mut nested = ScanContext {
             program: self.program,
+            entry_judge: self.entry_judge,
             machine: self.machine,
             state: self.state,
             symbols: self.symbols,
@@ -643,6 +648,7 @@ impl ScanContext<'_> {
                     &call,
                     expression_use,
                     executes,
+                    self.entry_judge,
                     self.boundary_operator_applications,
                     self.diagnostics,
                     self.formation_obligations,

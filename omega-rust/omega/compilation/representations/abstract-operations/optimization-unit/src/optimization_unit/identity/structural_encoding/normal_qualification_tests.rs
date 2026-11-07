@@ -43,6 +43,7 @@ fn unit() -> PsiOptimizationUnit {
             access: StructuralAccess::MutableBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         }],
         result: BoundaryMachineResult::Unit,
         requires: vec![requirement(Vec::new())],

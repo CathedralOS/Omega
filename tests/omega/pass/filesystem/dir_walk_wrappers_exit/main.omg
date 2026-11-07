@@ -1,17 +1,5 @@
-// RUN CANARY (exit 70) -- the dir-walk WRAPPER family natively, END TO END:
-// create_dir_all (deep, via the dispatched mkall walkers) -> exists -> two
-// write_alls -> read_dir_count == 2 -> read_dir_is_empty NonEmpty ->
-// remove_dir_all (the iterative dirfd-stack drain) -> exists false.
-// PROMOTED from pending 2026-07-09k after a multi-iteration arc closed, in
-// order: the sound fence exemption for dispatch-routed calls; enum-case
-// terminal return-writes; the router's Nested loop-blindness; rda's
-// call-recursion (iterative drain); the dual-indexed field-carrier split;
-// the dirfd REWIND (getdirentries cursors are fd offsets); and the
-// entry_name NUL TERMINATION (a REUSED buffer left the previous longer
-// name's tail -- "b" over "f1.txt" read back "b1.txt" -> ENOENT at the
-// drain's parent-remove; the interp slices by length, so only native
-// diverged). macOS-gated (read_dir has no msvcrt row); the interpreter's
-// virtual fs is the oracle.
+// Expected exit: 70. Create nested directories, count two files, then remove
+// the tree and verify it is gone.
 use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;

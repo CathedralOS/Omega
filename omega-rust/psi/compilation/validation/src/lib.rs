@@ -71,7 +71,7 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters,
+    SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters, call_returns_unit,
     call_target_has_checked_body_contract, call_type_arguments,
     closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
@@ -136,8 +136,9 @@ pub use proof_contracts::contract_entailment::completed_domains::{
 };
 pub use proof_contracts::contract_entailment::completed_observations::completed_value_is_bounded_by_static;
 pub use proof_contracts::contract_entailment::content_conservation::{
-    ConditionalContentGuarantee, ContentBackingAddressGoal, ContentConservationDependencies,
-    ContentConservationImplication, completed_value_content_conservation_dependencies,
+    CompletedConservationQueries, ConditionalContentGuarantee, ContentBackingAddressGoal,
+    ContentConservationDependencies, ContentConservationImplication,
+    completed_value_conservation_answers, completed_value_content_conservation_dependencies,
     completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
     completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
 };
@@ -151,7 +152,9 @@ pub use proof_contracts::contract_entailment::ranking_range::{
     closed_collection_length_at_place, closed_collection_length_under_matches,
     unique_literal_field,
 };
-pub use proof_contracts::contract_entailment::structural_prefix::private_invocation_entry_is_closed;
+pub use proof_contracts::contract_entailment::structural_prefix::{
+    private_invocation_entry_is_closed, with_private_invocation_inputs,
+};
 pub use proof_contracts::contract_entailment::{
     ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,

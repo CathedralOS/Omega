@@ -361,6 +361,11 @@ pub struct BorrowLoanFact {
     /// its borrowing parent. These descriptor edges are not reborrow events.
     /// The shared graph keeps every supplier without expanding whole histories.
     pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Complete input lifetime debts for a directly returned reference.
+    /// Normal-call publication records Some(empty) when no input is retained;
+    /// None supplies no completed inventory. These keepalive edges cannot act
+    /// as spatial suppliers or confer the returned pointer's permission.
+    pub retained_input_lifetimes: Option<HandleSpan<Handle<BorrowLoanFact>>>,
     /// Checked formation lineage for this loan occurrence.
     ///
     /// An explicit reborrow with one exact prior source occurrence names a
@@ -1065,14 +1070,26 @@ impl BorrowFacts {
             .map(|handle| (handle, self.loans.get(handle)))
     }
 
-    /// Exact state membership and the statement-resource role share one
-    /// constant-time predicate. Invocation associations remain provenance.
+    /// A returned value keeps its own permission and input lifetimes after the
+    /// call completes. Slot-replacement associations have a separate role.
+    pub fn is_call_result_loan(&self, loan: &BorrowLoanFact) -> bool {
+        matches!(loan.storage_owner, Expression(expression)
+            if expression == loan.formation_expression
+                && self.calls.is_valid(loan.established_by_call)
+                && self.calls.get(loan.established_by_call).authored_expression == expression
+                && self.calls.get(loan.established_by_call).statement_index == loan.statement_index)
+    }
+
+    /// Locally formed and returned-value loans both owe a complete lifetime.
+    /// Temporary associations used to replace stored references are excluded.
     pub fn state_owns_statement_resource(
         &self,
         state: &StateBorrowFact,
         loan: Handle<BorrowLoanFact>,
     ) -> bool {
-        self.state_owns_loan(state, loan) && !self.loans.get(loan).established_by_call.is_valid()
+        self.state_owns_loan(state, loan)
+            && (!self.loans.get(loan).established_by_call.is_valid()
+                || self.is_call_result_loan(self.loans.get(loan)))
     }
 
     /// A flow cut can retain only an entry permission published for this
@@ -1318,6 +1335,23 @@ impl BorrowFacts {
             |rows| match rows {
                 [handle] => Some(self.states.get(*handle)),
                 _ => None,
+            },
+        )
+    }
+
+    /// The first `states` row recorded for an exact state symbol, across all
+    /// recorded machines, with its handle.
+    pub fn first_state_borrow_by_symbol(
+        &self,
+        state: SymbolHandle,
+    ) -> Option<(Handle<StateBorrowFact>, &StateBorrowFact)> {
+        self.state_index.with_rows(
+            &self.states,
+            |row| row.state_symbol,
+            &state,
+            |rows| {
+                let handle = rows.first().copied()?;
+                Some((handle, self.states.get(handle)))
             },
         )
     }

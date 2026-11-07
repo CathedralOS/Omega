@@ -149,6 +149,8 @@ fn target_stored_scalar_does_not_demand_the_logical_child_extent() {
                 target: "macos_arm64".into(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
                 storage: AuthoredRecordStorage {
                     byte_size: 1,

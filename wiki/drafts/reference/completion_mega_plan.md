@@ -238,7 +238,7 @@ the parser, which is what the board's acceptance lines require:
 | Native bindings | `via` parsing (708 sites) | PlaySoundW / ALSA / AudioQueue `--both` on matching hosts |
 | Target selection | target-prefixed machines, target modifiers | one portable call → per-target impls from one artifact |
 | Static machines | `machine Data::operation`, attached helpers | 9-place `dropped by`, `generic_counters`, `traits/,layouts/,progress/` `--both` |
-| Dynamic dispatch | — | `--both --filter traits/` (`runtime_dyn_*_exit`) on 3 hosts |
+| Runtime callable/package dispatch | `dyn` selectors and capture rosters | [Machine values and some](../designs/machine_values_some.md), migrated `traits/` and package controls, `--both` on all hosts |
 | Nested machines | `KeywordKind::State`, `state` syntax | 3-level nesting, cycles, 9-place rows `--both` |
 | Scalar ranges | `T [lo..hi]` parsing, `TypeConstraintNode::Range` | all sources `--both` |
 | Requires | `ClauseKind::Where`, `where` (728 sites) | data/generic/callable/asm `requires` accepted; `where` rejects |

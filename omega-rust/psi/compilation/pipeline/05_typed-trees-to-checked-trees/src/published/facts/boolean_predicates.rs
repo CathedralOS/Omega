@@ -43,6 +43,14 @@ impl BoundPredicate {
             .find(|binding| binding.operand == *operand)
     }
 
+    /// `binding` for a scalar operand, read in place rather than cloned into
+    /// an `Operand` just to be compared.
+    pub(crate) fn scalar_binding(&self, scalar: &Scalar) -> Option<&BoundObservation> {
+        self.bindings
+            .iter()
+            .find(|binding| binding.operand.scalar() == Some(scalar))
+    }
+
     /// A positive conjunction can establish an exact scalar equation. A
     /// disjunction supplies no chosen branch. Resolve the opposite leaf only
     /// from ordinary snapshots in this predicate's surviving context: using
@@ -69,11 +77,7 @@ impl BoundPredicate {
                 } => [(left, right), (right, left)]
                     .into_iter()
                     .find_map(|(subject, value)| {
-                        (predicate
-                            .binding(&Operand::Scalar((**subject).clone()))?
-                            .place
-                            == *place)
-                            .then_some(())?;
+                        (predicate.scalar_binding(subject)?.place == *place).then_some(())?;
                         crate::values::evaluate_checked_scalar(
                             value,
                             &mut Values {
@@ -155,6 +159,7 @@ pub(crate) fn entry_scalar(
     if !path.is_empty() {
         let (_, _, reference, _) =
             crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+        let reference = validation::field_domains::readable_type_reference(program, reference)?;
         if program.primitive_type_reference(reference) != Some(primitive) {
             return None;
         }
@@ -166,6 +171,14 @@ pub(crate) fn entry_scalar(
         });
     }
     let position = usize::try_from(position).ok()?;
+    let parameter = parameters.get(position)?;
+    if let Some((observation, _)) = crate::values::scalar::primitive_reference_read::parameter(
+        program,
+        parameters,
+        parameter.symbol,
+    ) {
+        return (observation.primitive_type() == Some(primitive)).then_some(observation);
+    }
     if program.primitive_type_reference(parameters.get(position)?.type_reference) != Some(primitive)
     {
         return None;

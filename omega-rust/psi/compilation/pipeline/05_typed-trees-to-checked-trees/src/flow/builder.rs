@@ -19,6 +19,14 @@
 //! adopts those pages, so handles and order follow the roster. A group's facts
 //! depend only on machines its values reach: a loop in an unrelated machine
 //! neither re-sweeps it nor sends it to the fallback.
+//!
+//! Values only flow from caller to callee, so a group whose callers share a
+//! private helper is still serial at the helper. Each part of the group that
+//! no other part calls first converges alone on its own worker, recording
+//! every input delivery it makes. The group then runs its usual fixed point,
+//! building the remaining machines and replaying those deliveries at the
+//! visits where the serial run would make them; any visit that does not match
+//! the recording sends the whole group back to the serial build.
 use crate::flow::FlowBuildContext;
 use crate::flow::SharedFlowTables;
 use crate::flow::StateMutationSummaryCache;
@@ -116,7 +124,11 @@ pub(crate) fn build_flow_facts(
     phase_profile::count("psi.05.build_check_facts.flow.groups", groups.len() as u64);
     phase_profile::count(
         "psi.05.build_check_facts.flow.max_group_machines",
-        groups.iter().map(Vec::len).max().unwrap_or(0) as u64,
+        groups
+            .iter()
+            .map(|group| group.machines.len())
+            .max()
+            .unwrap_or(0) as u64,
     );
     let mut flow = build_groups(&inputs, &groups, &new_build, semantic);
     attach_reach_summaries(program, &mut flow, service_reaches, operational);
@@ -126,7 +138,7 @@ pub(crate) fn build_flow_facts(
 /// Every group on a worker; the owner adopts each group's pages.
 fn build_groups<'plans>(
     inputs: &FlowInputs<'plans, '_>,
-    groups: &[Vec<usize>],
+    groups: &[MachineGroup],
     new_build: &(dyn Fn() -> FlowBuildContext<'plans> + Sync),
     semantic: &mut FactPlan,
 ) -> FlowFacts {
@@ -138,7 +150,13 @@ fn build_groups<'plans>(
                 |(worker_semantic, build), group| {
                     worker_semantic.clone_from(inputs.baseline);
                     facts::note_declaration_page_fork(worker_semantic, inputs.baseline);
-                    build_group(inputs, worker_semantic, build, group);
+                    if group.independent_parts.len() >= 2
+                        && let Some(pages) =
+                            build_split_group(inputs, new_build, worker_semantic, build, group)
+                    {
+                        return pages;
+                    }
+                    build_group(inputs, worker_semantic, build, &group.machines);
                     (
                         build.take_output_pages(),
                         worker_semantic.take_additional_pages(),
@@ -149,16 +167,114 @@ fn build_groups<'plans>(
     });
     let mut flow = FlowFacts::default();
     for (pages, semantic_pages) in groups_built {
-        flow.contexts.adopt_additional_pages(pages.contexts);
-        flow.invalidations
-            .adopt_additional_pages(pages.invalidations);
-        flow.borrow_lifetimes
-            .adopt_additional_pages(pages.borrow_lifetimes);
-        flow.boundaries.adopt_additional_pages(pages.boundaries);
-        flow.control.adopt_additional_pages(pages.control);
+        adopt_flow_pages(&mut flow, pages);
         semantic.adopt_additional_pages(semantic_pages);
     }
     flow
+}
+
+fn adopt_flow_pages(flow: &mut FlowFacts, pages: FlowFacts) {
+    flow.contexts.adopt_additional_pages(pages.contexts);
+    flow.invalidations
+        .adopt_additional_pages(pages.invalidations);
+    flow.borrow_lifetimes
+        .adopt_additional_pages(pages.borrow_lifetimes);
+    flow.boundaries.adopt_additional_pages(pages.boundaries);
+    flow.control.adopt_additional_pages(pages.control);
+}
+
+/// One independent part's solo visits, replayed into its group's run.
+struct PartReplay {
+    machines: Vec<usize>,
+    visits: Vec<super::state_values::RecordedVisit>,
+    /// The solo run's last pass, which was complete. Every later complete
+    /// pass of the group revisits the part from the same settled inputs.
+    final_pass: usize,
+    final_start: usize,
+    cursor: usize,
+}
+
+/// Each independent part converges alone on its own worker, recording the
+/// value-input deliveries of every state visit. The group then runs its own
+/// fixed point, building only the remaining machines and replaying each
+/// part's deliveries where its visits fall, so every input row, dirty state,
+/// pass and bound evolves as in the serial group run. `None` when a part or
+/// the replay does not reproduce that run; the caller then builds serially.
+fn build_split_group<'plans>(
+    inputs: &FlowInputs<'plans, '_>,
+    new_build: &(dyn Fn() -> FlowBuildContext<'plans> + Sync),
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext<'plans>,
+    group: &MachineGroup,
+) -> Option<(FlowFacts, FactPlan)> {
+    let parts = group
+        .independent_parts
+        .par_iter()
+        .map(|part| {
+            let mut part_semantic = inputs.baseline.clone();
+            let mut part_build = new_build();
+            // Seeds are not visits: the serial run applies them to these rows
+            // before its first pass, and the group run below seeds them again
+            // itself, so they are applied here and never recorded. A seed into
+            // another part's row would change that part's inputs; build serially.
+            super::state_values::seed_contract_inputs(inputs.program, &mut part_build, part);
+            let seeds_stay_in_part = part_build.dirty_state_value_inputs.iter().all(|state| {
+                part_build
+                    .state_location(inputs.program, *state)
+                    .is_some_and(|(machine, _)| part.binary_search(&machine).is_ok())
+            });
+            if !seeds_stay_in_part {
+                return None;
+            }
+            part_build.input_recording = Some(super::state_values::InputRecording {
+                machines: part.clone(),
+                visits: Vec::new(),
+            });
+            let converged = converge(inputs, &mut part_semantic, &mut part_build, part, &mut []);
+            let visits = part_build.input_recording.take()?.visits;
+            let final_pass = converged?;
+            let final_start = visits
+                .iter()
+                .position(|visit| visit.pass == final_pass)
+                .unwrap_or(visits.len());
+            Some((
+                PartReplay {
+                    machines: part.clone(),
+                    visits,
+                    final_pass,
+                    final_start,
+                    cursor: 0,
+                },
+                part_build.take_output_pages(),
+                part_semantic.take_additional_pages(),
+            ))
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let mut replays = Vec::with_capacity(parts.len());
+    let mut part_pages = Vec::with_capacity(parts.len());
+    for (replay, pages, semantic_pages) in parts {
+        replays.push(replay);
+        part_pages.push((pages, semantic_pages));
+    }
+    super::state_values::seed_contract_inputs(inputs.program, build, &group.machines);
+    let replayed = converge(inputs, semantic, build, &group.machines, &mut replays).is_some()
+        && replays
+            .iter()
+            .all(|replay| replay.cursor == replay.visits.len());
+    if !replayed {
+        build.take_output_pages();
+        semantic.clone_from(inputs.baseline);
+        return None;
+    }
+    // Merge before the owner adopts: one adoption then meets every page of
+    // the group in generation order, as the serial group's adoption does.
+    let mut pages = build.take_output_pages();
+    let mut semantic_pages = semantic.take_additional_pages();
+    for (part, part_semantic) in part_pages {
+        adopt_flow_pages(&mut pages, part);
+        semantic_pages.adopt_additional_pages(part_semantic);
+    }
+    Some((pages, semantic_pages))
 }
 
 /// One group's fixed point, or its unknown-input fallback.
@@ -168,7 +284,8 @@ fn build_group<'plans>(
     build: &mut FlowBuildContext<'plans>,
     machines: &[usize],
 ) {
-    if converge(inputs, semantic, build, machines) {
+    super::state_values::seed_contract_inputs(inputs.program, build, machines);
+    if converge(inputs, semantic, build, machines, &mut []).is_some() {
         return;
     }
     // No provisional input fact survives a nonconvergent graph.
@@ -181,17 +298,19 @@ fn build_group<'plans>(
         machines,
     ));
     build.dirty_state_value_inputs.clear();
-    sweep(inputs, semantic, build, machines, true);
+    sweep(inputs, semantic, build, machines, true, 0, &mut []);
 }
 
 /// Sweep `machines` until their value inputs settle, then confirm with one
-/// complete pass. `false` when the bound is exhausted or confirmation fails.
+/// complete pass, returning that pass. `None` when the bound is exhausted,
+/// confirmation fails, or a replayed part's visits diverge.
 fn converge<'plans>(
     inputs: &FlowInputs<'plans, '_>,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machines: &[usize],
-) -> bool {
+    replays: &mut [PartReplay],
+) -> Option<usize> {
     let program = inputs.program;
     let mut complete_pass = true;
     // Each state becomes reachable once; each formal can acquire a constant
@@ -213,7 +332,17 @@ fn converge<'plans>(
             build.discard_output();
             semantic.clone_from(inputs.baseline);
         }
-        sweep(inputs, semantic, build, machines, complete_pass);
+        if !sweep(
+            inputs,
+            semantic,
+            build,
+            machines,
+            complete_pass,
+            pass,
+            replays,
+        ) {
+            return None;
+        }
         // Each newly reached field contributes one literal and its finite
         // predicate set; parameter qualifications contribute finite membership
         // cells. Scalar parameter intervals additionally traverse a finite
@@ -221,36 +350,74 @@ fn converge<'plans>(
         pass_limit = pass_limit.saturating_add(build.new_state_field_input_height);
         if build.dirty_state_value_inputs.is_empty() {
             if complete_pass {
-                return true;
+                return Some(pass);
             }
             complete_pass = true;
         } else {
             if complete_pass && pass != 0 {
                 // Final publication must confirm the fixed point; never expose
                 // provisional evidence if an untracked dependency changed it.
-                return false;
+                return None;
             }
             complete_pass = false;
         }
         pass += 1;
     }
-    false
+    None
 }
 
 /// One pass over `machines`: every state when `complete`, otherwise only the
 /// states whose value inputs changed. Each visited machine writes its own page.
+/// A replayed part's state repeats its recorded deliveries instead of being
+/// built; `false` when that visit is not the next one the part recorded.
+#[allow(clippy::too_many_arguments)]
 fn sweep<'plans>(
     inputs: &FlowInputs<'plans, '_>,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext<'plans>,
     machines: &[usize],
     complete: bool,
-) {
+    pass: usize,
+    replays: &mut [PartReplay],
+) -> bool {
+    // A later complete pass revisits each part from its settled inputs, which
+    // is the part's own last pass.
+    let expected_pass = if complete && pass != 0 {
+        for replay in replays.iter_mut() {
+            replay.cursor = replay.final_start;
+        }
+        None
+    } else {
+        Some(pass)
+    };
     for &position in machines {
         let machine = &inputs.program.machines()[position];
+        let mut replay = replays
+            .iter_mut()
+            .find(|replay| replay.machines.binary_search(&position).is_ok());
         let mut paged = false;
         for state in inputs.program.machine_states(machine) {
             if !complete && !build.dirty_state_value_inputs.contains(&state.symbol) {
+                continue;
+            }
+            if let Some(replay) = replay.as_deref_mut() {
+                build
+                    .dirty_state_value_inputs
+                    .retain(|symbol| *symbol != state.symbol);
+                let expected = expected_pass.unwrap_or(replay.final_pass);
+                let Some(visit) = replay
+                    .visits
+                    .get(replay.cursor)
+                    .filter(|visit| visit.state == state.symbol && visit.pass == expected)
+                else {
+                    return false;
+                };
+                for delivery in &visit.deliveries {
+                    if !super::state_values::replay_delivery(inputs.program, build, delivery) {
+                        return false;
+                    }
+                }
+                replay.cursor += 1;
                 continue;
             }
             if !paged {
@@ -266,6 +433,13 @@ fn sweep<'plans>(
             build
                 .dirty_state_value_inputs
                 .retain(|symbol| *symbol != state.symbol);
+            if let Some(recording) = build.input_recording.as_mut() {
+                recording.visits.push(super::state_values::RecordedVisit {
+                    state: state.symbol,
+                    pass,
+                    deliveries: Vec::new(),
+                });
+            }
             build_state_flow_fact(
                 inputs.program,
                 inputs.borrow,
@@ -279,16 +453,23 @@ fn sweep<'plans>(
             );
         }
     }
+    true
 }
 
 /// Roster positions grouped by an invocation that writes another machine's
 /// `state_value_inputs`: a non-entry call, an extracted or nested machine, or
 /// a private entry whose caller roster supplies the entry facts. A public
 /// entry stays on its declared premises and does not join the caller's group.
+///
+/// Within a group, a part is a machine with its lexical relatives, the family
+/// bodies called together with it, and every part that only it calls. A part
+/// no other part calls receives only its own deliveries, so it converges
+/// alone and its group replays it (`independent_parts`): each hosted target's
+/// `plan` body is such a part, beside the entry-shape helpers they share.
 fn machine_groups(
     program: &dyn ::validation::CheckingInput,
     borrow: &BorrowFacts,
-) -> Vec<Vec<usize>> {
+) -> Vec<MachineGroup> {
     fn root(owner: &mut [usize], mut position: usize) -> usize {
         while owner[position] != position {
             owner[position] = owner[owner[position]];
@@ -329,6 +510,8 @@ fn machine_groups(
             owner[left.max(right)] = left.min(right);
         }
     }
+    let mut part_owner = owner.clone();
+    let mut calls = Vec::new();
     for (_, row) in borrow.states.iter() {
         let Some(caller) = program.machine_position_by_symbol(row.machine_symbol) else {
             continue;
@@ -366,8 +549,16 @@ fn machine_groups(
                     }
                 }
             }
+            for &member in &callees[1..] {
+                let (left, right) = (
+                    root(&mut part_owner, callees[0]),
+                    root(&mut part_owner, member),
+                );
+                part_owner[left.max(right)] = left.min(right);
+            }
             for callee in callees {
                 if callee != caller {
+                    calls.push((caller, callee));
                     let (left, right) = (root(&mut owner, caller), root(&mut owner, callee));
                     owner[left.max(right)] = left.min(right);
                 }
@@ -384,5 +575,79 @@ fn machine_groups(
         }
         groups[group_of_root[group_root]].push(position);
     }
+    // A part every one of whose callers lies in one other part belongs with
+    // that caller: a policy wrapper takes the body it alone calls. Merge to a
+    // fixed point; a helper called from two targets stays its own part.
+    const UNCALLED: usize = usize::MAX;
+    const SHARED: usize = usize::MAX - 1;
+    let mut sole_caller = vec![UNCALLED; machines.len()];
+    loop {
+        sole_caller.fill(UNCALLED);
+        for &(caller, callee) in &calls {
+            let (caller, callee) = (root(&mut part_owner, caller), root(&mut part_owner, callee));
+            if caller != callee {
+                sole_caller[callee] = match sole_caller[callee] {
+                    UNCALLED => caller,
+                    sole if sole == caller => caller,
+                    _ => SHARED,
+                };
+            }
+        }
+        let mut merged = false;
+        for (callee, &caller) in sole_caller.iter().enumerate() {
+            if caller < SHARED {
+                let (left, right) = (root(&mut part_owner, callee), root(&mut part_owner, caller));
+                if left != right {
+                    part_owner[left.max(right)] = left.min(right);
+                    merged = true;
+                }
+            }
+        }
+        if !merged {
+            break;
+        }
+    }
+    // Part roots are roster positions, so a dense table marks the called ones.
+    let mut called = vec![false; machines.len()];
+    for (caller, callee) in calls {
+        let callee_part = root(&mut part_owner, callee);
+        if root(&mut part_owner, caller) != callee_part {
+            called[callee_part] = true;
+        }
+    }
+    let mut part_of_root = vec![usize::MAX; machines.len()];
     groups
+        .into_iter()
+        .map(|machines| {
+            let mut parts: Vec<(usize, Vec<usize>)> = Vec::new();
+            for &position in &machines {
+                let part = root(&mut part_owner, position);
+                if part_of_root[part] == usize::MAX {
+                    part_of_root[part] = parts.len();
+                    parts.push((part, Vec::new()));
+                }
+                parts[part_of_root[part]].1.push(position);
+            }
+            let independent_parts = if parts.len() > 1 {
+                parts
+                    .into_iter()
+                    .filter(|(root, _)| !called[*root])
+                    .map(|(_, members)| members)
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            MachineGroup {
+                machines,
+                independent_parts,
+            }
+        })
+        .collect()
+}
+
+/// One flow dependency group in roster order, with the parts of it that
+/// converge alone, each in roster order.
+struct MachineGroup {
+    machines: Vec<usize>,
+    independent_parts: Vec<Vec<usize>>,
 }

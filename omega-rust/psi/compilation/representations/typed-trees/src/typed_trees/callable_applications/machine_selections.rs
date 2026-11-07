@@ -237,7 +237,8 @@ impl TypedTrees {
             signature,
         };
         if let Some(previous) = previous {
-            *self.applied_callable_signatures.get_mut(previous) = prepared;
+            self.applied_callable_signatures
+                .replace(previous, prepared)?;
         } else {
             self.applied_callable_signatures.insert(prepared);
         }
@@ -366,14 +367,8 @@ impl TypedTrees {
                 ..CallableApplication::default()
             }
             .signature(self, &source_required)?;
-            let AppliedCallableOwner::MachineSelection {
-                required: destination,
-                ..
-            } = &mut self.applied_callable_signatures.get_mut(handle).owner
-            else {
-                unreachable!()
-            };
-            *destination = Some(required);
+            self.applied_callable_signatures
+                .set_required(handle, required)?;
         }
         Ok(())
     }

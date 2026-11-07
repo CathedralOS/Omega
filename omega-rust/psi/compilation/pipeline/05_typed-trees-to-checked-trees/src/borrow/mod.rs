@@ -27,6 +27,7 @@
 
 use arena::Arena;
 use diagnostics::Diagnostic;
+use rayon::prelude::*;
 use validation::{CallFrameResolver, machine_state_count};
 
 use checked_trees::BorrowFacts;
@@ -36,6 +37,7 @@ mod children;
 mod last_uses;
 pub(crate) mod lifetime_contract;
 mod loans;
+mod machine_rows;
 mod owner_geometry;
 mod roots;
 mod state;
@@ -47,6 +49,7 @@ pub(crate) use last_uses::{owner_path_overlaps_place_segments, place_is_used_aft
 pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::call_reference_lifetime_sources;
+pub(crate) use loans::is_descriptor_load_observation;
 pub(crate) use loans::owner_path_from_place_segments;
 pub(crate) use loans::owner_path_selects_leaf;
 pub(crate) use loans::owner_place_segments;
@@ -83,7 +86,28 @@ pub(crate) fn build_borrow_facts(
     let mut loan_suppliers = Arena::new();
     let mut returned_loans = Arena::new();
     let mut states = Arena::with_capacity(machine_state_count(program));
-    let mut state_loan_trackers = Vec::new();
+    // Each machine builds on its own worker; the rows join in roster order,
+    // and the first failing state in that order reports, as a serial run would.
+    let machines = validation::checking_thread_pool().install(|| {
+        program
+            .machines()
+            .par_iter()
+            .map_init(Vec::new, |state_loan_trackers, machine| {
+                let mut rows = machine_rows::MachineBorrowRows::default();
+                for state in program.machine_states(machine) {
+                    append_state_borrow_facts(
+                        program,
+                        machine,
+                        state,
+                        &mut rows.arenas(),
+                        state_loan_trackers,
+                        call_frames,
+                    )?;
+                }
+                Ok(rows)
+            })
+            .collect::<Vec<Result<_, Diagnostic>>>()
+    });
 
     {
         let mut arenas = BorrowFactArenas {
@@ -99,18 +123,9 @@ pub(crate) fn build_borrow_facts(
             returned_loans: &mut returned_loans,
             states: &mut states,
         };
-        for machine in program.machines() {
-            for state in program.machine_states(machine) {
-                append_state_borrow_facts(
-                    program,
-                    machine,
-                    state,
-                    &mut arenas,
-                    &mut state_loan_trackers,
-                    call_frames,
-                )
-                .map_err(|diagnostic| vec![diagnostic])?;
-            }
+        for rows in machines {
+            rows.map_err(|diagnostic| vec![diagnostic])?
+                .append_to(&mut arenas);
         }
     }
 

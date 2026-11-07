@@ -236,6 +236,7 @@ impl TerminalEffectHandler for IntegerParsingImport {
         self.output_plan.validate(output)?;
         let base = i32::try_from(*base).map_err(|_| invalid())?;
         let captured = CapturedStorage::capture(
+            0,
             &buffers[..1],
             self.signature.structural_parameters[0].access,
             self.input_layout.as_ref(),

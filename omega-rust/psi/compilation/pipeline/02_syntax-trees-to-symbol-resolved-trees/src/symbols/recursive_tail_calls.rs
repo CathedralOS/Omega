@@ -27,12 +27,64 @@ struct RecursiveEntry {
     owner: SymbolHandle,
 }
 
+/// Attached machines ordered by owner, then entry-state spelling, then roster
+/// position, so one owner's same-named entries form one contiguous range.
+///
+/// Every machine of one data type is attached to the same owner. Filtering
+/// that owner's whole roster by name for each machine made this pass
+/// quadratic in the number of methods a type has.
+struct EntryNames {
+    rows: Vec<((u32, u32), String, SymbolHandle)>,
+}
+
+impl EntryNames {
+    fn of(program: &SymbolResolvedTrees, attached: &AttachedMachines) -> Self {
+        let mut rows = attached
+            .list
+            .iter()
+            .map(|candidate| {
+                (
+                    symbol_key(candidate.owner),
+                    program.symbols.name(candidate.entry).to_owned(),
+                    candidate.machine,
+                )
+            })
+            .collect::<Vec<_>>();
+        // Stable: equal keys keep roster order.
+        rows.sort_by(|left, right| (left.0, &left.1).cmp(&(right.0, &right.1)));
+        Self { rows }
+    }
+
+    /// Machines attached to `owner` whose entry is spelled `name`, in roster order.
+    fn candidates<'a>(
+        &'a self,
+        owner: SymbolHandle,
+        name: &'a str,
+    ) -> impl Iterator<Item = SymbolHandle> + 'a {
+        let key = symbol_key(owner);
+        let start = self.rows.partition_point(|(row_owner, row_name, _)| {
+            (*row_owner, row_name.as_str()) < (key, name)
+        });
+        self.rows[start..]
+            .iter()
+            .take_while(move |(row_owner, row_name, _)| *row_owner == key && row_name == name)
+            .map(|(_, _, machine)| *machine)
+    }
+}
+
+fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
 pub(crate) fn normalize(program: &mut SymbolResolvedTrees, work: &[SymbolHandle]) {
     let attached = attached_machines(program);
+    let entry_names = EntryNames::of(program, &attached);
+    let mut work = work.iter().copied().map(symbol_key).collect::<Vec<_>>();
+    work.sort_unstable();
     for machine_position in 0..program.machines.len() {
         let machine = &program.machines[machine_position];
-        if !work.contains(&machine.symbol)
-            || !unambiguous_canonical_entry(program, &attached, machine)
+        if work.binary_search(&symbol_key(machine.symbol)).is_err()
+            || !unambiguous_canonical_entry(program, &entry_names, machine)
         {
             continue;
         }
@@ -62,7 +114,7 @@ pub(crate) fn normalize(program: &mut SymbolResolvedTrees, work: &[SymbolHandle]
 
 fn unambiguous_canonical_entry(
     program: &SymbolResolvedTrees,
-    attached: &AttachedMachines,
+    entry_names: &EntryNames,
     machine: &Machine,
 ) -> bool {
     if !machine.attached_data_symbol.is_valid() {
@@ -88,12 +140,7 @@ fn unambiguous_canonical_entry(
         return false;
     };
     let entry_name = program.symbols.name(program.machine_state(entry).symbol);
-    let mut candidates = attached
-        .positions_for_owner(canonical.attached_data_symbol)
-        .iter()
-        .map(|&position| &attached.list[position])
-        .filter(|candidate| program.symbols.name(candidate.entry) == entry_name)
-        .map(|candidate| candidate.machine);
+    let mut candidates = entry_names.candidates(canonical.attached_data_symbol, entry_name);
     // A provisional result-overload selection is not exact invocation identity.
     // Zero candidates is not uniqueness either. Leave either case for typing.
     candidates.next() == Some(canonical_symbol) && candidates.next().is_none()

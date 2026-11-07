@@ -26,8 +26,9 @@ pub struct FlowStateTable {
     // the reverse lookup bounded by that page without expanding every call.
     #[record(skip)]
     call_rows: KeyedRows<u32, FlowStateFact>,
-    // The page roster is unchanged throughout an immutable read window.
-    // Mutable arena access clears this exact revision together with the rows.
+    // The roster revision the groupings are keyed to. Mutable arena access
+    // clears it together with the rows; `update_row` keeps it across an edit
+    // that moves no grouping key.
     #[record(skip)]
     revision: OnceLock<u64>,
 }
@@ -73,6 +74,18 @@ impl DurableRows for FlowStateTable {
     fn rows(&self) -> impl Iterator<Item = (Handle<FlowStateFact>, &FlowStateFact)> {
         self.arena.iter()
     }
+
+    fn append_epoch(&self) -> Option<(u64, usize)> {
+        self.arena.append_epoch()
+    }
+
+    fn for_each_row_from(
+        &self,
+        start: usize,
+        visit: impl FnMut(Handle<FlowStateFact>, &FlowStateFact),
+    ) {
+        self.arena.for_each_from(start, visit);
+    }
 }
 
 impl From<Arena<FlowStateFact>> for FlowStateTable {
@@ -92,6 +105,53 @@ impl std::ops::Deref for FlowStateTable {
 
     fn deref(&self) -> &Self::Target {
         &self.arena
+    }
+}
+
+/// The fields every grouping keys on. A row edit that leaves them unchanged
+/// leaves every bucket exact.
+fn grouping_keys(row: &FlowStateFact) -> (SymbolHandle, SymbolHandle, u32) {
+    (
+        row.machine_symbol,
+        row.state_symbol,
+        row.calls.start().generation(),
+    )
+}
+
+impl FlowStateTable {
+    /// Append one row and keep the groupings, which extend by the appended
+    /// rows on their next read instead of regrouping the whole arena.
+    ///
+    /// Flow construction appends one row per state and reads states by
+    /// machine between appends; clearing on every append regrouped all
+    /// earlier states each time, quadratic in the program's state count.
+    pub fn append(&mut self, row: FlowStateFact) -> Handle<FlowStateFact> {
+        self.revision.take();
+        self.arena.append(row)
+    }
+
+    /// Edit one row in place without discarding the groupings when the edit
+    /// leaves the row's machine, state and call page unchanged.
+    ///
+    /// Mutable arena access clears every grouping, so a producer that
+    /// publishes one field per state while it also reads states by machine
+    /// rebuilt the whole grouping once per state: quadratic in the program's
+    /// state count. The groupings stay keyed to the roster revision they were
+    /// built against; an edit that moves a key clears them as before.
+    pub fn update_row(
+        &mut self,
+        handle: Handle<FlowStateFact>,
+        edit: impl FnOnce(&mut FlowStateFact),
+    ) {
+        let row = self.arena.get_mut(handle);
+        let keys = grouping_keys(row);
+        edit(row);
+        if grouping_keys(row) != keys {
+            self.revision.take();
+            self.machine_rows.clear();
+            self.state_rows.clear();
+            self.call_rows.clear();
+        }
     }
 }
 
@@ -438,5 +498,57 @@ mod tests {
         facts.states.reset_retain_capacity();
         assert_roster(&facts);
         assert_roster(&snapshot);
+    }
+
+    #[test]
+    fn unkeyed_row_edit_keeps_groupings_and_keyed_edit_rebuilds_them() {
+        let machine = SymbolHandle::from_parts(7, 1);
+        let other_machine = SymbolHandle::from_parts(2, 1);
+        let state = SymbolHandle::from_parts(3, 1);
+        let mut facts = FlowControlFacts::default();
+        let first = facts.states.insert(FlowStateFact {
+            machine_symbol: machine,
+            state_symbol: state,
+            ..FlowStateFact::default()
+        });
+        assert!(facts.state(machine, state).is_some());
+        let roster = facts.states.revision.get().copied();
+        facts
+            .states
+            .update_row(first, |row| row.mutable_parameter_count = 9);
+        assert_eq!(facts.states.revision.get().copied(), roster);
+        assert_eq!(
+            facts
+                .state(machine, state)
+                .map(|row| row.mutable_parameter_count),
+            Some(9)
+        );
+        // An append extends the warm groupings in arena order.
+        let later = SymbolHandle::from_parts(4, 1);
+        facts.states.append(FlowStateFact {
+            machine_symbol: machine,
+            state_symbol: later,
+            ..FlowStateFact::default()
+        });
+        assert_eq!(
+            facts
+                .machine_states(machine)
+                .iter()
+                .map(|row| row.state_symbol)
+                .collect::<Vec<_>>(),
+            [state, later]
+        );
+        assert!(facts.state_by_symbol(later).is_some());
+        facts
+            .states
+            .update_row(first, |row| row.machine_symbol = other_machine);
+        assert!(facts.state(machine, state).is_none());
+        assert!(facts.state(machine, later).is_some());
+        assert_eq!(
+            facts
+                .state(other_machine, state)
+                .map(|row| row.mutable_parameter_count),
+            Some(9)
+        );
     }
 }

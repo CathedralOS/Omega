@@ -95,6 +95,13 @@ pub(super) fn encode_structural_parameter(
             bytes.id(qualification.domain);
         },
     );
+    bytes.slice(
+        &parameter.additional_input_qualifications,
+        |bytes, qualification| {
+            bytes.slice(&qualification.path, encode_structural_path_segment);
+            bytes.id(qualification.domain);
+        },
+    );
 }
 
 pub(super) fn encode_structural_binding(

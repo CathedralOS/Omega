@@ -18,6 +18,7 @@ pub(super) struct Demand {
     pub policy: SymbolHandle,
     pub schema: SymbolHandle,
     pub sources: Vec<source::SourceSpan>,
+    pub owners: Vec<SymbolHandle>,
 }
 
 struct OperationArguments {
@@ -105,6 +106,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Demand>, Vec<Diagn
                 ]);
             }
             extend_unique(&mut demand.sources, result);
+            push_unique(&mut demand.owners, call.owner);
         } else {
             demands.push(Demand {
                 callable: arguments.callable,
@@ -112,6 +114,7 @@ pub(super) fn collect(program: &mut TypedTrees) -> Result<Vec<Demand>, Vec<Diagn
                 policy,
                 schema,
                 sources: result,
+                owners: vec![call.owner],
             });
         }
     }

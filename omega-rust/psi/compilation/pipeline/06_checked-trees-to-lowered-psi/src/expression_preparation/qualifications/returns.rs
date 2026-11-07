@@ -311,11 +311,10 @@ fn matches_exit(
         }
         FlowClaimJoinExitKind::CallResult { call_ordinal } => flow_facts(checked)
             .control
-            .states
-            .iter()
-            .filter(|(_, state)| {
-                state.machine_symbol == decision.machine && state.state_symbol == decision.state
-            })
+            .machine_states(decision.machine)
+            .into_iter()
+            .filter(|state| state.state_symbol == decision.state)
+            .map(|state| ((), state))
             .flat_map(|(_, state)| checked.facts.flow.control.calls.span_or_empty(state.calls))
             .any(|call| {
                 call.statement_index == decision.statement_index

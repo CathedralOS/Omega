@@ -84,11 +84,12 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in super::super) types: TypeCatalog,
     pub(in super::super) domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub(in super::super) opaque_representations: Vec<checked_trees::CheckedOpaqueRepresentation>,
-    pub(in super::super) cleanup_control: checked_trees::CheckedCleanupControlPlans,
+    pub(in super::super) cleanup_control:
+        forks::CopyOnWrite<checked_trees::CheckedCleanupControlPlans>,
     // Compiler-owned handles select arena slots; the small bucket retains
     // exact generation/telescope/substitution contexts for that source row.
     // This is a collector-local query memo, never a semantic type identity.
-    completed_requests: Vec<Vec<(TypeShapeRequest, TypeIdentityId)>>,
+    completed_requests: forks::CompletedRequests,
     in_progress: ConsultedSet<TypeIdentityId>,
     domains_in_progress: ConsultedSet<(u32, TypeIdentityId)>,
     /// The domain rows this attempt looked up; see `forks`.
@@ -116,7 +117,7 @@ impl<'program> ShapeCollector<'program> {
             domains: Vec::new(),
             opaque_representations: Vec::new(),
             cleanup_control: Default::default(),
-            completed_requests: Vec::new(),
+            completed_requests: Default::default(),
             in_progress: ConsultedSet::new(),
             domains_in_progress: ConsultedSet::new(),
             consulted_domains: BTreeSet::new(),
@@ -616,6 +617,30 @@ impl<'program> ShapeCollector<'program> {
         (identity == source_identity).then_some(())
     }
 
+    /// Keep every source-contract carrier and theory through catalog pruning.
+    /// The requirement record survives even when a carrier cannot be shaped;
+    /// an actual Terminal consumer still refuses that missing declaration.
+    pub(in super::super) fn retain_reference_contract_types(
+        &mut self,
+        contract: &checked_trees::CheckedReferenceSourceContract,
+        roots: &mut impl Extend<TypeIdentityId>,
+    ) {
+        let checked_trees::CheckedReferenceSourceContract::Standing { contract, .. } = contract
+        else {
+            return;
+        };
+        for (domain, reference) in &contract.domains {
+            if let Some(identity) = self.add_domain(*domain, *reference, &[]) {
+                roots.extend(std::iter::once(identity));
+            }
+        }
+        for reference in &contract.projection_types {
+            if let Some(identity) = self.add_stored_type(*reference, &[], &[]) {
+                roots.extend(std::iter::once(identity));
+            }
+        }
+    }
+
     /// The primitive a registered identity names when its catalog row is a
     /// primitive scalar. A borrowed formal registers its peeled referent, so
     /// this is the primitive a `&u8` or `&mut i64` formal lends.
@@ -772,13 +797,10 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<TypeIdentityId> {
         let slot = type_reference.arena_index() as usize;
-        if let Some(identity) = self.completed_requests.get(slot).and_then(|contexts| {
-            contexts.iter().find_map(|(candidate, identity)| {
-                (candidate.reference == type_reference
-                    && candidate.binders == binders
-                    && candidate.substitutions == substitutions)
-                    .then_some(*identity)
-            })
+        if let Some(identity) = self.completed_requests.find(slot, |candidate| {
+            candidate.reference == type_reference
+                && candidate.binders == binders
+                && candidate.substitutions == substitutions
         }) && self.types.contains_key(&identity)
         {
             return (!self.in_progress.contains(&identity)).then_some(identity);
@@ -791,10 +813,7 @@ impl<'program> ShapeCollector<'program> {
         };
         // Only an admitted request can grow the arena slots: an invalid
         // source handle must decline without allocating its numeric index.
-        if self.completed_requests.len() <= slot {
-            self.completed_requests.resize_with(slot + 1, Vec::new);
-        }
-        self.completed_requests[slot].push((request, identity));
+        self.completed_requests.push(slot, request, identity);
         Some(identity)
     }
 
@@ -1868,7 +1887,7 @@ impl<'program> ShapeCollector<'program> {
         // A completed request may also have registered logical backing and
         // domain rows beyond its stored identity. Pruning ends that collection
         // epoch; a later demand must re-establish its complete footprint.
-        self.completed_requests.clear();
+        self.completed_requests = Default::default();
         self.types.retain(|identity, _| retained.contains(identity));
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));

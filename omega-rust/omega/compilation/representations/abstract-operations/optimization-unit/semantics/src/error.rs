@@ -53,6 +53,13 @@ pub enum OptimizationUnitValidationError {
         operation: OperationId,
         reason: &'static str,
     },
+    CurrentOwnedValueUnavailable {
+        site: OperationSite,
+        place: PlaceId,
+        path_length: usize,
+        path_prefix: Vec<terminal_psi::StructuralPathSegment>,
+        reason: &'static str,
+    },
     InvalidQuotientCatalog(&'static str),
     ContentIdentityMismatch {
         stored: OptimizationUnitIdentity,

@@ -390,8 +390,9 @@ without the compiler establishing it somewhere.
 ## Inputs and default filesystem
 
 Build code uses ordinary filesystem traits with explicit backing arguments and
-ordinary selected named implementations or `dyn` dispatch. A type parameter
-such as FilesystemBacking names the backing data, not a magic State parameter
+ordinary statically selected named implementations or machine-valued operation
+records, with optional `some` packages for heterogeneous borrowed backing.
+A type parameter such as FilesystemBacking names the backing data, not a magic State parameter
 or implicit service. The dependency calls the filesystem contract without
 needing to know whether its backing is a host directory, a restricted view or a virtual
 tree. A parent choosing and inspecting a virtual backing may name its library

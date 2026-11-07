@@ -25,6 +25,12 @@ lifetime nor additional carry or cross-activation sharing permission. Exclusive
 `&mut` and `&write` fields do not qualify. A record still requires an explicit
 `[copy]` declaration; copyable fields do not change the affine default.
 
+Machine-valued fields and `some` packages follow these same multiplicity rules.
+A mutable reference inside a package remains exclusive. Opening a package
+creates no duplicate loan or cleanup authority; moves and permitted copies
+retain the package witness association and exact borrowed places. See
+[some package scope](some_packages.md#scope-escape-and-borrowing).
+
 ## Property declarations
 
 Lowercase bracket properties attach to the data declaration or type parameter,

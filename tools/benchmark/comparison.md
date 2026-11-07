@@ -182,7 +182,8 @@ it does not dump the environment or credentials.
 
 Processes use the existing `bounded-process` owner: a wall timeout, 1 MiB per
 captured stream, process-tree cleanup, 8 GiB process/aggregate memory ceilings,
-16 GiB address-space ceiling where supported, 1 GiB file-size ceiling, 1,024
+64 GiB address-space ceiling on Linux (`--address-space-gib N` before the command
+changes it; the journal records the value used), 1 GiB file-size ceiling, 1,024
 open-file ceiling, and 64-process ceiling. Platform enforcement follows that
 library's contracts. These limits and capture overhead are part of the recorded
 measurement environment.

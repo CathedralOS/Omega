@@ -63,6 +63,49 @@ impl StorageDefinitionIdentity {
     }
 }
 
+/// Spelling asks, at every expression node of every fact it visits, whether
+/// an authored operator there selected a declared meaning. Answering by a scan
+/// of every operator use in the program made that cost grow with program size
+/// at each node. One roster query gathers the selecting expressions, sorted,
+/// the first time a fact asks, and answers each question by binary search; a
+/// query that spells no fact never gathers them.
+struct DeclaredOperators<'a> {
+    facts: &'a CheckedOperatorFacts,
+    selecting: std::cell::OnceCell<Vec<(u32, u32)>>,
+}
+
+impl<'a> DeclaredOperators<'a> {
+    fn new(facts: &'a CheckedOperatorFacts) -> Self {
+        Self {
+            facts,
+            selecting: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// Whether an authored operator application at `expression` selected
+    /// anything but its builtin meaning.
+    fn select(&self, expression: ExpressionHandle) -> bool {
+        let key = |handle: ExpressionHandle| (handle.arena_index(), handle.generation());
+        self.selecting
+            .get_or_init(|| {
+                let mut selecting = self
+                    .facts
+                    .uses
+                    .iter()
+                    .filter(|(_, operator)| {
+                        operator.status
+                            != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                    })
+                    .map(|(_, operator)| key(operator.expression))
+                    .collect::<Vec<_>>();
+                selecting.sort_unstable();
+                selecting
+            })
+            .binary_search(&key(expression))
+            .is_ok()
+    }
+}
+
 /// One Terminal-carried consequence of a declared `where` fact standing on
 /// storage one parameter reaches.
 #[derive(Debug, Clone, PartialEq)]
@@ -85,6 +128,8 @@ pub fn state_declaration_predicates(
     state: &typed_trees::state::State,
 ) -> Vec<DeclarationPredicateRow> {
     let mut rows = Vec::new();
+    let operators = &DeclaredOperators::new(operators);
+    let mut emitting = Vec::new();
     for (position, parameter) in program.state_parameters(state).iter().enumerate() {
         let Ok(parameter_position) = u32::try_from(position) else {
             break;
@@ -115,6 +160,7 @@ pub fn state_declaration_predicates(
             restored_on_return,
             case_guards: Vec::new(),
             rows: &mut rows,
+            emitting: &mut emitting,
         };
         match parameter_data_definition(program, referee) {
             // A lifetime-only application names the declaration itself and
@@ -188,7 +234,7 @@ pub fn declaration_facts_carried<'program>(
 ) -> bool {
     complete_definition_storage(
         program,
-        operators,
+        &DeclaredOperators::new(operators),
         definition,
         &mut Vec::new(),
         &mut Vec::new(),
@@ -197,7 +243,7 @@ pub fn declaration_facts_carried<'program>(
 
 fn complete_definition_storage<'program>(
     program: &'program dyn crate::CheckingInput,
-    operators: &CheckedOperatorFacts,
+    operators: &DeclaredOperators<'_>,
     definition: &'program DataDefinition,
     visited: &mut Vec<StorageDefinitionIdentity>,
     checked_own_facts: &mut Vec<&'program DataDefinition>,
@@ -238,7 +284,7 @@ fn complete_definition_storage<'program>(
 
 fn complete_owned_storage<'program>(
     program: &'program dyn crate::CheckingInput,
-    operators: &CheckedOperatorFacts,
+    operators: &DeclaredOperators<'_>,
     reference: TypeReferenceHandle,
     visited: &mut Vec<StorageDefinitionIdentity>,
     checked_own_facts: &mut Vec<&'program DataDefinition>,
@@ -298,7 +344,7 @@ fn definition_fact_spans<'a>(
 
 fn definition_own_facts_carried(
     program: &dyn crate::CheckingInput,
-    operators: &CheckedOperatorFacts,
+    operators: &DeclaredOperators<'_>,
     definition: &DataDefinition,
 ) -> bool {
     definition_fact_spans(program, definition).all(|(case, facts)| {
@@ -327,11 +373,17 @@ fn definition_own_facts_carried(
 
 struct RowEmitter<'a, 'program> {
     program: &'program dyn crate::CheckingInput,
-    operators: &'program CheckedOperatorFacts,
+    operators: &'a DeclaredOperators<'program>,
     parameter_position: u32,
     restored_on_return: bool,
     case_guards: Vec<CheckedBooleanExpression>,
     rows: &'a mut Vec<DeclarationPredicateRow>,
+    /// Whether each definition this roster reached emits rows of its own.
+    /// The answer depends only on the definition, but every array element and
+    /// every parameter reaching it would otherwise spell all its facts again.
+    /// Keyed by declaration row identity, as `checked_own_facts` is, and
+    /// dropped with the query.
+    emitting: &'a mut Vec<(*const DataDefinition, bool)>,
 }
 
 impl RowEmitter<'_, '_> {
@@ -424,7 +476,16 @@ impl RowEmitter<'_, '_> {
         prefix: &[CheckedStructuralPredicatePathSegment],
         definition: &DataDefinition,
     ) {
-        if !definition_emits_rows(self.program, self.operators, definition) {
+        let row = std::ptr::from_ref(definition);
+        let emits = match self.emitting.iter().find(|(known, _)| *known == row) {
+            Some((_, emits)) => *emits,
+            None => {
+                let emits = definition_emits_rows(self.program, self.operators, definition);
+                self.emitting.push((row, emits));
+                emits
+            }
+        };
+        if !emits {
             return;
         }
         for (case, facts) in definition_fact_spans(self.program, definition) {
@@ -612,7 +673,7 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
 /// physical field types. Zero provisioning does not erase those requirements.
 fn definition_emits_rows(
     program: &dyn crate::CheckingInput,
-    operators: &CheckedOperatorFacts,
+    operators: &DeclaredOperators<'_>,
     definition: &DataDefinition,
 ) -> bool {
     definition_fact_spans(program, definition).any(|(case, facts)| {
@@ -657,7 +718,7 @@ fn owned_storage_fields<'program>(
 /// array elements one by one. `visited` is the definition stack on this path.
 fn storage_carries_rows(
     program: &dyn crate::CheckingInput,
-    operators: &CheckedOperatorFacts,
+    operators: &DeclaredOperators<'_>,
     type_reference: TypeReferenceHandle,
     visited: &mut Vec<StorageDefinitionIdentity>,
 ) -> bool {
@@ -758,7 +819,7 @@ fn find_data_field<'program>(
 /// selectors and borrowed fields remain outside this vocabulary.
 struct FactSpelling<'a> {
     program: &'a dyn crate::CheckingInput,
-    operators: &'a CheckedOperatorFacts,
+    operators: &'a DeclaredOperators<'a>,
     parameter_position: u32,
     prefix: &'a [CheckedStructuralPredicatePathSegment],
     definition: &'a DataDefinition,
@@ -769,11 +830,7 @@ impl FactSpelling<'_> {
     /// Whether an authored operator application selected anything but its
     /// builtin meaning.
     fn selects_declared_operator(&self, expression: ExpressionHandle) -> bool {
-        self.operators.uses.iter().any(|(_, operator)| {
-            operator.expression == expression
-                && operator.status
-                    != checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
-        })
+        self.operators.select(expression)
     }
 
     fn boolean(&self, expression: ExpressionHandle) -> Option<CheckedBooleanExpression> {

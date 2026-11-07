@@ -81,7 +81,9 @@ A qualified machine name does not capture a data instance. See
 [address exposure](counts_and_addresses.md#address-exposure). `size_of<T>()`
 and `align_of<T>()` query a data layout; `code_layout<Selected<Arguments>>()`
 queries late native code regions. Static arguments select types or exact machine
-applications without introducing runtime type objects or first-class machines.
+applications without introducing runtime type objects. These address/layout
+queries do not construct [runtime machine values](machine_values.md): a callable
+value is established separately by exact named selection and contract refinement.
 
 Assignment requires writable storage, compatible value type, and the applicable
 [invariant-window obligations](dependent_values.md#invariant-windows). It first
@@ -213,10 +215,10 @@ operators need no conformance selection.
 
 When operator syntax selects a machine, that machine's `requires` is a call
 obligation in executable and proof-term formation. Resolution does not discharge
-it, and a proof-only caller cannot bypass it. Contextual `==` over one
-non-primitive data type in a fact is instead
-[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
-selects no machine. Ordinary `Nat - Nat` and named `Nat::subtract` still require
+it, and a proof-only caller cannot bypass it. Value `==` retains that selected
+meaning in facts. Explicit [core identity](../proofs/contracts.md#data-identity-in-facts)
+names the proof relation separately; absence of executable equality does not
+silently select identity. Ordinary `Nat - Nat` and named `Nat::subtract` still require
 the same operand-order evidence; explicit saturating subtraction has its own
 total contract. See [call preconditions](machines.md#call-preconditions).
 

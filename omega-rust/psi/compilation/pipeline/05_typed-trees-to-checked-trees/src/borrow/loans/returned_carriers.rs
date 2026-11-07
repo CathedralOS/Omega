@@ -274,10 +274,7 @@ pub(crate) fn returned_body_source_mismatch(
     {
         return Some(parameter);
     }
-    let borrowing =
-        facts.borrow.states.iter().find_map(|(_, borrowing)| {
-            (borrowing.state_symbol == state.symbol).then_some(borrowing)
-        })?;
+    let (_, borrowing) = facts.borrow.first_state_borrow_by_symbol(state.symbol)?;
     for returned in facts.borrow.returned_loans.span(borrowing.returned_loans)? {
         let (parameter_symbol, source_path) = if returned.incoming_reference.is_valid() {
             let incoming = facts
@@ -797,8 +794,17 @@ pub(super) fn relative_result_loans(
             _ => return Ok(None),
         };
         let contract = available!(call_view_return_contract(program, state_symbol, call));
+        let completed = TableLocalData {
+            initial_value: expression,
+            type_reference: contract.return_type_reference(program),
+            ..local_data.clone()
+        };
+        if let Some(loans) = super::invocation_results::retain(program, &completed, loan_trackers)?
+        {
+            return Ok(Some(limit_access(loans, &access_limits)));
+        }
         if matches!(contract.source(program), ViewReturnSource::NotApplicable) {
-            return Ok(super::independent_invocations::form(
+            return Ok(super::invocation_results::form(
                 program,
                 state_symbol,
                 machine_symbol,
@@ -809,7 +815,17 @@ pub(super) fn relative_result_loans(
             )
             .map(|loans| limit_access(loans, &access_limits)));
         }
-        let fields = available!(contract.reference_sources(program));
+        let mut fields = available!(contract.reference_sources(program));
+        let target = validation::call_target_symbol(program, call);
+        let opaque_result = !validation::call_target_has_checked_body_contract(program, target);
+        if opaque_result {
+            // The safe call contract supplies the returned pointer's grant.
+            // Its declared inputs retain their full lifetime and access debt;
+            // none of those inputs identifies the returned address.
+            for field in &mut fields {
+                field.lifetime_only = true;
+            }
+        }
         let mut loans = result_source_loans(
             program,
             state_symbol,
@@ -823,21 +839,6 @@ pub(super) fn relative_result_loans(
             &[],
             sources,
         )?;
-        if validation::compiler_operations::static_interrupt_context(program, call.target_symbol)?
-            .is_some()
-        {
-            let descriptor_loans = super::independent_invocations::form(
-                program,
-                state_symbol,
-                machine_symbol,
-                local_data,
-                expression,
-                validation::call_target_symbol(program, call),
-                contract.return_type_reference(program),
-            )
-            .ok_or("installed context result lost its supplied descriptor")?;
-            loans.extend(descriptor_loans);
-        }
         // Bare and aggregate results both carry the completed source leaves,
         // not just the declared argument's root. Operand reborrow ancestry is
         // evaluated during invocation; it is not the returned value's ancestry.
@@ -863,6 +864,20 @@ pub(super) fn relative_result_loans(
                     BorrowLoanLineage::DirectRoot
                 };
             }
+        }
+        if opaque_result {
+            loans.extend(
+                super::invocation_results::form(
+                    program,
+                    state_symbol,
+                    machine_symbol,
+                    local_data,
+                    expression,
+                    target,
+                    contract.return_type_reference(program),
+                )
+                .ok_or("completed result reference permissions are unavailable")?,
+            );
         }
         return Ok(Some(limit_access(loans, &access_limits)));
     }

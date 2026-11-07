@@ -448,10 +448,7 @@ fn carried_exclusive_referents(
     reference: TypeReferenceHandle,
     resolver: &CallFrameResolver<'_>,
 ) -> Option<Vec<CarriedStorage>> {
-    let (_, caller_state) = borrow
-        .states
-        .iter()
-        .find(|(_, row)| row.state_symbol == state.symbol)?;
+    let (_, caller_state) = borrow.first_state_borrow_by_symbol(state.symbol)?;
     let mut referents = Vec::new();
     // Constructors contribute their evaluated children; a named aggregate
     // contributes its retained descriptor inventory. The shared projection
@@ -540,10 +537,10 @@ fn carried_exclusive_referents(
     Some(referents)
 }
 
-/// Ending an exclusive retained debt exposes storage that its opaque provider
-/// could modify during the loan. Expire old observations at that boundary,
-/// independently of the carrier's reference-free representation or the final
-/// callee's visible descriptor frame. These are invalidation coordinates only.
+/// Completing an opaque retained carrier may expose writes to its backing.
+/// Ending an ordinary reference's input lifetime creates no write: the call's
+/// actual writes have their own frame. Unknown carriers retain the conservative
+/// closing effect. These are invalidation coordinates only.
 pub(super) fn retained_loan_write_regions(
     program: &dyn validation::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -555,10 +552,7 @@ pub(super) fn retained_loan_write_regions(
     let order = program
         .statement_table
         .admitted_execution_order(source_state.statement_nodes);
-    let (_, state) = borrow
-        .states
-        .iter()
-        .find(|(_, row)| row.state_symbol == state_symbol)?;
+    let (_, state) = borrow.first_state_borrow_by_symbol(state_symbol)?;
     let site = find_call_site(
         program,
         machine_symbol,
@@ -589,6 +583,18 @@ pub(super) fn retained_loan_write_regions(
         if !loan.root.is_valid() {
             return None;
         }
+        let carrier = canonical_place_type_reference(
+            program,
+            state_symbol,
+            call.statement_index,
+            &CanonicalPlace {
+                root: loan.storage_owner,
+                segments: crate::borrow::owner_place_segments(borrow.loan_owner_path(loan)),
+            },
+        );
+        if !carrier_retirement_may_write(program, carrier) {
+            continue;
+        }
         let region = loan_write_region(CanonicalPlace {
             root: loan.root,
             segments: borrow.loan_segments(loan).to_vec(),
@@ -596,6 +602,20 @@ pub(super) fn retained_loan_write_regions(
         push_unique(&mut regions, region);
     }
     Some(regions)
+}
+
+fn carrier_retirement_may_write(
+    program: &dyn validation::CheckingInput,
+    carrier: Option<TypeReferenceHandle>,
+) -> bool {
+    let Some(carrier) = carrier else {
+        return true;
+    };
+    if reference_shell(program, carrier).is_some() {
+        return false;
+    }
+    validation::borrow_contracts::retained_lifetime_owner_paths(program, carrier)
+        .is_none_or(|paths| paths.iter().any(Vec::is_empty))
 }
 
 /// A checked provider-output loan retains its performed identity but names no

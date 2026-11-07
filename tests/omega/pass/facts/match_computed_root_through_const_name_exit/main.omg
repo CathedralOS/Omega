@@ -7,7 +7,7 @@ const ROOT: u64 = 0;
 machine compute(counter: &mut u64) -> u64
 requires counter == 0
 {
-    counter = 1;
+    counter = counter + 1;
     ROOT
 }
 

@@ -75,9 +75,13 @@ pub(crate) fn validate_activation_carry_crossing(
     // The exact checked flow call below binds the statement coordinate to
     // this state; source syntax supplies no second membership decision.
 
-    let mut flow_states = check_facts.flow.control.states.iter().filter(|(_, flow)| {
-        flow.machine_symbol == crossing.machine && flow.state_symbol == crossing.state
-    });
+    let mut flow_states = check_facts
+        .flow
+        .control
+        .machine_states(crossing.machine)
+        .into_iter()
+        .filter(|flow| flow.state_symbol == crossing.state)
+        .map(|state| ((), state));
     let flow_state = flow_states
         .next()
         .map(|(_, flow)| flow)

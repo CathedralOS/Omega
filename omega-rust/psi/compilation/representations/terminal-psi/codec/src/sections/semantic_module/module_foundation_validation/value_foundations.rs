@@ -422,8 +422,8 @@ fn validate_constructor_claims(
     if !strictly_increasing(result.claims.iter().map(|binding| binding.claim)) {
         return malformed("aggregate claim bindings disagree with canonical order");
     }
-    // Validate every row before comparing guards: an unknown case in a later
-    // row cannot establish that two catalogued obligations are exclusive.
+    // Check every recorded path before deciding that two cases exclude each
+    // other. An unknown case cannot justify its own validity.
     for claim in &result.claims {
         super::validate_structural_path(module, result.structural_type, &claim.path)?;
         canonical_static_projection(

@@ -43,8 +43,11 @@ beside code; completed work belongs in Git, not current reference material.
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
   [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
-  [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
+  [contracts, bundles, normalization, and trust](spec/proofs/contracts.md),
+  [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization)
   and [relations and quotients](spec/proofs/quotients.md).
+- Runtime data/code interfaces: [machine values](spec/language/machine_values.md)
+  and [some packages](spec/language/some_packages.md).
 - Terminal Psi: [product](spec/terminal-psi/product.md),
   [calls and outcomes](spec/terminal-psi/calls_and_outcomes.md),
   [control flow and ranking](spec/terminal-psi/control_flow.md),
@@ -54,7 +57,7 @@ beside code; completed work belongs in Git, not current reference material.
   [structural predicates](spec/terminal-psi/structural_predicates.md),
   [loan resources and compatibility](spec/terminal-psi/loans.md),
   [structural claims and cleanup](spec/terminal-psi/ownership.md),
-  [dynamic dispatch](spec/terminal-psi/dynamic_dispatch.md),
+  [runtime callable dispatch](spec/terminal-psi/dynamic_dispatch.md),
   [observations](spec/terminal-psi/observations.md), and
   [encoding](spec/terminal-psi/encoding.md),
   [fact validity](spec/terminal-psi/fact_validity.md),
@@ -77,6 +80,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Build: [declarations and package identity](spec/build/declarations.md),
   [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
+  [recorded proof-work policy](spec/build/configuration.md#proof-work-policy),
   [portable platform services](spec/build/platform_services.md),
   [requirement-based test groups](spec/build/testing.md),
   [selected-product behavior exclusions](spec/build/behavior_exclusions.md),

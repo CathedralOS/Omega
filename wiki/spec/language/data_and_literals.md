@@ -3,7 +3,9 @@
 `data` declares fields, cases, or both. Fields belong to the value. A record has
 only fields; a sum has only cases; a mixed declaration has common fields plus
 one active case and its payload. Machines access values through their explicit
-parameters, not implicitly owned machine fields.
+parameters. Runtime callable fields store explicit machine values; they do not
+attach machine declarations or an implicit receiver to data. See
+[machine values](machine_values.md) and [some data binders](some_packages.md).
 
 Inline case declarations form a consecutive tail after all common fields.
 A common field after the first inline case is retired. Named and positional
@@ -97,10 +99,12 @@ inactive storage/padding. Primitive and payload-free-sum equality is intrinsic;
 records and payload-bearing sums select the declared synthesis/conformance
 required by [Equatable](conformances.md#core-equality-acquisition). Adding a
 payload requires that declaration rather than silently changing tag equality
-into field equality. Separately, `==` between values of one identical
-non-primitive data type in a fact denotes
-[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
-does not structurally compare fields or select `Equatable`.
+into field equality. Value `==` retains that selected comparison in facts.
+Explicit `core::Identity<T>(left, right)` states
+[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) without
+requiring an executable equality algorithm. Structural comparison exposes
+checked component comparisons; conversion to identity requires the applicable
+checked bridge law and cannot silently reinterpret float fields.
 
 ## Case constraints
 
@@ -189,6 +193,10 @@ space, tab, carriage return, and line feed. Punctuation, operators, keywords, an
 numeric spellings use ASCII; non-ASCII bytes occur only in comments and literal
 bodies. Other Unicode whitespace rejects. Host Unicode tables, normalization,
 or confusable-name heuristics cannot change tokenization.
+
+`some` introduces a per-value type binder in data parameter lists; it is not a
+visibility modifier or an alternative spelling of an ordinary type argument.
+The retired `dyn` spelling has no source type or conversion form.
 
 The current profile has no Unicode identifiers or raw-payload literal form.
 Those require separately specified byte/identifier rules, not host-language

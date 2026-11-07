@@ -82,7 +82,10 @@ pub(super) fn resolve_invocation_view_return_source(
     }
 }
 
-fn captured_type_parameters(
+/// Type binders supplied by the declaration's enclosing lexical scopes.
+/// Call-result preparation uses the same identities as callable refinement;
+/// a foreign callee's unbound parameter cannot borrow a caller's deferral.
+pub fn captured_type_parameters(
     program: &dyn crate::CheckingInput,
     signature: SymbolHandle,
 ) -> Vec<SymbolHandle> {

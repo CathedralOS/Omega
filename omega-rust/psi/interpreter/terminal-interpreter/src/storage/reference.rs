@@ -494,6 +494,7 @@ impl TerminalExecution<'_> {
                 access,
                 qualifications,
                 projected_qualifications,
+                additional_input_qualifications: Vec::new(),
             };
             Some(
                 self.prepare_byte_sequence_loan(
@@ -551,6 +552,7 @@ impl TerminalExecution<'_> {
                 access: source.access,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
             };
             let mut loan = self
                 .capture_primitive_loan(&parameter, source, identity_cursor)
@@ -720,6 +722,7 @@ impl TerminalExecution<'_> {
                         access: source.access,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
                     };
                     Some(
                         self.capture_primitive_loan(&parameter, source, identity_cursor)
@@ -970,9 +973,10 @@ impl TerminalExecution<'_> {
                 ram.presentation = referent.clone();
             }
         }
-        // Preserve actual backing membership beneath Referent. Shared views
-        // may attenuate their declared roster; exclusive crossings retain the
-        // incoming exact-roster check and cannot manufacture membership.
+        // The runtime may remember an initializer's predicate after its value
+        // is stored in a plain local. Such an observation does not add a duty
+        // to that local's declaration. Keep it on the backing while checking
+        // every emitted requirement and retaining non-predicate authority.
         // The reference signature lists conditional alternatives just as an
         // ordinary parameter does. An Empty value owes no Held qualification;
         // the same authenticated tag filter must govern both formations.
@@ -1050,7 +1054,18 @@ impl TerminalExecution<'_> {
             })
             || required_projected.iter().any(|row| !projected.contains(row))
             || (access != StructuralAccess::SharedBorrow
-                && projected.iter().any(|row| !required_projected.contains(row)))
+                && projected.iter().any(|row| {
+                    !required_projected.contains(row)
+                        && !self.program.catalogs.structural_domains.iter().any(|domain| {
+                            domain.id == row.domain
+                                && domain.is_pure_predicate()
+                                && terminal_semantics::qualification_path_carrier(
+                                    self.structural_types().values(),
+                                    reference_type,
+                                    &row.path,
+                                ) == Some(domain.carrier)
+                        })
+                }))
             // The storage judgment above admitted an aggregate re-view.
             || (aggregate_view.is_none() && !field_compatible
                 && !terminal_semantics::reference_source_compatible(
@@ -2721,7 +2736,16 @@ impl TerminalExecution<'_> {
             }
             let mut matched = false;
             for backing in expected.iter().chain(&invocation_backings) {
-                if let Some(mut projected) = self.resolve_return_origin(backing, actual)? {
+                if let Some(mut projected) =
+                    self.resolve_return_origin(backing, actual)
+                        .map_err(|error| TerminalInterpretError::ReferenceFormation {
+                            stage: "resolve returned reference origin",
+                            detail: format!(
+                                "source={:?} path={:?} returned={:?}: {error:?}",
+                                backing.value, backing.suffix, actual.view
+                            ),
+                        })?
+                {
                     self.retain_returned_access_interpretation(
                         &mut projected,
                         actual,

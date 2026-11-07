@@ -4,7 +4,8 @@
 domain [u8; 8]::Utf8 requires valid_utf8(self);
 data Container { entries: [[u8; 8] in Utf8; 2]; }
 
-machine initialize(bytes: &write [u8; 8] in Utf8) { bytes = "éééé"; }
+machine initialize(bytes: &write [u8; 8] in Utf8)
+ensures bytes in Utf8 { bytes = "éééé"; }
 machine indexed(entries: &mut [[u8; 8] in Utf8; 2], position: u64) requires position <= 1 {
     initialize(&write entries[position]);
 }
@@ -21,9 +22,11 @@ machine relay(entries: &write [[u8; 8] in Utf8; 2]) {
         initialize(&write entries[1]);
     }
 }
-machine relay_owner(bytes: &write [u8; 8] in Utf8) {
+machine relay_owner(bytes: &write [u8; 8] in Utf8)
+ensures bytes in Utf8 {
     transition { _ -> finish(&write bytes) }
-    machine finish(bytes: &write [u8; 8] in Utf8) {
+    machine finish(bytes: &write [u8; 8] in Utf8)
+    ensures bytes in Utf8 {
         initialize(&write bytes);
     }
 }

@@ -11,11 +11,11 @@ use terminal_psi::{
     StructuralPathSegment, StructuralResultClaimBinding, StructuralTypeDeclaration,
 };
 
-/// Compare ownership-catalogue paths within one exact structural root. Unlike
-/// borrowed-storage aliasing, different validated Case payloads are mutually
-/// exclusive obligations even when their physical bytes overlap. Both paths
-/// must name static owned projections; reference crossings and runtime-selected
-/// storage cannot establish a disjoint claim frontier.
+/// A value holds one case at a time, so its ownership record may list the
+/// possible payloads without claiming that they coexist. Validate both paths
+/// against the same structural type before comparing their ownership claims.
+/// Reference crossings and runtime-selected storage cannot establish separate
+/// owned paths. Borrowed storage keeps its physical overlap rule.
 pub fn structural_claim_paths_may_overlap<'types>(
     declarations: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,

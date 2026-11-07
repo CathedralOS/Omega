@@ -408,6 +408,9 @@ pub(in crate::legalization) fn structural_argument_at(
                     multiplicity: home.multiplicity(),
                     qualifications: home.qualifications().to_vec(),
                     projected_qualifications: home.projected_qualifications().to_vec(),
+                    additional_input_qualifications: home
+                        .additional_input_qualifications()
+                        .to_vec(),
                 },
                 home.has_claims()
                     || home

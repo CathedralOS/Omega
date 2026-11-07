@@ -36,7 +36,6 @@ mod argument_types;
 mod completion;
 use super::generic_data::canonicalize_selected_declared_const_definition;
 use super::generic_data::closed_argument_identity;
-use arena::HandleSpan;
 pub(crate) use argument_types::DeclaredTypeOrigin;
 use argument_types::call_constraints;
 use completion::complete_arguments;
@@ -46,7 +45,6 @@ use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::statement::Statement;
 use symbol_resolved_trees::types::TypeConstraint;
-use symbol_resolved_trees::types::TypeReference;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::ItemHandle;
 use syntax_trees::statement::StatementHandle;
@@ -110,30 +108,54 @@ pub(crate) fn machine_type_equations(
     )
 }
 
-pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn validate_declarations(
+    syntax: &SyntaxTrees,
+    selection: Option<&ConstantSelection<'_>>,
+) -> Result<(), Vec<Diagnostic>> {
     for item in syntax.root_items() {
         let Some(machine) = item.as_machine() else {
             continue;
         };
         let equations = machine_type_equations(syntax, machine);
-        if equations.is_empty() {
-            continue;
+        if !equations.is_empty() {
+            // Explicit attached calls have the same selected declaration and
+            // source links as free calls, so their tuples use `complete` below.
+            // Implicit operator/conformance selection still needs its own complete
+            // application context; an attachment alone is not such a selection.
+            if (machine.spelling.is_some() || !machine.satisfies.is_empty())
+                && equations
+                    .iter()
+                    .any(type_equations::TypeEquation::requires_argument_recovery)
+            {
+                return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls; operator and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
+            }
+            for equation in equations {
+                equation
+                    .validate_kind("machine")
+                    .map_err(|error| vec![error])?;
+            }
         }
-        // Explicit attached calls have the same selected declaration and
-        // source links as free calls, so their tuples use `complete` below.
-        // Implicit operator/conformance selection still needs its own complete
-        // application context; an attachment alone is not such a selection.
-        if (machine.spelling.is_some() || !machine.satisfies.is_empty())
-            && equations
-                .iter()
-                .any(type_equations::TypeEquation::requires_argument_recovery)
-        {
-            return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls; operator and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
-        }
-        for equation in equations {
+        // Closed definitions are entry predicates, so the recovery filter
+        // above does not see them. A const operand still has to fail the
+        // closed-type fence before operand retention reports a mix.
+        for equation in type_equations::classify_type_equations(
+            syntax,
+            syntax.items.type_parameters(machine.type_parameters),
+            &syntax.items.requirement_facts(machine.contracts),
+        ) {
             equation
-                .validate_kind("machine")
-                .map_err(|error| vec![error])?;
+                .reject_unclosed_names(syntax, selection)
+                .map_err(|error| {
+                    let mut diagnostic = Diagnostic::error(format!(
+                        "generic machine `{}` {}",
+                        machine.name.as_str(syntax),
+                        error.message
+                    ));
+                    if let Some(span) = error.source_span {
+                        diagnostic = diagnostic.with_source_span(span);
+                    }
+                    vec![diagnostic]
+                })?;
         }
     }
     Ok(())
@@ -174,6 +196,7 @@ pub(crate) fn complete(
             }
         }
     }
+    let binders = BinderClosures::build(trees);
     for (original, resolved) in &sources.expressions {
         match trees.tables.bodies.expressions.expression(*resolved) {
             ExpressionNode::Call(call) => {
@@ -181,10 +204,17 @@ pub(crate) fn complete(
                 let Some(index) = selected_machine(trees, call.target_symbol) else {
                     continue;
                 };
-                if !completes_call(syntax, trees, sources, index, &call.machine_arguments) {
+                if !completes_call(
+                    syntax,
+                    trees,
+                    sources,
+                    &binders,
+                    index,
+                    &call.machine_arguments,
+                )? {
                     continue;
                 }
-                require_closed_selected_arguments(trees, &call.machine_arguments)?;
+                require_closed_selected_arguments(&binders, trees, &call.machine_arguments)?;
                 let syntax_trees::expression::ExpressionNode::Call(mut authored) =
                     syntax.expressions.expression(*original).clone()
                 else {
@@ -230,10 +260,17 @@ pub(crate) fn complete(
         let Some(index) = selected_machine(trees, call.target_symbol) else {
             continue;
         };
-        if !completes_call(syntax, trees, sources, index, &call.machine_arguments) {
+        if !completes_call(
+            syntax,
+            trees,
+            sources,
+            &binders,
+            index,
+            &call.machine_arguments,
+        )? {
             continue;
         }
-        require_closed_selected_arguments(trees, &call.machine_arguments)?;
+        require_closed_selected_arguments(&binders, trees, &call.machine_arguments)?;
         let StatementNode::Call(mut authored) = syntax.statements.statement(*original).clone()
         else {
             return Err(vec![Diagnostic::error(
@@ -295,17 +332,25 @@ pub(crate) fn complete(
     Ok(())
 }
 
-/// Whether a call's static arguments go through equation completion: every
-/// call to a machine whose `requires` facts define a type binder, except a
-/// complete tuple that forwards an open caller binder. That tuple is left to the
-/// type predicate check of its specialization.
+/// Whether a call's static arguments go through equation completion.
+///
+/// A machine whose `requires` facts define a type binder completes every
+/// call whose selected arguments are closed, including a partial tuple that
+/// still has to recover an omitted binder. A complete tuple that only
+/// forwards open type binders stays with the later type-predicate check:
+/// `fixed_vec_field<Kind, i32, 4>` is valid on the arm that already has
+/// `Kind == FixedVec<i32, 4>`. A complete tuple that forwards an open const
+/// or value binder is rejected here. Structural matching must not read that
+/// binder as a same-named closed declaration (`const Count` beside
+/// `relay<const Count>`).
 fn completes_call(
     syntax: &SyntaxTrees,
     trees: &SymbolResolvedTrees,
     sources: &SourceLinks,
+    binders: &BinderClosures,
     index: usize,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
-) -> bool {
+) -> Result<bool, Vec<Diagnostic>> {
     let declares = trees.machines[index].has_structural_type_equations
         || sources
             .declarations
@@ -316,9 +361,14 @@ fn completes_call(
                     .iter()
                     .any(type_equations::TypeEquation::requires_argument_recovery)
             });
-    declares
-        && (!supplies_complete_tuple(trees, index, arguments)
-            || require_closed_selected_arguments(trees, arguments).is_ok())
+    if !declares {
+        return Ok(false);
+    }
+    let closure = classify_selected_arguments(binders, trees, arguments);
+    if supplies_complete_tuple(trees, index, arguments) && closure == ArgumentClosure::ConstBinder {
+        return Err(open_caller_binder());
+    }
+    Ok(closure != ArgumentClosure::TypeBinder || !supplies_complete_tuple(trees, index, arguments))
 }
 
 /// Every type equation among a machine's `requires` facts, closed definitions
@@ -366,96 +416,231 @@ fn reject_machine_arguments(
 /// global declaration. Inspect the selected type tree before structural matching;
 /// this is a closedness fence, not a second equation or type inference solver.
 fn require_closed_selected_arguments(
+    binders: &BinderClosures,
     trees: &SymbolResolvedTrees,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
 ) -> Result<(), Vec<Diagnostic>> {
-    use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
-    let is_binder = |symbol| {
-        matches!(
-            trees.symbols.get(symbol).kind,
-            symbols::SymbolKind::TypeParameter
-                | symbols::SymbolKind::Parameter
-                | symbols::SymbolKind::MachineParameter
-                | symbols::SymbolKind::ConformanceParameter
-        )
-    };
-    let reject = || {
-        vec![Diagnostic::error(
-            "machine equation retains an open caller binder; supply a closed explicit static argument",
-        )]
-    };
+    if classify_selected_arguments(binders, trees, arguments) == ArgumentClosure::Closed {
+        Ok(())
+    } else {
+        Err(open_caller_binder())
+    }
+}
+
+fn open_caller_binder() -> Vec<Diagnostic> {
+    vec![Diagnostic::error(
+        "machine equation retains an open caller binder; supply a closed explicit static argument",
+    )]
+}
+
+/// How open a selected static tuple is. A type binder can still be discharged
+/// by a later predicate or guard. A const or value binder cannot: matching
+/// would treat its spelling as a closed declaration of the same name.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ArgumentClosure {
+    Closed,
+    TypeBinder,
+    ConstBinder,
+}
+
+impl ArgumentClosure {
+    fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::ConstBinder, _) | (_, Self::ConstBinder) => Self::ConstBinder,
+            (Self::TypeBinder, _) | (_, Self::TypeBinder) => Self::TypeBinder,
+            (Self::Closed, Self::Closed) => Self::Closed,
+        }
+    }
+}
+
+/// Type-parameter closure keyed by symbol arena index. Built once per
+/// completion so each selected argument does not rescan the parameter arena.
+struct BinderClosures {
+    by_symbol: Vec<Option<ArgumentClosure>>,
+}
+
+impl BinderClosures {
+    fn build(trees: &SymbolResolvedTrees) -> Self {
+        let mut by_symbol = vec![None; trees.symbols.symbols().len()];
+        for (_, parameter) in trees.tables.declarations.data_type_parameters.iter() {
+            let index = parameter.symbol.arena_index() as usize;
+            if index >= by_symbol.len() {
+                continue;
+            }
+            by_symbol[index] = Some(match &parameter.kind {
+                symbol_resolved_trees::data::TypeParameterKind::Type
+                | symbol_resolved_trees::data::TypeParameterKind::Implementation => {
+                    ArgumentClosure::TypeBinder
+                }
+                _ => ArgumentClosure::ConstBinder,
+            });
+        }
+        Self { by_symbol }
+    }
+
+    fn get(&self, symbol: symbols::SymbolHandle) -> Option<ArgumentClosure> {
+        self.by_symbol
+            .get(symbol.arena_index() as usize)
+            .copied()
+            .flatten()
+    }
+}
+
+fn classify_selected_arguments(
+    binders: &BinderClosures,
+    trees: &SymbolResolvedTrees,
+    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+) -> ArgumentClosure {
+    let mut closure = ArgumentClosure::Closed;
     let mut pending = Vec::new();
     for argument in arguments {
-        if is_binder(argument.symbol) {
-            return Err(reject());
-        }
+        closure = closure.join(binder_closure(binders, trees, argument.symbol));
         if let Some(application) = &argument.application {
-            require_closed_selected_arguments(trees, &application.arguments)?;
+            closure = closure.join(classify_selected_arguments(
+                binders,
+                trees,
+                &application.arguments,
+            ));
         }
         if argument.type_reference.is_valid() {
             pending.push(argument.type_reference);
         }
     }
-    let mut visited = Vec::new();
-    while let Some(handle) = pending.pop() {
-        if visited.contains(&handle) {
-            continue;
+    for handle in pending {
+        closure = closure.join(classify_type_reference(
+            binders,
+            trees,
+            trees.child_type_reference(handle),
+            0,
+        ));
+    }
+    closure
+}
+
+fn classify_type_reference(
+    binders: &BinderClosures,
+    trees: &SymbolResolvedTrees,
+    reference: &symbol_resolved_trees::types::TypeReference,
+    depth: usize,
+) -> ArgumentClosure {
+    use symbol_resolved_trees::types::{FixedArrayLength, TypeReference};
+    if depth >= 128 {
+        return ArgumentClosure::ConstBinder;
+    }
+    match reference {
+        TypeReference::AliasUse { expansion, .. } => {
+            classify_type_reference(binders, trees, expansion, depth + 1)
         }
-        visited.push(handle);
-        match trees.child_type_reference(handle) {
-            TypeReference::AliasUse { expansion, .. } => {
-                if !argument_types::closed_type(trees, expansion) {
-                    return Err(reject());
-                }
-            }
-            TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
-                if is_binder(*symbol) {
-                    return Err(reject());
-                }
-            }
-            TypeReference::Reference(reference) => pending.push(reference.referee),
-            TypeReference::Slice(slice) => pending.push(slice.element_type),
-            TypeReference::FixedArray(array) => {
-                // A named extent can already select a closed declaration.
-                // Preserve that selection for the shared extent reader, but
-                // never reselect an open caller binder by its spelling.
-                match &array.length {
-                    FixedArrayLength::Literal(_) => {}
-                    FixedArrayLength::ConstParameter { symbol, .. }
-                        if symbol.is_valid()
-                            && trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const => {}
-                    _ => return Err(reject()),
-                }
-                pending.push(array.element_type);
-            }
-            TypeReference::Constrained(constrained) => {
-                pending.push(constrained.base_type);
-                for constraint in trees
-                    .tables
-                    .types
-                    .constraints
-                    .span_or_empty(constrained.constraints)
+        TypeReference::Named { symbol, .. } | TypeReference::DynamicTrait { symbol, .. } => {
+            binder_closure(binders, trees, *symbol)
+        }
+        TypeReference::Reference(reference) => classify_type_reference(
+            binders,
+            trees,
+            trees.child_type_reference(reference.referee),
+            depth + 1,
+        ),
+        TypeReference::Slice(slice) => classify_type_reference(
+            binders,
+            trees,
+            trees.child_type_reference(slice.element_type),
+            depth + 1,
+        ),
+        TypeReference::FixedArray(array) => {
+            // A named extent can already select a closed declaration.
+            // Preserve that selection for the shared extent reader, but
+            // never reselect an open caller binder by its spelling.
+            let extent = match &array.length {
+                FixedArrayLength::Literal(_) => ArgumentClosure::Closed,
+                FixedArrayLength::ConstParameter { symbol, .. }
+                    if symbol.is_valid()
+                        && trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const =>
                 {
-                    if let TypeConstraint::Domain(domain) = constraint {
-                        append_type_children(domain.arguments, &mut pending);
+                    ArgumentClosure::Closed
+                }
+                FixedArrayLength::ConstParameter { symbol, .. } => {
+                    let extent = binder_closure(binders, trees, *symbol);
+                    if extent == ArgumentClosure::Closed {
+                        ArgumentClosure::ConstBinder
+                    } else {
+                        extent
+                    }
+                }
+                FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => {
+                    ArgumentClosure::ConstBinder
+                }
+            };
+            extent.join(classify_type_reference(
+                binders,
+                trees,
+                trees.child_type_reference(array.element_type),
+                depth + 1,
+            ))
+        }
+        TypeReference::Constrained(constrained) => {
+            let mut closure = classify_type_reference(
+                binders,
+                trees,
+                trees.child_type_reference(constrained.base_type),
+                depth + 1,
+            );
+            for constraint in trees
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+            {
+                if let TypeConstraint::Domain(domain) = constraint {
+                    for handle in domain.arguments.handles() {
+                        closure = closure.join(classify_type_reference(
+                            binders,
+                            trees,
+                            trees.child_type_reference(handle),
+                            depth + 1,
+                        ));
                     }
                 }
             }
-            TypeReference::Generic(generic) => {
-                if is_binder(generic.base_symbol) {
-                    return Err(reject());
-                }
-                append_type_children(generic.arguments, &mut pending);
-            }
-            TypeReference::ConstExpression(_) => return Err(reject()),
-            TypeReference::Unit => {}
+            closure
         }
+        TypeReference::Generic(generic) => {
+            let mut closure = binder_closure(binders, trees, generic.base_symbol);
+            for handle in generic.arguments.handles() {
+                closure = closure.join(classify_type_reference(
+                    binders,
+                    trees,
+                    trees.child_type_reference(handle),
+                    depth + 1,
+                ));
+            }
+            closure
+        }
+        TypeReference::ConstExpression(_) => ArgumentClosure::ConstBinder,
+        TypeReference::Unit => ArgumentClosure::Closed,
     }
-    Ok(())
 }
 
-fn append_type_children(span: HandleSpan<TypeReference>, pending: &mut Vec<Handle<TypeReference>>) {
-    pending.extend(span.handles());
+/// A caller binder's closure. Closed names, including a selected `const`
+/// declaration, are not binders. A type or implementation parameter can be
+/// refined later; every other binder is a const or value the equation must
+/// not recover by spelling.
+fn binder_closure(
+    binders: &BinderClosures,
+    trees: &SymbolResolvedTrees,
+    symbol: symbols::SymbolHandle,
+) -> ArgumentClosure {
+    if !symbol.is_valid() {
+        return ArgumentClosure::Closed;
+    }
+    match trees.symbols.get(symbol).kind {
+        symbols::SymbolKind::TypeParameter => {
+            binders.get(symbol).unwrap_or(ArgumentClosure::ConstBinder)
+        }
+        symbols::SymbolKind::Parameter
+        | symbols::SymbolKind::MachineParameter
+        | symbols::SymbolKind::ConformanceParameter => ArgumentClosure::ConstBinder,
+        _ => ArgumentClosure::Closed,
+    }
 }
 
 /// Complete one authored call's machine-argument list and record the type

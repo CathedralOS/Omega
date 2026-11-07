@@ -268,13 +268,8 @@ impl Captures<'_> {
                         continue;
                     }
                     let target = Default::default();
-                    let call = self.ordinary_return_call(
-                        state,
-                        statement_index,
-                        target,
-                        *expression,
-                        loans,
-                    )?;
+                    let call =
+                        self.ordinary_return_call(state, statement_index, target, *expression)?;
                     sites.push((target, Some(*expression), call));
                 }
                 StatementNode::Transition(transition) => {
@@ -305,7 +300,6 @@ impl Captures<'_> {
                                     statement_index,
                                     target,
                                     *expression,
-                                    loans,
                                 )?;
                                 sites.push((target, Some(*expression), call));
                             }
@@ -508,58 +502,29 @@ impl Captures<'_> {
         statement_index: usize,
         target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
-        loans: &[checked_trees::BorrowReturnedLoanFact],
     ) -> Option<Option<&checked_trees::FlowCallFact>> {
         let Some(call) = expression_table(self.program).call_node(expression) else {
             return Some(None);
         };
-        if call.static_requirement_dispatch.is_some() || call.static_machine_parameter.is_valid() {
-            return Some(None);
-        }
         // Constructors and other non-invocation expressions retain their
         // formation route. An abstract callable has a public signature even
         // without an executable state; its region cannot become an exact
         // pointer merely because the endpoint types happen to match.
-        // A dynamic slot is that same public frontier: its selector is not a
-        // private body whose return occurrence can be matched.
         let callable = crate::call_target_symbol(self.program, call);
-        if self.program.dynamic_slot_by_symbol(callable).is_some() {
-            return Some(None);
-        }
         if crate::call_target_parameters(self.program, callable).is_none()
             || crate::call_target_return_type(self.program, callable).is_none()
         {
             return Some(None);
         }
-        let occurrence = self.return_call(state, statement_index, target, expression)?;
-        let mut supplied = false;
-        let independent = loans.iter().filter(|loan| {
-            loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
-                && loan.statement_index == statement_index
-                && loan.transition_target == target
-        }).all(|loan| {
-            supplied = true;
-            loan.root == facts::PlaceRoot::Expression(expression)
-                && self.facts.borrow.incoming_references.is_valid(loan.incoming_reference)
-                && matches!(self.facts.borrow.incoming_references.get(loan.incoming_reference),
-                    checked_trees::IncomingReferenceIdentity {
-                        state_symbol,
-                        origin: checked_trees::IncomingReferenceOrigin::Invocation {
-                            expression: actual,
-                            target: actual_target,
-                        }, ..
-                    } if *state_symbol == state.symbol && *actual == expression
-                        && crate::call_target_entry_symbol(self.program, *actual_target) == occurrence.target_symbol)
-        });
-        // Formation has already established these exact independent descriptor
-        // permissions. Consume the same returned-loan roster as a constructor
-        // or abstract call; no input substitution or private backing is owed.
-        // Every other relation keeps the finite ordinary-call/SCC transport.
-        if supplied && independent {
-            Some(None)
-        } else {
-            Some(Some(occurrence))
-        }
+        // The completed call supplies the descriptor's permission. Its return
+        // contract still determines whether the backing comes from an input;
+        // an invocation identity alone cannot erase that relationship.
+        Some(Some(self.return_call(
+            state,
+            statement_index,
+            target,
+            expression,
+        )?))
     }
 
     fn return_call(
@@ -831,6 +796,8 @@ impl Captures<'_> {
                 {
                     return None;
                 }
+                let (invocation_carrier, descriptor_path) =
+                    self.invocation_carrier(state, incoming)?;
                 let shell = crate::reference_shell(self.program, incoming.carrier_type)?;
                 if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                     return None;
@@ -861,10 +828,14 @@ impl Captures<'_> {
                 }
                 return Some(vec![CheckedReferenceOriginSourcePlan {
                     root: checked_trees::CheckedReferenceOriginRoot::Invocation {
-                        carrier_type: self.program.normalized_type_identity(incoming.carrier_type),
+                        carrier_type: self.program.normalized_type_identity(invocation_carrier),
                     },
                     entry_reference_hops: 0,
-                    path: prefix.into_iter().chain(suffix).collect(),
+                    path: descriptor_path
+                        .into_iter()
+                        .chain(prefix)
+                        .chain(suffix)
+                        .collect(),
                     extent,
                     type_identity: identity,
                     access: leaf.source.access,
@@ -1031,56 +1002,14 @@ impl Captures<'_> {
                 for origin in matching {
                     let captured =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
-                    let retained_extent = if origin.extent == ReferenceOriginExtent::WithinRegion
-                        || captured.extent == ReferenceOriginExtent::WithinRegion
-                    {
-                        ReferenceOriginExtent::WithinRegion
-                    } else {
-                        ReferenceOriginExtent::Projected
-                    };
-                    let mut source_identity =
-                        self.program.normalized_type_identity(captured.backing);
-                    let extent = if let Some(presentation) = &origin.presentation
-                        && (!presentation.path.is_empty()
-                            || presentation.extent == ReferenceOriginExtent::WithinRegion)
-                    {
-                        // A completed call can return a different referent
-                        // family from within its declared input region. Keep
-                        // that checked relation even without a field path;
-                        // the returned descriptor still owns the address.
-                        if self.program.normalized_type_identity(captured.presentation)
-                            != presentation.source_type
-                            || presentation.result_type != leaf.source.type_identity
-                            || !presentation.endpoint_type.is_valid()
-                        {
-                            return None;
-                        }
-                        source_identity = presentation.endpoint_type;
-                        retained_extent
-                    } else {
-                        self.result_origin_extent(
-                            captured.presentation,
-                            state.return_type,
-                            &result_path,
-                            leaf.source.type_identity,
-                            retained_extent,
-                        )?
-                    };
-                    let mut complete = path.clone();
-                    complete.extend(captured.path);
-                    if let Some(presentation) = &origin.presentation {
-                        complete.extend(presentation.path.iter().cloned());
-                    }
-                    let source = CheckedReferenceOriginSourcePlan {
-                        root: checked_trees::CheckedReferenceOriginRoot::Parameter {
-                            index: parameter_index,
-                        },
-                        entry_reference_hops,
-                        path: complete,
-                        extent,
-                        type_identity: source_identity,
-                        access: leaf.source.access,
-                    };
+                    let source = self.publish_frame_origin(
+                        state,
+                        leaf,
+                        origin,
+                        captured,
+                        parameter_index,
+                        path.clone(),
+                    )?;
                     if !output.contains(&source) {
                         output.push(source);
                     }
@@ -1186,6 +1115,68 @@ impl Captures<'_> {
         let source_element = self.program.normalized_type_identity(*element_type);
         let result_element = self.program.normalized_type_identity(result.element);
         source_element.is_valid() && result_element.is_valid() && source_element == result_element
+    }
+
+    /// Publish the original backing and its separately checked presentation.
+    /// Call substitution and directly captured loans share this same bound.
+    fn publish_frame_origin(
+        &self,
+        state: &State,
+        leaf: &CheckedReferenceResultSourcePlan,
+        origin: &CapturedReturnOrigin,
+        captured: FrameOrigin,
+        parameter_index: u32,
+        path: Vec<CheckedReferenceOriginProjection>,
+    ) -> Option<CheckedReferenceOriginSourcePlan> {
+        let retained_extent = if origin.extent == ReferenceOriginExtent::WithinRegion
+            || captured.extent == ReferenceOriginExtent::WithinRegion
+        {
+            ReferenceOriginExtent::WithinRegion
+        } else {
+            ReferenceOriginExtent::Projected
+        };
+        let mut source_identity = self.program.normalized_type_identity(captured.backing);
+        let extent = if let Some(presentation) = &origin.presentation
+            && (!presentation.path.is_empty()
+                || presentation.extent == ReferenceOriginExtent::WithinRegion)
+        {
+            // A completed call can return a different referent
+            // family from within its declared input region. Keep
+            // that checked relation even without a field path;
+            // the returned descriptor still owns the address.
+            if self.program.normalized_type_identity(captured.presentation)
+                != presentation.source_type
+                || presentation.result_type != leaf.source.type_identity
+                || !presentation.endpoint_type.is_valid()
+            {
+                return None;
+            }
+            source_identity = presentation.endpoint_type;
+            retained_extent
+        } else {
+            self.result_origin_extent(
+                captured.presentation,
+                state.return_type,
+                &origin.result_path,
+                leaf.source.type_identity,
+                retained_extent,
+            )?
+        };
+        let mut complete = path;
+        complete.extend(captured.path);
+        if let Some(presentation) = &origin.presentation {
+            complete.extend(presentation.path.iter().cloned());
+        }
+        Some(CheckedReferenceOriginSourcePlan {
+            root: checked_trees::CheckedReferenceOriginRoot::Parameter {
+                index: parameter_index,
+            },
+            entry_reference_hops: 0,
+            path: complete,
+            extent,
+            type_identity: source_identity,
+            access: leaf.source.access,
+        })
     }
 
     /// The complete body relation refines a lifetime loan's storage region.

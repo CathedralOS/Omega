@@ -16,15 +16,28 @@
 //! appended to them is replayed only when no other body appended since its
 //! base. The completed-request memo is a query cache: a fork that misses it
 //! recomputes the same admitted shape, and its entries are replayed.
+//!
+//! A fork does not copy the type catalog or the cleanup arenas. The type
+//! rows and recursion markers keep a shared base and a fork writes into its
+//! own overlay; the cleanup arenas are shared until a fork first appends.
+//! The merged collector holds the only reference to its bases between fork
+//! rounds, so it writes in place and never pays for an overlay.
 
 use super::*;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// A keyed catalog that remembers which keys an attempt consulted, through
 /// shared and exclusive access alike, and the rows it wrote, with each
 /// row's value before its first write.
+///
+/// Every body plans against its own fork, so a fork must be cheap. The rows
+/// live in a shared base; a collector that holds the only reference to its
+/// base (the merged collector) writes into it directly, and a fork, whose base
+/// its siblings share, writes into its own overlay instead. A key the overlay
+/// holds shadows the base: `Some` is the row now, `None` a removed row.
 pub(crate) struct ConsultedMap<K, V> {
-    rows: BTreeMap<K, V>,
+    base: Arc<BTreeMap<K, V>>,
+    overlay: BTreeMap<K, Option<V>>,
     consulted: Mutex<Consulted<K>>,
     written: BTreeMap<K, Option<V>>,
 }
@@ -53,6 +66,24 @@ impl<K: Ord + Clone, V: Clone + PartialEq> ConsultedMap<K, V> {
             .insert(key.clone());
     }
 
+    /// The row as it stands now, overlay first.
+    fn current(&self, key: &K) -> Option<&V> {
+        match self.overlay.get(key) {
+            Some(row) => row.as_ref(),
+            None => self.base.get(key),
+        }
+    }
+
+    /// The base to write through, when no sibling shares it and no overlay
+    /// row could be shadowed by the write.
+    fn exclusive_base(&mut self) -> Option<&mut BTreeMap<K, V>> {
+        if self.overlay.is_empty() {
+            Arc::get_mut(&mut self.base)
+        } else {
+            None
+        }
+    }
+
     fn write(&mut self, key: &K) {
         self.consulted
             .get_mut()
@@ -60,52 +91,107 @@ impl<K: Ord + Clone, V: Clone + PartialEq> ConsultedMap<K, V> {
             .keys
             .insert(key.clone());
         if !self.written.contains_key(key) {
-            self.written
-                .insert(key.clone(), self.rows.get(key).cloned());
+            let before = self.current(key).cloned();
+            self.written.insert(key.clone(), before);
         }
     }
 
     pub(crate) fn get(&self, key: &K) -> Option<&V> {
         self.consult(key);
-        self.rows.get(key)
+        self.current(key)
     }
 
     pub(crate) fn contains_key(&self, key: &K) -> bool {
         self.consult(key);
-        self.rows.contains_key(key)
+        self.current(key).is_some()
     }
 
     pub(crate) fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         self.write(key);
-        self.rows.get_mut(key)
+        if self.exclusive_base().is_some() {
+            return self.exclusive_base()?.get_mut(key);
+        }
+        if !self.overlay.contains_key(key) {
+            let row = self.base.get(key).cloned();
+            self.overlay.insert(key.clone(), row);
+        }
+        self.overlay.get_mut(key)?.as_mut()
     }
 
     pub(crate) fn insert(&mut self, key: K, value: V) -> Option<V> {
         self.write(&key);
-        self.rows.insert(key, value)
+        if let Some(base) = self.exclusive_base() {
+            return base.insert(key, value);
+        }
+        let shadowed = self.base.get(&key).cloned();
+        self.overlay.insert(key, Some(value)).unwrap_or(shadowed)
     }
 
     fn remove(&mut self, key: &K) -> Option<V> {
         self.write(key);
-        self.rows.remove(key)
+        if let Some(base) = self.exclusive_base() {
+            return base.remove(key);
+        }
+        let shadowed = self.base.get(key).cloned();
+        self.overlay.insert(key.clone(), None).unwrap_or(shadowed)
     }
 
     /// Reading every row consults the whole catalog, including rows another
-    /// attempt may have added.
+    /// attempt may have added. Rows come in key order, overlay shadowing base.
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
         self.consulted
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .every_key = true;
-        self.rows.iter()
+        let mut base = self.base.iter().peekable();
+        let mut overlay = self.overlay.iter().peekable();
+        std::iter::from_fn(move || {
+            loop {
+                let from_overlay = match (base.peek(), overlay.peek()) {
+                    (None, None) => return None,
+                    (Some(_), None) => false,
+                    (None, Some(_)) => true,
+                    (Some((base_key, _)), Some((overlay_key, _))) => {
+                        match overlay_key.cmp(base_key) {
+                            std::cmp::Ordering::Less => true,
+                            std::cmp::Ordering::Equal => {
+                                base.next();
+                                true
+                            }
+                            std::cmp::Ordering::Greater => false,
+                        }
+                    }
+                };
+                if !from_overlay {
+                    return base.next();
+                }
+                if let (key, Some(row)) = overlay.next()? {
+                    return Some((key, row));
+                }
+            }
+        })
+    }
+
+    /// Fold the overlay into the base, which this collector then owns.
+    fn settle(&mut self) -> &mut BTreeMap<K, V> {
+        let overlay = std::mem::take(&mut self.overlay);
+        let base = Arc::make_mut(&mut self.base);
+        for (key, row) in overlay {
+            match row {
+                Some(row) => base.insert(key, row),
+                None => base.remove(&key),
+            };
+        }
+        base
     }
 
     pub(crate) fn retain(&mut self, keep: impl FnMut(&K, &mut V) -> bool) {
-        self.rows.retain(keep);
+        self.settle().retain(keep);
     }
 
-    pub(crate) fn into_values(self) -> impl Iterator<Item = V> {
-        self.rows.into_values()
+    pub(crate) fn into_values(mut self) -> impl Iterator<Item = V> {
+        self.settle();
+        Arc::unwrap_or_clone(self.base).into_values()
     }
 
     /// What this attempt consulted, and the rows whose value it changed, as
@@ -113,9 +199,9 @@ impl<K: Ord + Clone, V: Clone + PartialEq> ConsultedMap<K, V> {
     fn forget(&mut self) -> (Consulted<K>, Vec<(K, Option<V>)>) {
         let written = std::mem::take(&mut self.written)
             .into_iter()
-            .filter(|(key, before)| self.rows.get(key) != before.as_ref())
+            .filter(|(key, before)| self.current(key) != before.as_ref())
             .map(|(key, _)| {
-                let now = self.rows.get(&key).cloned();
+                let now = self.current(&key).cloned();
                 (key, now)
             })
             .collect();
@@ -128,23 +214,45 @@ impl<K: Ord + Clone, V: Clone + PartialEq> ConsultedMap<K, V> {
             written,
         )
     }
+
+    /// Set a row as a replayed attempt left it, `None` for no row.
+    fn replay(&mut self, key: K, row: Option<V>) {
+        match row {
+            Some(row) => {
+                if let Some(base) = self.exclusive_base() {
+                    base.insert(key, row);
+                } else {
+                    self.overlay.insert(key, Some(row));
+                }
+            }
+            None => {
+                if let Some(base) = self.exclusive_base() {
+                    base.remove(&key);
+                } else {
+                    self.overlay.insert(key, None);
+                }
+            }
+        }
+    }
 }
 
 impl<K: Ord, V> Default for ConsultedMap<K, V> {
     fn default() -> Self {
         Self {
-            rows: BTreeMap::new(),
+            base: Arc::default(),
+            overlay: BTreeMap::new(),
             consulted: Mutex::default(),
             written: BTreeMap::new(),
         }
     }
 }
 
-/// A copy has consulted and written nothing yet.
+/// A copy has consulted and written nothing yet, and shares the base.
 impl<K: Ord + Clone, V: Clone> Clone for ConsultedMap<K, V> {
     fn clone(&self) -> Self {
         Self {
-            rows: self.rows.clone(),
+            base: Arc::clone(&self.base),
+            overlay: self.overlay.clone(),
             consulted: Mutex::default(),
             written: BTreeMap::new(),
         }
@@ -201,6 +309,106 @@ pub(crate) struct ShapeEdits {
     byte_view_elements: Vec<TypeIdentityId>,
     unselected_opaque: Option<SymbolHandle>,
     cleanup_control: Option<checked_trees::CheckedCleanupControlPlans>,
+}
+
+/// The completed-request memo, shared between a collector and its forks.
+///
+/// The memo has one slot per type-reference arena row, so it grows with the
+/// program. Each body plans on a fork, and copying the whole memo into every
+/// fork made planning quadratic in the number of machines. Forks now share
+/// the memo and keep only what they complete themselves in `local`, which is
+/// also exactly what replaying the fork needs. A collector that holds the
+/// only reference extends the shared rows in place.
+#[derive(Clone, Default)]
+pub(crate) struct CompletedRequests {
+    shared: std::sync::Arc<Vec<Vec<(TypeShapeRequest, TypeIdentityId)>>>,
+    /// Requests completed while `shared` was shared, in completion order.
+    /// Every one of them follows every shared request of its slot.
+    local: Vec<(usize, TypeShapeRequest, TypeIdentityId)>,
+}
+
+impl CompletedRequests {
+    /// The first completed request in `slot` that `matches`, in completion order.
+    pub(super) fn find(
+        &self,
+        slot: usize,
+        mut matches: impl FnMut(&TypeShapeRequest) -> bool,
+    ) -> Option<TypeIdentityId> {
+        let shared = self.shared.get(slot).into_iter().flatten();
+        let local = self
+            .local
+            .iter()
+            .filter(|(owner, _, _)| *owner == slot)
+            .map(|(_, request, identity)| (request, identity));
+        shared
+            .map(|(request, identity)| (request, identity))
+            .chain(local)
+            .find_map(|(request, identity)| matches(request).then_some(*identity))
+    }
+
+    pub(super) fn push(
+        &mut self,
+        slot: usize,
+        request: TypeShapeRequest,
+        identity: TypeIdentityId,
+    ) {
+        // Shared rows precede local ones, so only an empty local log may
+        // extend them without reordering a slot.
+        if self.local.is_empty()
+            && let Some(rows) = std::sync::Arc::get_mut(&mut self.shared)
+        {
+            if rows.len() <= slot {
+                rows.resize_with(slot + 1, Vec::new);
+            }
+            rows[slot].push((request, identity));
+        } else {
+            self.local.push((slot, request, identity));
+        }
+    }
+
+    fn slot_len(&self, slot: usize) -> usize {
+        self.shared.get(slot).map_or(0, Vec::len)
+            + self
+                .local
+                .iter()
+                .filter(|(owner, _, _)| *owner == slot)
+                .count()
+    }
+
+    /// Every request completed here beyond what `base` holds in each slot.
+    fn since(&self, base: &Self) -> Vec<(usize, TypeShapeRequest, TypeIdentityId)> {
+        // A fork of `base` shares its rows and extends its local log.
+        if std::sync::Arc::ptr_eq(&self.shared, &base.shared)
+            && self.local.len() >= base.local.len()
+        {
+            return self.local[base.local.len()..].to_vec();
+        }
+        let slots = self.shared.len().max(
+            self.local
+                .iter()
+                .map(|(slot, _, _)| slot + 1)
+                .max()
+                .unwrap_or(0),
+        );
+        let mut since = Vec::new();
+        for slot in 0..slots {
+            let known = base.slot_len(slot);
+            let shared = self.shared.get(slot).into_iter().flatten();
+            let local = self
+                .local
+                .iter()
+                .filter(|(owner, _, _)| *owner == slot)
+                .map(|(_, request, identity)| (request, identity));
+            since.extend(
+                shared
+                    .map(|(request, identity)| (request, identity))
+                    .chain(local)
+                    .skip(known)
+                    .map(|(request, identity)| (slot, request.clone(), *identity)),
+            );
+        }
+        since
+    }
 }
 
 /// The roster position at which each collector row last changed.
@@ -339,26 +547,14 @@ impl ShapeCollector<'_> {
         let Some(base) = base else {
             return edits;
         };
-        edits.completed_requests = self
-            .completed_requests
-            .iter()
-            .enumerate()
-            .flat_map(|(slot, contexts)| {
-                let known = base.completed_requests.get(slot).map_or(0, Vec::len);
-                contexts
-                    .get(known..)
-                    .unwrap_or_default()
-                    .iter()
-                    .map(move |(request, identity)| (slot, request.clone(), *identity))
-            })
-            .collect();
+        edits.completed_requests = self.completed_requests.since(&base.completed_requests);
         edits.byte_view_elements = self
             .byte_view_elements
             .difference(&base.byte_view_elements)
             .copied()
             .collect();
         if cleanup_changed {
-            edits.cleanup_control = Some(std::mem::take(&mut self.cleanup_control));
+            edits.cleanup_control = Some(std::mem::take(&mut self.cleanup_control).into_inner());
         }
         edits
     }
@@ -366,40 +562,58 @@ impl ShapeCollector<'_> {
     /// Replay an admitted fork's writes, as its sequential run made them.
     pub(crate) fn apply(&mut self, edits: ShapeEdits) {
         for (identity, row) in edits.types {
-            match row {
-                Some(row) => self.types.rows.insert(identity, row),
-                None => self.types.rows.remove(&identity),
-            };
+            self.types.replay(identity, row);
         }
         for (identity, present) in edits.in_progress {
-            if present {
-                self.in_progress.0.rows.insert(identity, ());
-            } else {
-                self.in_progress.0.rows.remove(&identity);
-            }
+            self.in_progress.0.replay(identity, present.then_some(()));
         }
         for (key, present) in edits.domains_in_progress {
-            if present {
-                self.domains_in_progress.0.rows.insert(key, ());
-            } else {
-                self.domains_in_progress.0.rows.remove(&key);
-            }
+            self.domains_in_progress
+                .0
+                .replay(key, present.then_some(()));
         }
         self.domains.extend(edits.domains);
         self.opaque_representations
             .extend(edits.opaque_representations);
         for (slot, request, identity) in edits.completed_requests {
-            if self.completed_requests.len() <= slot {
-                self.completed_requests.resize_with(slot + 1, Vec::new);
-            }
-            self.completed_requests[slot].push((request, identity));
+            self.completed_requests.push(slot, request, identity);
         }
         self.byte_view_elements.extend(edits.byte_view_elements);
         self.unselected_opaque = edits.unselected_opaque;
         // Admitted only when no body appended since this fork's base, so its
         // arenas extend the merged ones exactly.
         if let Some(cleanup_control) = edits.cleanup_control {
-            self.cleanup_control = cleanup_control;
+            self.cleanup_control = cleanup_control.into();
         }
+    }
+}
+
+/// A catalog a fork shares with its siblings until it first writes to it;
+/// the merged collector, holding the only reference, writes in place.
+#[derive(Clone, Default)]
+pub(crate) struct CopyOnWrite<T>(Arc<T>);
+
+impl<T> std::ops::Deref for CopyOnWrite<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: Clone> std::ops::DerefMut for CopyOnWrite<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+impl<T: Clone> CopyOnWrite<T> {
+    pub(crate) fn into_inner(self) -> T {
+        Arc::unwrap_or_clone(self.0)
+    }
+}
+
+impl<T> From<T> for CopyOnWrite<T> {
+    fn from(value: T) -> Self {
+        Self(Arc::new(value))
     }
 }

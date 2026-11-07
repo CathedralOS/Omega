@@ -158,33 +158,93 @@ pub(crate) fn structural_return_descends(
     let Some((rank, _, _)) = super::proof_rank_parameter(program, origin) else {
         return false;
     };
-    let classification = crate::proof_only_classification(program);
-    let graph = super::build_machine_call_graph(program, &classification);
-    let machines = program.machines();
-    complete(
+    let descent = structural_descent_components(program);
+    let containing = |symbol| {
+        let mut components: Vec<usize> = program
+            .machine_positions_for_symbol(symbol)
+            .into_iter()
+            .flat_map(|position| descent.by_machine[position as usize].iter().copied())
+            .collect();
+        components.sort_unstable();
+        components.dedup();
+        components
+    };
+    let with_caller = containing(caller.symbol);
+    containing(origin.symbol)
+        .into_iter()
+        .filter(|component| with_caller.binary_search(component).is_ok())
+        .any(|component| {
+            let component = &descent.components[component];
+            component
+                .validated
+                .get_or_init(|| {
+                    super::proof_ranking::validate_component(
+                        program,
+                        &component.members,
+                        &component.edges,
+                    )
+                })
+                .as_ref()
+                .is_some_and(|validated| {
+                    validated.members.iter().any(|member| {
+                        member.machine == origin.symbol && member.rank_parameter == rank
+                    })
+                })
+        })
+}
+
+/// A complete proof-call component and, once some return asks, its
+/// structural validation.
+struct StructuralDescentComponent {
+    members: Vec<usize>,
+    edges: Vec<ExactProofCallEdge>,
+    validated: std::sync::OnceLock<Option<super::ValidatedProofRecursiveComponent>>,
+}
+
+/// The whole program's complete proof-call components, and for each machine
+/// position the components that contain it, in component order.
+pub(crate) struct StructuralDescentComponents {
+    components: Vec<StructuralDescentComponent>,
+    by_machine: Vec<Vec<usize>>,
+}
+
+/// Every induction return asks the same question of the same immutable
+/// program, so the call graph and its components are built once per checked
+/// program rather than once per return observed by each requirement's walk.
+fn structural_descent_components(
+    program: &dyn crate::CheckingInput,
+) -> std::sync::Arc<StructuralDescentComponents> {
+    crate::frozen_program::frozen_memo(
         program,
-        &classification,
-        &graph.edges,
-        &graph.proof_dependencies,
-    )
-    .into_iter()
-    .filter(|component| {
-        component
-            .members
-            .iter()
-            .any(|&index| machines[index].symbol == origin.symbol)
-            && component
-                .members
-                .iter()
-                .any(|&index| machines[index].symbol == caller.symbol)
-    })
-    .any(|component| {
-        super::proof_ranking::validate_component(program, &component.members, &component.edges)
-            .is_some_and(|validated| {
-                validated
-                    .members
-                    .iter()
-                    .any(|member| member.machine == origin.symbol && member.rank_parameter == rank)
+        |memos| &memos.structural_descent_components,
+        || {
+            let classification = crate::proof_only_classification(program);
+            let graph = super::build_machine_call_graph(program, &classification);
+            let components: Vec<_> = complete(
+                program,
+                &classification,
+                &graph.edges,
+                &graph.proof_dependencies,
+            )
+            .into_iter()
+            .map(|component| StructuralDescentComponent {
+                members: component.members,
+                edges: component.edges,
+                validated: std::sync::OnceLock::new(),
             })
-    })
+            .collect();
+            let mut by_machine = vec![Vec::new(); program.machines().len()];
+            for (index, component) in components.iter().enumerate() {
+                for &member in &component.members {
+                    if by_machine[member].last() != Some(&index) {
+                        by_machine[member].push(index);
+                    }
+                }
+            }
+            StructuralDescentComponents {
+                components,
+                by_machine,
+            }
+        },
+    )
 }

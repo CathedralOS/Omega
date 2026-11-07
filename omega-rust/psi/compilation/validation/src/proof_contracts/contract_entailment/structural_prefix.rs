@@ -6,7 +6,7 @@
 //! machine Requires apply here only when this is the machine's entry state.
 
 mod private_arrivals;
-pub use private_arrivals::private_invocation_entry_is_closed;
+pub use private_arrivals::{private_invocation_entry_is_closed, with_private_invocation_inputs};
 
 pub(crate) use private_arrivals::{
     ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
@@ -272,22 +272,9 @@ pub(super) trait StructuralPrefixVisitor {
         if self.is_complete() {
             return;
         }
-        let _arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
+        let Some(judge) = arm_premises(program, judge, hypotheses, equations, guarantees) else {
             return;
-        }
-        guarantees.intake(&mut judge);
-        drop(_arm_guard);
-        // Short-circuit guards can create numerically impossible alternatives
-        // even when their constructor hypotheses are consistent. Refute only
-        // from admitted prefix premises, before observing the requested value;
-        // failed goal formation must never become evidence of unreachability.
-        if phase_profile::scope("psi.05.numeric.visit.contra", || {
-            judge.integer_premises_contradictory()
-        }) {
-            return;
-        }
+        };
         let Some(state) = program.state_in_machine(machine, self.site().state) else {
             self.unresolved(machine);
             return;
@@ -434,4 +421,112 @@ pub(super) fn observe_acyclic_invocation_prefix(
         Some(visitor),
     )?;
     diagnostics.is_empty().then_some(())
+}
+
+/// One arm delivered at one site to every visitor waiting there.
+///
+/// Visitors at the same site receive identical premises: the walk's judge,
+/// the arm's case hypotheses and equations, and the guarantees established so
+/// far. `StructuralPrefixVisitor::visit` establishes those premises for each
+/// visitor separately; in a long proof the shared walk of
+/// `rat_close_triangle_split` (`core/rat.omg`) rebuilt the same arm judge for
+/// each of a call's preconditions. Here the arm judge, its guarantee intake
+/// and its contradiction test run once, at the first visitor that needs them,
+/// and each visitor observes its own copy. The sequence each visitor sees is
+/// exactly `visit`'s.
+pub(super) struct SiteArm<'arm, 'program> {
+    program: &'program dyn crate::CheckingInput,
+    machine: &'arm Machine,
+    judge: &'arm StructuralJudge<'program>,
+    environment: &'arm [(String, StructuralTerm)],
+    hypotheses: &'arm [(String, StructuralTerm)],
+    equations: &'arm [(StructuralTerm, StructuralTerm)],
+    guarantees: &'arm CitationFacts,
+    /// `Some(None)`: the arm's premises are contradictory.
+    prepared: Option<Option<StructuralJudge<'program>>>,
+}
+
+impl<'arm, 'program> SiteArm<'arm, 'program> {
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new(
+        program: &'program dyn crate::CheckingInput,
+        machine: &'arm Machine,
+        judge: &'arm StructuralJudge<'program>,
+        environment: &'arm [(String, StructuralTerm)],
+        hypotheses: &'arm [(String, StructuralTerm)],
+        equations: &'arm [(StructuralTerm, StructuralTerm)],
+        guarantees: &'arm CitationFacts,
+    ) -> Self {
+        Self {
+            program,
+            machine,
+            judge,
+            environment,
+            hypotheses,
+            equations,
+            guarantees,
+            prepared: None,
+        }
+    }
+
+    /// `visitor.visit(..)` with this arm's premises.
+    pub(super) fn deliver<V: StructuralPrefixVisitor + ?Sized>(&mut self, visitor: &mut V) {
+        visitor.entered();
+        if visitor.is_complete() {
+            return;
+        }
+        if self.prepared.is_none() {
+            self.prepared = Some(arm_premises(
+                self.program,
+                self.judge,
+                self.hypotheses,
+                self.equations,
+                self.guarantees,
+            ));
+        }
+        let Some(Some(judge)) = &self.prepared else {
+            return;
+        };
+        let Some(state) = self
+            .program
+            .state_in_machine(self.machine, visitor.site().state)
+        else {
+            visitor.unresolved(self.machine);
+            return;
+        };
+        visitor.observe((
+            self.program,
+            self.machine,
+            state,
+            judge.clone(),
+            self.environment,
+        ));
+    }
+}
+
+/// The arm judge an observation receives: the walk's judge with the arm's case
+/// hypotheses and equations and the guarantees established so far, or `None`
+/// when those premises contradict each other.
+fn arm_premises<'program>(
+    program: &'program dyn crate::CheckingInput,
+    judge: &StructuralJudge<'program>,
+    hypotheses: &[(String, StructuralTerm)],
+    equations: &[(StructuralTerm, StructuralTerm)],
+    guarantees: &CitationFacts,
+) -> Option<StructuralJudge<'program>> {
+    let arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
+    let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
+    if judge.hypotheses_contradictory {
+        return None;
+    }
+    guarantees.intake(&mut judge);
+    drop(arm_guard);
+    // Short-circuit guards can create numerically impossible alternatives
+    // even when their constructor hypotheses are consistent. Refute only
+    // from admitted prefix premises, before observing the requested value;
+    // failed goal formation must never become evidence of unreachability.
+    (!phase_profile::scope("psi.05.numeric.visit.contra", || {
+        judge.integer_premises_contradictory()
+    }))
+    .then_some(judge)
 }

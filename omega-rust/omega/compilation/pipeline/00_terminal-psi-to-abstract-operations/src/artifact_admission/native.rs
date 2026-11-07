@@ -155,6 +155,7 @@ impl NativeScopePreparation {
             structural_types,
             Some(&scope),
             scalar_applications,
+            Some(&layouts),
         )
         .map_err(ArtifactLoweringError::Lowering)?;
         let mut input = retain_native_plan(module, plan, Some(selections))

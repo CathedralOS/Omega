@@ -66,6 +66,108 @@ pub(crate) fn place_is_claimed(claims: &BTreeMap<ClaimId, LiveClaim>, place: Pla
     claims.values().any(|claim| claim.place == Some(place))
 }
 
+/// A stored owned value needs its complete selected nominal claim frontier.
+/// A declared home supplies no value, including for a zero-byte type. A
+/// nominal owner encapsulates its descendants; transparent aggregates instead
+/// retain each selected child's existing claim without a fabricated root.
+pub(crate) fn require_owned_value_claims<'claims>(
+    structural_types: &crate::embedding::program::ProgramDeclarations<
+        '_,
+        StructuralTypeDeclaration,
+    >,
+    live_claims: impl Iterator<Item = &'claims LiveClaim> + Clone,
+    root_type: StructuralTypeId,
+    argument: &StructuralArgument,
+    selected_case: &dyn Fn(&[StructuralPathSegment], semantic_vocabulary::StructuralCaseId) -> bool,
+) -> Result<(), TerminalInterpretError> {
+    if argument.access != StructuralAccess::Owned {
+        return Ok(());
+    }
+    let selected = resolve_structural_path_type(structural_types, root_type, &argument.path)?;
+    let refusal = |reason| TerminalInterpretError::OwnedValueCustodyMismatch {
+        source: argument.place,
+        structural_type: selected,
+        path_length: argument.path.len(),
+        path_prefix: argument.path.iter().take(4).cloned().collect(),
+        reason,
+    };
+    let claims = live_claims.filter(|claim| {
+        claim.place == Some(argument.place)
+            && (claim.path.starts_with(&argument.path) || argument.path.starts_with(&claim.path))
+    });
+    if claims
+        .clone()
+        .any(|claim| claim.multiplicity != Some(StructuralMultiplicity::Linear))
+    {
+        return Err(refusal(
+            "owned value claim has no exact linear multiplicity",
+        ));
+    }
+    terminal_semantics::owned_structure::validate_owned_claim_frontier(
+        &|identity| structural_types.get(&identity),
+        selected,
+        &argument.path,
+        claims.map(|claim| claim.path.clone()),
+        selected_case,
+    )
+    .map_err(refusal)
+}
+
+impl crate::engine::execution::TerminalExecution<'_> {
+    pub(crate) fn require_owned_value_claims(
+        &self,
+        argument: &StructuralArgument,
+    ) -> Result<(), TerminalInterpretError> {
+        if argument.access != StructuralAccess::Owned {
+            return Ok(());
+        }
+        if let Some(home) = self.linear_homes.get(&argument.place) {
+            return Err(TerminalInterpretError::OwnedValueCustodyMismatch {
+                source: argument.place,
+                structural_type: home.structural_type,
+                path_length: argument.path.len(),
+                path_prefix: argument.path.iter().take(4).cloned().collect(),
+                reason: "owned operand is an unestablished storage home",
+            });
+        }
+        // The catalog classifies the selected carrier, including literal and
+        // array homes; only the current ledger supplies the existing claim.
+        let machine = self.program.machine(self.current_machine)?;
+        let root_type = machine
+            .structural_place_type(argument.place)
+            .ok_or_else(malformed)?;
+        if machine
+            .structural_parameter(argument.place)
+            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+            || !terminal_semantics::projection_stays_in_inline_storage(
+                self.structural_types().values(),
+                root_type,
+                &argument.path,
+            )
+        {
+            // Borrowed-window custody belongs to the existing loan owner,
+            // not to equal-looking claims in this activation's namespace.
+            return Ok(());
+        }
+        require_owned_value_claims(
+            &self.structural_types(),
+            self.live_claims.values(),
+            root_type,
+            argument,
+            &|path, case| {
+                self.structural_values.get(&argument.place).is_some_and(|value| {
+                    crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
+                        &self.structural_types(),
+                        value,
+                        self.structural_cases.as_map(),
+                        path,
+                    ) == Some(case)
+                })
+            },
+        )
+    }
+}
+
 /// The whole-path discard row for one live affine place. A freshly established
 /// carrier, and every lookup that names it without a projection, addresses the
 /// place itself rather than a descendant.
@@ -104,6 +206,7 @@ pub(crate) fn commit_cleanup_action(
     machines: &crate::embedding::program::ProgramDeclarations<'_, TerminalMachine>,
     current_machine: &TerminalMachine,
     structural_values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
+    linear_homes: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     scalar_arrays: &mut crate::storage::scalar_array::ScalarArrayBindings,
     reference_referents: &mut RuntimeRows<
         StructuralRuntimePlace,
@@ -169,8 +272,15 @@ pub(crate) fn commit_cleanup_action(
             });
         }
         TerminalAffineCleanupAction::RetireHome(place) => {
+            if linear_homes.contains_key(place) && structural_values.contains_key(place) {
+                return Err(malformed());
+            }
             retire_cleanup_home(
-                structural_values,
+                if linear_homes.contains_key(place) {
+                    linear_homes
+                } else {
+                    structural_values
+                },
                 scalar_arrays,
                 frontier,
                 live_claims,
@@ -529,15 +639,23 @@ pub(crate) fn bind_active_structural_arguments(
     bind_structural_arguments(&active, arguments, account)
 }
 
-/// An internal edge relabels already established storage in one activation.
-/// A whole owner may stay live beside a reborrow of that same source place;
-/// this does not supply a second owned value or authorize two exclusive loans.
-/// Entry and ordinary call binding keep the strict independent-input rule.
+/// A state argument's established source, captured before cleanup. Reference
+/// projection records the exact backing reached under the requested access;
+/// a parameter records an already admitted input declaration.
+#[derive(Default)]
+pub(crate) struct BlockArgumentProvenance<'a> {
+    pub(crate) parameter: Option<&'a StructuralParameterDeclaration>,
+    pub(crate) reference_projection: Option<StructuralRuntimePlace>,
+}
+
+/// An internal edge relabels storage in one activation. An affine owner may
+/// stay live beside its established loan. Entry and ordinary call binding
+/// retain the strict rule for independent inputs.
 pub(crate) fn bind_active_block_arguments(
     parameters: &[StructuralParameterDeclaration],
     sources: &[terminal_psi::StructuralArgument],
     arguments: &[TerminalStructuralValue],
-    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    provenance: &[BlockArgumentProvenance<'_>],
     types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     cases: &BTreeMap<
         StructuralRuntimePlace,
@@ -545,11 +663,11 @@ pub(crate) fn bind_active_block_arguments(
     >,
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
-    if sources.len() != parameters.len() || source_parameters.len() != parameters.len() {
+    if sources.len() != parameters.len() || provenance.len() != parameters.len() {
         return Err(malformed());
     }
     let active = active_structural_parameters(parameters, arguments, types, cases)?;
-    bind_existing_structural_places(&active, arguments, sources, source_parameters, account)
+    bind_existing_structural_places(&active, arguments, sources, provenance, account)
 }
 
 fn active_structural_parameters(
@@ -588,63 +706,94 @@ pub(crate) fn bind_structural_arguments(
     bind_existing_structural_places(parameters, arguments, &[], &[], account)
 }
 
-/// A fresh reborrow names the owner's actual source place. A forwarded loan
-/// names its already admitted borrow parameter instead; its accompanying owner
-/// is still the same live affine source. The binder separately joins runtime
-/// identities and paths. Copies, linear custody and two loans do not form this
-/// relation, and independent inputs supply no source-parameter roster.
-fn retains_source_owner(
+/// A state edge retains the lender while its established child is in use.
+/// The lender can keep its owned home, or travel as the shared hold of an
+/// admitted mutable input. The captured descriptor supplies the child's exact
+/// backing; equal addresses alone cannot introduce this relation. Ordinary
+/// calls have no state-transfer provenance and retain independent-input checks.
+fn retains_source_lender(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
-    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    provenance: &[BlockArgumentProvenance<'_>],
     first: usize,
     second: usize,
 ) -> bool {
-    let (owner, loan) = match (parameters[first].access, parameters[second].access) {
-        (StructuralAccess::Owned, access) if access != StructuralAccess::Owned => (first, second),
-        (access, StructuralAccess::Owned) if access != StructuralAccess::Owned => (second, first),
-        _ => return false,
-    };
-    let Some(owner_source) = sources.get(owner) else {
-        return false;
-    };
-    let Some(loan_source) = sources.get(loan) else {
-        return false;
-    };
-    parameters[owner].multiplicity == StructuralMultiplicity::Affine
-        && arguments[loan].path.starts_with(&arguments[owner].path)
-        && owner_source.access == StructuralAccess::Owned
-        && owner_source.path.is_empty()
-        && loan_source.access == parameters[loan].access
-        && (owner_source.place == loan_source.place
-            || (source_parameters
-                .get(owner)
-                .copied()
-                .flatten()
-                .is_some_and(|source| {
-                    source.access == StructuralAccess::Owned
-                        && source.multiplicity == StructuralMultiplicity::Affine
-                })
-                && source_parameters
-                    .get(loan)
-                    .copied()
-                    .flatten()
-                    .is_some_and(|source| {
-                        source.access != StructuralAccess::Owned
-                            && source.multiplicity == StructuralMultiplicity::Unrestricted
-                            && crate::storage::reference::access_covers(
-                                source.access,
-                                loan_source.access,
-                            )
-                    })))
+    for (lender, child) in [(first, second), (second, first)] {
+        if parameters[child].access == StructuralAccess::Owned {
+            continue;
+        }
+        let (Some(lender_source), Some(child_source)) = (sources.get(lender), sources.get(child))
+        else {
+            continue;
+        };
+        let lender_parameter = provenance.get(lender).and_then(|source| source.parameter);
+        let lender_access = match parameters[lender].access {
+            StructuralAccess::Owned
+                if parameters[lender].multiplicity == StructuralMultiplicity::Affine
+                    && lender_source.access == StructuralAccess::Owned =>
+            {
+                StructuralAccess::Owned
+            }
+            StructuralAccess::SharedBorrow
+                if lender_source.access == StructuralAccess::SharedBorrow =>
+            {
+                // A shared hold keeps the original lender reachable while its
+                // child suspends mutation. Its admitted access must still be
+                // able to supply that child; a shared input cannot do so.
+                match lender_parameter {
+                    Some(parameter)
+                        if parameter.access == StructuralAccess::MutableBorrow
+                            && parameter.multiplicity == StructuralMultiplicity::Unrestricted =>
+                    {
+                        StructuralAccess::MutableBorrow
+                    }
+                    Some(parameter)
+                        if parameter.access == StructuralAccess::Owned
+                            && parameter.multiplicity == StructuralMultiplicity::Affine =>
+                    {
+                        StructuralAccess::Owned
+                    }
+                    _ => continue,
+                }
+            }
+            _ => continue,
+        };
+        if !lender_source.path.is_empty()
+            || !arguments[child].path.starts_with(&arguments[lender].path)
+            || child_source.access != parameters[child].access
+            || !crate::storage::reference::access_covers(lender_access, parameters[child].access)
+        {
+            continue;
+        }
+        let resolved_reference = provenance
+            .get(child)
+            .and_then(|source| source.reference_projection.as_ref())
+            .is_some_and(|source| *source == StructuralRuntimePlace::from(&arguments[child]));
+        let forwarded_parameter = lender_parameter.is_some_and(|source| {
+            source.access == lender_access
+                && (source.access != StructuralAccess::Owned
+                    || source.multiplicity == StructuralMultiplicity::Affine)
+        }) && provenance
+            .get(child)
+            .and_then(|source| source.parameter)
+            .is_some_and(|source| {
+                source.access != StructuralAccess::Owned
+                    && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && crate::storage::reference::access_covers(source.access, child_source.access)
+            });
+        if lender_source.place == child_source.place || resolved_reference || forwarded_parameter {
+            return true;
+        }
+    }
+    false
 }
 
 fn bind_existing_structural_places(
     parameters: &[StructuralParameterDeclaration],
     arguments: &[TerminalStructuralValue],
     sources: &[terminal_psi::StructuralArgument],
-    source_parameters: &[Option<&StructuralParameterDeclaration>],
+    provenance: &[BlockArgumentProvenance<'_>],
     account: Option<&EvaluationInvocationAccount>,
 ) -> Result<RuntimeRows<PlaceId, TerminalStructuralValue>, TerminalInterpretError> {
     if arguments.len() != parameters.len() {
@@ -714,11 +863,11 @@ fn bind_existing_structural_places(
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted;
             if overlapping
                 && (custody || exclusive)
-                && !retains_source_owner(
+                && !retains_source_lender(
                     parameters,
                     arguments,
                     sources,
-                    source_parameters,
+                    provenance,
                     previous_index,
                     argument_index,
                 )

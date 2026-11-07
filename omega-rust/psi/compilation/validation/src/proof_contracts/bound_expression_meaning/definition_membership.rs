@@ -76,26 +76,53 @@ pub(super) fn facts_contain_expression(
     facts: HandleSpan<ProofFact>,
     expression: ExpressionHandle,
 ) -> bool {
+    // Search for the one node and stop at it, rather than collecting every
+    // node of every fact first. A subtree searched under an earlier fact
+    // already proved it does not hold `expression`, so the facts share one
+    // visited set, sized to the nodes actually reached rather than to the
+    // expression table.
+    let mut seen = Vec::new();
     program.proof_facts.span_or_empty(facts).iter().any(|fact| {
-        let mut nodes = Vec::new();
-        let mut seen = std::collections::HashSet::new();
-        let mut collect = |root| {
-            crate::queries::expression_traversal::collect_expression_nodes(
-                program, root, &mut nodes, &mut seen,
-            )
-        };
+        let mut reaches = |root| reaches_expression(program, root, expression, &mut seen);
         match fact {
-            ProofFact::Expression(root) => collect(*root),
-            ProofFact::Membership(membership) => collect(membership.value),
-            ProofFact::Proposition(application) => {
-                for argument in expression_table(program).expression_handles(application.arguments)
-                {
-                    collect(*argument);
-                }
-            }
+            ProofFact::Expression(root) => reaches(*root),
+            ProofFact::Membership(membership) => reaches(membership.value),
+            ProofFact::Proposition(application) => expression_table(program)
+                .expression_handles(application.arguments)
+                .iter()
+                .any(|argument| reaches(*argument)),
         }
-        nodes.contains(&expression)
     })
+}
+
+/// Whether `target` is reached from `expression` by the preorder that
+/// `collect_expression_nodes` takes: zero handles are skipped and each handle
+/// is entered once. `seen` holds the handles entered so far, sorted by slot and
+/// generation.
+fn reaches_expression(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    target: ExpressionHandle,
+    seen: &mut Vec<(u32, u32)>,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    let key = (expression.arena_index(), expression.generation());
+    match seen.binary_search(&key) {
+        Ok(_) => return false,
+        Err(position) => seen.insert(position, key),
+    }
+    if expression == target {
+        return true;
+    }
+    let mut found = false;
+    crate::queries::expression_traversal::children(
+        program,
+        expression_table(program).expression(expression),
+        |child| found = found || reaches_expression(program, child, target, seen),
+    );
+    found
 }
 
 #[derive(Clone, Copy)]

@@ -179,7 +179,9 @@ impl CheckRequest<'_> {
             self.previous.iter().copied().find(|prior| {
                 prior.layout_evaluation.as_ref().is_some_and(|input| {
                     input.matches(&program, self.admission.layout_scopes, layout_authority)
-                }) && prior.judgment.judges_preparation_admission(&admission)
+                }) && prior
+                    .judgment
+                    .judges_preparation_admission(&admission, self.admission.external_roots)
             })
         });
         // Evaluation leaves a program without fixed-layout storage unchanged, so
@@ -211,9 +213,11 @@ impl CheckRequest<'_> {
         let matching = evaluated.or_else(|| {
             phase_profile::scope("psi.source.retained_match", || {
                 self.previous.iter().copied().find(|prior| {
-                    prior
-                        .judgment
-                        .judges_preparation_input(&program, &admission)
+                    prior.judgment.judges_preparation_input(
+                        &program,
+                        &admission,
+                        self.admission.external_roots,
+                    )
                 })
             })
         });
@@ -256,6 +260,7 @@ impl CheckRequest<'_> {
                 build_time_evaluation::retain_access_lifecycle_plans(
                     program,
                     self.admission.declarations,
+                    self.admission.layout_scopes,
                 )
             })?;
             let prior_dependency_bodies: Vec<_> = self

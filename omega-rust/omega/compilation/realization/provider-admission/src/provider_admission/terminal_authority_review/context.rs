@@ -134,11 +134,7 @@ impl<'a> ReviewContext<'a> {
         let (plan, row) = self
             .selected
             .selected_requirement_row(requirement)
-            .ok_or_else(|| {
-                format!(
-                    "reachable requirement `{requirement}` resolves to 0 selected provider rows"
-                )
-            })?;
+            .ok_or_else(|| self.missing_requirement(requirement))?;
         if plan.target != self.target_profile.target_name() {
             return Err(format!(
                 "reachable requirement `{requirement}` selected target `{}` instead of exact profile `{}`",
@@ -147,6 +143,54 @@ impl<'a> ReviewContext<'a> {
             ));
         }
         Ok((plan, row, specialization))
+    }
+
+    fn missing_requirement(&self, requirement: &str) -> String {
+        let target = self.target_profile.target_name();
+        let arity = self
+            .boundaries
+            .values()
+            .find(|boundary| {
+                self.input.plan().identities.text(boundary.identity) == Some(requirement)
+            })
+            .map(|boundary| boundary.parameter_order.len());
+        let mut message = format!(
+            "reachable requirement `{requirement}` resolves to 0 selected provider rows on target `{target}`"
+        );
+        // These rows explain a refusal; equal arity never admits a replacement.
+        // Keep complete canonical identities while bounding diagnostic output.
+        let mut shown = 0;
+        let mut offered = 0;
+        for plan in self
+            .selected
+            .plans()
+            .iter()
+            .filter(|plan| plan.target == target)
+        {
+            for row in &plan.rows {
+                let identity = plan.identities.text(row.requirement_identity);
+                if !plan.schema.declaration.methods.iter().any(|method| {
+                    Some(method.parameter_count) == arity
+                        && plan.schema.identity_text(method.requirement_identity) == identity
+                }) {
+                    continue;
+                }
+                offered += 1;
+                let detail = format!(
+                    "\n  selected schema `{}` offers `{identity}`",
+                    plan.schema
+                        .identity_text(plan.schema.declaration.trait_name)
+                );
+                if shown < 12 && message.len() + detail.len() <= 16384 {
+                    message.push_str(&detail);
+                    shown += 1;
+                }
+            }
+        }
+        message.push_str(&format!(
+            "\n  showing {shown} of {offered} selected rows with parameter count {arity:?}"
+        ));
+        message
     }
 
     pub(super) fn exact_mechanism(

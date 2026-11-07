@@ -808,6 +808,10 @@ fn validate<'program>(
         let is_content_projection_machine =
             content_projections::is_content_projection_machine(program, machine);
         let is_proof_machine = proof_only.is_proof_machine(program, machine);
+        // Every value call in this machine judges refuted requirements against
+        // the same closed-operand entry judge; build it once, on first use.
+        let entry_judge =
+            crate::proof_contracts::contract_entailment::CallerEntryJudge::new(program, machine);
         let _states_guard =
             phase_profile::guard("psi.05.prepare_typed_program.validate.state_statements");
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
@@ -1003,6 +1007,7 @@ fn validate<'program>(
                                 &writable_roots,
                                 &value_environment,
                                 &transition_values,
+                                &entry_judge,
                                 &mut boundary_operator_applications,
                                 &mut diagnostics,
                                 &mut formation_obligations,

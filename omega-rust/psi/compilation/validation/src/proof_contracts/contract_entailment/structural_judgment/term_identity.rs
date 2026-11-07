@@ -293,6 +293,28 @@ impl StructuralTerm {
         self.has_observation_identity()
             .then(|| format!("{:?}", self.semantic_value()))
     }
+
+    /// Whether `observation_identity_key` would return exactly `key`. A
+    /// search over many captures compares one key against each; streaming
+    /// this value's spelling against `key` stops at the first differing byte
+    /// instead of formatting and allocating a full key per capture.
+    pub(in crate::proof_contracts::contract_entailment) fn has_observation_identity_key(
+        &self,
+        key: &str,
+    ) -> bool {
+        struct Remaining<'key>(&'key str);
+        impl std::fmt::Write for Remaining<'_> {
+            fn write_str(&mut self, part: &str) -> std::fmt::Result {
+                self.0 = self.0.strip_prefix(part).ok_or(std::fmt::Error)?;
+                Ok(())
+            }
+        }
+        let mut remaining = Remaining(key);
+        std::fmt::Write::write_fmt(&mut remaining, format_args!("{:?}", self.semantic_value()))
+            .is_ok()
+            && remaining.0.is_empty()
+            && self.has_observation_identity()
+    }
 }
 
 impl Eq for StructuralTerm {}
@@ -729,7 +751,16 @@ mod resolution_payload_tests {
 
     #[test]
     fn payload_comparison_keeps_authority_on_the_last_of_three_fields() {
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let carrier = identities.intern("Carrier");
         let left = StructuralTerm::Constructor {
+            identity: super::super::ConstructorIdentity::Nominal {
+                carrier,
+                reference: TypeReferenceHandle::from_arena_index(1),
+                declaration: symbols::SymbolHandle::from_arena_index(1),
+                case: None,
+                member: None,
+            },
             data: "Carrier".to_owned(),
             case: "Only".to_owned(),
             fields: ["first", "second", "third"]

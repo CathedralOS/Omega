@@ -214,9 +214,12 @@ impl StructuralJudge<'_> {
             let Some(identity) = observed.observation_identity_key() else {
                 break;
             };
-            let Some(capture) = self.completed_nominal_values.iter().rev().find(|capture| {
-                capture.value.observation_identity_key().as_ref() == Some(&identity)
-            }) else {
+            let Some(capture) = self
+                .completed_nominal_values
+                .iter()
+                .rev()
+                .find(|capture| capture.value.has_observation_identity_key(&identity))
+            else {
                 break;
             };
             observed = capture.observed_value.clone();

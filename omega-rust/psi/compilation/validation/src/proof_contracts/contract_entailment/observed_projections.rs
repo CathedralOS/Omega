@@ -363,7 +363,7 @@ pub(super) fn completed_reference_descriptor(
     let descriptor = judge
         .completed_nominal_observation(&receiver)
         .into_collection_descriptor();
-    descriptor.observation_identity_key()?;
+    descriptor.has_observation_identity().then_some(())?;
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
             let receiver =
@@ -400,7 +400,7 @@ pub(super) fn completed_reference_descriptor(
                 return None;
             }
             let index = selector?;
-            index.observation_identity_key()?;
+            index.has_observation_identity().then_some(())?;
             Some(StructuralTerm::IndexedValue {
                 element_type,
                 element_identity: program.normalized_type_identity(element_type),

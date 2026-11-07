@@ -673,6 +673,105 @@ fn validate_specification_payload_projection(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The one case a conjunction names, when every membership agrees.
+/// An `||` is not one case: each disjunct carries its own guard.
+fn sole_conjunctive_case(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<(String, String)> {
+    let mut found = None;
+    if !conjunctive_case(program, expression, &mut found) {
+        return None;
+    }
+    let (data_index, member_index) = found?;
+    let data = program.data_definitions().get(data_index as usize)?;
+    let typed_trees::data::DataMember::Variant(variant) =
+        program.data_members(data).get(member_index as usize)?
+    else {
+        return None;
+    };
+    Some((format!("{}", data.name), format!("{}", variant.name)))
+}
+
+fn conjunctive_case(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    found: &mut Option<(u32, u32)>,
+) -> bool {
+    let ExpressionNode::Binary(binary) = expression_table(program).expression(expression) else {
+        return true;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            conjunctive_case(program, binary.left, found)
+                && conjunctive_case(program, binary.right, found)
+        }
+        BinaryOperator::Or => false,
+        _ => record_membership_case(program, expression, found),
+    }
+}
+
+fn record_membership_case(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    found: &mut Option<(u32, u32)>,
+) -> bool {
+    let Some(position) = membership_variant(program, expression) else {
+        return true;
+    };
+    match *found {
+        Some(existing) if existing != position => false,
+        Some(_) => true,
+        None => {
+            *found = Some(position);
+            true
+        }
+    }
+}
+
+fn membership_variant(
+    program: &dyn crate::CheckingInput,
+    atom: ExpressionHandle,
+) -> Option<(u32, u32)> {
+    let ExpressionNode::Binary(binary) = expression_table(program).expression(atom) else {
+        return None;
+    };
+    let membership = binary.operator == BinaryOperator::CaseMembership
+        || expression_table(program)
+            .authored_selection_occurrences(atom)
+            .any(|occurrence| {
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .is_some_and(|selection| {
+                        selection.kind()
+                            == typed_trees::AuthoredDeclarationSelectionKind::CaseMembership
+                    })
+            });
+    if !membership {
+        return None;
+    }
+    let path = expression_table(program).name_path_node(binary.right)?;
+    [path.symbol, path.head_symbol]
+        .into_iter()
+        .chain(
+            expression_table(program)
+                .name_path_member_symbols(path.member_symbols)
+                .last()
+                .copied(),
+        )
+        .find_map(|symbol| program.data_variant_position_for_symbol(symbol))
+}
+
+fn case_predicate_owner(owner: &str, data_name: &str, case_name: &str) -> Option<String> {
+    let default_domain = format!("data `{data_name}` default-domain predicate");
+    if owner == default_domain {
+        Some(format!("data `{data_name}` case `{case_name}` predicate"))
+    } else {
+        None
+    }
+}
+
 fn validate_specification_expression(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
@@ -761,6 +860,14 @@ fn validate_specification_expression_in_scope(
                 branch.push(binary.left);
             }
         }
+        // `self in Data::Case && …` is that case's predicate. The conjunct to
+        // the right keeps the case in its owner; an earlier conjunct still
+        // cannot borrow a fact written after the call.
+        let case_owner = (binary.operator == BinaryOperator::And)
+            .then(|| sole_conjunctive_case(program, binary.left))
+            .flatten()
+            .and_then(|(data_name, case_name)| case_predicate_owner(owner, &data_name, &case_name));
+        let right_owner = case_owner.as_deref().unwrap_or(owner);
         validate_specification_expression_in_scope(
             program,
             caller,
@@ -771,7 +878,7 @@ fn validate_specification_expression_in_scope(
                 denied: &denied,
                 captures: prior_facts.captures,
             },
-            owner,
+            right_owner,
             diagnostics,
             content_formation,
             visited,
@@ -1365,8 +1472,21 @@ fn validate_specification_expression_in_scope(
             false
         };
         if !proven {
+            // `requires false` is a closed contradiction. An unproved operand
+            // fact still needs a prior premise; a literal false does not.
+            let structurally_false = requirement.as_expression().is_some_and(|expression| {
+                matches!(
+                    expression_table(program).expression(*expression),
+                    ExpressionNode::Boolean(false)
+                )
+            });
+            let detail = if structurally_false {
+                "the instantiated fact is structurally false"
+            } else {
+                "establish its selected precondition in an independently formed prior requires fact"
+            };
             diagnostics.push(Diagnostic::error(format!(
-                "cannot prove requires contract for specification call `{}` in {owner}: establish its selected precondition in an independently formed prior requires fact",
+                "cannot prove requires contract for specification call `{}` in {owner}: {detail}",
                 owner_name(program, &contract_owner),
             )));
         }

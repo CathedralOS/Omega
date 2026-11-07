@@ -31,9 +31,9 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Move Build facet calls to `Build::*`, retire `machine Data::operation` and attached helpers, and finish suspension loans.
   Acceptance: 9-place `dropped by` rows, `generic_counters`, clock/GUI samples, and `traits/,layouts/,progress/` pass `--both`.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Complete `dyn` dispatch ([dynamic_dispatch.md](wiki/spec/terminal-psi/dynamic_dispatch.md)).
-  - Complete envelope refinement under [known-selection narrowing](wiki/spec/language/effects.md#known-dynamic-selections) and preserve 8-byte dispatch tables across all hosts.
-  Acceptance: `python3 tools/corpus_gate.py --both --filter traits/` (`runtime_dyn_*_exit`) passes on Windows, macOS, and Linux.
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** (covers **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**) Replace `dyn` with [machine values and some](wiki/drafts/designs/machine_values_some.md).
+  - Complete callable contracts, package openings, loans, envelopes, indirect lowering and codec migration on all hosts.
+  Acceptance: migrated `traits/` and package controls pass `--both` on all hosts; replacement edges are checked.
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/**/target_body/main.omg`, `audio_playback`, and target fixtures.
@@ -48,8 +48,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
   - Run migrated POSIX (`pass/filesystem/`, `runtime_posix_*`) and Windows GUI (`runtime_{gui,windows}_*`, `window_demo`) customers via `omega run --both`.
   Acceptance: POSIX and Windows GUI customers pass `omega run --both` under boundary-trait selection while bad providers reject.
 
-- **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises end to end ([executable supply](wiki/spec/language/expressions.md#executable-supply), [contracts.md](wiki/spec/proofs/contracts.md#licensed-normalization)).
-  - Implement literal-linked index identities (`N + 0`, `N * 1`) and 64-summand canonical index normalization.
+- **OPERATOR-MACHINE-SUPPLY.** Run declared operations and premises; migrate [index identity and compatibility](wiki/drafts/designs/index_identity.md).
+  - Separate fixed identity from budgeted, evidence-producing algebra proofs.
   - Carry generic compatibility through specialization, retire the `operator` introducer ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)), and lower `f64 in D` / `i32 in D` operator shapes.
   Acceptance: `declared_operator_match_result` and `body_bearing_comparison`/`generic_comparison_body`/`open_index_distributivity` pass `--both`.
 
@@ -143,7 +143,7 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
-- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Complete [proof checking](wiki/spec/proofs/foundation.md) and [quotients](wiki/spec/proofs/quotients.md) in `mathematical_core/` and `proof_surface.rs`.
+- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Complete [proofs](wiki/spec/proofs/foundation.md), [quotients](wiki/spec/proofs/quotients.md), and [identity](wiki/drafts/designs/explicit_identity.md).
   Acceptance: `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}` and `proofs/quotient_*` pass `--both`.
 
 ## Build-level behavior exclusions

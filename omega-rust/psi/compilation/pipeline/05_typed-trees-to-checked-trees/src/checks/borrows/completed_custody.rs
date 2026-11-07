@@ -26,12 +26,7 @@ pub(crate) fn require_unborrowed_completion(
     let state_flow = facts
         .flow
         .control
-        .states
-        .iter()
-        .find_map(|(_, flow)| {
-            (flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol)
-                .then_some(flow)
-        })
+        .state(machine.symbol, state.symbol)
         .ok_or("missing completion state flow")?;
     let borrow_state =
         super::matching_borrow_state(facts, state_flow).ok_or("missing completion borrow state")?;

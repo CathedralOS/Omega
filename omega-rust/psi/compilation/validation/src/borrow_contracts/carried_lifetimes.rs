@@ -1301,10 +1301,14 @@ fn collect_data(
         reference,
         cyclic: false,
     });
+    // Each field's owner path is transient: leaves copy what they keep. One
+    // buffer serves every field rather than a fresh copy of the prefix each.
+    let mut path = Vec::new();
     let complete = program
         .data_member_fields(program.data_members(definition))
         .all(|field| {
-            let mut path = owner_path.to_vec();
+            path.clear();
+            path.extend_from_slice(owner_path);
             if let Some(variant) = facts::payload_variant_for_field(program, field.symbol) {
                 path.push(BorrowOwnerSegment::Case(variant));
             }

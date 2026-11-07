@@ -328,25 +328,41 @@ impl SymbolTable {
         // Generic families have leaf-only declaration names. A qualified
         // reference may abbreviate their carrier, but a module prefix is not
         // a carrier: `bounds::Below` must not also select a root `Below`.
-        // Keep ordinary role-aware lookup here so all domain candidate pools
-        // apply the same rule before deciding ambiguity or local precedence.
+        // A builtin qualifier (`u64::Below`) abbreviates any such family. A
+        // declared carrier abbreviates only the family authored in that
+        // carrier's source, so `Run::Live` still selects Run's `Live` while
+        // `Lease::Live` does not. Otherwise a case of an unrelated sum is
+        // reported as competing with the generic family.
         if !domain_name.contains("::")
             && let Some((carrier, leaf)) = authored.rsplit_once("::")
-            && (leaf != domain_name
-                || self
-                    .find_top_level_by_name_and_kinds_from_source(
-                        carrier,
-                        &[
-                            SymbolKind::BuiltinType,
-                            SymbolKind::Data,
-                            SymbolKind::Machine,
-                            SymbolKind::Trait,
-                        ],
-                        reference,
-                    )
-                    .is_none())
         {
-            return false;
+            if leaf != domain_name {
+                return false;
+            }
+            let carrier_symbol = self.find_top_level_by_name_and_kinds_from_source(
+                carrier,
+                &[
+                    SymbolKind::BuiltinType,
+                    SymbolKind::Data,
+                    SymbolKind::Machine,
+                    SymbolKind::Trait,
+                ],
+                reference,
+            );
+            let Some(carrier_symbol) = carrier_symbol else {
+                return false;
+            };
+            if self.get(carrier_symbol).kind != SymbolKind::BuiltinType {
+                let domain_source = self
+                    .symbol_provenance_source_span(domain)
+                    .map(|span| span.source_id);
+                let carrier_source = self
+                    .symbol_provenance_source_span(carrier_symbol)
+                    .map(|span| span.source_id);
+                if domain_source.is_none() || domain_source != carrier_source {
+                    return false;
+                }
+            }
         }
         if !domain_module.is_valid() {
             return same_semantic_name(domain_name, authored);

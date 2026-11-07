@@ -1,0 +1,11 @@
+// Creating a directory cannot omit namespace mutation from its published reach.
+use omega_language_std::filesystem;
+use omega::language::core::filesystem_authority;
+
+public machine create_without_namespace(path: &[u8] in Path) -> UnitResult
+blocks
+reaches FilesystemMetadataMutation + FilesystemMetadataQuery
+invokes FilesystemService
+{
+    block FilesystemService::create_dir_all(path)
+}

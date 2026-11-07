@@ -11,7 +11,7 @@ use typed_trees::TypedTrees;
 
 use crate::layouts::layout_plans::validate_plan;
 use crate::layouts::schema_reflection::{
-    SchemaFieldInfo, build_selected_schema_value, schema_fields_for,
+    SchemaFieldInfo, build_selected_schema_value, schema_fields_for_target,
 };
 
 use super::evaluate_selected_policy;
@@ -25,10 +25,12 @@ pub(crate) fn compute_selected_access_plan(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     schema: &typed_trees::data::DataDefinition,
+    target: Option<&layout_plans::LayoutTargetFacts>,
     accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<ValidatedAccessPlan, String> {
     let policy_machine = machine.name.as_str();
-    let (schema_fields, schema_report_fingerprint) = schema_fields_for(typed, schema)?;
+    let (schema_fields, schema_report_fingerprint) =
+        schema_fields_for_target(typed, schema, target)?;
     let schema_value = build_selected_schema_value(typed, schema, &schema_fields)?;
     let plan = evaluate_selected_policy(typed, machine, vec![schema_value], "access", accounting)?;
     let fields = struct_fields(&plan).map_err(|reason| invalid(policy_machine, reason))?;

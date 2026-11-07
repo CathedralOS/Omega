@@ -44,6 +44,16 @@ fn resolve_member_symbol_from_receiver(
     receiver: ExpressionHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
+    // Layout storage and `data Name = ...` aliases publish the semantic
+    // field's symbol. The nominal wrapper's own declaration has no such field,
+    // so a base-symbol lookup would leave the place segment unnamed.
+    if let Some(reference) = expression_type_reference(program, receiver)
+        && let Some(data) = program.data_field_definition(reference)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
+    }
+
     let type_symbol = expression_type_symbol(program, receiver)?;
 
     if let Some(data) = program.data_definition_by_symbol(type_symbol)
@@ -319,16 +329,26 @@ fn collection_element_type(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    let reference = program
+    let mut reference = program
         .type_reference_table
         .peeled_type_reference(reference);
-    {
+    // `data Name = [T; N]` is a nominal symbol whose array lives on the
+    // structural origin. Indexing that name selects the origin's element.
+    for _ in 0..8 {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-            _ => None,
+            | TypeReferenceNode::Slice { element_type } => return Some(*element_type),
+            TypeReferenceNode::Named { symbol, .. } => {
+                let origin = program
+                    .data_definition_by_symbol(*symbol)?
+                    .generic_instance
+                    .filter(|origin| origin.is_valid() && *origin != reference)?;
+                reference = program.type_reference_table.peeled_type_reference(origin);
+            }
+            _ => return None,
         }
     }
+    None
 }
 
 fn type_reference_base_symbol(
@@ -360,7 +380,13 @@ pub fn resolve_place_member_symbol(
     member_name: &str,
 ) -> Option<SymbolHandle> {
     let place = facts.places.get(place);
-    let base_symbol = fact_place_type_symbol(program, facts, place)?;
+    let reference = fact_place_type_reference(program, facts, place)?;
+    if let Some(data) = program.data_field_definition(reference)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
+    }
+    let base_symbol = type_reference_base_symbol(program, reference);
 
     if let Some(machine) = program.machine(base_symbol)
         && let Some(data) = program.attached_data_definition(machine)
@@ -404,20 +430,20 @@ fn data_member_symbol_by_name(
         })
 }
 
-fn fact_place_type_symbol(
+fn fact_place_type_reference(
     program: &TypedTrees,
     facts: &FactPlan,
     place: &Place,
-) -> Option<SymbolHandle> {
-    let (mut current, mut reference) = match place.root {
-        PlaceRoot::Symbol(symbol) => (
-            symbol_type_symbol(program, symbol)?,
-            symbol_type_reference(program, symbol).unwrap_or_default(),
-        ),
-        PlaceRoot::Expression(expression) => (
-            expression_type_symbol(program, expression)?,
-            expression_type_reference(program, expression).unwrap_or_default(),
-        ),
+) -> Option<TypeReferenceHandle> {
+    let mut reference = match place.root {
+        PlaceRoot::Symbol(symbol) => {
+            symbol_type_symbol(program, symbol)?;
+            symbol_type_reference(program, symbol)?
+        }
+        PlaceRoot::Expression(expression) => {
+            expression_type_symbol(program, expression)?;
+            expression_type_reference(program, expression)?
+        }
         PlaceRoot::Unknown
         | PlaceRoot::TypeReference(_)
         | PlaceRoot::InvocationReferent { .. }
@@ -430,7 +456,6 @@ fn fact_place_type_symbol(
         match segment {
             PlaceSegment::Field { symbol } => {
                 reference = symbol_type_reference(program, *symbol)?;
-                current = type_reference_base_symbol(program, reference);
             }
             PlaceSegment::Case { .. } => {}
             PlaceSegment::Index { expression }
@@ -443,12 +468,11 @@ fn fact_place_type_symbol(
             }
             PlaceSegment::FixedIndex { .. } | PlaceSegment::Index { .. } => {
                 reference = collection_element_type(program, reference)?;
-                current = type_reference_base_symbol(program, reference);
             }
             // A window remains a collection, not an element receiver.
             PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => return None,
         }
     }
 
-    Some(current)
+    reference.is_valid().then_some(reference)
 }

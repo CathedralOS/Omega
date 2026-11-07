@@ -160,11 +160,10 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 240 keeps the binder-selected calling owner for inherited callbacks.
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
-// Provider instances distinguish declaration views from receiving applications.
-// Marker 247 adds exact installed-interrupt registrations and their four
-// checked boundary execution kinds. Prior modules have no registration table.
-// Marker 248 combines provider roles with installed-entry execution.
-pub(crate) const FORMAT_MARKER: u16 = 248;
+// Installed interrupt registrations and their checked execution kinds share
+// this layout with input observation/result lifetimes, target case-tag geometry
+// and lifecycle target inputs. Earlier independent layouts are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 251;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -284,20 +283,28 @@ pub fn decode_canonical_proposition(
 }
 
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {
-    let bytes = encode_execution_module(module)?;
+    Ok(encoded_fingerprint(
+        module,
+        &encode_execution_module(module)?,
+    ))
+}
+
+/// The fingerprint of `module` from bytes [`encode_module`] already produced
+/// for it, so a publisher that keeps those bytes does not encode twice.
+pub(crate) fn encoded_fingerprint(module: &TerminalModule, bytes: &[u8]) -> SemanticFingerprint {
     let local = module.identities.invocation_local_entries();
     if local.is_empty() {
-        return Ok(fingerprint_bytes(&bytes));
+        return fingerprint_bytes(bytes);
     }
     let mut digest =
         crate::digest_encoder::DomainDigestEncoder::new(b"psi-invocation-code-fingerprint\0");
     digest.raw(&(bytes.len() as u64).to_le_bytes());
-    digest.raw(&bytes);
+    digest.raw(bytes);
     digest.raw(&(local.len() as u64).to_le_bytes());
     for identity in local {
         digest.raw(&identity.0.to_le_bytes());
     }
-    Ok(SemanticFingerprint::from_bytes(digest.finish()))
+    SemanticFingerprint::from_bytes(digest.finish())
 }
 
 pub fn terminal_psi_identity(module: &TerminalModule) -> Result<TerminalPsiIdentity, CodecError> {

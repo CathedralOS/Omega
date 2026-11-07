@@ -1397,6 +1397,7 @@ fn validate_structural_arguments(
             access: StructuralAccess::Owned,
             qualifications: result.qualifications.clone(),
             projected_qualifications: result.projected_qualifications.clone(),
+            additional_input_qualifications: result.additional_input_qualifications.clone(),
         });
         let backing = parameter
             .or_else(|| block_parameter(machine, argument.place))

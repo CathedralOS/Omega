@@ -224,6 +224,10 @@ pub(super) struct CapturedStoreDestination {
         typed_trees::types::PrimitiveType,
         typed_trees::types::PrimitiveType,
     )>,
+    /// A complete IntegerAt cell written through a same-width view. The written
+    /// bits decode into this encoding; they are not a native bitcast of the
+    /// wider semantic carrier.
+    stored_integer: Option<semantic_vocabulary::IntegerType>,
 }
 
 impl StructuralJudge<'_> {
@@ -1676,9 +1680,11 @@ impl StructuralJudge<'_> {
         let captured = frame
             .complete_paths()
             .and_then(|written| self.exact_store_coordinate(machine, state, statement, written));
-        let (coordinate, representation) = match captured {
-            Some((coordinate, representation)) => (Some(coordinate), representation),
-            None => (None, None),
+        let (coordinate, representation, stored_integer) = match captured {
+            Some((coordinate, representation, stored_integer)) => {
+                (Some(coordinate), representation, stored_integer)
+            }
+            None => (None, None, None),
         };
         if coordinate.is_none() && !self.requires_value_preservation() {
             return None;
@@ -1690,6 +1696,7 @@ impl StructuralJudge<'_> {
             value_expression: statement.as_assignment()?.value,
             stored_type,
             representation,
+            stored_integer,
         })
     }
 
@@ -1708,6 +1715,7 @@ impl StructuralJudge<'_> {
             typed_trees::types::PrimitiveType,
             typed_trees::types::PrimitiveType,
         )>,
+        Option<semantic_vocabulary::IntegerType>,
     )> {
         let assignment = statement.as_assignment()?;
         crate::place_has_builtin_coordinates(self.program, machine, Some(state), assignment.target)
@@ -1716,6 +1724,7 @@ impl StructuralJudge<'_> {
         let frames = self.frame_resolver()?;
         let origins = frames.assignment_storage_origins(machine, statement).ok()?;
         let mut representation = None;
+        let mut stored_integer = None;
         let place = match origins.destinations.as_slice() {
             [origin]
                 if origin.root.is_valid()
@@ -1731,12 +1740,18 @@ impl StructuralJudge<'_> {
             [origin] => {
                 let scalar = origin.scalar_storage_coordinate(program, state)?;
                 if !scalar.preserves_scalar_value && !scalar.preserves_primitive_bits {
-                    // Geometry still invalidates overlapping observations. A
-                    // stored-width codec is not a native-primitive bitcast.
-                    return None;
+                    // A stored-width codec is not a native bitcast of the wide
+                    // carrier. A view that covers the whole cell still decodes.
+                    stored_integer = Some(complete_stored_integer_cell(
+                        program,
+                        &scalar.place,
+                        scalar.view_primitive,
+                        scalar.source_primitive,
+                    )?);
+                } else {
+                    representation = (!scalar.preserves_scalar_value)
+                        .then_some((scalar.view_primitive, scalar.source_primitive));
                 }
-                representation = (!scalar.preserves_scalar_value)
-                    .then_some((scalar.view_primitive, scalar.source_primitive));
                 scalar.place
             }
             [] => {
@@ -1773,7 +1788,11 @@ impl StructuralJudge<'_> {
         }
         // Frame paths deliberately coarsen collections for invalidation only.
         // Exact storage retains the already completed selector value identities.
-        Some((self.capture_storage_place(place)?, representation))
+        Some((
+            self.capture_storage_place(place)?,
+            representation,
+            stored_integer,
+        ))
     }
 
     pub(super) fn observe_captured_store(
@@ -1835,13 +1854,17 @@ impl StructuralJudge<'_> {
             self.retain_storage_value(coordinate, current, false);
         }
         if let Some(coordinate) = destination.coordinate {
-            let value = match destination.representation {
-                Some((source, target)) => {
-                    super::super::structural_terms::normalize_scalar_representation(
-                        source, target, value,
-                    )
+            let value = if let Some(stored) = destination.stored_integer {
+                decode_stored_integer_term(self.program, destination.stored_type, stored, value)
+            } else {
+                match destination.representation {
+                    Some((source, target)) => {
+                        super::super::structural_terms::normalize_scalar_representation(
+                            source, target, value,
+                        )
+                    }
+                    None => value,
                 }
-                None => value,
             };
             if super::super::struct_trace() {
                 eprintln!(
@@ -2129,5 +2152,250 @@ impl StructuralJudge<'_> {
             typed_trees::types::TypeReferenceNode::DynamicTrait { .. } => true,
             _ => false,
         }
+    }
+}
+
+/// A same-width view of one IntegerAt cell. Every bit pattern the view can
+/// write is a value of this encoding, so the semantic carrier's post-write
+/// domain is the encoding itself. A narrower or partial view does not qualify:
+/// those bits do not determine the stored integer.
+pub(crate) fn complete_stored_integer_cell(
+    program: &dyn crate::CheckingInput,
+    place: &CanonicalPlace,
+    view: typed_trees::types::PrimitiveType,
+    source: typed_trees::types::PrimitiveType,
+) -> Option<semantic_vocabulary::IntegerType> {
+    if !view.is_fixed_integer() || !source.is_fixed_integer() {
+        return None;
+    }
+    let view_bits = view.integer_sign_bits()?.1;
+    let source_bits = source.integer_sign_bits()?.1;
+    let (facts::PlaceSegment::Field { symbol }, parent_segments) = place.segments.split_last()?
+    else {
+        return None;
+    };
+    let root = place.root.as_symbol()?;
+    let mut root_type = crate::value_custody::places::declaration_type_reference(program, root)?;
+    // A state parameter is a reference to the record. Field projection starts
+    // at the referent, not at the loan descriptor.
+    for _ in 0..4 {
+        let Some(shell) = crate::reference_shell(program, root_type) else {
+            break;
+        };
+        root_type = shell.referee;
+    }
+    let parent = crate::project_type_reference_from_segments(program, root_type, parent_segments)?;
+    let semantic = semantic_layout_carrier(program, parent);
+    let stored = integer_at_field(program, *symbol).or_else(|| {
+        crate::proof_contracts::arithmetic_domains::stored_integer_field_type(
+            program, semantic, *symbol,
+        )
+        .ok()
+        .flatten()
+    })?;
+    let view_width = u16::try_from(view.scalar_byte_size()?.checked_mul(8)?).ok()?;
+    if stored.bits() == 0
+        || stored.bits() >= 64
+        || stored.bits() != view_bits
+        || stored.bits() != view_width
+        || stored.bits() > source_bits
+    {
+        return None;
+    }
+    let field_type = program.any_field_owner(*symbol)?.1.type_reference;
+    (program.primitive_type_reference(field_type) == Some(source)).then_some(stored)
+}
+
+/// The encoding domain satisfies every interval fact on `field`. A declaration
+/// whose facts are not all field intervals stays unproved: a cross-field
+/// conjunct is not discharged by the stored width alone.
+pub(crate) fn stored_encoding_preserves_field(
+    program: &dyn crate::CheckingInput,
+    place: &CanonicalPlace,
+    view: typed_trees::types::PrimitiveType,
+    source: typed_trees::types::PrimitiveType,
+    definition: &typed_trees::data::DataDefinition,
+    field: SymbolHandle,
+) -> bool {
+    let Some(stored) = complete_stored_integer_cell(program, place, view, source) else {
+        return false;
+    };
+    let Some((low, high)) = stored_integer_domain(stored) else {
+        return false;
+    };
+    let Some(bounds) = crate::data_where_field_intervals(program, definition) else {
+        return false;
+    };
+    let mut named = false;
+    for (symbol, bound_low, bound_high) in bounds {
+        if symbol != field {
+            continue;
+        }
+        named = true;
+        if bound_low.is_some_and(|minimum| low < i128::from(minimum))
+            || bound_high.is_some_and(|maximum| high > i128::from(maximum))
+        {
+            return false;
+        }
+    }
+    named
+}
+
+/// The IntegerAt row for one semantic field. The plan is owned by the
+/// layout-storage application, not by the semantic record's own instance.
+fn integer_at_field(
+    program: &dyn crate::CheckingInput,
+    field: SymbolHandle,
+) -> Option<semantic_vocabulary::IntegerType> {
+    let typed = program.typed_program();
+    let mut found = None;
+    for plan in typed.plan_laid_layouts.iter() {
+        let Some(index) = plan
+            .field_symbols
+            .iter()
+            .position(|candidate| *candidate == field)
+        else {
+            continue;
+        };
+        // Proof runs before a single layout target is selected. Every
+        // alternative must name the same IntegerAt row; a disagreement or a
+        // missing row leaves the field's encoding unknown.
+        let mut agreed = None;
+        let mut saw_geometry = false;
+        for geometry in plan.geometries(typed) {
+            saw_geometry = true;
+            let Some(integer) = geometry
+                .integer_fields
+                .iter()
+                .find(|integer| integer.field_index == index)
+            else {
+                agreed = None;
+                break;
+            };
+            let sign = match integer.interpretation {
+                layout_plans::IntegerInterpretation::Signed => {
+                    semantic_vocabulary::IntegerSign::Signed
+                }
+                layout_plans::IntegerInterpretation::Unsigned => {
+                    semantic_vocabulary::IntegerSign::Unsigned
+                }
+            };
+            let Some(decoded) =
+                semantic_vocabulary::IntegerType::new(sign, integer.stored_width_bits).ok()
+            else {
+                agreed = None;
+                break;
+            };
+            if agreed.is_some_and(|prior| prior != decoded) {
+                agreed = None;
+                break;
+            }
+            agreed = Some(decoded);
+        }
+        let Some(decoded) = saw_geometry.then_some(agreed).flatten() else {
+            continue;
+        };
+        if found.is_some_and(|prior| prior != decoded) {
+            return None;
+        }
+        found = Some(decoded);
+    }
+    found
+}
+
+fn semantic_layout_carrier(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    let reference = crate::value_custody::places::unwrapped_type_reference(program, reference)
+        .unwrap_or(reference);
+    program
+        .layout_storage_arguments(reference)
+        .map(|storage| storage.semantic_type)
+        .unwrap_or(reference)
+}
+
+/// Inclusive semantic domain of a narrowed stored integer. Full-width encodings
+/// are the carrier itself and are not rewritten here.
+pub(in crate::proof_contracts::contract_entailment) fn stored_integer_domain(
+    stored: semantic_vocabulary::IntegerType,
+) -> Option<(i128, i128)> {
+    let width = stored.bits();
+    if width == 0 || width >= 64 {
+        return None;
+    }
+    match stored.sign() {
+        semantic_vocabulary::IntegerSign::Signed => {
+            let half = 1i128 << (width - 1);
+            Some((-half, half - 1))
+        }
+        semantic_vocabulary::IntegerSign::Unsigned => Some((0, (1i128 << width) - 1)),
+    }
+}
+
+fn decode_stored_integer_literal(
+    raw: &BigInt,
+    view: typed_trees::types::PrimitiveType,
+    stored: semantic_vocabulary::IntegerType,
+) -> Option<i128> {
+    let raw = raw.to_i64()?;
+    let (view_low, view_high) = view.integer_bounds()?;
+    let raw_wide = i128::from(raw);
+    if raw_wide < view_low || raw_wide > view_high {
+        return None;
+    }
+    let width = u32::from(stored.bits());
+    if width == 0 || width >= 64 {
+        return None;
+    }
+    let mask = (1u64 << width) - 1;
+    let bits = (raw as u64) & mask;
+    let decoded = match stored.sign() {
+        semantic_vocabulary::IntegerSign::Signed => {
+            let sign = 1u64 << (width - 1);
+            if bits & sign == 0 {
+                i128::from(bits)
+            } else {
+                i128::from(bits) - (1i128 << width)
+            }
+        }
+        semantic_vocabulary::IntegerSign::Unsigned => i128::from(bits),
+    };
+    let (low, high) = stored_integer_domain(stored)?;
+    (low..=high).contains(&decoded).then_some(decoded)
+}
+
+/// The semantic integer a complete stored-width view write installs. A known
+/// literal decodes its bits. Any other value of that view still lands in the
+/// encoding's domain, which is the fact a later `requires` check can use.
+fn decode_stored_integer_term(
+    program: &dyn crate::CheckingInput,
+    view_type: TypeReferenceHandle,
+    stored: semantic_vocabulary::IntegerType,
+    value: super::StructuralTerm,
+) -> super::StructuralTerm {
+    let Some(view) = program.primitive_type_reference(view_type) else {
+        return value;
+    };
+    if let super::StructuralTerm::Integer(raw) = value.semantic_value()
+        && let Some(decoded) = decode_stored_integer_literal(raw, view, stored)
+    {
+        return super::StructuralTerm::Integer(BigInt::from_i128(decoded));
+    }
+    let Some((low, high)) = stored_integer_domain(stored) else {
+        return value;
+    };
+    super::StructuralTerm::CapturedValue {
+        statement: arena::Handle::invalid(),
+        expression: ExpressionHandle::invalid(),
+        callable: SymbolHandle::invalid(),
+        occurrence: 0,
+        result_type: view_type,
+        integer_range: Some(std::sync::Arc::new(
+            checked_trees::IntegerRangeRecipe::bounds(
+                BigInt::from_i128(low),
+                BigInt::from_i128(high),
+            ),
+        )),
     }
 }

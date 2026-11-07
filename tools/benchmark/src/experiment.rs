@@ -185,7 +185,7 @@ pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
             "processor":std::env::var("PROCESSOR_IDENTIFIER").ok().or_else(||std::fs::read_to_string("/proc/cpuinfo").ok().and_then(|text|text.lines().find_map(|line|line.strip_prefix("model name").and_then(|line|line.split_once(':')).map(|(_,name)|name.trim().to_owned())))),
             "host_id_sha256":host_identifier()},
         "inherited_settings":(["OMEGA_PHASE_PROFILE","OMEGA_REVIEW_TIMINGS","OMEGA_ALLOCATION_PROFILE","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
-        "resource_limits":{"address_space_bytes":17179869184_u64, "process_memory_bytes":8589934592_u64,
+        "resource_limits":{"address_space_bytes":crate::process::address_space_limit(), "process_memory_bytes":8589934592_u64,
             "aggregate_memory_bytes":8589934592_u64, "active_processes":64, "capture_bytes_per_stream":1048576},
         "timing_boundary":"process wall includes startup, capture and cleanup; reported_work is child-instrumented",
         "inherited_environment":"inherited, with plan overlays; secrets are not recorded; no contention isolation"}))?;

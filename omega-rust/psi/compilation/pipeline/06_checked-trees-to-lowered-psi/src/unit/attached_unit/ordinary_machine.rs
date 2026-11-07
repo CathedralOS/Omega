@@ -1360,6 +1360,17 @@ fn establish_call_literals(
             ))?;
     let mut operations = OperationBuffer::new(
         operation_identity_base,
+        *next_place,
+        std::sync::Arc::new(
+            crate::emission::reference_formations::ReferenceFormations::prepare(
+                checked,
+                plan.state,
+                plan.operations
+                    .iter()
+                    .flat_map(|operation| operation.with_value_calls()),
+                std::iter::empty(),
+            )?,
+        ),
         std::sync::Arc::clone(dynamic_dispatch),
     );
     let mut private_places = literal_arguments

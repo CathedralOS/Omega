@@ -1,4 +1,4 @@
-# Chapter 14: Traits And Runtime Implementation Selection
+# Chapter 14: Traits And Runtime Machine Values
 
 Traits name required machine surfaces. This chapter teaches their use; the
 [named-conformance specification](../spec/language/conformances.md) owns the
@@ -118,7 +118,7 @@ CostOrder satisfies Ranked<Card>
 The `public` on `PowerOrder` makes that conformance available to direct dependent
 packages. `CostOrder` stays package-private even if `Card` and `Ranked` are public.
 Consumers may select a public conformance without naming its private realization
-machines. Receiving a dynamic value carrying private evidence does not grant
+machines. Receiving a machine value carrying private evidence does not grant
 permission to name or reselect that evidence.
 
 Each requirement overload, including inherited requirements, has one exact row.
@@ -204,8 +204,6 @@ evidence explicitly. A generic evidence binder uses the same right-hand
 grammar as a concrete declaration, without a body:
 
 ```omega
-let ranked: dyn Ranked<Card> = PowerOrder as dyn Ranked<Card>;
-
 machine sort<Element, Order satisfies Ranked<Element>>(
     cards: &mut [Element]
 )
@@ -216,7 +214,8 @@ machine sort<Element, Order satisfies Ranked<Element>>(
 sort<Card, PowerOrder>(&mut cards);
 ```
 
-The same rule governs static bounds and dynamic coercions. There is no
+Static bounds select named evidence. Runtime machine fields select exact members
+under their callable contracts; they do not implicitly select an entire trait. There is no
 unique-visible selection, specificity priority, or default conformance.
 Overlapping blanket and specialized conformances may coexist because neither
 competes to be chosen. Naming and passing one conformance selects its coherent
@@ -238,7 +237,8 @@ trait Additive<T> {
 A whole conformance proves its requirements' contracts member by member.
 An independent machine may instead satisfy just one requirement, as described
 under [exact realization](#exact-requirement-realization). That narrower claim
-cannot supply a whole-trait bound or a dynamic value.
+cannot supply a whole-trait bound. Its exact named machine can separately be
+stored under a compatible runtime callable contract.
 
 ### Domain establishment requirements
 
@@ -559,70 +559,128 @@ machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
 }
 ```
 
-The default is a direct machine call selected by static evidence. `dyn`
-selects an implementation at runtime within the same artifact:
+Static selection can specialize the consumer. Runtime selection instead stores
+a named machine under a callable contract. The `dyn` keyword and all its forms
+are retired. The following examples specify the ratified replacement; compiler
+delivery is tracked in the [migration plan](../drafts/designs/machine_values_some.md).
+
+<a id="local-dynamic-values"></a>
+
+### Machine values in ordinary records
 
 ```omega
-trait CounterOperations<T> {
-    machine increment(counter: &mut T);
-    machine reset(counter: &mut T);
+data Counter { value: u64; }
+data CounterOps {
+    clear: machine(counter: &mut Counter) terminates;
+    value: machine(counter: &Counter) -> u64 terminates;
 }
 
-machine update(
-    operations: dyn CounterOperations<Counter>,
-    counter: &mut Counter
-) {
-    CounterOperations::increment(operations, counter);
+machine clear(counter: &mut Counter) terminates { counter.value = 0; }
+machine value(counter: &Counter) -> u64 terminates { counter.value }
+
+machine inspect(operations: &CounterOps, counter: &Counter) -> u64 terminates {
+    (operations.value)(counter)
 }
 ```
 
-`operations` selects the machine; `counter` supplies the data. The dispatch
-operand is explicit and separate from the requirement's ordinary arguments.
-The selected implementation's `increment` receives only the declared counter
-argument. A selector neither owns that counter nor supplies it implicitly.
+Construct `CounterOps { clear: clear, value: value }` and pass it to `inspect`.
+Another record can choose other machines with the same contracts. A field may
+also name an exact member such as `PowerOrder::rank_value`. There is no receiver
+or implicit state capture: the caller supplies ordinary arguments.
 
-### Local dynamic values
+Each assigned machine must satisfy its field's complete contract, including
+preconditions, guarantees, effects and resource demands. A complete record is
+not automatically evidence for laws relating its operations. Publish such laws
+explicitly when clients need them. Traits retain their static evidence role.
+
+<a id="capturing-borrowed-state"></a>
+
+### Different state types in one container
+
+An ordinary `Reader<S>` array would require one `S` throughout. `some S` chooses
+a type per value, so the array can mix state types while each operation still
+matches its own state. This example reads from two small, unrelated sources:
 
 ```omega
-let ranked: dyn Ranked<Card> = PowerOrder as dyn Ranked<Card>;
-let power: u32 = Ranked::rank_value(ranked, &card);
+data Reader<'a, some S> {
+    state: &'a mut S;
+    read: machine(state: &mut S, output: &mut [u8]) -> u64
+        requires output.len > 0;
+}
+
+data Constant { byte: u8; }
+data Toggle { high: bool; }
+
+machine read_constant(state: &mut Constant, output: &mut [u8]) -> u64
+requires output.len > 0
+{
+    output[0] = state.byte;
+    1
+}
+
+machine read_toggle(state: &mut Toggle, output: &mut [u8]) -> u64
+requires output.len > 0
+{
+    transition state.high {
+        true -> { output[0] = 1; state.high = false; }
+        false -> { output[0] = 0; state.high = true; }
+    }
+    1
+}
+
+machine read_one(reader: &mut Reader, output: &mut [u8]) -> u64
+requires output.len > 0
+{
+    (reader.read)(reader.state, output)
+}
+
+machine example() {
+    let mut constant = Constant { byte: 42 };
+    let mut toggle = Toggle { high: true };
+    let mut readers: [Reader; 2] = [
+        Reader { state: &mut constant, read: read_constant },
+        Reader { state: &mut toggle, read: read_toggle },
+    ];
+    let mut buffer: [u8; 1] = [0];
+    let first = read_one(&mut readers[0], &mut buffer);
+    let second = read_one(&mut readers[1], &mut buffer);
+    let third = read_one(&mut readers[1], &mut buffer);
+}
 ```
 
-The conversion packages an exact named implementation, not `&card`. Its runtime
-representation selects a complete table of operations; it contains no hidden
-user-data pointer. Copying or forwarding it does not copy, borrow, or capture
-the data later passed to a call. The compiler may eliminate a known local
-selection and call the selected machine directly with the original arguments.
-Otherwise, joins, reassignment, storage and helper calls retain the actual
-selected table, never a representative candidate or rows from mixed maps.
+The calls write 42, 1, then 0. Pairing `&mut constant` with `read_toggle` rejects.
+Inside `read_one`, both projections share the unknown type belonging to that
+stable reader. Another reader's state is not interchangeable. Binding one
+indexed element to a local borrow gives an explicit stable subject when needed.
 
-Each row retains the declaring requirement, exact overload, implementation,
-default instantiation if any, normalized contracts and selected conformance.
-An isolated `satisfies Trait::member` edge does not create a complete table.
-Implementation names and table addresses are not data type identities.
+A growable container may receive packages from runtime branches and generic
+helpers. No global roster of witness types is required. Ordinary capacity,
+allocation and lifetime rules still apply: a helper cannot leave a reference
+to its own local behind, and mutable references cannot be copied. Removing a
+reader moves its loan with it; consuming it releases access only when no
+dependent loan survives.
 
-`dyn Convert<Image, Text>` selects an Image-to-Text implementation. Its type
-arguments remain known; neither one is a privileged subject. Hiding input or
-output types is a separate packaging question and is not implied by `dyn`.
+V1 packages sized borrowed state with uniform fields. It does not allocate an
+unknown-layout `S` inline, supply implicit boxes, or create runtime type tests.
+You can return a complete `Reader`, but cannot return its unknown `&S` outside
+the opening without repackaging. Concrete returned borrows retain normal lifetime
+obligations. Replacing a reader cannot preserve stale projections of its old type.
 
-### Dynamic surface
+<a id="dynamic-surface"></a>
 
-After substituting ordinary trait arguments, each eligible requirement has
-concrete parameter/result representations and an expressible public contract.
-It may take zero or several data arguments and return an owned result. For
-example, `Additive<u32>::add` takes two `u32` values and returns a `u32`;
-there is no one-borrowed-subject restriction.
+### Static and runtime choices
 
-Eligibility is per requirement. Requirement-local generics need an explicitly
-finite supported family; arbitrary generic virtual methods are not supplied
-by runtime implementation selection. One named implementation supplies the
-whole family. The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes)
-owns call shapes, envelopes and [finite families](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
-Boundary-trait requirements retain their separate boundary calling plan.
+`machine F` generic binders still select a machine statically. Machine-valued
+fields select behavior at runtime. `some S` packages related data fields; it
+does not replace generic checking or require a trait. The baseline uses indirect
+descriptors; closed-world devirtualization is an optimization, not a mandatory
+derived sum of every implementation.
 
-These rules replace the former borrowed-instance/table model. Current compiler
-limitations belong to `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and
-`RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY` on the execution board.
+Unrestricted generic virtual methods remain unsupported. Close static arguments
+before constructing a machine value; explicit finite value families retain their
+declared coverage. See [machine values](../spec/language/machine_values.md),
+[some packages](../spec/language/some_packages.md) and
+[callable dispatch](../spec/terminal-psi/dynamic_dispatch.md).
 
 <a id="proof-projection-and-carrierless-evidence"></a>
 
@@ -649,25 +707,16 @@ on the [execution board](../../TASKS.md); these rules do not claim full support.
 
 ### Operational envelopes
 
-A dynamic value retains each requirement's operational contract in static type
-information, with no extra runtime words. For example, a known non-suspending
-logger needs no `suspend` marker even when the base interface permits suspension.
-If two such values join, callers must allow either alternative's demands and
-may rely only on guarantees common to both.
+A machine value retains its callable contract and available checked selection
+evidence. A known non-suspending implementation can justify a narrower call
+than the callable ceiling. At joins, possible demands combine and only common
+guarantees survive. Unknown callables use the governing ceiling.
 
-A bare dynamic parameter accepts fitting envelopes; its inferred contract
-accounts for requirements called directly or through helpers. Storing a dynamic
-value instead requires the storage type's declared bound. This polymorphism is
-contract checking, not a runtime dictionary or required code duplication.
-
-For example, a known memory-reader implementation can have empty reach even
-though `Reader` permits filesystem access. A join with a disk reader must allow
-both alternatives. An unknown `dyn Reader` input needs the governing ceiling;
-a reusable body cannot assume that today's caller always supplies the memory
-reader. A narrower requirement or retained checked dependency makes narrowing
-available across a call boundary. Published callable ceilings remain contracts:
-private-body knowledge or a later Build provider choice does not rewrite them.
-See [known dynamic selections](../spec/language/effects.md#known-dynamic-selections).
+A reusable consumer can retain checked dependencies on its callable inputs,
+but cannot assume every caller supplies a harmless memory-reader implementation.
+Storage uses its declared bound. Private-source guesses, observed callers and
+Build provider selection do not silently rewrite published contracts.
+See [known callable selections](../spec/language/effects.md#known-dynamic-selections).
 
 ### Transparent trait refinements
 
@@ -724,35 +773,34 @@ It grants neither authority nor ordinary exported row polymorphism.
 
 ### Components are a different crossing
 
-A local dynamic descriptor never crosses a replaceable component boundary.
-Its table uses within-artifact calling semantics, and freely copied
-descriptors cannot be enumerated for unload or migration. A component exposes
-a boundary-trait requirement whose calls use the selected `CallPlan` and
-`StatePlan`.
-
-Code that wants a local dynamic interface over a component owns a local proxy:
+A local machine descriptor does not cross an independently replaceable component
+boundary unchanged. A component exposes a boundary requirement whose calls use
+the selected `CallPlan` and `StatePlan`. A local proxy machine can be stored in
+an ordinary operation record:
 
 ```omega
-data LoggingProxy {
-}
-
-ComponentLogger satisfies Logger<LoggingProxy>
-{
-    machine write(proxy: &LoggingProxy, text: &[u8])
+data LoggingProxy { }
+data LoggerOps {
+    write: machine(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
-        suspends
-    {
-        suspend LoggingService::write(text);
-    }
+        suspends;
 }
 
-let logger: dyn Logger<LoggingProxy> = ComponentLogger as dyn Logger<LoggingProxy>;
+machine component_write(proxy: &LoggingProxy, text: &[u8])
+reaches LoggingService
+suspends
+{
+    suspend LoggingService::write(text);
+}
+
+let logger = LoggerOps { write: component_write };
 ```
 
-The descriptor selects `ComponentLogger`; the caller passes `&proxy`
-separately. The proxy carries only local interface context; its machine crosses
-the component boundary through the exact static `LoggingService` provider slot,
-concentrating ABI, replacement, effect and resource costs at one seam.
+Calling the stored proxy still passes `&proxy` explicitly. The proxy crosses
+through the exact boundary provider slot. Code descriptors and borrowed state
+remain replacement dependencies even though no global witness roster affects
+their layout. Pausing execution alone does not authorize unloading their code
+or reinterpreting their state.
 
 ## Contracts And Reach
 
@@ -772,7 +820,7 @@ implementation work.
 
 A satisfying machine proves the inherited contract on every applicable result
 path. It may expose stronger facts to direct callers but cannot weaken the
-requirement used by static or dynamic dispatch. Witness bundles preserve their
+requirement used by static selection or a runtime callable contract. Witness bundles preserve their
 declared laws, exact substitutions, validity scopes, and admitted assumptions.
 Implementation-private proofs cannot introduce undeclared public guarantees.
 
@@ -908,9 +956,11 @@ owns evaluation eligibility.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums need an explicit named conformance. Adding a payload case
-therefore makes existing executable equality uses require that declaration.
-Identity `==` in a fact or proposition is separate and never requires
-`Equatable`. Domain membership (`in`) also remains separate.
+therefore makes value equality uses require that declaration in contracts too.
+Explicit `core::Identity<T>(a, b)` names the proof relation without requiring
+`Equatable`. Domain membership (`in`) also remains separate. Checked bridge
+evidence can connect a selected comparison to identity in either direction;
+each direction is independent and must bind that exact comparison row.
 
 An authored `equals` member overrides synthesis.
 Synthesized equality compares record fields, or a sum's tag and selected
@@ -918,6 +968,11 @@ payload fields. Prerequisites are checked at the conformance: each field must
 be a primitive, a payload-less sum, text compared by content, or another
 type covered by an explicitly selected equality implementation. Recursive
 expansion rejects.
+In facts, the checked synthesized body exposes its component comparisons.
+Identity bridge synthesis additionally needs the corresponding component laws;
+an IEEE float field does not receive them automatically. User comparisons gain
+consequences through their checked evidence rather than assumed fieldwise
+behavior. See [equality bridges](../spec/proofs/contracts.md#equality-bridges-and-comparison-facts).
 
 The sealed core equality operator route selects at most one named
 `Equatable<T>` implementation for an operand signature. Data does not own or

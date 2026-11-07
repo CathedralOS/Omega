@@ -1,7 +1,8 @@
-//! Exact normal-call descriptor generations. The checking evaluator supplies
-//! an entry/invocation/join graph; each node borrows its authentic predecessor
-//! roster and records the output's existing permission suppliers. Alternatives
-//! merge once. Published statement lifetimes remain owned by the state builder.
+//! A call publishes its returned references before the next operand uses them.
+//! A promised opaque result owns the completion's permission and retains every
+//! input lifetime. Stored replacements keep their exact earlier suppliers.
+//! The checking evaluator supplies the ordered entry/call/join graph; named
+//! bindings retain its completed values rather than creating another grant.
 
 use super::super::state::{BorrowFactArenas, append_carrier_loans};
 use super::super::tracker::StateLoanTracker;
@@ -20,7 +21,7 @@ pub(in crate::borrow) fn append_reference_custody(
     calls: arena::HandleSpan<BorrowCallFact>,
     loans: &mut arena::HandleSpan<BorrowLoanFact>,
     history: &mut Vec<StateLoanTracker>,
-    incoming: &[StateLoanTracker],
+    statement_entry: &[StateLoanTracker],
 ) -> Result<Option<Vec<StateLoanTracker>>, diagnostics::Diagnostic> {
     let Some(schedule) = frames
         .and_then(|frames| frames.stored_reference_call_contexts(machine, state, statement_index))
@@ -45,7 +46,9 @@ pub(in crate::borrow) fn append_reference_custody(
                     )
                 });
             }
-            StoredReferenceCallContext::Entry if contexts.is_empty() => Some(incoming.to_vec()),
+            StoredReferenceCallContext::Entry if contexts.is_empty() => {
+                Some(statement_entry.to_vec())
+            }
             StoredReferenceCallContext::Entry => {
                 return Err(diagnostics::Diagnostic::error(
                     "normal reference-slot context repeats its entry",
@@ -112,10 +115,6 @@ pub(in crate::borrow) fn append_reference_custody(
                         .loan_suppliers
                         .insert_many(incoming.iter().map(|loan| loan.handle)),
                 );
-                if effects.is_empty() {
-                    contexts.push(Some(incoming.clone()));
-                    continue;
-                }
                 let mut destinations = arena::HandleSpan::empty();
                 for effect in &effects {
                     let segments = arenas
@@ -155,6 +154,26 @@ pub(in crate::borrow) fn append_reference_custody(
                     .collect::<Vec<_>>();
                 let mut produced =
                     crate::borrow::loans::stored_reference_effect_loans(program, effects, incoming);
+                produced.extend(
+                    crate::borrow::loans::complete_invocation_results(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        expression,
+                        statement_entry,
+                        incoming,
+                        frames,
+                    )
+                    .map_err(|reason| {
+                        let target = program.expression_table.call_node(expression)
+                            .map_or("<unknown>", |call| call.target.as_str());
+                        diagnostics::Diagnostic::error(format!(
+                            "normal call `{target}` ({expression:?}) in machine `{}` state `{}` statement {statement_index}: {reason}",
+                            machine.name, state.name,
+                        ))
+                    })?,
+                );
                 for loan in &mut produced {
                     loan.formation_expression = expression;
                 }
@@ -167,6 +186,7 @@ pub(in crate::borrow) fn append_reference_custody(
                     statement_index,
                     call,
                 );
+                retain_result_input_lifetimes(arenas, published, expression);
                 arenas.calls.get_mut(call).completed_reference_loans = published;
                 Some(current)
             }
@@ -201,4 +221,60 @@ pub(crate) fn replaces_reference_loan(
                     borrow.loan_owner_path(previous),
                 )
         })
+}
+
+/// A returned pointer records its complete input debts when the call completes.
+/// Carrier publication already groups equal storage and field paths, so one
+/// pass can attach each list without a later search through the state's loans.
+fn retain_result_input_lifetimes(
+    arenas: &mut BorrowFactArenas<'_>,
+    published: arena::HandleSpan<BorrowLoanFact>,
+    expression: typed_trees::expression::ExpressionHandle,
+) {
+    let mut retained = Vec::new();
+    let mut first = 0u32;
+    for group in arenas
+        .loans
+        .span_or_empty(published)
+        .chunk_by(|left, right| {
+            left.owner_symbol == right.owner_symbol
+                && left.storage_owner == right.storage_owner
+                && arenas.owner_segments.span(left.owner_path)
+                    == arenas.owner_segments.span(right.owner_path)
+        })
+    {
+        let start = first;
+        first += group.len() as u32;
+        let permissions = group
+            .iter()
+            .enumerate()
+            .filter_map(|(offset, loan)| {
+                (loan.storage_owner == facts::PlaceRoot::Expression(expression)
+                    && loan.lineage == checked_trees::BorrowLoanLineage::DirectRoot
+                    && loan.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
+                    && arenas.incoming_references.is_valid(loan.incoming_reference)
+                    && matches!(arenas.incoming_references.get(loan.incoming_reference).origin,
+                    checked_trees::IncomingReferenceOrigin::Invocation { expression: source, .. }
+                        if source == expression))
+                .then_some(published.handle_at(start + offset as u32))
+            })
+            .collect::<Vec<_>>();
+        if permissions.is_empty() {
+            continue;
+        }
+        let debts = arenas
+            .loan_suppliers
+            .insert_many(group.iter().enumerate().filter_map(|(offset, loan)| {
+                (loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency)
+                    .then_some(published.handle_at(start + offset as u32))
+            }));
+        retained.extend(
+            permissions
+                .into_iter()
+                .map(|permission| (permission, debts)),
+        );
+    }
+    for (permission, debts) in retained {
+        arenas.loans.get_mut(permission).retained_input_lifetimes = Some(debts);
+    }
 }

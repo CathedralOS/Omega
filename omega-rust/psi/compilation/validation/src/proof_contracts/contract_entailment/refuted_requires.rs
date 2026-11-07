@@ -12,6 +12,47 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
 
+/// The closed-operand entry premises of one caller machine, built once for
+/// its value calls.
+///
+/// `reject_refuted_value_call_requires` judges every value call against the
+/// caller's runtime entry with no requires and no executed prefix, so those
+/// premises depend only on the caller machine. The machine pass that scans the
+/// calls builds them on first use instead of once per call site. Each call
+/// still judges with its own empty query memos: no resolution one call
+/// completes is visible to another call's check.
+pub(crate) struct CallerEntryJudge<'program> {
+    program: &'program dyn crate::CheckingInput,
+    machine: &'program Machine,
+    judge: std::cell::OnceCell<StructuralJudge<'program>>,
+}
+
+impl<'program> CallerEntryJudge<'program> {
+    pub(crate) fn new(
+        program: &'program dyn crate::CheckingInput,
+        machine: &'program Machine,
+    ) -> Self {
+        Self {
+            program,
+            machine,
+            judge: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// Whether this is the judge of `machine`'s own validation pass.
+    pub(crate) fn judges(&self, machine: &Machine) -> bool {
+        self.machine.symbol == machine.symbol
+    }
+
+    /// A judge for one call: the machine's shared entry premises with fresh,
+    /// empty query memos.
+    fn judge(&self) -> StructuralJudge<'program> {
+        self.judge
+            .get_or_init(|| StructuralJudge::from_runtime_requires(self.program, self.machine, &[]))
+            .with_fresh_query_memos()
+    }
+}
+
 /// Reject a value-position call when one of the callee's equality-style
 /// `requires` facts is structurally FALSE at the concrete operands. This is
 /// the fail-safe first rung of general value-call precondition discharge: a
@@ -19,7 +60,7 @@ use typed_trees::signature::SignatureContractKind;
 /// the later fail-closed obligation rung instead of becoming a false positive.
 pub(crate) fn reject_refuted_value_call_requires(
     program: &dyn crate::CheckingInput,
-    caller_machine: &Machine,
+    entry_judge: &CallerEntryJudge<'_>,
     caller_state: &typed_trees::state::State,
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
@@ -27,6 +68,9 @@ pub(crate) fn reject_refuted_value_call_requires(
     terminal_transfer: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // The caller is the judge's own machine, so a call can never be judged
+    // against another machine's entry.
+    let caller_machine = entry_judge.machine;
     let Some(map) = argument_term_map(
         program,
         caller_machine,
@@ -40,7 +84,7 @@ pub(crate) fn reject_refuted_value_call_requires(
     // This judgment has no executed-prefix custody. Entry preconditions may
     // already have been invalidated by a store or an earlier call. Only the
     // prefix-aware route may use them; this route decides closed operands.
-    let judge = StructuralJudge::from_runtime_requires(program, caller_machine, &[]);
+    let judge = entry_judge.judge();
     if judge.hypotheses_contradictory {
         return;
     }

@@ -167,11 +167,11 @@ pub(crate) struct CallFrameCaches {
     /// (machine, state): replaces a fresh O(index) prefix walk per demand
     /// site with a single O(statements) walk per state.
     state_write_collections:
-        Mutex<HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>>,
+        Mutex<HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>>,
     /// The shared-accumulator flavor of the same collection, serving
     /// `ReferenceBefore` boundaries.
     state_write_shared_collections:
-        Mutex<HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>>,
+        Mutex<HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>>,
     expression_frames: Mutex<HashMap<(SymbolHandle, ExpressionHandle), NormalizedWriteFrame>>,
     statement_value_frames: Mutex<HashMap<(SymbolHandle, usize), NormalizedWriteFrame>>,
     inferred_state_frames: Mutex<HashMap<SymbolHandle, NormalizedWriteFrame>>,
@@ -454,10 +454,7 @@ impl<'program> CallFrameResolver<'program> {
                 index,
                 true,
             );
-            if prefix
-                .as_ref()
-                .is_none_or(CollectedStatementPrefix::is_complete)
-            {
+            if prefix.as_ref().is_none_or(|prefix| prefix.is_complete()) {
                 return if transfer.template_dependent {
                     Err(TemplateDependent)
                 } else {
@@ -591,11 +588,7 @@ impl<'program> CallFrameResolver<'program> {
             statement_index,
             true,
         );
-        if empty_effects
-            && prefix
-                .as_ref()
-                .is_none_or(CollectedStatementPrefix::is_complete)
-        {
+        if empty_effects && prefix.as_ref().is_none_or(|prefix| prefix.is_complete()) {
             return Ok(Vec::new());
         }
         let prefix = prefix.ok_or(Unavailable(
@@ -763,7 +756,7 @@ impl<'program> CallFrameResolver<'program> {
             trace_refusal("statement-effects", state.symbol, Some(index));
             return Err(StatementReferenceTransferRefusal::StatementEffects);
         };
-        Ok((state, index, prefix, effects))
+        Ok((state, index, Arc::unwrap_or_clone(prefix), effects))
     }
 
     /// A bare reference-local replacement changes its binding, not the storage
@@ -1263,6 +1256,7 @@ impl<'program> CallFrameResolver<'program> {
                     index,
                     false,
                 )
+                .map(Arc::unwrap_or_clone)
             },
         )
     }
@@ -1338,6 +1332,7 @@ impl<'program> CallFrameResolver<'program> {
                                     index,
                                     false,
                                 )
+                                .map(Arc::unwrap_or_clone)
                             },
                         )
                     })

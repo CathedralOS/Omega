@@ -132,7 +132,12 @@ jobs:
       - name: Refuse an absent or partial retained compiler cache
         if: github.event_name == 'workflow_dispatch' && startsWith(inputs.fixtures, '@') && steps.replay-build-cache.outputs.cache-hit != 'true'
         run: python -c "raise SystemExit('The exact retained compiler cache was not restored; no rebuild was attempted')"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      # Only this workflow publishes prepared-v1 entries, after authenticated
+      # preparation. Cargo-only caches remain useful restore fallbacks, but
+      # cannot occupy an immutable producer key. A CLI-only producer also
+      # cannot occupy the key a later corpus run needs for its runner.
+      - name: Restore compiler build objects
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: build-cache
         if: github.event_name != 'workflow_dispatch' || !startsWith(inputs.fixtures, '@')
         with:
@@ -140,7 +145,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}-prepared-v1-${{ inputs.fixtures != '' && 'with-runner' || (inputs.samples != '' || inputs.cli_fixtures != '') && 'cli' || 'with-runner' }}
           restore-keys: |
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
@@ -166,10 +171,11 @@ jobs:
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
-      # Save compiled objects before any program consumer can use the job budget.
-      # A failed preparation still retains useful objects and keeps the job red.
+      # Save the verified producer before consumers can use the job budget.
+      # Failed or skipped preparation must leave this immutable key available
+      # for a later attempt that actually produces its executable roster.
       - name: Save build cache before fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.producer-preparation.outcome == 'success' && steps.build-cache.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
@@ -205,6 +211,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
         with:
           name: compiler-pilot-observations-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
+          include-hidden-files: true
           path: |
             build/compiler-pilot/
             !build/compiler-pilot/producer-*/**

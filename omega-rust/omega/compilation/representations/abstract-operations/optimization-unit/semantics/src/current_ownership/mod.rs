@@ -39,6 +39,7 @@ mod residuals;
 mod storage_regions;
 pub(crate) use storage_regions::storage_cannot_retain_loan;
 mod structural;
+mod value_custody;
 pub(crate) use structural::{
     constructor_arguments, partial_affine_root_is_drained, partial_affine_root_type,
     projected_paths_are_fully_consumed,
@@ -48,9 +49,7 @@ pub(crate) use block_parameters::parameter_establishment_order;
 use block_parameters::{consume_edge_sources, establish_edge_parameters};
 
 pub(super) fn validate_current_ownership_frontier_collecting(
-    psi: terminal_psi::TerminalPsiIdentity,
-    identities: &terminal_psi::TerminalIdentityTable,
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    unit: &optimization_unit::PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
@@ -69,8 +68,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
     let entry = reconstruct_entry_ownership(function, structural_types)?;
     replay::validate_current_ownership_cfg(
         function,
-        identities,
-        dynamic_dispatch,
+        unit,
         blocks,
         predecessors,
         functions,
@@ -78,7 +76,6 @@ pub(super) fn validate_current_ownership_frontier_collecting(
         structural_types,
         call_accesses,
         entry,
-        psi,
         facts,
     )
 }

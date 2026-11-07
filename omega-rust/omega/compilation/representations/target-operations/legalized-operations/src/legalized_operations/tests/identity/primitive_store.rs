@@ -21,6 +21,7 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
             access: StructuralAccess::WriteOnlyBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
         }
         .into(),
         value: abstract_operations::AbstractResult {
@@ -156,6 +157,7 @@ fn primitive_store_identity_binds_owned_producer_and_home() {
             multiplicity: StructuralMultiplicity::Unrestricted,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
             qualification_establishments: Vec::new(),
             claims: Vec::new(),
         },
@@ -232,6 +234,7 @@ fn owned_block_field_store_identity_binds_block_declaration_and_variant() {
         access: StructuralAccess::Owned,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
+        additional_input_qualifications: Vec::new(),
     };
     let arrival = |block: u64, place: u64| Destination::OwnedBlockParameter {
         block: id(block),

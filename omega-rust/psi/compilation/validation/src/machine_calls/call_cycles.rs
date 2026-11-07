@@ -19,7 +19,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::TypeReferenceHandle;
 
 mod proof_components;
-pub(crate) use proof_components::structural_return_descends;
+pub(crate) use proof_components::{StructuralDescentComponents, structural_return_descends};
 mod proof_intervals;
 mod proof_ranking;
 mod rank_components;

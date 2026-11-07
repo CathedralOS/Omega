@@ -913,6 +913,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
         );
+        self.retain_invocation_permissions(completed.invocation, &capture);
         if !binds_view {
             let mut evaluated = EvaluatedOperand {
                 boolean,
@@ -1249,6 +1250,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             expression,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
+            evaluation: self.evaluation,
             type_reference: TypeReferenceHandle::invalid(),
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),

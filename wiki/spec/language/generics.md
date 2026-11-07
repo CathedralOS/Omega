@@ -1,5 +1,9 @@
 # Generic declarations and static machine parameters
 
+Data declarations additionally admit [`some` binders](some_packages.md): their
+witness is chosen per value and omitted from the external type application.
+This is not a machine generic binder and does not replace `machine F`.
+
 Generic declarations bind types, values, machine declarations, or explicit
 conformance evidence. Value binders distinguish runtime-capable `Count: u32`
 from static `const Count: u32`. Bodies are checked against their declared
@@ -53,11 +57,16 @@ retain their ordinary value-argument meaning. Executable applications follow
 ordinary demand and realization rather than a new runtime generic engine.
 This introduces neither a generic foreign ABI nor implicit native adapters.
 
-Static generic eligibility does not confer dynamic eligibility. Unrestricted
-requirement-local type, machine or implementation binders cannot become open
-virtual-method slots. Generic trait arguments closed before forming a `dyn`
-interface and the existing explicit finite value families retain their distinct
-rules under [dynamic dispatch](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+Static generic eligibility does not confer unrestricted runtime polymorphism.
+[Machine values](machine_values.md) require closed callable signatures; bind
+ordinary type, machine and evidence arguments before constructing them. Explicit
+finite value families retain their declared tuple contracts under
+[callable dispatch](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+
+[Some data binders](some_packages.md) choose a type per packaged value rather
+than per external type instantiation. A generic helper may construct a package
+using its concrete argument. No global roster of helper instantiations or hidden
+types is needed for the package's uniform borrowed representation.
 
 ## Applications and specialization
 
@@ -401,16 +410,28 @@ parameter must match consistently; stronger proof automation must not change an
 application's inferred constants, storage layout, or public identity. Separately
 proved relationships may establish compatibility without renaming either index.
 
-[Bounded canonical index normalization](../proofs/contracts.md#bounded-canonical-index-normalization)
-uses a shared published encoding independently of each compiler's in-memory
-storage. The canonical pre-expansion form determines the 64-summand expansion
-decision; a retained unexpanded form is not a proof of inequality. At an
-unresolved compatibility check, retained cutoff evidence supplies the budget
-diagnostic. Exact local equalities and checked theorem guarantees remain
-available. Generic compatibility derivations transport through specialization
-without another attempt to prove the same equality; separately closed keys
-still use admitted concrete evaluation. Call and formation obligations are not
-waived by transporting that evidence.
+[Stable canonical index identity](../proofs/contracts.md#stable-canonical-index-identity)
+uses constant evaluation, transparent aliases, and fixed simplifications for
+exact core operations and arithmetic policies. User algebra laws and
+distributive expansion establish [compatibility](../proofs/contracts.md#proved-index-compatibility)
+without renaming indices. A caller's proof budget cannot change inferred
+arguments, declaration matching, or specialization keys.
+
+Open `Buffer<A * (B + C)>` and `Buffer<A * B + A * C>` can exchange
+values through checked equality while retaining separate canonical keys.
+A conformance for one exact form does not automatically match the other.
+Use a common canonical expression/alias when declaration identity is required;
+generic index parameters and contracts can expose the intended relationship
+without embedding one spelling in every declaration. Separate symbolic keys
+may yield separate specializations, while fully closed equal values still
+share canonical value identity.
+
+Root Build controls recorded proof-discovery effort. An unresolved obligation
+may need a larger search allowance or an explicit theorem, but an unequal key
+is not evidence of mathematical inequality. Carry checked derivations through
+specialization and published artifacts without re-searching under a consumer's
+smaller discovery budget. Ordinary formation, custody and trust obligations
+remain in force.
 
 Explicitly uninhabited domains remain legal. Matching that lacks a unique index
 rejects; emptiness cannot choose an arbitrary capacity. An opaque domain or an
@@ -483,11 +504,13 @@ per-region scan methods make that boundary explicit. Repeated public invocations
 may still dispatch, and unknown plugin implementations remain dynamic. A finite
 width set does not prove a particular machine instruction or performance result.
 
-[Finite dynamic families](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-retain canonical requirement-and-tuple rows in one named conformance. A result
+[Finite callable families](../terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
+retain canonical contract-and-tuple rows independently of target discovery.
+Static conformances retain their own complete requirement maps. A result
 may remain inside a statically selected branch or use a common representation.
 If different specialized results must escape together, author an ordinary finite
-sum with exact case payloads or an already specified owner/descriptor contract.
+sum with exact case payloads, a uniform borrowed [some package](some_packages.md),
+or an already specified owner/descriptor contract.
 Index and result custody stay joined. No implicit boxing, arbitrary existential
 type, or unspecified variable-layout result ABI is introduced.
 
@@ -576,10 +599,12 @@ explicit parameters with their normal ownership and access contracts. Authors
 construct that data and explicitly select
 the named callback declaration. No anonymous body/environment association or
 free-variable capture inference is provided. Dynamic selection still uses
-ordinary sums/wrappers or eligible dynamic conformances.
+[runtime machine values](machine_values.md), operations records and
+[some packages](some_packages.md). The static binder remains a separate choice.
 
-A static parameter cannot be stored as a field type or returned as a runtime
-callback reference. A fully selected executable machine application may instead
+A static machine binder is a declaration argument, not itself a field type.
+Once its executable application is closed, it may construct or return a
+machine value through ordinary callable-contract refinement. It may also
 be observed with `address_of<Selected<Arguments>>()` under
 [address exposure](counts_and_addresses.md#address-exposure). That query
 creates an entry demand, not a callable value or an implicit callback selection.

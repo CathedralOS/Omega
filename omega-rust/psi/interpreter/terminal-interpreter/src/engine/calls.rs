@@ -331,8 +331,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             .and_then(|declaration| declaration.execution.placement_operation())
         {
             let plan = program
-                .catalogs
-                .access_lifecycle_plans
+                .access_lifecycle_plans()
                 .iter()
                 .find(|plan| plan.boundary == boundary)
                 .ok_or_else(malformed)?;

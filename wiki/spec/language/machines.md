@@ -8,6 +8,9 @@ case, not the definition.
 Machines use named declarations. Static callbacks select those declarations
 and pass ordinary explicit context data. Anonymous machine expressions and implicit
 capture-environment construction are not part of the source language.
+[Runtime machine values](machine_values.md) can store a selected named machine
+under a complete callable contract. [Some packages](some_packages.md) relate
+explicit state and callable fields without introducing anonymous syntax.
 
 ## Static declarations and explicit state
 

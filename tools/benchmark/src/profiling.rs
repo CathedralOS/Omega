@@ -323,7 +323,7 @@ fn save(directory: &Path, result: &Value) -> Result<(), String> {
     )
     .map_err(|error| error.to_string())
 }
-fn find_perf() -> Option<PathBuf> {
+pub(crate) fn find_perf() -> Option<PathBuf> {
     ["/usr/bin/perf", "/bin/perf"]
         .into_iter()
         .map(PathBuf::from)

@@ -165,6 +165,15 @@ impl AdmittedTerminalProgram<'_> {
             return Err(TerminalInterpretError::TargetLayoutSelectionMissing(
                 application.id,
             ));
+        } else if self
+            .catalogs
+            .access_lifecycle_plans
+            .iter()
+            .any(|plan| plan.target.is_some())
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "whole-value lifecycle requires admitted target geometry",
+            ));
         }
         Ok(())
     }
@@ -213,6 +222,14 @@ impl AdmittedTerminalProgram<'_> {
                     .map_or(&[], |layouts| layouts.resolved_records())
             }),
         )
+    }
+
+    pub(crate) fn access_lifecycle_plans(&self) -> &[terminal_psi::TerminalAccessLifecyclePlan] {
+        self.target_layouts
+            .as_ref()
+            .map_or(self.catalogs.access_lifecycle_plans.as_slice(), |layouts| {
+                layouts.resolved_lifecycles()
+            })
     }
 
     /// The structural type keyed `structural_type`, refusing a miss as a
@@ -1067,6 +1084,8 @@ mod private_entry_target_tests {
                 profile: "linux_x86_64".into(),
                 pointer_size: 8,
                 pointer_alignment: 8,
+                case_tag_size: 4,
+                case_tag_alignment: 4,
                 little_endian: true,
             },
         )
@@ -1098,6 +1117,8 @@ mod private_entry_target_tests {
                     profile: name.into(),
                     pointer_size: 8,
                     pointer_alignment: 8,
+                    case_tag_size: 4,
+                    case_tag_alignment: 4,
                     little_endian: true,
                 },
             )

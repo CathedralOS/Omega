@@ -235,6 +235,14 @@ facts that mention the selected field, including predicate-call arguments,
 remain fences. The runtime local-loan control temporarily writes 2 then
 restores 0, distinguishing handback from per-store parameter restrictions.
 
+On Linux x86_64, both unchanged programs returned 0 in native and Terminal
+execution. `runtime_scalar_field_local_loan_handback_exit` verified restoration
+to 0 after the temporary write of 2. `runtime_tail_recursive_nested_field_frame_exit`
+verified count 2 survived recursive writes of 4.0 to `scratch[1]`. Existing
+controls rejected missing restoration and a write of 9 to the guarded count.
+These observations belong to consumer `f07ae35f9283` with retained producer
+`1cd41f4fb925`; other hosts and newer compiler inputs are unverified.
+
 ## Audited call selectors and mutable arrival observations
 
 Five call customers retain six historical field bounds as data predicates.
@@ -367,6 +375,24 @@ parameters), plus six directory-offset results across Linux ARM64, Linux x86-64
 and macOS ARM64. Those results retain `18 <= result <= 20` or
 `19 <= result <= 21` as `ensures`. Its count is not the original 16-parameter
 inventory; its additional callback parameter is outside both filesystem counts.
+
+On Linux x86_64 and ARM64, the existing `dir_walk_wrappers_exit` program now
+creates a nested tree, counts two files, removes the tree and returns 70 in
+native and Terminal execution. It exercises the shared `rds_*` operations
+above without changing their `name_len <= 255` requirements. The Linux host
+uses captured path/output windows and private descriptors; array captures
+preserve the original backing owner's qualifications. ARM64 keeps its public
+128-byte metadata window and the complete shared raw binding schema.
+
+The x86_64 observations are [run 42300697162](https://github.com/CathedralOS/Omega/actions/runs/42300697162)
+at `c0c5b49589b1`, including 0/0 for `create_dir_all_existing_file_exit`.
+ARM64 is [run 42312446103](https://github.com/CathedralOS/Omega/actions/runs/42312446103)
+at `42274da231be`. Later ARM entry/binding rows and refusal text leave the
+qualified x86_64 declarations, selected rows and execution paths unchanged.
+Seven source/control rows retain their actual `e40519df616f` and `c0c5b49589b1`
+stamps. The extra legacy array-loan fixture's missing-provider refusal and
+earlier corpus runtime timeouts are not passing evidence. These observations
+do not qualify Windows or macOS execution or close the parent migration.
 
 This reconciles source positions, not complete filesystem execution acceptance.
 Matching-host native/Terminal service and occurrence-bound release obligations
@@ -1094,6 +1120,51 @@ an obsolete four-byte carrier. Native/Terminal agreement in working and fresh
 projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
+
+## Audited modular exponentiation state
+
+At `7a9a7b8287e6`, `samples/cli/arithmetic/modular_exponentiation` declared
+`ModExp.result: i32 [0..=99]` and `ModExp.base: i32 [0..=99]`.
+Migration `f0fbaddf4ca` erased both bounds and reduced each product's factors
+again. Commit `bf34ac4736b` independently replaced the scratch record with
+explicit scalar state inputs; that design remains.
+
+The original result field now corresponds to `accumulator` in `step`,
+`classify`, `accumulate` and `square`; the original base field corresponds
+to each machine's `base`. Each input tuple retains both inclusive signed
+0..=99 bounds through `requires`. Return `ensures` clauses carry the same
+result bound through the calls; `accumulator` cannot be confused with the
+logical return subject `result`. The original products precede their outer
+remainder, and the entry still reduces the base once. Entry requires only
+`base >= 0`, so reduction also admits larger nonnegative inputs. Exponent
+inputs remain unrestricted, with the original remainder, division and
+branch behavior. The authored Console transcript and exit 87 are unchanged.
+
+## Audited guarded-store owner fields
+
+The existing `pass/range/runtime_funnel_guard_agreement_exit` and
+`fail/range/funnel_guard_one_edge_unguarded` customers each declared
+`Main.y: i32 [0..=15]` at the original inventory revision `7a9a7b8287e6`.
+Both now declare `Main.y: i32` with data `requires y >= 0 && y <= 15`, and
+retain the original store `main.y = main.sp` and subsequent field read.
+These are the only historical scalar suffix positions in the two programs.
+
+Migration `443406c0f4f` had moved the field obligation to `push`'s input
+contract while data predicates could not support the store; `b5f039d59e3`
+then replaced the unrestricted field with a local. Restoring the data owner
+retains the storage obligation as well as call admission. The existing
+`push` requirement `main.sp >= 0 && main.sp < 16` is exactly the original
+store's required integer interval, not an additional restriction. The
+positive keeps both guarded entries and exit 7. The negative keeps its
+runtime input and unguarded entry, and its existing diagnostic is unchanged.
+
+The same two migration commits changed
+`fail/range/guarded_copy_stale_after_write`. Its sole historical suffix,
+`Main.y: i32 [0..=9]` at `7a9a7b8287e6`, now uses plain i32 and data
+`requires y >= 0 && y <= 9`, with the destination field store and read
+restored. The source still writes 100 to `main.yv`, rereads that fresh value,
+and calls `store`; its equivalent 0..=9 input contract must still reject.
+The existing `cannot prove requires contract for call store` pin is unchanged.
 
 ## Audited write-only scalar owner fields
 

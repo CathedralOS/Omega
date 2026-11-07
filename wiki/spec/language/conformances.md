@@ -19,6 +19,9 @@ binding and is retired together with receiver `self`. Types needed by a trait
 are ordinary declared parameters; zero, one, or several are allowed, and none
 has special status. An implementation name identifies a map of machines, not a
 type that can be borrowed as state. All state remains explicit value arguments.
+[Machine-valued fields](machine_values.md) can name exact implementation
+members. [Some packages](some_packages.md) pair those values with explicit
+borrowed state without attaching data to a conformance or adding a receiver.
 
 The `no-data-code-attachment` decision (2026-10-22) also retires data-owned
 machine declarations even when every parameter is explicit. Put an ordinary
@@ -106,25 +109,29 @@ planning may later realize its boundary rows without changing the selection.
 A package-local [native binding](../build/foreign_bindings.md#build-owned-native-binding)
 supplies one exact boundary requirement's backing without a bodyless
 `machine ... satisfies ... via ...` forwarding declaration. It does not invent
-a named implementation map, discharge laws, or license `dyn`. Complete provider
-schema coverage and exact requirement contracts still apply; checked adapters
+a named implementation map, discharge laws, or establish runtime operation-record
+laws. Complete provider schema coverage and exact requirement contracts still apply; checked adapters
 remain ordinary named implementations with real bodies.
 
-This same selection supplies operation and law requirements for computed static
-indices. A generic consumer requiring commutativity takes an ordinary conformance
-binder whose trait contains that law for the selected operation. The index
-checker consumes the selected evidence; it does not search for an algebra or
-infer one from operator punctuation. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
-defines which transformations that evidence permits.
+This same selection supplies operations and checked law requirements for
+computed static indices. A generic consumer requesting commutativity takes an
+ordinary conformance binder whose trait contains that law for the selected
+operation. The compatibility prover consumes its exact evidence; it does not
+search for an algebra or infer one from punctuation.
 
-Different algebras can coexist, but index normalization retains each exact
-applied conformance and cannot borrow another selection's laws. Changing a
-trait's laws changes its published contract; below-budget preservation of
-identifications is subject to the explicit
-[mutual-distributivity exception](../proofs/contracts.md#bounded-canonical-index-normalization).
-Neither policy names nor an added law promise unconditional preservation across
-expansion cutoffs. The identity profile and its provenance remain shared across
-producers, not selected by a caller's local proof-work allowance.
+[Stable index identity](../proofs/contracts.md#stable-canonical-index-identity)
+preserves selected operations and applications. Only fixed core-operation rules
+simplify open canonical keys. Selected user laws, including inherited laws,
+literal connections and distributivity, establish compatibility instead.
+Adding a valid law does not turn off another proof or alter the canonical
+rewriting rules. Changing an actual operation or a published trait contract
+still has its ordinary API/dependency consequences.
+
+Conformance matching uses canonical identity without heuristic theorem search.
+An exact conformance application for one symbolic index form does not match
+another solely because their indices are provably equal. Value transport under
+checked evidence does not reselect a map or rewrite its identity. Generic
+conformances over a common index and explicit contracts remain available.
 
 Generic conformances own their telescopes independently of data declarations.
 Select one through a nested application with every type, const,
@@ -210,8 +217,10 @@ descriptor's runtime representation and custody.
 
 `machine ... satisfies Trait<...>::requirement` supplies only that exact
 requirement. It may serve provider selection, a trait/boundary operator
-requirement, an establishment route, or proof citation without satisfying a whole-trait bound or licensing
-`dyn`. An optional `as Name` labels a requirement-local satisfier group; it
+requirement, an establishment route, or proof citation without satisfying a
+whole-trait bound. Runtime selection uses machine values, not `dyn`; the selected
+machine still needs a compatible callable contract. An optional `as Name`
+labels a requirement-local satisfier group; it
 creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
@@ -303,11 +312,14 @@ the [operator guide](../../language_guide/chapter_14_traits.md#operator-requirem
 There is no ambient search. Other mathematical relations use separately named
 contracts and implementations without competing for operator syntax.
 
-These acquisition rules govern executable `==` and explicit equality-machine
-calls. In a fact or proposition context, `==` over values of one identical
-non-primitive data type elaborates to
-[proof-relevant identity](../proofs/contracts.md#data-identity-in-facts) and
-does not acquire `Equatable<T>`.
+These acquisition rules govern value `==` and explicit equality-machine calls
+in executable and proposition contexts alike. Mathematical identity is written
+as [core identity](../proofs/contracts.md#data-identity-in-facts). Two independent
+checked bridge laws can relate the selected comparison to that identity;
+they are additional evidence traits, not optional `Equatable` members. The
+evidence must bind the exact comparison row selected at the use, including its
+generic application. Merely naming another conformance for the same carrier
+does not connect their equality implementations.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums require an explicit named conformance. Adding a payload
@@ -319,10 +331,17 @@ case's payload. Every field must be a scalar primitive, payload-less sum, text
 compared by byte content, or covered by an explicitly selected equality
 implementation. Recursive structural synthesis rejects. Operators and the
 callable equality wrapper share the selected member meaning.
+Synthesized bodies are transparent to proof checking under ordinary invocation
+admission: true comparisons expose the selected component comparisons and sum
+case guards. Synthesis separately derives each identity bridge only from the
+corresponding component evidence. It grants neither blanket substitution for
+float-containing aggregates nor automatic totality for arbitrary user field
+comparisons. Additional core law synthesis requires explicit catalog support;
+an empty implementation of a new trait cannot acquire it by name.
 [General reflection](reflection.md) lets authorized
 authors generate ordinary checked member calls; it does not expand this sealed
 synthesis catalog, supply missing law evidence, or permit raw quotient observation.
 
 See the [trait guide](../../language_guide/chapter_14_traits.md) for static bounds,
-inline implementations, and dynamic coercion examples. [Relations and quotients](../proofs/quotients.md)
+inline implementations, and runtime machine-value examples. [Relations and quotients](../proofs/quotients.md)
 use this same named-map identity for law selection.

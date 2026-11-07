@@ -107,10 +107,10 @@ pub(crate) fn schema_fields_for_target(
                 field_intervals.as_deref().and_then(|rows| rows.iter()
                     .find(|(symbol, _, _)| *symbol == field.symbol)
                     .map(|(_, low, high)| (*low, *high))),
-            ).ok_or_else(|| {
+            ).map_err(|reason| {
                 format!(
-                    "schema data `{schema_data}` field `{}` is neither a supported primitive, a fixed array composed of supported primitives, nor a fixed record composed from those shapes",
-                    field.name
+                    "schema data `{schema_data}` field `{}` has no reflected storage geometry: {reason}",
+                    field.name,
                 )
             })?;
         // A relevant field may itself be a checked record whose complete
@@ -253,10 +253,11 @@ pub(super) fn reflected_field_layout(
     reference: TypeReferenceHandle,
     target: Option<&layout_plans::LayoutTargetFacts>,
     stated: Option<(Option<i64>, Option<i64>)>,
-) -> Option<ReflectedFieldLayout> {
+) -> Result<ReflectedFieldLayout, String> {
     if let Some(primitive) = typed.primitive_type_reference(reference) {
-        let size = primitive_byte_size(primitive)?;
-        return Some((
+        let size =
+            primitive_byte_size(primitive).ok_or("primitive has no fixed byte representation")?;
+        return Ok((
             size,
             size,
             declared_source_bits(typed, reference, primitive, size, stated),
@@ -278,15 +279,16 @@ pub(super) fn reflected_field_layout(
                 reflected_member_layout(typed, *element_type, target, &mut Vec::new())?;
             Some(RepeatedFieldInfo {
                 element_size,
-                element_count: u64::try_from(*length).ok()?,
+                element_count: u64::try_from(*length)
+                    .map_err(|_| "array count is outside the storage range")?,
             })
         }
         _ => None,
     };
-    Some((
+    Ok((
         size,
         align,
-        size.checked_mul(8)?,
+        size.checked_mul(8).ok_or("field bit count overflows")?,
         None,
         if repeated.is_some() {
             "Repeated"
@@ -306,19 +308,26 @@ fn reflected_member_layout(
     reference: TypeReferenceHandle,
     target: Option<&layout_plans::LayoutTargetFacts>,
     visiting: &mut Vec<typed_trees::type_identity::TypeIdentityId>,
-) -> Option<(u64, u64)> {
+) -> Result<(u64, u64), String> {
     use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
     if let Some(primitive) = typed.primitive_type_reference(reference) {
-        let size = primitive_byte_size(primitive)?;
-        return Some((size, size));
+        let size =
+            primitive_byte_size(primitive).ok_or("primitive has no fixed byte representation")?;
+        return Ok((size, size));
     }
     let carrier = type_reference_table(typed).unconstrained_type_reference(reference);
     match typed.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::Reference { referee, .. } => {
-            let target = target?;
-            let words = typed.reference_descriptor_word_count(*referee)?;
-            Some((
-                target.pointer_size.checked_mul(words)?,
+            let target = target.ok_or("reference storage requires explicit target geometry")?;
+            target.validate()?;
+            let words = typed
+                .reference_descriptor_word_count(*referee)
+                .ok_or("reference has no closed descriptor shape")?;
+            Ok((
+                target
+                    .pointer_size
+                    .checked_mul(words)
+                    .ok_or("reference footprint overflows")?,
                 target.pointer_alignment,
             ))
         }
@@ -327,50 +336,125 @@ fn reflected_member_layout(
             length: FixedArrayLength::Literal(length),
         } => {
             let (size, align) = reflected_member_layout(typed, *element_type, target, visiting)?;
-            Some((size.checked_mul(u64::try_from(*length).ok()?)?, align))
+            let count =
+                u64::try_from(*length).map_err(|_| "array count is outside the storage range")?;
+            Ok((
+                size.checked_mul(count).ok_or("array footprint overflows")?,
+                align,
+            ))
         }
         TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
             if let Some(layout) = typed.plan_laid_layout_for_type(carrier) {
                 let geometry = layout
-                    .geometry_for_target(typed, target.map(|target| target.profile.as_str()))?;
-                return Some((
-                    geometry.validated_layout.size?,
+                    .geometry_for_target(typed, target.map(|target| target.profile.as_str()))
+                    .ok_or("selected layout has no unique geometry for this target")?;
+                return Ok((
+                    geometry
+                        .validated_layout
+                        .size
+                        .ok_or("selected layout has no fixed footprint")?,
                     geometry.validated_layout.align,
                 ));
             }
             // A representation recipe without its admitted plan is pending,
             // never default-packed because its semantic fields are available.
             if typed.layout_storage_arguments(carrier).is_some() {
-                return None;
+                return Err("representation recipe has no admitted layout".into());
             }
-            let data = typed.data_field_definition(carrier)?;
+            let data = typed
+                .data_field_definition(carrier)
+                .ok_or("type has no closed data declaration")?;
             let identity = typed.normalized_type_identity(carrier);
-            if data.quotient.is_some()
-                || data.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-                || visiting.contains(&identity)
-            {
-                return None;
+            if data.quotient.is_some() {
+                return Err("quotient representatives are opaque to schema reflection".into());
+            }
+            if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
+                return Err("data has no checked storage shape".into());
+            }
+            if visiting.contains(&identity) {
+                return Err("by-value storage contains a recursive cycle".into());
             }
             visiting.push(identity);
             let result = (|| {
+                let members = typed.data_members(data);
+                if members.iter().any(|member| member.as_variant().is_some()) {
+                    // A tag is a target representation, not a primitive-field
+                    // assumption. Reuse native packing with explicitly supplied
+                    // carrier geometry; never guess it from the executing host.
+                    let target =
+                        target.ok_or("sum storage requires explicit target tag geometry")?;
+                    target.validate()?;
+                    let field_geometry =
+                        |field: &typed_trees::data::DataField, visiting: &mut Vec<_>| {
+                            let (byte_size, byte_alignment) = reflected_member_layout(
+                                typed,
+                                field.type_reference,
+                                Some(target),
+                                visiting,
+                            )?;
+                            Ok::<_, String>(layout_plans::StorageGeometry {
+                                byte_size,
+                                byte_alignment,
+                            })
+                        };
+                    let mut common = Vec::new();
+                    let mut cases = Vec::new();
+                    for member in members {
+                        match member {
+                            typed_trees::data::DataMember::Field(field) => {
+                                if !field.relevance.is_erased() {
+                                    common.push(field_geometry(field, visiting)?);
+                                }
+                            }
+                            typed_trees::data::DataMember::Variant(case) => {
+                                let mut payload = Vec::new();
+                                for field in typed.data_payload_fields(case) {
+                                    if !field.relevance.is_erased() {
+                                        payload.push(field_geometry(field, visiting)?);
+                                    }
+                                }
+                                cases.push(payload);
+                            }
+                        }
+                    }
+                    let geometry = layout_plans::conventional_sum_geometry(
+                        layout_plans::StorageGeometry {
+                            byte_size: target.case_tag_size,
+                            byte_alignment: target.case_tag_alignment,
+                        },
+                        common,
+                        cases,
+                    )
+                    .map_err(|reason| format!("sum storage geometry is invalid: {reason:?}"))?
+                    .storage;
+                    return Ok((geometry.byte_size, geometry.byte_alignment));
+                }
                 let mut offset = 0u64;
                 let mut aggregate_align = 1u64;
                 for member in typed.data_members(data) {
-                    let field = member.as_field()?;
+                    let field = member
+                        .as_field()
+                        .ok_or("record contains a non-field member")?;
                     if field.relevance.is_erased() {
                         continue;
                     }
                     let (size, align) =
                         reflected_member_layout(typed, field.type_reference, target, visiting)?;
-                    offset = checked_align_up(offset, align)?.checked_add(size)?;
+                    offset = checked_align_up(offset, align)
+                        .and_then(|offset| offset.checked_add(size))
+                        .ok_or("record field offset overflows or has invalid alignment")?;
                     aggregate_align = aggregate_align.max(align);
                 }
-                Some((checked_align_up(offset, aggregate_align)?, aggregate_align))
+                Ok((
+                    checked_align_up(offset, aggregate_align)
+                        .ok_or("record footprint overflows or has invalid alignment")?,
+                    aggregate_align,
+                ))
             })();
             visiting.pop();
             result
         }
-        _ => None,
+        _ => Err("type has no fixed reflected storage shape".into()),
     }
 }
 
@@ -385,9 +469,12 @@ pub(super) fn checked_align_up(value: u64, align: u64) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::schema_fields_for;
+    use super::{reflected_member_layout, schema_fields_for};
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     use typed_trees::TypedTrees;
-    use typed_trees::data::DataDefinition;
+    use typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+    use typed_trees::name::Identifier;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
     #[test]
     fn empty_record_has_an_empty_physical_schema() {
@@ -399,6 +486,99 @@ mod tests {
         assert_eq!(
             fingerprint,
             typed_trees::identity::normalized_schema_report_fingerprint(&typed, &record)
+        );
+    }
+
+    #[test]
+    fn nested_sum_geometry_uses_selected_tag_and_preserves_array_stride() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("geometry"));
+        let sum = symbols
+            .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Choice"))])
+            .start();
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..TypedTrees::default()
+        };
+        let byte = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: symbols::SymbolHandle::invalid(),
+            name: Identifier::from("u8"),
+        });
+        let word = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: symbols::SymbolHandle::invalid(),
+            name: Identifier::from("u64"),
+        });
+        let payload = typed.data_payload_fields.insert_many([DataField {
+            name: Identifier::from("value"),
+            type_reference: word,
+            ..Default::default()
+        }]);
+        let members = typed.data_members.insert_many([
+            DataMember::Field(DataField {
+                name: Identifier::from("common"),
+                type_reference: byte,
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                name: Identifier::from("Empty"),
+                ..Default::default()
+            }),
+            DataMember::Variant(DataVariant {
+                name: Identifier::from("Held"),
+                payload,
+                ..Default::default()
+            }),
+        ]);
+        typed.push_data_definition(DataDefinition {
+            symbol: sum,
+            name: Identifier::from("Choice"),
+            members,
+            ..Default::default()
+        });
+        let choice = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: sum,
+            name: Identifier::from("Choice"),
+        });
+        let array = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: choice,
+                length: FixedArrayLength::Literal(2),
+            });
+        let mut target = layout_plans::LayoutTargetFacts {
+            profile: "test".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        assert_eq!(
+            reflected_member_layout(&typed, choice, None, &mut Vec::new()),
+            Err("sum storage requires explicit target tag geometry".into())
+        );
+        assert_eq!(
+            reflected_member_layout(&typed, choice, Some(&target), &mut Vec::new()),
+            Ok((16, 8))
+        );
+        assert_eq!(
+            reflected_member_layout(&typed, array, Some(&target), &mut Vec::new()),
+            Ok((32, 8))
+        );
+        target.case_tag_size = 16;
+        target.case_tag_alignment = 16;
+        assert_eq!(
+            reflected_member_layout(&typed, choice, Some(&target), &mut Vec::new()),
+            Ok((32, 16))
+        );
+        assert_eq!(
+            reflected_member_layout(&typed, array, Some(&target), &mut Vec::new()),
+            Ok((64, 16))
+        );
+        target.case_tag_alignment = 3;
+        assert_eq!(
+            reflected_member_layout(&typed, choice, Some(&target), &mut Vec::new()),
+            Err("layout target facts have no complete immutable representation profile".into())
         );
     }
 }

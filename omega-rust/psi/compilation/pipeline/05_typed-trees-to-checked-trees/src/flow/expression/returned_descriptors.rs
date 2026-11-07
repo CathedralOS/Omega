@@ -35,6 +35,19 @@ impl Execution<'_, '_, '_> {
                 .operand_retained_paths
                 .insert_many(path.iter().copied()),
         };
+        let actual = self.context.control.calls.get(invocation);
+        // Each result field is observed after this call returns. Preserve its
+        // active permissions beside the field coordinate, including in every
+        // retained alternative; an empty default cut loses the returned loan.
+        let completed_result = FlowOperandFact {
+            completion,
+            expression: actual.authored_expression,
+            state_symbol: self.state.symbol,
+            statement_index: actual.statement_index,
+            storage_snapshot: self.storage_snapshot,
+            constraints: actual.exit_constraints,
+            ..Default::default()
+        };
         self.returned_descriptor(
             call,
             inputs,
@@ -42,7 +55,7 @@ impl Execution<'_, '_, '_> {
             path,
             retention,
             source_snapshot,
-            completion,
+            completed_result,
         )
         .or_else(|| {
             self.capture_returned_region_descriptor(
@@ -52,7 +65,7 @@ impl Execution<'_, '_, '_> {
                 path,
                 retention,
                 source_snapshot,
-                completion,
+                completed_result,
             )
         })
         .unwrap_or_default()
@@ -66,7 +79,7 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
-        completion: FlowOperandCompletion,
+        completed_result: FlowOperandFact,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
         let state = validation::call_target_state(self.program, target)?;
@@ -101,6 +114,9 @@ impl Execution<'_, '_, '_> {
                 candidates.push((Vec::new(), true, None, false));
                 continue;
             }
+            // Unknown elements retain their dimension without a callee-local
+            // selector. Their typed source and borrowing parents remain usable;
+            // they cannot publish an exact descriptor supplier or address.
             // An indexed descriptor home coarsens the may-write footprint,
             // even after its loaded value resolves to an exact supplier. The
             // structural source below owns descriptor identity; the footprint
@@ -128,7 +144,9 @@ impl Execution<'_, '_, '_> {
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
             inputs.get(position)?;
-            let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
+            let FlowOperandCompletion::InvocationResult { invocation, .. } =
+                completed_result.completion
+            else {
                 return None;
             };
             let actual = self
@@ -231,7 +249,7 @@ impl Execution<'_, '_, '_> {
                 .immutable_image = image;
             if let Some((operand, projection)) = supplier {
                 let value = *self.context.control.operands.get(operand);
-                let reborrow_sources = if self
+                let copied_sources = if self
                     .context
                     .control
                     .operand_retentions
@@ -244,6 +262,32 @@ impl Execution<'_, '_, '_> {
                         .reborrow_sources
                 } else {
                     Default::default()
+                };
+                // A direct input reference has no earlier helper projection, so
+                // its retention carries no reborrow row. The field or window
+                // taken from it is still that reference. Record the input and
+                // the new suffix; an empty copy is missing evidence, not an
+                // image or an unknown source.
+                let reborrow_sources = if has_exact_projection
+                    && !image
+                    && copied_sources.is_empty()
+                    && !projection.is_empty()
+                    && validation::reference_shell(self.program, value.type_reference).is_some()
+                {
+                    let suffix = self
+                        .context
+                        .control
+                        .operand_retained_paths
+                        .insert_many(projection.iter().copied());
+                    self.context.control.operand_reborrow_sources.insert_many([
+                        checked_trees::FlowOperandReborrowSource {
+                            operand,
+                            source_path: Default::default(),
+                            projection: suffix,
+                        },
+                    ])
+                } else {
+                    copied_sources
                 };
                 let projection = self
                     .context
@@ -296,13 +340,9 @@ impl Execution<'_, '_, '_> {
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {
                 type_reference: reference,
-                completion,
-                state_symbol: self.state.symbol,
-                statement_index: self.statement_index,
-                storage_snapshot: self.storage_snapshot,
                 referents,
                 retention,
-                ..Default::default()
+                ..completed_result
             });
         }
         if alternatives.len() == 1 {
@@ -338,13 +378,9 @@ impl Execution<'_, '_, '_> {
             .alternatives = alternatives;
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
-            completion,
-            state_symbol: self.state.symbol,
-            statement_index: self.statement_index,
-            storage_snapshot: self.storage_snapshot,
             referents,
             retention,
-            ..Default::default()
+            ..completed_result
         }))
     }
 

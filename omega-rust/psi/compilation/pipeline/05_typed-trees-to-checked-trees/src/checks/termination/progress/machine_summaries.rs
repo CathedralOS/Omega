@@ -20,7 +20,7 @@ pub(crate) fn derive_machine_summary(
     semantic: &facts::FactPlan,
     cleanup_dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     machine: &typed_trees::machine::Machine,
-    summaries: &[CheckedProgressSummary],
+    summaries: &ProgressSummaries<'_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     rank_arrivals: &checked_trees::CheckedRankArrivalPlan,
 ) -> Option<CheckedProgressSummary> {
@@ -128,7 +128,7 @@ pub(crate) fn derive_machine_summary(
 fn family_summary(
     program: &dyn ::validation::CheckingInput,
     head: &typed_trees::machine::Machine,
-    summaries: &[CheckedProgressSummary],
+    summaries: &ProgressSummaries<'_>,
 ) -> Option<CheckedProgressSummary> {
     let mut families = program
         .target_machine_families
@@ -149,15 +149,7 @@ fn family_summary(
         else {
             return Some(no_guarantee(head.symbol));
         };
-        let checked = program
-            .machine_position_by_symbol(machine.symbol)
-            .and_then(|index| summaries.get(index))
-            .filter(|summary| summary.machine == machine.symbol)
-            .or_else(|| {
-                summaries
-                    .iter()
-                    .find(|summary| summary.machine == machine.symbol)
-            })?;
+        let checked = summaries.by_symbol(program, machine.symbol)?;
         if !checked.guarantee.promises_termination() {
             return Some(no_guarantee(head.symbol));
         }
@@ -188,6 +180,103 @@ pub(crate) fn no_guarantee(machine: SymbolHandle) -> CheckedProgressSummary {
     }
 }
 
+/// The summaries one derivation reads: the settled roster for machines outside
+/// the call component being derived, and that component's working values for
+/// its own members (`members` ascending, `working` in the same order).
+#[derive(Clone, Copy)]
+pub(crate) struct ProgressSummaries<'a> {
+    settled: &'a [CheckedProgressSummary],
+    members: &'a [usize],
+    working: &'a [CheckedProgressSummary],
+}
+
+impl<'a> ProgressSummaries<'a> {
+    pub(crate) fn new(
+        settled: &'a [CheckedProgressSummary],
+        members: &'a [usize],
+        working: &'a [CheckedProgressSummary],
+    ) -> Self {
+        Self {
+            settled,
+            members,
+            working,
+        }
+    }
+
+    fn at(&self, index: usize) -> Option<&'a CheckedProgressSummary> {
+        match self.members.binary_search(&index) {
+            Ok(position) => self.working.get(position),
+            Err(_) => self.settled.get(index),
+        }
+    }
+
+    fn by_symbol(
+        &self,
+        program: &dyn ::validation::CheckingInput,
+        symbol: SymbolHandle,
+    ) -> Option<&'a CheckedProgressSummary> {
+        program
+            .machine_position_by_symbol(symbol)
+            .and_then(|index| self.at(index))
+            .filter(|summary| summary.machine == symbol)
+            .or_else(|| {
+                (0..self.settled.len())
+                    .filter_map(|index| self.at(index))
+                    .find(|summary| summary.machine == symbol)
+            })
+    }
+}
+
+/// Roster positions whose summaries `derive_machine_summary` may read for
+/// `machine`: every flow call's selected target and, for a family head, its
+/// members. Cleanup dependencies are added by the caller, which owns that
+/// table. An extra position only orders work; a missing one would expose an
+/// unsettled summary, so this mirrors `selected_call_summary`'s lookups.
+pub(crate) fn summary_reads(
+    program: &dyn ::validation::CheckingInput,
+    flow: &FlowFacts,
+    machine: &typed_trees::machine::Machine,
+    reads: &mut Vec<usize>,
+) {
+    if machine.target_family_interface {
+        for family in program
+            .target_machine_families
+            .iter()
+            .filter(|family| family.canonical == machine.symbol)
+        {
+            for member in &family.members {
+                reads.extend(program.machine_position_by_symbol(member.machine));
+            }
+        }
+    }
+    for state_flow in flow.control.machine_states(machine.symbol) {
+        for call in flow.control.calls.span_or_empty(state_flow.calls) {
+            selected_call_reads(program, call.target_symbol, reads);
+        }
+    }
+}
+
+pub(crate) fn selected_call_reads(
+    program: &dyn ::validation::CheckingInput,
+    target_symbol: SymbolHandle,
+    reads: &mut Vec<usize>,
+) {
+    let Some(target_machine) = program
+        .machine_by_symbol(target_symbol)
+        .or_else(|| validation::find_state(program, target_symbol).map(|(machine, _)| machine))
+    else {
+        return;
+    };
+    reads.extend(program.machine_position_by_symbol(target_machine.symbol));
+    if !target_machine.body_is_present
+        && target_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+    {
+        for satisfier in validation::requirement_satisfiers(program, target_machine.symbol) {
+            reads.extend(program.machine_position_by_symbol(satisfier));
+        }
+    }
+}
+
 pub(crate) struct SelectedCallProgress<'a> {
     pub(crate) guarantee: &'a TerminationGuarantee,
 }
@@ -199,7 +288,7 @@ static CLOSED_VALUE_TERMINATION: TerminationGuarantee = TerminationGuarantee::Te
 pub(crate) fn selected_call_summary<'a>(
     program: &'a dyn ::validation::CheckingInput,
     target_symbol: SymbolHandle,
-    summaries: &'a [CheckedProgressSummary],
+    summaries: &ProgressSummaries<'a>,
 ) -> Option<SelectedCallProgress<'a>> {
     // Integer embedding is a compiler-owned proof value term. Its own
     // formation gate checks the operand and forbids runtime occurrences;
@@ -252,15 +341,8 @@ pub(crate) fn selected_call_summary<'a>(
         let satisfiers = validation::requirement_satisfiers(program, target_machine.symbol);
         if !satisfiers.is_empty()
             && satisfiers.iter().all(|satisfier| {
-                program
-                    .machine_position_by_symbol(*satisfier)
-                    .and_then(|index| summaries.get(index))
-                    .filter(|summary| summary.machine == *satisfier)
-                    .or_else(|| {
-                        summaries
-                            .iter()
-                            .find(|summary| summary.machine == *satisfier)
-                    })
+                summaries
+                    .by_symbol(program, *satisfier)
                     .is_some_and(|summary| {
                         matches!(
                             &summary.guarantee,
@@ -275,15 +357,7 @@ pub(crate) fn selected_call_summary<'a>(
         }
     }
     if target_machine.target_family_interface {
-        let summary = program
-            .machine_position_by_symbol(target_machine.symbol)
-            .and_then(|index| summaries.get(index))
-            .filter(|summary| summary.machine == target_machine.symbol)
-            .or_else(|| {
-                summaries
-                    .iter()
-                    .find(|summary| summary.machine == target_machine.symbol)
-            })?;
+        let summary = summaries.by_symbol(program, target_machine.symbol)?;
         return Some(SelectedCallProgress {
             guarantee: &summary.guarantee,
         });
@@ -293,15 +367,7 @@ pub(crate) fn selected_call_summary<'a>(
             Some(SelectedCallProgress { guarantee })
         }
         language_semantics::TerminationInterface::InternalDerived => {
-            let summary = program
-                .machine_position_by_symbol(target_machine.symbol)
-                .and_then(|index| summaries.get(index))
-                .filter(|summary| summary.machine == target_machine.symbol)
-                .or_else(|| {
-                    summaries
-                        .iter()
-                        .find(|summary| summary.machine == target_machine.symbol)
-                })?;
+            let summary = summaries.by_symbol(program, target_machine.symbol)?;
             Some(SelectedCallProgress {
                 guarantee: &summary.guarantee,
             })
@@ -514,8 +580,7 @@ fn admitted_receipt_covers(
             .context_view(semantic.contexts.get(context))
             .facts()
             .any(|fact| {
-                fact.evidence.origin
-                    == language_semantics::QualificationEvidenceOrigin::AdmittedReceipt
+                fact.evidence.is_independent_receipt()
                     && fact_domain(program, fact.payload) == Some(domain_symbol)
                     && fact_subject(semantic, fact.place).as_ref() == Some(&premise.subject)
             })

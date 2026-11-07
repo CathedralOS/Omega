@@ -9,10 +9,11 @@
 //! The host explicitly assumes equivalence of these offered implementations;
 //! checked library wrappers remain guest code. Standard streams perform no real
 //! host I/O. Explicit matching-host filesystem delegation separately supplies
-//! kernel writes over the same captured bytes and an owned guest descriptor
-//! namespace. Its actual syscall status preserves errors and partial writes.
-//! The same transfer serves retained or discarded counts. Finite replay errors
-//! cannot manufacture Linux kernel statuses or touch arbitrary OS descriptors.
+//! kernel reads and writes over the same captured bytes and an owned guest
+//! descriptor namespace. Descriptor 0 stays the finite replay stream. Its
+//! actual syscall status preserves errors and partial transfers. The same
+//! transfer serves retained or discarded counts. Finite replay errors cannot
+//! manufacture Linux kernel statuses or touch arbitrary OS descriptors.
 //! Versioned Linux libc write uses the same private output and captured backing,
 //! with its own size_t/ssize_t ABI. Unsupported descriptors decline before output;
 //! this offer supplies neither libc read nor observable TLS errno state.
@@ -70,9 +71,10 @@ impl<'input> DescriptorIoImport<'input> {
             output,
         )?;
         if let Some(adapter) = &mut adapter
+            && matches!(adapter.contract.abi, DescriptorAbi::LinuxKernel)
             && matches!(
-                (adapter.contract.abi, adapter.contract.operation),
-                (DescriptorAbi::LinuxKernel, DescriptorOperation::Write)
+                adapter.contract.operation,
+                DescriptorOperation::Write | DescriptorOperation::Read
             )
         {
             adapter.linux_filesystem = super::filesystem::LinuxFilesystemWrite::admit(
@@ -165,6 +167,7 @@ impl<'input> DescriptorIoImport<'input> {
             return Err(invalid_operands());
         };
         CapturedStorage::capture(
+            0,
             buffers,
             formal.access,
             layout,
@@ -307,6 +310,7 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 let count = usize::try_from(*count).map_err(|_| invalid_operands())?;
                 validate_transfer_count(self.contract.abi, count)?;
                 captured = Some(CapturedStorage::capture(
+                    0,
                     storage_buffers,
                     formal.access,
                     layout,
@@ -343,13 +347,57 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 Ok(result)
             }
             DescriptorOperation::Read => {
-                if *descriptor != 0 {
+                let linux_file = *descriptor != 0
+                    && matches!(self.contract.abi, DescriptorAbi::LinuxKernel)
+                    && self.linux_filesystem.is_some();
+                if *descriptor != 0 && !linux_file {
                     if !matches!(self.contract.abi, DescriptorAbi::WindowsCrt) {
                         return Err(TerminalEffectRejection::new(
                             "input descriptor is not the admitted finite stream",
                         ));
                     }
                     return self.result(-1);
+                }
+                if linux_file {
+                    let descriptor = i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
+                    let kind = match &self.contract.buffer {
+                        DescriptorBuffer::Bytes => true,
+                        DescriptorBuffer::Scalar(_) | DescriptorBuffer::Aggregate(_) => false,
+                    };
+                    let status = {
+                        let destination = if kind {
+                            let [buffer] = byte_buffers else {
+                                return Err(invalid_operands());
+                            };
+                            let bytes = buffer.bytes_mut();
+                            if bytes.len() != count {
+                                return Err(invalid_operands());
+                            }
+                            bytes
+                        } else {
+                            let storage = captured.as_mut().ok_or_else(invalid_operands)?;
+                            if storage.bytes.len() < count {
+                                return Err(invalid_operands());
+                            }
+                            &mut storage.bytes[..count]
+                        };
+                        self.linux_filesystem
+                            .as_ref()
+                            .ok_or_else(invalid_operands)?
+                            .read(descriptor, destination)?
+                    };
+                    if status > 0 {
+                        let moved = usize::try_from(status).map_err(|_| invalid_operands())?;
+                        if moved > count {
+                            return Err(TerminalEffectRejection::new(
+                                "kernel read exceeded the requested byte extent",
+                            ));
+                        }
+                        if let Some(storage) = captured {
+                            storage.stage(storage_buffers, moved)?;
+                        }
+                    }
+                    return self.result(status);
                 }
                 if count == 0 {
                     return Ok(result);

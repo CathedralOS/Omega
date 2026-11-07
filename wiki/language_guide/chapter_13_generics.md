@@ -104,8 +104,9 @@ trait TypedSorter<T, Order satisfies Ordering<T>> {
 }
 ```
 
-`dyn TypedSorter<u32, Ascending>` has a fixed method shape while its implementation
-can vary at runtime. An open requirement-local type or evidence binder cannot
+A machine field with a closed signature over `u32` may hold an explicitly
+selected `TypedSorter<u32, Ascending>` implementation member. Its target can vary
+at runtime; its callable contract remains fixed. An open requirement-local type or evidence binder cannot
 become a dynamic slot merely because current callers happen to use one tuple;
 the attempt rejects during source checking. Explicit finite value families keep
 their existing rules. See [generic requirements](../spec/language/generics.md#generic-machine-requirements)
@@ -188,7 +189,7 @@ automatic fallback or enumeration of the entire u32 range. Each body still owes
 its target, bounds, and effect obligations. A const-only inner kernel receives
 the selected constant; const itself does not become a runtime parameter.
 
-A named dynamic conformance supplies one concrete row per declared width, with
+A callable with a finite family contract supplies one row per declared width, with
 one exact index shared by the scanner, comparator, and prepared state. The row
 can call a specialized loop rather than redispatching on every vector. Escaping
 results need a common representation or an explicit finite sum/eligible owner;
@@ -200,7 +201,9 @@ define the rules.
 The implementation canary
 `tests/omega/pass/traits/dyn_finite_family_dispatch` exercises separate generated
 rows for closed widths 16 and 32. Any remaining receiver or data-subject
-conformance syntax is migration debt under the named-implementation contract. The implemented limit is
+conformance syntax is migration debt under the named-implementation contract.
+Its `dyn` surface also needs the [machine-value migration](../drafts/designs/machine_values_some.md).
+The implemented limit is
 narrower than "no generic virtual calls": the binder tuple must be one complete
 roster tuple of closed static values; runtime width selection is not yet covered.
 
@@ -321,12 +324,12 @@ selects an ordinary conformance supplying just the operations it needs. Closed
 units and destination-typed conversions need no compiler knowledge of metres,
 seconds, or scaling policy.
 
-An open result index can be an expression over input indices. Compatibility then
-requires closed evaluation, licensed canonical normalization, or an exact
-established local fact. A theorem citation contributes its ordinary guarantee;
-there is no new citation syntax or ambient lemma search. Stronger proof search
-may accept more compatible uses but cannot rename an interface's normalized
-index. [Indexed domains](../spec/language/domains.md#indexed-families) and
+An open result index can be an expression over input indices. Fixed canonical
+simplifications identify some expressions; checked equality proves additional
+value compatibility. Selected algebra laws and ordinary theorem guarantees can
+supply that proof without new citation syntax or ambient lemma search.
+Stronger proof search may accept more compatible uses but cannot rename an
+interface's canonical index. [Indexed domains](../spec/language/domains.md#indexed-families) and
 [licensed normalization](../spec/proofs/contracts.md#licensed-normalization)
 own the details.
 
@@ -343,10 +346,10 @@ the proof; `CommutativeCombine` is a library trait, not a compiler keyword.
 Reassociation needs an associativity law as well. Merely carrying an index
 requires neither law, and naming an operation `+` proves neither one.
 
-The checker consumes that ordinary trait evidence. There is no domain-specific
-selection syntax, implicit implementation search, or need to repeat a selection
-beside every index expression. Citing an exact equality remains an alternative
-when general algebraic normalization is unnecessary.
+The checker consumes that ordinary trait evidence to prove compatibility,
+rather than changing canonical keys. There is no domain-specific selection
+syntax, implicit implementation search, or need to repeat a selection beside
+every expression. Citing an exact equality remains an alternative.
 
 ### Literal identities
 
@@ -366,12 +369,12 @@ trait Additive<T> {
     ) -> T terminates;
 
     machine right_identity(value: T)
-    ensures add(value, zero()) == value;
+    ensures core::Identity<T>(add(value, zero()), value);
 }
 
 trait WrappingByteIndices : Additive<u8 in Wrapping> {
     machine zero_is_literal()
-    ensures zero() == 0;
+    ensures core::Identity<u8 in Wrapping>(zero(), 0);
 }
 
 domain<T, const Count: u8 in Wrapping> T::Indexed<Count>;
@@ -392,54 +395,62 @@ operations and proves both laws; their names have no compiler authority. The
 same pattern connects multiplicative identity to `1`. Each rewrite needs only
 its own laws, not a full ring or semiring. `Count + 1` is not an identity.
 
-Normalization uses the complete selected conformance, including inherited laws,
-and identifies the applications in signatures and specialization keys as well
-as value transfers. It does not evaluate abstract machines. Qualified operand
-types constrain which operation matches; the explicit conformance selects it.
-Wrapping and Saturating do not grant the same laws by name, and normalization
-cannot erase an Exact overflow obligation on an authored intermediate.
+Compatibility proving consumes the complete selected conformance, including
+inherited laws. It does not evaluate abstract machines inside type identity.
+The two open applications above retain separate canonical keys even though
+the value transfer is proved automatically. Core operations have a separate
+fixed identity profile, so ordinary core `N + 0` can have the same key as `N`
+without a user algebra binder.
 
-See [literal-linked index identities](../spec/proofs/contracts.md#literal-linked-index-identities)
-for operation direction, formation, and bounded expansion rules.
+Each exact operation and arithmetic policy keeps its own meaning. Signed
+Saturating addition is not associative; Wrapping and Exact also retain their
+different meanings. No simplification removes an Exact overflow obligation
+on an authored intermediate. See
+[literal connections](../spec/proofs/contracts.md#literal-linked-index-identities).
 
 ### Distributivity and bounded work
 
-Under a selected algebra that proves distributivity, a generic library can
-identify these applications by normalization toward sums of products:
+A selected algebra can prove that a value fits either of these indexed types:
 
 ```text
 Buffer<A * (B + C)>
-Buffer<A*B + A*C>
+Buffer<A * B + A * C>
 ```
 
-Reordering still needs commutativity, regrouping needs associativity, and the
-authored operations must be well-formed. Resolve the operand types and exact
-operation contracts before using a law; layout and native target realization
-come later. The compiler keeps complete associative chains coherent before
-expanding them. An internal repetition count does not establish an authored
-literal's algebraic meaning: `N + N` need not identify with `2 * N`.
+The open expressions have different canonical keys. The compiler can
+automatically prove compatibility through distributivity and transport the
+value with no authored cast or runtime conversion. Reordering and regrouping
+need their own laws, and all operations must be well-formed.
 
-Expansion can multiply the number of terms even in a short type expression.
-The canonical policy permits at most 64 resulting summands per product
-expansion, decided from the simplified pre-expansion form. This limits symbolic
-checking work, not the magnitude of an index or runtime arithmetic. Beyond it,
-retain the product unexpanded; using the well-formed indexed type alone need
-not fail. If compatibility cannot otherwise be proved because expansion was
-cut off, the diagnostic reports the measure and limit, not inequality.
+Automatic expansion defaults to at most 64 resulting terms per product
+expansion. That counts terms, not normalization steps or the magnitude of a
+buffer size. The root can raise the recorded proof-search allowance through an
+ordinary Build setting:
 
-An ordinary theorem can apply distributivity with a large expression as one
-operand without expanding that operand. Its checked guarantee or an already
-established exact equality can discharge the compatibility obligation. Keeping
-the same index formulation across APIs can also avoid expansion. No local
-canonical-budget override syntax is needed. A compatibility proof established
-generically is carried into its specialized uses, not rediscovered there;
-fully closed indices still evaluate under the concrete selected implementation.
+```omega
+builder.proof.index_expansion_terms = 128;
+```
 
-The named mutual-distributivity exception expands neither direction when two
-operations distribute over each other. Different selected law sets therefore
-do not have an unconditional monotonicity promise. The complete rules and
-published identity requirements are in
-[bounded canonical index normalization](../spec/proofs/contracts.md#bounded-canonical-index-normalization).
+This ratified setting is part of the pending compiler migration. It changes
+proof discovery, never type identity. Other sponsored resource ceilings still
+apply. If an obligatory equality remains unproved, the diagnostic names the
+missing evidence or exhausted budget; it does not claim mathematical inequality.
+A checked theorem can establish equality without expanding the whole product.
+
+A generic compatibility proof travels through specialization and in published
+artifacts. Consumers check it without repeating the producer's search under a
+smaller allowance. A reverse-distributivity law does not invalidate a forward
+proof: the old rule disabling both directions is retired.
+
+Exact declaration and conformance matching still uses canonical keys.
+Consequently, a conformance for one symbolic spelling does not automatically
+match the other, and the two forms may produce separate specializations.
+Use the same expression or a shared transparent alias when an API requires
+exact identity. Closed indices can still evaluate to the same value and share
+a key. The rules are in
+[stable identity](../spec/proofs/contracts.md#stable-canonical-index-identity),
+[proved compatibility](../spec/proofs/contracts.md#proved-index-compatibility),
+and [Build proof-work policy](../spec/build/configuration.md#proof-work-policy).
 
 ## Machine Parameters
 
@@ -514,9 +525,13 @@ be inferred when the selected signature and value arguments determine an exact
 application; that is not inference of conformance evidence or callable contracts.
 
 Stateful callbacks take ordinary explicit context parameters; dynamically
-selected interfaces use `dyn` traits. Invocation scratch belongs in local bindings,
-not in persistent callback context merely to make it accessible. A static machine symbol is not a stored or
-returned runtime callback value. `address_of<Selected<u32>>()` may expose the address
+selected operations use [machine values](../spec/language/machine_values.md).
+[Some packages](../spec/language/some_packages.md) relate heterogeneous borrowed
+state and its operations without exposing the state type. Invocation scratch
+belongs in local bindings, not persistent context merely to make it accessible.
+A static machine binder remains a declaration argument. Its closed executable
+selection may construct a runtime machine value under a checked callable type.
+`address_of<Selected<u32>>()` may separately expose the address
 of a fully selected executable application, but the resulting number is not
 call authority; see [address exposure](chapter_20_memory_layout_abi.md#exposing-addresses).
 Registered foreign callbacks still use contextual realization with an exact
@@ -591,8 +606,8 @@ machine Runner::tick<T, Increment satisfies Incrementable<T>>(subject: &mut T) {
 ```
 
 The specialization uses the selected conformance's implementation. Another
-visible `increment` machine cannot replace it. Dynamic dispatch is the separate
-mechanism for runtime-selected interfaces, with its own evidence and custody.
+visible `increment` machine cannot replace it. Runtime machine values provide
+the separate dynamic route, with their own callable evidence and custody.
 
 ## Monomorphization
 

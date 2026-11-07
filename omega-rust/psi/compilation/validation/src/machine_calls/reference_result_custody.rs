@@ -1425,42 +1425,12 @@ pub fn named_place_loans(
         statement_index,
         selection,
     )
+    .ok()
 }
 
 /// Join descriptors to the home that actually stores them. A named local and
 /// computed backing differ in identity, not leaf geometry or formation proof.
 pub fn storage_place_loans(
-    program: &dyn CheckingInput,
-    facts: &CheckFacts,
-    machine: SymbolHandle,
-    state: &State,
-    owner: facts::PlaceRoot,
-    reference: TypeReferenceHandle,
-    statement_index: u32,
-    selection: &[checked_trees::CheckedUnitStructuralPathSegment],
-) -> Option<Vec<RecordLeafLoans>> {
-    let result = storage_place_loans_inner(
-        program,
-        facts,
-        machine,
-        state,
-        owner,
-        reference,
-        statement_index,
-        selection,
-    );
-    if let Err(reason) = &result
-        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-    {
-        eprintln!(
-            "CHECKSITE storage-place-loans state={:?} statement={statement_index} owner={owner:?} reference={reference:?} selection={selection:?} refusal={reason}",
-            state.symbol,
-        );
-    }
-    result.ok()
-}
-
-fn storage_place_loans_inner(
     program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -1533,16 +1503,25 @@ fn storage_place_loans_inner(
         let mut matching = activations
             .iter()
             .filter(|activation| activation.loan == handle);
-        if matching
+        let activation = matching
             .next()
-            .ok_or("the storage loan has no actual formation activation")?
-            .source
+            .ok_or("storage descriptor loan has no activation")?;
+        if matching.next().is_some() {
+            return Err("storage descriptor loan has more than one activation");
+        }
+        if activation.source
             != (checked_trees::FlowInvalidationSource::Statement {
                 statement_index: statement_index as usize,
             })
-            || matching.next().is_some()
         {
-            return Err("the storage loan has no unique activation at its formation statement");
+            return Err(match activation.source {
+                checked_trees::FlowInvalidationSource::Call { .. } => {
+                    "storage descriptor loan was activated by a call rather than a statement"
+                }
+                checked_trees::FlowInvalidationSource::Statement { .. } => {
+                    "storage descriptor loan was activated at another statement"
+                }
+            });
         }
         captured.push(handle);
     }
@@ -1696,7 +1675,8 @@ fn replaced_stored_reference_carrier(
         reference,
         u32::try_from(formation?).ok()?,
         selection,
-    )?;
+    )
+    .ok()?;
     let [group] = groups.as_slice() else {
         return None;
     };

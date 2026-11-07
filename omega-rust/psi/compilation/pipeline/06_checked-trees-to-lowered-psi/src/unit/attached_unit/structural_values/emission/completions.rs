@@ -301,6 +301,9 @@ impl Emission<'_, '_, '_> {
             continuation.common_claims = Some(claims);
         }
         self.join_memberships(&structural_arguments, continuation)?;
+        self.operations
+            .reference_backings
+            .forward(&structural_arguments[0], continuation.place);
         let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),
@@ -332,6 +335,9 @@ impl Emission<'_, '_, '_> {
             });
         }
         self.join_memberships(std::slice::from_ref(&argument), continuation)?;
+        self.operations
+            .reference_backings
+            .record(continuation.place, argument.clone());
         let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),
@@ -398,9 +404,19 @@ impl Emission<'_, '_, '_> {
                 parameter
                     .projected_qualifications
                     .retain(|domain| incoming.projected_qualifications.contains(domain));
+                parameter.additional_input_qualifications.retain(|row| {
+                    incoming.additional_input_qualifications.contains(row)
+                        && if row.path.is_empty() {
+                            parameter.qualifications.contains(&row.domain)
+                        } else {
+                            parameter.projected_qualifications.contains(row)
+                        }
+                });
             } else {
                 parameter.qualifications = incoming.qualifications;
                 parameter.projected_qualifications = incoming.projected_qualifications;
+                parameter.additional_input_qualifications =
+                    incoming.additional_input_qualifications;
             }
             if let Some(owner) = continuation
                 .remaining_owners
@@ -409,6 +425,8 @@ impl Emission<'_, '_, '_> {
             {
                 owner.value.qualifications = parameter.qualifications.clone();
                 owner.value.projected_qualifications = parameter.projected_qualifications.clone();
+                owner.value.additional_input_qualifications =
+                    parameter.additional_input_qualifications.clone();
             }
         }
         continuation.has_incoming_memberships = true;

@@ -279,6 +279,7 @@ pub(super) fn check_exit_ensures(
                 }
                 _ => false,
             };
+            let mut membership_refusal = None;
             let satisfied = if content_theorem {
                 content_plans.iter().any(|source| {
                     source.plan.owner == state_flow.machine_symbol
@@ -298,6 +299,7 @@ pub(super) fn check_exit_ensures(
                         exit_flow,
                         &entry_contexts,
                         fact,
+                        &mut membership_refusal,
                     )
                     || super::content_preservation::proves_exit(
                         program,
@@ -407,6 +409,15 @@ pub(super) fn check_exit_ensures(
                 continue;
             }
             if !satisfied {
+                let membership_diagnostic = result_domains::completed_result_domain_diagnostic(
+                    program,
+                    facts,
+                    exit_flow,
+                    fact,
+                    membership_refusal,
+                )
+                .map(|detail| format!("; {detail}"))
+                .unwrap_or_default();
                 let origin_diagnostic = if missing_origins.is_empty() {
                     String::new()
                 } else {
@@ -416,11 +427,12 @@ pub(super) fn check_exit_ensures(
                     )
                 };
                 let diagnostic = Diagnostic::error(format!(
-                    "cannot prove ensures contract for exit from {} at statement {}: {}{}",
+                    "cannot prove ensures contract for exit from {} at statement {}: {}{}{}",
                     machine_name(program, state_flow.machine_symbol),
                     exit_flow.statement_index,
                     semantic_fact_requirement_label(program, &facts.semantic, fact),
                     origin_diagnostic,
+                    membership_diagnostic,
                 ));
                 diagnostics.push(
                     match super::return_values::exit_source_span(program, exit_flow) {

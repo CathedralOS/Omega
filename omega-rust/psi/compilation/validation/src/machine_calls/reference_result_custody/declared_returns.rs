@@ -197,23 +197,16 @@ fn invocation_sources(
     result_leaves
         .into_iter()
         .map(|leaf| {
-            let segments = super::loan_place_segments(program, return_type, &leaf.path)
-                .ok_or("invocation result leaf has no storage path")?;
-            let carrier =
-                crate::project_type_reference_from_segments(program, return_type, &segments)
-                    .ok_or("invocation result leaf has no declared carrier")?;
             Ok(CheckedReturnedReferencePlan {
                 path: leaf.path.clone(),
                 source: CheckedReferenceOriginSourcePlan {
                     root: checked_trees::CheckedReferenceOriginRoot::Invocation {
-                        carrier_type: program.normalized_type_identity(carrier),
+                        carrier_type: program.normalized_type_identity(return_type),
                     },
                     entry_reference_hops: 0,
                     path: leaf
                         .source
                         .path
-                        .strip_prefix(leaf.path.as_slice())
-                        .ok_or("public invocation result source has a different descriptor path")?
                         .iter()
                         .cloned()
                         .map(CheckedReferenceOriginProjection::Exact)

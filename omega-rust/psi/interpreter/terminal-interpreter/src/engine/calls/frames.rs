@@ -121,6 +121,7 @@ impl TerminalExecution<'_> {
             loan_completions,
             values: self.values.take(),
             structural_values: self.structural_values.take(),
+            linear_homes: self.linear_homes.take(),
             aggregate_argument_backings: self.aggregate_argument_backings.take(),
             byte_sequence_values: self.byte_sequence_values.take(),
             primitive_loan_values: self.primitive_loan_values.take(),

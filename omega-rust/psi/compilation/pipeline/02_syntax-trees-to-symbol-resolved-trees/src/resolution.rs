@@ -421,7 +421,7 @@ pub fn prepare_const_qualification_selection<'authored>(
         ConstResolutionMode::InitializerSelection,
     )?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
-    validate_declarations(&syntax)?;
+    validate_declarations(&syntax, Some(&constant_selection))?;
     let mut lowerer = Lowerer::new(sources.clone(), top_level_bindings.clone());
     lowerer.constant_selection = Some(constant_selection);
     lowerer.const_resolution_mode = ConstResolutionMode::InitializerSelection;
@@ -545,7 +545,7 @@ fn begin(
         constants,
         retained_base.clone(),
     )?;
-    validate_declarations(&prepared.syntax)?;
+    validate_declarations(&prepared.syntax, Some(&prepared.constant_selection))?;
     let mut lowerer = Lowerer::new(sources, top_level_bindings);
     lowerer.constant_selection = Some(prepared.constant_selection);
     lowerer.const_resolution_mode = constants;
@@ -607,6 +607,14 @@ fn finish_resolution(
     settle_resolution(lowerer, syntax)?;
     let mut completed_machines = completed_machines.to_vec();
     completed_machines.extend_from_slice(&lowerer.completed_machines);
+    // Every machine asks whether it was completed; sorted keys answer that
+    // without scanning the completed list once per machine.
+    let symbol_key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+    let mut completed_keys = completed_machines
+        .iter()
+        .map(|symbol| symbol_key(*symbol))
+        .collect::<Vec<_>>();
+    completed_keys.sort_unstable();
     let machines = lowerer
         .symbol_resolved_trees
         .machines
@@ -615,7 +623,9 @@ fn finish_resolution(
             predecessor
                 .as_ref()
                 .is_none_or(|previous| previous.machine(machine.symbol).is_none())
-                || completed_machines.contains(&machine.symbol)
+                || completed_keys
+                    .binary_search(&symbol_key(machine.symbol))
+                    .is_ok()
         })
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
