@@ -512,6 +512,7 @@ dependencies = [
  "layout-plans",
  "libc",
  "lowered-psi",
+ "machine-code",
  "machine-emission",
  "mimalloc",
  "native-artifact",
