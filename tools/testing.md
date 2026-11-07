@@ -271,6 +271,12 @@ verified binary, source export and preparation receipts, then saves the Cargo
 cache before program consumers begin. Later consumer failures stay red without
 hiding the already prepared producer. The final observations and compact records
 use separate artifact names; the original producer upload is not overwritten.
+
+When corpus fixtures need a new producer, preparation first checks the exact
+`compiler` test target `corpus_runner` before optimized code generation. A failed
+check retains its stdout/stderr and stops before building the CLI. CLI-only and
+authenticated retained-producer requests do not run this additional check.
+
 Fresh pilot cache keys end in `prepared-v1-cli` or `prepared-v1-with-runner`,
 matching the executable roster prepared for the selected consumers. Only a
 successful authenticated preparation publishes these keys; failed preparation
