@@ -509,7 +509,11 @@ impl CanonicalHandleState {
                 }
                 None => {
                     let actual = machine.geometry.carrier(source)?;
-                    if actual != Some(formal.structural_type) {
+                    if !machine.geometry.matches_carrier(
+                        actual,
+                        formal.structural_type,
+                        formal.access,
+                    ) {
                         return Err(format!(
                             "handle arrival changes its original structural value carrier at {:?}/{position:?} edge {ordinal} to {:?}/{:?}: source {source:?} has {actual:?} ({:?}), expected {:?} ({:?}), access {:?}, selected bytes {}",
                             machine.body.id,
@@ -1458,7 +1462,12 @@ impl CanonicalHandleState {
                 {
                     return Err("handle scalar actual changes its formal logical carrier".into());
                 }
-                None if geometry.carrier(&source)? != Some(formal.structural_type) => {
+                None if !geometry.matches_carrier(
+                    geometry.carrier(&source)?,
+                    formal.structural_type,
+                    formal.access,
+                ) =>
+                {
                     return Err(
                         "handle structural actual changes its formal declared carrier".into(),
                     );

@@ -329,6 +329,28 @@ pub(super) struct HandleStorageGeometry<'a> {
     bindings: &'a HandleStorageBindings,
 }
 
+/// A borrowed descriptor may keep its pointer and extent under another type
+/// identity. Reuse Terminal's admitted presentation rule, preserving only the
+/// unchanged representation here. Constructing a pointer to inline backing
+/// needs its own producer. Original call/edge custody still owns access and
+/// qualified-type admission; owned values retain their exact carrier.
+fn unchanged_storage_presentation(
+    types: &[terminal_psi::StructuralTypeDeclaration],
+    actual: Option<StructuralTypeId>,
+    expected: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+) -> bool {
+    actual.is_some_and(|actual| {
+        actual == expected
+            || (access != terminal_psi::StructuralAccess::Owned
+                && terminal_semantics::borrowed_referent_presentation(
+                    types.iter(),
+                    actual,
+                    expected,
+                ) == Some(terminal_semantics::BorrowedReferentPresentation::Unchanged))
+    })
+}
+
 impl<'a> HandleStorageGeometry<'a> {
     /// Select only the actual discriminator bytes. A neighboring payload may
     /// retain an old HANDLE without making a tag observation read that value.
@@ -819,6 +841,15 @@ impl<'a> HandleStorageGeometry<'a> {
         self.module.identities.text(declaration.identity)
     }
 
+    pub(super) fn matches_carrier(
+        &self,
+        actual: Option<StructuralTypeId>,
+        expected: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    ) -> bool {
+        unchanged_storage_presentation(&self.module.structural_types, actual, expected, access)
+    }
+
     /// A runtime-selected write can touch any member of its first collection.
     /// Return that containing interval, not a guessed element address. The
     /// caller must retain old dependencies and invalidate exact overlapping
@@ -1205,6 +1236,93 @@ mod tests {
             length,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn borrowed_descriptor_identity_does_not_authorize_repacking_or_owned_transfer() {
+        use semantic_vocabulary::{IntegerSign, IntegerType};
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeDeclaration};
+        let id = |value| StructuralTypeId::new(value).unwrap();
+        let declaration = |value: u32, shape| StructuralTypeDeclaration {
+            id: id(u64::from(value)),
+            identity: terminal_psi::TerminalIdentityIndex(value),
+            shape,
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+        };
+        let types = [
+            declaration(
+                1,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                }),
+            ),
+            declaration(
+                2,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+            ),
+            declaration(
+                3,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    access: None,
+                    capacity: 12,
+                }),
+            ),
+            declaration(
+                4,
+                StructuralTypeShape::FixedArray {
+                    element: id(5),
+                    length: terminal_psi::ArrayExtent::Literal(12),
+                },
+            ),
+            declaration(
+                5,
+                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                )),
+            ),
+        ];
+        assert!(unchanged_storage_presentation(
+            &types,
+            Some(id(1)),
+            id(2),
+            StructuralAccess::SharedBorrow,
+        ));
+        assert!(!unchanged_storage_presentation(
+            &types,
+            Some(id(1)),
+            id(2),
+            StructuralAccess::Owned,
+        ));
+        assert!(!unchanged_storage_presentation(
+            &types,
+            None,
+            id(2),
+            StructuralAccess::SharedBorrow,
+        ));
+        // Terminal permits a separately produced pointer to these inline
+        // bytes. Passing their first word through unchanged would lose that
+        // backing, so this replay cannot accept the presentation as a copy.
+        assert_eq!(
+            terminal_semantics::borrowed_referent_presentation(types.iter(), id(4), id(3),),
+            Some(
+                terminal_semantics::BorrowedReferentPresentation::AddressOfBacking {
+                    byte_count: 12,
+                }
+            )
+        );
+        assert!(!unchanged_storage_presentation(
+            &types,
+            Some(id(4)),
+            id(3),
+            StructuralAccess::SharedBorrow,
+        ));
     }
 
     #[test]
