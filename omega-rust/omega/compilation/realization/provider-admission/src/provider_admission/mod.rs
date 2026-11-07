@@ -140,7 +140,13 @@ pub fn admit_native_providers<'request>(
     let entry_custody = callback_entries::PreparedEntries::new(input, request)
         .map_err(|reason| diagnostics::realization_error("callback entry admission", reason))?;
     let installation = installation::admit_checked_provider_installation(input, artifact, request)?;
-    let helper_associations = static_interrupts::require_helper_associations(input, request)?;
+    let helper_associations = static_interrupts::require_helper_associations(
+        input,
+        request,
+        artifact,
+        &entry_custody,
+        installation.as_ref().map(|row| row.terminal_selection()),
+    )?;
     let installed_interrupts = static_interrupts::admit(
         input,
         artifact,

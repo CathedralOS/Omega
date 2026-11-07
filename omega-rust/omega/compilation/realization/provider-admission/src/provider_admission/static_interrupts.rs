@@ -23,36 +23,38 @@ pub(super) use settlement::settle;
 pub(super) fn require_helper_associations(
     input: &NativeRealizationInput<'_>,
     request: &ProviderAdmissionRequest<'_, '_>,
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    entry_custody: &super::callback_entries::PreparedEntries<'_>,
+    installation: Option<&terminal_installation::AdmittedProviderSelections>,
 ) -> Result<Vec<crate::AdmittedInstalledInterruptHelper>, Vec<Diagnostic>> {
     let mut operations: Vec<_> = input
         .plan()
         .operations()
         .filter_map(|row| row.psi_operation())
         .collect();
-    let mut machines: Vec<_> = input
-        .plan()
-        .functions
-        .iter()
-        .map(|function| function.machine)
-        .collect();
     operations.sort();
     operations.dedup();
-    machines.sort();
-    machines.dedup();
-    let uses = arrival_helpers::validate(
-        input.module(),
-        request.callback_occurrences,
-        request.profile,
-        request.installed_calling,
-        input.target_machine_selections(),
-        &operations,
-        &machines,
-    )
-    .map_err(|reason| {
-        vec![Diagnostic::error(format!(
-            "installed interrupt arrival: {reason}"
-        ))]
-    })?;
+    let uses = if input.module().installed_interrupt_registrations.is_empty() {
+        Vec::new()
+    } else {
+        let calls = super::selected_synchronous_call_graph(
+            artifact.view(),
+            input.target_machine_selections(),
+            None,
+            installation,
+            request.profile,
+        )
+        .map_err(|reason| {
+            super::diagnostics::realization_error("installed arrival call graph", reason)
+        })?;
+        arrival_helpers::validate(input, request, entry_custody, &calls, &operations).map_err(
+            |reason| {
+                vec![Diagnostic::error(format!(
+                    "installed interrupt arrival: {reason}"
+                ))]
+            },
+        )?
+    };
     let covered: BTreeSet<_> = uses.iter().map(|row| row.operation).collect();
     for operation in input
         .module()

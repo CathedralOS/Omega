@@ -9,7 +9,7 @@ use super::*;
 use crate::descriptors::descriptor_lifetimes::{
     DescriptorFlowSource, descriptor_location, descriptor_location_type, value_locations,
 };
-use semantic_vocabulary::{IdTable, OperationId};
+use semantic_vocabulary::{IdTable, InvocationSite, OperationId};
 
 mod flow;
 use flow::{location_type, require_acyclic};
@@ -35,13 +35,14 @@ pub struct ValueIdentityAnalysis<'a> {
     operations: BTreeMap<DescriptorPosition, &'a Operation>,
     // A body can retain gaps in module-wide operation IDs after pruning.
     positions: IdTable<OperationId, Option<DescriptorPosition>>,
+    terminal_positions: BTreeMap<InvocationSite, DescriptorPosition>,
     incoming: QueryResult<payload_reachability::IncomingFlow>,
     analysis: DescriptorAnalysis<'a>,
     cuts: BTreeMap<DescriptorPosition, QueryResult<payload_reachability::Reachability>>,
     flows: BTreeMap<DescriptorPosition, QueryResult<IdentityFlow>>,
     actuals: BTreeMap<(DescriptorPosition, StructuralArgument), QueryResult<DescriptorLocation>>,
     values: BTreeMap<(ValueIdentitySeed, DescriptorPosition), BTreeSet<DescriptorLocation>>,
-    results: BTreeMap<(ValueIdentitySeed, OperationId, StructuralArgument), QueryResult<()>>,
+    results: BTreeMap<(ValueIdentitySeed, InvocationSite, StructuralArgument), QueryResult<()>>,
 }
 
 impl<'a> ValueIdentityAnalysis<'a> {
@@ -56,6 +57,7 @@ impl<'a> ValueIdentityAnalysis<'a> {
             .ok_or("value identity reference graph is absent or ambiguous")?;
         let mut operations = BTreeMap::new();
         let mut position_rows = Vec::new();
+        let mut terminal_positions = BTreeMap::new();
         for block in &body.blocks {
             for (index, operation) in block.operations.iter().enumerate() {
                 let position = (
@@ -66,6 +68,25 @@ impl<'a> ValueIdentityAnalysis<'a> {
                     return Err("value identity operation is ambiguous");
                 }
                 position_rows.push((operation.id, position));
+            }
+            let site = match block.terminator {
+                Terminator::InvokeNoNormal { edge, .. } => {
+                    Some(InvocationSite::InvokeNoNormal(edge))
+                }
+                Terminator::ExternalCompletion { edge, .. } => {
+                    Some(InvocationSite::ExternalCompletion(edge))
+                }
+                _ => None,
+            };
+            if let Some(site) = site {
+                let position = (
+                    block.id,
+                    u32::try_from(block.operations.len())
+                        .map_err(|_| "operation index overflow")?,
+                );
+                if terminal_positions.insert(site, position).is_some() {
+                    return Err("value identity terminal invocation is ambiguous");
+                }
             }
         }
         position_rows.sort_unstable_by_key(|(identity, _)| *identity);
@@ -107,6 +128,7 @@ impl<'a> ValueIdentityAnalysis<'a> {
             machine,
             operations,
             positions,
+            terminal_positions,
             incoming: payload_reachability::incoming_flow(&machine.flow)
                 .ok_or("value identity has incomplete incoming control flow"),
             analysis: DescriptorAnalysis::with_reference_slots(
@@ -129,6 +151,18 @@ impl<'a> ValueIdentityAnalysis<'a> {
         observation: OperationId,
         actual: &StructuralArgument,
     ) -> QueryResult<()> {
+        self.require_at_invocation(seed, InvocationSite::Operation(observation), actual)
+    }
+
+    /// Observe actuals at their canonical invocation site. A no-normal call
+    /// observes the terminal descriptor snapshot; it is never reconstructed as
+    /// a result-producing operation or confused with an equal numeric ID.
+    pub fn require_at_invocation(
+        &mut self,
+        seed: ValueIdentitySeed,
+        observation: InvocationSite,
+        actual: &StructuralArgument,
+    ) -> QueryResult<()> {
         let key = (seed, observation, actual.clone());
         if let Some(result) = self.results.get(&key) {
             return *result;
@@ -142,14 +176,23 @@ impl<'a> ValueIdentityAnalysis<'a> {
         self.positions.get(operation).copied().flatten()
     }
 
+    fn observation_position(&self, site: InvocationSite) -> Option<DescriptorPosition> {
+        match site {
+            InvocationSite::Operation(operation) => self.operation_position(operation),
+            InvocationSite::ExternalCompletion(_) | InvocationSite::InvokeNoNormal(_) => {
+                self.terminal_positions.get(&site).copied()
+            }
+        }
+    }
+
     fn query(
         &mut self,
         seed: ValueIdentitySeed,
-        operation: OperationId,
+        invocation: InvocationSite,
         actual: &StructuralArgument,
     ) -> QueryResult<()> {
         let observation = self
-            .operation_position(operation)
+            .observation_position(invocation)
             .ok_or("value identity observation is absent")?;
         let (establishment, value, at_entry) = match seed {
             ValueIdentitySeed::Parameter(index) => {

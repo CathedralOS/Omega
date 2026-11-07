@@ -7,7 +7,9 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use language_core::static_interrupts::StaticInterruptOperation;
-use semantic_vocabulary::{IdTable, MachineId, OperationId, PsiSemanticId, StructuralTypeId};
+use semantic_vocabulary::{
+    IdTable, InvocationSite, MachineId, OperationId, PsiSemanticId, StructuralTypeId,
+};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralArgument, StructuralTypeShape,
     TerminalInstalledInterruptRegistration, TerminalMachine, TerminalModule,
@@ -15,6 +17,8 @@ use terminal_psi::{
 use terminal_semantics::descriptor_results::{
     self, DescriptorMachine, ValueIdentityAnalysis, ValueIdentitySeed,
 };
+
+mod invocations;
 
 /// A checked association, still awaiting installation backing and publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,25 +51,38 @@ struct Root<'a> {
     completion: MachineId,
 }
 
+#[derive(Default)]
+struct Associations {
+    helpers: Vec<ArrivalHelperUse>,
+    calls: BTreeSet<(MachineId, Option<InvocationSite>, MachineId)>,
+}
+
 /// Validate each registered handler independently. Sharing a helper body does
 /// not merge installations: every incoming invocation must satisfy its own
 /// context and completion selection.
 pub(super) fn validate(
-    module: &TerminalModule,
-    occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
-    profile: target::TargetProfile,
-    calling: &[calling_conventions::BoundaryCallingApplication],
-    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+    input: &super::super::NativeRealizationInput<'_>,
+    request: &super::super::ProviderAdmissionRequest<'_, '_>,
+    entry_custody: &super::super::callback_entries::PreparedEntries<'_>,
+    call_graph: &terminal_installation::SynchronousCallGraph<'_>,
     reached_operations: &[OperationId],
-    reached_machines: &[MachineId],
 ) -> Result<Vec<ArrivalHelperUse>, String> {
+    let module = input.module();
     if module.installed_interrupt_registrations.is_empty() {
         return Ok(Vec::new());
     }
     let bodies = flat_rows(module.machines.iter().map(|body| (body.id, body)).collect())?;
     let reached_operations = membership(reached_operations)?;
-    let reached_machines = membership(reached_machines)?;
-    let occurrences: BTreeMap<_, _> = occurrences
+    let reached_machines = membership(
+        &input
+            .plan()
+            .functions
+            .iter()
+            .map(|body| body.machine)
+            .collect::<Vec<_>>(),
+    )?;
+    let occurrences: BTreeMap<_, _> = request
+        .callback_occurrences
         .iter()
         .map(|occurrence| (occurrence.application_index(), occurrence))
         .collect();
@@ -87,6 +104,9 @@ pub(super) fn validate(
                 })
         })
         .collect();
+    if registrations.is_empty() {
+        return Ok(Vec::new());
+    }
     let roots = registrations
         .iter()
         .flat_map(|registration| &registration.callbacks)
@@ -97,15 +117,30 @@ pub(super) fn validate(
                 .ok_or("installed handler has no retained executable occurrence")
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let graph = descriptor_results::terminal_reference_graph_from(module, roots)
+    let invocations = invocations::Calls::new(
+        module,
+        &bodies,
+        call_graph,
+        roots
+            .iter()
+            .copied()
+            .chain(input.plan().functions.iter().map(|body| body.machine)),
+    )?;
+    let handler_closure = invocations.reachable_from(roots)?;
+    let graph = descriptor_results::terminal_reference_graph_from(module, handler_closure)
         .map_err(|error| format!("arrival reference closure is incomplete: {error:?}"))?;
-    let mut uses = Vec::new();
+    let mut associations = Associations::default();
     let mut identities: IdTable<MachineId, Option<ValueIdentityAnalysis<'_>>> =
         bodies.map(|_, _| None);
     let mut orders: IdTable<MachineId, Option<ExecutionOrder<'_>>> = bodies.map(|_, _| None);
     for registration in registrations {
-        let acknowledgement_entry =
-            acknowledgement_entry(module, registration, profile, calling, targets)?;
+        let acknowledgement_entry = acknowledgement_entry(
+            module,
+            registration,
+            request.profile,
+            request.installed_calling,
+            input.target_machine_selections(),
+        )?;
         let declaration = module
             .boundary_machine(registration.installer)
             .ok_or("installation lost its core boundary")?;
@@ -134,6 +169,17 @@ pub(super) fn validate(
                 "installation completion must return Unit without a recoverable crash route".into(),
             );
         }
+        // This is Scope's mandatory, exactly selected core
+        // InterruptAcknowledgementCompletion contract. Its actual formal is
+        // the Ack type even when no context-view application was instantiated.
+        let [acknowledgement] = completion.structural_parameters.as_slice() else {
+            return Err("installation completion lost its one acknowledgement formal".into());
+        };
+        if acknowledgement.access != StructuralAccess::Owned || !completion.parameters.is_empty() {
+            return Err(
+                "installation completion changed its owned acknowledgement contract".into(),
+            );
+        }
         for callback in &registration.callbacks {
             let occurrence = occurrences
                 .get(&callback.application_index)
@@ -145,17 +191,20 @@ pub(super) fn validate(
                 .get(occurrence.callback_thunk_artifact().entry())
                 .and_then(|body| *body)
                 .ok_or("installed handler body is missing")?;
+            entry_custody.admit(callback, occurrence)?;
             if !body.declaration.as_ref().is_some_and(|declaration| {
                 declaration.same_identity_as(&module.identities, &callback.body, &module.identities)
             }) {
                 return Err("installed arrival changed its exact checked handler body".into());
             }
-            // The entry admission separately authenticates the exact owned Ack
-            // contract. Non-Ack, nonreturning exception entries carry no token.
+            // PreparedEntries authenticates the selected entry signature. The
+            // mandatory Completion formal identifies its core Ack type.
+            // Non-Ack, nonreturning exception entries carry no token.
             let parameters = if callback.application_index == acknowledgement_entry {
                 if body.structural_parameters.len() != 1
                     || body.structural_parameters[0].access != StructuralAccess::Owned
-                    || !is_acknowledgement(module, body.structural_parameters[0].structural_type)
+                    || body.structural_parameters[0].structural_type
+                        != acknowledgement.structural_type
                 {
                     return Err("the selected timer slot does not supply the exact owned acknowledgement contract".into());
                 }
@@ -169,19 +218,23 @@ pub(super) fn validate(
                 &mut identities,
                 &mut orders,
                 &bodies,
+                &invocations,
                 &root,
                 callback.application_index,
                 Invocation {
                     machine: body.id,
                     parameters,
                 },
-                &mut uses,
+                &mut associations,
             )?;
         }
     }
-    uses.sort_by_key(|row| (row.installation, row.callback_application, row.operation));
-    uses.dedup();
-    Ok(uses)
+    invocations.require_associated_calls(&reached_machines, &associations.calls)?;
+    associations
+        .helpers
+        .sort_by_key(|row| (row.installation, row.callback_application, row.operation));
+    associations.helpers.dedup();
+    Ok(associations.helpers)
 }
 
 fn check_closure<'a>(
@@ -190,10 +243,11 @@ fn check_closure<'a>(
     identities: &mut IdTable<MachineId, Option<ValueIdentityAnalysis<'a>>>,
     orders: &mut IdTable<MachineId, Option<ExecutionOrder<'a>>>,
     bodies: &IdTable<MachineId, Option<&'a TerminalMachine>>,
+    invocations: &invocations::Calls<'a>,
     root: &Root<'_>,
     callback_application: u32,
     initial: Invocation,
-    uses: &mut Vec<ArrivalHelperUse>,
+    associations: &mut Associations,
 ) -> Result<(), String> {
     let mut pending = VecDeque::from([initial]);
     let mut visited = BTreeSet::new();
@@ -217,7 +271,7 @@ fn check_closure<'a>(
             .get_mut(invocation.machine)
             .ok_or("arrival execution order has no body slot")?;
         if order.is_none() {
-            *order = Some(ExecutionOrder::new(body)?);
+            *order = Some(ExecutionOrder::new(body, invocations.get(body.id)?)?);
         }
         let order = order.as_ref().expect("prepared arrival execution order");
         let mut births = Vec::new();
@@ -228,7 +282,12 @@ fn check_closure<'a>(
                 == Some(StaticInterruptOperation::BeginCompletion)
             {
                 let actual = only_argument(&operation.kind)?;
-                require_ack(identity, &invocation.parameters, operation.id, actual)?;
+                require_ack(
+                    identity,
+                    &invocation.parameters,
+                    InvocationSite::Operation(operation.id),
+                    actual,
+                )?;
                 if selected_body(module, operation.id, 0)? != root.completion {
                     return Err(format!(
                         "completion at {:?} selects another installation's controller",
@@ -249,7 +308,12 @@ fn check_closure<'a>(
                 let actual = only_argument(&operation.kind)?;
                 match kind {
                     StaticInterruptOperation::Context => {
-                        require_ack(identity, &invocation.parameters, operation.id, actual)?;
+                        require_ack(
+                            identity,
+                            &invocation.parameters,
+                            InvocationSite::Operation(operation.id),
+                            actual,
+                        )?;
                         let result = operation
                             .result
                             .as_structural()
@@ -277,7 +341,7 @@ fn check_closure<'a>(
                                 &invocation.parameters,
                                 root.completion,
                                 Some(begin),
-                                operation.id,
+                                InvocationSite::Operation(operation.id),
                             )?;
                         } else {
                             let inherited =
@@ -299,7 +363,7 @@ fn check_closure<'a>(
                                                 &invocation.parameters,
                                                 root.completion,
                                                 None,
-                                                operation.id,
+                                                InvocationSite::Operation(operation.id),
                                             )
                                             .is_ok())
                                 });
@@ -312,19 +376,25 @@ fn check_closure<'a>(
                     }
                     StaticInterruptOperation::Install => unreachable!(),
                 }
-                uses.push(ArrivalHelperUse {
+                associations.helpers.push(ArrivalHelperUse {
                     installation: root.registration.operation,
                     callback_application,
                     operation: operation.id,
                     kind,
                 });
             }
-            if let Some(call) = terminal_psi::direct_call_parts(&operation.kind) {
-                let mut parameters = Vec::new();
-                for (ordinal, actual) in call.structural_arguments.iter().enumerate() {
+        }
+        for call in invocations.get(body.id)? {
+            let mut parameters = Vec::new();
+            if let Some(site) = call.site {
+                for (ordinal, actual) in call.arguments.iter().enumerate() {
                     for &(source, token) in &invocation.parameters {
                         if identity
-                            .require(ValueIdentitySeed::Parameter(source), operation.id, actual)
+                            .require_at_invocation(
+                                ValueIdentitySeed::Parameter(source),
+                                site,
+                                actual,
+                            )
                             .is_ok()
                         {
                             let token = match token {
@@ -342,7 +412,7 @@ fn check_closure<'a>(
                                             &invocation.parameters,
                                             root.completion,
                                             None,
-                                            operation.id,
+                                            site,
                                         )
                                         .is_ok(),
                                 },
@@ -353,7 +423,7 @@ fn check_closure<'a>(
                     }
                     for &begin in &births {
                         if identity
-                            .require(ValueIdentitySeed::Result(begin), operation.id, actual)
+                            .require_at_invocation(ValueIdentitySeed::Result(begin), site, actual)
                             .is_ok()
                         {
                             parameters.push((
@@ -367,7 +437,7 @@ fn check_closure<'a>(
                                         &invocation.parameters,
                                         root.completion,
                                         Some(begin),
-                                        operation.id,
+                                        site,
                                     )
                                     .is_ok(),
                                 },
@@ -375,11 +445,20 @@ fn check_closure<'a>(
                         }
                     }
                 }
-                parameters.sort();
-                parameters.dedup();
+            }
+            parameters.sort();
+            parameters.dedup();
+            if call.callees.is_empty() && !parameters.is_empty() {
+                return Err(format!(
+                    "arrival invocation {:?} forwards a token without an exact selected body",
+                    call.site,
+                ));
+            }
+            for &callee in &call.callees {
+                associations.calls.insert((body.id, call.site, callee));
                 pending.push_back(Invocation {
-                    machine: call.callee,
-                    parameters,
+                    machine: callee,
+                    parameters: parameters.clone(),
                 });
             }
         }
@@ -390,13 +469,13 @@ fn check_closure<'a>(
 fn require_ack(
     identity: &mut ValueIdentityAnalysis<'_>,
     parameters: &[(usize, Token)],
-    operation: OperationId,
+    operation: InvocationSite,
     actual: &StructuralArgument,
 ) -> Result<(), String> {
     if parameters.iter().any(|&(ordinal, token)| {
         token == Token::Acknowledgement
             && identity
-                .require(ValueIdentitySeed::Parameter(ordinal), operation, actual)
+                .require_at_invocation(ValueIdentitySeed::Parameter(ordinal), operation, actual)
                 .is_ok()
     }) {
         Ok(())
@@ -408,49 +487,64 @@ fn require_ack(
 }
 
 struct ExecutionOrder<'a> {
-    positions: IdTable<OperationId, Option<(semantic_vocabulary::BlockId, usize)>>,
+    positions: BTreeMap<InvocationSite, (semantic_vocabulary::BlockId, usize)>,
     dominance: terminal_semantics::control_graph::DominatorTree,
-    calls: IdTable<MachineId, Option<Vec<(OperationId, &'a [StructuralArgument])>>>,
+    calls: IdTable<MachineId, Option<Vec<(InvocationSite, &'a [StructuralArgument])>>>,
 }
 
 impl<'a> ExecutionOrder<'a> {
-    fn new(body: &'a TerminalMachine) -> Result<Self, String> {
-        let positions = flat_rows(
-            body.blocks
-                .iter()
-                .flat_map(|block| {
-                    block
-                        .operations
-                        .iter()
-                        .enumerate()
-                        .map(move |(ordinal, operation)| (operation.id, (block.id, ordinal)))
-                })
-                .collect(),
-        )?;
-        let mut calls = Vec::new();
-        for operation in body.operations() {
-            // Dominance describes normal block edges. A handled crash must
-            // never count as the controller's successful completion.
-            if !matches!(&operation.kind, OperationKind::CallUnit { crash_continuations, .. }
-                if crash_continuations.is_empty())
-            {
-                continue;
+    fn new(
+        body: &'a TerminalMachine,
+        invocations: &[invocations::Call<'a>],
+    ) -> Result<Self, String> {
+        let mut positions = BTreeMap::new();
+        for block in &body.blocks {
+            for (ordinal, operation) in block.operations.iter().enumerate() {
+                if positions
+                    .insert(InvocationSite::Operation(operation.id), (block.id, ordinal))
+                    .is_some()
+                {
+                    return Err("arrival execution order repeats an operation".into());
+                }
             }
-            if let Some(call) = terminal_psi::direct_call_parts(&operation.kind) {
-                calls.push((call.callee, operation.id, call.structural_arguments));
+            let site = match block.terminator {
+                terminal_psi::Terminator::InvokeNoNormal { edge, .. } => {
+                    Some(InvocationSite::InvokeNoNormal(edge))
+                }
+                terminal_psi::Terminator::ExternalCompletion { edge, .. } => {
+                    Some(InvocationSite::ExternalCompletion(edge))
+                }
+                _ => None,
+            };
+            if let Some(site) = site
+                && positions
+                    .insert(site, (block.id, block.operations.len()))
+                    .is_some()
+            {
+                return Err("arrival execution order repeats a terminal invocation".into());
             }
         }
-        calls.sort_by_key(|(callee, operation, _)| (*callee, *operation));
-        let mut grouped: Vec<(MachineId, Vec<(OperationId, &'a [StructuralArgument])>)> =
+        // Every possible target must be this exact normally returning
+        // controller. One matching dynamic alternative is not completion.
+        let mut calls = Vec::new();
+        for call in invocations {
+            if call.normal_return
+                && let ([callee], Some(site)) = (call.callees.as_slice(), call.site)
+            {
+                calls.push((*callee, site, call.arguments));
+            }
+        }
+        calls.sort_by_key(|(callee, site, _)| (*callee, *site));
+        let mut grouped: Vec<(MachineId, Vec<(InvocationSite, &'a [StructuralArgument])>)> =
             Vec::new();
-        for (callee, operation, actuals) in calls {
+        for (callee, site, actuals) in calls {
             if let Some((_, rows)) = grouped
                 .last_mut()
                 .filter(|(previous, _)| *previous == callee)
             {
-                rows.push((operation, actuals));
+                rows.push((site, actuals));
             } else {
-                grouped.push((callee, vec![(operation, actuals)]));
+                grouped.push((callee, vec![(site, actuals)]));
             }
         }
         Ok(Self {
@@ -460,10 +554,9 @@ impl<'a> ExecutionOrder<'a> {
         })
     }
 
-    fn precedes(&self, first: OperationId, second: OperationId) -> bool {
-        let lookup = |operation| self.positions.get(operation).copied().flatten();
-        let (Some((first_block, first_ordinal)), Some((second_block, second_ordinal))) =
-            (lookup(first), lookup(second))
+    fn precedes(&self, first: InvocationSite, second: InvocationSite) -> bool {
+        let (Some(&(first_block, first_ordinal)), Some(&(second_block, second_ordinal))) =
+            (self.positions.get(&first), self.positions.get(&second))
         else {
             return false;
         };
@@ -481,7 +574,7 @@ fn require_completed_controller(
     parameters: &[(usize, Token)],
     completion: MachineId,
     begin: Option<OperationId>,
-    finish: OperationId,
+    finish: InvocationSite,
 ) -> Result<(), String> {
     if order
         .calls
@@ -490,7 +583,9 @@ fn require_completed_controller(
         .is_some_and(|calls| {
             calls.iter().any(|&(operation, actuals)| {
                 actuals.len() == 1
-                    && begin.is_none_or(|begin| order.precedes(begin, operation))
+                    && begin.is_none_or(|begin| {
+                        order.precedes(InvocationSite::Operation(begin), operation)
+                    })
                     && order.precedes(operation, finish)
                     && require_ack(identity, parameters, operation, &actuals[0]).is_ok()
             })
@@ -575,14 +670,6 @@ fn only_argument(kind: &OperationKind) -> Result<&StructuralArgument, String> {
         return Err("arrival helper must retain its one token actual".into());
     };
     Ok(argument)
-}
-
-fn is_acknowledgement(module: &TerminalModule, ty: StructuralTypeId) -> bool {
-    module.boundary_machines.iter().any(|boundary| {
-        boundary.declaration.as_ref().and_then(|declaration| declaration.execution.static_interrupt_operation())
-            == Some(StaticInterruptOperation::Context)
-            && matches!(boundary.structural_parameters.as_slice(), [parameter] if parameter.structural_type == ty)
-    })
 }
 
 pub(super) fn selected_body(
