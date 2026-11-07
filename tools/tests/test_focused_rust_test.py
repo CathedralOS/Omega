@@ -40,7 +40,7 @@ class FocusedRustTest(unittest.TestCase):
         command = self.cargo.call_args.args[0]
         self.assertEqual(command[1:3], ["tools/build_slot.py", "--"])
         self.assertEqual(command[3:], [
-            "cargo", "test", "--locked", "-p", "compiler", "--test",
+            "mbx", "test", "--locked", "-p", "compiler", "--test",
             "filesystem_receiver", "--no-run", "windows_canonicalize_receiver",
         ])
         self.assertIn("no tests were executed", self.output)

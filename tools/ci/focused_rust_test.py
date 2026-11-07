@@ -1,7 +1,7 @@
-"""Compile or run one selected Rust test through Cargo and the build slot.
+"""Compile or run one selected Rust test through mbx and the build slot.
 
 Compilation can finish and be cached before a red or interrupted test loses its
-job. A later execution still asks Cargo to validate the current source, features
+job. A later execution still asks mbx to validate the current source, features
 and profile; cached executables are never launched directly.
 """
 
@@ -29,7 +29,7 @@ def main(argv=None):
         raise SystemExit("Invalid integration test target")
     if arguments.validate:
         return
-    command = ["cargo", "test", "--locked", "-p", package]
+    command = ["mbx", "test", "--locked", "-p", package]
     command += ["--test", target] if target else ["--lib"]
     if arguments.prepare:
         command += ["--no-run", selected]

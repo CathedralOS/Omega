@@ -95,8 +95,26 @@ jobs:
             compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check production dependency boundaries
         run: python tools/check_native_boundary.py
+      - name: Install and verify the pinned Linux build tool
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mbx_version=1.29.2
+          if [ "$(mbx --version 2>/dev/null)" != "mbx $mbx_version" ]; then
+            work=$(mktemp -d)
+            trap 'rm -rf "$work"' EXIT
+            archive="mbx-$(uname -m)-unknown-linux-gnu.tar.gz"
+            release="https://github.com/jdx/mr-boxington/releases/download/v$mbx_version"
+            (cd "$work" &&
+              curl -fsSLO "$release/$archive" && curl -fsSLO "$release/SHA256SUMS" &&
+              grep " $archive\$" SHA256SUMS | sha256sum --check --strict - &&
+              tar -xzf "$archive" -C "$HOME/.cargo/bin" mbx)
+          fi
+          test "$(mbx --version)" = "mbx $mbx_version"
+          mbx --version
       - name: Check and lint the exact integration candidate
-        run: cargo clippy --locked -p omega -- -D warnings
+        run: mbx clippy --locked -p omega -- -D warnings
       # Save completed objects before the test can fail or time out. A compile-only
       # dispatch can prepare a cold test; a later dispatch still runs Cargo again.
       - name: Compile requested focused Rust tests
