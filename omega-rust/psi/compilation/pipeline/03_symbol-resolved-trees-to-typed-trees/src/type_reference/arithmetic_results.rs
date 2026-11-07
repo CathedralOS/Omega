@@ -41,7 +41,6 @@ pub(crate) fn retain_arithmetic_result_type(
                 };
                 for constraint in constraints {
                     match constraint {
-                        TypeConstraintNode::Range { .. } => {}
                         TypeConstraintNode::ArithmeticDomain(policy) if domain.is_none() => {
                             domain = Some(*policy);
                         }

@@ -114,9 +114,11 @@ for a particular specialization; there is no selection of a first possible case.
 
 If zero satisfies the default domain, the value is zero-constructible. Otherwise
 the type is gated: construction or checked qualification must establish the
-domain before observation. A literal supplies every field whose zero value
-would violate it and proves the complete coupling. Establishment is monotone as
-observed: later mutation may temporarily open an invariant window, but no
+domain before observation. A literal without `..` supplies every runtime field.
+With [explicit omission](data_and_literals.md#explicit-field-omission), it
+supplies every field whose zero value would violate its obligations and proves
+the complete coupling. Zero-initializable storage does not implicitly authorize
+source-literal omission. Establishment is monotone as observed: later mutation may temporarily open an invariant window, but no
 consumption sees the value outside its required domain.
 
 Generic bodies prove establishment from their declared contracts and available

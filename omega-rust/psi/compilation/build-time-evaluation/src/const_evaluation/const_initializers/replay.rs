@@ -95,7 +95,7 @@ pub(crate) fn validate(
         // The continuation has completed this declaration and its endpoints.
         // Earlier helper probes contain private stand-ins: they cannot prove
         // literal membership or make an unready bound a declaration failure.
-        validation::validate_constant_literal_integer_ranges(
+        validation::validate_constant_literal_fields(
             typed,
             declaration.declared_type,
             declaration.materialized_initializer,

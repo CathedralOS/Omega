@@ -34,7 +34,6 @@ pub(super) fn analyze(
     let analysis = named_operator_result(walk, call).unwrap_or_else(|| {
         let mut cached_actuals = None;
         [
-            selected_const_call_result(walk, expression),
             declared_return_range(walk, expression, call, child_values, &mut cached_actuals),
             inferred_return_range(walk, call, child_values, &mut cached_actuals),
             returned_referent_range(walk, expression, call),
@@ -224,32 +223,6 @@ fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> O
         interval: converted
             .map_or(declared, |converted| converted.intersect(declared))
             .intersect(range),
-        primitive: Some(primitive),
-    })
-}
-
-fn selected_const_call_result(
-    walk: &ExpressionWalk,
-    expression: ExpressionHandle,
-) -> Option<Analysis> {
-    let program = walk.program;
-    let (return_type, minimum, maximum) =
-        crate::proof_contracts::contract_entailment::selected_const_call_result_bounds(
-            program,
-            walk.machine?,
-            walk.state,
-            expression,
-        )?;
-    let primitive = program.primitive_type_reference(return_type)?;
-    let carrier = primitive_range(primitive)?;
-    Some(Analysis {
-        recipe: None,
-        domain: Some(program.arithmetic_domain_for_type_reference(return_type)),
-        interval: Interval {
-            low: Some(minimum),
-            high: Some(maximum),
-        }
-        .intersect(carrier),
         primitive: Some(primitive),
     })
 }

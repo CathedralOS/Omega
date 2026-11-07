@@ -20,7 +20,8 @@ mod static_bindings;
 
 pub(crate) use callee_proposals::{
     ContractExpressionScope, collect_machine_proposals_for_callee, contract_expression_handles,
-    contract_expression_scopes, resolve_callee, state_by_symbol,
+    contract_expression_handles_from_scopes, contract_expression_scopes, resolve_callee,
+    state_by_symbol,
 };
 pub(crate) use proposals::{BindingContext, StaticProposals};
 pub(crate) use selection_assembly::{
@@ -79,24 +80,11 @@ pub(super) fn collect_call_proposals(
     let explicit_type_count = proposals.types.len();
     let mut inferred = StaticProposals::default();
 
-    // An explicit bound is selected before compatibility. It must not conflict
-    // with an ordinary argument's narrower declared endpoint.
-    let fixed_range_parameters: Vec<_> = machine_arguments
-        .iter()
-        .filter(|argument| {
-            const_arguments::spelling(program, argument).is_some()
-                || const_arguments::forwarded_type(program, argument).is_valid()
-                || const_arguments::is_runtime_value_subject(program, argument)
-        })
-        .enumerate()
-        .map(|(parameter_index, _)| parameter_index)
-        .collect();
     let candidate = &candidates[callee.candidate_index];
     let context = BindingContext::new(
         program,
         &candidate.template.type_parameters,
         &candidate.template.const_parameters,
-        Some(&fixed_range_parameters),
         callee.candidate_index,
     );
     for (position, (argument, required)) in arguments
@@ -147,26 +135,10 @@ pub(super) fn collect_call_proposals(
         }
     }
     if let Some(actual) = expected_return {
-        // Result context can fill an omitted endpoint, but cannot reselect a
-        // bound already supplied by an argument (even a still-open one).
-        // The destination's range is a later compatibility obligation.
-        let mut fixed_result_parameters = fixed_range_parameters;
-        // Compatibility inference above already bound this candidate's const
-        // slots; the result context reads them as fixed the same way.
-        fixed_result_parameters.extend(
-            proposals
-                .constants
-                .iter()
-                .chain(inferred.constants.iter())
-                .filter_map(|(candidate_index, parameter_index, _)| {
-                    (*candidate_index == callee.candidate_index).then_some(*parameter_index)
-                }),
-        );
         let result_context = BindingContext::new(
             program,
             &candidate.template.type_parameters,
             &candidate.template.const_parameters,
-            Some(&fixed_result_parameters),
             callee.candidate_index,
         );
         infer_static_bindings(result_context, callee.return_type, actual, &mut inferred);

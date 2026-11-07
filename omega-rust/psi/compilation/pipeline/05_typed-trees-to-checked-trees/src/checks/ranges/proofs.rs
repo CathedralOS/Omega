@@ -204,11 +204,6 @@ fn symbolic_extent_index_is_proven(
         || expression_integer_value(program, facts, index)
             .zip(floor)
             .is_some_and(|(value, floor)| value < floor)
-        // `index`'s declared `u64[..N]` is the assertion `index < N` itself.
-        || types::declared_bound_names_symbolic_extent(
-            program, machine, state, index, extent.0,
-        )
-        .is_some_and(|end_inclusive| !end_inclusive)
         // A closed declared high or a guard-seeded literal bound below the
         // binder's floor: `index <= h` and `h < floor <= N` give `index < N`.
         || types::expression_enforced_declared_range(program, machine, state, index)
@@ -240,14 +235,16 @@ fn symbolic_extent_range_bound_is_proven(
     let bound_label = program.expression_table.display_name(bound);
     let floor = types::collection_symbolic_extent_floor(program, state, collection, facts);
     facts.range_bound_is_proven(&collection_label, &bound_label)
-        || validation::completed_value_is_bounded_by_static(program, machine, state, facts.statement_index, bound, extent.0, false)
-        || symbolic_extent_is_named(program, machine, state, facts, collection, bound, extent)
-        // A declared `u64[..N]` or `u64[..=N]` bound asserts `bound <= N`
-        // under either inclusivity.
-        || types::declared_bound_names_symbolic_extent(
-            program, machine, state, bound, extent.0,
+        || validation::completed_value_is_bounded_by_static(
+            program,
+            machine,
+            state,
+            facts.statement_index,
+            bound,
+            extent.0,
+            false,
         )
-        .is_some()
+        || symbolic_extent_is_named(program, machine, state, facts, collection, bound, extent)
         || expression_integer_value(program, facts, bound)
             .zip(floor)
             .is_some_and(|(value, floor)| value <= floor)

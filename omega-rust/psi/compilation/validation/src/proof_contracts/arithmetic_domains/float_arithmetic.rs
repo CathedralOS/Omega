@@ -14,9 +14,7 @@ use crate::value_custody::places::declared_place_type_raw;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// A closed IEEE operand, preserving its landed format through exact casts
 /// and sealed numeric conversions. Ordinary callees and live storage have no
@@ -202,18 +200,12 @@ pub(crate) fn float_source_bounds(
             }
         }
     }
-    let declared =
-        reference.and_then(|reference| float_range_constraint_interval(program, reference));
-    let guaranteed = expression_table(program)
+    let declared = expression_table(program)
         .call_node(value)
         .filter(|call| call.selects_only_nominal_route())
         .and_then(|call| {
             super::float_contracts::normal_return_interval(program, caller, value, call)
         });
-    let declared = match (declared, guaranteed) {
-        (Some(left), Some(right)) => Some(left.intersect(right)),
-        (left, right) => left.or(right),
-    };
     let (flow, non_nan) = place_path(program, value)
         .map(|path| environment.float_fact(&path))
         .or_else(|| {
@@ -347,54 +339,6 @@ pub(crate) fn float_interval_fits_integer(low: f64, high: f64, target: Primitive
     }
 }
 
-pub(crate) fn float_range_constraint_interval(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<FloatInterval> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            float_range_constraint_interval(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let primitive = program.primitive_type_reference(handle)?;
-            let mut range = float_range_constraint_interval(program, *base_type);
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } = constraint
-                {
-                    let read = |expression| match crate::closed_float_range_endpoint(
-                        program, expression, primitive,
-                    )? {
-                        semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
-                            Some(f64::from(f32::from_bits(bits)))
-                        }
-                        semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
-                            Some(f64::from_bits(bits))
-                        }
-                    };
-                    let additional = FloatInterval {
-                        low: Some(read(*minimum)?),
-                        high: Some(if *end_inclusive {
-                            read(*maximum)?
-                        } else {
-                            adjacent(read(*maximum)?, primitive, false)
-                        }),
-                    };
-                    range = Some(range.map_or(additional, |range| range.intersect(additional)));
-                }
-            }
-            range
-        }
-        _ => None,
-    }
-}
-
 pub(crate) fn float_bound_from(
     operator: BinaryOperator,
     literal: f64,
@@ -513,12 +457,9 @@ pub(super) fn record_float_comparison_bounds(
         && let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
             program.primitive_type_reference(handle)
         && let Some(name) = place_path(program, place_expression)
-        && let Some(mut interval) =
+        && let Some(interval) =
             float_bound_from(comparison.operator, literal, name_on_left, primitive)
     {
-        if let Some(declared) = float_range_constraint_interval(program, handle) {
-            interval = interval.intersect(declared);
-        }
         environment.narrow_float(name.clone(), interval);
         environment.mark_non_nan(name);
         return true;
@@ -529,12 +470,9 @@ pub(super) fn record_float_comparison_bounds(
         && let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
             program.primitive_type_reference(handle)
         && let Some(element) = super::place_paths::element_place(program, element_expression)
-        && let Some(mut interval) =
+        && let Some(interval) =
             float_bound_from(comparison.operator, literal, element_on_left, primitive)
     {
-        if let Some(declared) = float_range_constraint_interval(program, handle) {
-            interval = interval.intersect(declared);
-        }
         environment.narrow_float_element(element.clone(), interval);
         environment.mark_non_nan_element(element);
         return true;

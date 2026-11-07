@@ -163,31 +163,6 @@ pub struct WireScalarEncoding {
     pub zigzag: bool,
 }
 
-/// Whether a declared type carries an inclusive integer range, looking
-/// through reference and nested constraint shells.
-pub fn type_reference_carries_range(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    if !handle.is_valid() {
-        return false;
-    }
-    match program.type_reference_table.type_reference(handle) {
-        types::TypeReferenceNode::Reference { referee, .. } => {
-            type_reference_carries_range(program, *referee)
-        }
-        types::TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| matches!(constraint, types::TypeConstraintNode::Range { .. }))
-                || type_reference_carries_range(program, *base_type)
-        }
-        _ => false,
-    }
-}
-
 /// Resolve one named data field's declared type through reference/constraint
 /// shells. Wire encode/decode consumers use the destination/source data
 /// declaration rather than assuming the schema field's less-refined type.

@@ -67,20 +67,15 @@ pub(in crate::preparation) fn retain(program: &mut TypedTrees) -> Result<(), Vec
 }
 
 fn contains_regions(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    crate::monomorphization::for_each_type_reference(
-        program,
-        &[reference],
-        |_, node| {
-            matches!(
-                node,
-                TypeReferenceNode::Reference {
-                    lifetime: Some(_),
-                    ..
-                }
-            ) || matches!(node, TypeReferenceNode::Generic { lifetime_arguments, .. } if !lifetime_arguments.is_empty())
-        },
-        |_, _, _| false,
-    )
+    crate::monomorphization::for_each_type_reference(program, &[reference], |_, node| {
+        matches!(
+            node,
+            TypeReferenceNode::Reference {
+                lifetime: Some(_),
+                ..
+            }
+        ) || matches!(node, TypeReferenceNode::Generic { lifetime_arguments, .. } if !lifetime_arguments.is_empty())
+    })
 }
 
 fn scoped_field_type(

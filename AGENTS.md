@@ -217,6 +217,9 @@ locally (`corpus_gate.py` enforces a 200-fixture local selection budget).
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
   Stages do not re-verify output the same compile just produced; verifiers run
   in corpus/test harnesses and at foreign package boundaries.
+- When retiring a variant, inspect the other variants and contracts served by
+  each deleted helper and preserve their paths. Successful compilation does
+  not prove that shared checks survived.
 
 ## Scope and escalation
 

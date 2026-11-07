@@ -159,21 +159,4 @@ pub(super) fn validate(
     );
     // S4: enforce a declared return `[a..=b]` so call-site narrowing
     // that trusts it stays sound (the interval is already computed above).
-    arithmetic_domains::enforce_symbolic_range(
-        program,
-        machine,
-        Some(state),
-        state.return_type,
-        *expression,
-        value_environment,
-        &owner,
-        diagnostics,
-    );
-    arithmetic_domains::enforce_declared_return_range(
-        program,
-        state.return_type,
-        return_interval,
-        &owner,
-        diagnostics,
-    );
 }

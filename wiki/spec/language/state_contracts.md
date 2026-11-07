@@ -34,9 +34,10 @@ value static. Repeated predicate clauses in one scope conjoin their obligations.
 
 `requires machine Step(...)` declares a structural callable requirement;
 `requires machine Handler satisfies Trait::requirement` declares a nominal one.
-They retain the existing binder-kind and complete-contract rules, not inference
-from body uses. A nested callable's own `requires`, `ensures` and operational
-clauses belong to that callable. Its declaration-ending semicolon closes that
+They declare originating contracts. A wrapper with an explicitly kinded machine
+binder may instead [infer the exact requirements it forwards](generics.md#forwarded-callback-requirements);
+direct invocation shape does not invent a contract. A nested callable's own
+`requires`, `ensures` and operational clauses belong to that callable. Its declaration-ending semicolon closes that
 complete contract before subsequent clauses resume the enclosing declaration.
 There are no clause-ending semicolons; see
 [header delimiters](#machine-header-delimiters). Nested premises are not flattened

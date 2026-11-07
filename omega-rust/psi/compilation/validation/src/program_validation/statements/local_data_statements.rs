@@ -165,26 +165,6 @@ pub(super) fn validate(
             &owner,
             diagnostics,
         );
-        let interval = arithmetic_domains::atomic_resident_interval(
-            program,
-            machine,
-            Some(state),
-            event.place,
-        )
-        .unwrap_or(arithmetic_domains::Interval::UNBOUNDED);
-        arithmetic_domains::check_range_containment(
-            program,
-            local_data.type_reference,
-            arithmetic_domains::IntegerValueObservation {
-                machine,
-                state: Some(state),
-                expression: event.result,
-                environment: value_environment,
-                interval,
-            },
-            &owner,
-            diagnostics,
-        );
         // The reserved name has no initializer value, literal equality or alias.
         arithmetic_domains::record_assignment(
             value_environment,
@@ -412,31 +392,7 @@ pub(super) fn validate(
                 .type_reference_table
                 .type_reference(local_data.type_reference),
             typed_trees::types::TypeReferenceNode::Reference { .. }
-        ) {
-            arithmetic_domains::enforce_symbolic_range(
-                program,
-                machine,
-                current_state,
-                local_data.type_reference,
-                local_data.initial_value,
-                value_environment,
-                &owner,
-                diagnostics,
-            );
-            arithmetic_domains::check_range_containment(
-                program,
-                local_data.type_reference,
-                arithmetic_domains::IntegerValueObservation {
-                    machine,
-                    state: current_state,
-                    expression: local_data.initial_value,
-                    environment: value_environment,
-                    interval,
-                },
-                &owner,
-                diagnostics,
-            );
-        }
+        ) {}
     }
     if local_data.initial_value.is_valid() {
         let mut completed_values = Vec::new();

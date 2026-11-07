@@ -19,6 +19,8 @@ with layout, access policy, and backing authority kept distinct.
 
 The all-zero bit pattern is safe storage for every checked-shape `data` type.
 Whether it already establishes an accessible value is a separate question.
+Source literals separately require [explicit `..` for field omissions](chapter_1_data_values_literals.md#explicit-zero-defaults);
+storage zero-initialization does not authorize silent omissions.
 
 ```omega
 data Inventory {

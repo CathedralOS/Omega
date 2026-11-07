@@ -34,7 +34,7 @@ pub enum RetainedConstantPosition {
     /// `[T; call()]`: the exact `FixedArray` type-reference node.
     ArrayLength(TypeReferenceHandle),
     /// `T[lo..=call()]`: the endpoint call expression inside the range.
-    RangeEndpoint(ExpressionHandle),
+
     /// A closed integer expression occurring in a source proof clause.
     ContractExpression(ExpressionHandle),
     /// `Data<call()>`: the `ConstExpression` argument node and its authored
@@ -50,8 +50,7 @@ impl RetainedConstantPosition {
     /// Array lengths retain their distinct zero-argument invocation instead.
     pub fn expression(&self) -> ExpressionHandle {
         match *self {
-            Self::RangeEndpoint(expression)
-            | Self::ContractExpression(expression)
+            Self::ContractExpression(expression)
             | Self::ConstApplication {
                 root: expression, ..
             } => expression,
@@ -262,20 +261,6 @@ impl crate::TypedTrees {
             .unwrap_or_default()
     }
 
-    /// The recipe retained for a range-endpoint call expression, or the invalid handle.
-    pub fn constant_recipe_for_range_endpoint(
-        &self,
-        expression: ExpressionHandle,
-    ) -> ConstantRecipeHandle {
-        self.constant_recipes
-            .iter()
-            .find(|(_, recipe)| {
-                recipe.position == RetainedConstantPosition::RangeEndpoint(expression)
-            })
-            .map(|(handle, _)| handle)
-            .unwrap_or_default()
-    }
-
     /// The retained integer root in an ordinary contract clause.
     pub fn constant_recipe_for_contract_expression(
         &self,
@@ -381,8 +366,7 @@ impl crate::TypedTrees {
                         ..
                     }
                 ),
-                RetainedConstantPosition::RangeEndpoint(expression)
-                | RetainedConstantPosition::ContractExpression(expression) => {
+                RetainedConstantPosition::ContractExpression(expression) => {
                     !self.pending_const_range_endpoints.contains(&expression)
                 }
                 RetainedConstantPosition::ConstApplication { site, .. } => !matches!(

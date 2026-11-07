@@ -320,9 +320,9 @@ pub(crate) fn prove_ranking_range_call(
         // Requires clauses describe the entry parameters, not whatever formal
         // carries the role here; only the member's own entry-invariant proof
         // may substitute them past an internal arrival. The site's own
-        // constrained-type facts still hold on every arrival, and so does the
+        // carrier facts still hold on every arrival, and so does the
         // member's authored range (installed below, once the rank is formed).
-        parameter_comparisons(program, caller.machine, source, &mut engine, &bindings)?
+        parameter_comparisons(program, caller.machine, source, &bindings)?
     };
     comparisons.extend(super::length_bound_comparisons(&length_bindings));
     if let Some(coordinates) = &field_ranks {

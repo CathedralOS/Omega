@@ -10,10 +10,6 @@
 
 use super::unsigned_constants::bitwise_known_unsigned;
 use super::{Analysis, BOOLEAN_INTERVAL, ExpressionWalk};
-use crate::proof_contracts::arithmetic_domains::dependent_products::{
-    refine_dependent_product, refine_dependent_product_factor,
-};
-use crate::proof_contracts::arithmetic_domains::dependent_relations::refine_dependent_subtract;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     exact_unsigned_widened_multiply_fits, integer_bit_width, literal_interval, primitive_name,
     primitive_range, u64_exact_shift_left_fits, validate_anonymous_integer_primitive_range,
@@ -750,45 +746,9 @@ impl Operation<'_, '_> {
         let (program, machine, state) = (walk.program, walk.machine, walk.state);
         let (left, right) = (self.binary.left, self.binary.right);
         let interval = match self.operator() {
-            BinaryOperator::Add => machine.map_or_else(
-                || self.left.interval.add(self.right.interval),
-                |machine| {
-                    refine_dependent_product(
-                        program,
-                        machine,
-                        state,
-                        left,
-                        right,
-                        self.left.interval.add(self.right.interval),
-                    )
-                },
-            ),
-            BinaryOperator::Subtract => machine.map_or_else(
-                || self.left.interval.subtract(self.right.interval),
-                |machine| {
-                    refine_dependent_subtract(
-                        program,
-                        machine,
-                        state,
-                        left,
-                        right,
-                        self.left.interval.subtract(self.right.interval),
-                    )
-                },
-            ),
-            BinaryOperator::Multiply => machine.map_or_else(
-                || self.left.interval.multiply(self.right.interval),
-                |machine| {
-                    refine_dependent_product_factor(
-                        program,
-                        machine,
-                        state,
-                        left,
-                        right,
-                        self.left.interval.multiply(self.right.interval),
-                    )
-                },
-            ),
+            BinaryOperator::Add => self.left.interval.add(self.right.interval),
+            BinaryOperator::Subtract => self.left.interval.subtract(self.right.interval),
+            BinaryOperator::Multiply => self.left.interval.multiply(self.right.interval),
             BinaryOperator::Modulo => self.left.interval.modulo(self.right.interval),
             BinaryOperator::Divide
                 if self.left.primitive.or(self.right.primitive) == Some(PrimitiveType::U64) =>

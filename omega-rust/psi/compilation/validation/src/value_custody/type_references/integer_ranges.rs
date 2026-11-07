@@ -6,7 +6,6 @@
 //! intermediates and cannot supply that semantic fact. Consumers with bounded
 //! storage convert only the final value, without changing its denotation.
 
-use numerics::arithmetic::ArithmeticDomain;
 use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -29,58 +28,6 @@ pub fn is_plain_scalar_storage(
             program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::DynamicTrait { .. }
         ) || is_arithmetic_policy_only_integer(program, reference))
-}
-
-/// The closed (minimum, maximum) of every `Range` constraint on `carrier`'s
-/// `Constrained` shells. `strict` decides whether a non-Range constraint node
-/// aborts the walk (true) or is skipped (false); a bound that does not close
-/// aborts either way.
-pub fn constrained_range_bounds(
-    program: &dyn crate::CheckingInput,
-    carrier: typed_trees::types::TypeReferenceHandle,
-    strict: bool,
-) -> Option<Vec<(BigInt, BigInt)>> {
-    let (ranges, saw_non_range) = constrained_range_constraints(program, carrier);
-    if strict && saw_non_range {
-        return None;
-    }
-    let mut bounds = Vec::new();
-    for (minimum, maximum, end_inclusive) in ranges {
-        bounds.push(closed_integer_range_bound(program, minimum).zip(
-            closed_integer_range_maximum(program, maximum, end_inclusive),
-        )?);
-    }
-    Some(bounds)
-}
-
-/// (minimum, maximum, end_inclusive) for every `Range` constraint on
-/// `carrier`'s `Constrained` shells, in declaration order. `saw_non_range`
-/// reports whether any constraint node was not a Range — strict walkers
-/// reject on it, others skip the node.
-pub fn constrained_range_constraints(
-    program: &dyn crate::CheckingInput,
-    mut carrier: TypeReferenceHandle,
-) -> (Vec<(ExpressionHandle, ExpressionHandle, bool)>, bool) {
-    let mut ranges = Vec::new();
-    let mut saw_non_range = false;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(carrier)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            match constraint {
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => ranges.push((*minimum, *maximum, *end_inclusive)),
-                _ => saw_non_range = true,
-            }
-        }
-        carrier = *base_type;
-    }
-    (ranges, saw_non_range)
 }
 
 pub fn is_arithmetic_policy_only_integer(
@@ -139,47 +86,6 @@ pub fn unrestricted_builtin_primitive(
     unrestricted
         .then(|| program.primitive_type_reference(reference))
         .flatten()
-}
-
-/// The exact integer carrier and single authored range, without intersecting
-/// multiple declarations or converting symbolic endpoints to guessed values.
-pub fn declared_integer_range(
-    program: &dyn crate::CheckingInput,
-    mut type_reference: TypeReferenceHandle,
-) -> Option<(symbols::BuiltinTypeAtom, [ExpressionHandle; 2], bool)> {
-    if program.arithmetic_domain_for_type_reference(type_reference) != ArithmeticDomain::Exact {
-        return None;
-    }
-    let mut endpoints = None;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(type_reference)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            if let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-                && endpoints
-                    .replace(([*minimum, *maximum], *end_inclusive))
-                    .is_some()
-            {
-                return None;
-            }
-        }
-        type_reference = *base_type;
-    }
-    let symbol = &program
-        .type_reference_table
-        .type_reference(type_reference)
-        .as_named_symbol()?;
-    let carrier = program.symbols.builtin_type_atom(*symbol)?;
-    let (endpoints, end_inclusive) = endpoints?;
-    carrier
-        .is_fixed_integer()
-        .then_some((carrier, endpoints, end_inclusive))
 }
 
 /// Read a closed integer range endpoint without interpreting typed

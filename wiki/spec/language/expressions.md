@@ -35,8 +35,12 @@ guard cannot be replayed as a fact about operands it may have changed. See
 [live-fact identity](state_contracts.md#mutation-and-subject-identity).
 
 Named fields are evaluated in authored order and installed at their declared
-identities. Canonical aggregate identity uses declaration order, while physical
-layout determines byte placement; neither changes evaluation order.
+identities. A final [`..` omission marker](data_and_literals.md#explicit-field-omission)
+has no evaluated operand. It authorizes zero establishment of omitted runtime
+fields under their existing validity and custody rules; it does not reorder the
+authored expressions or add a constructor call. Canonical aggregate identity
+uses declaration order, while physical layout determines byte placement;
+neither changes evaluation order.
 [Construction and disposal](ownership.md#construction-and-disposal-order)
 distinguishes reverse-establishment cleanup of partial staging from
 reverse-declaration cleanup of completed aggregates. Crash routes have no

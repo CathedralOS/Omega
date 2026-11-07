@@ -614,13 +614,7 @@ pub fn ranking_range_state_premise_coordinates(
     state: &State,
 ) -> Option<Vec<RankPremiseCoordinate>> {
     let mut expressions = Vec::new();
-    let mut parameters = Vec::new();
-    constrained_parameter_bound_expressions(
-        program,
-        state,
-        &mut expressions,
-        Some(&mut parameters),
-    );
+
     let root = program.machine_states(machine).first()?;
     let contracts = if state.symbol == root.symbol {
         program.machine_contracts(machine)
@@ -638,16 +632,7 @@ pub fn ranking_range_state_premise_coordinates(
             );
         }
     }
-    let mut coordinates = parameters
-        .into_iter()
-        .map(|parameter| RankPremiseCoordinate {
-            coordinate: RankSubjectCoordinate {
-                parameter,
-                path: Vec::new(),
-            },
-            observation: RankPremiseObservation::Value,
-        })
-        .collect::<Vec<_>>();
+    let mut coordinates: Vec<RankPremiseCoordinate> = Vec::new();
     let mut pending = expressions
         .into_iter()
         .map(|expression| (expression, 0))
@@ -783,43 +768,6 @@ pub(super) fn dependency_binary(operator: BinaryOperator) -> bool {
             | BinaryOperator::ShiftRight
             | BinaryOperator::BitwiseAnd
     )
-}
-/// Push every `[minimum, maximum]` bound expression the root's exact-integer
-/// parameters carry in their `Constrained` shells into `expressions`;
-/// `recorded` also collects each contributing parameter's symbol.
-pub(super) fn constrained_parameter_bound_expressions(
-    program: &dyn crate::CheckingInput,
-    root: &State,
-    expressions: &mut Vec<ExpressionHandle>,
-    mut recorded: Option<&mut Vec<SymbolHandle>>,
-) {
-    for parameter in program
-        .state_parameters(root)
-        .iter()
-        .filter(|parameter| integer_parameter(program, parameter.type_reference).is_some())
-    {
-        let mut reference = parameter.type_reference;
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
-        {
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum, maximum, ..
-                } = constraint
-                {
-                    if let Some(recorded) = recorded.as_deref_mut()
-                        && !recorded.contains(&parameter.symbol)
-                    {
-                        recorded.push(parameter.symbol);
-                    }
-                    expressions.extend([*minimum, *maximum]);
-                }
-            }
-            reference = *base_type;
-        }
-    }
 }
 
 fn subject_field_coordinates<'program>(
@@ -1223,7 +1171,7 @@ fn prove_edge(
         return None;
     }
     let length_bindings = lengths::bindings(program, machine, state, entry_parameters);
-    let mut expressions = projections::expressions(
+    let expressions = projections::expressions(
         program,
         machine,
         root,
@@ -1234,7 +1182,7 @@ fn prove_edge(
         guards,
         evaluated_prefix,
     );
-    constrained_parameter_bound_expressions(program, state, &mut expressions, None);
+
     lengths::install(
         program,
         machine,
@@ -1279,17 +1227,11 @@ fn prove_edge(
             Vec::new()
         };
     let mut comparisons = auxiliary.clone();
-    // A state's own constrained formals are enforced by ordinary arrival
+    // A state's own formal carriers are enforced by ordinary arrival
     // formation. They remain facts of this exact source frame under either
     // rank regime; only transported entry-template hypotheses require the
     // separate invariant-preservation obligation below.
-    comparisons.extend(parameter_comparisons(
-        program,
-        machine,
-        state,
-        &mut engine,
-        &bindings,
-    )?);
+    comparisons.extend(parameter_comparisons(program, machine, state, &bindings)?);
     if let Some(field) = &field_rank {
         comparisons.extend(field.comparisons(program));
     }
@@ -1795,9 +1737,7 @@ fn entry_comparisons(
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
     let mut comparisons = contract_comparisons(program, machine, root, engine)?;
-    comparisons.extend(parameter_comparisons(
-        program, machine, root, engine, bindings,
-    )?);
+    comparisons.extend(parameter_comparisons(program, machine, root, bindings)?);
     Some(comparisons)
 }
 
@@ -1828,17 +1768,15 @@ fn contract_comparisons(
     Some(comparisons)
 }
 
-/// Carrier and declared-domain facts for the supplied frame bindings. Runtime
+/// Carrier facts for the supplied frame bindings. Runtime
 /// formals belong to this state; explicit immutable indices belong to its one
 /// invocation. Cross-call actuals require their own substitution.
 fn parameter_comparisons(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     root: &State,
-    engine: &mut Engine<'_>,
     bindings: &[StrictArithmeticSymbolBinding],
 ) -> Option<Vec<Comparison>> {
-    let admit = |expression| meanings::admitted_carrier(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
     for (symbol, reference) in program
         .state_parameters(root)
@@ -1874,34 +1812,6 @@ fn parameter_comparisons(
                 BinaryOperator::LessOrEqual,
                 Polynomial::atom(identity.clone()),
                 Polynomial::constant(maximum),
-            ));
-        }
-        for (minimum, maximum, end_inclusive) in
-            crate::value_custody::type_shapes::range_constraints(program, reference)
-        {
-            // Missing or ambiguous aliases cannot contribute an auxiliary
-            // invariant, even when another premise makes the edge dead.
-            let binding = bindings.iter().find(|binding| binding.symbol == symbol)?;
-            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-                return None;
-            };
-            admit(minimum)?;
-            admit(maximum)?;
-            let maximum = engine.normalize(maximum)?;
-            let maximum = if end_inclusive {
-                maximum
-            } else {
-                maximum.sub(&Polynomial::constant(BigInt::from_i64(1)))
-            };
-            comparisons.push((
-                BinaryOperator::GreaterOrEqual,
-                Polynomial::atom(identity.clone()),
-                engine.normalize(minimum)?,
-            ));
-            comparisons.push((
-                BinaryOperator::LessOrEqual,
-                Polynomial::atom(identity.clone()),
-                maximum,
             ));
         }
     }
@@ -2044,12 +1954,7 @@ fn integer_parameter(
             .type_reference_table
             .constraints(*constraints)
             .iter()
-            .any(|constraint| {
-                !matches!(
-                    constraint,
-                    TypeConstraintNode::Range { .. } | TypeConstraintNode::ArithmeticDomain(_)
-                )
-            })
+            .any(|constraint| !matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
         {
             return None;
         }

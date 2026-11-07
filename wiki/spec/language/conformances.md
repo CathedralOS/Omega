@@ -225,6 +225,10 @@ creates neither an independently selectable conformance nor standalone
 visibility. In a whole-conformance selection position, `as Name` instead names
 an already-declared map. Neither use is an overload selector.
 
+Inferring a wrapper's [forwarded callback requirements](generics.md#forwarded-callback-requirements)
+does not infer any of these implementation edges or a named conformance map.
+It retains requirements the caller's explicitly selected machine must satisfy.
+
 The edge's explicit trait application binds its contract parameters. A
 realization parameter used in that application, including inside a compound
 argument, specializes the contract rather than adding a member invocation

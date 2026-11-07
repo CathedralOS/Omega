@@ -132,7 +132,6 @@ pub(crate) enum ClosedArgumentIdentity {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ClosedConstraintIdentity {
-    Range(syntax_trees::types::IntegerRangeNormalization),
     Arithmetic(numerics::arithmetic::ArithmeticDomain),
     Declaration(syntax_trees::item::ItemHandle),
     /// An indexed declared-domain application: the selected declaration plus

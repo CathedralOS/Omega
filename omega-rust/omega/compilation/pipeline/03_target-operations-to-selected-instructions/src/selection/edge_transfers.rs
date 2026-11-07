@@ -60,17 +60,3 @@ fn stored_transport(
         )),
     }
 }
-
-fn chunks(byte_size: u32) -> Vec<(u32, u8)> {
-    let mut offset = 0;
-    let mut chunks = Vec::new();
-    while offset < byte_size {
-        let width = [8, 4, 2, 1]
-            .into_iter()
-            .find(|width| *width <= byte_size - offset)
-            .expect("positive remainder");
-        chunks.push((offset, width as u8));
-        offset += width;
-    }
-    chunks
-}

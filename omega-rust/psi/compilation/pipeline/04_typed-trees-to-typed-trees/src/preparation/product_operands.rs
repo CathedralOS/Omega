@@ -743,15 +743,7 @@ impl Lower<'_> {
             ProductOperandConstraint::Arithmetic(policy) => {
                 types::TypeConstraintNode::ArithmeticDomain(policy)
             }
-            ProductOperandConstraint::Range {
-                minimum,
-                maximum,
-                inclusive,
-            } => types::TypeConstraintNode::Range {
-                minimum: self.expression(minimum)?,
-                maximum: self.expression(maximum)?,
-                end_inclusive: inclusive,
-            },
+
             ProductOperandConstraint::Domain { name, arguments } => {
                 let span = self.type_arguments(arguments)?;
                 types::TypeConstraintNode::Domain(types::DomainConstraint { name: self.identifier(name), symbol: self.symbol(name)?, arguments: self.program.type_reference_table.type_reference_handles(span).to_vec(), source_selection: Some(types::DomainConstraintSource { source_span: self.graph.names.get(name).source_span, authored_exposure: Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation) }), ..Default::default() })

@@ -10,8 +10,8 @@
 
 use super::StructuralTerm;
 
-/// Borrow immediate term edges without allocating a roster at every recursive
-/// metadata comparison. Variable arity borrows its existing storage; other
+/// Borrow immediate term edges without allocating a list for each recursive
+/// query. Variable arity borrows its existing storage; other
 /// variants retain at most two references in their declared order.
 enum StructuralChildren<'term> {
     Terms(std::slice::Iter<'term, StructuralTerm>),
@@ -89,92 +89,7 @@ impl StructuralTerm {
         &self,
         other: &Self,
     ) -> bool {
-        if std::mem::discriminant(self) != std::mem::discriminant(other) || self != other {
-            return false;
-        }
-        self.same_resolution_metadata(other)
-    }
-
-    // Semantic equality already walked the values. Descriptors need their
-    // own full comparison because semantic equality deliberately omits them.
-    fn same_resolution_metadata(&self, other: &Self) -> bool {
-        if std::mem::discriminant(self) != std::mem::discriminant(other) {
-            return false;
-        }
-        if let (
-            Self::Constructor { identity: left, .. },
-            Self::Constructor {
-                identity: right, ..
-            },
-        ) = (self, other)
-            && !left.same_resolution_payload(*right)
-        {
-            return false;
-        }
-        if let (
-            Self::ObservedValue {
-                observed_type,
-                value,
-                descriptor,
-            },
-            Self::ObservedValue {
-                observed_type: other_type,
-                value: other_value,
-                descriptor: other_descriptor,
-            },
-        ) = (self, other)
-        {
-            return observed_type == other_type
-                && value.same_resolution_metadata(other_value)
-                && match (descriptor, other_descriptor) {
-                    (None, None) => true,
-                    (Some(left), Some(right)) => left.same_resolution_payload(right),
-                    _ => false,
-                };
-        }
-        let metadata_matches = match (self, other) {
-            (
-                Self::Application { selections, .. },
-                Self::Application {
-                    selections: other_selections,
-                    ..
-                },
-            )
-            | (
-                Self::CallProjection { selections, .. },
-                Self::CallProjection {
-                    selections: other_selections,
-                    ..
-                },
-            ) => same_static_selection_metadata(selections, other_selections),
-            (
-                Self::ScalarBinary { references, .. },
-                Self::ScalarBinary {
-                    references: other_references,
-                    ..
-                },
-            ) => references == other_references,
-            (
-                Self::IndexedValue { element_type, .. },
-                Self::IndexedValue {
-                    element_type: other_type,
-                    ..
-                },
-            ) => element_type == other_type,
-            (Self::Float(value), Self::Float(other_value)) => {
-                value.landing() == other_value.landing()
-            }
-            _ => true,
-        };
-        if !metadata_matches {
-            return false;
-        }
-        let children = self.children();
-        let other_children = other.children();
-        children.len() == other_children.len()
-            && children
-                .zip(other_children)
-                .all(|(value, other)| value.same_resolution_metadata(other))
+        StructuralIdentity::ResolutionInput.matches(self, other)
     }
 
     /// Visit every immediate child subterm of `self` once, in declaration
@@ -319,29 +234,58 @@ impl StructuralTerm {
 
 impl Eq for StructuralTerm {}
 
-impl PartialEq for StructuralTerm {
-    fn eq(&self, other: &Self) -> bool {
-        let other = other.semantic_value();
-        match self {
-            Self::ObservedValue { value, .. } => value.as_ref().eq(other),
-            Self::RepeatedArray { length, element } => matches!(
+/// Value equality omits observation authority; resolver equality retains it.
+/// Both relations share one term walk. Resolver comparison checks each value
+/// together with its retained metadata; ordinary equality looks through wrappers.
+#[derive(Clone, Copy)]
+enum StructuralIdentity {
+    SemanticValue,
+    ResolutionInput,
+}
+
+impl StructuralIdentity {
+    fn matches(self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
+        let (left, other) = match self {
+            Self::SemanticValue => (left.semantic_value(), right.semantic_value()),
+            Self::ResolutionInput => (left, right),
+        };
+        let retain_metadata = matches!(self, Self::ResolutionInput);
+        match left {
+            StructuralTerm::ObservedValue {
+                observed_type,
+                value,
+                descriptor,
+            } => {
+                let StructuralTerm::ObservedValue {
+                    observed_type: other_type,
+                    value: other_value,
+                    descriptor: other_descriptor,
+                } = other
+                else {
+                    return false;
+                };
+                observed_type == other_type
+                    && self.matches(value, other_value)
+                    && self.optional_terms_match(descriptor, other_descriptor)
+            }
+            StructuralTerm::RepeatedArray { length, element } => matches!(
                 other,
-                Self::RepeatedArray { length: other_length, element: other_element }
-                    if length == other_length && element == other_element
+                StructuralTerm::RepeatedArray { length: other_length, element: other_element }
+                    if length == other_length && self.optional_terms_match(element, other_element)
             ),
-            Self::Variable(value) => {
-                let Self::Variable(other_value) = other else {
+            StructuralTerm::Variable(value) => {
+                let StructuralTerm::Variable(other_value) = other else {
                     return false;
                 };
                 value == other_value
             }
-            Self::BoundValue(value) => {
-                let Self::BoundValue(other_value) = other else {
+            StructuralTerm::BoundValue(value) => {
+                let StructuralTerm::BoundValue(other_value) = other else {
                     return false;
                 };
                 value == other_value
             }
-            Self::CapturedValue {
+            StructuralTerm::CapturedValue {
                 statement,
                 expression,
                 callable,
@@ -349,7 +293,7 @@ impl PartialEq for StructuralTerm {
                 result_type,
                 integer_range,
             } => {
-                let Self::CapturedValue {
+                let StructuralTerm::CapturedValue {
                     statement: other_statement,
                     expression: other_expression,
                     callable: other_callable,
@@ -376,8 +320,8 @@ impl PartialEq for StructuralTerm {
                     other_range,
                 )
             }
-            Self::BoundProjection { subject, path } => {
-                let Self::BoundProjection {
+            StructuralTerm::BoundProjection { subject, path } => {
+                let StructuralTerm::BoundProjection {
                     subject: other_subject,
                     path: other_path,
                 } = other
@@ -386,42 +330,43 @@ impl PartialEq for StructuralTerm {
                 };
                 (subject, path) == (other_subject, other_path)
             }
-            Self::Integer(value) => {
-                let Self::Integer(other_value) = other else {
+            StructuralTerm::Integer(value) => {
+                let StructuralTerm::Integer(other_value) = other else {
                     return false;
                 };
                 value == other_value
             }
-            Self::ScalarRepresentation {
+            StructuralTerm::ScalarRepresentation {
                 source,
                 target,
                 value,
             } => {
-                matches!(other, Self::ScalarRepresentation { source: other_source, target: other_target, value: other_value }
-                    if source == other_source && target == other_target && value == other_value)
+                matches!(other, StructuralTerm::ScalarRepresentation { source: other_source, target: other_target, value: other_value }
+                    if source == other_source && target == other_target && self.matches(value, other_value))
             }
-            Self::IntegerEmbedding { reference, value } => {
-                matches!(other, Self::IntegerEmbedding { reference: other_reference, value: other_value }
-                    if reference == other_reference && value == other_value)
+            StructuralTerm::IntegerEmbedding { reference, value } => {
+                matches!(other, StructuralTerm::IntegerEmbedding { reference: other_reference, value: other_value }
+                    if reference == other_reference && self.matches(value, other_value))
             }
-            Self::MathematicalBinary {
+            StructuralTerm::MathematicalBinary {
                 operator,
                 left,
                 right,
             } => {
-                matches!(other, Self::MathematicalBinary { operator: other_operator, left: other_left, right: other_right }
-                    if operator == other_operator && left == other_left && right == other_right)
+                matches!(other, StructuralTerm::MathematicalBinary { operator: other_operator, left: other_left, right: other_right }
+                    if operator == other_operator && self.matches(left, other_left) && self.matches(right, other_right))
             }
-            Self::Float(value) => {
-                let Self::Float(other_value) = other else {
+            StructuralTerm::Float(value) => {
+                let StructuralTerm::Float(other_value) = other else {
                     return false;
                 };
                 value == other_value
+                    && (!retain_metadata || value.landing() == other_value.landing())
             }
-            Self::Constructor {
+            StructuralTerm::Constructor {
                 identity, fields, ..
             } => {
-                let Self::Constructor {
+                let StructuralTerm::Constructor {
                     identity: other_identity,
                     fields: other_fields,
                     ..
@@ -429,16 +374,26 @@ impl PartialEq for StructuralTerm {
                 else {
                     return false;
                 };
-                (identity, fields) == (other_identity, other_fields)
+                let same_identity = match self {
+                    Self::SemanticValue => identity == other_identity,
+                    Self::ResolutionInput => identity.same_resolution_payload(*other_identity),
+                };
+                same_identity
+                    && fields.len() == other_fields.len()
+                    && fields.iter().zip(other_fields).all(
+                        |((name, value), (other_name, other_value))| {
+                            name == other_name && self.matches(value, other_value)
+                        },
+                    )
             }
-            Self::Application {
+            StructuralTerm::Application {
                 result_type,
                 target,
                 selections,
                 machine,
                 arguments,
             } => {
-                let Self::Application {
+                let StructuralTerm::Application {
                     result_type: other_result_type,
                     target: other_target,
                     selections: other_selections,
@@ -448,16 +403,12 @@ impl PartialEq for StructuralTerm {
                 else {
                     return false;
                 };
-                (result_type, target, selections, machine, arguments)
-                    == (
-                        other_result_type,
-                        other_target,
-                        other_selections,
-                        other_machine,
-                        other_arguments,
-                    )
+                (result_type, target) == (other_result_type, other_target)
+                    && self.selections_match(selections, other_selections)
+                    && machine == other_machine
+                    && self.term_lists_match(arguments, other_arguments)
             }
-            Self::CallProjection {
+            StructuralTerm::CallProjection {
                 selections,
                 target,
                 machine,
@@ -466,7 +417,7 @@ impl PartialEq for StructuralTerm {
                 field_name,
                 arguments,
             } => {
-                let Self::CallProjection {
+                let StructuralTerm::CallProjection {
                     selections: other_selections,
                     target: other_target,
                     machine: other_machine,
@@ -478,92 +429,126 @@ impl PartialEq for StructuralTerm {
                 else {
                     return false;
                 };
-                (
-                    selections,
-                    target,
-                    machine,
-                    result_type,
-                    field,
-                    field_name,
-                    arguments,
-                ) == (
-                    other_selections,
-                    other_target,
-                    other_machine,
-                    other_result_type,
-                    other_field,
-                    other_field_name,
-                    other_arguments,
-                )
+                self.selections_match(selections, other_selections)
+                    && (target, machine, result_type, field, field_name)
+                        == (
+                            other_target,
+                            other_machine,
+                            other_result_type,
+                            other_field,
+                            other_field_name,
+                        )
+                    && self.term_lists_match(arguments, other_arguments)
             }
-            Self::IndexedValue {
+            StructuralTerm::IndexedValue {
                 element_identity,
+                element_type,
                 collection,
                 index,
-                ..
             } => {
-                let Self::IndexedValue {
+                let StructuralTerm::IndexedValue {
                     element_identity: other_identity,
+                    element_type: other_type,
                     collection: other_collection,
                     index: other_index,
-                    ..
                 } = other
                 else {
                     return false;
                 };
-                (element_identity, collection, index)
-                    == (other_identity, other_collection, other_index)
+                element_identity == other_identity
+                    && (!retain_metadata || element_type == other_type)
+                    && self.matches(collection, other_collection)
+                    && self.matches(index, other_index)
             }
-            Self::Projection { subject, path } => {
-                let Self::Projection {
+            StructuralTerm::Projection { subject, path } => {
+                let StructuralTerm::Projection {
                     subject: other_subject,
                     path: other_path,
                 } = other
                 else {
                     return false;
                 };
-                (subject, path) == (other_subject, other_path)
+                self.matches(subject, other_subject) && path == other_path
             }
-            Self::CollectionMeasure {
+            StructuralTerm::CollectionMeasure {
                 measure,
                 collection,
             } => {
-                let Self::CollectionMeasure {
+                let StructuralTerm::CollectionMeasure {
                     measure: other_measure,
                     collection: other_collection,
                 } = other
                 else {
                     return false;
                 };
-                (measure, collection) == (other_measure, other_collection)
+                measure == other_measure && self.matches(collection, other_collection)
             }
-            Self::ScalarBinary {
+            StructuralTerm::ScalarBinary {
                 operator,
                 meaning,
                 left,
                 right,
-                ..
+                references,
             } => {
-                let Self::ScalarBinary {
+                let StructuralTerm::ScalarBinary {
                     operator: other_operator,
                     meaning: other_meaning,
                     left: other_left,
                     right: other_right,
-                    ..
+                    references: other_references,
                 } = other
                 else {
                     return false;
                 };
-                (operator, meaning, left, right)
-                    == (other_operator, other_meaning, other_left, other_right)
+                (operator, meaning) == (other_operator, other_meaning)
+                    && (!retain_metadata || references == other_references)
+                    && self.matches(left, other_left)
+                    && self.matches(right, other_right)
             }
-            Self::Opaque(value) => {
-                let Self::Opaque(other_value) = other else {
+            StructuralTerm::Opaque(value) => {
+                let StructuralTerm::Opaque(other_value) = other else {
                     return false;
                 };
                 value == other_value
             }
         }
+    }
+
+    fn optional_terms_match(
+        self,
+        left: &Option<Box<StructuralTerm>>,
+        right: &Option<Box<StructuralTerm>>,
+    ) -> bool {
+        match (left.as_deref(), right.as_deref()) {
+            (None, None) => true,
+            (Some(left), Some(right)) => self.matches(left, right),
+            _ => false,
+        }
+    }
+
+    fn term_lists_match(self, left: &[StructuralTerm], right: &[StructuralTerm]) -> bool {
+        left.len() == right.len()
+            && left
+                .iter()
+                .zip(right)
+                .all(|(left, right)| self.matches(left, right))
+    }
+
+    fn selections_match(
+        self,
+        left: &[typed_trees::expression::StaticMachineArgument],
+        right: &[typed_trees::expression::StaticMachineArgument],
+    ) -> bool {
+        match self {
+            Self::SemanticValue => left == right,
+            Self::ResolutionInput => same_static_selection_payload(left, right),
+        }
+    }
+}
+
+impl PartialEq for StructuralTerm {
+    fn eq(&self, other: &Self) -> bool {
+        StructuralIdentity::SemanticValue.matches(self, other)
     }
 }
 

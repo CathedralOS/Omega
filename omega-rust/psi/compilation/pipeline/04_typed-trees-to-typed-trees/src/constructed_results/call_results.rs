@@ -240,9 +240,6 @@ fn apply_runtime_result_operands(
             } => symbols.contains(symbol),
             _ => false,
         },
-        |program, minimum, maximum| {
-            names_parameter(program, minimum) || names_parameter(program, maximum)
-        },
     );
     if !uses_actual {
         return Ok(return_type);

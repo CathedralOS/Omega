@@ -170,8 +170,7 @@ use crate::{
     const_evaluation::const_domain_facts, const_evaluation::const_generic_calls,
     const_evaluation::const_generic_expressions, const_evaluation::const_initializers,
     const_evaluation::const_lengths, const_evaluation::data_layout_queries,
-    const_evaluation::range_arguments, const_evaluation::range_endpoints, layouts::access_views,
-    layouts::plan_laid,
+    const_evaluation::range_endpoints, layouts::access_views, layouts::plan_laid,
 };
 
 /// One pre-resolution evaluation request. Standalone syntax has no source
@@ -200,7 +199,6 @@ pub fn evaluate_pre_resolution(
     // Canonical ranges must exist before the const-call probe normalizes its
     // syntax clone: that clone's generic synthesis is itself an equation
     // customer, so retained endpoints cannot arrive after it.
-    let syntax_trees = range_arguments::evaluate(syntax_trees, &source_context)?;
     let mut syntax_trees =
         const_generic_calls::evaluate_const_generic_calls(syntax_trees, source_context.clone())?;
     syntax_trees_to_symbol_resolved_trees::pre_resolution::synthesize_trait_defaults(
