@@ -8,8 +8,9 @@ descendant claims; equal geometry alone supplies no ownership.
 The operation is that reunion. The bound is base 10 and length 48. Every place
 copies that sentence, partitions the issued root at requested counts 0, 16, and
 48, and reconstructs one region whose base is 10 and whose length is 48. Exit 0
-requires the reconstructed region to be in `Owned`. A freshly issued root of
-the same base and length does not supply that ownership.
+requires the reconstructed region to be in `Owned`. Equal base and length do
+not establish that authority; it must follow from the complete authorized
+input, introduction, transfer and disposal frontier.
 
 The complete content equations now state
 `core::Identity<IntervalSet<Nat>>` over canonical set elements. This preserves
@@ -75,13 +76,13 @@ omega run --both samples/cli/facts/content_reunion/other_machine/main.omg
 omega run --both samples/cli/facts/content_reunion/target_body/main.omg
 ```
 
-The oracle discriminates. Each invalid twin keeps the reunion expression and
-changes only the partitioned root from the input to `issue()`, then drops the
-input. The fresh root still has base 10 and length 48. Checking rejects
-`result in Region::Owned`. The equal geometry still proves the mathematical
-content equation; it supplies no lineage from the consumed input to the fresh
-root. Every twin therefore pins the routed ownership failure. The match-join
-and successor-state twins report it for each reconstructing arm.
+Each original twin keeps the reunion expression and changes only the
+partitioned root from the input to `issue()`, then drops the input. The fresh
+root still has base 10 and length 48. Earlier checking pinned a
+`result in Region::Owned` failure, including each reconstructing match/state
+arm. Integrated validation must justify the actual outcome from the complete
+authority and frontier obligations. Equal geometry supplies no authority;
+different roots alone neither authorize nor forbid a combination.
 
 ## Pinned fixtures
 
