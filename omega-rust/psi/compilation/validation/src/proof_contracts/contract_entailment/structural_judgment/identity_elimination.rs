@@ -285,9 +285,18 @@ mod tests {
         // Start after formation and custody admission, as the other judge
         // controls do. These two notations both denote the empty interval set.
         let mut symbols = SymbolTableBuilder::default();
-        let interval = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("IntervalSet"));
-        let coordinate = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Coordinate"));
-        let holder = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Holder"));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("IntervalSet")),
+                (SymbolKind::Data, SymbolNameRef::Static("Coordinate")),
+                (SymbolKind::Data, SymbolNameRef::Static("Holder")),
+            ],
+        );
+        let interval = declarations.handle_at(0);
+        let coordinate = declarations.handle_at(1);
+        let holder = declarations.handle_at(2);
         let mut program = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
