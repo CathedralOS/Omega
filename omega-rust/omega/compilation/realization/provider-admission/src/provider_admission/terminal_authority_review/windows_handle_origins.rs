@@ -290,6 +290,11 @@ fn definition_equation(
                         position,
                         value,
                     },
+                    StoredScalarSource::Transport { position, source } => ScalarSubject::Storage {
+                        machine: identity,
+                        position,
+                        location: source,
+                    },
                     StoredScalarSource::NativeOutput { caller, parameter } => {
                         ScalarSubject::NativeOutput { caller, parameter }
                     }

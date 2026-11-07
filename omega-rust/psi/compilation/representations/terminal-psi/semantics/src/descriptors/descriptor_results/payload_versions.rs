@@ -664,7 +664,37 @@ pub fn unchanged_stored_projection_sources_in<Source: Ord>(
     identity: MachineId,
     observation: DescriptorPosition,
     observed: &DescriptorLocation,
+    actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+) -> Option<Vec<Source>> {
+    projected_stored_sources_in(
+        types,
+        graph,
+        analysis,
+        identity,
+        observation,
+        observed,
+        actual_writes,
+        |source, suffix| suffix.is_empty().then_some(source),
+    )
+}
+
+/// Follow an authenticated aggregate writer to one observed scalar projection.
+/// The storage owner resolves the actual destination and checks its unchanged
+/// version. The caller alone interprets the owned suffix in its producer tag;
+/// rejecting a suffix supplies no provenance. Numeric equality cannot create a
+/// copy, and this query grants no access or initialized-value authority.
+pub fn projected_stored_sources_in<Source: Ord>(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    identity: MachineId,
+    observation: DescriptorPosition,
+    observed: &DescriptorLocation,
     mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+    mut project: impl FnMut(
+        Source,
+        &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
+    ) -> Option<Source>,
 ) -> Option<Vec<Source>> {
     if !analysis.uses_source_graph(types, graph) {
         return None;
@@ -694,9 +724,12 @@ pub fn unchanged_stored_projection_sources_in<Source: Ord>(
             let [destination] = destinations.as_slice() else {
                 continue;
             };
-            if destination != &home {
+            if destination.root != home.root || !home.path.starts_with(&destination.path) {
                 continue;
             }
+            let Some(id) = project(id, &home.path[destination.path.len()..]) else {
+                continue;
+            };
             if require_unchanged_between(
                 machine,
                 analysis,
@@ -1004,6 +1037,62 @@ mod tests {
         // output identity. It destroys the original storage-version proof.
         graph[0].unresolved_contents_writes.insert(position(4));
         assert!(observe(&graph).is_none());
+    }
+
+    #[test]
+    fn copied_projection_names_its_pre_copy_source_and_keeps_its_own_version() {
+        use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
+        use semantic_vocabulary::StructuralTypeId;
+        use terminal_psi::{ArrayExtent, StructuralTypeShape};
+        let (mut types, mut machine) = copy_graph();
+        let mut element = types[0].clone();
+        element.id = StructuralTypeId::new(2).unwrap();
+        types[0].shape = StructuralTypeShape::FixedArray {
+            element: element.id,
+            length: ArrayExtent::Literal(2),
+        };
+        types.push(element);
+        let original = payload();
+        let copy = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
+        let mut observed = copy.clone();
+        observed.path.push(DescriptorPathSegment::FixedIndex(1));
+        let mut source_leaf = original.clone();
+        source_leaf.path = observed.path.clone();
+        machine.payload_invalidations.insert(
+            position(4),
+            vec![Some(DescriptorContentsQuery::from_location(&source_leaf))],
+        );
+        let observe = |machine: &DescriptorMachine| {
+            let graph = std::slice::from_ref(machine);
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, graph);
+            projected_stored_sources_in(
+                &types,
+                graph,
+                &mut analysis,
+                machine.id,
+                position(5),
+                &observed,
+                |cut| {
+                    if cut == position(3) {
+                        vec![(copy.clone(), (cut, original.clone()))]
+                    } else {
+                        Vec::new()
+                    }
+                },
+                |(capture, mut source), suffix| {
+                    source.path.extend_from_slice(suffix);
+                    Some((capture, source))
+                },
+            )
+        };
+        // A write to the original after copying cannot redirect the captured
+        // source to its new contents. The source cut remains before the copy.
+        assert_eq!(observe(&machine), Some(vec![(position(3), source_leaf)]));
+        machine.payload_invalidations.insert(
+            position(4),
+            vec![Some(DescriptorContentsQuery::from_location(&observed))],
+        );
+        assert!(observe(&machine).is_none());
     }
 
     #[test]

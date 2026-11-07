@@ -15,8 +15,9 @@ use terminal_semantics::descriptors::descriptor_lifetimes::{
 use terminal_semantics::descriptors::descriptor_results::{
     CapturedScalarOperand, DescriptorAnalysis, DescriptorCasePredicate, DescriptorContentsQuery,
     DescriptorMachine, DescriptorPayloadTarget, FlowFeasibility, PayloadEntryScalarIdentity,
-    PayloadMembershipHistory, TerminalScalarCaptures, require_unchanged_entry_storage,
-    unchanged_stored_projection_sources_in,
+    PayloadMembershipHistory, ResidentValueCapture, ResidentValueCaptures, TerminalScalarCaptures,
+    projected_stored_sources_in, require_unchanged_entry_storage,
+    terminal_resident_value_transfers,
 };
 
 use super::context::ReviewContext;
@@ -95,6 +96,12 @@ pub(super) enum StoredScalarSource {
     /// Exact output parameter of one admitted native call. Neither successful
     /// initialization nor a live handle is inferred merely from this identity.
     NativeOutput { caller: Caller, parameter: usize },
+    /// Copy/move captures this source before its destination is established.
+    /// Later reads do not reload the source home after it may have changed.
+    Transport {
+        position: DescriptorPosition,
+        source: DescriptorLocation,
+    },
     /// The actual call's structural result owns this projection. The consumer
     /// enters that callee's real ReturnStructural edges before using its value.
     CallResult {
@@ -119,6 +126,7 @@ pub(super) struct HandleValueReader<'a> {
     types: BTreeMap<MachineId, BTreeMap<ValueId, ScalarType>>,
     producers: BTreeMap<(MachineId, ValueId), ValueProducer<'a>>,
     captured_scalars: BTreeMap<MachineId, TerminalScalarCaptures>,
+    resident_transfers: BTreeMap<MachineId, ResidentValueCaptures>,
     native_writes:
         BTreeMap<(MachineId, DescriptorPosition), Vec<(DescriptorLocation, StoredScalarSource)>>,
     histories: BTreeMap<MachineId, PayloadMembershipHistory<'a>>,
@@ -344,6 +352,19 @@ impl<'a> HandleValueReader<'a> {
                     })
             })
             .collect::<Result<BTreeMap<_, _>, String>>()?;
+        let resident_transfers = calls
+            .machines
+            .iter()
+            .map(|(&identity, machine)| {
+                terminal_resident_value_transfers(machine, &graph[graph_index[&identity]])
+                    .map(|transfers| (identity, transfers))
+                    .map_err(|reason| {
+                        format!(
+                            "handle resident captures are incomplete for {identity:?}: {reason}"
+                        )
+                    })
+            })
+            .collect::<Result<_, String>>()?;
         let mut native_writes = BTreeMap::new();
         for alternatives in calls.calls.values() {
             for call in alternatives {
@@ -417,6 +438,7 @@ impl<'a> HandleValueReader<'a> {
             producers,
             native_writes,
             captured_scalars,
+            resident_transfers,
             histories: BTreeMap::new(),
             analysis: DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
@@ -727,7 +749,8 @@ impl<'a> HandleValueReader<'a> {
         let writers = &self.native_writes;
         let calls = &self.calls.calls;
         let captures = &self.captured_scalars[&identity];
-        let sources = unchanged_stored_projection_sources_in(
+        let transfers = &self.resident_transfers[&identity];
+        let sources = projected_stored_sources_in(
             &self.module.structural_types,
             self.graph,
             &mut self.analysis,
@@ -755,6 +778,19 @@ impl<'a> HandleValueReader<'a> {
                     Some(Err(_)) => Vec::new(),
                     None => Vec::new(),
                 };
+                if let Some(ResidentValueCapture::Complete(transfers)) =
+                    transfers.get(&write_position)
+                {
+                    written.extend(transfers.iter().map(|transfer| {
+                        (
+                            transfer.destination.clone(),
+                            StoredScalarSource::Transport {
+                                position: write_position,
+                                source: transfer.source.clone(),
+                            },
+                        )
+                    }));
+                }
                 written.extend(
                     writers
                         .get(&(identity, write_position))
@@ -787,6 +823,20 @@ impl<'a> HandleValueReader<'a> {
                     }
                 }
                 written
+            },
+            |source, suffix| match source {
+                StoredScalarSource::Transport {
+                    position,
+                    mut source,
+                } => {
+                    source.path.extend_from_slice(suffix);
+                    Some(StoredScalarSource::Transport { position, source })
+                }
+                StoredScalarSource::CallResult { caller, mut path } => {
+                    path.extend_from_slice(suffix);
+                    Some(StoredScalarSource::CallResult { caller, path })
+                }
+                source => suffix.is_empty().then_some(source),
             },
         );
         match (sources, entry_snapshot) {

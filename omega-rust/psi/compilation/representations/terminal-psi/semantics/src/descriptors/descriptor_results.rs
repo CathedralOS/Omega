@@ -57,13 +57,16 @@ pub use payload_predicates::{
 };
 pub use payload_versions::{
     ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,
-    require_completed_scalar_capture, require_unchanged_entry_storage,
+    projected_stored_sources_in, require_completed_scalar_capture, require_unchanged_entry_storage,
     require_unchanged_observed_storage, require_unchanged_produced_payload,
     unchanged_payload_producer, unchanged_stored_projection_sources_in,
     unchanged_stored_scalar_sources, unchanged_stored_sources,
 };
 use scalar_captures::scalar_storage_writes;
-pub use scalar_captures::{CapturedScalarOperand, TerminalScalarCaptures};
+pub use scalar_captures::{
+    CapturedScalarOperand, ResidentValueCapture, ResidentValueCaptures, ResidentValueTransfer,
+    TerminalScalarCaptures, terminal_resident_value_transfers,
+};
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
 mod owned_shape;
 mod replay;

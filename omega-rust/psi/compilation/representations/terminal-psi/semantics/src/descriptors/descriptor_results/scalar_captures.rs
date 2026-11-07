@@ -195,6 +195,100 @@ impl TerminalScalarCaptures {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct ResidentValueTransfer {
+    pub source: DescriptorLocation,
+    pub destination: DescriptorLocation,
+}
+
+pub enum ResidentValueCapture {
+    Complete(Vec<ResidentValueTransfer>),
+    Unresolved(&'static str),
+}
+
+pub type ResidentValueCaptures = BTreeMap<DescriptorPosition, ResidentValueCapture>;
+
+/// Resident value captures already derived by the canonical storage adapter.
+/// Address formation and view construction do not copy their backing's scalar
+/// contents. Keep that distinction at the producing operation, then retain its
+/// complete typed source/destination roster rather than reconstructing fields
+/// at each consumer. The caller must use the descriptor graph reconstructed
+/// from this same checked body and selected-call context.
+pub fn terminal_resident_value_transfers(
+    machine: &TerminalMachine,
+    graph: &super::DescriptorMachine,
+) -> Result<ResidentValueCaptures, &'static str> {
+    if graph.id != machine.id || graph.entry != (machine.entry, 0) {
+        return Err("resident capture graph belongs to another machine");
+    }
+    let mut captures = BTreeMap::new();
+    for block in &machine.blocks {
+        for (ordinal, operation) in block.operations.iter().enumerate() {
+            let position = (
+                block.id,
+                u32::try_from(ordinal)
+                    .map_err(|_| "resident capture ordinal exceeds its canonical position")?,
+            );
+            let step = graph
+                .flow
+                .get(&position)
+                .ok_or("resident capture has no current storage step")?;
+            if matches!(
+                &operation.kind,
+                terminal_psi::structural_leaf_copy_pair_pattern!()
+                    | OperationKind::MoveStructuralValue { .. }
+                    | OperationKind::TransformContent { .. }
+                    | OperationKind::MoveStructuralField { .. }
+                    | OperationKind::StoreStructuralField { .. }
+                    | OperationKind::EstablishStructuralArray { .. }
+                    | OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishStructuralCase { .. }
+            ) {
+                // An unresolved coordinate remains an explicit refusal. A
+                // source root with no recorded transfer is never an empty
+                // permission or evidence that the writer preserves contents.
+                if step.may_escape {
+                    captures.insert(
+                        position,
+                        ResidentValueCapture::Unresolved(
+                            "resident value capture has an unresolved storage coordinate",
+                        ),
+                    );
+                    continue;
+                }
+                if step.derivations.iter().any(|(source, destination)| {
+                    graph.storage_derivations.contains(&(
+                        position,
+                        source.clone(),
+                        destination.clone(),
+                    ))
+                }) {
+                    captures.insert(
+                        position,
+                        ResidentValueCapture::Unresolved(
+                            "resident value capture substitutes an address formation",
+                        ),
+                    );
+                    continue;
+                }
+                captures.insert(
+                    position,
+                    ResidentValueCapture::Complete(
+                        step.derivations
+                            .iter()
+                            .map(|(source, destination)| ResidentValueTransfer {
+                                source: source.clone(),
+                                destination: destination.clone(),
+                            })
+                            .collect(),
+                    ),
+                );
+            }
+        }
+    }
+    Ok(captures)
+}
+
 /// Build the same signature/producer carrier join used by Terminal storage,
 /// once for this immutable machine. Repeated declaration or parameter keys
 /// cannot select whichever carrier makes a later projection succeed.
