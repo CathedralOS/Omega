@@ -98,25 +98,7 @@ impl StructuralJudge<'_> {
         right: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
-        self.trace_identity_eta(
-            "query",
-            Some(&left),
-            Some(&right),
-            format_args!(
-                "depth={depth} captured_ids={} rewrites={}",
-                self.captured_result_equations.len(),
-                self.rewrites.entries().len()
-            ),
-        );
-        let mut remaining = 1024;
-        let verdict = self.judge_identity_with_budget(left, right, depth, &mut remaining);
-        self.trace_identity_eta(
-            "query-result",
-            None,
-            None,
-            format_args!("depth={depth} verdict={verdict:?} remaining={remaining}"),
-        );
-        verdict
+        self.judge_identity_with_budget(left, right, depth, &mut 1024)
     }
 
     fn judge_identity_with_budget(
@@ -136,15 +118,7 @@ impl StructuralJudge<'_> {
         }
         let left = self.resolve_at(left, depth + 1);
         let right = self.resolve_at(right, depth + 1);
-        let left_available = self.identity_value_is_available(&left);
-        let right_available = left_available.then(|| self.identity_value_is_available(&right));
-        if right_available != Some(true) {
-            self.trace_identity_eta(
-                "unavailable",
-                Some(&left),
-                Some(&right),
-                format_args!("depth={depth} left_available={left_available} right_available={right_available:?} remaining={remaining}"),
-            );
+        if !self.identity_value_is_available(&left) || !self.identity_value_is_available(&right) {
             return StructuralJudgment::Unknown;
         }
         let direct =
@@ -152,12 +126,6 @@ impl StructuralJudge<'_> {
         if !matches!(direct, StructuralJudgment::Unknown) {
             return direct;
         }
-        self.trace_identity_eta(
-            "congruence-unknown",
-            Some(&left),
-            Some(&right),
-            format_args!("depth={depth} remaining={remaining}"),
-        );
         // Established Id endpoints may differ only in independently checked
         // constructor provenance inside a selected call. Resolver payload keys
         // deliberately retain that provenance; the typed Id query rejoins it.
@@ -212,18 +180,16 @@ impl StructuralJudge<'_> {
             StructuralTerm::IndexedValue { element_type, .. } => Some(*element_type),
             _ => None,
         };
-        if let (Some(left_type), Some(right_type)) = (source_type(&left), source_type(&right)) {
-            let matched = left_type.is_valid()
-                && right_type.is_valid()
-                && crate::value_custody::type_references::type_references_match(
+        if let (Some(left), Some(right)) = (source_type(&left), source_type(&right))
+            && (!left.is_valid()
+                || !right.is_valid()
+                || !crate::value_custody::type_references::type_references_match(
                     self.program,
-                    left_type,
-                    right_type,
-                );
-            if !matched {
-                self.trace_identity_eta("carrier-policy-refused", Some(&left), Some(&right), format_args!("left_type={left_type:?} right_type={right_type:?} matched={matched} depth={depth} remaining={remaining}"));
-                return StructuralJudgment::Unknown;
-            }
+                    left,
+                    right,
+                ))
+        {
+            return StructuralJudgment::Unknown;
         }
         // A reference's identity is its descriptor. Owned observation shells
         // retain admission but do not change the value they already observed.
@@ -302,12 +268,6 @@ impl StructuralJudge<'_> {
                     *right_identity,
                     right_fields,
                 ) else {
-                    self.trace_identity_eta(
-                        "constructor-schemas-unpaired",
-                        Some(&left),
-                        Some(&right),
-                        format_args!("depth={depth} remaining={remaining}"),
-                    );
                     return StructuralJudgment::Unknown;
                 };
                 let mut verdict = StructuralJudgment::Proven;
@@ -516,15 +476,17 @@ impl StructuralJudge<'_> {
                 return false;
             };
             let expected = self.resolve_at(expected, depth + 1);
-            let actual_available = self.identity_value_is_available(actual);
-            let expected_available = actual_available.then(|| self.identity_value_is_available(&expected));
-            let verdict = if expected_available == Some(true) {
-                self.judge_identity_with_budget((*actual).clone(), expected.clone(), depth + 1, remaining)
-            } else {
-                StructuralJudgment::Unknown
-            };
-            self.trace_identity_eta("eta-field", Some(actual), Some(&expected), format_args!("field={} type={:?} actual_available={actual_available} expected_available={expected_available:?} verdict={verdict:?} remaining={remaining}", field.name, field.type_reference));
-            actual_available && expected_available == Some(true) && matches!(verdict, StructuralJudgment::Proven)
+            self.identity_value_is_available(actual)
+                && self.identity_value_is_available(&expected)
+                && matches!(
+                    self.judge_identity_with_budget(
+                        (*actual).clone(),
+                        expected,
+                        depth + 1,
+                        remaining
+                    ),
+                    StructuralJudgment::Proven
+                )
         })
     }
 
@@ -636,16 +598,26 @@ impl StructuralJudge<'_> {
                     follow(left.clone());
                 }
             }
-            for equation in self
+            // Id elimination retains the original typed pair and separately
+            // admits owned value substitutions after its observation checks.
+            // Consume both produced views here: a raw projection can reach a
+            // cited reverse endpoint without discarding either side's payload.
+            for (left, right) in self
                 .captured_result_equations
                 .iter()
                 .filter(|equation| equation.is_data_identity())
+                .map(|equation| (&equation.left, &equation.right))
+                .chain(
+                    self.rewrites
+                        .value_identities()
+                        .map(|(left, right)| (left, right)),
+                )
             {
-                if equation.left.same_resolution_payload(&value) {
-                    follow(equation.right.clone());
+                if left.same_resolution_payload(&value) {
+                    follow(right.clone());
                 }
-                if equation.right.same_resolution_payload(&value) {
-                    follow(equation.left.clone());
+                if right.same_resolution_payload(&value) {
+                    follow(left.clone());
                 }
             }
             for completed in self.completed_nominal_values.iter() {

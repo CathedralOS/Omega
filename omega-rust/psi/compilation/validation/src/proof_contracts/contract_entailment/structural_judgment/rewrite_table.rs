@@ -202,6 +202,19 @@ impl RewriteTable {
             })
     }
 
+    /// Already admitted owned Id substitutions remain identity relations in
+    /// either direction. Scalar premises stay in their separate iterator.
+    pub(super) fn value_identities(
+        &self,
+    ) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> + Clone {
+        self.entries
+            .iter()
+            .zip(&self.meanings)
+            .filter_map(|(entry, meaning)| {
+                (*meaning == RewriteMeaning::ValueIdentity).then_some(entry)
+            })
+    }
+
     pub(super) fn entries(&self) -> &[(StructuralTerm, StructuralTerm)] {
         &self.entries
     }

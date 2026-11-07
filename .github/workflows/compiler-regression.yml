@@ -104,7 +104,6 @@ jobs:
           QUALIFICATION_RUNTIME: ${{ inputs.qualification_runtime }}
           QUALIFICATION_SAMPLES: ${{ inputs.qualification_samples }}
           QUALIFICATION_CONTROLS: ${{ inputs.qualification_controls }}
-          OMEGA_IDENTITY_ETA_TRACE: 1
         run: |
           set -euo pipefail
           arguments=(qualify --output build/qualification)
