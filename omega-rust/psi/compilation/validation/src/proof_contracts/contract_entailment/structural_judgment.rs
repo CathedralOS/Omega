@@ -24,6 +24,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
+pub(crate) use cases::CaseGuaranteeEligibility;
 mod conditional_guarantees;
 mod constructor_identity;
 pub(super) use constructor_identity::ConstructorIdentity;

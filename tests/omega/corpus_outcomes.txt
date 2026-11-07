@@ -3441,6 +3441,8 @@ fail/contracts/nested_call_opaque_write_clears_storage_fact rejected 13638ms exp
 	cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/nested_call_outer_write_clears_storage_fact rejected 1901ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/nested_case_guarantee_unselected_sibling rejected 9497ms expected @46219654e63e
+	cannot prove requires contract for call demand_cell from main: choice == constructor:80:package:c2410434186d5b0c80741f8d29f35bf92028eadd0b9b47fa96f008f88361f4d9::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/normal_return_contextual_call_argument_bound rejected 2334ms expected @ccdb99ca2214
 	cannot prove index `end` is within length 146 in Main::main::main
 	cannot prove index `end` is within length 146 in Main::main::main
@@ -20751,6 +20753,7 @@ pass/contracts/match_payload_contract checked 4813ms check-target:macos_arm64 @e
 pass/contracts/named_tail_return_contract checked 19835ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/nested_call_later_operand_preserves_storage_fact checked 3417ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/nested_call_outer_preserves_storage_fact checked 3117ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/nested_case_guarantee_disjunction_exit checked 16442ms check-target:macos_arm64 @46219654e63e
 pass/contracts/normal_return_contextual_call_arguments_exit checked 7019ms check-target:macos_arm64 @25bbaead8c14+wt
 pass/contracts/opaque_call_preserves_model checked 4237ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/policy_field_ensures checked 3562ms @ccdb99ca2214

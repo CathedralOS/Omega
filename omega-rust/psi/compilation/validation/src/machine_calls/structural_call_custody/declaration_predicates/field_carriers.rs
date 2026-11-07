@@ -5,7 +5,7 @@
 //! cannot supply its own premise here; only restrictions actually retained on
 //! each field's storage may make the whole declaration row redundant.
 
-use super::{DeclaredOperators, FactSpelling, carrier_bounds};
+use super::{FactSpelling, carrier_bounds};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
@@ -17,7 +17,7 @@ use typed_trees::data::{DataDefinition, DataVariant};
 
 pub(super) fn imply_declaration(
     program: &dyn crate::CheckingInput,
-    operators: &DeclaredOperators<'_>,
+    operators: &checked_trees::CheckedOperatorFacts,
     definition: &DataDefinition,
 ) -> bool {
     let spelling = FactSpelling {
