@@ -919,16 +919,15 @@ fn validate_value_call_arguments(
     };
     // Short-circuit operands remain statically checked, but an invocation
     // that cannot execute has no runtime precondition obligation.
-    // The refutation judge belongs to the machine whose pass scans this call;
-    // a call reaching it from any other machine is rejected, never judged.
-    if executes && !entry_judge.judges(current_machine) {
+    // The refutation judge belongs to the program and machine whose pass scans
+    // this call; a call reaching it from any other is rejected, never judged.
+    if executes && !entry_judge.judges(program, current_machine) {
         diagnostics.push(Diagnostic::error(format!(
-            "internal: value call in machine `{}` reached another machine's refutation judge",
+            "internal: value call in machine `{}` reached another program's or machine's refutation judge",
             current_machine.name
         )));
     } else if executes {
         crate::proof_contracts::contract_entailment::reject_refuted_value_call_requires(
-            program,
             entry_judge,
             current_state,
             callee_machine,
