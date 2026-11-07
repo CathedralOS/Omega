@@ -124,6 +124,7 @@ machine UefiX86_64::plan(
         output.state.permitted_transitive_use.stack_pointer = true;
         output.state.permitted_transitive_use.instruction_pointer = true;
         output.state.permitted_transitive_use.control_state = true;
+        output.state.permitted_transitive_use.vector_registers = true;
         output.state.stack = EntryStack::ProviderSelected;
         output.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: output }
@@ -200,6 +201,7 @@ machine UefiX86_64::plan(
         output.state.permitted_transitive_use.stack_pointer = true;
         output.state.permitted_transitive_use.instruction_pointer = true;
         output.state.permitted_transitive_use.control_state = true;
+        output.state.permitted_transitive_use.vector_registers = true;
         output.state.stack = EntryStack::ProviderSelected;
         output.state.preemption = Preemption::NotApplicable;
         BoundaryPlanResult::Accepted { plan: output }

@@ -1769,6 +1769,12 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 };
                 let mut integrity_error = None;
                 if let Ok((executable, receipt, private_entry_ram)) = &built {
+                    if fixture_dir
+                        .join("expected_native_cpu_state_controls.txt")
+                        .is_file()
+                    {
+                        facts.push("native-cpu-state-controls:match".to_owned());
+                    }
                     if let Some(receipt) = receipt {
                         facts.push(format!("rollback:{}", space_free(receipt)));
                     }
