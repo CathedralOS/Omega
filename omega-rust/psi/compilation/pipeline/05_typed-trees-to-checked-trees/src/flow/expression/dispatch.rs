@@ -59,11 +59,10 @@ impl Execution<'_, '_, '_> {
             self.state,
             dispatch.subject,
         );
-        let subject_operand = if structural.is_some()
+        let mut subject = if structural.is_some()
             && subject_type.is_some_and(|reference| self.is_view_type(reference))
         {
             self.evaluated_place(dispatch.subject, contexts, constraints)
-                .capture
         } else {
             self.evaluated_operand_as(
                 dispatch.subject,
@@ -71,13 +70,22 @@ impl Execution<'_, '_, '_> {
                 contexts,
                 constraints,
             )
-            .capture
         };
         let outer_captures = self.match_subjects.len();
         if dispatch.capture.is_valid() {
+            let anchor = self
+                .program
+                .expression_table
+                .value_capture(dispatch.capture)
+                .value_anchor;
+            // Patterns and their effects have not run. This exact saved value
+            // retains its producer's complete owned fact roster, including
+            // conditional field qualifications, before later source writes.
+            self.publish_owned_capture(anchor, &mut subject, contexts, constraints);
             self.match_subjects
-                .push((dispatch.capture, subject_operand));
+                .push((dispatch.capture, subject.capture));
         }
+        let subject_operand = subject.capture;
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
