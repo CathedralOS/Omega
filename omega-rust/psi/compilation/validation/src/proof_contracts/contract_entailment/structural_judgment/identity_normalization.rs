@@ -76,15 +76,16 @@ impl StructuralJudge<'_> {
                 }
                 // Each field keeps its own checked schema; reference and
                 // canonical-content values remain whole leaves below.
-                if self
+                let observed = self
                     .identity_constructor_field_pairs(identity, &fields, identity, &fields)
-                    .is_none()
-                {
-                    return Err("the owned constructor has no complete checked field schema");
-                }
+                    .ok_or("the owned constructor has no complete checked field schema")?;
                 let fields = fields
                     .into_iter()
-                    .map(|(name, value)| {
+                    // The schema owner returns observations in left-field
+                    // order. Rebuild from those typed values, preserving its
+                    // reference descriptors and opaque content boundaries.
+                    .zip(observed)
+                    .map(|((name, _), (value, _))| {
                         self.normalize_identity_context(value, depth + 1, remaining)
                             .map(|value| (name, value))
                     })
