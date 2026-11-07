@@ -1,0 +1,34 @@
+{
+  "kind": "Exactly one nonignored owned-byte preservation positive control selected by its full name",
+  "source": "994a02502890e5e608133dd2f3538cf0160f0c09",
+  "expected_total_passes": 1,
+  "owner_source_map_sha256": "3d67a4cfb6de54cac88d23d36f48d8e5aa77f497cb514646897061c2e427a123",
+  "groups": [
+    {
+      "package": "terminal-semantics",
+      "filter": "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::owned_byte_rule_with_unused_shared_view_survives_a_sibling_write",
+      "expected_nonignored_passes": 1,
+      "test_names": [
+        "descriptors::descriptor_results::payload_history::normal_calls::tests::aggregate_byte_dependencies::owned_byte_rule_with_unused_shared_view_survives_a_sibling_write"
+      ],
+      "source_files": [
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests.rs",
+          "sha256": "87f0ce247bdeba07856a355596212d2fe94acc8803d453c79c0ed54cc1b19b0a"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors/descriptor_results/payload_history/normal_calls/tests/aggregate_byte_dependencies.rs",
+          "sha256": "e956655a62b2b5d5adfe9658b3214ecefc9946b27de06f077a7230d518ca19a6"
+        },
+        {
+          "path": "omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml",
+          "sha256": "971a5ef96616c40c8283caa70e38bcd57f138989f19befd591eea61aca7fab3e"
+        },
+        {
+          "path": "Cargo.lock",
+          "sha256": "9c977b7ba47bea23d637713779d43e05769a3681bd62277b4b2ee3bccbc83166"
+        }
+      ]
+    }
+  ]
+}

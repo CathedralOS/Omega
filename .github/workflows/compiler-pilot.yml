@@ -36,6 +36,10 @@ on:
         description: Run public source-produced Build consent and filesystem isolation controls
         type: boolean
         default: false
+      body_controls:
+        description: Run only the named owned-byte preservation control on Mac
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -78,6 +82,15 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
+      - name: Validate the finite current-body-controls request
+        if: github.event_name == 'workflow_dispatch' && inputs.body_controls
+        env:
+          BODY_CONTROL_REQUEST: ${{ toJSON(inputs) }}
+        run: >-
+          python -c "import os,json; r=json.loads(os.environ['BODY_CONTROL_REQUEST']);
+          assert r['native_host']=='macos_arm64';
+          assert not any(r.get(k) for k in ('smoke','checking_only','phase_profile','build_consent'));
+          assert not any(r.get(k,'') for k in ('fixtures','samples','cli_fixtures'))"
       - name: Test the gate's refusal paths
         run: python tools/tests/test_compiler_pilot.py -v
       - name: Test Build control evidence refusal paths
@@ -134,7 +147,31 @@ jobs:
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Check the exact integration candidate
         id: compiler-check
+        if: github.event_name != 'workflow_dispatch' || !inputs.body_controls
         run: cargo check --locked -p omega
+      - name: Run the named nonignored owned-byte preservation control in NORMAL mode
+        if: github.event_name == 'workflow_dispatch' && inputs.body_controls
+        run: python tools/ci/reference_body_controls.py
+      - name: Retain current-body test image, profiles and raw evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.body_controls
+        with:
+          name: compiler-pilot-body-controls-macos_arm64-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/compiler-pilot/reference-body-controls/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Retain bounded current-body records separately from the test image
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.body_controls
+        with:
+          name: compiler-pilot-body-controls-records-macos_arm64-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            build/compiler-pilot/reference-body-controls/
+            !build/compiler-pilot/reference-body-controls/**/test-image
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
       - name: Prepare and retain the optimized producer
         id: producer-preparation
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
