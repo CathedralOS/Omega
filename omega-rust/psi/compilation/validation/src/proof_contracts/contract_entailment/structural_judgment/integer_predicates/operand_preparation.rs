@@ -6,11 +6,56 @@
 use super::{
     ArithmeticDomain, IntegerObservations, PrimitiveType, StructuralJudge, StructuralTerm,
 };
+use std::collections::HashMap;
 
 type CompletedCall = (StructuralTerm, StructuralTerm, PrimitiveType);
 
+/// Several description queries consume each operand of the same immutable
+/// judge. Index only this batch's actual inputs, then compare full payloads:
+/// the existing resolution fingerprint is a filter, never value authority.
+#[derive(Clone, Default)]
+pub(super) struct PreparedIntegerOperands {
+    entries: Vec<PreparedIntegerOperand>,
+    buckets: HashMap<u64, Vec<usize>>,
+}
+
+impl PreparedIntegerOperands {
+    fn prepare(&mut self, value: &StructuralTerm) -> &mut PreparedIntegerOperand {
+        let fingerprint = super::super::resolution_queries::fingerprint(value);
+        phase_profile::count("psi.05.numeric.operand_preparation.lookups", 1);
+        let position = self.buckets.get(&fingerprint).and_then(|candidates| {
+            candidates.iter().copied().find(|&position| {
+                phase_profile::count("psi.05.numeric.operand_preparation.comparisons", 1);
+                self.entries[position].input.same_resolution_payload(value)
+            })
+        });
+        let position = match position {
+            Some(position) => position,
+            None => {
+                let position = self.entries.len();
+                self.entries.push(PreparedIntegerOperand {
+                    input: value.clone(),
+                    projection: None,
+                    completed_identity: None,
+                    completed_call: None,
+                    observations: Vec::new(),
+                });
+                self.buckets.entry(fingerprint).or_default().push(position);
+                phase_profile::count("psi.05.numeric.operand_preparation.entries", 1);
+                position
+            }
+        };
+        &mut self.entries[position]
+    }
+
+    #[cfg(test)]
+    pub(super) fn len(&self) -> usize {
+        self.entries.len()
+    }
+}
+
 #[derive(Clone)]
-pub(super) struct PreparedIntegerOperand {
+struct PreparedIntegerOperand {
     input: StructuralTerm,
     projection: Option<StructuralTerm>,
     completed_identity: Option<StructuralTerm>,
@@ -31,24 +76,7 @@ impl StructuralJudge<'_> {
         if self.has_resolution_dependency_collector() {
             return None;
         }
-        let operands = observations.operand_preparations.as_mut()?;
-        let position = match operands
-            .iter()
-            .position(|operand| operand.input.same_resolution_payload(value))
-        {
-            Some(position) => position,
-            None => {
-                operands.push(PreparedIntegerOperand {
-                    input: value.clone(),
-                    projection: None,
-                    completed_identity: None,
-                    completed_call: None,
-                    observations: Vec::new(),
-                });
-                operands.len() - 1
-            }
-        };
-        Some(&mut operands[position])
+        Some(observations.operand_preparations.as_mut()?.prepare(value))
     }
 
     pub(super) fn resolve_integer_operand(

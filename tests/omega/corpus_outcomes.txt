@@ -60,7 +60,7 @@ fail/arithmetic/bounded_call_unproven rejected 2580ms expected @ccdb99ca2214
 	cannot prove requires contract for call wounded from Main::main: main.health > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/arithmetic/bounded_store_consumed_before_repair rejected 5310ms expected @46cdd6b85b82+wt
 	machine `Counter::replace` state `replace` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/arithmetic/call_argument_snapshot_not_current_field rejected 1157ms expected @ccdb99ca2214
+fail/arithmetic/call_argument_snapshot_not_current_field rejected 7546ms expected @d663540513b7
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/call_result_index_selector_revision rejected 1518ms expected @ccdb99ca2214
 	partial exact division in machine `divide` state `entry` local `quotient`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
@@ -301,7 +301,7 @@ fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected rejec
 	cannot prove ensures contract for exit from bounded at statement 0: result >= -9223372036854775806
 fail/arithmetic/remainder_signed_minimum_underbound_rejected rejected 2065ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from remainder at statement 0: result >= -9223372036854775806 && result <= 9223372036854775806
-fail/arithmetic/repeated_call_argument_snapshots_are_distinct rejected 754ms expected @ccdb99ca2214
+fail/arithmetic/repeated_call_argument_snapshots_are_distinct rejected 7589ms expected @d663540513b7
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`). Here the operand `capture(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u32 in Wrapping`).
 fail/arithmetic/saturating_shift_count_unproven rejected 618ms expected @ccdb99ca2214
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32` (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's): exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
@@ -27286,9 +27286,9 @@ pass/recast/runtime_mutable_equivalent_record_recast_exit checked 53268ms check-
 pass/recast/runtime_nested_record_byte_store_exit checked 11560ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_scalar_view_loan_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_nested_view_subregion_forwarding_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 78759ms check-target:macos_arm64 @37fb8e132e53
+pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 29875ms check-target:macos_arm64 @d663540513b7
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 88827ms check-target:macos_arm64 @898dd1bf8987
-pass/recast/runtime_record_array_view_mutable_write_exit checked 116156ms check-target:macos_arm64 @d0817f844d95
+pass/recast/runtime_record_array_view_mutable_write_exit checked 23185ms check-target:macos_arm64 @36421eda7bbf
 pass/recast/runtime_restricted_field_call_arguments_exit checked 5182ms check-target:macos_arm64 @8fce926f9735
 pass/recast/runtime_restricted_field_loans_exit checked 9177ms check-target:macos_arm64 @8fce926f9735
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 15484ms check-target:macos_arm64 @ccdb99ca2214

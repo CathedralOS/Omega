@@ -21,7 +21,7 @@ use typed_trees::types::PrimitiveType;
 
 mod operand_preparation;
 mod rank_comparison;
-use operand_preparation::PreparedIntegerOperand;
+use operand_preparation::PreparedIntegerOperands;
 pub(in crate::proof_contracts::contract_entailment) use rank_comparison::{
     CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank,
 };
@@ -111,7 +111,7 @@ struct IntegerObservations<'program> {
     installed_carrier_bounds: usize,
     next_operation_id: usize,
     // Only one immutable judge's preparation or goal batch shares descriptions.
-    operand_preparations: Option<Vec<PreparedIntegerOperand>>,
+    operand_preparations: Option<PreparedIntegerOperands>,
 }
 
 /// Every retained comparison and operation has been independently admitted.
@@ -1299,7 +1299,7 @@ impl<'program> StructuralJudge<'program> {
         let has_premises = prepared.observations.engine.requires_unsatisfiable
             || !prepared.observations.engine.bounds.is_empty();
         let mut work = prepared.take_goal_work();
-        work.operand_preparations = Some(Vec::new());
+        work.operand_preparations = Some(PreparedIntegerOperands::default());
         let results = unresolved
             .iter()
             .map(|position| {
@@ -1617,7 +1617,7 @@ impl<'program> StructuralJudge<'program> {
 
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
         let mut observations = IntegerObservations::empty(self.program);
-        observations.operand_preparations = Some(Vec::new());
+        observations.operand_preparations = Some(PreparedIntegerOperands::default());
         let mut premises = self.project_observed_integer_premises(&mut observations);
         // Descriptions belong to this immutable judge invocation. The retained
         // premise owner and its reusable goal scratch must not retain them.
@@ -2290,7 +2290,7 @@ mod tests {
         );
         let prepared = judge.prepare_integer_premises().unwrap();
         let mut work = prepared.take_goal_work();
-        work.operand_preparations = Some(Vec::new());
+        work.operand_preparations = Some(PreparedIntegerOperands::default());
         let observation = |observed_type| StructuralTerm::ObservedValue {
             observed_type,
             value: Box::new(StructuralTerm::Integer(BigInt::from_i64(1))),
@@ -2322,7 +2322,7 @@ mod tests {
                 "value".into(),
                 StructuralTerm::Integer(BigInt::from_i64(expected)),
             )]);
-            work.operand_preparations = Some(Vec::new());
+            work.operand_preparations = Some(PreparedIntegerOperands::default());
             for _ in 0..2 {
                 assert_eq!(
                     judge.resolve_integer_operand(variable.clone(), &mut work),

@@ -123,7 +123,7 @@ impl CompletedResolution<'_> {
 // still compare the full payload, proof context and dependency observations.
 // In particular a capture's occurrence selects its bucket without repeatedly
 // serializing the retained range proof, which full payload equality checks.
-fn fingerprint(term: &StructuralTerm) -> u64 {
+pub(super) fn fingerprint(term: &StructuralTerm) -> u64 {
     fn visit(term: &StructuralTerm, hash: &mut DefaultHasher) {
         // Observation authority remains in same_resolution_payload. Like the
         // former semantic Debug filter, this view intentionally allows those
