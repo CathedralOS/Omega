@@ -175,9 +175,11 @@ resource or grants mutation.
 
 Choose an explicit callback contract covering effects, failures, progress, and
 resources. Reach propagates through static callback calls under the ordinary
-[reach rules](../spec/language/effects.md#static-callback-reach-dependencies);
-suspension/blocking remain fixed by the requirement. A finite list of fields
-does not prove that their encoders terminate or roll back partial output.
+[reach rules](../spec/language/effects.md#static-callback-reach-dependencies).
+Suspension/blocking use [operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies):
+check the visitor body under the requirement's upper bound, then substitute
+selected callback contracts for callers. A finite list of fields does not
+prove that their encoders terminate or roll back partial output.
 
 ## Cases, Recursion, And Storage
 

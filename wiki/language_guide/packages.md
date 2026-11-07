@@ -98,6 +98,12 @@ normal review controls: it records your decisions, not a certificate of safety.
 
 ### Assumed binding contracts are extremely high risk
 
+**Reject these in ordinary applications.** A library asking you to approve one
+to work around a borrow error, missing proof, broken contract or compiler
+limitation is asking you to inherit its implementation problem as a trust
+assumption. Repair that problem instead. Exceptional use must identify a
+deliberate requirement outside the checked model; a failing build is not one.
+
 `Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
 asks the root to accept a semantic relationship that ordinary conformance
 checking has not proved. Audit shows both contracts, the actual implementation,

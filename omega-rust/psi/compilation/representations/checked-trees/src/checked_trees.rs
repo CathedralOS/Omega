@@ -237,7 +237,7 @@ impl CheckedTrees {
         let mut plans = self
             .facts
             .contract_plans
-            .machines
+            .machines()
             .iter()
             .filter(|plan| plan.machine == machine);
         let plan = plans.next()?;

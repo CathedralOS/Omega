@@ -174,7 +174,6 @@ pub(super) fn type_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
 }
 
 pub(super) fn constraint_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
-    let n = fixture.symbol("N");
     let payload = fixture.named("Payload");
     let eight = fixture.spelled("8");
     let domain = |subject, symbol: SymbolHandle, name: &str, arguments| DomainConstraint {
@@ -203,52 +202,6 @@ pub(super) fn constraint_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
         "named constraint",
         vec![TypeConstraintNode::Named(Identifier::generated("Even"))],
         &[],
-    );
-    let (zero, top) = (fixture.integer(0), fixture.integer(255));
-    add(
-        &mut witnesses,
-        fixture,
-        "closed range",
-        vec![TypeConstraintNode::Range {
-            minimum: zero,
-            maximum: top,
-            end_inclusive: true,
-        }],
-        &[],
-    );
-    let (zero, end) = (fixture.integer(0), fixture.name("N"));
-    let open = fixture.constrained(vec![TypeConstraintNode::Range {
-        minimum: zero,
-        maximum: end,
-        end_inclusive: false,
-    }]);
-    witnesses.push(Witness {
-        binders: vec![(n, "$parameter0".to_owned())],
-        ..witness("open exclusive range", open, &[])
-    });
-    let (zero, limit) = (fixture.integer(0), fixture.name("LIMIT"));
-    add(
-        &mut witnesses,
-        fixture,
-        "open exclusive range of a declared bound",
-        vec![TypeConstraintNode::Range {
-            minimum: zero,
-            maximum: limit,
-            end_inclusive: false,
-        }],
-        &[2],
-    );
-    let (zero, limit) = (fixture.integer(0), fixture.name("LIMIT"));
-    add(
-        &mut witnesses,
-        fixture,
-        "open inclusive range of a declared bound",
-        vec![TypeConstraintNode::Range {
-            minimum: zero,
-            maximum: limit,
-            end_inclusive: true,
-        }],
-        &[2],
     );
     add(
         &mut witnesses,
@@ -323,18 +276,12 @@ pub(super) fn constraint_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
         ))],
         &[1],
     );
-    let (zero, top) = (fixture.integer(0), fixture.integer(9));
     add(
         &mut witnesses,
         fixture,
         "every kind of constraint at once",
         vec![
             TypeConstraintNode::Named(Identifier::generated("Even")),
-            TypeConstraintNode::Range {
-                minimum: zero,
-                maximum: top,
-                end_inclusive: true,
-            },
             TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Saturating),
             TypeConstraintNode::Domain(domain(
                 DomainConstraintSubject::Declared,

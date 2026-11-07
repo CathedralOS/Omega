@@ -952,7 +952,7 @@ fn image_fixture() -> (Vec<StructuralTypeDeclaration>, TerminalAccessLifecyclePl
         operation: TerminalAccessLifecycleOperation::Initialize,
         execution: TerminalAccessLifecycleExecution::CompilerPrimitive {
             profile_type: None,
-            profile_requirement: None,
+            profile_requirements: Vec::new(),
         },
         // These identities are deliberately inert here: a codec test grants
         // neither an extent nor a selected-provider settlement.

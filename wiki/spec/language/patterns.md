@@ -99,9 +99,6 @@ evaluates its own subject once and proves its own coverage; projecting the case
 component never reevaluates the expression that produced the outer value.
 
 This changes patterns, not case-literal construction or physical layout.
-`DATA-DECOMPOSITION` in [TASKS.md](../../../TASKS.md) retains both compiler
-implementations, source migration and retirement controls; these examples state
-the accepted language.
 
 Matching an established value combines its [default-domain predicates](data_and_literals.md#case-constraints)
 and any established named-domain predicates with the selected case fact, all
@@ -189,6 +186,3 @@ Executable domain tests require pure, finite runtime-checkable predicates and
 any routed provenance required by [domain membership](domains.md#refinement-and-executable-membership).
 A proof-visible proposition alone does not imply an executable test. Overlapping
 domain alternatives use first-match order; unordered union proofs do not.
-
-Current parser/coverage limitations are recorded beside
-[source processing](../../../omega-rust/psi/compilation/pipeline/README.md#lexing-and-parsing).

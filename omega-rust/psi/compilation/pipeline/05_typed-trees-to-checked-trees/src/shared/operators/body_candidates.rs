@@ -177,7 +177,7 @@ fn candidates_for_application(
         let contract = checked
             .facts
             .contract_plans
-            .machines
+            .machines()
             .iter()
             .find(|row| row.machine == machine.symbol)
             .ok_or("boundary candidate has no checked contract")?;

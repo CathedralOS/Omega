@@ -30,6 +30,7 @@ pub fn encode_boundary_execution_identity(
                 terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
                 terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
                 terminal_psi::TerminalAccessLifecycleOperation::View => 2,
+                terminal_psi::TerminalAccessLifecycleOperation::Relocate => 3,
             });
         }
         BoundaryExecutionBinding::CompilerBuiltin(

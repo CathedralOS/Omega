@@ -19,7 +19,7 @@ use typed_trees::signature::SignatureContractKind;
 /// caller's runtime entry with no requires and no executed prefix, so those
 /// premises depend only on the caller machine. The machine pass that scans the
 /// calls builds them on first use instead of once per call site. Each call
-/// still judges with its own empty query memos: no resolution one call
+/// still judges with its own empty query state: no resolution one call
 /// completes is visible to another call's check.
 pub(crate) struct CallerEntryJudge<'program> {
     program: &'program dyn crate::CheckingInput,
@@ -39,17 +39,18 @@ impl<'program> CallerEntryJudge<'program> {
         }
     }
 
-    /// Whether this is the judge of `machine`'s own validation pass.
-    pub(crate) fn judges(&self, machine: &Machine) -> bool {
-        self.machine.symbol == machine.symbol
+    /// Whether this is the judge of `machine`'s own validation pass over
+    /// `program`: the same checked program (by address) and the same machine.
+    pub(crate) fn judges(&self, program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
+        std::ptr::addr_eq(self.program, program) && self.machine.symbol == machine.symbol
     }
 
     /// A judge for one call: the machine's shared entry premises with fresh,
-    /// empty query memos.
+    /// empty query state.
     fn judge(&self) -> StructuralJudge<'program> {
         self.judge
             .get_or_init(|| StructuralJudge::from_runtime_requires(self.program, self.machine, &[]))
-            .with_fresh_query_memos()
+            .with_fresh_query_state()
     }
 }
 
@@ -59,7 +60,6 @@ impl<'program> CallerEntryJudge<'program> {
 /// proven contradiction is an error, while an unproved/unknown fact remains for
 /// the later fail-closed obligation rung instead of becoming a false positive.
 pub(crate) fn reject_refuted_value_call_requires(
-    program: &dyn crate::CheckingInput,
     entry_judge: &CallerEntryJudge<'_>,
     caller_state: &typed_trees::state::State,
     callee_machine: &Machine,
@@ -68,9 +68,9 @@ pub(crate) fn reject_refuted_value_call_requires(
     terminal_transfer: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // The caller is the judge's own machine, so a call can never be judged
-    // against another machine's entry.
-    let caller_machine = entry_judge.machine;
+    // The caller is the judge's own program and machine, so a call can never
+    // be judged against another program's or another machine's entry.
+    let (program, caller_machine) = (entry_judge.program, entry_judge.machine);
     let Some(map) = argument_term_map(
         program,
         caller_machine,

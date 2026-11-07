@@ -17,6 +17,7 @@ pub(super) struct ResultLayout {
     pub ready_owner: PackedFieldLayout,
     pub ready_backing: PackedFieldLayout,
     pub ready_count: Option<u32>,
+    pub ready_vacated: Option<PackedFieldLayout>,
     pub returned: ReturnedLayout,
     pub failure_tag: u32,
     pub range: [u32; 2],
@@ -77,6 +78,23 @@ impl ResultLayout {
             ));
         };
         match plan.operation {
+            terminal_psi::TerminalAccessLifecycleOperation::Relocate => {
+                let StructuralTypeShape::Record { fields, .. } =
+                    &declaration(types, structural(ready_owner)?)?.shape
+                else {
+                    return Err(failure(
+                        "relocation Ready must contain its run and vacated backing",
+                    ));
+                };
+                let [run, vacated] = fields.as_slice() else {
+                    return Err(failure("relocation Ready changed its two custody roles"));
+                };
+                if structural(run)? != plan.storage.owner_carrier()
+                    || structural(vacated)? != plan.storage.carrier
+                {
+                    return Err(failure("relocation Ready changed its run or backing type"));
+                }
+            }
             terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
                 if structural(ready_owner)? != plan.storage.owner_carrier() {
                     return Err(failure(
@@ -103,6 +121,7 @@ impl ResultLayout {
                 ));
             }
         }
+        let ready_type = structural(ready_owner)?;
         let result_layout = structural_reference_input::case_layout(result, types)
             .ok_or_else(|| failure("placement outcome has no native layout"))?;
         let [ready_layout, rejected_layout] = result_layout.cases.as_slice() else {
@@ -113,6 +132,31 @@ impl ResultLayout {
             rejected_layout.fields.as_slice(),
         ) else {
             return Err(failure("placement outcome layout changed fields"));
+        };
+        let mut ready_owner = *ready_owner;
+        let ready_vacated = if plan.operation
+            == terminal_psi::TerminalAccessLifecycleOperation::Relocate
+        {
+            let StructuralTypeShape::Record { fields, .. } = &declaration(types, ready_type)?.shape
+            else {
+                return Err(failure("relocation Ready lost its record layout"));
+            };
+            let [run, vacated] = fields.as_slice() else {
+                return Err(failure("relocation Ready lost its field pair"));
+            };
+            let packed = |field: &StructuralFieldDeclaration| -> Result<PackedFieldLayout, SelectedInstructionError> {
+                let region = super::field_region(types, ready_type, field)?;
+                Ok(PackedFieldLayout {
+                    shape: structural_reference_input::field_storage_shape(field, types)
+                        .ok_or_else(|| failure("relocation result field has no native shape"))?,
+                    byte_offset: offset(ready_owner.byte_offset, u64::from(region.byte_offset))?,
+                })
+            };
+            let vacated = packed(vacated)?;
+            ready_owner = packed(run)?;
+            Some(vacated)
+        } else {
+            None
         };
         let returned_type = structural(returned)?;
         let StructuralTypeShape::Record { fields, .. } = &declaration(types, returned_type)?.shape
@@ -131,6 +175,15 @@ impl ResultLayout {
             })
         };
         let returned = match (plan.operation, fields.as_slice()) {
+            (terminal_psi::TerminalAccessLifecycleOperation::Relocate, [run, destination])
+                if structural(run)? == plan.storage.owner_carrier()
+                    && structural(destination)? == plan.storage.carrier =>
+            {
+                ReturnedLayout::Owned {
+                    owner: returned_field(run)?,
+                    value: returned_field(destination)?,
+                }
+            }
             (terminal_psi::TerminalAccessLifecycleOperation::Initialize, [owner, value])
                 if structural(owner)? == plan.storage.carrier
                     && structural(value)? == plan.schema =>
@@ -171,7 +224,7 @@ impl ResultLayout {
             ])
         };
         let (ready_backing, ready_count) = match plan.storage.owner {
-            terminal_psi::TerminalAccessOwner::Extent => (*ready_owner, None),
+            terminal_psi::TerminalAccessOwner::Extent => (ready_owner, None),
             terminal_psi::TerminalAccessOwner::Run {
                 carrier,
                 storage,
@@ -213,9 +266,10 @@ impl ResultLayout {
         Ok(Self {
             shape: result_layout.shape,
             tag: result_layout.tag_byte_offset,
-            ready_owner: *ready_owner,
+            ready_owner,
             ready_backing,
             ready_count,
+            ready_vacated,
             returned,
             failure_tag: offset(
                 reason_layout.byte_offset,

@@ -153,5 +153,3 @@ rules belong to [mathematical proof contracts](../proofs/contracts.md#citation-a
 Terminal obligations establish the stated Terminal semantics, not that a producer
 compiled the intended source. Source-to-Psi correspondence and Psi-to-target
 refinement are separate obligations. Producer identity substitutes for neither.
-Consumer-specific implementation limits are documented beside the
-[native entrance](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission).

@@ -457,12 +457,6 @@ impl SymbolCopy<'_, '_> {
 
     fn constraint(&mut self, mut constraint: TypeConstraint) -> TypeConstraint {
         match &mut constraint {
-            TypeConstraint::Range {
-                minimum, maximum, ..
-            } => {
-                *minimum = self.expression(*minimum);
-                *maximum = self.expression(*maximum);
-            }
             TypeConstraint::Domain(domain) => domain.arguments = self.type_span(domain.arguments),
             TypeConstraint::Named(_) | TypeConstraint::ArithmeticDomain(_) => {}
         }

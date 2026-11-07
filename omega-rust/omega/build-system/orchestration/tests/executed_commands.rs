@@ -29,6 +29,251 @@ fn copy_project(root: &Path, name: &str, files: &[&str]) {
 }
 
 #[test]
+fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
+    let temporary = TemporaryDirectory::create("pure-build-review", false).unwrap();
+    let root = temporary.path();
+    copy_project(
+        root,
+        "executed_project_identity_exit",
+        &["main.omg", "build.omg", "naming.omg", "result.omg"],
+    );
+    copy_project(
+        root,
+        "executed_dependency_source_join_exit",
+        &["main.omg", "build.omg"],
+    );
+    copy_project(
+        root,
+        "executed_dependency_source_library",
+        &["main.omg", "build.omg"],
+    );
+    copy_project(
+        root,
+        "product_entry_query_product_scope_alias",
+        &[
+            "main.omg",
+            "build.omg",
+            "helper/build.omg",
+            "helper/setup.omg",
+        ],
+    );
+    for (fixture, executions) in [
+        ("executed_project_identity_exit", 1),
+        ("product_entry_query_product_scope_alias", 2),
+        ("executed_dependency_source_join_exit", 2),
+    ] {
+        let project = root.join(fixture);
+        let build_source = project.join("build.omg");
+        let original = std::fs::read_to_string(&build_source).unwrap();
+        // A role change needs an authored decision even for an effect-free
+        // program. Keep the candidate and its execution oracle unchanged.
+        let package = original.replace("Build::application(", "Build::package(");
+        assert_ne!(package, original);
+        std::fs::write(&build_source, package).unwrap();
+        let mut baseline = BuildSession::create(&project.join("build/package-manager")).unwrap();
+        let mut options = PackageCommandOptions {
+            project_root: project.clone(),
+            targets: vec![TargetProfile::host_if_supported().unwrap()],
+            offline: true,
+            build_inputs: None,
+        };
+        let accepted = execute_package_command(
+            PackageCommand::Update {
+                packages: Vec::new(),
+                revision: None,
+            },
+            options.clone(),
+            &mut baseline,
+        )
+        .unwrap();
+        assert_eq!(
+            accepted.status,
+            PackageCommandStatus::Published,
+            "{fixture}: {}",
+            accepted.report
+        );
+        baseline.close().unwrap();
+        let baseline_lock = std::fs::read(project.join("omega.lock")).unwrap();
+        std::fs::write(&build_source, &original).unwrap();
+        let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
+        let sponsor = session.resources().evaluation_sponsor().clone();
+        let before = counters::source_build_execution_count();
+        let mut outcome = execute_package_command(
+            PackageCommand::Update {
+                packages: Vec::new(),
+                revision: None,
+            },
+            options.clone(),
+            &mut session,
+        )
+        .unwrap();
+        assert_eq!(
+            counters::source_build_execution_count() - before,
+            executions,
+            "{fixture}: each source runs once; the separate provider-default supplier is counted separately"
+        );
+        assert_eq!(
+            outcome.status,
+            PackageCommandStatus::ReviewRequired,
+            "{fixture}: {}",
+            outcome.report
+        );
+        assert!(!outcome.review_paths.is_empty());
+        assert!(
+            outcome.review_paths.iter().any(|path| {
+                std::fs::read_to_string(path)
+                    .unwrap()
+                    .lines()
+                    .any(|line| line.starts_with("decision ") && line.ends_with(" pending"))
+            }),
+            "{fixture}: the role change must require an authored decision"
+        );
+        assert_eq!(
+            std::fs::read(project.join("omega.lock")).unwrap(),
+            baseline_lock
+        );
+        assert!(sponsor.consumed_fuel_units() > 0);
+        options.targets.clear();
+        if fixture == "executed_dependency_source_join_exit" {
+            accept_decisions(&outcome.review_paths);
+            std::fs::write(
+                &build_source,
+                original.replace(
+                    "../executed_dependency_source_library",
+                    "../changed_missing_source",
+                ),
+            )
+            .unwrap();
+            let error = execute_package_command(
+                PackageCommand::Resume {
+                    kind: PackageCommandKind::Update,
+                },
+                options.clone(),
+                &mut session,
+            )
+            .expect_err("a changed request cannot publish the previously reviewed result");
+            assert!(
+                error.to_string().contains("changed since the proposal"),
+                "{error}"
+            );
+            assert_eq!(
+                std::fs::read(project.join("omega.lock")).unwrap(),
+                baseline_lock
+            );
+            std::fs::write(&build_source, &original).unwrap();
+        }
+        let mut resumes = 0;
+        for _ in 0..3 {
+            accept_decisions(&outcome.review_paths);
+            let before = counters::build_execution_count();
+            let fuel_before = sponsor.consumed_fuel_units();
+            outcome = execute_package_command(
+                PackageCommand::Resume {
+                    kind: PackageCommandKind::Update,
+                },
+                options.clone(),
+                &mut session,
+            )
+            .unwrap();
+            resumes += 1;
+            assert!(
+                sponsor.consumed_fuel_units() > fuel_before,
+                "{fixture}: consuming a retained result must charge the current occurrence"
+            );
+            assert_eq!(
+                counters::build_execution_count(),
+                before,
+                "matching Pure results must survive same-session source discovery"
+            );
+            if outcome.status == PackageCommandStatus::Published {
+                break;
+            }
+        }
+        assert_eq!(
+            outcome.status,
+            PackageCommandStatus::Published,
+            "{}",
+            outcome.report
+        );
+        assert!(resumes > 0);
+        assert_eq!(std::fs::read_to_string(&build_source).unwrap(), original);
+        execute_accepted_project(&project);
+        println!(
+            "{fixture}: same-session review published; matching Pure Build executions skipped; native and Terminal exit 0"
+        );
+        session.close().unwrap();
+    }
+}
+
+fn execute_accepted_project(project: &Path) {
+    let mut outcomes = build(BuildRequest {
+        root_path: project.join("main.omg"),
+        build_directory: Some(project.join("build/accepted-native")),
+        targets: BuildTargets::Host,
+        product: ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .unwrap();
+    assert_eq!(outcomes.len(), 1);
+    let report = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .unwrap()
+        .into_report()
+        .unwrap()
+        .report;
+    let artifact = report.retained_native_artifact().unwrap().psi_artifact();
+    let reloaded =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_image: report.retained_native_artifact(),
+        entry: None,
+        filesystem: Default::default(),
+        native_services: Default::default(),
+        native_provider: None,
+        x86_flags: None,
+        memory_ordering: None,
+        provider_proposal: None,
+        artifact: &reloaded,
+        target: Some(TargetProfile::host_if_supported().unwrap().target_name()),
+        provisions: report.runtime_provisions(),
+        fuel_allowance: 100_000,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        standard_input: None,
+        clock: None,
+    })
+    .unwrap();
+    assert!(
+        matches!(
+            observation.status,
+            terminal_runtime::TerminalExecutionStatus::Complete(
+                terminal_runtime::TerminalExecutionResult::Unit
+            )
+        ),
+        "{:?}",
+        observation.status
+    );
+    let published = compilation_products::publication::publish_compilation(
+        report,
+        &project.join("build/native-product"),
+    )
+    .unwrap();
+    let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
+        .output()
+        .unwrap();
+    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+}
+
+#[test]
 fn product_entry_queries_reuse_build_across_accepted_targets() {
     let temporary = TemporaryDirectory::create("product-entry-queries", false).unwrap();
     let root = temporary.path();

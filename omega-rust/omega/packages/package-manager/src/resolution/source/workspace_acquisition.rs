@@ -33,12 +33,12 @@ impl WorkspaceMemberObservation {
     pub fn new(
         acquired: &AcquiredBuildSource,
         declaration: SourceBuildDeclaration,
-        returned: &build_settings::ReturnedBuild,
+        result: &build_settings::BuildSourceResult<'_>,
         dependencies: Vec<Arc<super::ResolvedBuildSources>>,
     ) -> Result<Self, String> {
-        if Some(declaration.declaration()) != returned.declaration()
-            || returned.demanded_sources().len() != dependencies.len()
-            || returned
+        if Some(declaration.declaration()) != result.declaration()
+            || result.demanded_sources().len() != dependencies.len()
+            || result
                 .demanded_sources()
                 .iter()
                 .zip(&dependencies)
@@ -51,8 +51,8 @@ impl WorkspaceMemberObservation {
         }
         Ok(Self {
             declaration,
-            source: acquired.declare_build(returned)?.custody,
-            selections: returned.demanded_sources().to_vec(),
+            source: acquired.declare_source_result(result)?.custody,
+            selections: result.demanded_sources().to_vec(),
             dependencies,
         })
     }

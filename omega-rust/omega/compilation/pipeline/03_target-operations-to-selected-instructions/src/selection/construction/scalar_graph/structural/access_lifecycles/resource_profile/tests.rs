@@ -19,6 +19,7 @@ use terminal_psi::{
 };
 
 mod initialization;
+mod run_relocation;
 
 #[derive(Default)]
 struct Types(Vec<StructuralTypeDeclaration>);

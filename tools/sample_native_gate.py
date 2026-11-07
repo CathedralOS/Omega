@@ -840,6 +840,13 @@ def main():
         print("sample_native_gate: nothing selected", file=sys.stderr)
         return 2
 
+    groups = nested_groups(samples)
+    active_jobs = 1 if arguments.find_work else max(1, min(arguments.jobs, len(groups)))
+    if "RAYON_NUM_THREADS" not in os.environ:
+        os.environ["RAYON_NUM_THREADS"] = str(
+            max(1, (os.cpu_count() or 1) // active_jobs)
+        )
+
     wall_start = time.monotonic()
     if arguments.find_work:
         results = find_work(arguments, samples)
@@ -847,12 +854,12 @@ def main():
               "applications; partial coverage cannot establish release health")
     else:
         options = {"accepted_inputs_only": True} if arguments.accepted_inputs_only else {}
-        with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
+        with ThreadPoolExecutor(max_workers=active_jobs) as pool:
             grouped = pool.map(
                 lambda group: [timed_measure(arguments.cli, s, arguments.target, arguments.timeout,
                                              arguments.build_unscored, **options)
                                for s in group],
-                nested_groups(samples),
+                groups,
             )
             results = sorted((result for group in grouped for result in group),
                              key=lambda result: result["sample"])

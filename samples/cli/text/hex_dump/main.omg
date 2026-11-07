@@ -33,7 +33,7 @@ data Main {
 machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
     Console::write("0000: ");
-    main.data = "Omega PCC tape!!";
+    main.data = "Omega Psi tape!!";
     main.data[3] = 0;
     main.data[9] = 127;
     main.i = 0;

@@ -11,37 +11,7 @@ pub(crate) fn compile(
     directory: &Path,
     targets: &[TargetProfile],
 ) -> Result<Vec<(TargetProfile, Result<CompilationOutput, BuildError>)>, BuildError> {
-    let mut reports = Vec::with_capacity(targets.len());
     if let Some((resolved, session)) = prepared {
-        let product = match &request.product {
-            ProjectProduct::Check => compiler::CompilationProduct::Check,
-            ProjectProduct::Terminal => {
-                compiler::CompilationProduct::Terminal(request.optimization_rollback.clone())
-            }
-            ProjectProduct::Inspection { machine } => {
-                compiler::CompilationProduct::Inspection(machine.clone())
-            }
-            ProjectProduct::Native {
-                destination,
-                private_entry_ram,
-                installation_assumptions,
-            } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
-                // The complete request was validated before discovery. Targets
-                // refused by output admission keep their refusal and no product.
-                installation_assumptions: installation_assumptions
-                    .iter()
-                    .filter(|row| targets.contains(&row.profile()))
-                    .cloned()
-                    .collect(),
-                retain_native_inputs: false,
-                image: destination.image_demand(),
-                private_entry_ram: private_entry_ram.clone(),
-                terminal_authority_policy:
-                    compilation_products::compile_request::current_terminal_authority_policy(),
-                terminal_authority_permission_policy: None,
-                optimization_rollback: request.optimization_rollback.clone(),
-            }),
-        };
         let outcomes = crate::project::project_compilation::compile_returned(
             crate::project::project_compilation::ProjectCompilationRequest {
                 prepared: resolved.prepared,
@@ -49,7 +19,9 @@ pub(crate) fn compile(
                 snapshot: request.build_snapshot.as_ref(),
                 verify: request.verify,
                 timings: request.timings,
-                product,
+                product: request
+                    .product
+                    .to_compilation_product(&request.optimization_rollback, targets),
             },
             resolved.builds,
             session,
@@ -65,68 +37,97 @@ pub(crate) fn compile(
             })
             .collect());
     }
-    match &request.product {
-        ProjectProduct::Inspection { machine } => {
-            let [profile] = targets else {
-                return Err(BuildError::Diagnostics(vec![
-                    diagnostics::Diagnostic::error(
-                        "Terminal inspection lost its single target context",
-                    ),
-                ]));
-            };
-            let output = {
-                let target = (!matches!(request.targets, BuildTargets::Host))
-                    .then_some(profile.target_name());
-                let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
-                source.build.directory = Some(directory.to_path_buf());
-                crate::produce_source(
-                    &mut crate::build_session::compiler_session(),
-                    source,
-                    compiler::CompilationProduct::Inspection(machine.clone()),
-                )
-                .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))
-            };
-            reports.push((*profile, output));
-        }
-        ProjectProduct::Check => {
-            return compile_standalone_reports(
-                request,
-                directory,
-                targets,
+    if let ProjectProduct::Inspection { machine } = &request.product {
+        let [profile] = targets else {
+            return Err(BuildError::Diagnostics(vec![
+                diagnostics::Diagnostic::error(
+                    "Terminal inspection lost its single target context",
+                ),
+            ]));
+        };
+        let target =
+            (!matches!(request.targets, BuildTargets::Host)).then_some(profile.target_name());
+        let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
+        source.build.directory = Some(directory.to_path_buf());
+        let output = crate::produce_source(
+            &mut crate::build_session::compiler_session(),
+            source,
+            compiler::CompilationProduct::Inspection(machine.clone()),
+        )
+        .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()));
+        return Ok(vec![(*profile, output)]);
+    }
+    let (product, private_entry_ram, installation_assumptions, native_image) =
+        match &request.product {
+            ProjectProduct::Check => (
                 RequestedCompileProduct::Check,
-                &[],
-                &[],
+                &[][..],
+                &[][..],
                 Default::default(),
-            );
-        }
-        ProjectProduct::Terminal => {
-            return compile_standalone_reports(
-                request,
-                directory,
-                targets,
+            ),
+            ProjectProduct::Terminal => (
                 RequestedCompileProduct::TerminalArtifact,
-                &[],
-                &[],
+                &[][..],
+                &[][..],
                 Default::default(),
-            );
-        }
-        ProjectProduct::Native {
-            destination,
-            private_entry_ram,
-            installation_assumptions,
-        } => {
-            return compile_standalone_reports(
-                request,
-                directory,
-                targets,
-                RequestedCompileProduct::NativeArtifact,
+            ),
+            ProjectProduct::Native {
+                destination,
                 private_entry_ram,
                 installation_assumptions,
+            } => (
+                RequestedCompileProduct::NativeArtifact,
+                private_entry_ram.as_slice(),
+                installation_assumptions.as_slice(),
                 destination.image_demand(),
-            );
+            ),
+            ProjectProduct::Inspection { .. } => unreachable!(),
+        };
+    compile_standalone_reports(
+        request,
+        directory,
+        targets,
+        product,
+        private_entry_ram,
+        installation_assumptions,
+        native_image,
+    )
+}
+
+impl ProjectProduct {
+    fn to_compilation_product(
+        &self,
+        optimization_rollback: &compiler::OptimizationRollback,
+        targets: &[TargetProfile],
+    ) -> compiler::CompilationProduct {
+        match self {
+            Self::Check => compiler::CompilationProduct::Check,
+            Self::Terminal => compiler::CompilationProduct::Terminal(optimization_rollback.clone()),
+            Self::Inspection { machine } => {
+                compiler::CompilationProduct::Inspection(machine.clone())
+            }
+            Self::Native {
+                destination,
+                private_entry_ram,
+                installation_assumptions,
+            } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+                // Output admission may refuse a target; its conditions must not
+                // become inputs to a surviving sibling's compilation.
+                installation_assumptions: installation_assumptions
+                    .iter()
+                    .filter(|row| targets.contains(&row.profile()))
+                    .cloned()
+                    .collect(),
+                retain_native_inputs: false,
+                image: destination.image_demand(),
+                private_entry_ram: private_entry_ram.clone(),
+                terminal_authority_policy:
+                    compilation_products::compile_request::current_terminal_authority_policy(),
+                terminal_authority_permission_policy: None,
+                optimization_rollback: optimization_rollback.clone(),
+            }),
         }
     }
-    Ok(reports)
 }
 
 /// Standalone check/Terminal/native reports use the batch compiler facade. Inspection

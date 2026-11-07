@@ -11,6 +11,11 @@
 The specification uses grammar, definitions, rules, tables, and examples where
 useful. It is not claimed to be fully formalized. Implementation details belong
 beside code; completed work belongs in Git, not current reference material.
+The spec states the accepted language and required guarantees, independently of
+compiler delivery. Put implementation gaps in the owning task on the
+[execution boards](../TASKS.md), extending an existing task before adding another.
+Keep normative limits, trust assumptions and required evidence in the spec;
+do not replace them with progress reports or remove them as status.
 
 ## Current specification subjects
 
@@ -94,7 +99,7 @@ beside code; completed work belongs in Git, not current reference material.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
-  [root-assumed binding contracts](spec/build/assumed_binding_contracts.md),
+  [root-assumed bindings (exceptional use only)](spec/build/assumed_binding_contracts.md),
   [embedding and interpreted components](spec/build/embedding.md),
   [task activation and lifecycle](spec/build/task_runtime.md),
   [service permissions](spec/build/permissions.md),

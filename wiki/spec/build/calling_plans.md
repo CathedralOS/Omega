@@ -166,6 +166,3 @@ A passing plan evaluator does not imply a replayed final state footprint;
 [machine-state evidence](machine_state_evidence.md) requires that separately.
 Selected consumers retain the evaluated plan through realization rather than
 reselecting it.
-
-Current policy-source and normalized-model support is documented beside
-[calling conventions](../../../omega-rust/omega/compilation/backend/calling-conventions/README.md).

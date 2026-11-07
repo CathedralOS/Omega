@@ -239,7 +239,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         dispatched_operation!(operation => CallStructural {
             callee, ref structural_arguments, ref claim_transfers, ..
         });
-        let result = operation.result.structural().cloned().ok_or(malformed())?;
+        let result = operation.result.structural().cloned().ok_or(
+            TerminalInterpretError::VerifiedOperationContractInvalid {
+                reason: "structural call operation has no structural result",
+            },
+        )?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         self.begin_structural_result_call(
@@ -261,7 +265,11 @@ impl<'artifact> TerminalExecution<'artifact> {
         dispatched_operation!(operation => CallStructuralWithScalarArguments {
             callee, ref arguments, ref structural_arguments, ref claim_transfers, ..
         });
-        let result = operation.result.structural().cloned().ok_or(malformed())?;
+        let result = operation.result.structural().cloned().ok_or(
+            TerminalInterpretError::VerifiedOperationContractInvalid {
+                reason: "structural call operation has no structural result",
+            },
+        )?;
         let (scalar_arguments, prepared_arguments) =
             self.resolve_call_arguments(callee, arguments, structural_arguments)?;
         self.begin_structural_result_call(
@@ -358,7 +366,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                     )?;
                     // Resolve and normalize the exact completed supply before any
                     // write. The result alone does not establish resident contents.
-                    let (binding, supplied) = self.lifecycle_profile(plan, &storage, &profile)?;
+                    let (binding, supplied) =
+                        self.lifecycle_profile(plan, 0, &storage, &profile)?;
                     // Terminal byte regions use the same little-endian scalar
                     // codec as ordinary captured byte storage. Native realization
                     // supplies its target byte order independently.
@@ -388,7 +397,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         prepared = Err(crate::storage::provider_storage::initialization::InitializationRejection::IncompatibleSupply);
                     }
                     match prepared {
-                        Err(rejection) => self.reject_access_initialization(
+                        Err(rejection) => self.reject_access_transfer(
                             operation,
                             boundary_declaration,
                             plan,
@@ -405,6 +414,10 @@ impl<'artifact> TerminalExecution<'artifact> {
                 }
                 terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
                     self.extract_access_resident(operation, boundary_declaration, plan)?;
+                    return Ok(OperationFlow::Advance);
+                }
+                terminal_psi::TerminalAccessLifecycleOperation::Relocate => {
+                    self.relocate_access_run(operation, boundary_declaration, plan)?;
                     return Ok(OperationFlow::Advance);
                 }
             }

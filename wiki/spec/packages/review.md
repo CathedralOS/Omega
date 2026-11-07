@@ -40,6 +40,15 @@ proved. Wrapping, inlining and erasing the evidence cannot remove this finding;
 the selected implementation remains visible rather than being reported as an
 ordinary checked satisfier of the stronger requirement.
 
+Review guidance should recommend rejecting assumed bindings in ordinary
+applications, especially requests inherited from libraries. Do not recommend
+acceptance as a fix for a borrow error, unproved ordinary contract, missing
+checker capability, or failing test. An exceptional-use explanation must name
+the requirement outside the checked model and the conditional guarantees; a
+checked supplier or an approval record is not evidence that the relationship
+is true. Keep detected contradictions explicit and retain the existing exact
+acceptance rules.
+
 This full fresh report is distinct from retained project acceptance. The lock
 keeps exact admission-claim/external-realization callable rows, external
 supplies, dangerous capabilities, terminal permissions, and accepted restricted
@@ -195,9 +204,7 @@ diagnostic text, fingerprints, or a later source scan.
 Generated declarations use their real authored derivation origin. Compiler-
 derived facts carry a closed reason and no invented source location. Canonical
 sorting keeps semantic rows and explanatory custody paired. Missing, duplicate,
-or contradictory required custody rejects. The current source roles and
-cross-representation joins are documented
-[beside capture](../../../omega-rust/omega/packages/review-evidence/capture.md).
+or contradictory required custody rejects.
 
 ## Distinct evidence roles
 

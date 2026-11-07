@@ -107,7 +107,7 @@ impl TerminalExecution<'_> {
             profile_argument.access,
         )?;
         let (observed_binding, observed_profile) =
-            self.lifecycle_profile(plan, original_extent, &observed)?;
+            self.lifecycle_profile(plan, 0, original_extent, &observed)?;
         let home = StructuralRuntimePlace::from(original_extent);
         let binding = self
             .provider_storage

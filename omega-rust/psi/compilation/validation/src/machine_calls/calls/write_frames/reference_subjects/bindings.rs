@@ -13,8 +13,6 @@ use super::super::{
 use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::state_write_walk::collected_prefix_at;
 use std::sync::Mutex;
-use symbols::SymbolHandle;
-use symbols::SymbolKeyMap as HashMap;
 
 /// A checked local carrier can capture a reference binding without exposing
 /// it to another machine. Every call operand inside that initializer still
@@ -66,9 +64,7 @@ pub(in crate::machine_calls::calls::write_frames) fn are_stable_at_site(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<()> {
     let (state, _, index) = caller_statement_at_site(program, machine, symbols, site)?;
     let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;

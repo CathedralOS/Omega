@@ -13,7 +13,7 @@
 //!
 //! Psi 05 decides each ordinary structural call's custody here once and
 //! records it in the call plan; lowering reads that record and never decides
-//! it again. These source facts are not portable PCC openings.
+//! it again. These source facts remain producer-checked judgments.
 
 use crate::frozen_program::expression_table;
 use checked_trees::CheckedMemberIdentity;
@@ -52,15 +52,6 @@ pub enum StateContractRow {
     /// An exact nominal source requirement. No runtime predicate is invented;
     /// checked planning must authenticate its Requires owner and every arrival.
     SourceFact(arena::Handle<typed_trees::domain::ProofFact>),
-    /// A bracketed integer range retains its authored endpoint observations.
-    /// The state telescope supplies their exact subjects on every arrival;
-    /// dependent endpoints are not closed constants or invocation snapshots.
-    DeclaredRange {
-        parameter: SymbolHandle,
-        minimum: typed_trees::expression::ExpressionHandle,
-        maximum: typed_trees::expression::ExpressionHandle,
-        end_inclusive: bool,
-    },
     /// A complete declared scalar domain, projected onto the destination
     /// parameter only after its exact membership identity has been matched.
     Domain {
@@ -127,12 +118,6 @@ pub fn structural_state_contract_predicates(
     let mut expected = Vec::new();
     let mut predicates = Vec::new();
     for parameter in program.state_parameters(state) {
-        // These are mandatory arrival contracts, not inference hints. Keeping
-        // them on the shared roster lets both plan production and replay see
-        // the same rows, and Terminal proves initial and cyclic arrivals before
-        // allowing the body's arithmetic to use the bounds. Never recover the
-        // range from a particular body expression or a successful source check.
-        retain_declared_integer_ranges(program, parameter, &mut predicates)?;
         if finite_arrival_parameter(program, state, parameter) {
             predicates.push(StateContractRow::Finite {
                 parameter: parameter.symbol,
@@ -332,38 +317,6 @@ pub fn state_finite_predicate(
             primitive_type,
         },
     )
-}
-
-/// Retain every constrained shell's exact endpoint observations. References
-/// describe storage, not scalar arrival parameters; their invariants remain
-/// with the structural storage and loan checks.
-fn retain_declared_integer_ranges(
-    program: &dyn crate::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-    predicates: &mut Vec<StateContractRow>,
-) -> Option<()> {
-    if !program
-        .primitive_type_reference(parameter.type_reference)
-        .is_some_and(|primitive| primitive.is_integer())
-    {
-        return Some(());
-    }
-    for (minimum, maximum, end_inclusive) in
-        crate::value_custody::type_shapes::range_constraints(program, parameter.type_reference)
-    {
-        if program.arithmetic_domain_for_type_reference(parameter.type_reference)
-            != numerics::arithmetic::ArithmeticDomain::Exact
-        {
-            return None;
-        }
-        predicates.push(StateContractRow::DeclaredRange {
-            parameter: parameter.symbol,
-            minimum,
-            maximum,
-            end_inclusive,
-        });
-    }
-    Some(())
 }
 
 /// The exact domain constraint on `reference` that `membership` restates.

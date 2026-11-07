@@ -19,7 +19,7 @@ use crate::obligations::{
     BinaryValueOperands, BoundedAssignmentObligation, BoundedCallArgumentObligation,
     BoundedInitializerObligation, BoundedStateReturnObligation,
     BoundedTransitionArgumentObligation, BoundedValueObligation, GuardedTransitionObligation,
-    IntegerRange, ProofConstraint, ProofObligation, ProofObligationOwner, ProofPlan,
+    IntegerRange, ProofObligation, ProofObligationOwner, ProofPlan,
 };
 use crate::typed_expressions::{
     dehoisted_operand, expression_contains_call_node, expression_table, expression_type_reference,
@@ -40,29 +40,6 @@ use typed_trees::statement::{
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{expression, statement};
 use validation::expression_traversal::visit_post_order;
-
-/// The caller's argument for the SIBLING a sibling-length atom names --
-/// `None`/invalid when the parameter's constraints carry no such atom or the
-/// sibling name matches no parameter. Positional: parameters and arguments
-/// pair index-for-index (self excluded on calls).
-fn sibling_argument_for<'plan>(
-    constraints: &[ProofConstraint],
-    parameter_names: impl Iterator<Item = &'plan Identifier>,
-    arguments: &[ExpressionHandle],
-) -> ExpressionHandle {
-    let Some(sibling) = constraints.iter().find_map(|constraint| match constraint {
-        ProofConstraint::IntegerRangeSiblingLenMax { sibling, .. } => Some(sibling.clone()),
-        _ => None,
-    }) else {
-        return ExpressionHandle::invalid();
-    };
-    for (index, name) in parameter_names.enumerate() {
-        if name.as_str() == sibling.as_str() {
-            return arguments.get(index).copied().unwrap_or_default();
-        }
-    }
-    ExpressionHandle::invalid()
-}
 
 pub fn build_proof_plan(program: &dyn ::validation::CheckingInput) -> ProofPlan<'_> {
     let mut proof_plan = ProofPlan::new(program);
@@ -695,11 +672,6 @@ fn collect_bounded_transition_argument_obligations(
         };
         let argument_constraints = proof_plan.store_constraints(argument_constraint_buffer);
         let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
-        let sibling_argument = sibling_argument_for(
-            proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
-            callable_parameters(program, target_state).map(|parameter| &parameter.name),
-            arguments,
-        );
 
         proof_plan.push_obligation(ProofObligation::BoundedTransitionArgument(
             BoundedTransitionArgumentObligation {
@@ -724,7 +696,6 @@ fn collect_bounded_transition_argument_obligations(
                 } else {
                     Vec::new()
                 },
-                sibling_argument,
             },
         ));
     }
@@ -971,11 +942,6 @@ fn collect_bounded_call_argument_obligations(
         let argument_constraints =
             proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
         let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
-        let sibling_argument = sibling_argument_for(
-            proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
-            parameters.iter().map(|parameter| &parameter.name),
-            call.arguments,
-        );
 
         proof_plan.push_obligation(ProofObligation::BoundedCallArgument(
             BoundedCallArgumentObligation {
@@ -993,7 +959,6 @@ fn collect_bounded_call_argument_obligations(
                 argument_constraints,
                 base_type,
                 constraints,
-                sibling_argument,
             },
         ));
     }

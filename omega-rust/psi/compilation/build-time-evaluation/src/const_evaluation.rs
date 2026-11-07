@@ -16,7 +16,6 @@ pub(crate) mod constant_recipes;
 pub(crate) mod contract_expressions;
 pub(crate) mod data_layout_queries;
 mod initializer_probe;
-pub(crate) mod range_arguments;
 pub(crate) mod range_endpoints;
 pub(crate) mod selected_constants;
 

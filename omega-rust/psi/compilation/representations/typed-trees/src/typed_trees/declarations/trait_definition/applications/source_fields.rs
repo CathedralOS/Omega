@@ -32,8 +32,19 @@ pub(super) fn contract_application_roots<'program>(
         .references()
         .any(|(_, node)| matches!(node, TypeReferenceNode::DynamicTrait { .. }))
     {
+        debug_assert!(
+            walk_contract_application_roots(program, occurrences).is_empty(),
+            "a contract-root walk published a root without a dynamic trait row",
+        );
         return Vec::new();
     }
+    walk_contract_application_roots(program, occurrences)
+}
+
+fn walk_contract_application_roots<'program>(
+    program: &'program TypedTrees,
+    occurrences: &[crate::references::TypeOccurrence],
+) -> Vec<AppliedTraitScope<'program>> {
     let mut discovery = SourceFields {
         program,
         roots: Vec::new(),

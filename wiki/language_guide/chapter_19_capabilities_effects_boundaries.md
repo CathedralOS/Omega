@@ -188,8 +188,22 @@ installation authority. See
 
 ## Root-Assumed Binding Contracts
 
-Ordinary provider selection requires a checked conformance. A root can instead
-explicitly assume a relationship between two compatible boundary contracts:
+**Ordinary Omega programs should reject assumed bindings outright.** Treat them
+as unavailable when implementing or advising ordinary code. Do not use them to
+bypass borrow checking, silence an unproved ordinary contract, compensate for a
+compiler limitation, or make a failing test pass. Fix the ownership model,
+proof, contract or compiler instead. A library must not ask its consumers to
+approve an assumed binding as a substitute for that work.
+
+The mechanism remains for exceptional programs deliberately exceeding the
+checked model, including some forms of self-modifying code. Such use needs an
+explicit explanation of the requirement outside that model and the guarantees
+being relinquished. A compiler rejection alone is not justification.
+
+Ordinary provider selection requires a checked conformance. The following
+examples explain the exceptional trust mechanism, not a recommended way to
+obtain writable memory. A root can explicitly assume a relationship between
+two compatible boundary contracts:
 
 ```omega
 machine build(builder: &mut Build) {
@@ -238,7 +252,9 @@ Different shapes need an ordinary checked adapter, not a same-size bit cast.
 Neither `satisfies` nor assembly gains an unchecked mode. If the root's external
 claim is false, the consumer's conditional safety guarantee no longer applies.
 
-The root may also assume a connection the checker can demonstrably refute:
+The root may also deliberately accept a connection the checker can refute.
+This illustrates loss of assurance, not a technique for repairing a failed
+contract:
 
 ```omega
 boundary trait Expected {
@@ -412,12 +428,56 @@ of no mutation, blocking, crashes or divergence. Mandatory direct-call clauses
 and additive rows in the current compiler are migration debt under
 `OPTIONAL-REACH-CEILINGS` in [the task board](../../TASKS.md).
 
-Suspension/blocking do not vary with the selected callback's narrower behavior.
-Published omissions forbid those possibilities; private bodies may infer them.
-Omitted published crash causes remain forbidden. Calls through a requirement
-retain its operational envelope and exact acknowledgements for every selection.
-Implementations must satisfy requirements, and interface changes cannot bypass
-downstream checking. See [static callback reach](../spec/language/effects.md#static-callback-reach-dependencies).
+### Suspension And Blocking Through Callbacks
+
+A public generic declares the suspension/blocking ceilings its body needs under
+the callback requirement. The compiler also publishes a dependency summary, so
+a caller selecting a synchronous callback does not inherit suspension solely
+because other admissible callbacks could park:
+
+```omega
+public machine apply<machine F>(value: u32) -> u32
+requires machine F(value: u32) -> u32
+    suspends;
+suspends
+{
+    suspend F(value)
+}
+
+public machine local(value: u32) -> u32 {
+    value
+}
+
+public machine example() -> u32 {
+    apply<local>(42)
+}
+```
+
+`apply`'s body acknowledges the requirement's maximum permission. Its checked
+summary says suspension depends on F. `local`'s public contract forbids
+suspension, so `example` needs neither a marker nor a `suspends` clause.
+A callback whose published contract permits suspension instead requires
+`suspend apply<Callback>(42)` in a caller that admits suspension. Blocking is an
+independent dependency with the same rules. An unrelated potentially suspending
+call in apply keeps suspension possible even with local.
+
+Private checked bodies may infer their ceilings. Public omissions still forbid
+the corresponding behavior for all admitted callbacks; a public generic cannot
+omit `suspends` merely because its current callers happen to be synchronous.
+Unknown callback selections use their requirement ceiling.
+
+Body markers are checked once against the abstract envelope; callers' markers
+use the specialized envelope. Do not reject a template's `suspend F(...)` as
+redundant after F becomes synchronous. This is published contract substitution,
+not an optimizer decision. Carry, loans and invariant windows inside the body
+still satisfy its upper-bound obligations, with no conditional carry exemption.
+Omitted published crash causes remain forbidden.
+
+Summaries compose through wrappers. Forwarding an exact callback requirement
+can also [infer the wrapper's repeated requirement](chapter_13_generics.md#forwarding-a-callback-contract).
+Both dependencies and inferred requirements belong to the public interface;
+body edits affecting them require dependent revalidation. See
+[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies).
 
 A checked in-memory `Readable` provider may avoid opaque trust and blocking;
 it does not erase the abstract `Readable` reach. An empty service row says nothing

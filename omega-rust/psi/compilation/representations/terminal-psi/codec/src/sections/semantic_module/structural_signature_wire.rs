@@ -133,10 +133,11 @@ wire_enum! {
         2 => AccessMoveOut,
         3 => AccessView,
         4 => EmptyRunRelease,
-        5 => StaticInterruptInstall,
-        6 => StaticInterruptContext,
-        7 => StaticInterruptBeginCompletion,
-        8 => StaticInterruptFinishCompletion,
+        5 => AccessRelocate,
+        6 => StaticInterruptInstall,
+        7 => StaticInterruptContext,
+        8 => StaticInterruptBeginCompletion,
+        9 => StaticInterruptFinishCompletion,
     }
     Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
     RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {
@@ -171,13 +172,14 @@ mod execution_tag_tests {
     use super::*;
 
     #[test]
-    fn release_and_interrupt_terminal_tags_do_not_alias() {
+    fn release_relocation_and_interrupt_terminal_tags_do_not_alias() {
         for (value, tag) in [
             (CheckedBoundaryExecution::EmptyRunRelease, 4),
-            (CheckedBoundaryExecution::StaticInterruptInstall, 5),
-            (CheckedBoundaryExecution::StaticInterruptContext, 6),
-            (CheckedBoundaryExecution::StaticInterruptBeginCompletion, 7),
-            (CheckedBoundaryExecution::StaticInterruptFinishCompletion, 8),
+            (CheckedBoundaryExecution::AccessRelocate, 5),
+            (CheckedBoundaryExecution::StaticInterruptInstall, 6),
+            (CheckedBoundaryExecution::StaticInterruptContext, 7),
+            (CheckedBoundaryExecution::StaticInterruptBeginCompletion, 8),
+            (CheckedBoundaryExecution::StaticInterruptFinishCompletion, 9),
         ] {
             let mut writer = Writer::default();
             Execution::write(&mut writer, &value).unwrap();

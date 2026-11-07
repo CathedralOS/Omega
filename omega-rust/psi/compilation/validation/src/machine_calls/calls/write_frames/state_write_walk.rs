@@ -229,6 +229,10 @@ pub(crate) enum StateWriteQuery {
 /// Before-statement snapshots of one state, built once and shared by every
 /// reader: a lookup copies a pointer, not the accumulated origin lists.
 pub(crate) type CollectedPrefixes = Option<Arc<Vec<Option<Arc<CollectedStatementPrefix>>>>>;
+/// Collected prefixes by `(machine, state, include_shared)`. The flag is part of
+/// the key because the shared-accumulator walk collects different snapshots:
+/// a reader asking for one flavor can never receive the other.
+pub(crate) type CollectedPrefixMap = HashMap<(SymbolHandle, SymbolHandle, bool), CollectedPrefixes>;
 
 /// A per-statement snapshot of the non-shared prefix walk's alias/stored
 /// accumulators. `collect_state_write_prefixes` captures one entry per
@@ -351,11 +355,11 @@ pub(crate) fn collect_state_write_prefixes(
 }
 
 /// A state's collected per-statement prefixes are a pure property of
-/// (machine, state, include_shared): the first demand site builds the one
-/// O(statements) walk and every later boundary index reads its collected
-/// entry instead of paying a fresh O(index) prefix walk.
+/// (machine, state, include_shared), which is the map key: the first demand
+/// site builds the one O(statements) walk and every later boundary index
+/// reads its collected entry instead of paying a fresh O(index) prefix walk.
 pub(crate) fn collected_prefix_at(
-    collections: &Mutex<HashMap<(SymbolHandle, SymbolHandle), CollectedPrefixes>>,
+    collections: &Mutex<CollectedPrefixMap>,
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -378,7 +382,7 @@ pub(crate) fn collected_prefix_at(
 /// Effect composition still examines later suppliers after an unresolved call.
 /// The retained status prevents this scratch prefix from becoming source evidence.
 pub(crate) fn collected_prefix_with_readiness_at(
-    collections: &Mutex<HashMap<(SymbolHandle, SymbolHandle), CollectedPrefixes>>,
+    collections: &Mutex<CollectedPrefixMap>,
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -388,7 +392,7 @@ pub(crate) fn collected_prefix_with_readiness_at(
 ) -> Option<Arc<CollectedStatementPrefix>> {
     // Every checking worker reads these snapshots, so the lock covers only a
     // pointer copy; the walk and the indexed read happen outside it.
-    let key = (machine.symbol, state.symbol);
+    let key = (machine.symbol, state.symbol, include_shared);
     let known = collections.lock().ok()?.get(&key).cloned();
     let prefixes = match known {
         Some(prefixes) => prefixes,

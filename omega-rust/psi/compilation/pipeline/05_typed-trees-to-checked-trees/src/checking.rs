@@ -337,7 +337,7 @@ fn check_program(
     // Retain the arithmetic walk's occurrence intervals for value publication
     // and the later range/contract checks. The analysis already hulled every
     // clean evaluation of a shared expression; no initializer is replayed.
-    program.attach_expression_intervals(std::sync::Arc::from(std::mem::take(
+    let program = program.clone_with_expression_intervals(std::sync::Arc::from(std::mem::take(
         &mut validated.validation_facts.expression_intervals,
     )));
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);

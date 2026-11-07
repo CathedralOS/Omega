@@ -175,10 +175,9 @@ pub fn publish_fragment_object(
     validate_emitted_receiver_binding(&object, request.program_entry)?;
     Ok(PublishedFragmentObject {
         object,
-        // A normal compile publishes its object, not an independently replayed
-        // PCC proof bundle. Retained-artifact verification has separate entry
-        // points; adding a native call kind must not extend the retired D41
-        // child catalog just to execute it (pipeline.md, verification placement).
+        // Publication consumes the object produced by this compile. Separate
+        // retained-artifact checks do not supply physical evidence here
+        // (pipeline.md, verification placement).
         physical_evidence_scope: NativePhysicalEvidenceScope::Unavailable,
     })
 }

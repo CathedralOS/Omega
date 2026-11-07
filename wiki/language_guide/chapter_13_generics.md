@@ -493,11 +493,53 @@ There are three distinct binder categories:
 | Nominal callable | One exact `requires machine Handler satisfies HookProcedure::call` requirement. |
 | Declaration identity | A trait's noncallable machine binder, used only to relate declaration identities. |
 
-Every callable binder needs its contract at declaration. Uses in the body and
-the current set of consumers cannot infer it, even with one whole-program
-instantiation. The nominal form inherits the requirement's complete signature,
-conditions, and operational/boundary contract without repeating it. A path with
+An originating callback contract is explicit. A wrapper may omit its repeated
+clause when it forwards an explicitly kinded machine binder into an exact
+callee's required slot. The compiler publishes the inherited requirement for
+public and private wrappers alike. Direct calls such as `Step(item)` do not
+invent a requirement, and the current set of consumers cannot select one.
+
+The nominal form retains the originating requirement's complete signature,
+conditions and operational/boundary contract without repeating it. A path with
 several overloads is not an exact selection.
+
+### Forwarding A Callback Contract
+
+The inner operation declares what it accepts; its wrapper need not repeat it:
+
+```omega
+public trait ElementStep<T> {
+    machine apply(item: &mut T) terminates;
+}
+
+public machine apply_one<T, F>(item: &mut T)
+requires machine F satisfies ElementStep<T>::apply;
+terminates
+{
+    F(item);
+}
+
+public machine visit_one<T, machine F>(item: &mut T)
+terminates
+{
+    apply_one<T, F>(item);
+}
+```
+
+The published contract for `visit_one` includes
+`requires machine F satisfies ElementStep<T>::apply;`. Forwarding `F` into
+`for_each<T, F>` works the same way. Multiple uses contribute all their
+requirements; the selected callback must satisfy every one. An explicit
+originating contract is not silently strengthened to repair an invalid body.
+
+There is no trait lookup or implementation selection here: callers still name
+their chosen machine with its required nominal satisfaction edges. Public
+inferred requirements must obey visibility rules,
+and changing a forwarding use can change the public contract and require
+rechecking consumers. Diagnostics show the inferred clause and its originating
+use. See [forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements).
+
+### Identity-Only Binders
 
 An identity-only trait binder has no callable signature:
 
@@ -520,9 +562,13 @@ for a complete example.
 
 Generic bodies prove a selected parameter's `requires`, use its `ensures`, and
 respect its reach, suspension, blocking, crash, and progress contract. Concrete
-selections must refine that public bound. Ordinary type/result arguments may
+selections must refine that public bound. The generic body uses the callback's
+upper-bound suspension/blocking permissions; applications use the published
+[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies)
+after substituting selected contracts. Ordinary type/result arguments may
 be inferred when the selected signature and value arguments determine an exact
-application; that is not inference of conformance evidence or callable contracts.
+application; that does not select conformance evidence or invent an originating
+callable contract. Forwarded requirements retain already declared contracts.
 
 Stateful callbacks take ordinary explicit context parameters; dynamically
 selected operations use [machine values](../spec/language/machine_values.md).

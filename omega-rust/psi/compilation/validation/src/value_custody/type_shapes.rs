@@ -1,7 +1,7 @@
 //! Whole-type shape walks shared by source custody and contract judgments.
 
 use typed_trees::data::TypeParameterKind;
-use typed_trees::expression::ExpressionHandle;
+
 use typed_trees::types::{
     PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -135,34 +135,6 @@ pub(crate) fn attenuated_reference_pair(
     }
 }
 
-/// Every `Range` constraint `reference` declares under `Constrained` shells,
-/// outermost first: `(minimum, maximum, end_inclusive)`.
-pub(crate) fn range_constraints(
-    program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
-) -> Vec<(ExpressionHandle, ExpressionHandle, bool)> {
-    let mut ranges = Vec::new();
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(reference)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            ranges.push((*minimum, *maximum, *end_inclusive));
-        }
-        reference = *base_type;
-    }
-    ranges
-}
-
 /// The data symbol a type reference names through its `Named`/`Generic` head.
 pub(crate) fn head_data_symbol(
     program: &dyn crate::CheckingInput,
@@ -204,37 +176,4 @@ pub fn exact_constrained_shells(
             _ => return Some(shells),
         }
     }
-}
-
-/// The symbolic Range maximum `(field, offset)` of a type reference's
-/// `Constrained` shells, outermost first, under an Exact arithmetic domain
-/// only. `None` when a shell demands a non-Exact domain or no Range names a
-/// symbolic bound.
-pub fn exact_shells_symbolic_range_maximum(
-    program: &dyn crate::CheckingInput,
-    handle: TypeReferenceHandle,
-) -> Option<(typed_trees::name::Identifier, i64)> {
-    use typed_trees::types::TypeConstraintNode;
-    exact_constrained_shells(program, handle)?
-        .iter()
-        .flat_map(|constraints| constraints.iter())
-        .find_map(|constraint| match constraint {
-            TypeConstraintNode::Range {
-                maximum,
-                end_inclusive,
-                ..
-            } => {
-                let typed_trees::dependent_ranges::DependentBoundClass::SelfField(symbolic) =
-                    typed_trees::dependent_ranges::dependent_range_maximum(
-                        program,
-                        *maximum,
-                        *end_inclusive,
-                    )?
-                else {
-                    return None;
-                };
-                Some((symbolic.field, symbolic.offset))
-            }
-            _ => None,
-        })
 }

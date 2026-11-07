@@ -10,10 +10,9 @@ or authored `-> Prop`.
 Source-level mathematical binders follow the
 [mathematical source contract](mathematical_bindings.md).
 
-The rules below are requirements, not evidence of completed implementation or
-metatheory. `PROOF-KERNEL-CORE` owns their checking and justification;
-`PROOF-CONTRACT-MIGRATION` owns source integration. A complete verified-profile
-claim requires those obligations, not merely a profile name or successful examples.
+A complete verified-profile claim requires checked rules, their combined
+metatheoretic justification and faithful source integration. A profile name or
+successful examples do not establish those obligations.
 
 All notation here is kernel mathematics. `=` below is the relevant identity
 type; `≡` is definitional conversion. Level variables are explicit and checked.

@@ -10,7 +10,6 @@ from static `const Count: u32`. Bodies are checked against their declared
 requirements; a concrete selection cannot silently strengthen the generic API.
 Runtime indices follow [dependent-value rules](dependent_values.md), not
 const-generic substitution. Lifetime binders follow [lifetimes](lifetimes.md).
-These are source contracts; normalization limits belong beside [source resolution](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
 
 Requirement spelling follows [unified requirement clauses](state_contracts.md#requirement-clauses);
 the spelling does not merge static admission with runtime entry obligations or
@@ -19,9 +18,11 @@ flatten nested callable contracts.
 An explicit `requires machine Step(...)` or `requires machine Step satisfies
 Trait::requirement` clause can determine the kind of Step introduced without
 a kind marker in the generic list. Retaining `machine Step` there is also legal.
-The clause is a declaration, not inference from body usage or the current
-consumer set. Missing or conflicting kinds/contracts reject. This rule applies
-to selected named bodies and does not infer whole-trait conformance evidence.
+The clause declares an originating contract, not a contract guessed from an
+invocation's shape or the current consumer set. An explicitly kinded `machine`
+binder on a wrapper may instead acquire exact
+[forwarded requirements](#forwarded-callback-requirements). Missing or conflicting
+kinds/contracts reject. Neither route infers whole-trait conformance evidence.
 
 ## Generic machine requirements
 
@@ -150,10 +151,6 @@ application and expansion provenance for diagnostics, serialization and replay
 without treating the alias spelling as a distinct semantic or ABI key.
 This facility does not introduce first-class higher-kinded arguments or ambient
 conformance search.
-
-The source spelling and semantics are ratified; parser, resolution, retained
-identity and end-to-end implementation remain tracked by
-`LIBRARY-REPRESENTATION-FAMILIES` in [TASKS.md](../../../TASKS.md).
 
 ## Closed applications and canonical identity
 
@@ -337,8 +334,7 @@ requires
 
 `TinyBytes<u64::AtMost<256>>` binds Capacity to 256 without constructing a dummy
 Length value. The array has a static extent and length remains an ordinary
-runtime field. This illustrates the settled inference contract, not current
-parser or compiler support. Ordinary initialization and invariant checking
+runtime field. Ordinary initialization and invariant checking
 remain required. A general element-owning vector also needs its initialized
 prefix and element-disposition protocol; the equation does not supply those.
 
@@ -541,9 +537,10 @@ Calls through a requirement retain its complete
 suspension/blocking possibilities, crashes, progress, and context-visible
 resources. Selected implementations must refine that contract. Reach through a
 nominal static callable uses the published
-[reach dependency](effects.md#static-callback-reach-dependencies), specialized
-from the selected public contract within the requirement's bound. Ordinary call
-acknowledgements follow the abstract envelope, not incidental stronger behavior.
+[reach dependency](effects.md#static-callback-reach-dependencies); suspension
+and blocking use [operational dependencies](effects.md#static-callback-operational-dependencies).
+Generic bodies use the abstract requirement envelope. Callers substitute selected
+published contracts into those dependencies, not incidental stronger behavior.
 
 A required member operation belongs to a named trait and is supplied through an
 explicit conformance binder, for example `Order satisfies Ranked<Element>`.
@@ -571,19 +568,24 @@ for machine-shaped theorem hypotheses; it is not executable callback selection.
 | Nominal callable | `requires machine Handler satisfies HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
 | Declaration identity | A trait's `machine Requirement` binder without a callable clause | Identity relationships only; no invocation. |
 
-A callable binder always has an authored contract. The compiler cannot infer
-it from body calls, matching signatures, visible conformances, or the current
-consumer set, even if there is one whole-program instantiation. Missing or
-ambiguous contracts reject. If only one implementation is intended, source can
-call that machine directly without introducing a generic abstraction.
+A callable binder needs a complete originating or forwarded contract.
+The compiler cannot invent an originating contract from direct invocations,
+matching signatures, visible conformances or the current consumer set, even
+with one whole-program instantiation. Missing or ambiguous contracts reject.
+[Forwarding](#forwarded-callback-requirements) propagates an already declared
+contract from an exact callee application; it does not discover one by shape.
+If only one implementation is intended, source can call that machine directly
+without introducing a generic abstraction.
 
 The nominal form inherits the exact requirement's complete shape, conditions,
 operational ceilings, and any boundary calling/entry plan; it does not repeat
 the signature. Calling it contributes a reach dependency automatically; the
 consumer authors neither a forwarding clause nor a second reach bound.
-Suspension/blocking remain fixed by the requirement, not the selection's narrower
-behavior. Declaration selection obeys ordinary visibility and direct-
-dependency rules, including nested contracts. A signature-free requirement
+The generic body checks suspension/blocking against the requirement's upper
+bound. Applications substitute published
+[operational dependencies](effects.md#static-callback-operational-dependencies)
+to determine their caller envelope. Declaration selection obeys ordinary
+visibility and direct-dependency rules, including nested contracts. A signature-free requirement
 path must identify one overload independently of its satisfiers.
 
 A declaration-identity binder accepts one exact free-machine or signature-free
@@ -611,6 +613,66 @@ creates an entry demand, not a callable value or an implicit callback selection.
 [Private callback realization](../build/private_callbacks.md) remains contextual:
 an exact selected requirement and destination authorize the private ABI entry
 relocation; an exposed numeric address cannot replace that relationship.
+
+## Forwarded callback requirements
+
+Named decision: `forwarded-static-callback-requirements`, ratified 2026-11-06.
+
+A wrapper passing an explicitly kinded `machine F` binder as a static argument
+to an exact selected callee may omit a repeated callable requirement for `F`.
+Infer the callee's complete requirement after substituting the wrapper's
+arguments, retaining the exact nominal requirement or authored structural
+contract and its nested binders. This applies to public and private checked
+wrappers; it does not depend on the wrapper's current consumers.
+
+```omega
+public trait ElementStep<T> {
+    machine apply(item: &mut T) terminates;
+}
+
+public machine apply_one<T, F>(item: &mut T)
+requires machine F satisfies ElementStep<T>::apply;
+terminates
+{
+    F(item);
+}
+
+public machine visit_one<T, machine F>(item: &mut T)
+terminates
+{
+    apply_one<T, F>(item);
+}
+```
+
+`visit_one` publishes the inferred requirement
+`requires machine F satisfies ElementStep<T>::apply;`. A wrapper passing `F`
+to `for_each<T, F>` inherits that callee's exact requirement in the same way.
+Neither example searches for an implementation; the consumer still selects `F`
+with its required exact nominal satisfaction edge.
+
+Collect requirements from every forwarding use, independent of source order.
+The selected callback must satisfy their conjunction, including nested
+preconditions, guarantees, progress and operational permissions. Keep distinct
+nominal requirement identities even when signatures match. Incompatible binder
+kinds or callable shapes reject; failure to establish any required contract
+rejects the application. An explicit originating callable contract remains the
+body's bound: a forwarding use cannot silently strengthen it to admit an
+otherwise invalid body.
+
+Forwarded requirements may pass through further wrappers. Recursive forwarding
+must have an exact originating contract; a cycle alone cannot invent one.
+A bare call `F(item)`, a matching machine signature or a visible conformance is
+not an origin. Identity-only trait binders stay noncallable. No inference of
+callback implementations, trait maps, boundary authority or arbitrary runtime
+entry predicates is introduced.
+
+Publish the normalized requirements with exact substitutions, origin
+provenance and ordinary visibility checks. Public consumers check the
+published contract without reading the wrapper's private body. Changing a
+forwarding use can change that public contract and requires ordinary dependent
+revalidation. Inferred and authored copies of the same requirement normalize
+identically; binder renaming or wrapper extraction alone does not change it.
+Diagnostics expose the inferred clause and the forwarding use that requires it.
 
 ## Invocation-lifetime families
 
@@ -697,9 +759,12 @@ declaration supply, full level telescopes and constraints.
 
 ## Publication and assumptions
 
-Public machine-binder identity retains its category: a recursively alpha-
-normalized structural contract, exact nominal trait/requirement, or explicitly
-noncallable declaration identity. Closed applications retain exact selections.
+Public machine-binder identity retains its category and complete normalized
+requirements: recursively alpha-normalized structural contracts, exact nominal
+trait/requirements, or explicitly noncallable declaration identity. Forwarded
+contracts carry the same identity obligations as authored ones; their conjunction
+is retained without signature-based merging. Closed applications retain exact
+selections.
 Renaming binders is stable; changing a nested contract or its authority is not.
 Private nominal requirements and missing checked contract evidence reject public
 review under [package boundaries](../packages/boundaries.md).

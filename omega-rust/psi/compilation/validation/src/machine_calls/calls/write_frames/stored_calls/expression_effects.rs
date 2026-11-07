@@ -777,6 +777,18 @@ impl Evaluation<'_, '_> {
             // Return-origin substitution uses the already observed inputs; the
             // caller-visible stores below cannot retarget an earlier operand.
             capture_completed(expression, prefix, effects, capture);
+            if crate::compiler_operations::expression_call_only_observes_operands(
+                self.program,
+                call,
+            ) {
+                // The resolved observation has no machine invocation. Its
+                // operands already completed above; preserve their effects and
+                // value cuts without publishing a synthetic call generation.
+                if let Some(output) = observed {
+                    output.operands = completed_inputs;
+                }
+                return Some(());
+            }
             if let Some(output) = observed.as_mut() {
                 output.call_entry = Some((context.clone(), inference.clone()));
             }

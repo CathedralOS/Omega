@@ -200,10 +200,16 @@ impl PackageBuildInvocation {
         self.source.product_queries()
     }
     pub fn observe_declaration(
-        &self,
-        returned: &build_settings::ReturnedBuild,
+        &mut self,
+        returned: Option<&mut build_settings::ReturnedBuild>,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
         self.source.observe_declaration(returned)
+    }
+    pub fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut build_settings::ReturnedBuild>,
+    ) -> Result<build_settings::BuildSourceResult<'result>, CompileFailure> {
+        self.source.source_result(returned)
     }
     /// Join the final Product target and package custody after Build declares
     /// its identity. Completion compares the original acquired capture and
@@ -281,7 +287,7 @@ impl CompilationSession {
     pub fn settle_source_catalog(
         &mut self,
         invocation: PackageBuildInvocation,
-        returned: build_settings::ReturnedBuild,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
         super::run_on_compile_thread(|| invocation.source.settle_catalog(returned))
     }

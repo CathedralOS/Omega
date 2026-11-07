@@ -678,16 +678,7 @@ fn validate_abstract_numeric_coercion(
             source_interval?,
         )
     };
-    super::cast_ranges::validate_target_range_membership(
-        program,
-        operand,
-        target_reference,
-        source,
-        integer_bounds(),
-        &float_bounds,
-        owner,
-        diagnostics,
-    );
+
     if anonymous.is_some() {
         return;
     }

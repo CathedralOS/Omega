@@ -283,7 +283,6 @@ pub(crate) fn instantiate_requirement_applications(
     // Retain each copy's exact selected row before closing its public result;
     // the shared public requirement alone cannot distinguish equal-endpoint
     // maps, and a private target is not selection authority.
-    let mut last_round_wrote;
     loop {
         let signature_count = program.prepared_callable_signatures().count();
         crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
@@ -301,24 +300,30 @@ pub(crate) fn instantiate_requirement_applications(
                     "applied logical signatures: {message}"
                 ))]
             })?;
-        last_round_wrote = wrote;
+        // A preparation that wrote nothing returned no signatures and left the
+        // program as it found it: the views are settled, and preparing again
+        // would write nothing either.
+        if !wrote {
+            debug_assert!(signatures.is_empty());
+            break;
+        }
         super::finalize_callable_signature_identities(program, signatures)
             .map_err(|diagnostic| vec![diagnostic])?;
         if program.prepared_callable_signatures().count() == signature_count {
+            // New executable projections retain their own logical refined
+            // views before calls borrow them; the shared nominal contract is
+            // never strengthened. This round wrote without adding a row, so
+            // prepare once more on what it left. Looping until a round writes
+            // nothing need not end: a view whose nominal application is
+            // declined is materialized again, and so counts as a write, on
+            // every round.
+            let signatures = program
+                .prepare_applied_callable_signatures()
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            super::finalize_callable_signature_identities(program, signatures)
+                .map_err(|diagnostic| vec![diagnostic])?;
             break;
         }
-    }
-    // New executable projections retain their own logical refined views before
-    // calls borrow them; the shared nominal contract is never strengthened.
-    // The last round above prepared views on this same program; when it wrote
-    // nothing, nothing has changed since and this preparation would write
-    // nothing either, so its empty result passes forward.
-    if last_round_wrote {
-        let signatures = program
-            .prepare_applied_callable_signatures()
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-        super::finalize_callable_signature_identities(program, signatures)
-            .map_err(|diagnostic| vec![diagnostic])?;
     }
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;

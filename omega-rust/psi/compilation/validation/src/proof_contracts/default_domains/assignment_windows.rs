@@ -272,7 +272,7 @@ pub(crate) fn handle_assignment<'program>(
     }
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
-        let coordinate = match origin.storage_coordinate(program, state) {
+        let coordinate = match origin.write_storage_coordinate(program, state) {
             Ok(coordinate) => coordinate,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
@@ -292,6 +292,7 @@ pub(crate) fn handle_assignment<'program>(
             statement_index,
             destination,
             preserves_scalar_value,
+            definite && coordinate.replaces_place,
         ) {
             Ok(stores) => stores,
             Err(reason) => {
@@ -338,6 +339,7 @@ struct FieldStore<'program> {
     definition: &'program typed_trees::data::DataDefinition,
     field: &'program typed_trees::data::DataField,
     preserves_scalar_value: bool,
+    replaces_place: bool,
 }
 
 /// The performed destination supplies the complete enclosing-owner roster.
@@ -348,8 +350,12 @@ fn field_stores<'program>(
     statement_index: usize,
     destination: crate::CanonicalPlace,
     preserves_scalar_value: bool,
+    replaces_place: bool,
 ) -> Result<Vec<FieldStore<'program>>, &'static str> {
     let mut stores = Vec::new();
+    if !replaces_place {
+        append_enclosed_field_stores(program, state, statement_index, &destination, &mut stores)?;
+    }
     for index in (0..destination.segments.len()).rev() {
         let facts::PlaceSegment::Field { symbol } = destination.segments[index] else {
             continue;
@@ -396,9 +402,98 @@ fn field_stores<'program>(
             definition,
             field,
             preserves_scalar_value,
+            replaces_place,
         });
     }
     Ok(stores)
+}
+
+/// A partial write may enclose a record rather than name one of its fields.
+/// Visit every inline owner that footprint can touch, including the enclosure
+/// itself. One wildcard per collection preserves the existing conservative
+/// frame; stored references never turn their pointees into inline owners.
+fn append_enclosed_field_stores<'program>(
+    program: &'program dyn crate::CheckingInput,
+    state: &State,
+    statement_index: usize,
+    destination: &crate::CanonicalPlace,
+    stores: &mut Vec<FieldStore<'program>>,
+) -> Result<(), &'static str> {
+    const MAX_OWNER_VISITS: usize = 16_384;
+    const MAX_OWNER_DEPTH: usize = 256;
+    use typed_trees::types::TypeReferenceNode;
+    let root_type = crate::value_custody::places::canonical_place_type_reference(
+        program,
+        state.symbol,
+        statement_index,
+        destination,
+    )
+    .ok_or("partial write enclosure has no declared type")?;
+    let root_type = crate::value_custody::places::assignment_value_type(program, root_type);
+    let mut pending = vec![(destination.clone(), root_type, 0usize)];
+    let mut visits = 0usize;
+    while let Some((receiver, receiver_type, depth)) = pending.pop() {
+        visits += 1;
+        if visits > MAX_OWNER_VISITS || depth > MAX_OWNER_DEPTH {
+            return Err("partial write owner frontier exceeds the checked traversal budget");
+        }
+        if crate::reference_shell(program, receiver_type).is_some()
+            || program.primitive_type_reference(receiver_type).is_some()
+        {
+            continue;
+        }
+        let reference = program
+            .type_reference_table
+            .unconstrained_type_reference(receiver_type);
+        let element = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                let extent = program
+                    .closed_fixed_array_length(reference)
+                    .ok_or("partial write array has no closed extent")?;
+                if extent == 0 {
+                    continue;
+                }
+                Some(*element_type)
+            }
+            TypeReferenceNode::Slice { element_type } => Some(*element_type),
+            _ => None,
+        };
+        if let Some(element) = element {
+            let mut child = receiver;
+            child.segments.push(facts::PlaceSegment::Index {
+                expression: ExpressionHandle::invalid(),
+            });
+            pending.push((child, element, depth + 1));
+            continue;
+        }
+        let definition =
+            crate::value_custody::places::data_definition_for_type(program, receiver_type)
+                .ok_or("partial write owner has no complete inline declaration")?;
+        if program
+            .data_members(definition)
+            .iter()
+            .any(|member| member.as_variant().is_some())
+        {
+            return Err("partial write enclosure has no exact active-case frontier");
+        }
+        for field in program.live_data_fields(program.data_members(definition)) {
+            let mut field_place = receiver.clone();
+            crate::push_field_place_segments(program, &mut field_place.segments, field.symbol);
+            pending.push((field_place.clone(), field.type_reference, depth + 1));
+            stores.push(FieldStore {
+                destination: destination.clone(),
+                receiver: receiver.clone(),
+                receiver_type,
+                field_place,
+                definition,
+                field,
+                preserves_scalar_value: false,
+                replaces_place: false,
+            });
+        }
+    }
+    stores.reverse();
+    Ok(())
 }
 
 /// Labels adapt already resolved storage to the legacy valuation table. A
@@ -446,7 +541,8 @@ fn handle_field_store<'program>(
 ) {
     // Replacing this field retires tracked descendants of its actual backing,
     // independently of the alias that named the performed store.
-    if let Some(spelling) = invariant_place_spelling(program, &store.destination)
+    if store.replaces_place
+        && let Some(spelling) = invariant_place_spelling(program, &store.destination)
         && !spelling.contains("[*]")
     {
         tracked.retain(|place| !is_subplace(&place.spelling, &spelling));
@@ -461,7 +557,7 @@ fn handle_field_store<'program>(
     {
         return;
     }
-    let whole_field = store.destination == store.field_place;
+    let whole_field = store.replaces_place && store.destination == store.field_place;
     let field_name = store.field.name.to_string();
     // A bool view of a byte stores 0 or 1. The primitives differ, so the
     // scalar-value flag stays false, but the literal still restores a
@@ -503,6 +599,12 @@ fn handle_field_store<'program>(
                 sibling.fields.push((field_name.clone(), None));
                 sibling.symbols.retain(|(name, _)| *name != field_name);
                 sibling.measures.retain(|(name, _, _)| *name != field_name);
+                if !store.replaces_place {
+                    sibling.measures.push((field_name.clone(), None, None));
+                    sibling
+                        .elements
+                        .retain(|(symbol, _)| *symbol != store.field.symbol);
+                }
             }
         }
     }
@@ -547,6 +649,12 @@ fn handle_field_store<'program>(
         place.symbols.push((field_name.clone(), symbol));
     }
     place.measures.retain(|(name, _, _)| *name != field_name);
+    if !store.replaces_place {
+        place.measures.push((field_name.clone(), None, None));
+        place
+            .elements
+            .retain(|(symbol, _)| *symbol != store.field.symbol);
+    }
     if let Some((length, capacity)) = (store.preserves_scalar_value && whole_field)
         .then(|| expression_sequence_measures(program, value))
         .flatten()
@@ -777,11 +885,13 @@ fn handle_field_store<'program>(
                 typed_trees::domain::ProofFact::Membership(membership) => {
                     let mentioned = membership_field(program, place.definition, membership.value);
                     if mentioned.is_some_and(|field| Some(field.symbol) == written_field) {
-                        crate::proof_contracts::proof_facts::string_literal_grants_domain(
-                            program,
-                            value,
-                            membership.domain_symbol,
-                        )
+                        whole_field
+                            && store.preserves_scalar_value
+                            && crate::proof_contracts::proof_facts::string_literal_grants_domain(
+                                program,
+                                value,
+                                membership.domain_symbol,
+                            )
                     } else if mentioned.is_none() {
                         crate::proof_contracts::proof_facts::string_literal_grants_domain(
                             program,

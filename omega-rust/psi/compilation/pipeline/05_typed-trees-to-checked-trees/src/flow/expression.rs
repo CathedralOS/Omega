@@ -88,7 +88,7 @@ struct CompletedValue {
     /// independently of the projected value's reference leaves. Scalar value
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
-    address_projection: Option<HandleSpan<facts::PlaceSegment>>,
+    address_projection: Option<checked_trees::FlowOperandAddressProjection>,
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
     conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,

@@ -70,6 +70,7 @@ pub(crate) fn encode_compiler_intrinsic_execution(
                     TerminalAccessLifecycleOperation::Initialize => encoder.tag("initialize", 0),
                     TerminalAccessLifecycleOperation::MoveOut => encoder.tag("move_out", 1),
                     TerminalAccessLifecycleOperation::View => encoder.tag("view", 2),
+                    TerminalAccessLifecycleOperation::Relocate => encoder.tag("relocate", 3),
                 }
                 Ok(())
             })?;

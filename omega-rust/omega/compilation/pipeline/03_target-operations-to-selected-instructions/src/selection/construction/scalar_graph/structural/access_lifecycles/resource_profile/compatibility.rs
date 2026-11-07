@@ -18,6 +18,8 @@ macro_rules! bin {
     };
 }
 
+pub(in super::super) mod run;
+
 pub(in super::super) const COMPATIBILITY_SCRATCH_BYTES: u32 = 200;
 const COMPATIBLE: u32 = 48;
 const MODULUS: u32 = 56;
@@ -597,6 +599,31 @@ pub(in super::super) fn assess(
         profile_bytes: layout.bytes,
         scratch,
     };
+    let origin = emission.constant(builder, 0)?;
+    assess_cell(
+        emission,
+        &layout,
+        builder,
+        available,
+        placement,
+        operation,
+        origin,
+        well_formed,
+    )
+}
+
+fn assess_cell(
+    emission: Emission<'_>,
+    layout: &ProfileLayout,
+    builder: &mut Builder<'_>,
+    available: VirtualRegisterId,
+    placement: &ValidatedAccessPlan,
+    operation: terminal_psi::TerminalAccessLifecycleOperation,
+    origin: VirtualRegisterId,
+    well_formed: VirtualRegisterId,
+) -> Result<Compatibility, SelectedInstructionError> {
+    let row = emission.row;
+    let profile = emission.profile;
     let zero = emission.constant(builder, 0)?;
     let one = emission.constant(builder, 1)?;
     emission.write_scratch(builder, COMPATIBLE, zero)?;
@@ -612,22 +639,25 @@ pub(in super::super) fn assess(
         )?;
         let count = emission.load(builder, pointer, layout.regions.count)?;
         let length = emission.constant(builder, placement.access().layout_size_bytes())?;
-        let contained = emission.at_most(builder, length, available)?;
+        let end = bin!(emission => builder => WrappingAddI64 => origin => length)?;
+        let nonwrapping = emission.at_most(builder, origin, end)?;
+        let contained = emission.at_most(builder, end, available)?;
+        let contained = bin!(emission => builder => BitwiseAndI64 => contained => nonwrapping)?;
         emission.write_scratch(builder, COMPATIBLE, contained)?;
         let alignment = emission.constant(builder, placement.layout().align)?;
-        emission.write_scratch(builder, MODULUS, alignment)?;
+        combine_alignment(emission, builder, alignment, origin)?;
         // View performs no whole-image read or write. Its access plan below
         // describes the only transfers it may expose; padding and inaccessible
         // fields must not demand Stable supply merely to form a borrow.
         if operation != terminal_psi::TerminalAccessLifecycleOperation::View {
-            emission.write_scratch(builder, COVERED, zero)?;
+            emission.write_scratch(builder, COVERED, origin)?;
             extend_coverage(
                 emission,
                 builder,
-                &layout,
+                layout,
                 pointer,
                 count,
-                length,
+                end,
                 CoverageDemand::Stable {
                     read: operation == terminal_psi::TerminalAccessLifecycleOperation::MoveOut,
                     write: operation == terminal_psi::TerminalAccessLifecycleOperation::Initialize,
@@ -636,7 +666,7 @@ pub(in super::super) fn assess(
                 [WALK, CANDIDATE],
             )?;
             let covered = emission.read_scratch(builder, COVERED)?;
-            let complete = emission.at_most(builder, length, covered)?;
+            let complete = emission.at_most(builder, end, covered)?;
             intersect(emission, builder, COMPATIBLE, complete)?;
         }
         for descriptor in placement.access().field_descriptors() {
@@ -650,7 +680,9 @@ pub(in super::super) fn assess(
                 .checked_add(u64::from(descriptor.transfer_width_bits() / 8))
                 .ok_or_else(|| failure("placement descriptor interval overflows"))?;
             let start = emission.constant(builder, offset)?;
+            let start = bin!(emission => builder => WrappingAddI64 => origin => start)?;
             let end = emission.constant(builder, end)?;
+            let end = bin!(emission => builder => WrappingAddI64 => origin => end)?;
             emission.write_scratch(builder, FOUND, zero)?;
             emission.repeat(builder, count, REGION, |builder, position| {
                 let region = emission.element(builder, pointer, layout.regions, position)?;
@@ -676,7 +708,7 @@ pub(in super::super) fn assess(
                     extend_coverage(
                         emission,
                         builder,
-                        &layout,
+                        layout,
                         pointer,
                         count,
                         end,
@@ -686,9 +718,8 @@ pub(in super::super) fn assess(
                     )?;
                     let covered = emission.read_scratch(builder, COVERED)?;
                     let contained = emission.at_most(builder, end, covered)?;
-                    let reachable = reaches(emission, builder, &layout, region, placement.reach())?;
-                    let alignment =
-                        effective_alignment(emission, builder, &layout, region, access)?;
+                    let reachable = reaches(emission, builder, layout, region, placement.reach())?;
+                    let alignment = effective_alignment(emission, builder, layout, region, access)?;
                     let supplied = emission.nonzero(builder, alignment)?;
                     let supported = emission.binary(
                         builder,
@@ -713,16 +744,18 @@ pub(in super::super) fn assess(
         }
         for region in placement.access().field_regions() {
             let start = emission.constant(builder, region.byte_offset())?;
+            let start = bin!(emission => builder => WrappingAddI64 => origin => start)?;
             let end = region
                 .byte_offset()
                 .checked_add(region.byte_length())
                 .ok_or_else(|| failure("structural region interval overflows"))?;
             let end = emission.constant(builder, end)?;
+            let end = bin!(emission => builder => WrappingAddI64 => origin => end)?;
             emission.write_scratch(builder, COVERED, start)?;
             extend_coverage(
                 emission,
                 builder,
-                &layout,
+                layout,
                 pointer,
                 count,
                 end,

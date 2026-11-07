@@ -351,6 +351,12 @@ pub enum SelectedMemoryAccessRole {
     /// touched range, not a claim that every byte was written on every path.
     ReadBacking,
     WriteBacking,
+    /// Runtime-sized backing access. Offset/count are zero; the exact span is
+    /// the original operation's retained extent, not descriptor bytes or a
+    /// fabricated static bound. A conditional transfer may touch none of it.
+    /// Alias analysis treats writes as interfering with all backing reads.
+    ReadBackingSpan,
+    WriteBackingSpan,
     /// Reads compiler-owned activation storage, not the semantic place used
     /// as its provenance anchor. The slot and byte range identify the storage.
     ReadLocal {

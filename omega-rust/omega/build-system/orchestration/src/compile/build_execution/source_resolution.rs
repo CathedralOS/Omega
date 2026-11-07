@@ -224,12 +224,11 @@ pub(crate) fn resolve_acquired_sources(
     Ok((resolved, builds))
 }
 
-fn normal_return(
-    build: &ReturnedPackageBuild,
-) -> Result<&build_settings::ReturnedBuild, ProjectSourceResolutionError> {
-    build.returned.as_ref().ok_or_else(|| {
-        ProjectSourceResolutionError::Source(
-            "acquired source has no executed Build declaration".into(),
-        )
-    })
+fn source_result(
+    build: &mut ReturnedPackageBuild,
+) -> Result<build_settings::BuildSourceResult<'_>, ProjectSourceResolutionError> {
+    build
+        .invocation
+        .source_result(build.returned.as_mut())
+        .map_err(ProjectSourceResolutionError::Compilation)
 }

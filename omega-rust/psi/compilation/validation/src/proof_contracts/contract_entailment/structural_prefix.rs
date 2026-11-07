@@ -237,9 +237,8 @@ pub(super) trait StructuralPrefixVisitor {
     /// The site's state could not be resolved at this arm.
     fn unresolved(&mut self, _machine: &Machine) {}
 
-    /// One reached arm with established premises and a resolved site state. A
-    /// visitor that owns a different entry point overrides `visit` and leaves
-    /// this unreachable.
+    /// One reached arm with established premises and a resolved site state,
+    /// delivered by `visit_arm` or `SiteArm::deliver`.
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>);
 
     /// A closed private invocation supplies an independently checked enclosing
@@ -252,64 +251,68 @@ pub(super) trait StructuralPrefixVisitor {
     ) {
         self.observe(observation);
     }
+}
 
-    /// Establish this observation's premises - the arm's hypotheses and
-    /// equations, its contradiction test, and the selected call's published
-    /// guarantees - then resolve the site's state and hand the arm to
-    /// `observe`. Observing a completed value never restates that sequence.
-    #[allow(clippy::too_many_arguments)]
-    fn visit<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        self.entered();
-        if self.is_complete() {
-            return;
-        }
-        let Some(judge) = arm_premises(program, judge, hypotheses, equations, guarantees) else {
-            return;
-        };
-        let Some(state) = program.state_in_machine(machine, self.site().state) else {
-            self.unresolved(machine);
-            return;
-        };
-        self.observe((program, machine, state, judge, environment));
+/// Establish this observation's premises - the arm's hypotheses and
+/// equations, its contradiction test, and the selected call's published
+/// guarantees - then resolve the site's state and hand the arm to
+/// `observe`. Observing a completed value never restates that sequence.
+/// A free function, not a trait method, so no visitor can replace this
+/// sequence: `SiteArm::deliver` reuses the arm's premises across visitors and
+/// relies on every visitor receiving exactly this sequence.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn visit_arm<'program, V: StructuralPrefixVisitor + ?Sized>(
+    visitor: &mut V,
+    program: &'program dyn crate::CheckingInput,
+    machine: &Machine,
+    judge: &StructuralJudge<'program>,
+    environment: &[(String, StructuralTerm)],
+    hypotheses: &[(String, StructuralTerm)],
+    equations: &[(StructuralTerm, StructuralTerm)],
+    guarantees: &CitationFacts,
+) {
+    visitor.entered();
+    if visitor.is_complete() {
+        return;
     }
+    let Some(judge) = arm_premises(program, judge, hypotheses, equations, guarantees) else {
+        return;
+    };
+    let Some(state) = program.state_in_machine(machine, visitor.site().state) else {
+        visitor.unresolved(machine);
+        return;
+    };
+    visitor.observe((program, machine, state, judge, environment));
+}
 
-    #[allow(clippy::too_many_arguments)]
-    fn visit_non_contradictory<'program>(
-        &mut self,
-        program: &'program dyn crate::CheckingInput,
-        machine: &Machine,
-        judge: &StructuralJudge<'program>,
-        environment: &[(String, StructuralTerm)],
-        hypotheses: &[(String, StructuralTerm)],
-        equations: &[(StructuralTerm, StructuralTerm)],
-        guarantees: &CitationFacts,
-    ) {
-        self.entered();
-        if self.is_complete() {
-            return;
-        }
-        let _arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
-        let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
-        if judge.hypotheses_contradictory {
-            return;
-        }
-        guarantees.intake(&mut judge);
-        drop(_arm_guard);
-        let Some(state) = program.state_in_machine(machine, self.site().state) else {
-            self.unresolved(machine);
-            return;
-        };
-        self.observe((program, machine, state, judge, environment));
+/// As `visit_arm`, for a caller that already ruled out contradictory premises.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn visit_non_contradictory_arm<'program, V: StructuralPrefixVisitor + ?Sized>(
+    visitor: &mut V,
+    program: &'program dyn crate::CheckingInput,
+    machine: &Machine,
+    judge: &StructuralJudge<'program>,
+    environment: &[(String, StructuralTerm)],
+    hypotheses: &[(String, StructuralTerm)],
+    equations: &[(StructuralTerm, StructuralTerm)],
+    guarantees: &CitationFacts,
+) {
+    visitor.entered();
+    if visitor.is_complete() {
+        return;
     }
+    let _arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
+    let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
+    if judge.hypotheses_contradictory {
+        return;
+    }
+    guarantees.intake(&mut judge);
+    drop(_arm_guard);
+    let Some(state) = program.state_in_machine(machine, visitor.site().state) else {
+        visitor.unresolved(machine);
+        return;
+    };
+    visitor.observe((program, machine, state, judge, environment));
 }
 
 pub(super) fn observe_runtime_state_prefix(
@@ -403,6 +406,15 @@ pub(super) fn observe_acyclic_invocation_prefix(
     machine: &Machine,
     visitor: &mut dyn StructuralPrefixVisitor,
 ) -> Option<()> {
+    observe_acyclic_invocation_prefixes(program, machine, &mut [visitor])
+}
+
+/// Share the invocation walk while each visitor retains its own exact cut.
+pub(super) fn observe_acyclic_invocation_prefixes(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    visitors: &mut [&mut dyn StructuralPrefixVisitor],
+) -> Option<()> {
     let entry = program.machine_states(machine).first()?;
     if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
@@ -412,13 +424,13 @@ pub(super) fn observe_acyclic_invocation_prefix(
     let requires = machine_requires_facts(program, machine);
     let judge = StructuralJudge::from_runtime_state_requires(program, machine, entry, &requires);
     let mut diagnostics = Vec::new();
-    recognize_structural_case_arms(
+    recognize_structural_case_arms_batched(
         program,
         machine,
         &judge,
         &crate::proof_only_classification(program),
         &mut diagnostics,
-        Some(visitor),
+        visitors,
     )?;
     diagnostics.is_empty().then_some(())
 }
@@ -469,7 +481,8 @@ impl<'arm, 'program> SiteArm<'arm, 'program> {
         }
     }
 
-    /// `visitor.visit(..)` with this arm's premises.
+    /// `visit_arm(visitor, ..)` with this arm's premises, established once for
+    /// every visitor of the site.
     pub(super) fn deliver<V: StructuralPrefixVisitor + ?Sized>(&mut self, visitor: &mut V) {
         visitor.entered();
         if visitor.is_complete() {

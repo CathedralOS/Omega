@@ -8,8 +8,6 @@ Ratified 2026-11-06. The source `dyn` selector, captured `dyn Trait<_>` form and
 mandatory artifact-wide derived-sum roster are retired. This path remains the
 dispatch contract so existing links keep their owner. Source rules live in
 [machine values](../language/machine_values.md) and [some packages](../language/some_packages.md).
-Implementation and codec migration are tracked in the
-[migration plan](../../drafts/designs/machine_values_some.md), not claimed complete.
 
 ## Local selection and call shape
 

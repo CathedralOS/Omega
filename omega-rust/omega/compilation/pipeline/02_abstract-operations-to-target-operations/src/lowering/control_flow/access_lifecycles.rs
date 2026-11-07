@@ -78,15 +78,27 @@ pub(super) fn lower(
     let operands = AccessLifecycleOperands::from_arguments(plan.operation, structural_arguments)
         .map_err(invalid)?;
     let expected = match plan.operation {
-        terminal_psi::TerminalAccessLifecycleOperation::Initialize => {
-            [Some(plan.storage.carrier), Some(plan.schema), *profile_type]
-        }
-        terminal_psi::TerminalAccessLifecycleOperation::MoveOut => {
-            [Some(plan.storage.owner_carrier()), *profile_type, None]
-        }
+        terminal_psi::TerminalAccessLifecycleOperation::Initialize => [
+            Some(plan.storage.carrier),
+            Some(plan.schema),
+            *profile_type,
+            None,
+        ],
+        terminal_psi::TerminalAccessLifecycleOperation::MoveOut => [
+            Some(plan.storage.owner_carrier()),
+            *profile_type,
+            None,
+            None,
+        ],
         terminal_psi::TerminalAccessLifecycleOperation::View => {
-            [Some(plan.storage.carrier), *profile_type, None]
+            [Some(plan.storage.carrier), *profile_type, None, None]
         }
+        terminal_psi::TerminalAccessLifecycleOperation::Relocate => [
+            Some(plan.storage.owner_carrier()),
+            Some(plan.storage.carrier),
+            *profile_type,
+            *profile_type,
+        ],
     };
     for (argument, expected) in operands.arguments().zip(expected) {
         let actual = if argument.access == StructuralAccess::Owned {

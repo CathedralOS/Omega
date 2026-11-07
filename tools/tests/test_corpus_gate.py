@@ -187,6 +187,27 @@ def repository_with_commits(directory: Path, count: int) -> list:
     return revisions
 
 
+class RunnerBuildEnvironment(unittest.TestCase):
+    def test_current_root_preserves_configured_target_and_platform_shortening(self):
+        configured = Path("configured-target")
+        shortened = Path("short-target")
+        with patch.object(corpus_gate, "optimized_environment", return_value={
+                "CARGO_TARGET_DIR": str(configured), "CARGO_PROFILE_DEV_OPT_LEVEL": "1"}), \
+                patch.object(corpus_gate, "windows_safe_target_dir", return_value=shortened) as safe:
+            environment = corpus_gate.runner_build_environment()
+        safe.assert_called_once_with(configured)
+        self.assertEqual(environment["CARGO_TARGET_DIR"], str(shortened))
+        self.assertEqual(environment["CARGO_PROFILE_DEV_OPT_LEVEL"], "1")
+
+    def test_compared_root_uses_its_own_target_for_check_and_build(self):
+        compared = corpus_gate.ROOT / "compared"
+        with patch.object(corpus_gate, "optimized_environment", return_value={
+                "CARGO_TARGET_DIR": "another-worktree-target"}), \
+                patch.object(corpus_gate, "windows_safe_target_dir", side_effect=lambda path: path):
+            environment = corpus_gate.runner_build_environment(compared)
+        self.assertEqual(environment["CARGO_TARGET_DIR"], str(compared / "target"))
+
+
 class SharedCompareState(unittest.TestCase):
     """Base worktrees and base rows belong to the checkout, not to the worktree
     that asked first, and one session at a time measures a commit."""

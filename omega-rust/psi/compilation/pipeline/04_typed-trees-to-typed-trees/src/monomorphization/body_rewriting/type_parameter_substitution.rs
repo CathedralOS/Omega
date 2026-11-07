@@ -14,7 +14,7 @@ use crate::monomorphization::{
     Candidate, Diagnostic, ExpressionHandle, ExpressionNode, ProofFact, StatementNode,
     SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
-use crate::tables::{expressions_of, expressions_of_mut};
+use crate::tables::expressions_of;
 
 pub(crate) fn substitute_cloned_type_parameters(
     source: Option<&dyn ::validation::CheckingInput>,
@@ -306,25 +306,7 @@ fn rebind_type_value_subjects(
             TypeReferenceNode::Reference { referee, .. } => pending.push(referee),
             TypeReferenceNode::Slice { element_type }
             | TypeReferenceNode::FixedArray { element_type, .. } => pending.push(element_type),
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                pending.push(base_type);
-                for constraint in program
-                    .type_reference_table
-                    .constraints(constraints)
-                    .to_vec()
-                {
-                    if let typed_trees::types::TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } = constraint
-                    {
-                        expressions_of_mut(program).remap_symbols_in(minimum, realized);
-                        expressions_of_mut(program).remap_symbols_in(maximum, realized);
-                    }
-                }
-            }
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(base_type),
             TypeReferenceNode::Generic {
                 base_symbol,
                 arguments,
@@ -374,22 +356,6 @@ pub(crate) fn cloned_expression_roots(
     cloned: &typed_trees::machine::Machine,
 ) -> Vec<ExpressionHandle> {
     let mut roots = Vec::new();
-    for equation in program
-        .declared_type_equations
-        .span_or_empty(cloned.declared_type_equations)
-    {
-        for reference in [equation.parameter, equation.definition] {
-            crate::monomorphization::for_each_type_reference(
-                program,
-                &[reference],
-                |_, _| false,
-                |_, minimum, maximum| {
-                    roots.extend([minimum, maximum]);
-                    false
-                },
-            );
-        }
-    }
     for item in program.machine_owned_data(cloned) {
         roots.push(item.initial_value);
     }
@@ -493,27 +459,19 @@ pub(crate) fn runtime_bound_occurrence_in(
     roots: &[TypeReferenceHandle],
     parameter_symbol: SymbolHandle,
 ) -> bool {
-    crate::monomorphization::for_each_type_reference(
-        program,
-        roots,
-        |program, node| match node {
-            TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol == parameter_symbol,
-            TypeReferenceNode::FixedArray { length, .. } => matches!(
-                length,
-                typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }
-                    if *symbol == parameter_symbol
-            ),
-            TypeReferenceNode::ConstExpression(expression) => {
-                name_mentions_symbol(program, *expression, parameter_symbol)
-            }
-            _ => false,
-        },
-        |program, minimum, maximum| {
-            name_mentions_symbol(program, minimum, parameter_symbol)
-                || name_mentions_symbol(program, maximum, parameter_symbol)
-        },
-    )
+    crate::monomorphization::for_each_type_reference(program, roots, |program, node| match node {
+        TypeReferenceNode::Named { symbol, .. }
+        | TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol == parameter_symbol,
+        TypeReferenceNode::FixedArray { length, .. } => matches!(
+            length,
+            typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }
+                if *symbol == parameter_symbol
+        ),
+        TypeReferenceNode::ConstExpression(expression) => {
+            name_mentions_symbol(program, *expression, parameter_symbol)
+        }
+        _ => false,
+    })
 }
 
 fn collect_static_argument_type_roots(

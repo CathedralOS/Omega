@@ -109,7 +109,7 @@ synthesis. Nongeneric machine owners also admit Boolean indices through
 the same probe, including literal Boolean expressions and fixed-integer
 comparisons without named operands. Comparisons between two anonymous numeric
 trees use exact rational values through the shared validation evaluator, without
-integer truncation, floating rounding or integer-landing warnings. The temporary
+integer truncation, floating rounding or an integer landing. The temporary
 probe carries original source/import custody; its symbols and placeholder layouts
 never become the published program. Exact unconstrained builtin integer or Boolean
 destinations and each integer operator's builtin meaning are required. Named Boolean
@@ -122,12 +122,14 @@ selectively evaluate the right operand under the
 [expression schedule](../../../../wiki/spec/language/expressions.md#evaluation-schedule);
 unselected operands still retain declaration admission, lexical custody, static
 operand types and complete anonymous-rational landing. This static pass never
-executes landed arithmetic; valid anonymous landing warnings occur once even
+executes landed arithmetic; anonymous landing admission applies even
 when the containing landed operation is skipped. Declaration visibility
 and direct package selection are checked before evaluation.
 Existing fixed-integer kernels enforce every node's carrier bounds; anonymous
-arithmetic lands once through the shared rational evaluator,
-including fractional-intermediate warnings. The canonical result is distinct
+arithmetic lands once through the shared rational evaluator under the
+[explicit integer landing contract](../../../../wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics).
+Fractional intermediates require `as` around the complete anonymous operand;
+final integrality and range remain mandatory. The canonical result is distinct
 from the arena-backed constant and operator occurrences retained at the real use.
 Machine parameters, results, locals and casts first resolve in their original
 lexical owners, including prior-local frontiers. Every named operand must select
@@ -184,14 +186,15 @@ Wider nonconstant divisor intervals still need stronger divisibility evidence;
 integral quotient endpoints alone cannot supply it. Nonzero proofs still lose
 gaps not captured by the lattice and correlated result facts.
 
-Fractional warnings retain an exact origin and complete final value even inside
-skipped operations. With one dispatch-bearing operand per anonymous arithmetic
-node, the existing evaluator visits each complete result path using retained
+Fractional-origin tracking retains an exact origin and complete final value even
+inside skipped operations. With one dispatch-bearing operand per anonymous
+arithmetic node, the evaluator visits each complete result path using retained
 arm edges, without evaluating subjects or patterns. Independent integer-only
-dispatches need no warning traversal. Independent fractional histories still
-require compositional exact diagnostic evidence and reject explicitly; no arm
-Cartesian product, ranged substitute for the final value, or dropped warning
-is used to admit them.
+dispatches need no fractional-origin traversal. Independent fractional histories
+require compositional exact evidence; an arm Cartesian product or a dropped
+origin cannot justify admission. [The landing migration](../../../../wiki/drafts/designs/explicit_integer_landing.md)
+replaces warning production with rejection or explicit acknowledgement at each
+destination, including dispatch results, without changing exact evaluation.
 Exercise the source customer with
 `cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`
 and its canonical-type, selection, and rejection controls with

@@ -5,18 +5,20 @@
 //! word into a long-lived virtual register made register pressure proportional
 //! to aggregate size and forced recovery to spill those words individually.
 //! Private slots retain the same parallel-assignment semantics, including swaps
-//! and cleanup that changes source storage, with only one chunk live at a time.
+//! and cleanup that changes source storage. Small copies keep one chunk live;
+//! large copies use the existing exact-count byte loop.
 //! They are compiler scratch, not new semantic places or ABI destinations.
 use super::emission::{Emission, provenance};
 use crate::SelectedInstructionError;
-use crate::selection::edge_transfers::{chunks, invalid, stored_transport};
+use crate::selection::edge_transfers::{invalid, stored_transport};
+use crate::selection::extent_copy;
 use crate::selection::scalar_call_abi::load_transfer;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedInstructionKind, SelectedLocalStorageSlot,
     SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
     SelectedStructuralBinding, VirtualRegisterId,
 };
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{IntegerValue, PlaceId};
 
 pub(super) struct Snapshot {
     pointer: VirtualRegisterId,
@@ -197,7 +199,10 @@ fn memory_pointer(
 
 fn copy(emission: &mut Emission<'_>, extent: CopyExtent) -> Result<(), SelectedInstructionError> {
     let function = emission.function;
-    for (cursor, width) in chunks(extent.byte_size) {
+    if extent.byte_size > extent_copy::INLINE_MAX_BYTES {
+        return bulk_copy(emission, extent);
+    }
+    for (cursor, width) in extent_copy::chunks(extent.byte_size) {
         let byte_offset = extent
             .source_offset
             .checked_add(cursor)
@@ -280,3 +285,103 @@ fn copy(emission: &mut Emission<'_>, extent: CopyExtent) -> Result<(), SelectedI
     }
     Ok(())
 }
+
+/// Preserve one exact physical extent instead of materializing a word stream.
+/// Snapshot storage is private and disjoint; commit still follows all cleanup.
+fn bulk_copy(
+    emission: &mut Emission<'_>,
+    extent: CopyExtent,
+) -> Result<(), SelectedInstructionError> {
+    let function = emission.function;
+    let last_byte = extent
+        .byte_size
+        .checked_sub(1)
+        .ok_or_else(|| invalid(function))?;
+    extent
+        .source_offset
+        .checked_add(last_byte)
+        .ok_or_else(|| invalid(function))?;
+    extent
+        .lineage_offset
+        .checked_add(last_byte)
+        .ok_or_else(|| invalid(function))?;
+    let source = if extent.source_offset == 0 {
+        extent.source
+    } else {
+        emission.emit(
+            SelectedInstructionKind::AddressOffset {
+                byte_offset: extent.source_offset,
+            },
+            emission
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| invalid(function))?,
+            &[extent.source],
+            extent.lineage_place,
+            extent.lineage_offset,
+            None,
+        )?
+    };
+    let count = emission.emit(
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(u128::from(extent.byte_size)),
+        },
+        emission.constraints.keys.materialize_i64,
+        &[],
+        extent.lineage_place,
+        extent.lineage_offset,
+        None,
+    )?;
+    let instruction = emission.instruction_id()?;
+    let key = emission
+        .constraints
+        .keys
+        .copy_bytes
+        .ok_or_else(|| invalid(function))?;
+    let operands = extent_copy::bulk_operands(
+        instruction,
+        [source, extent.destination, count],
+        key,
+        emission.catalog,
+        emission.registers,
+    )?;
+    emission
+        .instructions
+        .push(super::super::constraints::instruction(
+            instruction,
+            SelectedInstructionKind::CopyBytes,
+            key,
+            &operands,
+            provenance(emission.edge),
+            emission.catalog,
+        )?);
+    if let Some(binding) = extent.read_binding {
+        emission.memory.extend(
+            binding
+                .source_read_roles()
+                .map(|role| SelectedMemoryAccess {
+                    instruction,
+                    origin: SelectedMemoryAccessOrigin::Edge(emission.edge),
+                    place: binding.semantic.argument.place,
+                    byte_offset: extent.source_offset,
+                    byte_count: extent.byte_size,
+                    role,
+                }),
+        );
+    }
+    if let Some((place, slot)) = extent.write_local {
+        emission.memory.push(SelectedMemoryAccess {
+            instruction,
+            origin: SelectedMemoryAccessOrigin::Edge(emission.edge),
+            place,
+            byte_offset: 0,
+            byte_count: extent.byte_size,
+            role: SelectedMemoryAccessRole::WriteLocal { slot },
+        });
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests;

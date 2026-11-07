@@ -1204,6 +1204,7 @@ fn visit_callable_symbol(
             schema,
             policy_machine,
             storage,
+            profile_carrier,
             ..
         } = plan
             && *callable == symbol
@@ -1212,6 +1213,9 @@ fn visit_callable_symbol(
             visit_symbol(retained, *schema);
             visit_symbol(retained, *policy_machine);
             visit_type_reference(program, retained, storage.carrier);
+            if let Some(profile) = profile_carrier {
+                visit_type_reference(program, retained, *profile);
+            }
             for field in [&storage.base, &storage.length] {
                 visit_symbol(retained, field.symbol);
                 visit_type_reference(program, retained, field.type_reference);
@@ -2081,16 +2085,6 @@ pub fn visit_type_reference(
             visit_type_reference(program, retained, *base_type);
             for constraint in program.type_reference_table.constraints(*constraints) {
                 match constraint {
-                    crate::types::TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        if retained.type_expression(*minimum) {
-                            visit_expression(program, retained, *minimum);
-                        }
-                        if retained.type_expression(*maximum) {
-                            visit_expression(program, retained, *maximum);
-                        }
-                    }
                     crate::types::TypeConstraintNode::Domain(domain) => {
                         visit_symbol(retained, domain.symbol);
                         for argument in &domain.arguments {

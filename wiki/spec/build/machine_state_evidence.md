@@ -65,6 +65,3 @@ Return-control evidence must match `CallPlan::entry_control`; the restored-state
 set must match `StatePlan`. An opaque provider supplies the accepted claim under
 a root-reported trust receipt or adequate-hardware-isolation receipt. Missing,
 unreported, or mismatched evidence rejects before forming provider execution.
-
-These are required guarantees. The [image implementation note](../../../omega-rust/omega/compilation/backend/images/image/src/lib.rs)
-records native route coverage.

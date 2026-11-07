@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PROJECT = ROOT / "samples/cli/erased_array_evidence"
+PROJECT = ROOT / "samples/cli/probes/erased_array_evidence"
 
 
 def invoke(binary, *arguments):

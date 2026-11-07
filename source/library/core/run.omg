@@ -10,7 +10,7 @@ public data Run<P, T> [linear] {
 }
 
 public domain<P, T> Run<P, T>::Live<P, T>
-established by Run::empty, Run::initialize_from_profile;
+established by Run::empty, Run::initialize_from_profile, Run::relocate_from_profiles;
 
 // An empty authorized partition contains no cells to initialize. The checked
 // route retains its existing backing claim and establishes no element authority.
@@ -93,3 +93,51 @@ boundary machine Run::extract_from_profile<P, T, Role>(
     run: Run<P, T> in Live<P, T>, profile: &ResourceProfile
 ) -> AccessExtraction<Extent in Granted & Vacant, T>
 requires run.count == 1;
+
+// A successful move keeps the cell count and returns the old backing to its
+// caller. Neither the run nor this result allocates or releases storage.
+public data RunRelocation<P, T> {
+    run: Run<P, T> in Live<P, T>;
+    vacated: Extent in Granted & Vacant;
+}
+
+public machine Run::relocate<P, T, SourceRole, DestinationRole>(
+    run: Run<P, T> in Live<P, T>, destination: Extent in Granted & Vacant
+) -> AccessOutcome<
+    RunRelocation<P, T>,
+    AccessReturn<Run<P, T> in Live<P, T>, Extent in Granted & Vacant>,
+    AccessInitializationFailure
+>
+reaches ResourceProfileSupply
+invokes ResourceProfileSupply
+ensures (match result {
+    AccessOutcome::Ready { view } ->
+        view.run.count == run.count &&
+        view.run.storage.base == destination.base && view.run.storage.length == destination.length &&
+        view.vacated.base == run.storage.base && view.vacated.length == run.storage.length,
+    AccessOutcome::Rejected { returned, reason } ->
+        returned.source.count == run.count &&
+        returned.source.storage.base == run.storage.base && returned.source.storage.length == run.storage.length &&
+        returned.custody.base == destination.base && returned.custody.length == destination.length,
+})
+{
+    let source_profile: ResourceProfile = ResourceProfileSupply<SourceRole>::profile(&run.storage);
+    let destination_profile: ResourceProfile = ResourceProfileSupply<DestinationRole>::profile(
+        &destination as &Extent in Granted
+    );
+    Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
+        run, destination, &source_profile, &destination_profile
+    )
+}
+
+// Both profile calls must be bound to their respective original backing.
+// Rejection returns both owners unchanged. Success moves actual cell custody;
+// equal geometry or a copied descriptor is not evidence of that transfer.
+boundary machine Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
+    run: Run<P, T> in Live<P, T>, destination: Extent in Granted & Vacant,
+    source_profile: &ResourceProfile, destination_profile: &ResourceProfile
+) -> AccessOutcome<
+    RunRelocation<P, T>,
+    AccessReturn<Run<P, T> in Live<P, T>, Extent in Granted & Vacant>,
+    AccessInitializationFailure
+>;

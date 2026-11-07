@@ -210,8 +210,8 @@ requires
     #12 case DeleteUser(#1 user_id: u64);
 }
 
-let accepted: Command<User> = Command::GetUser { user_id: 42 }; // Accepted.
-let rejected: Command<bool> = Command::GetUser { user_id: 42 }; // Rejected: GetUser requires T == User.
+let accepted: Command<User> = Command::GetUser { user_id: 42, .. }; // Accepted.
+let rejected: Command<bool> = Command::GetUser { user_id: 42, .. }; // Rejected: GetUser requires T == User.
 
 machine execute<T>(
     connection: &mut Database,
@@ -232,7 +232,7 @@ The positional binding follows authored order: request_id, requested_at_ms, sequ
 
 `Database`, `DatabaseError`, and the `database::` helper machines are application-defined; their implementations are omitted here. The helpers return `Result<User, DatabaseError>`, `Result<u64, DatabaseError>`, and `Result<bool, DatabaseError>`, respectively. Every arm therefore returns `Result<T, DatabaseError>` without a cast.
 
-GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is deliberately invalid because changing only its type argument breaks that relationship. Omitted metadata fields are zero-initialized here. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
+GetUser carries only an ID, not a User: T describes what executing the command produces. The second construction is deliberately invalid because changing only its type argument breaks that relationship. The explicit `..` zero-initializes omitted metadata fields; without it, each runtime field must be supplied. It does not bypass the case constraint. See [case constraints and GADT-style refinement](wiki/language_guide/chapter_1_data_values_literals.md#constraints-on-individual-cases).
 
 The `#N` identities are neither offsets nor runtime tags, and each payload has its own numbering scope. The two Command declarations above are alternative examples, not declarations to combine in one module.
 
@@ -548,9 +548,13 @@ flowchart LR
     psi --> interpret["Interpreter"]
 ```
 
-Psi carries proof evidence so a receiving compiler or interpreter can check its
-contracts and declared capabilities independently of the producer.
-[Follow the pipeline →](omega-rust/pipeline.md)
+Terminal Psi is the portable output of source checking. Interpreters and native
+backends consume the same program; receivers check its structure, contracts and
+authority while relying on Psi's source judgments. Development tests compare
+native execution with the Terminal interpreter using `omega run --both`.
+The compiler's transformations remain trusted; execution agreement covers the
+tested inputs and observations.
+[Follow the pipeline →](omega-rust/pipeline.md#verification-placement)
 
 The separate [bootstrap chain](bootstrap/README.md) works toward constructing
 the compiler from a small auditable starting point. It is not required to work

@@ -319,13 +319,6 @@ fn visit_type(
         } => {
             let mut depends = visit_type(syntax, *base_type, binders, deferred);
             for constraint in syntax.type_references.constraints(*constraints) {
-                if let TypeConstraintNode::Range {
-                    minimum, maximum, ..
-                } = constraint
-                {
-                    visit_expression(syntax, *minimum, binders, deferred);
-                    visit_expression(syntax, *maximum, binders, deferred);
-                }
                 if let TypeConstraintNode::Domain(domain) = constraint {
                     for argument in type_references(syntax).type_reference_handles(domain.arguments)
                     {

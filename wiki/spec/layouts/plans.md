@@ -13,9 +13,6 @@ Data declarations define semantic structure, never an ambient storage layout.
 A storage declaration or parameter chooses a representation of that structure.
 Library-authored policies compute its geometry; one general compiler mechanism
 validates and applies the result. No format name receives special recognition.
-This contract describes the accepted language, not completed implementation;
-the [implementation boundary](../../../omega-rust/psi/compilation/build-time-evaluation/layouts.md)
-identifies the supported subset and legacy migration.
 
 Firmware structures follow the same rule: their target package supplies data
 and layout policies, while the compiler validates and consumes the resulting

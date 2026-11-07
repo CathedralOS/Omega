@@ -113,7 +113,9 @@ pub struct CheckedDeclarationDescriptions {
     pub evaluation_dependencies: CheckedCompilerEvaluationDependencies,
     pub headers: Arena<CheckedCallableHeader>,
     pub invocation_targets: Arena<CheckedSynchronousBoundaryTarget>,
-    pub machines: Arena<CheckedDeclarationDescription>,
+    /// Private: `insert_machine` is the only writer, so `machine_index` and
+    /// its revision stamp always describe this arena.
+    machines: Arena<CheckedDeclarationDescription>,
     pub parameters: Arena<CheckedDeclarationParameter>,
     /// `machines` sorted by machine symbol, published by the producer once
     /// every row is in place (`index_machines`). Ties keep arena order.
@@ -121,6 +123,7 @@ pub struct CheckedDeclarationDescriptions {
     /// machine row per question made lowering quadratic in the machine count.
     /// Derived from `machines`: never recorded, never compared, and trusted
     /// only while `machines` keeps the revision and length it was built at.
+    /// Rows are added only through `insert_machine`, which moves the revision.
     #[record(skip)]
     machine_index: Vec<((u32, u32), arena::Handle<CheckedDeclarationDescription>)>,
     #[record(skip)]
@@ -220,6 +223,33 @@ impl CheckedDeclarationDescriptions {
             .take_while(|(row, _)| *row == key)
             .map(|(_, handle)| self.machines.get(*handle))
             .find(|row| row.machine() == machine)
+    }
+
+    /// An empty description set over these selection and evaluation
+    /// requirements; machine rows are added with `insert_machine`.
+    pub fn with_requirements(
+        selections: Arena<CheckedSelectionRequirement>,
+        evaluation_dependencies: CheckedCompilerEvaluationDependencies,
+    ) -> Self {
+        Self {
+            selections,
+            evaluation_dependencies,
+            ..Self::default()
+        }
+    }
+
+    /// Every machine description, in arena order.
+    pub fn machines(&self) -> &Arena<CheckedDeclarationDescription> {
+        &self.machines
+    }
+
+    /// Append one machine description. The index stops matching the arena
+    /// revision, so lookups read the rows until `index_machines` runs again.
+    pub fn insert_machine(
+        &mut self,
+        row: CheckedDeclarationDescription,
+    ) -> arena::Handle<CheckedDeclarationDescription> {
+        self.machines.insert(row)
     }
 
     /// Publish `machine_index` over the finished `machines` rows.

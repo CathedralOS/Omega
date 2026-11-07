@@ -14,7 +14,7 @@ pub(crate) fn exact_task_machine_contract<'program>(
 ) -> Result<&'program checked_trees::MachineContractPlan, Vec<Diagnostic>> {
     let mut matches = check_facts
         .contract_plans
-        .machines
+        .machines()
         .iter()
         .filter(|plan| plan.machine == machine);
     let plan = matches.next().ok_or_else(|| {

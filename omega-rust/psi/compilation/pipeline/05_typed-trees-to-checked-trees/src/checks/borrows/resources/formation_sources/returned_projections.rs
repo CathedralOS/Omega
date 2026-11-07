@@ -221,7 +221,8 @@ fn validate_source(
     )
     .map_err(|reason| {
         vec![Diagnostic::error(format!(
-            "returned projection source permission is unavailable: {reason}"
+            "returned projection source permission is unavailable: {}",
+            reason.describe(program)
         ))]
     })?;
     let mut selected = false;

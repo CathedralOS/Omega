@@ -13,48 +13,13 @@ use target::TargetProfile;
 /// continue. A check uses a private workspace and publishes no product files.
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
-    if let ProjectProduct::Native {
-        installation_assumptions,
-        ..
-    } = &request.product
-    {
-        compilation_products::compile_request::validate_installation_assumption_targets(
-            installation_assumptions,
-            &profiles,
-        )
-        .map_err(|reason| BuildError::Diagnostics(vec![Diagnostic::error(reason)]))?;
-    }
-    if matches!(request.product, ProjectProduct::Check) {
-        compiler::RequestedCompileProduct::Check
-            .validate_optimization_rollback(&request.optimization_rollback)
-            .map_err(|error| BuildError::Diagnostics(vec![error]))?;
-    }
-    if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
-        return Err(BuildError::Diagnostics(vec![Diagnostic::error(
-            "Terminal inspection requires one exact target context",
-        )]));
-    }
+    validate_request(&request, &profiles)?;
     let mut timings = if request.timings {
         CompileTimings::enabled()
     } else {
         CompileTimings::default()
     };
-    let check_workspace = match &request.product {
-        ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
-            Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
-        }
-        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
-    };
-    // Placement belongs to the authored source, never its resolver snapshot.
-    let base_directory = match &check_workspace {
-        Some(workspace) => workspace.path().to_path_buf(),
-        None => compiler::CompileOptions {
-            root_path: request.root_path.clone(),
-            build_dir: request.build_directory.clone(),
-            target_name: None,
-        }
-        .build_dir(),
-    };
+    let (check_workspace, base_directory) = select_base_directory(&request)?;
     let (work, _occupancies) = phase_profile::scope("build.admit_outputs", || {
         build_directory::admit_outputs(
             &profiles,
@@ -93,11 +58,6 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
     } else {
         let prepared = match prepared {
             Some(preparation) => {
-                let host = TargetProfile::host_if_supported().ok_or_else(|| {
-                    BuildError::Diagnostics(vec![Diagnostic::error(
-                        "Build execution needs an admitted host profile",
-                    )])
-                })?;
                 let mut session = phase_profile::scope("build.create_session", || {
                     crate::BuildSession::create_retained(&base_directory)
                 })
@@ -108,7 +68,6 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
                         crate::ProjectSourceRequest {
                             preparation,
                             execution: package_compilation::BuildExecutionInputs {
-                                profile: Some(host),
                                 snapshot: request.build_snapshot.clone(),
                                 ..Default::default()
                             },
@@ -142,6 +101,53 @@ pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildErro
         &request.product,
         &mut timings,
     ))
+}
+
+fn validate_request(request: &BuildRequest, profiles: &[TargetProfile]) -> Result<(), BuildError> {
+    if let ProjectProduct::Native {
+        installation_assumptions,
+        ..
+    } = &request.product
+    {
+        compilation_products::compile_request::validate_installation_assumption_targets(
+            installation_assumptions,
+            profiles,
+        )
+        .map_err(|reason| BuildError::Diagnostics(vec![Diagnostic::error(reason)]))?;
+    }
+    if matches!(request.product, ProjectProduct::Check) {
+        compiler::RequestedCompileProduct::Check
+            .validate_optimization_rollback(&request.optimization_rollback)
+            .map_err(|error| BuildError::Diagnostics(vec![error]))?;
+    }
+    if matches!(request.product, ProjectProduct::Inspection { .. }) && profiles.len() != 1 {
+        return Err(BuildError::Diagnostics(vec![Diagnostic::error(
+            "Terminal inspection requires one exact target context",
+        )]));
+    }
+    Ok(())
+}
+
+fn select_base_directory(
+    request: &BuildRequest,
+) -> Result<(Option<TemporaryDirectory>, std::path::PathBuf), BuildError> {
+    let check_workspace = match &request.product {
+        ProjectProduct::Check | ProjectProduct::Inspection { .. } => {
+            Some(TemporaryDirectory::create("check", false).map_err(BuildError::CheckWorkspace)?)
+        }
+        ProjectProduct::Terminal | ProjectProduct::Native { .. } => None,
+    };
+    // Placement belongs to the authored source, never its resolver snapshot.
+    let base_directory = match &check_workspace {
+        Some(workspace) => workspace.path().to_path_buf(),
+        None => compiler::CompileOptions {
+            root_path: request.root_path.clone(),
+            build_dir: request.build_directory.clone(),
+            target_name: None,
+        }
+        .build_dir(),
+    };
+    Ok((check_workspace, base_directory))
 }
 
 fn target_profiles(targets: &BuildTargets) -> Result<Vec<TargetProfile>, BuildError> {

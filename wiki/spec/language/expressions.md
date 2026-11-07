@@ -1,8 +1,7 @@
 # Expressions and evaluation order
 
 Expressions retain their selected operation identities and source evaluation
-schedule through checking, semantic evaluation, and realization. This specifies
-language behavior, not the current compiler's supported expression shapes.
+schedule through checking, semantic evaluation, and realization.
 
 ## Evaluation schedule
 
@@ -35,8 +34,12 @@ guard cannot be replayed as a fact about operands it may have changed. See
 [live-fact identity](state_contracts.md#mutation-and-subject-identity).
 
 Named fields are evaluated in authored order and installed at their declared
-identities. Canonical aggregate identity uses declaration order, while physical
-layout determines byte placement; neither changes evaluation order.
+identities. A final [`..` omission marker](data_and_literals.md#explicit-field-omission)
+has no evaluated operand. It authorizes zero establishment of omitted runtime
+fields under their existing validity and custody rules; it does not reorder the
+authored expressions or add a constructor call. Canonical aggregate identity
+uses declaration order, while physical layout determines byte placement;
+neither changes evaluation order.
 [Construction and disposal](ownership.md#construction-and-disposal-order)
 distinguishes reverse-establishment cleanup of partial staging from
 reverse-declaration cleanup of completed aggregates. Crash routes have no
@@ -326,13 +329,12 @@ construction implements the selected contract but cannot establish its proofs.
 
 ### Contract-gated core operations
 
-Ratified 2026-11-05: core indexing and ranges use directly selected, token-bearing
+Core indexing and ranges use directly selected, token-bearing
 [compiler-supplied primitive declarations](machines.md#generic-sealed-primitives).
 The selected declaration's complete instantiated contract governs admission.
 Bracket syntax must not fall back to declaration-free indexing, and a separate
 indexing checker must not substitute a recognized bounds pattern for that
-contract. This is the accepted architecture; implementation is tracked by
-**CORE-INDEXING-CONTRACTS** in [TASKS.md](../../../TASKS.md).
+contract.
 
 A by-copy read has this declaration shape in the authorized core package:
 

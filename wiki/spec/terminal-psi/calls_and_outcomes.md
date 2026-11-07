@@ -77,8 +77,8 @@ These declarations do not encode predicate proofs or routed authority. Those
 theories require their own evidence vocabulary rather than an assertion that
 they are obligation-free. Qualification adds no runtime tag, storage or operation;
 the ordinary edge transports the payload. Host scalar arguments alone do not
-establish a qualified entry contract. Current interpreter entry therefore rejects
-qualified host inputs until an evidence-bearing input interface exists.
+establish a qualified entry contract.
+An interpreter must reject qualified host inputs without the required evidence.
 
 ### Primitive array construction
 

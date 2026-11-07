@@ -321,11 +321,7 @@ pub(crate) struct SnapshotArgument {
 /// `retained` names the machines the probe program keeps. Both current
 /// callers keep the whole authored program (every non-probe machine):
 /// library satisfaction references and declaration reach read machines far
-/// outside the callee's call closure, while still-spelled endpoint bounds
-/// get closed stand-ins rather than membership filtering.
-/// `endpoint_stand_ins` carries the caller-computed closed literal each
-/// deferred range bound is rewritten to — the marks themselves are dropped
-/// with `pending_const_range_endpoints`.
+/// outside the callee's call closure.
 pub(crate) fn snapshot_arguments_discharge(
     admission: &super::BuildTimeAdmissionPlan,
     program: &TypedTrees,
@@ -338,16 +334,10 @@ pub(crate) fn snapshot_arguments_discharge(
     callee: &str,
     return_type: typed_trees::types::TypeReferenceHandle,
     snapshots: Vec<SnapshotArgument>,
-    endpoint_stand_ins: &[(ExpressionHandle, ExpressionNode)],
 ) -> Result<(), String> {
-    // All original probes must leave this private body check: their detached
-    // expressions use exact evaluation, not runtime ranges. Deferred
-    // range-endpoint marks name the outer const-eval continuation, not this
-    // private program, so they must not survive as a tolerated lost fold;
-    // the caller supplies each still-spelled bound's closed stand-in so the
-    // signature that carries it stays checkable here.
+    // The private invocation checks its evaluated argument snapshots. Pending
+    // contract folds belong to the outer continuation, not this private check.
     let mut probe = program.clone();
-    // Copy before deferred endpoint stand-ins replace their source roots.
     // The graph copy shares RuntimeValue operands with their saved bindings.
     if probe.expression_table.call_node(expression).is_none() {
         return Err("constant invocation has no selected call".into());
@@ -356,9 +346,6 @@ pub(crate) fn snapshot_arguments_discharge(
     typed_trees_to_typed_trees::restore_copied_call_sources(&mut probe, &[copied.root])
         .map_err(|reason| format!("constant call source restoration failed: {reason}"))?;
     probe.pending_const_range_endpoints.clear();
-    for (endpoint, stand_in) in endpoint_stand_ins {
-        *probe.expression_table.expression_mut(*endpoint) = stand_in.clone();
-    }
     let machines = probe
         .machines()
         .iter()

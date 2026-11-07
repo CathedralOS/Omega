@@ -2,8 +2,7 @@
 
 Omega's proof system uses ordinary machines, contracts, data, traits, and named
 conformances. The [mathematical foundation](foundation.md) selects a dependent
-core with proof-relevant identity and strict logical proofs. This specifies the
-required model, not complete implementation support. The
+core with proof-relevant identity and strict logical proofs. The
 [mathematical binding contract](mathematical_bindings.md) supplies the selected
 source forms; [delivery obligations](#delivery-obligations) remain explicit.
 
@@ -49,9 +48,7 @@ ensures core::Identity<T>(add(a, b), add(b, a));
 ```
 
 This law states identity of results, independently of any selected comparison.
-The body of each supplied theorem must prove it. The accepted source form and
-compiler/core migration are tracked by **PROOF-KERNEL-CORE** in
-[TASKS.md](../../../TASKS.md) and the [explicit-identity plan](../../drafts/designs/explicit_identity.md).
+The body of each supplied theorem must prove it.
 
 ### Equality bridges and comparison facts
 
@@ -488,9 +485,7 @@ The 2026-11-03 decision `bounded-canonical-index-normalization` and its
 anchor remains for existing links. The current rules are
 [stable canonical identity](#stable-canonical-index-identity) and
 [proved compatibility](#proved-index-compatibility); 64 is a configurable search
-default, never a canonical-key cutoff. The
-[migration acceptance](../../drafts/designs/index_identity.md) belongs to
-`OPERATOR-MACHINE-SUPPLY`, including source, artifact and fixture migration.
+default, never a canonical-key cutoff.
 
 ## Axioms and receiving policy
 
@@ -551,6 +546,13 @@ The assumption is not a checked proof of the relationship; derived guarantees
 remain conditional on it. Registration grants no ambient proposition, permits
 no malformed derivation, and cannot make its assumptions admissible for
 build-time evaluation. Ordinary mathematical axioms retain the veto above.
+
+Ordinary programs should reject this exceptional runtime relationship. A missing
+proof, borrow-checker refusal, incorrect contract or compiler limitation is a
+reason to repair the program or checker, not to request an assumed binding.
+Libraries must not transfer these ordinary implementation failures into their
+consumers' trust decisions. See the
+[exceptional-use rule](../build/assumed_binding_contracts.md).
 
 ### Admission and runtime diagnostics
 
@@ -621,11 +623,10 @@ roles, constructor relations, executable observers, and published correspondence
 
 ## Delivery obligations
 
-The [foundation](foundation.md) is the owner of the selected mathematical model,
-not the current Rust vocabulary or a collection of proof-assistant defaults.
-The [mathematical source forms](mathematical_bindings.md) are selected. Binding,
-substitution, universe inference, checked logical evidence and witness/assumption
-integration remain implementation work, not an unresolved notation choice.
+The [foundation](foundation.md) owns the selected mathematical model.
+Binding, substitution, universe inference, checked logical evidence and
+witness/assumption integration must follow the
+[mathematical source forms](mathematical_bindings.md).
 
 Changing axioms within one calculus does not establish compatibility between
 different calculi. These source forms preserve the specified evaluation,
@@ -639,10 +640,6 @@ new semantic or trust choice they expose to the owner queue before relying on it
 
 The [W-based inductive profile](inductive_profile.md) and
 [set-quotient interface](quotients.md#set-quotient-foundation) are selected.
-Combined metatheory, encoding correctness, kernel checking and library proofs
-remain execution obligations, not completed results or pending architecture votes.
-
-`PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md) owns worked
-proofs and migration through source, serialization, and replay. Neither a
-mechanical rewrite nor a few successful proofs establishes mathematical
-completeness. Current automation belongs beside [validation](../../../omega-rust/psi/compilation/validation/README.md).
+Their guarantees require combined metatheory, encoding correctness, kernel
+checking and library proofs. Neither a mechanical rewrite nor a few successful
+proofs establishes mathematical completeness.

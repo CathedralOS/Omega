@@ -56,8 +56,12 @@ and available facts. Admission requires all of the following:
 Empty reach alone proves none of the other axes. Trait requirements bound static
 callback selections; their consumers use the application's
 [specialized published reach](effects.md#static-callback-reach-dependencies),
-not the union of all possible selections. This rule is shared with ordinary
-runtime callers and does not grant evaluation-only narrowing of opaque contracts.
+not the union of all possible selections. Suspension and blocking admission
+likewise uses [published operational dependencies](effects.md#static-callback-operational-dependencies)
+after substitution. The generic body must already be valid under its callback
+requirements; evaluation cannot repair a carry or invariant-window failure.
+These rules are shared with ordinary runtime callers and do not grant
+evaluation-only narrowing of opaque contracts.
 Public trait requirements establish the floor; an incompatible conformance
 rejects at its declaration.
 [Package declaration-selection authority](../packages/boundaries.md#admit-before-execution)
@@ -349,6 +353,3 @@ does not escape or mutate compiler state out of band.
 The [selection result contract](reflection.md#selection-evaluation-and-retained-results)
 requires independent resolution, coverage, access, and requirement validation.
 Choosing a static declaration is not manufacturing proof or a runtime callable.
-
-The [implementation note](../../../omega-rust/psi/compilation/build-time-evaluation/README.md)
-records the narrower currently supported admission and materialization paths.

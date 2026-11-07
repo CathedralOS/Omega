@@ -289,12 +289,31 @@ impl StructuralJudge<'_> {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(owner),
         };
-        let mut completion = self.clone();
-        if parameters.iter().all(|parameter| {
-            bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-        }) {
+        let mut completion = Cow::Borrowed(self);
+        // Prepare copied arguments only when this mode and the declaration
+        // metadata allow the case reader to use them.
+        if completion.has_exact_case_subjects()
+            && parameters.iter().all(|parameter| {
+                bindings
+                    .iter()
+                    .any(|(symbol, _)| *symbol == parameter.symbol)
+            })
+            && owner_contracts(program, owner)
+                .filter(|contract| {
+                    contract.kind == SignatureContractKind::Ensures && contract.binding.is_none()
+                })
+                .any(|contract| {
+                    program
+                        .proof_facts
+                        .span_or_empty(contract.facts)
+                        .iter()
+                        .any(|fact| {
+                            fact.as_expression().is_some_and(|expression| {
+                                completion.may_extract_contract_cases(*expression)
+                            })
+                        })
+                })
+        {
             let map =
                 parameters
                     .iter()
@@ -324,7 +343,7 @@ impl StructuralJudge<'_> {
                 }
             }
             for case in &cases {
-                completion.intake_case_guarantee(case);
+                completion.to_mut().intake_case_guarantee(case);
             }
         }
         let mut equations = Vec::new();

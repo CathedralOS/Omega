@@ -207,10 +207,12 @@ merely because the argument types match. A library authors a different ceiling
 when its customer needs one.
 
 A walker declares Item, Context, and Step in its generic list and constrains
-Step with `where machine Step satisfies Visitor<Item, Context>::visit;`.
-The clause establishes Step's binder kind and complete contract. An explicit
-`machine Step` in the generic list is also consistent; no body or consumer-set
-inference may invent a missing callable contract.
+Step with `requires machine Step satisfies Visitor<Item, Context>::visit;`.
+The clause establishes Step's binder kind and complete originating contract.
+Named wrappers with an explicit `machine Step` binder can inherit exact
+[forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements);
+a direct invocation or consumer set cannot invent an originating contract.
+This accepted named-machine rule does not accept anonymous syntax or captures.
 
 At an anonymous argument application, the checker binds Context to the actual
 environment, selects the associated body, normalizes receiver syntax to its
@@ -271,7 +273,7 @@ neither exact selection nor permission to access the member.
 
 ## Operational contracts
 
-Fixed callback ceilings and ordinary call-site acknowledgements apply now.
+Originating callback ceilings and ordinary call-site acknowledgements apply.
 Possible suspension/blocking, reaches, failures, crashes, progress, mutation,
 and resources remain independently checked. Preconditions hold at every call;
 later calls use the previous post-state. Reentrancy or concurrent invocation is
@@ -279,9 +281,11 @@ not granted by receiver inference.
 
 [Reach dependencies](../spec/language/effects.md#static-callback-reach-dependencies)
 propagate through named static callback calls without forwarding syntax.
-Suspension/blocking remain fixed by the requirement; variable operational
-contracts for proposed anonymous forms remain an open design issue here, not
-an accepted extension. Failure remains ordinary
+Named static callbacks also use
+[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies):
+the body checks the requirement's upper bound, while callers substitute selected
+contracts. Applying that baseline to proposed anonymous forms must preserve
+the same boundaries; anonymous syntax remains unaccepted. Failure remains ordinary
 result data; crash guards require substitution; repetition and overlap affect
 resource composition. A callback contract cannot be copied wholesale onto its
 consumer, and a private selected body cannot weaken the required operational envelope.

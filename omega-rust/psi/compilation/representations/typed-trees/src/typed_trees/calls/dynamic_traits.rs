@@ -437,12 +437,7 @@ fn collect_type_reference_symbols(
                             collect_type_reference_symbols(program, *argument, symbols);
                         }
                     }
-                    TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } => {
-                        program.collect_expression_symbols(*minimum, symbols);
-                        program.collect_expression_symbols(*maximum, symbols);
-                    }
+
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                 }
             }

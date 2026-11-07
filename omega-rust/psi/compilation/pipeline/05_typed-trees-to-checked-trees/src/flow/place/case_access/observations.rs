@@ -10,10 +10,31 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 use validation::CanonicalPlace;
 
 pub(super) struct CaseObservation {
-    pub place: CanonicalPlace,
+    pub place: NormalizedPlace,
     pub variant: SymbolHandle,
     pub selected: bool,
     pub stable_index_subject: bool,
+}
+
+/// A tag observation as the facts spell it, before normalization.
+struct RawObservation {
+    place: CanonicalPlace,
+    variant: SymbolHandle,
+    selected: bool,
+}
+
+/// A place in one evidence batch's normalized coordinates. Only
+/// `normalize_place` constructs one, so a holder never needs normalizing
+/// again: the batch borrows an observation's own place as a query subject.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct NormalizedPlace(CanonicalPlace);
+
+impl std::ops::Deref for NormalizedPlace {
+    type Target = CanonicalPlace;
+
+    fn deref(&self) -> &CanonicalPlace {
+        &self.0
+    }
 }
 
 pub(super) fn collect(
@@ -74,11 +95,10 @@ pub(super) fn collect(
                 }) else {
                     continue;
                 };
-                observer.rows.push(CaseObservation {
+                observer.rows.push(RawObservation {
                     place,
                     variant,
                     selected: value,
-                    stable_index_subject: false,
                 });
             }
             _ => {}
@@ -86,24 +106,28 @@ pub(super) fn collect(
     }
     // Normalize every retained observation in this same immutable consumer
     // scope once. Captured expression roots stay exact saved occurrences.
-    for row in &mut observer.rows {
-        // Check the original selector before pinned-index normalization can
-        // hide a mutable or foreign binding behind a fixed coordinate.
-        row.stable_index_subject = has_index(&row.place)
-            && super::stable_subject(program, machine, state, statement_index, &row.place);
-        normalize_place(
-            program,
-            semantic,
-            contexts,
-            state.symbol,
-            statement_index,
-            &mut row.place,
-        );
-    }
-    observer
+    let mut rows = observer
         .rows
-        .sort_by(|left, right| left.place.compare_identity(&right.place));
-    observer.rows
+        .into_iter()
+        .map(|row| CaseObservation {
+            // Check the original selector before pinned-index normalization can
+            // hide a mutable or foreign binding behind a fixed coordinate.
+            stable_index_subject: has_index(&row.place)
+                && super::stable_subject(program, machine, state, statement_index, &row.place),
+            place: normalize_place(
+                program,
+                semantic,
+                contexts,
+                state.symbol,
+                statement_index,
+                row.place,
+            ),
+            variant: row.variant,
+            selected: row.selected,
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by(|left, right| left.place.compare_identity(&right.place));
+    rows
 }
 
 /// Give observations and queries the same coordinate representation. The
@@ -116,8 +140,8 @@ pub(super) fn normalize_place(
     contexts: &[FactContextHandle],
     state_symbol: SymbolHandle,
     statement_index: usize,
-    place: &mut CanonicalPlace,
-) {
+    mut place: CanonicalPlace,
+) -> NormalizedPlace {
     super::super::narrow_pinned_index_segments(
         program,
         semantic,
@@ -140,6 +164,7 @@ pub(super) fn normalize_place(
             *segment = facts::PlaceSegment::FixedIndex { index };
         }
     }
+    NormalizedPlace(place)
 }
 
 pub(super) fn has_index(place: &CanonicalPlace) -> bool {
@@ -154,7 +179,7 @@ struct Observer<'program> {
     machine: &'program typed_trees::machine::Machine,
     state: &'program typed_trees::state::State,
     statement_index: usize,
-    rows: Vec<CaseObservation>,
+    rows: Vec<RawObservation>,
 }
 
 impl Observer<'_> {
@@ -226,11 +251,10 @@ impl Observer<'_> {
                 ) else {
                     return;
                 };
-                self.rows.push(CaseObservation {
+                self.rows.push(RawObservation {
                     place,
                     variant,
                     selected: value,
-                    stable_index_subject: false,
                 });
             }
             _ => {}

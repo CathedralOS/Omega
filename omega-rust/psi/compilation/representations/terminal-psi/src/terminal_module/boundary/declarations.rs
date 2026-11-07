@@ -302,6 +302,7 @@ pub enum CheckedBoundaryExecution {
     Provider,
     AccessInitialize,
     AccessMoveOut,
+    AccessRelocate,
     AccessView,
     /// Consume a live zero-cell run and return its existing vacant backing.
     /// This is a core custody operation, never a host-supplied completion.
@@ -346,6 +347,7 @@ impl CheckedBoundaryExecution {
             | Self::StaticInterruptFinishCompletion => None,
             Self::AccessInitialize => Some(crate::TerminalAccessLifecycleOperation::Initialize),
             Self::AccessMoveOut => Some(crate::TerminalAccessLifecycleOperation::MoveOut),
+            Self::AccessRelocate => Some(crate::TerminalAccessLifecycleOperation::Relocate),
             Self::AccessView => Some(crate::TerminalAccessLifecycleOperation::View),
         }
     }

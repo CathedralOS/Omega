@@ -1,6 +1,5 @@
 //! Numeric parameter delivery consumes the caller's evaluated argument bounds.
 
-use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use arithmetic_domains::Interval;
 use diagnostics::Diagnostic;
@@ -9,7 +8,6 @@ use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 /// Check both carrier width and the declared range at the resolved parameter.
 /// A wholly anonymous argument first lands here; its integrality diagnostics
@@ -53,29 +51,15 @@ pub(super) fn report_argument_bounds(
         diagnostics,
         formation_obligations,
     );
-    let before = diagnostics.len();
-    if let Some((interval, _, _)) = arithmetic_domains::validate_anonymous_integer_range(
+    if arithmetic_domains::validate_anonymous_integer_range(
         program,
         parameter.type_reference,
         argument,
         &owner,
         diagnostics,
-    ) {
-        if diagnostics.len() == before {
-            arithmetic_domains::check_range_containment(
-                program,
-                parameter.type_reference,
-                arithmetic_domains::IntegerValueObservation {
-                    machine: current_machine,
-                    state: current_state,
-                    expression: argument,
-                    environment: value_environment,
-                    interval,
-                },
-                &owner,
-                diagnostics,
-            );
-        }
+    )
+    .is_some()
+    {
         return;
     }
     let parameter_domain = program.arithmetic_domain_for_type_reference(parameter.type_reference);
@@ -114,115 +98,6 @@ pub(super) fn report_argument_bounds(
     );
     // Parameter delivery is a store too. Width compatibility alone does not
     // establish the narrower declared range that the callee's reads assume.
-    if arithmetic_domains::enforced_declared_range_interval(program, parameter.type_reference)
-        .is_some()
-    {
-        let mut arithmetic_diagnostics = Vec::new();
-        let (interval, _, _) = arithmetic_domains::validate_value_range(
-            program,
-            current_machine,
-            current_state,
-            argument,
-            value_environment,
-            Some(parameter_primitive),
-            ArithmeticDomain::Exact,
-            &owner,
-            &mut arithmetic_diagnostics,
-        );
-        if arithmetic_diagnostics.is_empty() {
-            arithmetic_domains::check_range_containment(
-                program,
-                parameter.type_reference,
-                arithmetic_domains::IntegerValueObservation {
-                    machine: current_machine,
-                    state: current_state,
-                    expression: argument,
-                    environment: value_environment,
-                    interval,
-                },
-                &owner,
-                diagnostics,
-            );
-        }
-    }
-}
-
-/// Retain the retired bracketed field-range gate until suffix removal. Full
-/// data predicates belong to the normal-call storage transfer, not an interval
-/// envelope of the callee's scalar formal.
-pub(super) fn report_declared_referent_ranges(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: Option<&State>,
-    prior_statements: &[StatementNode],
-    arguments: &[ExpressionHandle],
-    parameters: &[StateParameter],
-    target_name: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(state) = state else {
-        return;
-    };
-    let frames = crate::CallFrameResolver::new(program);
-    let statement = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(prior_statements.len());
-    for (argument, parameter) in arguments.iter().zip(parameters) {
-        let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
-            continue;
-        };
-        if !shell.access.is_exclusive() || program.primitive_type_reference(shell.referee).is_none()
-        {
-            continue;
-        }
-        let target = expression_table(program)
-            .borrow_expression(*argument)
-            .map_or(*argument, |borrow| borrow.target);
-        let Some(mut place) = crate::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            prior_statements.len(),
-            target,
-        ) else {
-            continue;
-        };
-        if place.segments.is_empty()
-            && let Some(root) = place.root.as_symbol()
-            && let Some((frames, statement)) = frames.as_ref().zip(statement)
-            && let Some((root, segments)) =
-                frames.local_reference_origin_before_statement(machine, statement, root)
-        {
-            place.root = facts::PlaceRoot::Symbol(root);
-            place.segments = segments;
-        }
-        let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last() else {
-            continue;
-        };
-        let Some((_, field)) = program.any_field_owner(*symbol) else {
-            continue;
-        };
-        if !arithmetic_domains::declares_bracketed_range(program, field.type_reference) {
-            continue;
-        }
-        let declared =
-            arithmetic_domains::enforced_declared_range_interval(program, field.type_reference);
-        let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
-        let preserved = declared.zip(returned).is_some_and(|(required, returned)| {
-            required
-                .low
-                .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
-                && required
-                    .high
-                    .is_none_or(|maximum| returned.high.is_some_and(|value| value <= maximum))
-        });
-        if !preserved {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
-                machine.name, field.name,
-            )));
-        }
-    }
 }
 
 fn report_accessor_scalar_write_predicate(

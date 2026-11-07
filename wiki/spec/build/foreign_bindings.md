@@ -25,9 +25,7 @@ Build::bind<WindowsAudioPlaybackIo::c_play_sound>(
 );
 ```
 
-This is the accepted source contract.
-`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../TASKS.md) tracks its
-implementation and migration. The existing source-level `via` clause and the
+The source-level `via` clause and the
 bodyless per-symbol realization machine that only forwards to a locator are
 retired. A separate machine returning `ForeignBinding` is optional ordinary
 value computation, never mandatory import boilerplate. Checked adaptation still
@@ -77,8 +75,7 @@ write byte counts on the constructor or `Build::bind`, and need not introduce
 a helper with an explicitly counted return type. In the example above the
 inferred type is `ForeignBinding<9, 10, 0>`; these are locator byte lengths,
 not syscall numbers, argument counts, or calling conventions. Incorrect explicit
-lengths still reject. This inference is part of migration acceptance, not an
-assumed consequence of moving the declaration into Build.
+lengths still reject.
 
 | Binding case | Payload |
 | --- | --- |
@@ -111,7 +108,6 @@ The wider legacy source-level vocabulary (`ExternalBinding`) resolved through
 `via` — `Syscall`, `CompilerIntrinsic`, `VtableField`, `TableFunction`, and
 `VtableSlot` — is a migration input, not a supported alternative source binding
 form.
-Only `DllImport` and `Syscall` reach the current evaluated `Binding` sum above.
 Retiring `via` does not add table or instruction variants to `ForeignBinding`:
 validated typed table/field mechanisms and the sealed intrinsic catalog retain
 their own obligations and must migrate without a compatibility parser.
@@ -161,7 +157,7 @@ This names the foreign promise, not proof that the implementation satisfies it.
 The partition cannot reconstruct the actual signature substitution: retain the
 full lifetime arguments separately wherever policy/signature checking needs them.
 
-There is currently no lifetime constant such as `'static`; application arguments
+There is no lifetime constant such as `'static`; application arguments
 are active binders. Adding constants would require a closed binder-or-constant
 identity while keeping every telescope slot explicit. A lifetime fixed directly
 inside a requirement, rather than declared as a trait parameter, has no slot to

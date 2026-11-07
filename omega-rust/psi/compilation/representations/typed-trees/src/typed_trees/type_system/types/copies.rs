@@ -285,12 +285,7 @@ impl TypeReferenceTable {
                                 self.remap_symbols_in(argument, expressions, symbols);
                             }
                         }
-                        TypeConstraintNode::Range {
-                            minimum, maximum, ..
-                        } => {
-                            expressions.remap_symbols_in(minimum, symbols);
-                            expressions.remap_symbols_in(maximum, symbols);
-                        }
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {}
                     }
                 }
@@ -440,7 +435,7 @@ impl TypeReferenceTable {
                         .collect();
                     TypeConstraintNode::Domain(domain)
                 }
-                _ => constraint.copy_from(source_expressions, target_expressions),
+                _ => constraint.clone(),
             };
             self.set_constraint_at_offset(
                 copied,

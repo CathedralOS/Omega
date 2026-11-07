@@ -71,7 +71,9 @@ impl TerminalExecution<'_> {
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
     ) -> Result<(Vec<TerminalScalarValue>, StructuralCallArguments), TerminalInterpretError> {
-        let scalar_arguments = self.scalar_values_at(arguments)?;
+        let scalar_arguments = self
+            .scalar_values_at(arguments)
+            .map_err(|error| error.in_argument_preparation("read scalar call arguments"))?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         Ok((scalar_arguments, prepared_arguments))

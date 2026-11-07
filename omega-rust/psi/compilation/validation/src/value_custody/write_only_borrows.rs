@@ -238,56 +238,6 @@ fn is_unrestricted_scalar(
         && program.primitive_type_reference(type_reference).is_some()
 }
 
-/// One qualified leaf a common-field store may displace: an exact integer
-/// primitive whose only constraints are closed literal `[lo..=hi]` ranges.
-/// The bounded-assignment obligation downstream re-derives the same integer
-/// interval from the declaration and enforces every store into the place, so
-/// admission adds no new proof burden — this gate still owns only the
-/// content-independent place, never the value's containment proof. Named and
-/// domain constraints, symbolic or unclosed endpoints, and non-integer
-/// carriers stay unsupported leaves here: the proof layer cannot turn them
-/// into an enforced integer range. `write_only_assignment_leaf` separately
-/// admits the arithmetic-policy-only integer leaf.
-fn is_closed_ranged_integer_scalar(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    let mut current = type_reference;
-    let mut saw_range = false;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(current)
-    {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                return false;
-            };
-            if crate::closed_integer_range_bound(program, *minimum).is_none()
-                || crate::closed_integer_range_maximum(program, *maximum, *end_inclusive).is_none()
-            {
-                return false;
-            }
-            saw_range = true;
-        }
-        current = *base_type;
-    }
-    saw_range
-        && matches!(
-            program.type_reference_table.type_reference(current),
-            TypeReferenceNode::Named { symbol, .. }
-                if program
-                    .symbols
-                    .builtin_type_atom(*symbol)
-                    .is_some_and(|atom| atom.is_fixed_integer())
-        )
-}
-
 fn fixed_discardable_write_only_array_shape(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -334,8 +284,7 @@ fn is_qualified_write_only_leaf(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    is_closed_ranged_integer_scalar(program, type_reference)
-        || crate::is_arithmetic_policy_only_integer(program, type_reference)
+    crate::is_arithmetic_policy_only_integer(program, type_reference)
         || is_plain_domain_qualified_leaf(program, type_reference)
 }
 

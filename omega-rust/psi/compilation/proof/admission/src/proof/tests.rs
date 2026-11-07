@@ -804,6 +804,36 @@ fn implication_certificate_is_checked_structurally() {
 }
 
 #[test]
+fn excluded_middle_is_expressible_and_a_cited_premise_stays_recorded() {
+    let atom = Proposition::Atom(PropositionId::new(1).expect("undecided atom"));
+    let goal = Proposition::Disjunction(vec![
+        atom.clone(),
+        Proposition::Implication {
+            premise: Box::new(atom),
+            conclusion: Box::new(Proposition::Falsehood),
+        },
+    ]);
+    let context = PropositionContext::default();
+    let proof = assumption_proof(goal.clone(), 0);
+
+    // A well-formed classical formula does not supply its own premise.
+    assert_eq!(
+        accept_certificate(&context, &goal, &[], &[], &proof),
+        Err(ProofError::UnknownAssumption(0))
+    );
+
+    let accepted = accept_certificate(&context, &goal, from_ref(&goal), &[], &proof)
+        .expect("excluded middle supplied as an exact scoped premise");
+    assert_eq!(accepted.assumptions, vec![recorded_premise(0, &goal)]);
+    assert_eq!(accepted.rules, vec![AcceptedProofRule::Assumption]);
+    assert!(accepted.semantic_axioms.is_empty());
+    assert!(matches!(
+        accepted.mathematical_core,
+        MathematicalCoreDecision::Judged(_)
+    ));
+}
+
+#[test]
 fn accepted_trust_closure_binds_the_exact_cited_premise() {
     let cited = Proposition::Atom(PropositionId::new(1).expect("cited atom"));
     let replacement = Proposition::Atom(PropositionId::new(2).expect("replacement atom"));

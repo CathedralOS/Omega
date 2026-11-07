@@ -92,7 +92,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
             }
             TerminalAccessLifecycleExecution::CompilerPrimitive {
                 profile_type,
-                profile_requirement,
+                profile_requirements,
             } => {
                 if boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Machine {
                     return Err("compiler placement primitive does not name an exact machine");
@@ -107,39 +107,43 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
                 }
                 match profile_type {
                     Some(profile_type) => {
-                        let requirement = profile_requirement.as_ref().ok_or(
-                            "placement initialization lost its profile supply requirement",
-                        )?;
-                        let supply = module.boundary_machine(requirement.boundary).ok_or(
-                            "placement initialization lost its profile supply requirement",
-                        )?;
-                        let [storage] = supply.structural_parameters.as_slice() else {
-                            return Err("profile supply lost its borrowed extent input");
-                        };
-                        if supply.role != BoundaryDeclarationRole::Callable
-                            || supply.kind != semantic_vocabulary::BoundaryRequirementKind::Trait
-                            || !requirement.owner.same_identity_as(
-                                &module.identities,
-                                &supply.owner,
-                                &module.identities,
-                            )
-                            || module
-                                .identities
-                                .text(requirement.callable)
-                                .filter(|identity| !identity.is_empty())
-                                .is_none_or(|identity| {
-                                    module.identities.text(supply.identity) != Some(identity)
-                                })
-                            || !supply.scalar_parameters.is_empty()
-                            || storage.structural_type != plan.storage.carrier
-                            || storage.access != StructuralAccess::SharedBorrow
-                            || !storage.qualifications.contains(&plan.storage.granted)
-                            || !matches!(&supply.result, BoundaryMachineResult::Structural(result)
+                        let expected = plan.operation.profile_operands().len();
+                        if profile_requirements.len() != expected {
+                            return Err("placement operation lost its exact supply-role roster");
+                        }
+                        for requirement in profile_requirements {
+                            let supply = module.boundary_machine(requirement.boundary).ok_or(
+                                "placement initialization lost its profile supply requirement",
+                            )?;
+                            let [storage] = supply.structural_parameters.as_slice() else {
+                                return Err("profile supply lost its borrowed extent input");
+                            };
+                            if supply.role != BoundaryDeclarationRole::Callable
+                                || supply.kind
+                                    != semantic_vocabulary::BoundaryRequirementKind::Trait
+                                || !requirement.owner.same_identity_as(
+                                    &module.identities,
+                                    &supply.owner,
+                                    &module.identities,
+                                )
+                                || module
+                                    .identities
+                                    .text(requirement.callable)
+                                    .filter(|identity| !identity.is_empty())
+                                    .is_none_or(|identity| {
+                                        module.identities.text(supply.identity) != Some(identity)
+                                    })
+                                || !supply.scalar_parameters.is_empty()
+                                || storage.structural_type != plan.storage.carrier
+                                || storage.access != StructuralAccess::SharedBorrow
+                                || !storage.qualifications.contains(&plan.storage.granted)
+                                || !matches!(&supply.result, BoundaryMachineResult::Structural(result)
                                 if result.structural_type == *profile_type)
-                        {
-                            return Err(
-                                "profile supply differs from its exact core declaration or extent/result contract",
-                            );
+                            {
+                                return Err(
+                                    "profile supply differs from its exact core declaration or extent/result contract",
+                                );
+                            }
                         }
                         if find_structural_type(&module.structural_types, *profile_type).is_none_or(
                             |declaration| {
@@ -157,6 +161,34 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
             }
         };
         match plan.operation {
+            TerminalAccessLifecycleOperation::Relocate => {
+                let [run, destination, source_profile, destination_profile] =
+                    boundary.structural_parameters.as_slice()
+                else {
+                    return Err("run relocation lost its owners or their profile inputs");
+                };
+                let (vacant, _) = plan.storage.owned_content()?;
+                if !matches!(
+                    plan.storage.owner,
+                    terminal_psi::TerminalAccessOwner::Run { .. }
+                ) || run.access != StructuralAccess::Owned
+                    || destination.access != StructuralAccess::Owned
+                    || destination.multiplicity != StructuralMultiplicity::Linear
+                    || destination.structural_type != plan.storage.carrier
+                    || destination.qualifications.len() != 2
+                    || !destination.qualifications.contains(&plan.storage.granted)
+                    || !destination.qualifications.contains(&vacant)
+                    || !destination.projected_qualifications.is_empty()
+                    || [source_profile, destination_profile].iter().any(|profile| {
+                        profile.access != StructuralAccess::SharedBorrow
+                            || Some(profile.structural_type) != profile_type
+                    })
+                {
+                    return Err(
+                        "run relocation must own live and vacant backing and borrow both original profiles",
+                    );
+                }
+            }
             TerminalAccessLifecycleOperation::View => {
                 let [storage, profile] = boundary.structural_parameters.as_slice() else {
                     return Err("borrowed placement lost its storage and profile inputs");
@@ -532,9 +564,13 @@ fn validate_storage(
     let input_multiplicity = match plan.operation {
         TerminalAccessLifecycleOperation::View => StructuralMultiplicity::Unrestricted,
         TerminalAccessLifecycleOperation::Initialize
-        | TerminalAccessLifecycleOperation::MoveOut => StructuralMultiplicity::Linear,
+        | TerminalAccessLifecycleOperation::MoveOut
+        | TerminalAccessLifecycleOperation::Relocate => StructuralMultiplicity::Linear,
     };
-    let extracting = plan.operation == TerminalAccessLifecycleOperation::MoveOut;
+    let extracting = matches!(
+        plan.operation,
+        TerminalAccessLifecycleOperation::MoveOut | TerminalAccessLifecycleOperation::Relocate
+    );
     let input_carrier = if extracting {
         storage.owner_carrier()
     } else {

@@ -107,6 +107,7 @@ pub enum CheckedBoundaryExecutionPlan {
     AccessInitialize,
     AccessMoveOut,
     AccessView,
+    AccessRelocate,
     EmptyRunRelease,
     /// Exact checked compiler operation; lowering transports this decision.
     StaticInterrupt(language_core::static_interrupts::StaticInterruptOperation),

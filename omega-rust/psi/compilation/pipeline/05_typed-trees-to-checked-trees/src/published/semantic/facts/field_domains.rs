@@ -34,7 +34,6 @@
 //! domain-membership obligations and cannot restore a fact after a mutation.
 
 use crate::checks::type_multiplicity;
-use crate::values::float_predicates::declared_type_predicates;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
     QualificationEvidence,
@@ -72,6 +71,20 @@ pub(crate) fn declared_field_domain_carrier(
     None
 }
 
+#[derive(Clone)]
+struct ZeroFieldDomain {
+    path: Vec<PlaceSegment>,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+    origin: FactOrigin,
+}
+
+#[derive(Default)]
+struct ZeroFieldDomains {
+    exact: Vec<ZeroFieldDomain>,
+    elementwise: Vec<ZeroFieldDomain>,
+}
+
 /// Seed only domains established by a local's zero initialization. Incoming
 /// nominal values use the declared parameter obligations instead: zero validity
 /// says nothing about an established argument or its machine's qualification.
@@ -91,36 +104,108 @@ pub(crate) fn declared_field_domain_carrier(
 fn append_zero_initialized_field_domain_facts(
     program: &dyn ::validation::CheckingInput,
     facts: &mut FactPlan,
-    root_symbol: symbols::SymbolHandle,
+    root_symbol: SymbolHandle,
     point: ProgramPoint,
     origin: FactOrigin,
     evidence: QualificationEvidence,
-    data: &typed_trees::data::DataDefinition,
-    prefix: &[PlaceSegment],
-    visited: &[&str],
+    reference: TypeReferenceHandle,
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
-    macro_rules! append_field {
-        ($origin:expr, $nested:expr, $prefix:expr, $visited:expr $(,)?) => {
-            append_zero_initialized_field_domain_facts(
-                program,
-                facts,
-                root_symbol,
-                point,
-                $origin,
-                evidence,
-                $nested,
-                $prefix,
-                $visited,
-                refs,
-            )
-        };
+    let mut rows = ZeroFieldDomains::default();
+    collect_zero_initialized_field_domains(program, reference, &[], &[], origin, &mut rows);
+    for row in rows.exact.into_iter().chain(
+        rows.elementwise
+            .into_iter()
+            .filter(|row| row.path.contains(&WHOLE_ELEMENT_EXTENT)),
+    ) {
+        let place = facts.append_symbol_place(root_symbol);
+        for segment in row.path {
+            facts.push_place_segment(place, segment);
+        }
+        let fact = facts.append_fact(Fact {
+            place: FactPlace::Place(place),
+            point,
+            origin: row.origin,
+            evidence,
+            payload: domain_membership_payload(row.domain_symbol, row.semantic_domain),
+        });
+        facts.append_ref(refs, fact);
     }
+}
+
+fn collect_zero_initialized_field_domains(
+    program: &dyn ::validation::CheckingInput,
+    reference: TypeReferenceHandle,
+    prefix: &[PlaceSegment],
+    visited: &[&str],
+    origin: FactOrigin,
+    rows: &mut ZeroFieldDomains,
+) {
+    // A zero pointer is not an established loan to zeroed referent storage.
+    // Recurse only through the owned image, retaining each collection hop.
+    let carrier = validation::peel_declared_constraints(program, reference);
+    if matches!(
+        program.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::Reference { .. }
+    ) {
+        return;
+    }
+    let collection = readable_fixed_array_elements(program, carrier)
+        .map(|(element, length)| (element, Some(length)))
+        .or_else(|| readable_slice_element(program, carrier).map(|element| (element, None)));
+    if let Some((element, length)) = collection {
+        // Compute the element's zero-valid rows once. Primitive arrays and
+        // elements with no established fields require no per-index traversal.
+        let mut element_rows = ZeroFieldDomains::default();
+        collect_zero_initialized_field_domains(
+            program,
+            element,
+            &[],
+            visited,
+            origin,
+            &mut element_rows,
+        );
+        let place = |row: &ZeroFieldDomain, segment| {
+            let mut path = Vec::with_capacity(prefix.len() + 1 + row.path.len());
+            path.extend_from_slice(prefix);
+            path.push(segment);
+            path.extend_from_slice(&row.path);
+            ZeroFieldDomain {
+                path,
+                domain_symbol: row.domain_symbol,
+                semantic_domain: row.semantic_domain,
+                origin: row.origin,
+            }
+        };
+        if let Some(length) = length
+            && !element_rows.exact.is_empty()
+        {
+            for index in 0..length {
+                for row in &element_rows.exact {
+                    rows.exact
+                        .push(place(row, PlaceSegment::FixedIndex { index }));
+                }
+            }
+        }
+        // Keep one all-element path per leaf domain, rather than combining
+        // every fixed index with every nested wildcard. Each whole extent
+        // narrows to that dimension's selected point through ordinary coverage.
+        for row in &element_rows.elementwise {
+            rows.elementwise.push(place(row, WHOLE_ELEMENT_EXTENT));
+        }
+        return;
+    }
+    let Some(data) = readable_nominal_definition(program, carrier) else {
+        return;
+    };
+    if visited.contains(&data.name.as_str()) {
+        return;
+    }
+    let mut next_visited = visited.to_vec();
+    next_visited.push(data.name.as_str());
     let members = program.data_members(data);
-    // Zero formation selects the first authored case, independently of its
-    // stable schema number. Its payload has the same field obligations as
-    // common storage, but only after that complete zero image is established.
-    // The ordinary field path builder retains the case discriminator segment.
+    // Only the first case belongs to the zero image, and only after its full
+    // validity judgment. The ordinary path builder retains that discriminator.
     let zero_payload = members
         .iter()
         .find_map(|member| member.as_variant())
@@ -133,14 +218,9 @@ fn append_zero_initialized_field_domain_facts(
     {
         let mut field_path = prefix.to_vec();
         validation::push_field_place_segments(program, &mut field_path, field.symbol);
-
-        // SOUNDNESS GATE (per field, one-level or nested): surface the
-        // entry-invariant only when the field's ZERO/ZII value provably satisfies
-        // the domain -- a read-with-no-prior-write discharges against it, sound
-        // only if this exact carrier's zero image is in-domain. Preserve the
-        // full instance: a fixed-array capacity is part of its domain application,
-        // and a family symbol alone cannot satisfy an indexed call obligation.
-        // Domains the zero image violates stay gated until an establishing write.
+        // The complete applied field type must admit zero. Predicate evidence
+        // or a family name alone cannot introduce routed or zero-excluding
+        // membership, including below nested collection dimensions.
         for (domain_symbol, semantic_domain) in
             validation::field_domains::predicate_domain_constraint_identities(
                 program,
@@ -149,80 +229,25 @@ fn append_zero_initialized_field_domain_facts(
             .into_iter()
             .filter(|_| !validation::type_requires_establishment(program, field.type_reference))
         {
-            // Place `<root>.<prefix…>.<field>`: root the local symbol + the segment
-            // chain, so the canonical label matches a `root.a.b` read exactly
-            // where the nested write established it.
-            let place = facts.append_symbol_place(root_symbol);
-            for segment in &field_path {
-                facts.push_place_segment(place, *segment);
-            }
-
-            let fact = facts.append_fact(Fact {
-                place: FactPlace::Place(place),
-                point,
+            let row = ZeroFieldDomain {
+                path: field_path.clone(),
+                domain_symbol,
+                semantic_domain,
                 origin,
-                evidence,
-                payload: domain_membership_payload(domain_symbol, semantic_domain),
+            };
+            rows.exact.push(row.clone());
+            rows.elementwise.push(ZeroFieldDomain {
+                origin: FactOrigin::StatementTransfer,
+                ..row
             });
-            facts.append_ref(refs, fact);
         }
-
-        // Descend into a struct-typed field so its own domained fields are seeded
-        // too. The cycle guard keeps a self-referential data type from looping.
-        if let Some(nested) =
-            validation::field_domains::data_definition_for_field_type(program, field.type_reference)
-            && !visited.contains(&nested.name.as_str())
-        {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.name.as_str());
-            append_field!(origin, nested, &field_path, &next_visited);
-        }
-
-        // A slice-typed field's elements carry their declared fields through
-        // the whole-extent row alone: no static extent exists to enumerate.
-        if let Some(element_type) = readable_slice_element(program, field.type_reference)
-            && let Some(nested) = readable_nominal_definition(program, element_type)
-            && !visited.contains(&nested.name.as_str())
-        {
-            let mut next_visited = visited.to_vec();
-            next_visited.push(nested.name.as_str());
-            let mut element_path = field_path.clone();
-            element_path.push(WHOLE_ELEMENT_EXTENT);
-            append_field!(origin, nested, &element_path, &next_visited);
-        }
-
-        // A fixed array of nominal elements carries each element's declared
-        // fields at `field[i]`; the same ZII gate applies to the leaf domains.
-        // The whole-extent `field[0..usize::MAX]` row is seeded alongside so a
-        // runtime selector or a slice view can narrow coverage from it. It is
-        // EVIDENCE ONLY (`StatementTransfer`): the per-element rows already
-        // spell the complete obligation, so collecting the rollup row as a
-        // requirement would only double-report every corrupted element.
-        let Some((element_type, length)) =
-            readable_fixed_array_elements(program, field.type_reference)
-        else {
-            continue;
-        };
-        let Some(nested) = readable_nominal_definition(program, element_type) else {
-            continue;
-        };
-        if visited.contains(&nested.name.as_str()) {
-            continue;
-        }
-        let mut next_visited = visited.to_vec();
-        next_visited.push(nested.name.as_str());
-        for index in 0..length {
-            let mut element_path = field_path.clone();
-            element_path.push(PlaceSegment::FixedIndex { index });
-            append_field!(origin, nested, &element_path, &next_visited);
-        }
-        let mut element_path = field_path.clone();
-        element_path.push(WHOLE_ELEMENT_EXTENT);
-        append_field!(
-            FactOrigin::StatementTransfer,
-            nested,
-            &element_path,
+        collect_zero_initialized_field_domains(
+            program,
+            field.type_reference,
+            &field_path,
             &next_visited,
+            origin,
+            rows,
         );
     }
 }
@@ -349,23 +374,6 @@ pub(super) fn append_state_parameter_domain_facts(
                         }
                     }
                     continue;
-                }
-                let mut predicates = Vec::new();
-                declared_type_predicates(program, parameter.type_reference, &mut predicates);
-                if !predicates.is_empty() {
-                    let place = facts.append_symbol_place(parameter.symbol);
-                    for predicate in predicates {
-                        let fact = facts.append_fact(Fact {
-                            place: FactPlace::Place(place),
-                            point: state_point(machine.symbol, state.symbol),
-                            // Numeric range admission already has its own
-                            // incoming-value obligation, not a membership row.
-                            origin: FactOrigin::StatementTransfer,
-                            evidence: propagated_evidence(state.symbol),
-                            payload: FactPayload::FloatPredicate { predicate },
-                        });
-                        facts.append_ref(&mut refs, fact);
-                    }
                 }
                 let mut has_resource_claim = false;
                 for (domain_symbol, semantic_domain) in
@@ -689,24 +697,18 @@ pub(super) fn append_local_zii_field_domain_facts(
                     facts.append_ref(&mut refs, fact);
                 }
 
-                let Some(data) = validation::field_domains::owned_nominal_data_definition(
-                    program,
-                    local_data.type_reference,
-                ) else {
-                    continue;
-                };
-                append_zero_initialized_field_domain_facts(
-                    program,
-                    facts,
-                    local_data.symbol,
-                    point,
-                    origin,
-                    evidence,
-                    data,
-                    &[],
-                    &[data.name.as_str()],
-                    &mut refs,
-                );
+                if !local_data.relevance.is_erased() {
+                    append_zero_initialized_field_domain_facts(
+                        program,
+                        facts,
+                        local_data.symbol,
+                        point,
+                        origin,
+                        evidence,
+                        local_data.type_reference,
+                        &mut refs,
+                    );
+                }
             }
 
             if refs.is_empty() {
