@@ -6,10 +6,7 @@ replace runtime trait selectors; state remains ordinary explicit arguments.
 
 Ratified 2026-11-06 together with [some packages](some_packages.md). All `dyn`
 source forms, including captured `dyn Trait<_>`, are retired. Static traits,
-named conformances, proof laws and `machine F` generic binders remain. The
-[migration plan](../../drafts/designs/machine_values_some.md) tracks compiler
-delivery; examples here define the target language, not current implementation
-coverage. Anonymous bodies and capture syntax remain a separate proposal.
+named conformances, proof laws and `machine F` generic binders remain. Anonymous bodies and capture syntax remain a separate proposal.
 
 ## Callable types and construction
 
@@ -98,7 +95,9 @@ contract. It remains eligible for specialization and direct calls. It is not a
 runtime parameter and is not removed by this feature. Conversely, a runtime
 callable does not become a static generic argument merely because the optimizer
 predicts its target. Explicit generic instantiations can produce callable values
-once their static arguments close.
+once their static arguments close. Their callable contracts use the checked
+application's substituted [operational dependencies](effects.md#static-callback-operational-dependencies);
+construction still proves refinement against the destination callable type.
 
 Machine values can share consumer code across runtime choices. Generics can
 specialize that consumer, and a program can combine both. Neither spelling

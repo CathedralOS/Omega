@@ -10,7 +10,7 @@ This contract distinguishes compilation products from installed component
 publication. Writing artifact bytes for later consumption does not establish a
 running installation. The deployment requirements below apply to the installed
 component claim, not to ordinary artifact serialization. Platform container layouts
-are separate, and specified deployment routes are not necessarily implemented.
+are separate.
 
 ## Selection and component closure
 
@@ -148,8 +148,7 @@ identity detects substitution but discharges no semantic premise.
 This API exposes existing closed component evidence, not a topology analyzer or
 mutable compiler-query service. Reflection alone cannot certify absence of hidden
 executable authority. The [topology package](../packages/topology.md) is one
-consumer alongside independent component admission and replacement. Producer and
-consumer coverage must be demonstrated before claiming this interface implemented.
+consumer alongside independent component admission and replacement.
 
 ### Consumer acceptance and Build attenuation
 
@@ -450,9 +449,7 @@ Omega owns normalized identities, contract/resource validation, relocatable
 artifacts, and generic entry/quiescence obligations. Cathedral or another runtime
 owns selection policy, provision, mapping cohorts, scheduler/device quiescence,
 era/drain limits, migration, rollback/retention, and concrete entry algorithms.
-No compiler-owned runtime implementation supplies those responsibilities;
-these contracts do not claim ordinary source `Independent` execution is
-implemented.
+No compiler-owned runtime implementation supplies those responsibilities.
 
 ## Products and authority
 

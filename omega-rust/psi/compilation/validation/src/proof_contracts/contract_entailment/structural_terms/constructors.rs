@@ -392,20 +392,7 @@ fn zero_term(
         for constraint in program.type_reference_table.constraints(*constraints) {
             match constraint {
                 TypeConstraintNode::ArithmeticDomain(_) => {}
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => {
-                    // Check each range, not a partial intersection which may
-                    // silently omit an uncomputed bound.
-                    let minimum = crate::closed_integer_range_bound(program, *minimum)?;
-                    let maximum =
-                        crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?;
-                    if minimum > BigInt::zero() || maximum < BigInt::zero() {
-                        return None;
-                    }
-                }
+
                 // These need their own established predicate evidence; peeling
                 // the wrapper would silently waive the field's qualification.
                 TypeConstraintNode::Domain(_) | TypeConstraintNode::Named(_) => return None,

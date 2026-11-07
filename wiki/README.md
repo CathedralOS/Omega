@@ -11,6 +11,11 @@
 The specification uses grammar, definitions, rules, tables, and examples where
 useful. It is not claimed to be fully formalized. Implementation details belong
 beside code; completed work belongs in Git, not current reference material.
+The spec states the accepted language and required guarantees, independently of
+compiler delivery. Put implementation gaps in the owning task on the
+[execution boards](../TASKS.md), extending an existing task before adding another.
+Keep normative limits, trust assumptions and required evidence in the spec;
+do not replace them with progress reports or remove them as status.
 
 ## Current specification subjects
 
@@ -43,7 +48,8 @@ beside code; completed work belongs in Git, not current reference material.
 - Mathematical proofs: [foundation and checking judgments](spec/proofs/foundation.md),
   [mathematical bindings and logical hypotheses](spec/proofs/mathematical_bindings.md),
   [W-based induction and indexed encoding](spec/proofs/inductive_profile.md),
-  [contracts, bundles, normalization, and trust](spec/proofs/contracts.md)
+  [contracts, bundles, normalization, and trust](spec/proofs/contracts.md),
+  [stable index identity and proved compatibility](spec/proofs/contracts.md#licensed-normalization)
   and [relations and quotients](spec/proofs/quotients.md).
 - Runtime data/code interfaces: [machine values](spec/language/machine_values.md)
   and [some packages](spec/language/some_packages.md).
@@ -79,6 +85,7 @@ beside code; completed work belongs in Git, not current reference material.
 - Build: [declarations and package identity](spec/build/declarations.md),
   [dependency scopes, product references, and isolated I/O](spec/build/scoped_execution.md),
   [configuration and targets](spec/build/configuration.md),
+  [recorded proof-work policy](spec/build/configuration.md#proof-work-policy),
   [portable platform services](spec/build/platform_services.md),
   [requirement-based test groups](spec/build/testing.md),
   [selected-product behavior exclusions](spec/build/behavior_exclusions.md),
@@ -92,7 +99,7 @@ beside code; completed work belongs in Git, not current reference material.
   [foreign storage and lifetime](spec/build/foreign_storage.md),
   [machine-state evidence](spec/build/machine_state_evidence.md),
   [provider selection](spec/build/provider_selection.md),
-  [root-assumed binding contracts](spec/build/assumed_binding_contracts.md),
+  [root-assumed bindings (exceptional use only)](spec/build/assumed_binding_contracts.md),
   [embedding and interpreted components](spec/build/embedding.md),
   [task activation and lifecycle](spec/build/task_runtime.md),
   [service permissions](spec/build/permissions.md),

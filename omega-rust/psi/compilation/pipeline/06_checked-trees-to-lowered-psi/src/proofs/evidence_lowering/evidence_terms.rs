@@ -191,7 +191,7 @@ pub(crate) fn lower_proposition_vocabulary(
 /// Retain one terminal identity per distinct checked evidence term. Direct
 /// forwarding aliases its output to the exact source term and therefore does
 /// not mint a second identity. A selected producer keeps its output identity
-/// distinct; its conformance provenance is lowered into the proof bundle.
+/// distinct; lowering retains its conformance provenance with the evidence terms.
 pub(crate) struct LoweredEvidenceTerms {
     pub(crate) declarations: Vec<EvidenceTermDeclaration>,
     pub(crate) term_ids: Vec<Option<EvidenceTermId>>,

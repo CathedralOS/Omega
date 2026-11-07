@@ -9,11 +9,10 @@ normalization, and producer-visible witness checks. [proof.rs](src/proof.rs)
 owns certificate admission; its traversal uses explicit pending work rather than
 the host call stack at accepted proof depths.
 
-The supplied-certificate denotation check and the bounded producer search that
-lived in `admission/denotation.rs` and `certificate_search.rs` were removed with
-the PCC verifier and certificate stack in `9718604e847`. Admission keeps the
-evidence routes under `admission/` and re-decides what it is given; it does not
-run a search of its own.
+Admission checks supplied mathematical evidence through the routes under
+`admission/` and re-decides each judgment. It does not run a proof search of
+its own. These checks serve source proof obligations; the Terminal artifact
+does not carry a certificate of the compiler's translation.
 
 [closed_integer.rs](src/integer_rules/closed_integer.rs) owns exact signed mathematical integer
 denotation shared by primitive judgments and execution-time closed guard checks.
@@ -45,7 +44,7 @@ on each constructor, restricted to motives landing in relevant `Type`. It is the
 surface, not a second truth representation. `accept_certificate` connects the
 two: every bounded certificate it accepts is also denoted into the core
 (`mathematical_core/bounded_denotation.rs`) and judged by the kernel when the
-denotation covers its rule families, so a shipped certificate discharging a
+denotation covers its rule families, so a supplied certificate discharging a
 theorem machine's `ensures` obligation is checked as the judgment
 `Γ ⊢ t : ⟦goal⟧` at admission. The acceptance records `Judged` with the
 judgment's measurements or `Refused` naming the uncovered family; a covered

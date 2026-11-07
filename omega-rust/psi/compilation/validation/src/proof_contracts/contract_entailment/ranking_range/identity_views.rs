@@ -14,7 +14,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::measure::MeasureDefinition;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub enum MeasureBodyShape {
     ParameterForward {
@@ -444,26 +444,7 @@ fn integer_carrier(
     BuiltinTypeAtom,
     Vec<(ExpressionHandle, ExpressionHandle, bool)>,
 )> {
-    let mut constraints = Vec::new();
-    let mut reference = reference;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints: declared,
-    } = program.type_reference_table.type_reference(reference)
-    {
-        for constraint in program.type_reference_table.constraints(*declared) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                return None;
-            };
-            constraints.push((*minimum, *maximum, *end_inclusive));
-        }
-        reference = *base_type;
-    }
+    let constraints = Vec::new();
     let symbol = &program
         .type_reference_table
         .type_reference(reference)

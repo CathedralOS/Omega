@@ -5,7 +5,7 @@
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
-use symbol_resolved_trees_to_typed_trees::access_borrow_factory;
+use symbol_resolved_trees_to_typed_trees::access_borrow_factory_of;
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -33,21 +33,16 @@ pub(super) fn retain_applied_results(
     // target and conformance routing, without publishing executable bodies.
     let resolved = resolve_call_result_selection(context.resolution_request(syntax.clone()))?;
     let mut selections = Vec::new();
+    let call_targets = CallTargetMachines::of(&resolved);
     for (_, node) in resolved.tables.bodies.expressions.iter_expressions() {
         let symbol_resolved_trees::expression::ExpressionNode::Call(call) = node else {
             continue;
         };
-        let factory = access_borrow_factory(&resolved, call.target_symbol)
-            .map_err(|diagnostic| vec![diagnostic.with_source_span(call.target.source_span())])?;
-        let Some(machine) = resolved.machines.iter().find(|machine| {
-            machine.symbol == call.target_symbol
-                || resolved
-                    .machine_state_handles(machine.states)
-                    .iter()
-                    .any(|state| resolved.machine_state(*state).symbol == call.target_symbol)
-        }) else {
+        let Some(machine) = call_targets.machine(&resolved, call.target_symbol) else {
             continue;
         };
+        let factory = access_borrow_factory_of(&resolved, machine)
+            .map_err(|diagnostic| vec![diagnostic.with_source_span(call.target.source_span())])?;
         let parameters = resolved.machine_type_parameters(machine);
         if parameters.len() != call.machine_arguments.len() {
             if factory.is_some() {
@@ -238,4 +233,59 @@ fn retain_result(
         TypeReference::Named { .. } | TypeReference::ConstExpression(_) | TypeReference::Unit => {}
     }
     Ok(())
+}
+
+/// The first machine, in roster order, whose own symbol or one of whose state
+/// symbols a call targets: what a roster scan finds, indexed once per resolved
+/// program. Scanning every machine's states for each call expression made this
+/// pass quadratic in program size.
+struct CallTargetMachines {
+    /// Indexed by symbol arena index: the exact symbol first seen there and the
+    /// roster position of the first machine carrying it.
+    first: Vec<Option<(SymbolHandle, usize)>>,
+}
+
+impl CallTargetMachines {
+    fn of(program: &SymbolResolvedTrees) -> Self {
+        let mut first = Vec::new();
+        for (position, machine) in program.machines.iter().enumerate() {
+            let states = program
+                .machine_state_handles(machine.states)
+                .iter()
+                .map(|state| program.machine_state(*state).symbol);
+            for symbol in std::iter::once(machine.symbol).chain(states) {
+                let slot = symbol.arena_index() as usize;
+                if first.len() <= slot {
+                    first.resize(slot + 1, None);
+                }
+                first[slot].get_or_insert((symbol, position));
+            }
+        }
+        Self { first }
+    }
+
+    fn machine<'program>(
+        &self,
+        program: &'program SymbolResolvedTrees,
+        target: SymbolHandle,
+    ) -> Option<&'program symbol_resolved_trees::machine::Machine> {
+        match self
+            .first
+            .get(target.arena_index() as usize)
+            .copied()
+            .flatten()
+        {
+            // Equal handles share a slot, so an empty slot means no machine matches.
+            None => None,
+            Some((symbol, position)) if symbol == target => Some(&program.machines[position]),
+            // Another generation took this slot first; only a scan orders this one.
+            Some(_) => program.machines.iter().find(|machine| {
+                machine.symbol == target
+                    || program
+                        .machine_state_handles(machine.states)
+                        .iter()
+                        .any(|state| program.machine_state(*state).symbol == target)
+            }),
+        }
+    }
 }

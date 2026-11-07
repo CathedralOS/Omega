@@ -4,10 +4,8 @@ Named decision: `staged-build-capability-attenuation`, settled 2026-10-28.
 
 This contract defines ordinary Omega build evaluation's checked stages,
 dependency scopes, delegated execution capabilities and product handoff. It does not
-introduce a second build language. These rules are normative; implementation
-coverage is tracked in [the execution board](../../../TASKS.md).
-API role names and schematic examples below do not establish
-shipped signatures or wire compatibility.
+introduce a second build language.
+API role names and schematic examples below do not establish wire compatibility.
 
 ## Contract summary
 
@@ -111,7 +109,7 @@ before it executes. Exact trait/provider installation still obeys
 admitted dependency can supply ordinary shared non-core interfaces, without
 copying declarations or structurally identifying same-spelled traits.
 
-The following illustrates the selected surface, not a current executable fixture.
+The following illustrates the selected surface.
 `dependency::from_source` and configuration helpers are ordinary library code;
 source selection is resolved through the invocation's authorized acquisition
 route or supplied filesystem backing, never the compiler's ambient filesystem:
@@ -314,7 +312,9 @@ per-symbol forwarding declarations; its implementation and migration remain
 The assumed-binding operation registers a root-authorized runtime relationship
 only. Neither its implementation nor its admitted facts become build-executable;
 the [runtime-only prohibition](assumed_binding_contracts.md#runtime-only) applies
-independently of product-reference resolution.
+independently of product-reference resolution. Its presence in the operand
+examples is not a recommendation: ordinary programs should reject assumed
+bindings, and helpers must not add one to make a rejected product compile.
 
 [Test-group registration](testing.md#registration-and-discovery) selects one exact
 product requirement; its group-scoped `service` operands select ordinary
@@ -447,9 +447,7 @@ narrow writer through ordinary function arguments. They do not configure their
 package's Build activation through a consumer-specific hidden input registry.
 Compiler support retains dependency admission, source ownership, checked
 stages, resource accounting and publication; filesystem algorithms and
-attenuation/composition belong to ordinary libraries. Current facet-based
-enforcement is migration debt, not proof that every existing std filesystem
-operation already executes under these contracts.
+attenuation/composition belong to ordinary libraries.
 
 Copy-on-write overlays expose ordinary read-your-own-writes filesystem behavior
 without changing their base. A changeset names additions, modifications and
@@ -805,37 +803,30 @@ leakage, and test same-package dual-purpose cache entries with different targets
 
 ## Migration and retirement
 
-`STAGED-BUILD-CAPABILITIES` in [TASKS.md](../../../TASKS.md) owns the complete
-ratified migration. Deprecate the old authoring routes with actionable
-diagnostics, migrate their customers and both producers, then delete them in
-that outcome. There is no permanent legacy mode or parallel filesystem API.
+There is no permanent legacy mode or parallel filesystem API.
 
 The retired surface includes old dependency names and post-registration alias
 mutation, unconditional pre-known-only Build import checking, BuildInputs,
 BuildSource and BuildOutput filesystem operations, named per-dependency input
-maps including the unimplemented with_dependency_inputs proposal, and the
+maps including with_dependency_inputs, and the
 global incoming-map agreement rule. Compiler-private source capture, exact
 provider installation, linear artifact publication, accounting and authority
 checks remain where required; changing names must not remove those guarantees.
 
 The accepted public journey is ordinary inert imports, configured descriptions,
 atomic registration, explicit preparation, checked continuation execution,
-ordinary filesystem capabilities and explicit artifact/source handoff. Exact
-library helper signatures and protocol encoding are implementation work, not
-permission to invent additional authoring concepts. Change retained schema and
-review identities where context or stage meaning changes; reject or explicitly
-migrate old records rather than reinterpret their bytes. Current fixtures using
-old facets do not prove the new surface implemented.
+ordinary filesystem capabilities and explicit artifact/source handoff.
+Library helper signatures and protocol encoding must preserve that journey.
+Change retained schema and review identities where context or stage meaning
+changes; reject or explicitly migrate old records rather than reinterpret their bytes.
 
 Demonstrate a generator reading a template through a narrowed snapshot and
 completing a required file, a multi-file helper taking a restricted product entry
 reference, and the topology composition build receiving prebuilt components.
 Measure retained input/output state and compare the added compiler mechanisms
-with a separate build-tool-package route. These prototypes validate usability and
-enforcement, not implementation status inferred from the contract's detail.
-They may expose a new design choice; raise any semantic or trust amendment in
-[owner questions](../../../OWNER_QUESTIONS.md) before relying on it. These are
-implementation acceptance gates, not prerequisites to the design's ratification.
+with a separate build-tool-package route. These examples validate usability and
+enforcement. They may expose a new design choice; raise any semantic or trust
+amendment in [owner questions](../../../OWNER_QUESTIONS.md) before relying on it.
 
 Live-host grant extension, persistent writable caches, symbolic generated-root
 binding, concurrent filesystem operations, dependency inference from imports,
@@ -874,8 +865,4 @@ the cost of another entry/configuration and explicit product-input handoff.
 Pure byte-input/byte-output generators are a narrower viable first customer;
 they need not wait for every virtual filesystem operation. No-op I/O and relying
 on linker stripping to enforce build-only access are rejected alternatives.
-
-Implementation work follows [the execution board](../../../TASKS.md). Future
-amendments, whether found during implementation or later review, use
-[owner questions](../../../OWNER_QUESTIONS.md); unsupported behavior must not
-silently weaken this contract.
+Unsupported behavior must not silently weaken this contract.

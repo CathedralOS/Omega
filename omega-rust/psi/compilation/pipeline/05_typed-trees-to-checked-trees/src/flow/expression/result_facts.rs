@@ -150,11 +150,7 @@ impl Execution<'_, '_, '_> {
             crate::shared::collections::push_unique(&mut domains, observed);
         }
         let mut predicates = Vec::new();
-        crate::values::float_predicates::declared_type_predicates(
-            self.program,
-            reference,
-            &mut predicates,
-        );
+
         if let Some(call) = self.program.expression_table.call_node(expression) {
             validation::normal_return_float_predicates(
                 self.program,

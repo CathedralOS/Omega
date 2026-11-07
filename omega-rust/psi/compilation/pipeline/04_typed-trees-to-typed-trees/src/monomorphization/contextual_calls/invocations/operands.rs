@@ -79,13 +79,8 @@ pub(super) fn derive(
         let actual = program.static_operand_type_reference(argument).ok()?;
         types.push((*symbol, actual));
     }
-    let context = super::super::super::BindingContext::new(
-        program,
-        &type_parameters,
-        &const_parameters,
-        None,
-        0,
-    );
+    let context =
+        super::super::super::BindingContext::new(program, &type_parameters, &const_parameters, 0);
     let mut inferred = super::super::super::StaticProposals::default();
     for (required, argument) in runtime.iter().zip(arguments) {
         if let Some(actual) = scope.result_type(program, *argument)

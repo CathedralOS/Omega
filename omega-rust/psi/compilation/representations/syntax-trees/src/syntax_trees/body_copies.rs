@@ -506,22 +506,6 @@ impl SyntaxCopy<'_> {
                 .retain_unresolved_supplied_operand_owner(copied),
         }
         let origin = other.type_references.generic_application_origin(handle);
-        if let TypeReferenceNode::Constrained { constraints, .. } =
-            other.type_references.type_reference(handle)
-        {
-            for ordinal in 0..constraints.count() as usize {
-                if let Some(value) = other
-                    .type_references
-                    .integer_range_normalization(handle, ordinal)
-                {
-                    self.type_references.retain_integer_range_normalization(
-                        copied,
-                        ordinal,
-                        value.clone(),
-                    );
-                }
-            }
-        }
         if let Some(normalization) = other.type_references.const_argument_normalization(handle) {
             self.type_references.retain_const_argument_normalization(
                 copied,
@@ -604,15 +588,7 @@ impl SyntaxCopy<'_> {
                         arguments: this.copy_type_reference_handle_span(other, domain.arguments),
                     })
                 }
-                TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => TypeConstraintNode::Range {
-                    minimum: this.copy_expression_handle(other, *minimum),
-                    maximum: this.copy_expression_handle(other, *maximum),
-                    end_inclusive: *end_inclusive,
-                },
+
                 TypeConstraintNode::ArithmeticDomain(domain) => {
                     TypeConstraintNode::ArithmeticDomain(*domain)
                 }

@@ -43,7 +43,6 @@ use crate::const_evaluation::const_generic_expressions::{
 use crate::const_evaluation::const_generic_expressions::{
     scalar_probe_destination, value::ScalarValue,
 };
-use crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins;
 use crate::machine_execution::admission::require_call_expression_selection;
 use crate::machine_execution::selected_operators::prepare_selected_execution;
 use crate::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
@@ -260,7 +259,6 @@ impl Invocation<'_> {
             &callee,
             return_type,
             snapshots,
-            &deferred_endpoint_stand_ins(self.program.typed()),
         )
     }
 
@@ -969,7 +967,7 @@ impl Invocation<'_> {
         state: &State,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
-        statement_index: usize,
+        _statement_index: usize,
     ) -> Result<(), String> {
         // Each arm owes its result obligations even when selective interpretation
         // will skip it. The destination cannot certify an invalid sibling.
@@ -985,35 +983,12 @@ impl Invocation<'_> {
                     state,
                     arm.value,
                     destination,
-                    statement_index,
+                    _statement_index,
                 )?;
             }
             return Ok(());
         }
-        if let Some(primitive) = typed.primitive_type_reference(destination) {
-            if primitive.is_integer() {
-                // Carrier correspondence supplies no refinement proof. Reuse the
-                // ordinary checker at the exact returning occurrence, before any
-                // payload is materialized into a qualified destination.
-                let ranges = validation::constrained_range_bounds(typed, destination, false)
-                    .ok_or("constant initializer result has an unresolved integer range")?;
-                for (minimum, maximum) in ranges {
-                    if !validation::occurrence_integer_expression_fits_range(
-                        typed,
-                        machine.symbol,
-                        state.symbol,
-                        statement_index,
-                        expression,
-                        &minimum,
-                        &maximum,
-                    ) {
-                        return Err(
-                            "constant initializer result does not prove its declared integer range"
-                                .into(),
-                        );
-                    }
-                }
-            }
+        if typed.primitive_type_reference(destination).is_some() {
             return Ok(());
         }
         let carrier = type_reference_table(typed).unconstrained_type_reference(destination);
@@ -1051,7 +1026,7 @@ impl Invocation<'_> {
                         state,
                         *value,
                         *element_type,
-                        statement_index,
+                        _statement_index,
                     )?;
                 }
                 return Ok(());
@@ -1088,7 +1063,7 @@ impl Invocation<'_> {
                         state,
                         field.value,
                         field_type,
-                        statement_index,
+                        _statement_index,
                     )?;
                 }
                 return Ok(());

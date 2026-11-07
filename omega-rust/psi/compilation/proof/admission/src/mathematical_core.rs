@@ -167,7 +167,7 @@
 //! board names, with exact assumption closure over the stored
 //! signature.
 //!
-//! [`bounded_denotation`] is the bridge from the shipped certificate
+//! [`bounded_denotation`] is the bridge from the supplied certificate
 //! language: a bounded `terminal_psi::ProofNode` certificate is denoted
 //! proposition-by-proposition and rule-by-rule into this term model —
 //! atomic propositions become `Type 0` assumptions, scalar `Equal`
@@ -176,7 +176,7 @@
 //! `Γ ⊢ t : ⟦goal⟧` is re-decided by `verify_mathematical_certificate`.
 //! The bounded checker and this route re-decide the same certificate
 //! independently, and `accept_certificate` runs both: every certificate
-//! the admission discharges — including the shipped certificate for a
+//! the admission discharges — including the supplied certificate for a
 //! theorem machine's `ensures` obligation — is judged by this kernel
 //! when the denotation covers it, with the decision recorded on the
 //! acceptance. The core route is what survives the canonical

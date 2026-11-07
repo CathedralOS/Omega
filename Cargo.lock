@@ -514,6 +514,8 @@ dependencies = [
  "object-file",
  "optimization",
  "optimization-core",
+ "optimization-unit",
+ "optimization-unit-semantics",
  "orchestration",
  "package-compilation",
  "package-evidence",

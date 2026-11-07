@@ -1,5 +1,6 @@
 //! Data-only checks of explicit ownership validation, not native preparation
-//! or a claim of independent PCC. The fixture is actual public CLI output.
+//! or independent proof of source correctness. The fixture is actual public
+//! CLI output.
 
 use terminal_codec::{CanonicalTerminalArtifact, build_identity_optimization_execution_record};
 use terminal_psi::{

@@ -13,9 +13,11 @@ rule a `ProofRuleFoundation` by exhaustive match, so a new certificate rule
 does not compile until it is classified. `ProofLemma::foundation` and
 `ForAllInRangeFact::ELIMINATION_FOUNDATION`
 (`omega-rust/psi/compilation/proof/src/lemmas.rs`) hold the obligation-side
-lemma vocabulary to the same rule. The module's tests keep the
-boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
-`TrustedAdmission`.
+lemma vocabulary to the same rule. The module's tests pin the classification:
+no rule may map to `Classical`, and only `SemanticAxiom` is a `TrustedAdmission`.
+This is a review inventory, not a proof that the implementations satisfy their
+assigned logical properties. Rule implementations, conversion, premise handling
+and trusted admissions require their own soundness justification.
 
 ## Foundations
 
@@ -59,17 +61,17 @@ boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
 
 ## Structural boundary
 
-- The proposition language has **no negation connective** and no
-  quantifiers: `Proposition` (`semantic-vocabulary`) carries Truth,
-  Falsehood, atoms, equality/order atoms, domain atoms, conjunction,
-  disjunction and implication only. Excluded middle and double-negation
-  elimination are not merely absent from the rule set — no certificate can
-  state them.
+- Negation is definable without a primitive connective: `not P` means
+  `P -> Falsehood`. The proposition grammar can therefore express excluded
+  middle, `P OR (P -> Falsehood)`, and double-negation elimination,
+  `((P -> Falsehood) -> Falsehood) -> P`. Expressibility does not supply a
+  derivation. These principles are not licensed for arbitrary propositions
+  without supporting premises; decidable instances can have constructive
+  proofs, and a supplied classical premise remains an explicit dependency.
 - Contradiction elimination (`ex falso`) is constructive: a checked proof of
   `Falsehood` can establish any well-formed goal under those same premises.
-  The current certificate fragment derives this through predicate-denotation
-  conversion and conjunction elimination rather than a primitive falsehood
-  elimination rule. See [contradiction elimination](#contradiction-elimination).
+  Predicate-denotation conversion and conjunction elimination can express
+  this derivation. See [contradiction elimination](#contradiction-elimination).
 - Recursion admission (`admission/recursion.rs`) is well-founded
   induction: a named ranking relation, a proved well-foundedness
   obligation, and a per-edge decrease certificate. This is the
@@ -98,7 +100,7 @@ all-predecessor obligations. Existing well-formedness, operand formation,
 ownership and authority boundaries are not waived.
 
 The language permits contradiction elimination without prescribing its encoding.
-The current derivation converts a checked `Falsehood` to `Falsehood AND goal`
+One derivation converts a checked `Falsehood` to `Falsehood AND goal`
 through their equal bounded predicate denotations, then eliminates the
 conjunction. Both the contradiction and all its premise dependencies remain
 checkable. An explicit elimination rule would require the ordinary rule audit,
@@ -128,13 +130,17 @@ recorded on its acceptance for audit:
 
 ## Boundary statement
 
-Every certificate rule currently admitted is constructive outright or
-constructive by domain decidability; the only trusted content enters
-through recorded admissions, and the proposition grammar cannot express a
-classical principle. A classical rule therefore cannot arrive silently:
-it would need a new `Proposition` connective and a new `ProofRule`
-variant, which the exhaustive `foundation` classification forces into the
-audit before it compiles.
+Acceptance requires a checked derivation under the exact recorded premises.
+A classical formula may appear as a goal or supplied premise without changing
+the grammar. Citing such a premise does not turn its conclusion into an
+unconditional theorem or make the assumption constructive.
+
+The classification requires each inference rule to have a constructive
+justification, including any decidability assumptions. Exhaustive classification
+makes new rule variants visible to review; it cannot detect a defect in an
+existing rule, conversion algorithm or trusted admission. The combined calculus
+and its interpretation require the justification specified by the
+[foundation](foundation.md) and [kernel metatheory](kernel_metatheory.md).
 
 ## Obligation-side lemma library and deciders (`omega-rust/psi/compilation/proof`)
 
@@ -177,9 +183,7 @@ trusted, and which rows are not trusted at all.
 | Licensed premise introductions inside `successor-path-transport` and `branch-condition` | Trusted admission | The explicitly enumerated residues — the unrejected fixed-shape restatement, literal-adjacency disequality strengthening, equal-terms unsatisfiable arm falsehood, and the backward-only boundary truth — are admitted premises, listed on the row. |
 | `fact:borrowed-storage-restoration-debt`, `fact:crash-site-retention`, `fact:proof-bearing-scalar-goal`, `fact:record-establishment`, `fact:scalar-case-establishment`, `fact:byte-extent-length`, `fact:structural-effect-observation`, `fact:return-result-binding` | Trusted admission | Reconstructed debt/retention/goal propositions and establishment facts; the canonical-goal row fixes which proposition a producer may choose. |
 
-The boundary holds on this surface too: the certificate-gated rows are
-the only non-trusted emissions, and they rest on the already-classified
-certificate rules (`semantic-axiom`, `assumption`, `predicate-denotation`,
-`equality-transitivity`, `implication-introduction`) — classical content
-could only enter through a new trusted row, which the exhaustive ledger
-bindings force into review.
+Certificate-gated rows require checked derivations using the classified rules
+and retain their premise dependencies. Trusted rows record their admissions.
+The ledger exposes those routes for review; its exhaustiveness does not prove
+that reconstruction or rule implementations preserve the claimed boundary.

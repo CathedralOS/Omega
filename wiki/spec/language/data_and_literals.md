@@ -43,13 +43,52 @@ payload's `#1` does not identify a common field. Existing numbering,
 retirement, declaration-order and stable-identity rules are unchanged by this
 prefix migration. There is no extra case-group field, number or discriminator.
 
-Fields have no declaration-site default initializers. Construction may omit an
-ordinary runtime field only when its zero value satisfies the complete default-domain obligations.
-Nonzero/computed defaults are ordinary constructor machines. See
+### Explicit field omission
+
+Named decision: `explicit-zero-field-omission`, ratified 2026-11-06.
+
+A record or case literal without `..` supplies every ordinary runtime field of
+the constructed value. A final standalone `..` explicitly requests zero values
+for omitted runtime fields. Each omitted value and the complete aggregate must
+satisfy their default-domain, qualification, establishment and custody
+obligations. The marker supplies no authority, borrowed reference, callable or
+proof witness merely because storage can be zeroed.
+
+```omega
+data Options {
+    timeout_ms: u32;
+    retries: u32;
+}
+
+let exact: Options = Options { timeout_ms: 1000, retries: 0 };
+let defaults: Options = Options { timeout_ms: 1000, .. };
+let missing: Options = Options { timeout_ms: 1000 }; // Rejected: retries missing.
+```
+
+Adding a runtime field makes an exhaustive literal require an update. A literal
+with `..` accepts the new zero value only if the complete construction remains
+valid. A required nonzero or computed value must still be supplied explicitly.
+
+There is at most one marker, after all authored field initializers; it has no
+operand and evaluates nothing. `Type { .. }` requests zero for every runtime
+field. `Type { }` is exhaustive only when there are no runtime fields.
+The marker is neither record-update/spread syntax nor a pattern rest binding;
+it changes no array length, range endpoint or positional-call rule.
+
+For a case literal, the same marker covers omitted common fields and fields of
+the explicitly selected active payload. It does not select a case, initialize
+inactive payloads or bypass case constraints. A bare payload-free case value is
+exhaustive only when it also has no runtime common fields; otherwise use its
+case literal with explicit common fields or `..`. Nested literals each govern
+their own omissions; an outer marker does not authorize omissions inside an
+authored inner literal.
+
+Fields have no declaration-site default initializers. Nonzero/computed defaults
+are ordinary constructor machines. See
 [establishment](dependent_values.md#default-domains-and-zero-initialization).
 Erased fields instead follow [erased construction](../proofs/contracts.md#explicit-erased-bindings):
 an accessible nullary constructor may supply an omitted term without requiring
-runtime layout or a zero value.
+runtime layout or a zero value. That rule does not require or derive from `..`.
 
 Field and case-payload relationships belong to the data declaration's ordinary
 `requires`; case-dependent projections require established case knowledge. Field
@@ -65,8 +104,10 @@ fields require the corresponding case knowledge. Partial construction and
 disposal follow [ownership order](ownership.md#construction-and-disposal-order).
 
 A case implicitly declares its same-named domain. `Type::Case` therefore denotes
-case membership in domain position. A payload-free case can also denote a
-constructed value; a payload-bearing case needs its payload in value position.
+case membership in domain position. A payload-free case with no runtime common
+fields can also denote a
+constructed value; other case values use a case literal, including `..` when
+runtime fields are omitted.
 Cases and attached domains retain their member namespace; data does not own
 machine declarations. Collisions reject rather than selecting by priority.
 Pattern rules are defined
@@ -75,9 +116,9 @@ in [dispatch](patterns.md).
 Case values always use their carrier-qualified member path. Expected type,
 imports, and local context do not infer a case owner for a single-segment name:
 write `Light::On`, not `On`. A payload-bearing value uses its qualified
-construction form, such as `Command::Move { dx: 1 }`; `Command::Move` without
-its payload remains the case domain, not a partially constructed value. This
-rule is `bare-case-value-names` and applies uniformly in locals, arguments,
+construction form, such as `Command::Move { dx: 1, .. }` when other fields
+have valid zero values; `Command::Move` without its literal remains the case
+domain, not a partially constructed value. This rule is `bare-case-value-names` and applies uniformly in locals, arguments,
 returns, comparisons, and nested expressions.
 
 Cases are nominal, not foreign integers. `#N` is schema identity, not a runtime
@@ -198,7 +239,7 @@ or confusable-name heuristics cannot change tokenization.
 visibility modifier or an alternative spelling of an ordinary type argument.
 The retired `dyn` spelling has no source type or conversion form.
 
-The current profile has no Unicode identifiers or raw-payload literal form.
+This profile has no Unicode identifiers or raw-payload literal form.
 Those require separately specified byte/identifier rules, not host-language
 syntax reuse.
 

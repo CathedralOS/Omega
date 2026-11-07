@@ -35,9 +35,7 @@ pub use typed_trees::declarations::{
     layout_storage, measure, operator, product_operand, trait_definition, type_aliases, visibility,
     wire,
 };
-pub use typed_trees::evidence::{
-    byte_predicates, dependent_ranges, mathematical, proof_only, proposition, ranking,
-};
+pub use typed_trees::evidence::{byte_predicates, mathematical, proof_only, proposition, ranking};
 pub use typed_trees::inspection::snapshot;
 pub use typed_trees::names::{identity, name};
 pub use typed_trees::type_system::type_predicates::ProvenTypeContext;

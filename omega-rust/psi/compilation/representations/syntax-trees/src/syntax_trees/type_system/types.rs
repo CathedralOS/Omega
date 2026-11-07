@@ -16,7 +16,6 @@ paged_roster! {
         arena const_argument_normalizations: RetainedConstArgumentNormalization,
         arena const_argument_origins: ConstArgumentOrigin,
         arena const_argument_builtin_operators: source::SourceSpan,
-        arena integer_range_normalizations: RetainedIntegerRangeNormalization,
         arena pending_const_arguments: PendingConstArgument,
         arena supplied_operand_owners: SuppliedOperandOwner,
         arena type_alias_applications: TypeAliasApplicationOrigin,
@@ -74,30 +73,6 @@ struct SuppliedOperandOwner {
 struct PendingConstArgument {
     position: TypeReferenceHandle,
     original: TypeReferenceHandle,
-}
-
-/// Closed interval meaning supplied by typed semantic evaluation. Authored
-/// expressions stay in their constraint and still undergo ordinary checking.
-#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
-pub struct IntegerRangeNormalization {
-    pub minimum: numerics::bignum::BigInt,
-    pub maximum: numerics::bignum::BigInt,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Default,
-    syntax_trees_derive::PlainSyntaxEquivalent,
-    compiler_storage::Record,
-)]
-struct RetainedIntegerRangeNormalization {
-    owner: TypeReferenceHandle,
-    constraints: HandleSpan<TypeConstraintNode>,
-    ordinal: usize,
-    value: IntegerRangeNormalization,
 }
 
 /// Exact source custody captured before a selected constant index operand
@@ -363,50 +338,6 @@ impl TypeReferenceTable {
             for position in positions {
                 self.retain_pending_const_argument(position, argument);
             }
-        }
-    }
-
-    pub fn integer_range_normalization(
-        &self,
-        owner: TypeReferenceHandle,
-        ordinal: usize,
-    ) -> Option<&IntegerRangeNormalization> {
-        let TypeReferenceNode::Constrained { constraints, .. } = self.type_reference(owner) else {
-            return None;
-        };
-        self.integer_range_normalizations
-            .iter()
-            .find_map(|(_, retained)| {
-                (retained.owner == owner
-                    && retained.constraints == *constraints
-                    && retained.ordinal == ordinal)
-                    .then_some(&retained.value)
-            })
-    }
-
-    /// Retain a value only for this exact immutable constraint occurrence.
-    /// Substituting its bounds requires a fresh observation, not copying this row.
-    pub fn retain_integer_range_normalization(
-        &mut self,
-        owner: TypeReferenceHandle,
-        ordinal: usize,
-        value: IntegerRangeNormalization,
-    ) {
-        let TypeReferenceNode::Constrained { constraints, .. } = *self.type_reference(owner) else {
-            return;
-        };
-        if matches!(
-            self.constraints(constraints).get(ordinal),
-            Some(TypeConstraintNode::Range { .. })
-        ) && self.integer_range_normalization(owner, ordinal).is_none()
-        {
-            self.integer_range_normalizations
-                .insert(RetainedIntegerRangeNormalization {
-                    owner,
-                    constraints,
-                    ordinal,
-                    value,
-                });
         }
     }
 
@@ -815,7 +746,6 @@ impl TypeReferenceTable {
         transfer!(supplied_operand_owners, operand);
         transfer!(generic_application_origins, instance);
         transfer!(const_argument_normalizations, argument);
-        transfer!(integer_range_normalizations, owner);
         transfer!(pending_const_arguments, position);
         transfer!(type_alias_applications, instance);
     }
@@ -980,13 +910,7 @@ impl FixedArrayLength {
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub enum TypeConstraintNode {
     Named(Identifier),
-    Range {
-        minimum: ExpressionHandle,
-        maximum: ExpressionHandle,
-        /// The authored upper endpoint is inclusive only for `..=`. Preserve
-        /// its expression so semantic checking precedes any predecessor step.
-        end_inclusive: bool,
-    },
+
     /// An arithmetic overflow domain on a primitive (`u32 in Wrapping`); decision
     /// 17. A behaviour tag, not a value-range predicate.
     ArithmeticDomain(numerics::arithmetic::ArithmeticDomain),

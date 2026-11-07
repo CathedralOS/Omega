@@ -37,8 +37,8 @@ directory.
 ## Durable result
 
 Normalized Build carries pipeline-consumed target, dependency, root, provider,
-test-group, behavior-exclusion, optimization, and output selections. It does not
-serialize source/staging roots, handles, or admitted host-service authority. Image/application facts remain
+test-group, behavior-exclusion, optimization, proof-work, and output selections.
+It does not serialize source/staging roots, handles, or admitted host-service authority. Image/application facts remain
 build-owned; signing-affecting versus publication-only metadata follows
 [application publication](macos_application.md).
 
@@ -55,6 +55,55 @@ resource supply belong to the selected target profile, not duplicated mutable
 Build flags. Project role, roots, dependencies, outputs, image intent, and
 provider selection remain build facts. Target-qualified bindings select facts;
 they do not redefine target policy.
+
+## Proof-work policy
+
+Ratified 2026-11-06 with
+[stable index identity and compatibility](../proofs/contracts.md#licensed-normalization).
+
+The authoritative root `build.omg` may configure
+`builder.proof.index_expansion_terms`, a positive `u64` with default `64`.
+For example, an ordinary Build entry may contain:
+
+```omega
+builder.proof.index_expansion_terms = 128;
+```
+
+This is ordinary Build data, not a generic argument, source annotation, or
+language keyword. It limits resulting summands per attempted automatic
+compatibility-proof product expansion, not normalization steps, integer
+magnitude, or total proof cost. Other sponsor-controlled work/storage ceilings
+remain independent. Zero is rejected rather than treated as unlimited.
+
+Only the root may select or raise the effective allowance. Dependencies may
+publish expected discovery cost and checked proofs, but cannot increase the
+root's grant. Normalize and retain the effective value even when defaulted.
+Product discovery uses the admitted policy; preflight or Build-stage checking
+uses its already granted policy, never a later setting to justify its own
+admission. Record the effective policy at each sponsored proof-discovery request
+under the [staged execution rules](execution.md#admission-before-execution).
+
+Policy provenance binds the root/scope, limit, search algorithm/accounting
+version, attempted measure, consumption and outcome. Retain the applicable
+usage receipt or certified resource bound under
+[proof-work accounting](../resources/logical_work.md#proof-discovery-and-evidence-checking).
+Host speed, scheduling and elapsed time cannot choose semantic outcomes.
+Exhaustion leaves an unproved obligation and a resource diagnostic; it grants
+no equality, inequality, implementation selection or runtime fallback.
+
+Increasing this allowance under the same source, operations, assumptions and
+otherwise sufficient resource policy must preserve smaller-allowance successes.
+Use an extensible search schedule or equivalent preservation of established
+derivations, not a budget-dependent strategy that abandons previously successful
+proofs. Larger discovery can establish more compatibility; it cannot rename
+types, merge declarations, alter canonical matching, or change specialization
+keys. The resulting proof record and artifact bytes need not be identical.
+
+Published compatibility proofs travel with their artifact. A consumer with a
+smaller discovery allowance verifies the retained evidence without rediscovering
+it or charging the producer's historical search to that allowance. Verification
+has its own resource and trust admission. A local cached search still follows
+the ordinary usage-receipt accounting rules; it is not a way to evade a grant.
 
 ## ELF executable loader selection
 

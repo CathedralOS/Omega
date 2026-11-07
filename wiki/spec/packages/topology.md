@@ -62,7 +62,7 @@ facts belong in their existing owners, not a parallel topology evidence system.
 
 ## Existing owners and required additions
 
-These are integration boundaries, not arguments that the feature already exists:
+The integration boundaries are:
 
 - [Build declarations](../build/declarations.md) and
   [execution](../build/execution.md): ordinary build machines, admitted host
@@ -552,9 +552,9 @@ exactly once and accounts for all inherited and mediator authority; a bag of
 individually valid receipts is not proof of complete coverage.
 
 Only successful coverage and component/executable admission permits activation.
-This is an existing installer/provider boundary implemented directly where needed,
-not a predicate whose proof fabricates a live handle. Startup code before the
-gate belongs to the loader/provider contract; application constructors, callbacks,
+This is an installer/provider boundary; a predicate proof cannot fabricate a
+live handle. Startup code before the gate belongs to the loader/provider
+contract; application constructors, callbacks,
 and timers must not execute outside that accounted closure. No ordinary process
 spawn is claimed to supply this guarantee by itself.
 
@@ -611,7 +611,7 @@ This route chooses a concrete minimum while preserving the ownership split:
 pipe/codec adapters are library/provider code; the compiler does not acquire
 API/Auth/Billing concepts. Remote encrypted transport is a different selected
 realization, requiring authenticated peer/binding identity and the same authority
-constraints. It is not credited as implemented by the local-pipe test.
+constraints. Local-pipe evidence does not establish remote-transport enforcement.
 
 ## Diagnostics and implementation acceptance
 
@@ -667,7 +667,7 @@ topology package.
 
 | Alternative | Assessment |
 | --- | --- |
-| Package discipline and manual reach audits | Useful today, but insufficient for instance-specific enforced wiring. |
+| Package discipline and manual reach audits | Insufficient for instance-specific enforced wiring. |
 | Capability construction without graph policies | Valid when the permitted construction itself expresses the complete restriction. Keep it as the simpler option for small systems. Graph policies earn their place when independent wiring edits must preserve a global rule. |
 | Compiler-owned topology products, keywords, and graph algorithms | Not justified: use scoped build execution's generic build outputs and package code. Component evidence remains owned by existing component verification. |
 | Reflection-driven graph discovery | Optional convenience for authorized schemas, not evidence of complete executable authority or installed wiring. |
@@ -686,8 +686,7 @@ ordered-query languages, or information-flow analysis to justify compiler hooks.
 
 This contract requires independently supplied owner intent, a generic
 verified-component description, ordinary predicate replay, and a staged
-preparation/activation protocol. Those requirements are not evidence that
-the necessary producer, API, proof, or OS provider is implemented.
+preparation/activation protocol.
 
 At implementation entry, inventory which component facts already have portable
 producer/verifier support. Any missing completeness guarantee needs a precise

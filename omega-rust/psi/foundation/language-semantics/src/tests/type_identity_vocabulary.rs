@@ -100,35 +100,6 @@ fn every_spelling_of_the_vocabulary_is_unique_and_lexes_whole() {
     vocabulary::audit();
 }
 
-/// An open exclusive range bound renders `exclusive-end` around its operand.
-#[test]
-fn exclusive_range_end_wraps_only_a_range_endpoint() {
-    let open = r"constrained(compiler-type(atom(u64)),range(minimum(integer\(0\)),maximum(exclusive-end\(const-name\($parameter0\)\))))";
-    let (result, owners) = visit(open);
-    assert_eq!(result, Ok(()));
-    assert_eq!(owners.embedded, ["$parameter0"]);
-    let closed = r"constrained(compiler-type(atom(u64)),range(minimum(integer\(0\)),maximum(const-name\($parameter0\))))";
-    assert_eq!(visit(closed).0, Ok(()));
-
-    let bound = compound("exclusive-end", &[&constant(7, "LIMIT")]);
-    let owned = compound(
-        "constrained",
-        &[
-            "compiler-type(atom(u64))",
-            &compound(
-                "range",
-                &[&atom("minimum", "integer(0)"), &atom("maximum", &bound)],
-            ),
-        ],
-    );
-    reads_owners(&owned, &[7]);
-
-    refuses(
-        &index(&compound("exclusive-end", &["integer(1)"])),
-        TypeIdentityVisitError::MalformedIdentity,
-    );
-}
-
 /// The renderer names a selected algebra by its provider operand, trait and
 /// requirement; `alias` is no longer written.
 #[test]
@@ -462,6 +433,20 @@ fn only_binder_replacements_reach_the_consumer() {
     refuses("unknown(x)", TypeIdentityVisitError::MalformedIdentity);
     refuses(
         &index("unknown(integer(1))"),
+        TypeIdentityVisitError::MalformedIdentity,
+    );
+}
+
+#[test]
+fn retired_scalar_interval_identity_tags_are_refused() {
+    for identity in [
+        r"constrained(compiler-type(atom(u64)),range(minimum(integer\(0\)),maximum(exclusive-end\(const-name\($parameter0\)\))))",
+        r"constrained(compiler-type(atom(u64)),range(minimum(integer\(0\)),maximum(const-name\($parameter0\))))",
+    ] {
+        refuses(identity, TypeIdentityVisitError::MalformedIdentity);
+    }
+    refuses(
+        &index(&compound("exclusive-end", &["integer(1)"])),
         TypeIdentityVisitError::MalformedIdentity,
     );
 }

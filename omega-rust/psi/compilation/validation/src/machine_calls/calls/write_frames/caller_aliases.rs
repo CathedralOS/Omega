@@ -20,7 +20,6 @@ use crate::machine_calls::calls::write_frames::state_write_walk::{
     CollectedStatementPrefix, collected_prefix_at,
 };
 use std::sync::Mutex;
-use symbols::SymbolKeyMap as HashMap;
 use symbols::SymbolKind;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
@@ -751,9 +750,7 @@ pub(super) fn local_write_origins_before_statement(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     statement: &StatementNode,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<Vec<LocalWriteOrigin>> {
     let site = caller_prefix_site(
         program,
@@ -1022,9 +1019,7 @@ pub(super) fn with_caller_origins(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
     resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<Vec<String>>,
 ) -> Option<Vec<String>> {
     let evidence = caller_aliases_at_site(program, machine, symbols, site, collections)?;
@@ -1042,9 +1037,7 @@ pub(super) fn with_caller_origin_context<T>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
     resolve: impl FnOnce(&mut FrameInference, Option<&CallOriginContext<'_>>) -> Option<T>,
 ) -> Option<T> {
     let (state, _statement, index) = caller_statement_at_site(program, machine, symbols, site)?;
@@ -1259,9 +1252,7 @@ fn caller_aliases_at_site<'program>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'program>,
     site: CallerWriteSite<'_>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let site = caller_prefix_site(program, machine, symbols, site)?;
     caller_aliases_at_prefix(program, machine, symbols, site, collections)
@@ -1398,9 +1389,7 @@ fn caller_prefix_entry<'program>(
 /// state's recorded prefix, unless the statement it names exposes a frozen
 /// binding at that slot.
 fn tracked_prefix_evidence<'program>(
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
     program: &'program dyn CheckingInput,
     machine: &Machine,
     state: &'program State,
@@ -1448,9 +1437,7 @@ fn caller_aliases_at_prefix<'program>(
     machine: &Machine,
     symbols: &TopLevelSymbols<'_>,
     site: CallerPrefixSite<'program>,
-    collections: &Mutex<
-        HashMap<(SymbolHandle, SymbolHandle), super::state_write_walk::CollectedPrefixes>,
-    >,
+    collections: &Mutex<super::state_write_walk::CollectedPrefixMap>,
 ) -> Option<CallerPrefixEvidence<'program>> {
     let CallerPrefixSite::Tracked {
         state,

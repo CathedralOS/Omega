@@ -1589,7 +1589,7 @@ pub(crate) fn type_mentions_parameters(
                             .any(|argument| {
                                 type_mentions_parameters(syntax, *argument, substitution)
                             }),
-                        TypeConstraintNode::Range { .. } => true,
+
                         TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => {
                             false
                         }

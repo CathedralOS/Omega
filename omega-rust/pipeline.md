@@ -64,22 +64,42 @@ for an unrelated whole-IR rewrite.
 
 ## Verification placement
 
-Verification runs at trust boundaries:
+The default compile path trusts each stage to preserve its input's meaning and
+establish its output contract. It does not independently revalidate, replay or
+rebuild output that the same compile just produced. This is a compile-time
+and maintenance tradeoff: an independently implemented validator can catch
+producer bugs in the same process, but repeated checking consumes work and
+requires a second implementation of the checked rules.
 
-- a new or changed foreign package is verified when it is reviewed;
-- an untrusted build script is confined and checked while it executes.
+Source checking, decoding and installation checks remain required at their
+owning boundaries. A new or changed foreign package is verified during review,
+and an untrusted build script is confined and checked while it executes.
+[Terminal consumption](../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+checks structural, contract and authority relationships; it relies on Psi for
+the logical obligations discharged during source checking. The portable product
+contains semantics and provenance, not an independently replayable proof of
+source correctness or faithful native translation.
 
-Proof-carrying code is removed; see [PCC removal](../TASKS.md#pcc-removal).
+The corpus and tests exercise independent validators where those validators
+exist. The default compile path does not run these stage-output validators on
+results it just produced. A stage that emits an invalid plan has a compiler
+defect; successful source checking does not make subsequent lowering or
+optimization infallible.
 
-A stage does not re-validate, replay or rebuild output that the same compile
-just produced. The producer and its checker would be the same code running in
-the same process on the same input, so the second pass cannot find anything
-the first missed, and every such pass costs compile time and a second copy of
-the stage's rules. A plan that violates its contract is a bug in the stage
-that produced it, for the corpus and the tests to find.
+| Boundary | Checks and evidence | What remains trusted |
+| --- | --- | --- |
+| Source to checked trees | Parsing, typing, ownership and contract checking, including admitted mathematical proofs; positive and rejection tests exercise these judgments. | The source checker, proof kernel and explicitly admitted premises. |
+| Checked trees to Terminal Psi | Lowering and selected Psi transformations; focused tests and independent validators exercise their contracts. | Preservation of the checked source's meaning and obligations through these transformations. |
+| Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
+| Received artifacts and installed providers | Canonical decoding and consumer-owned structural, contract, authority and installation checks. | Psi's discharged source judgments and the accepted provenance and external contracts. |
+| Foreign packages and build execution | Package review, exact acceptance and confined build services. | Accepted external claims and the enforcing review/execution machinery. |
 
-The verifiers themselves stay. The corpus runner and the tests exercise them;
-the default compile path does not call them.
+`--both` executes the same produced Terminal artifact through the interpreter
+and native route. Agreement is evidence for the exercised inputs, paths and
+compared observations, not a proof for every execution. A source-checking or
+pre-Terminal lowering error can affect both routes identically; expected-result
+tests, rejection controls and focused frontend tests must exercise that part of
+the compiler independently.
 
 ## Connected program route
 

@@ -313,10 +313,9 @@ pub(crate) struct OperationBuffer {
     /// One row per emitted selected comparison, joining the checked operator
     /// use to the operation it produced.
     pub(crate) selected_comparisons: Vec<lowered_psi::LoweredSelectedComparisonOccurrence>,
-    /// Formation obligations of operations whose source occurrence checking
-    /// decided. The module's proof bundle carries each as source-checked
-    /// evidence; a route that drops them leaves certificate search to prove
-    /// those obligations instead.
+    /// Formation obligations already decided for exact source occurrences.
+    /// Lowering retains those judgments on the produced operations; dropping
+    /// them loses the source checker's established facts.
     pub(crate) source_checked_obligations: Vec<ObligationId>,
     pub(crate) next_identity: u64,
     pub(crate) operations: Vec<Operation>,

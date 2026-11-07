@@ -56,8 +56,12 @@ and available facts. Admission requires all of the following:
 Empty reach alone proves none of the other axes. Trait requirements bound static
 callback selections; their consumers use the application's
 [specialized published reach](effects.md#static-callback-reach-dependencies),
-not the union of all possible selections. This rule is shared with ordinary
-runtime callers and does not grant evaluation-only narrowing of opaque contracts.
+not the union of all possible selections. Suspension and blocking admission
+likewise uses [published operational dependencies](effects.md#static-callback-operational-dependencies)
+after substitution. The generic body must already be valid under its callback
+requirements; evaluation cannot repair a carry or invariant-window failure.
+These rules are shared with ordinary runtime callers and do not grant
+evaluation-only narrowing of opaque contracts.
 Public trait requirements establish the floor; an incompatible conformance
 rejects at its declaration.
 [Package declaration-selection authority](../packages/boundaries.md#admit-before-execution)
@@ -249,22 +253,24 @@ Open symbolic indices remain normalized artifact data; arbitrary machine
 evaluation does not participate in type equality.
 
 An integer index may retain checked domain qualifications, including its
-arithmetic policy, without changing its carrier's physical representation.
-Keep that theory in type/application identity and use the exact selected
-operation's contract. [Literal-linked identities](../proofs/contracts.md#literal-linked-index-identities)
-are established by published laws, not by executing a nullary slot inside an
-open index. Neither canonicalization nor a safe final result removes the
-authored expression's formation obligations.
+arithmetic policy, without changing physical representation. Preserve the exact
+selected operation, carrier and policy. [Stable canonical identity](../proofs/contracts.md#stable-canonical-index-identity)
+uses fixed core-operation rules; user laws and literal connections instead
+establish compatibility. Neither normalization nor a safe final result removes
+the authored expression's formation obligations.
 
-[Bounded canonical normalization](../proofs/contracts.md#bounded-canonical-index-normalization)
-defines the shared identity profile for open indices: exact selected laws,
-canonical ordering and encoding, and deterministic expansion cutoff evidence.
-It needs resolved operand types and operation contracts, not concrete layout or
-target realization. Specialization transports an already checked generic
-compatibility derivation under exact substitutions rather than repeating its
-expansion proof. A fully closed index with a concrete implementation instead
-obtains its canonical value through admitted evaluation; symbolic cutoff
-fallback is not a replacement for that value computation.
+The shared identity profile fixes canonical typed ordering and encoding without
+distributive expansion or a search cutoff. It needs resolved types and operation
+contracts, not physical layout or target realization. A fully closed index with
+a concrete implementation obtains its canonical value through admitted
+evaluation. This remains subject to ordinary evaluation resource admission;
+exhaustion does not produce an alternate symbolic canonical value.
+
+[Compatibility proofs](../proofs/contracts.md#proved-index-compatibility)
+may use bounded algebraic expansion under recorded Build proof-work policy.
+Specialization carries an already checked generic derivation under exact
+substitutions instead of repeating discovery. Proof-policy or search-algorithm
+changes cannot rename an existing index or select a different conformance.
 
 Eligible atoms are integers, Booleans, fixed arrays, records, and cases, with
 declaration order determining aggregate identity. Float/text values,
@@ -299,9 +305,13 @@ production cost.
 Published proof-only selected-conformance evidence is separate compilation,
 not a local cache exception. A producer performs witness search; a consumer
 projects the retained proposition and verifies its artifact/kernel
-evidence without rerunning the search. Ordinary theorem contracts and named
-witness/law bundles follow [proof contracts](../proofs/contracts.md); a cache
-does not turn erased evidence into runtime values. The separate
+evidence without rerunning the search. This includes compatibility derivations
+for differently written indices: a smaller consumer discovery budget does not
+invalidate the producer's checked proof. Search policy/usage and certificate
+verification requirements are separate records; a verification resource or
+trust refusal is not a failure to rediscover the proof. Ordinary theorem
+contracts and named witness/law bundles follow [proof contracts](../proofs/contracts.md);
+a cache does not turn erased evidence into runtime values. The separate
 [proof-search-cache draft](../../drafts/reference/proof_search_cache.md) explores
 untrusted search reuse, not a replacement admission route.
 
@@ -343,6 +353,3 @@ does not escape or mutate compiler state out of band.
 The [selection result contract](reflection.md#selection-evaluation-and-retained-results)
 requires independent resolution, coverage, access, and requirement validation.
 Choosing a static declaration is not manufacturing proof or a runtime callable.
-
-The [implementation note](../../../omega-rust/psi/compilation/build-time-evaluation/README.md)
-records the narrower currently supported admission and materialization paths.

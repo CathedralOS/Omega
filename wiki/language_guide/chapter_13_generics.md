@@ -324,12 +324,12 @@ selects an ordinary conformance supplying just the operations it needs. Closed
 units and destination-typed conversions need no compiler knowledge of metres,
 seconds, or scaling policy.
 
-An open result index can be an expression over input indices. Compatibility then
-requires closed evaluation, licensed canonical normalization, or an exact
-established local fact. A theorem citation contributes its ordinary guarantee;
-there is no new citation syntax or ambient lemma search. Stronger proof search
-may accept more compatible uses but cannot rename an interface's normalized
-index. [Indexed domains](../spec/language/domains.md#indexed-families) and
+An open result index can be an expression over input indices. Fixed canonical
+simplifications identify some expressions; checked equality proves additional
+value compatibility. Selected algebra laws and ordinary theorem guarantees can
+supply that proof without new citation syntax or ambient lemma search.
+Stronger proof search may accept more compatible uses but cannot rename an
+interface's canonical index. [Indexed domains](../spec/language/domains.md#indexed-families) and
 [licensed normalization](../spec/proofs/contracts.md#licensed-normalization)
 own the details.
 
@@ -346,10 +346,10 @@ the proof; `CommutativeCombine` is a library trait, not a compiler keyword.
 Reassociation needs an associativity law as well. Merely carrying an index
 requires neither law, and naming an operation `+` proves neither one.
 
-The checker consumes that ordinary trait evidence. There is no domain-specific
-selection syntax, implicit implementation search, or need to repeat a selection
-beside every index expression. Citing an exact equality remains an alternative
-when general algebraic normalization is unnecessary.
+The checker consumes that ordinary trait evidence to prove compatibility,
+rather than changing canonical keys. There is no domain-specific selection
+syntax, implicit implementation search, or need to repeat a selection beside
+every expression. Citing an exact equality remains an alternative.
 
 ### Literal identities
 
@@ -395,54 +395,62 @@ operations and proves both laws; their names have no compiler authority. The
 same pattern connects multiplicative identity to `1`. Each rewrite needs only
 its own laws, not a full ring or semiring. `Count + 1` is not an identity.
 
-Normalization uses the complete selected conformance, including inherited laws,
-and identifies the applications in signatures and specialization keys as well
-as value transfers. It does not evaluate abstract machines. Qualified operand
-types constrain which operation matches; the explicit conformance selects it.
-Wrapping and Saturating do not grant the same laws by name, and normalization
-cannot erase an Exact overflow obligation on an authored intermediate.
+Compatibility proving consumes the complete selected conformance, including
+inherited laws. It does not evaluate abstract machines inside type identity.
+The two open applications above retain separate canonical keys even though
+the value transfer is proved automatically. Core operations have a separate
+fixed identity profile, so ordinary core `N + 0` can have the same key as `N`
+without a user algebra binder.
 
-See [literal-linked index identities](../spec/proofs/contracts.md#literal-linked-index-identities)
-for operation direction, formation, and bounded expansion rules.
+Each exact operation and arithmetic policy keeps its own meaning. Signed
+Saturating addition is not associative; Wrapping and Exact also retain their
+different meanings. No simplification removes an Exact overflow obligation
+on an authored intermediate. See
+[literal connections](../spec/proofs/contracts.md#literal-linked-index-identities).
 
 ### Distributivity and bounded work
 
-Under a selected algebra that proves distributivity, a generic library can
-identify these applications by normalization toward sums of products:
+A selected algebra can prove that a value fits either of these indexed types:
 
 ```text
 Buffer<A * (B + C)>
-Buffer<A*B + A*C>
+Buffer<A * B + A * C>
 ```
 
-Reordering still needs commutativity, regrouping needs associativity, and the
-authored operations must be well-formed. Resolve the operand types and exact
-operation contracts before using a law; layout and native target realization
-come later. The compiler keeps complete associative chains coherent before
-expanding them. An internal repetition count does not establish an authored
-literal's algebraic meaning: `N + N` need not identify with `2 * N`.
+The open expressions have different canonical keys. The compiler can
+automatically prove compatibility through distributivity and transport the
+value with no authored cast or runtime conversion. Reordering and regrouping
+need their own laws, and all operations must be well-formed.
 
-Expansion can multiply the number of terms even in a short type expression.
-The canonical policy permits at most 64 resulting summands per product
-expansion, decided from the simplified pre-expansion form. This limits symbolic
-checking work, not the magnitude of an index or runtime arithmetic. Beyond it,
-retain the product unexpanded; using the well-formed indexed type alone need
-not fail. If compatibility cannot otherwise be proved because expansion was
-cut off, the diagnostic reports the measure and limit, not inequality.
+Automatic expansion defaults to at most 64 resulting terms per product
+expansion. That counts terms, not normalization steps or the magnitude of a
+buffer size. The root can raise the recorded proof-search allowance through an
+ordinary Build setting:
 
-An ordinary theorem can apply distributivity with a large expression as one
-operand without expanding that operand. Its checked guarantee or an already
-established exact equality can discharge the compatibility obligation. Keeping
-the same index formulation across APIs can also avoid expansion. No local
-canonical-budget override syntax is needed. A compatibility proof established
-generically is carried into its specialized uses, not rediscovered there;
-fully closed indices still evaluate under the concrete selected implementation.
+```omega
+builder.proof.index_expansion_terms = 128;
+```
 
-The named mutual-distributivity exception expands neither direction when two
-operations distribute over each other. Different selected law sets therefore
-do not have an unconditional monotonicity promise. The complete rules and
-published identity requirements are in
-[bounded canonical index normalization](../spec/proofs/contracts.md#bounded-canonical-index-normalization).
+This ratified setting is part of the pending compiler migration. It changes
+proof discovery, never type identity. Other sponsored resource ceilings still
+apply. If an obligatory equality remains unproved, the diagnostic names the
+missing evidence or exhausted budget; it does not claim mathematical inequality.
+A checked theorem can establish equality without expanding the whole product.
+
+A generic compatibility proof travels through specialization and in published
+artifacts. Consumers check it without repeating the producer's search under a
+smaller allowance. A reverse-distributivity law does not invalidate a forward
+proof: the old rule disabling both directions is retired.
+
+Exact declaration and conformance matching still uses canonical keys.
+Consequently, a conformance for one symbolic spelling does not automatically
+match the other, and the two forms may produce separate specializations.
+Use the same expression or a shared transparent alias when an API requires
+exact identity. Closed indices can still evaluate to the same value and share
+a key. The rules are in
+[stable identity](../spec/proofs/contracts.md#stable-canonical-index-identity),
+[proved compatibility](../spec/proofs/contracts.md#proved-index-compatibility),
+and [Build proof-work policy](../spec/build/configuration.md#proof-work-policy).
 
 ## Machine Parameters
 
@@ -485,11 +493,53 @@ There are three distinct binder categories:
 | Nominal callable | One exact `requires machine Handler satisfies HookProcedure::call` requirement. |
 | Declaration identity | A trait's noncallable machine binder, used only to relate declaration identities. |
 
-Every callable binder needs its contract at declaration. Uses in the body and
-the current set of consumers cannot infer it, even with one whole-program
-instantiation. The nominal form inherits the requirement's complete signature,
-conditions, and operational/boundary contract without repeating it. A path with
+An originating callback contract is explicit. A wrapper may omit its repeated
+clause when it forwards an explicitly kinded machine binder into an exact
+callee's required slot. The compiler publishes the inherited requirement for
+public and private wrappers alike. Direct calls such as `Step(item)` do not
+invent a requirement, and the current set of consumers cannot select one.
+
+The nominal form retains the originating requirement's complete signature,
+conditions and operational/boundary contract without repeating it. A path with
 several overloads is not an exact selection.
+
+### Forwarding A Callback Contract
+
+The inner operation declares what it accepts; its wrapper need not repeat it:
+
+```omega
+public trait ElementStep<T> {
+    machine apply(item: &mut T) terminates;
+}
+
+public machine apply_one<T, F>(item: &mut T)
+requires machine F satisfies ElementStep<T>::apply;
+terminates
+{
+    F(item);
+}
+
+public machine visit_one<T, machine F>(item: &mut T)
+terminates
+{
+    apply_one<T, F>(item);
+}
+```
+
+The published contract for `visit_one` includes
+`requires machine F satisfies ElementStep<T>::apply;`. Forwarding `F` into
+`for_each<T, F>` works the same way. Multiple uses contribute all their
+requirements; the selected callback must satisfy every one. An explicit
+originating contract is not silently strengthened to repair an invalid body.
+
+There is no trait lookup or implementation selection here: callers still name
+their chosen machine with its required nominal satisfaction edges. Public
+inferred requirements must obey visibility rules,
+and changing a forwarding use can change the public contract and require
+rechecking consumers. Diagnostics show the inferred clause and its originating
+use. See [forwarded requirements](../spec/language/generics.md#forwarded-callback-requirements).
+
+### Identity-Only Binders
 
 An identity-only trait binder has no callable signature:
 
@@ -512,9 +562,13 @@ for a complete example.
 
 Generic bodies prove a selected parameter's `requires`, use its `ensures`, and
 respect its reach, suspension, blocking, crash, and progress contract. Concrete
-selections must refine that public bound. Ordinary type/result arguments may
+selections must refine that public bound. The generic body uses the callback's
+upper-bound suspension/blocking permissions; applications use the published
+[operational dependencies](../spec/language/effects.md#static-callback-operational-dependencies)
+after substituting selected contracts. Ordinary type/result arguments may
 be inferred when the selected signature and value arguments determine an exact
-application; that is not inference of conformance evidence or callable contracts.
+application; that does not select conformance evidence or invent an originating
+callable contract. Forwarded requirements retain already declared contracts.
 
 Stateful callbacks take ordinary explicit context parameters; dynamically
 selected operations use [machine values](../spec/language/machine_values.md).

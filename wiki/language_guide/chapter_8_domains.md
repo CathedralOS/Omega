@@ -753,10 +753,11 @@ data Config {
     rank: u8::Rank;
 }
 
-let ready: Config = Config { rank: 1 };  // omitted level is zero-valid
+let ready: Config = Config { rank: 1, .. };  // explicitly default zero-valid level
 ```
 
-Construction must supply gated fields and prove the whole default domain.
+Construction with `..` must supply gated fields and prove the whole default domain.
+Without `..`, every runtime field is supplied explicitly.
 Machine-owned storage likewise establishes gated fields before observation.
 Gating propagates through embedded values and arrays; a zero-valid first sum
 case need not establish the unused payloads of later cases. See

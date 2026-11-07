@@ -30,8 +30,8 @@ On Windows at compiler revision `c252be7fa2d1`, the migrated sample passes
 certificate search with `proof_search_integer_certificate_work` exhausted at
 65,536 work units. The original field-based accumulator also fails certificate
 production on this compiler, so this is not a new failure introduced by moving
-the maximum into state parameters. The approved PCC removal must retain the
-source checker's decisions instead of re-proving them during lowering; raising
+the maximum into state parameters. Lowering must consume the retained
+source-checker decisions without re-proving them; raising
 the search limit is not the intended repair. Native and interpreted exit 45
 remain required.
 

@@ -882,34 +882,7 @@ impl StructuralJudge<'_> {
         let program = self.program;
         // Only independently admitted values donate declared refinements.
         // A pending cast or constructor may know its carrier before admission.
-        if let Some(meaning) =
-            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
-            && meaning.0.is_fixed_integer()
-            && super::super::structural_terms::scalar_operand_is_observed(
-                program, reference, &value,
-            )
-        {
-            for (minimum, maximum) in
-                crate::constrained_range_bounds(program, reference, false).unwrap_or_default()
-            {
-                for (operator, bound) in [
-                    (BinaryOperator::GreaterOrEqual, minimum),
-                    (BinaryOperator::LessOrEqual, maximum),
-                ] {
-                    self.intake_equation(
-                        StructuralTerm::ScalarBinary {
-                            references: [reference; 2],
-                            operator,
-                            meaning: [meaning; 2],
-                            left: Box::new(value.clone()),
-                            right: Box::new(StructuralTerm::Integer(bound)),
-                        },
-                        super::value_predicates::boolean_term(true),
-                        0,
-                    );
-                }
-            }
-        }
+
         for row in crate::field_domains::declared_type_domain_rows(program, reference) {
             let Some(projected) = super::super::observed_projections::project_observed_value(
                 program,
@@ -1061,67 +1034,6 @@ impl StructuralJudge<'_> {
                 right: Box::new(bound),
             });
         self.intake_equation_fact(predicate, super::value_predicates::boolean_term(true), 0);
-    }
-
-    /// A legal storage read captures the resident declaration's bounds on this
-    /// exact value. They remain true of the snapshot after its source changes;
-    /// neither the receiving annotation nor a later storage version supplies
-    /// a premise. The read owner calls this only after observing the scalar
-    /// with an unchanged receiver.
-    pub(super) fn intake_completed_storage_bounds(
-        &mut self,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        expression: ExpressionHandle,
-        value: &StructuralTerm,
-    ) {
-        let program = self.program;
-        let Some(reference) =
-            crate::expression_result_type_reference(program, machine, state, expression)
-        else {
-            return;
-        };
-        let Some(meaning) =
-            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
-        else {
-            return;
-        };
-        if !meaning.0.is_fixed_integer()
-            || !super::super::structural_terms::scalar_operand_is_observed(
-                program, reference, value,
-            )
-        {
-            return;
-        }
-        let Some(carrier) = crate::proof_contracts::arithmetic_domains::primitive_range(meaning.0)
-        else {
-            return;
-        };
-        // An enclosing record's default predicate may be temporarily unproved.
-        // Only the scalar's own declared storage restriction applies without a
-        // separate current-value proof; later restoration cannot refine this copy.
-        let declared = crate::proof_contracts::arithmetic_domains::enforced_declared_range_interval(
-            program, reference,
-        );
-        let bounds = declared.map_or(carrier, |restriction| carrier.intersect(restriction));
-        // The captured value already retains its physical carrier. Only a
-        // declaration refinement supplies additional observation premises.
-        if bounds == carrier {
-            return;
-        }
-        for (operator, bound) in [
-            (BinaryOperator::GreaterOrEqual, bounds.low),
-            (BinaryOperator::LessOrEqual, bounds.high),
-        ] {
-            let Some(bound) = bound else { continue };
-            self.intake_observed_integer_bound(
-                reference,
-                meaning,
-                value,
-                operator,
-                numerics::bignum::BigInt::from_i64(bound),
-            );
-        }
     }
 
     /// A completed atomic load is a fresh snapshot of a declaration-valid

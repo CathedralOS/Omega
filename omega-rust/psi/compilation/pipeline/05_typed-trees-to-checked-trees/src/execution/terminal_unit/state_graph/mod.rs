@@ -32,7 +32,6 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, retain_parameter_arrival_domains, state_flow,
 };
 use crate::execution::terminal_unit::{composed_control, control};
-use crate::values::lower_state_declared_range_predicate;
 use crate::values::lower_state_domain_predicate;
 use crate::values::lower_state_scalar_contract_predicate;
 
@@ -218,21 +217,7 @@ pub(super) fn build_traced(
                         &mut 4096,
                     )
                 }
-                validation::StateContractRow::DeclaredRange {
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } => lower_state_declared_range_predicate(
-                    program,
-                    &facts.operators,
-                    owner,
-                    state,
-                    parameter,
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                ),
+
                 validation::StateContractRow::Domain {
                     parameter,
                     constraint,

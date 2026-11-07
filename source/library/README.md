@@ -107,6 +107,14 @@ uses the helper. The [executable fixture](../../tests/omega/pass/generics/core_s
 covers mutable records, non-copy elements, a forwarded view and empty input;
 separate reject controls enforce callback and access obligations.
 
+The language's [forwarded callback rule](../../wiki/spec/language/generics.md#forwarded-callback-requirements)
+lets a wrapper with an explicit `machine Step` binder inherit this exact
+requirement from `for_each<Element, Step>` instead of repeating its clause.
+This does not widen the core helper's originating non-suspending, nonblocking
+contract. Libraries that admit broader callbacks use
+[operational dependency summaries](../../wiki/spec/language/effects.md#static-callback-operational-dependencies)
+so a synchronous selection does not acquire suspension solely from that bound.
+
 ## Hosted service reach
 
 GUI provider interfaces select operations, not their service effects. Shared

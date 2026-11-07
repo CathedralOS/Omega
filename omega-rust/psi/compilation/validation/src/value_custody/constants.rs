@@ -79,50 +79,16 @@ pub(crate) fn validate_constants(program: &dyn CheckingInput, diagnostics: &mut 
     }
 }
 
-/// Validate one completed declaration root after its range endpoints are ready.
+/// Keep each completed constant field bound to its selected declaration.
 /// The evaluation owner selects ready declarations; a private placeholder is
 /// neither a value to validate here nor evidence exported to a consumer.
-pub fn validate_constant_literal_integer_ranges(
+pub fn validate_constant_literal_fields(
     program: &dyn CheckingInput,
     destination: TypeReferenceHandle,
     initializer: ExpressionHandle,
 ) -> Result<(), &'static str> {
     let mut pending = vec![(destination, initializer)];
     while let Some((destination, expression)) = pending.pop() {
-        if program
-            .primitive_type_reference(destination)
-            .is_some_and(|primitive| primitive.is_integer())
-        {
-            let ranges = crate::value_custody::type_references::constrained_range_bounds(
-                program,
-                destination,
-                false,
-            )
-            .ok_or("constant initializer has an unresolved integer range")?;
-            if !ranges.is_empty() {
-                // Read only the retained literal, never fold a runtime expression
-                // or treat its destination as evidence of its own membership.
-                let ExpressionNode::Integer(literal) =
-                    expression_table(program).expression(expression)
-                else {
-                    return Err(
-                        "constant initializer lacks an integer literal for its declared range",
-                    );
-                };
-                let value = literal.value_bignum().ok_or(
-                    "constant initializer lacks an exact integer literal for its declared range",
-                )?;
-                if ranges
-                    .iter()
-                    .any(|(minimum, maximum)| &value < minimum || &value > maximum)
-                {
-                    return Err(
-                        "constant initializer literal does not satisfy its declared integer range",
-                    );
-                }
-            }
-            continue;
-        }
         let carrier = program
             .type_reference_table
             .unconstrained_type_reference(destination);

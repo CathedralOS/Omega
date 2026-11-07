@@ -709,7 +709,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 }
                                 return;
                             }
-                            visitor.visit_non_contradictory(
+                            super::structural_prefix::visit_non_contradictory_arm(
+                                &mut **visitor,
                                 program,
                                 machine,
                                 &path.judge,
@@ -1056,7 +1057,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     if visitor.is_complete() {
                         break;
                     }
-                    visitor.visit(
+                    super::structural_prefix::visit_arm(
+                        &mut **visitor,
                         program,
                         machine,
                         &path.judge,
@@ -1089,7 +1091,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         path.established_guarantees.equations.len(),
                     );
                     if path.checked_contradiction_state == Some(current_contra_state) {
-                        visitor.visit_non_contradictory(
+                        super::structural_prefix::visit_non_contradictory_arm(
+                            &mut **visitor,
                             program,
                             machine,
                             &path.judge,
@@ -1107,7 +1110,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             continue;
                         }
                         path.checked_contradiction_state = Some(current_contra_state);
-                        visitor.visit_non_contradictory(
+                        super::structural_prefix::visit_non_contradictory_arm(
+                            &mut **visitor,
                             program,
                             machine,
                             &path.judge,

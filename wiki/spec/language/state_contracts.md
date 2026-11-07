@@ -34,9 +34,10 @@ value static. Repeated predicate clauses in one scope conjoin their obligations.
 
 `requires machine Step(...)` declares a structural callable requirement;
 `requires machine Handler satisfies Trait::requirement` declares a nominal one.
-They retain the existing binder-kind and complete-contract rules, not inference
-from body uses. A nested callable's own `requires`, `ensures` and operational
-clauses belong to that callable. Its declaration-ending semicolon closes that
+They declare originating contracts. A wrapper with an explicitly kinded machine
+binder may instead [infer the exact requirements it forwards](generics.md#forwarded-callback-requirements);
+direct invocation shape does not invent a contract. A nested callable's own
+`requires`, `ensures` and operational clauses belong to that callable. Its declaration-ending semicolon closes that
 complete contract before subsequent clauses resume the enclosing declaration.
 There are no clause-ending semicolons; see
 [header delimiters](#machine-header-delimiters). Nested premises are not flattened
@@ -49,10 +50,6 @@ Assembly removes the grouping word rather than replacing it with another
 blocks carry entry/exit assertions under [checked assembly](assembly.md#contracts-and-clobbers);
 an enclosing callable machine's postcondition still applies at normal completion.
 No assertion becomes an admission or overrides the instruction catalog.
-
-This is the accepted source contract. `REQUIRES-UNIFICATION` in [TASKS.md](../../../TASKS.md)
-tracks both producers, repository and customer source migration, and deletion of
-the retired grammar and compatibility paths.
 
 ## Machine header delimiters
 
@@ -279,6 +276,3 @@ targets and inputs; an empty write summary alone does not prove repeatability.
 
 Source proof search may be incomplete. Failure to infer an invariant, normalize
 a term, or prove a supported implication grants no fact and is not a refutation.
-Current algorithms and support limits belong beside
-[checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md)
-and [validation](../../../omega-rust/psi/compilation/validation/README.md).

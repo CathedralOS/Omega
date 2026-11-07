@@ -326,7 +326,6 @@ impl NativeArtifact {
         // Fragment calls already belong to the object and its emitted image.
         // Check the independent projection instead of appending calls after
         // image emission, which would omit their admitted stack demand.
-        // This live object/image join is independent of optional PCC evidence.
         // Compare empty rosters too: an image cannot append an unowned call.
         if parts.image.foreign_calls() != parts.object.foreign_calls() {
             return Err("native artifact image differs from fragment foreign call custody");

@@ -28,7 +28,7 @@ pub(crate) struct CaseEvidence<'program> {
 /// Coordinates prepared for repeated variant queries in one immutable evidence
 /// batch. This is local query scratch, never retained across a context change.
 struct PreparedCaseSubject<'subject> {
-    place: std::borrow::Cow<'subject, CanonicalPlace>,
+    place: std::borrow::Cow<'subject, observations::NormalizedPlace>,
     exact_start: usize,
     indexed_start: usize,
 }
@@ -299,25 +299,24 @@ impl<'program> CaseEvidence<'program> {
     /// Only the variant changes in this emission walk, so normalize the subject
     /// and locate its observation ranges once before querying variants.
     fn prepare_stable_subject(&self, subject: &CanonicalPlace) -> PreparedCaseSubject<'static> {
-        let mut subject = subject.clone();
-        observations::normalize_place(
+        let subject = observations::normalize_place(
             self.program,
             self.semantic,
             &self.contexts,
             self.state.symbol,
             self.statement_index,
-            &mut subject,
+            subject.clone(),
         );
         self.locate_normalized_subject(std::borrow::Cow::Owned(subject))
     }
 
     /// Locate the observation ranges of a subject already in this batch's
-    /// normalized coordinates, such as an observation's own place.
-    /// Normalization is idempotent under the same contexts and cut, so an
-    /// observation place is borrowed rather than copied and normalized again.
+    /// normalized coordinates, such as an observation's own place. Only
+    /// `normalize_place` makes a `NormalizedPlace`, so an observation place is
+    /// borrowed as it is rather than copied and normalized again.
     fn locate_normalized_subject<'subject>(
         &self,
-        subject: std::borrow::Cow<'subject, CanonicalPlace>,
+        subject: std::borrow::Cow<'subject, observations::NormalizedPlace>,
     ) -> PreparedCaseSubject<'subject> {
         let exact_start = self
             .observations
@@ -362,14 +361,14 @@ impl<'program> CaseEvidence<'program> {
         let has_case_evidence = |case: SymbolHandle, required: bool| {
             self.observations[prepared.exact_start..]
                 .iter()
-                .take_while(|row| row.place == *subject)
+                .take_while(|row| *row.place == *subject)
                 .chain(
                     self.indexed_observations[prepared.indexed_start..]
                         .iter()
                         .map(|position| &self.observations[*position])
                         .take_while(|row| row.place.root == subject.root)
                         .filter(|row| {
-                            row.place != *subject
+                            *row.place != *subject
                                 && (super::canonical_places_agree(
                                     self.program,
                                     &row.place,

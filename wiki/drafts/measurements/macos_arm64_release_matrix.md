@@ -1,5 +1,10 @@
 # macOS arm64 release-matrix run at 0293d4cad9
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 Host-run evidence for `RC-NATIVE-MATRIX-MACOS-ARM64` (TASKS.md): the first
 full `tools/release/release_record.py run --target macos_arm64` attempt on a
 matching host, plus the host repair needed to get gate commands past the

@@ -1,7 +1,7 @@
 # Bounded byte input
 
-This is the settled library and boundary contract for bounded line input, not
-a claim of complete compiler or provider support. [Bounded growth](bounded_growth.md)
+This is the library and boundary contract for bounded line input.
+[Bounded growth](bounded_growth.md)
 owns container invariants; [boundary calls](../terminal-psi/boundary_calls.md)
 owns exact provider identity, calls, and result custody.
 

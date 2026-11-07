@@ -1,4 +1,3 @@
-use crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution;
 use crate::tables::{type_constraints, type_references};
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
@@ -38,13 +37,7 @@ pub(super) fn lower_type_constraint_node_span_from_table(
                     .collect::<Result<Vec<_>, _>>()?;
                 lower_domain_constraint_node(&domain.name, arguments, exposure)
             }
-            resolved::types::TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } => {
-                lower_range_constraint(source_trees, typed_trees, minimum, maximum, *end_inclusive)?
-            }
+
             resolved::types::TypeConstraintNode::ArithmeticDomain(domain) => {
                 typed::types::TypeConstraintNode::ArithmeticDomain(*domain)
             }
@@ -79,36 +72,6 @@ pub(crate) fn lower_type_constraint_node_span_with_context(
     }
 
     Ok(span)
-}
-
-/// The typed `Domain` constraint leaf shared by the direct and table-backed
-/// constraint lowerings — both resolved enums carry the same fields here.
-/// Lower an inclusive-or-exclusive integer range constraint from authored
-/// expression handles.
-fn lower_range_constraint(
-    source_trees: &SymbolResolvedTrees,
-    typed_trees: &mut typed::TypedTrees,
-    minimum: &resolved::expression::ExpressionHandle,
-    maximum: &resolved::expression::ExpressionHandle,
-    end_inclusive: bool,
-) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
-    Ok(typed::types::TypeConstraintNode::Range {
-        end_inclusive,
-        minimum: lower_expression_handle_from_table_with_symbol_substitution(
-            Some(source_trees),
-            &source_trees.tables.bodies.expressions,
-            typed_trees,
-            *minimum,
-            None,
-        )?,
-        maximum: lower_expression_handle_from_table_with_symbol_substitution(
-            Some(source_trees),
-            &source_trees.tables.bodies.expressions,
-            typed_trees,
-            *maximum,
-            None,
-        )?,
-    })
 }
 
 fn lower_domain_constraint_node(
@@ -163,11 +126,7 @@ fn lower_type_constraint_node_with_context(
                 exposure,
             ))
         }
-        resolved::types::TypeConstraint::Range {
-            minimum,
-            maximum,
-            end_inclusive,
-        } => lower_range_constraint(source_trees, typed_trees, minimum, maximum, *end_inclusive),
+
         resolved::types::TypeConstraint::ArithmeticDomain(domain) => {
             Ok(typed::types::TypeConstraintNode::ArithmeticDomain(*domain))
         }

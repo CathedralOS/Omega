@@ -12,6 +12,7 @@
 
 use super::super::arithmetic_judgment::{LowerBoundQueries, PreparedLowerBoundIndex};
 use super::super::{BigInt, Engine, Polynomial};
+use super::resolution_inputs::InputOwner;
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use numerics::arithmetic::ArithmeticDomain;
 use std::ops::Range;
@@ -123,27 +124,25 @@ pub(super) struct PreparedIntegerPremises<'program> {
     goal_work: std::sync::Mutex<Option<IntegerObservations<'program>>>,
 }
 
-// Leaf retention also depends on nonprojected current value facts and the
-// complete admitted-call class. Keep those immutable COW owners alive: pointer
-// equality is an exact epoch, including equal-length sibling histories. These
-// owners contain no Judge/cache edge, so they cannot cycle back into this LRU.
+// Leaf retention also depends on current value facts and admitted calls.
+// Record their live allocation identities without keeping historical proof
+// tables alive. The judge owns its inputs; an expired owner cannot match.
 struct PreparedIntegerPremisesCacheKey {
     state: (usize, usize, usize, usize, bool, bool),
-    rewrites: std::sync::Arc<super::rewrite_table::RewriteTable>,
-    captured_results: std::sync::Arc<Vec<super::normal_returns::CapturedResultEquation>>,
-    normal_results:
-        std::sync::Arc<Vec<(typed_trees::expression::ExpressionHandle, StructuralTerm)>>,
-    substitutions: std::sync::Arc<Vec<(String, StructuralTerm)>>,
+    rewrites: InputOwner<'static>,
+    captured_results: InputOwner<'static>,
+    normal_results: InputOwner<'static>,
+    substitutions: InputOwner<'static>,
     require_closed_computation: bool,
 }
 
 impl PartialEq for PreparedIntegerPremisesCacheKey {
     fn eq(&self, other: &Self) -> bool {
         self.state == other.state
-            && std::sync::Arc::ptr_eq(&self.rewrites, &other.rewrites)
-            && std::sync::Arc::ptr_eq(&self.captured_results, &other.captured_results)
-            && std::sync::Arc::ptr_eq(&self.normal_results, &other.normal_results)
-            && std::sync::Arc::ptr_eq(&self.substitutions, &other.substitutions)
+            && self.rewrites == other.rewrites
+            && self.captured_results == other.captured_results
+            && self.normal_results == other.normal_results
+            && self.substitutions == other.substitutions
             && self.require_closed_computation == other.require_closed_computation
     }
 }
@@ -1596,13 +1595,13 @@ impl<'program> StructuralJudge<'program> {
         };
         let state = PreparedIntegerPremisesCacheKey {
             state,
-            rewrites: std::sync::Arc::clone(&self.rewrites),
-            captured_results: std::sync::Arc::clone(&self.captured_result_equations),
-            normal_results: std::sync::Arc::clone(&self.normal_results),
-            substitutions: std::sync::Arc::clone(&self.substitutions),
+            rewrites: InputOwner::new(&self.rewrites),
+            captured_results: InputOwner::new(&self.captured_result_equations),
+            normal_results: InputOwner::new(&self.normal_results),
+            substitutions: InputOwner::new(&self.substitutions),
             require_closed_computation: self.require_closed_computation,
         };
-        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock()
+        if let Ok(mut cache) = self.query_state.prepared_integer_premises_cache.lock()
             && let Some(cached) = cache.get(&state)
         {
             phase_profile::count("psi.05.numeric.prove.prep.hit", 1);
@@ -1610,7 +1609,7 @@ impl<'program> StructuralJudge<'program> {
         }
         phase_profile::count("psi.05.numeric.prove.prep.miss", 1);
         let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
-        if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
+        if let Ok(mut cache) = self.query_state.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());
         }
         prepared

@@ -362,37 +362,6 @@ fn condition_environment(
     )
 }
 
-/// A checked normal-return guarantee over one scalar referent. Arrival
-/// requirements are deliberately absent: mutable storage can change during
-/// the invocation. The selected formal and builtin comparisons own the bound.
-pub(crate) fn normal_return_referent_interval(
-    program: &dyn crate::CheckingInput,
-    parameter: &typed_trees::signature::StateParameter,
-) -> Option<Interval> {
-    let shell = crate::reference_shell(program, parameter.type_reference)?;
-    let primitive = program.primitive_type_reference(shell.referee)?;
-    let owner = program.symbols.get(parameter.symbol).parent;
-    let callee = crate::machine_calls::calls::callee_entry_contract(program, owner)?;
-    let environment = ValueEnvironment::new();
-    let declared = primitive_range(primitive)?.intersect(
-        range_constraint_interval(program, shell.referee).unwrap_or(Interval::UNBOUNDED),
-    );
-    Some(
-        program
-            .contract_expressions(callee.contracts.iter(), SignatureContractKind::Ensures)
-            .fold(declared, |interval, expression| {
-                interval.intersect(project(
-                    program,
-                    &callee,
-                    &environment,
-                    &[],
-                    expression,
-                    Some(parameter),
-                ))
-            }),
-    )
-}
-
 fn operand_interval(
     program: &dyn crate::CheckingInput,
     callee: &CalleeContract<'_>,

@@ -200,6 +200,8 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) new_state_field_input_height: usize,
     /// Set only while one part of a split group converges alone.
     pub(super) input_recording: Option<super::state_values::InputRecording>,
+    /// Set only while a split group replays its independent parts.
+    pub(super) replay_guard: Option<super::state_values::ReplayGuard>,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     /// Program-global lookups repeated by every call site on every pass. The
     /// typed program is immutable for the whole fixpoint, so each answer
@@ -368,6 +370,7 @@ impl<'plans> FlowBuildContext<'plans> {
             dirty_state_value_inputs: Vec::new(),
             new_state_field_input_height: 0,
             input_recording: None,
+            replay_guard: None,
             call_sites: HashMap::default(),
             call_stored_reference_effects: Vec::new(),
             call_target_parameters: HashMap::default(),

@@ -40,13 +40,10 @@ length. Source access, initialization, disjointness, and completion checks still
 apply. A fixed array may supply its range without changing fixed-array length;
 a slice of a variable-fill owner does not expose unused capacity.
 
-The current interpreter's boundary-only bounded-field replacement carrier is a
-migration implementation, not source authority to resize through an ordinary
-slice. Its exact path, capacity, and staged length-writeback evidence do not
-establish the settled `read_line` contract. Remove this use from the line-input
-route as source signatures, checked providers, and consumers migrate together.
-Independently specified whole-field stores retain their explicit destination
-and immutable source under [structural access](structural_access.md).
+A bounded-field replacement carrier does not authorize resizing through an
+ordinary slice or establish the `read_line` contract. Independently specified
+whole-field stores retain their explicit destination and immutable source under
+[structural access](structural_access.md).
 
 Boundary calls name exact trait requirements. The retired standalone top-level
 boundary-requirement kind is not a second canonical operation identity; migrate
@@ -180,6 +177,11 @@ installation still joins the exact requirement and candidate identities.
 
 ## Assumed runtime relationships
 
+These relationships are exceptional root-approved departures from the checked
+model. Ordinary programs should reject them. Lowering or provider installation
+must not invent one to carry a rejected ownership, lifetime or contract
+obligation; follow the [usage rule](../build/assumed_binding_contracts.md).
+
 A root-selected [assumed binding contract](../build/assumed_binding_contracts.md)
 is not a checked-provider conformance row. Retain the original requirement,
 the supplied requirement and selected checked implementation, exact argument/
@@ -208,8 +210,6 @@ does not roll back effects already performed by the host.
 The host must supply a legitimate owned value. An opaque identity number does
 not establish global allocation freshness against interpreter-created values
 or suspended callers. Shape validation alone is not external ownership proof.
-Current interpreter limits are described beside
-[effect handling](../../../omega-rust/psi/interpreter/terminal-interpreter/README.md).
 
 ## Reachability and attachments
 
@@ -307,8 +307,9 @@ not by themselves establish executable publication.
 Generic demand is not coverage. A symbolic row binds the producer package,
 callable, exact operator coordinate, requirement, and declared-binder mapping.
 Only final closed substitution can yield coverage. Const identity is evaluated
-value in its declared carrier, not spelling. Type/const applications are the
-initial supported categories; unsupported lifetime/machine categories reject.
+value in its declared carrier, not spelling. Applications preserve their
+declared binder categories and exact closed substitutions. Unsupported forms
+reject explicitly.
 
 Within a compilation, ordinary machine and selected-provider specialization
 reach a fixed point over immutable authored templates. Saved ordinary calls

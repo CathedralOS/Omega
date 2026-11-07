@@ -1,11 +1,10 @@
 //! Callee resolution, machine proposals, contract facts and expression
 //! trees.
 
-use arena::HandleSpan;
 use const_arguments::resolve_runtime_subject;
 use const_integer::classify;
 use validation::expression_traversal::{
-    collect_contract_facts, collect_statement_expression_trees,
+    collect_proof_fact_expression_trees, collect_statement_expression_trees,
 };
 
 use crate::monomorphization::selection::proposals::{BindingContext, StaticProposals};
@@ -36,7 +35,6 @@ pub(crate) fn collect_machine_proposals_for_callee(
         program,
         &candidate.template.type_parameters,
         &candidate.template.const_parameters,
-        None,
         callee.candidate_index,
     );
     let mut type_index = 0usize;
@@ -325,9 +323,9 @@ pub(crate) fn state_by_symbol(
     program.state_by_symbol(symbol)
 }
 
-/// One exact source contract telescope. A contract has declaration parameters,
-/// not the body locals of an executable statement. Repeated nodes in different
-/// telescopes remain separate occurrences for binding agreement.
+/// A contract expression and its declaration parameters. Body locals from
+/// executable statements are outside this context. Repeated expressions in
+/// different declarations remain separate entries for binding agreement.
 pub(crate) struct ContractExpressionScope<'program> {
     pub machine: &'program typed_trees::machine::Machine,
     pub state: Option<&'program typed_trees::state::State>,
@@ -341,9 +339,14 @@ pub(crate) fn contract_expression_scopes(
     for machine in program.machines() {
         let entry = program.machine_states(machine).first();
         let mut expressions = Vec::new();
-        for contract in program.machine_contracts(machine) {
-            collect_contract_facts(program, contract.facts, &mut expressions);
-        }
+        collect_proof_fact_expression_trees(
+            program,
+            program
+                .machine_contracts(machine)
+                .iter()
+                .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts)),
+            &mut expressions,
+        );
         scopes.extend(
             expressions
                 .into_iter()
@@ -355,9 +358,14 @@ pub(crate) fn contract_expression_scopes(
         );
         for state in program.machine_states(machine) {
             let mut expressions = Vec::new();
-            for contract in program.state_contracts(state) {
-                collect_contract_facts(program, contract.facts, &mut expressions);
-            }
+            collect_proof_fact_expression_trees(
+                program,
+                program
+                    .state_contracts(state)
+                    .iter()
+                    .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts)),
+                &mut expressions,
+            );
             scopes.extend(
                 expressions
                     .into_iter()
@@ -390,21 +398,42 @@ pub(crate) fn contract_expression_scopes(
     scopes
 }
 
-/// The same source scope inventory owns executable exclusion and logical
-/// application retention. These calls instantiate proof schemas without
-/// demanding runtime monomorphization or cloning a selected callable body.
+/// All contract expressions, including prepared or imported proof facts.
+/// These are excluded from executable call selection while their applications
+/// remain available for checking the proofs.
 pub(crate) fn contract_expression_handles(
     program: &dyn ::validation::CheckingInput,
 ) -> Vec<ExpressionHandle> {
-    let mut handles = contract_expression_scopes(program)
-        .into_iter()
-        .map(|scope| scope.expression)
-        .collect::<Vec<_>>();
+    collect_contract_expression_handles(
+        program,
+        contract_expression_scopes(program)
+            .into_iter()
+            .map(|scope| scope.expression),
+    )
+}
+
+/// Derive handles from contract expressions and their declaration parameters
+/// already collected for this same, unchanged program. The caller keeps its
+/// separate declaration entries; only the returned handles are deduplicated.
+pub(crate) fn contract_expression_handles_from_scopes(
+    program: &dyn ::validation::CheckingInput,
+    scopes: &[ContractExpressionScope<'_>],
+) -> Vec<ExpressionHandle> {
+    collect_contract_expression_handles(program, scopes.iter().map(|scope| scope.expression))
+}
+
+fn collect_contract_expression_handles(
+    program: &dyn ::validation::CheckingInput,
+    expressions: impl Iterator<Item = ExpressionHandle>,
+) -> Vec<ExpressionHandle> {
+    let mut handles = expressions.collect::<Vec<_>>();
     // Prepared and imported proof schemas also contain non-executable
-    // occurrences, even when no source declaration supplies their telescope.
-    for (fact, _) in program.proof_facts.iter() {
-        collect_contract_facts(program, HandleSpan::from_parts(fact, 1), &mut handles);
-    }
+    // occurrences, even when no source declaration supplies their checking context.
+    collect_proof_fact_expression_trees(
+        program,
+        program.proof_facts.iter().map(|(_, fact)| fact),
+        &mut handles,
+    );
     handles.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
     handles.dedup();
     handles

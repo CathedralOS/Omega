@@ -1,5 +1,25 @@
 # Assumed binding contracts
 
+**Ordinary Omega programs should reject assumed bindings outright.** They remain
+available for exceptional programs that deliberately exceed the checked model,
+including some forms of self-modifying code. They are not a workaround for
+borrow-checker errors, missing proofs in ordinary code, incorrect contracts, or
+compiler limitations.
+
+**Do not introduce an assumed binding merely to make rejected code compile.**
+Repair the ownership model, establish the required facts, correct the contract,
+or fix the compiler. Libraries must not pass these problems downstream by asking
+consumers to approve an assumed binding. When implementing or advising ordinary
+Omega code, treat this mechanism as unavailable.
+
+An exceptional use must identify the concrete program requirement outside the
+checked model and the guarantees being relinquished. A compiler rejection alone
+is not that justification. Root authorization remains mandatory, together with
+exact receiving/project acceptance where package acceptance applies. Acceptance
+records a deliberate trust decision and establishes no correctness. This
+mechanism does not add a general bytes-to-code installation route or waive the
+independent structural and operational checks below.
+
 The consuming root may link one runtime boundary-trait requirement to the selected
 implementation of another while explicitly assuming a semantic relationship
 that ordinary conformance checking has not proved:
@@ -17,6 +37,9 @@ remains checked against the supplied requirement. The assumption belongs to the
 relationship at this crossing, not to that implementation on every call.
 
 ## Caller, implementation, and root
+
+This example illustrates the exceptional trust crossing, not a recommended
+allocation or borrowing technique.
 
 Here `Range` and its routed `Writable` qualification stand for a library's
 complete range contract: valid backing, write authority, lifetime and required
@@ -108,6 +131,10 @@ unrecorded duplication of a transferred claim. These are the ordinary
 range-accounting scheme.
 
 ## Known contradictions at the trust crossing
+
+This rule describes the loss of assurance when a root deliberately accepts a
+refuted assumption. It must not be used to repair a failed proof or conformance
+in ordinary code.
 
 An explicitly authorized and accepted `assume_binding_contract` relationship may
 assume its semantic connection even when the checker can refute that connection
@@ -203,9 +230,13 @@ guest address IDs into host pointers.
 ## Review and delivery
 
 Package install, update and audit label every such relationship **Extremely high
-risk - assumed binding contract**. Show the required and supplied contracts,
-actual implementation, exact assumption difference, authority introduced, root
-scope and transitive dependency path, including any demonstrated contradiction.
+risk - assumed binding contract**. Ordinary applications should refuse the
+relationship, including when a library requests it. An exceptional-use rationale
+must explain the program's deliberate departure from the checked model;
+silencing a diagnostic or working around a compiler limitation is insufficient.
+Show the required and supplied contracts, actual implementation, exact assumption
+difference, authority introduced, root scope and transitive dependency path,
+including any demonstrated contradiction.
 Do not describe a refuted connection as merely unproved. Changed relationship or
 implementation identity needs fresh explicit acceptance. A dependency's own lock
 or an ordinary provider selection is not that decision. Keep the compact readable

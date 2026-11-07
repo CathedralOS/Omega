@@ -17,7 +17,7 @@ def homebrew_formula(version, archives):
         name, digest = archives[host]
         return f'url "{REPOSITORY}/releases/download/v{version}/{name}"\n      sha256 "{digest}"'
     return f'''class Omega < Formula
-  desc "Experimental proof-carrying systems language compiler"
+  desc "Experimental proof-checked systems language compiler"
   homepage "{REPOSITORY}"
   version "{version}"
   license any_of: ["MIT", "Apache-2.0"]
@@ -69,7 +69,7 @@ Publisher: CathedralOS
 PackageName: Omega
 License: MIT OR Apache-2.0
 LicenseUrl: {REPOSITORY}/blob/v{version}/LICENSE-MIT
-ShortDescription: Experimental proof-carrying systems language compiler
+ShortDescription: Experimental proof-checked systems language compiler
 PackageUrl: {REPOSITORY}
 '''),
         "CathedralOS.Omega.installer.yaml": document("installer", f'''Installers:

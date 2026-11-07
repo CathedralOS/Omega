@@ -421,7 +421,7 @@ each adaptation's exact occurrence; equal layout alone supplies no license. The
 source correspondence and theorem schemas are erased, while ordinary scalar
 and structural call operands retain their normal typed lanes and requirements.
 Proof-only correspondence remains available without runtime materialization.
-The retained source admission is not an independently checked PCC theorem proof.
+The retained theorem admission relies on source checking.
 Affine/linear or routed carriers, representative-sensitive observers, effectful
 behavior and applications outside the admitted correspondence remain rejected.
 Broader theorem lifting and transitive mathematical assumption closure retain
@@ -435,28 +435,34 @@ requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;
 failure to normalize or different normal forms are not refutations.
 
-Open index identity follows the ratified
-[bounded canonical policy](../../../../wiki/spec/proofs/contracts.md#bounded-canonical-index-normalization).
-The selection emitted for an operation must carry its complete exact applied
-conformance's law evidence, including inherited requirements and literal
-connections, through `OpenIndexOperationSelection`. The identity consumer
-([open_index_identity.rs](../representations/typed-trees/src/typed_trees/type_system/type_identity/open_index_identity.rs))
-uses only that recorded authority. No law name or operator glyph substitutes
-for it, and an unconditional rewrite cannot borrow an undischarged law premise.
+The 2026-11-06 [identity/compatibility split](../../../../wiki/spec/proofs/contracts.md#licensed-normalization)
+retires selected-law expansion from canonical keys.
+[open_index_identity.rs](../representations/typed-trees/src/typed_trees/type_system/type_identity/open_index_identity.rs)
+still contains the legacy implementation; this ratification does not claim it
+has been migrated. Fixed core-operation identity simplifications must be
+separated from user-law discovery, including user AC and literal-unit laws.
 
-Collect complete associative chains before expansion, decide the 64-summand
-cutoff from the canonical pre-expansion structure, and retain cutoff evidence
-for an unresolved compatibility diagnostic. Different law sets do not grant
-unconditional monotonicity; mutual distributivity is a named no-expansion
-exception. Storage can be compact, but all identity producers share the same
-canonical encoding. Specialization transports generic compatibility evidence
-instead of re-proving the same equality; concrete closed indices use admitted
-evaluation. Remaining implementation and qualification belong to
-**OPERATOR-MACHINE-SUPPLY** in [TASKS.md](../../../../TASKS.md).
+The compatibility prover retains the complete exact applied conformance,
+inherited requirements, literal connections and checked premises carried by
+`OpenIndexOperationSelection` or its replacement. No name/glyph supplies law
+authority. Generic user-law proofs use public guarantees without executing
+abstract bodies inside identity. Internal repetition counts do not establish
+an authored numeral's meaning.
 
-Concrete zero/one connection proofs may use checked unfolding and citation;
-generic index identity consumes their published laws without unfolding an
-abstract body. Internal repetition counts do not grant numeral identities.
+Automatic distributive proof expansion uses root
+[recorded proof-work policy](../../../../wiki/spec/build/configuration.md#proof-work-policy),
+defaulting to 64 resulting terms per attempted product. Prospective counting
+limits allocation, while a cutoff reports unresolved equality rather than
+inequality. No cutoff enters canonical keys, and mutual distributivity cannot
+disable an otherwise valid law. Increasing discovery effort preserves existing
+proofs without changing declaration matching or specialization identities.
+
+Carry checked compatibility derivations through exact substitution and
+publication, rather than re-searching at specialization or import. Closed
+indices still use admitted evaluation. The full
+[migration acceptance](../../../../wiki/drafts/designs/index_identity.md) remains
+under **OPERATOR-MACHINE-SUPPLY** in [TASKS.md](../../../../TASKS.md).
+
 Additional Int/Rat structures and additive/multiplicative group licenses need
 their own checked contracts. Unit dimensions need additive group reasoning;
 positive rational scales need multiplicative group reasoning, not integer

@@ -453,11 +453,22 @@ DIAGNOSTIC_PREFIX_ALIASES = (
 )
 
 
+# Generic integer arguments no longer display the retired `const` marker.
+# Keep the type name, literal and all surrounding refusal text exact.
+_CONST_INTEGER_ARGUMENT = re.compile(r"(?<![\w:])([A-Za-z_]\w*(?:::[A-Za-z_]\w*)*<)const ([0-9]+)>")
+_QUOTED_TYPE = re.compile(r"`([\w\s:&,<>\[\];'-]+)`")
+
+
+def _current_type_spelling(match) -> str:
+    return "`" + _CONST_INTEGER_ARGUMENT.sub(r"\1\2>", match[1]) + "`"
+
+
 def normalized_diagnostic(text: str) -> str:
     for retired, current in DIAGNOSTIC_PREFIX_ALIASES:
         if text.startswith(retired):
-            return current + text[len(retired):]
-    return text
+            text = current + text[len(retired):]
+            break
+    return _QUOTED_TYPE.sub(_current_type_spelling, text)
 
 
 def normalized_diagnostics(diagnostics: list) -> list:

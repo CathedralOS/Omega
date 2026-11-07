@@ -25,6 +25,6 @@ The decoder rejects missing application records, changed template owners,
 commitments, argument kinds/order/values, and redirected same-shaped callees.
 An unchanged commitment cannot authorize an independently changed callee tuple.
 These relations remain ordinary producer-trusted source projections, not
-authenticated original source-contract openings or full generic PCC. Generic
+authenticated original source-contract openings. Generic
 execution is absent: the calls execute ordinary concrete machines with ordinary
 fuel accounting.
