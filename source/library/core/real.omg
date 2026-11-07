@@ -15,7 +15,7 @@ public boundary machine Real::add(a: Real, b: Real) -> Real;
 public boundary machine Real::multiply(a: Real, b: Real) -> Real;
 
 boundary machine real_add_commutative(a: Real, b: Real)
-ensures Real::add(a, b) == Real::add(b, a);
+ensures core::Identity<Real>(Real::add(a, b), Real::add(b, a));
 
 boundary machine real_multiply_commutative(a: Real, b: Real)
-ensures Real::multiply(a, b) == Real::multiply(b, a);
+ensures core::Identity<Real>(Real::multiply(a, b), Real::multiply(b, a));

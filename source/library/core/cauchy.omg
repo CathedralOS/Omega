@@ -21,9 +21,9 @@ machine cauchy_at<machine Sequence, machine Modulus>(
 requires machine Sequence(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero)
 {
     let left: Rat = Sequence(left_index);
     let right: Rat = Sequence(right_index);
@@ -39,9 +39,9 @@ requires machine Left(index: Nat) -> Rat terminates;
 requires machine Right(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero)
 {
     let left: Rat = Left(left_index);
     let right: Rat = Right(right_index);
@@ -55,10 +55,10 @@ machine cauchy_at_reflexive<machine Sequence, machine Modulus>(
 requires machine Sequence(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), index)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), index), Nat::Zero)
 ensures
-    (cauchy_at<Sequence, Modulus>(precision, index, index)) == Nat::Zero
+    core::Identity<Nat>(cauchy_at<Sequence, Modulus>(precision, index, index), Nat::Zero)
 {
     let value: Rat = Sequence(index);
     rat_close_reflexive(value, precision);
@@ -77,20 +77,26 @@ requires machine Left(index: Nat) -> Rat terminates;
 requires machine Right(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero,
-    (converges_together_at<Left, Right, Modulus>(
-        precision,
-        left_index,
-        right_index
-    )) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero),
+    core::Identity<Nat>(
+        converges_together_at<Left, Right, Modulus>(
+            precision,
+            left_index,
+            right_index
+        ),
+        Nat::Zero
+    )
 ensures
-    (converges_together_at<Right, Left, Modulus>(
-        precision,
-        right_index,
-        left_index
-    )) == Nat::Zero
+    core::Identity<Nat>(
+        converges_together_at<Right, Left, Modulus>(
+            precision,
+            right_index,
+            left_index
+        ),
+        Nat::Zero
+    )
 {
     let left: Rat = Left(left_index);
     let right: Rat = Right(right_index);
@@ -118,36 +124,51 @@ requires machine Middle(index: Nat) -> Rat terminates;
 requires machine Right(index: Nat) -> Rat terminates;
 requires machine Modulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, precision)) == Nat::Zero,
-    (saturating_sub(
-        Nat::Succ { prev: Nat::Zero },
-        add(precision, precision)
-    )) == Nat::Zero,
-    (saturating_sub(Modulus(precision), left_index)) == Nat::Zero,
-    (saturating_sub(Modulus(precision), right_index)) == Nat::Zero,
-    (saturating_sub(Modulus(add(precision, precision)), left_index)) == Nat::Zero,
-    (saturating_sub(Modulus(add(precision, precision)), middle_index)) == Nat::Zero,
-    (saturating_sub(Modulus(add(precision, precision)), right_index)) == Nat::Zero,
-    (saturating_sub(
-        Nat::Succ { prev: Nat::Zero },
-        (Middle(middle_index)).den
-    )) == Nat::Zero,
-    (converges_together_at<Left, Middle, Modulus>(
-        add(precision, precision),
-        left_index,
-        middle_index
-    )) == Nat::Zero,
-    (converges_together_at<Middle, Right, Modulus>(
-        add(precision, precision),
-        middle_index,
-        right_index
-    )) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, precision), Nat::Zero),
+    core::Identity<Nat>(
+        saturating_sub(
+            Nat::Succ { prev: Nat::Zero },
+            add(precision, precision)
+        ),
+        Nat::Zero
+    ),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), left_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(precision), right_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(add(precision, precision)), left_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(add(precision, precision)), middle_index), Nat::Zero),
+    core::Identity<Nat>(saturating_sub(Modulus(add(precision, precision)), right_index), Nat::Zero),
+    core::Identity<Nat>(
+        saturating_sub(
+            Nat::Succ { prev: Nat::Zero },
+            (Middle(middle_index)).den
+        ),
+        Nat::Zero
+    ),
+    core::Identity<Nat>(
+        converges_together_at<Left, Middle, Modulus>(
+            add(precision, precision),
+            left_index,
+            middle_index
+        ),
+        Nat::Zero
+    ),
+    core::Identity<Nat>(
+        converges_together_at<Middle, Right, Modulus>(
+            add(precision, precision),
+            middle_index,
+            right_index
+        ),
+        Nat::Zero
+    )
 ensures
-    (converges_together_at<Left, Right, Modulus>(
-        precision,
-        left_index,
-        right_index
-    )) == Nat::Zero
+    core::Identity<Nat>(
+        converges_together_at<Left, Right, Modulus>(
+            precision,
+            left_index,
+            right_index
+        ),
+        Nat::Zero
+    )
 {
     let left: Rat = Left(left_index);
     let middle: Rat = Middle(middle_index);
@@ -191,19 +212,28 @@ machine doubled_nat_max_threshold<
 requires machine FirstModulus(precision: Nat) -> Nat terminates;
 requires machine SecondModulus(precision: Nat) -> Nat terminates;
 requires
-    (saturating_sub(
-        FirstModulus(add(precision, precision)),
-        index
-    )) == Nat::Zero,
-    (saturating_sub(
-        SecondModulus(add(precision, precision)),
-        index
-    )) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(
+            FirstModulus(add(precision, precision)),
+            index
+        ),
+        Nat::Zero
+    ),
+    core::Identity<Nat>(
+        saturating_sub(
+            SecondModulus(add(precision, precision)),
+            index
+        ),
+        Nat::Zero
+    )
 ensures
-    (saturating_sub(
-        doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision),
-        index
-    )) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(
+            doubled_nat_max_modulus<FirstModulus, SecondModulus>(precision),
+            index
+        ),
+        Nat::Zero
+    )
 {
     _ = nat_max_le(
         FirstModulus(add(precision, precision)),

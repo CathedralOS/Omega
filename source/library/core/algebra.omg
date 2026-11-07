@@ -7,8 +7,8 @@
 // requirements carrying `ensures` (the conformance-theorem mechanism: every
 // satisfier PROVES the law it binds, checked forall-to-forall against these
 // declarations). The engine detects the licensing laws by SHAPE, never by
-// name -- commutativity `add(a, b) == add(b, a)` plus associativity licenses
-// addend rearrangement over the carrier's bound op; a trait declaring the
+// name. Identity of `add(a, b)` and `add(b, a)`, together with associativity,
+// licenses rearrangement over the bound operation. A trait declaring the
 // same shapes under other names licenses identically. When one carrier also
 // conforms commutativity + associativity for `mul` and the distributivity law,
 // the tier-2 normalizer earns the paired `(add, mul)` license and expands a
@@ -31,17 +31,17 @@ public trait CommutativeSemiring<T> {
     machine add(a: T, b: T) -> T terminates;
     machine mul(a: T, b: T) -> T terminates;
     machine add_comm(a: T, b: T)
-    ensures add(a, b) == add(b, a);
+    ensures core::Identity<T>(add(a, b), add(b, a));
     machine add_assoc(a: T, b: T, c: T)
-    ensures add(add(a, b), c) == add(a, add(b, c));
+    ensures core::Identity<T>(add(add(a, b), c), add(a, add(b, c)));
     machine add_identity(a: T)
-    ensures add(a, zero()) == a;
+    ensures core::Identity<T>(add(a, zero()), a);
     machine mul_comm(a: T, b: T)
-    ensures mul(a, b) == mul(b, a);
+    ensures core::Identity<T>(mul(a, b), mul(b, a));
     machine mul_assoc(a: T, b: T, c: T)
-    ensures mul(mul(a, b), c) == mul(a, mul(b, c));
+    ensures core::Identity<T>(mul(mul(a, b), c), mul(a, mul(b, c)));
     machine mul_identity(a: T)
-    ensures mul(a, one()) == a;
+    ensures core::Identity<T>(mul(a, one()), a);
     machine mul_distributes(a: T, b: T, c: T)
-    ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
+    ensures core::Identity<T>(mul(a, add(b, c)), add(mul(a, b), mul(a, c)));
 }

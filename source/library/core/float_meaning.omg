@@ -6,8 +6,8 @@
 // sign, and NaN intentionally erases representation-specific payload bits.
 //
 // FloatMeaning is proof-only because its finite case contains Rat, whose Nat
-// recursion has no runtime layout. Target providers expose equality against
-// this carrier in contracts; they do not pass it across runtime boundaries.
+// recursion has no runtime layout. Target providers state identity of this
+// meaning in contracts; they do not pass it across runtime boundaries.
 
 use omega::language::core::int;
 use omega::language::core::nat;
@@ -23,7 +23,7 @@ public data Sign [copy] {
 // fact; no compiler-known float or rational predicate is involved.
 public domain Rat::NonZero
 requires
-    self.num.pos != self.num.neg;
+    !core::Identity<Nat>(self.num.pos, self.num.neg);
 
 public data FloatMeaning {
     case FiniteNonZero(value: Rat in NonZero);
@@ -41,8 +41,8 @@ machine nonzero_rat(
     denominator: Nat
 ) -> Rat in NonZero
 requires
-    positive != negative,
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator)) == Nat::Zero
+    !core::Identity<Nat>(positive, negative),
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator), Nat::Zero)
 {
     Rat {
         num: IntPair {

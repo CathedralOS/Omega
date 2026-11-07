@@ -28,9 +28,9 @@ public data Rat {
 // Compatibility constructor for a nonnegative numerator.
 machine mk_rat(n: Nat, d: Nat, g: Nat) -> Rat
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero,
-    (gcd(n, d)) == (g),
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, d), Nat::Zero),
+    core::Identity<Nat>(gcd(n, d), g),
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, g), Nat::Zero)
 {
     transition {
         _ -> build(n, d, g)
@@ -50,9 +50,9 @@ requires
 // coordinates after cancelling the difference pair's shared offset.
 machine mk_signed_rat(n: IntPair, d: Nat, g: Nat) -> Rat
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, d)) == Nat::Zero,
-    (gcd(add(saturating_sub(n.neg, n.pos), saturating_sub(n.pos, n.neg)), d)) == (g),
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, g)) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, d), Nat::Zero),
+    core::Identity<Nat>(gcd(add(saturating_sub(n.neg, n.pos), saturating_sub(n.pos, n.neg)), d), g),
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, g), Nat::Zero)
 {
     let negative: Nat = saturating_sub(n.neg, n.pos);
     let positive: Nat = saturating_sub(n.pos, n.neg);
@@ -122,8 +122,8 @@ machine rat_gap(p: Rat, q: Rat) -> Nat
 
 machine rat_gap_reflexive(p: Rat) -> Nat
 ensures
-    result == Nat::Zero,
-    (rat_gap(p, p)) == Nat::Zero
+    core::Identity<Nat>(result, Nat::Zero),
+    core::Identity<Nat>(rat_gap(p, p), Nat::Zero)
 {
     let p_positive: Nat = mul(p.num.pos, p.den);
     let p_negative: Nat = mul(p.num.neg, p.den);
@@ -135,7 +135,7 @@ ensures
 
 machine rat_gap_symmetric(p: Rat, q: Rat) -> Nat
 ensures
-    (rat_gap(p, q)) == (rat_gap(q, p))
+    core::Identity<Nat>(rat_gap(p, q), rat_gap(q, p))
 {
     let p_positive: Nat = mul(p.num.pos, q.den);
     let q_negative: Nat = mul(q.num.neg, p.den);
@@ -164,7 +164,7 @@ machine rat_close(p: Rat, q: Rat, precision: Nat) -> Nat
 
 machine rat_close_reflexive(p: Rat, precision: Nat)
 ensures
-    (rat_close(p, p, precision)) == Nat::Zero
+    core::Identity<Nat>(rat_close(p, p, precision), Nat::Zero)
 {
     _ = rat_gap_reflexive(p);
     _ = mul_zero_right(precision);
@@ -174,9 +174,9 @@ ensures
 
 machine rat_close_symmetric(p: Rat, q: Rat, precision: Nat)
 requires
-    (rat_close(p, q, precision)) == Nat::Zero
+    core::Identity<Nat>(rat_close(p, q, precision), Nat::Zero)
 ensures
-    (rat_close(q, p, precision)) == Nat::Zero
+    core::Identity<Nat>(rat_close(q, p, precision), Nat::Zero)
 {
     _ = rat_gap_symmetric(q, p);
     mul_comm(q.den, p.den);
@@ -192,16 +192,19 @@ machine rat_gap_scaled_with_common(
     prefix: Nat
 )
 ensures
-    (nat_gap(
-        add(prefix, mul(add(
-            mul(p.num.pos, q.den),
-            mul(q.num.neg, p.den)
-        ), factor)),
-        add(prefix, mul(add(
-            mul(p.num.neg, q.den),
-            mul(q.num.pos, p.den)
-        ), factor))
-    )) == (mul(rat_gap(p, q), factor))
+    core::Identity<Nat>(
+        nat_gap(
+            add(prefix, mul(add(
+                mul(p.num.pos, q.den),
+                mul(q.num.neg, p.den)
+            ), factor)),
+            add(prefix, mul(add(
+                mul(p.num.neg, q.den),
+                mul(q.num.pos, p.den)
+            ), factor))
+        ),
+        mul(rat_gap(p, q), factor)
+    )
 {
     let p_positive: Nat = mul(p.num.pos, q.den);
     let q_negative: Nat = mul(q.num.neg, p.den);
@@ -225,84 +228,102 @@ ensures
 // for the metric triangle.
 machine rat_gap_triangle_coordinate_alignment(p: Rat, q: Rat, r: Rat)
 ensures
-    (add(
-        mul(mul(q.num.neg, p.den), r.den),
-        mul(add(
-            mul(p.num.pos, r.den),
-            mul(r.num.neg, p.den)
-        ), q.den)
-    )) == (add(
+    core::Identity<Nat>(
         add(
-            mul(mul(p.num.pos, q.den), r.den),
+            mul(mul(q.num.neg, p.den), r.den),
+            mul(add(
+                mul(p.num.pos, r.den),
+                mul(r.num.neg, p.den)
+            ), q.den)
+        ),
+        add(
+            add(
+                mul(mul(p.num.pos, q.den), r.den),
+                mul(mul(q.num.neg, p.den), r.den)
+            ),
+            mul(mul(r.num.neg, p.den), q.den)
+        )
+    ),
+    core::Identity<Nat>(
+        add(
+            mul(mul(q.num.neg, p.den), r.den),
+            mul(add(
+                mul(p.num.neg, r.den),
+                mul(r.num.pos, p.den)
+            ), q.den)
+        ),
+        add(
+            add(
+                mul(mul(r.num.pos, p.den), q.den),
+                mul(mul(p.num.neg, q.den), r.den)
+            ),
             mul(mul(q.num.neg, p.den), r.den)
-        ),
-        mul(mul(r.num.neg, p.den), q.den)
-    )),
-    (add(
-        mul(mul(q.num.neg, p.den), r.den),
-        mul(add(
-            mul(p.num.neg, r.den),
-            mul(r.num.pos, p.den)
-        ), q.den)
-    )) == (add(
+        )
+    ),
+    core::Identity<Nat>(
         add(
-            mul(mul(r.num.pos, p.den), q.den),
-            mul(mul(p.num.neg, q.den), r.den)
+            mul(mul(r.num.neg, p.den), q.den),
+            mul(add(
+                mul(p.num.pos, q.den),
+                mul(q.num.neg, p.den)
+            ), r.den)
         ),
-        mul(mul(q.num.neg, p.den), r.den)
-    )),
-    (add(
-        mul(mul(r.num.neg, p.den), q.den),
-        mul(add(
-            mul(p.num.pos, q.den),
-            mul(q.num.neg, p.den)
-        ), r.den)
-    )) == (add(
         add(
-            mul(mul(p.num.pos, q.den), r.den),
+            add(
+                mul(mul(p.num.pos, q.den), r.den),
+                mul(mul(q.num.neg, p.den), r.den)
+            ),
+            mul(mul(r.num.neg, p.den), q.den)
+        )
+    ),
+    core::Identity<Nat>(
+        add(
+            mul(mul(r.num.neg, p.den), q.den),
+            mul(add(
+                mul(p.num.neg, q.den),
+                mul(q.num.pos, p.den)
+            ), r.den)
+        ),
+        add(
+            add(
+                mul(mul(q.num.pos, p.den), r.den),
+                mul(mul(p.num.neg, q.den), r.den)
+            ),
+            mul(mul(r.num.neg, p.den), q.den)
+        )
+    ),
+    core::Identity<Nat>(
+        add(
+            mul(mul(p.num.neg, q.den), r.den),
+            mul(add(
+                mul(q.num.pos, r.den),
+                mul(r.num.neg, q.den)
+            ), p.den)
+        ),
+        add(
+            add(
+                mul(mul(q.num.pos, p.den), r.den),
+                mul(mul(p.num.neg, q.den), r.den)
+            ),
+            mul(mul(r.num.neg, p.den), q.den)
+        )
+    ),
+    core::Identity<Nat>(
+        add(
+            mul(mul(p.num.neg, q.den), r.den),
+            mul(add(
+                mul(q.num.neg, r.den),
+                mul(r.num.pos, q.den)
+            ), p.den)
+        ),
+        add(
+            add(
+                mul(mul(r.num.pos, p.den), q.den),
+                mul(mul(p.num.neg, q.den), r.den)
+            ),
             mul(mul(q.num.neg, p.den), r.den)
-        ),
-        mul(mul(r.num.neg, p.den), q.den)
-    )),
-    (add(
-        mul(mul(r.num.neg, p.den), q.den),
-        mul(add(
-            mul(p.num.neg, q.den),
-            mul(q.num.pos, p.den)
-        ), r.den)
-    )) == (add(
-        add(
-            mul(mul(q.num.pos, p.den), r.den),
-            mul(mul(p.num.neg, q.den), r.den)
-        ),
-        mul(mul(r.num.neg, p.den), q.den)
-    )),
-    (add(
-        mul(mul(p.num.neg, q.den), r.den),
-        mul(add(
-            mul(q.num.pos, r.den),
-            mul(r.num.neg, q.den)
-        ), p.den)
-    )) == (add(
-        add(
-            mul(mul(q.num.pos, p.den), r.den),
-            mul(mul(p.num.neg, q.den), r.den)
-        ),
-        mul(mul(r.num.neg, p.den), q.den)
-    )),
-    (add(
-        mul(mul(p.num.neg, q.den), r.den),
-        mul(add(
-            mul(q.num.neg, r.den),
-            mul(r.num.pos, q.den)
-        ), p.den)
-    )) == (add(
-        add(
-            mul(mul(r.num.pos, p.den), q.den),
-            mul(mul(p.num.neg, q.den), r.den)
-        ),
-        mul(mul(q.num.neg, p.den), r.den)
-    ))
+        )
+    )
 {
 }
 
@@ -315,10 +336,13 @@ ensures
 // only Rat-specific work is rearranging factors and applying homogeneity.
 machine rat_gap_triangle_scaled(p: Rat, q: Rat, r: Rat)
 ensures
-    (saturating_sub(
-        mul(q.den, rat_gap(p, r)),
-        add(mul(r.den, rat_gap(p, q)), mul(p.den, rat_gap(q, r)))
-    )) == Nat::Zero
+    core::Identity<Nat>(
+        saturating_sub(
+            mul(q.den, rat_gap(p, r)),
+            add(mul(r.den, rat_gap(p, q)), mul(p.den, rat_gap(q, r)))
+        ),
+        Nat::Zero
+    )
 {
     let p_positive_q: Nat = mul(p.num.pos, q.den);
     let p_negative_q: Nat = mul(p.num.neg, q.den);
@@ -361,37 +385,49 @@ machine rat_close_triangle_factorization(
     precision: Nat
 )
 ensures
-    (mul(
-        add(
-            mul(r.den, rat_gap(p, q)),
-            mul(p.den, rat_gap(q, r))
+    core::Identity<Nat>(
+        mul(
+            add(
+                mul(r.den, rat_gap(p, q)),
+                mul(p.den, rat_gap(q, r))
+            ),
+            add(precision, precision)
         ),
-        add(precision, precision)
-    )) == (add(
-        mul(mul(add(precision, precision), rat_gap(p, q)), r.den),
-        mul(mul(add(precision, precision), rat_gap(q, r)), p.den)
-    )),
-    (mul(
-        mul(add(precision, precision), rat_gap(p, r)),
-        q.den
-    )) == (mul(
-        mul(q.den, rat_gap(p, r)),
-        add(precision, precision)
-    )),
-    (mul(
         add(
-            mul(p.den, r.den),
-            mul(p.den, r.den)
+            mul(mul(add(precision, precision), rat_gap(p, q)), r.den),
+            mul(mul(add(precision, precision), rat_gap(q, r)), p.den)
+        )
+    ),
+    core::Identity<Nat>(
+        mul(
+            mul(add(precision, precision), rat_gap(p, r)),
+            q.den
         ),
-        q.den
-    )) == (add(
-        mul(mul(p.den, q.den), r.den),
-        mul(mul(q.den, r.den), p.den)
-    )),
-    (add(
-        mul(precision, rat_gap(p, r)),
-        mul(precision, rat_gap(p, r))
-    )) == (mul(add(precision, precision), rat_gap(p, r)))
+        mul(
+            mul(q.den, rat_gap(p, r)),
+            add(precision, precision)
+        )
+    ),
+    core::Identity<Nat>(
+        mul(
+            add(
+                mul(p.den, r.den),
+                mul(p.den, r.den)
+            ),
+            q.den
+        ),
+        add(
+            mul(mul(p.den, q.den), r.den),
+            mul(mul(q.den, r.den), p.den)
+        )
+    ),
+    core::Identity<Nat>(
+        add(
+            mul(precision, rat_gap(p, r)),
+            mul(precision, rat_gap(p, r))
+        ),
+        mul(add(precision, precision), rat_gap(p, r))
+    )
 {
 }
 
@@ -406,11 +442,11 @@ machine rat_close_triangle_split(
     precision: Nat
 )
 requires
-    (saturating_sub(Nat::Succ { prev: Nat::Zero }, q.den)) == Nat::Zero,
-    (rat_close(p, q, add(precision, precision))) == Nat::Zero,
-    (rat_close(q, r, add(precision, precision))) == Nat::Zero
+    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, q.den), Nat::Zero),
+    core::Identity<Nat>(rat_close(p, q, add(precision, precision)), Nat::Zero),
+    core::Identity<Nat>(rat_close(q, r, add(precision, precision)), Nat::Zero)
 ensures
-    (rat_close(p, r, precision)) == Nat::Zero
+    core::Identity<Nat>(rat_close(p, r, precision), Nat::Zero)
 {
     let double_precision: Nat = add(precision, precision);
     let pq_gap: Nat = rat_gap(p, q);
