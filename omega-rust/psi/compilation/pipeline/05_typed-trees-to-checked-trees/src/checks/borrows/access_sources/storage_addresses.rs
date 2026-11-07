@@ -48,8 +48,15 @@ fn address(
     if operand.state_symbol != state.state_symbol {
         return Err("the completed storage address belongs to another state");
     }
+    // A newly formed view keeps its receiver's address; it does not load a
+    // descriptor from the selected element homes. The producer's role keeps
+    // that case distinct from a reference-valued place with the same type.
     if !replaces_descriptor
         && validation::reference_shell(program, operand.type_reference).is_some()
+        && !matches!(
+            operand.address_projection,
+            Some(checked_trees::FlowOperandAddressProjection::View(_))
+        )
     {
         return super::super::completed_backings::resolve(
             program,
