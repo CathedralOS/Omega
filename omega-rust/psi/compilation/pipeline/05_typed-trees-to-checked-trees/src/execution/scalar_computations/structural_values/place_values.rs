@@ -300,13 +300,13 @@ impl Builder<'_, '_> {
             // evaluated value instead owns its stored descriptor, so retain
             // each actual pointer crossing before selecting the first field.
             // View descriptors already interpret their own element paths.
-            let mut reference = root_reference;
-            while let Some(shell) = reference_shell(self.program, reference)
-                && stores_reference_shape(self.program, reference, &[])
-            {
-                path.insert(0, PathSegment::Referent);
-                reference = shell.referee;
-            }
+            let mut prefix = crate::execution::terminal_unit::calls::stored_reference_prefix(
+                self.program,
+                root_reference,
+                |access| access.is_readable(),
+            )?;
+            prefix.append(&mut path);
+            path = prefix;
         }
         let source = self.structural_value(root_expression, root_reference)?;
         if matches!(place.root, PlaceRoot::Expression(_)) {
