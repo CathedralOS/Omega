@@ -30,6 +30,10 @@ mod windows_handle_origins;
 #[cfg(test)]
 mod windows_handle_paths;
 #[cfg(test)]
+mod windows_handle_replay;
+#[cfg(test)]
+mod windows_handle_storage;
+#[cfg(test)]
 mod windows_handle_values;
 
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
