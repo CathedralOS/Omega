@@ -65,11 +65,22 @@ pub(crate) fn prepare(
         }
     }
 
+    // Each machine asks whether its body was completed in place; sorted keys
+    // answer that without scanning the list once per machine.
+    let mut completed = completed_machines
+        .iter()
+        .map(|symbol| crate::lowerer::symbol_key(*symbol))
+        .collect::<Vec<_>>();
+    completed.sort_unstable();
     // Machine/state declarations own the remaining result positions: the
     // machines this run appended, plus every retained machine whose body it
     // completed in place.
     for (ordinal, machine) in program.machines().iter().enumerate() {
-        if ordinal < machine_frontier && !completed_machines.contains(&machine.symbol) {
+        if ordinal < machine_frontier
+            && completed
+                .binary_search(&crate::lowerer::symbol_key(machine.symbol))
+                .is_err()
+        {
             continue;
         }
         for owned in program.machine_owned_data(machine) {

@@ -274,10 +274,7 @@ pub(crate) fn returned_body_source_mismatch(
     {
         return Some(parameter);
     }
-    let borrowing =
-        facts.borrow.states.iter().find_map(|(_, borrowing)| {
-            (borrowing.state_symbol == state.symbol).then_some(borrowing)
-        })?;
+    let (_, borrowing) = facts.borrow.first_state_borrow_by_symbol(state.symbol)?;
     for returned in facts.borrow.returned_loans.span(borrowing.returned_loans)? {
         let (parameter_symbol, source_path) = if returned.incoming_reference.is_valid() {
             let incoming = facts

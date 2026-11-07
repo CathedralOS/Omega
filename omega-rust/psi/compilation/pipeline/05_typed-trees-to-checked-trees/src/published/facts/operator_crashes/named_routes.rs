@@ -154,11 +154,10 @@ fn statement_entry_context_rows(
     statement_index: usize,
 ) -> Vec<Vec<FactContextHandle>> {
     flow.control
-        .states
-        .iter()
-        .filter(|(_, state)| {
-            state.machine_symbol == machine_symbol && state.state_symbol == state_symbol
-        })
+        .machine_states(machine_symbol)
+        .into_iter()
+        .filter(|state| state.state_symbol == state_symbol)
+        .map(|state| ((), state))
         .flat_map(|(_, state)| {
             flow.control
                 .statements

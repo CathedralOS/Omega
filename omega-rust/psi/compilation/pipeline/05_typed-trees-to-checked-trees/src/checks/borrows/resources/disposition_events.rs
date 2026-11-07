@@ -552,16 +552,9 @@ pub(crate) fn bind_restored_call_uses(
             continue;
         }
 
-        let matching_borrow_states = borrow
-            .states
-            .iter()
-            .filter(|(_, state)| {
-                state.machine_symbol == child.machine_symbol
-                    && state.state_symbol == child.state_symbol
-            })
-            .map(|(_, state)| state)
-            .collect::<Vec<_>>();
-        let [borrow_state] = matching_borrow_states.as_slice() else {
+        let Some(borrow_state) =
+            borrow.unique_state_borrow(child.machine_symbol, child.state_symbol)
+        else {
             continue;
         };
         if bounded_shared_freeze

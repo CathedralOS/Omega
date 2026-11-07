@@ -1,0 +1,1 @@
+after `value.inner.choice` was transferred or consumed

@@ -80,6 +80,14 @@ proves the requested cut, reports an enlarged cohort for explicit owner acceptan
 or rejects; it cannot silently label a smaller cut independent. The cohort may
 be the whole program.
 
+[Machine values](../language/machine_values.md) and
+[some packages](../language/some_packages.md) publish code/conformance, concrete
+layout and captured-borrow custody dependencies into this closure. Their indirect
+uniform representation has no semantic global target/witness roster. Adding a
+machine or a new package witness does not by itself change every holder's layout.
+Changes to actual code, contracts or state layout retain their ordinary closure
+edges; Independent components join only when those edges require it.
+
 Artifacts retain attributable closure edges. Source diagnostics identify the
 occurrence/span; a source-free manifest still names consuming artifact and
 declaration, selected conformance/implementation, and the edge enlarging the cut.
@@ -262,8 +270,8 @@ binding argument is inserted into requirement signatures. Several simultaneous
 static roles use distinct exact applications, such as `Console<Interactive>` and
 `Console<Audit>`, or separately named wrapper traits. Build selects each slot
 independently. Runtime multiplicity instead uses the protocol's ordinary handles,
-sessions, descriptors, `dyn` values, or other explicit domain data; it does not
-clone provider slots into generic binding objects.
+sessions, machine descriptors, `some` packages, or other explicit domain data;
+it does not clone provider slots into generic binding objects.
 
 The compiler may retain an internal provider-slot record joining exact
 requirement, selected plan, target, occurrence, lifecycle, and evidence. This is
@@ -325,9 +333,17 @@ movement, and physical finalization under
 A state-migration theorem cannot reinterpret a live inline carrier under a new
 descriptor: rebuild its fused producers/consumers, enlarge the cohort, or reject.
 Stable indirect descriptors can retain varying provider-owned backing while
-outstanding non-copy handles pin the interpreting era. Local `dyn` tables do not
-cross an independently reclaimable boundary; a local proxy may call the service,
-and the boundary returns detached data or an explicit era-pinning handle instead.
+outstanding non-copy handles pin the interpreting era. Local machine descriptors
+do not cross an independently reclaimable boundary; a local proxy may call the
+service, and the boundary returns detached data or an explicit era-pinning handle.
+
+A paused container can still hold code descriptors and borrowed state in `some`
+packages. Quiescence alone cannot reinterpret old state through a new callable.
+Drain the packages, retain their interpreting era, or consume their borrows,
+explicitly migrate or recreate state, and construct new packages. Removing an
+entry only transfers its custody until the removed value and dependent loans
+are disposed of. There is no global roster to rebuild, but outstanding code,
+layout and custody dependencies still constrain the replacement cut.
 
 ## Replacement and coexistence
 

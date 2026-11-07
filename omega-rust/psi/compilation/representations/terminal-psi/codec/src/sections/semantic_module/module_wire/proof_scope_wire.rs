@@ -480,6 +480,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             cleanup,
         });
     }
+    graph.index_machines();
     let component_count = reader.count()?;
     for _ in 0..reader.count()? {
         result

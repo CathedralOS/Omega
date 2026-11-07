@@ -15,7 +15,7 @@ use terminal_semantics::{
     canonical_static_projection, contains_access_carrier, machine_scalar_constant_origin,
     primitive_scalar_memberships, scalar_array_leaf_declaration, scalar_array_leaf_shape,
     scalar_array_qualifications_hold, scalar_constant_value,
-    scalar_field_requires_initialization_evidence, structural_paths_may_overlap,
+    scalar_field_requires_initialization_evidence, structural_claim_paths_may_overlap,
     zeroed_projected_byte_qualifications_hold, zeroed_structural_shape,
 };
 
@@ -422,13 +422,33 @@ fn validate_constructor_claims(
     if !strictly_increasing(result.claims.iter().map(|binding| binding.claim)) {
         return malformed("aggregate claim bindings disagree with canonical order");
     }
-    for (position, claim) in result.claims.iter().enumerate() {
+    // Check every recorded path before deciding that two cases exclude each
+    // other. An unknown case cannot justify its own validity.
+    for claim in &result.claims {
         super::validate_structural_path(module, result.structural_type, &claim.path)?;
-        if result.claims[position + 1..]
-            .iter()
-            .any(|other| structural_paths_may_overlap(&claim.path, &other.path))
-        {
-            return malformed("aggregate claim bindings overlap");
+        canonical_static_projection(
+            module.structural_types.iter(),
+            result.structural_type,
+            &claim.path,
+        )
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "aggregate claim path is not static owned storage",
+        ))?;
+    }
+    for (position, claim) in result.claims.iter().enumerate() {
+        for other in &result.claims[position + 1..] {
+            let overlap = structural_claim_paths_may_overlap(
+                module.structural_types.iter(),
+                result.structural_type,
+                &claim.path,
+                &other.path,
+            )
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "aggregate claim path is not static owned storage",
+            ))?;
+            if overlap {
+                return malformed("aggregate claim bindings overlap");
+            }
         }
     }
     Ok(())

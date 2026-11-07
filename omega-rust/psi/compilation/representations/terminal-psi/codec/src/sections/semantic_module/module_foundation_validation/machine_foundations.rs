@@ -17,7 +17,9 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
     TerminalModule, Terminator, call_structural_argument_variants,
 };
-use terminal_semantics::runtime_structural_path_tip;
+use terminal_semantics::{
+    canonical_static_projection, runtime_structural_path_tip, structural_claim_paths_may_overlap,
+};
 
 /// One machine's structural foundation: its attachment, parameters and
 /// reference sources, then each block's parameters, the places those
@@ -171,7 +173,7 @@ fn validate_entry_claims(
         }
         validate_structural_path(module, parameter.structural_type, &claim.path)?;
     }
-    let mut block_claim_inputs = Vec::new();
+    let mut block_claim_inputs: Vec<&EntryClaim> = Vec::new();
     for claim in &machine.block_entry_claims {
         let Some(parameter) = machine
             .block_structural_parameters()
@@ -185,12 +187,30 @@ fn validate_entry_claims(
             return malformed("block entry claim requires an owned affine or linear parameter");
         }
         validate_structural_path(module, parameter.structural_type, &claim.path)?;
-        if block_claim_inputs.iter().any(|previous: &&EntryClaim| {
-            previous.input == claim.input
-                && (previous.path.starts_with(&claim.path)
-                    || claim.path.starts_with(&previous.path))
-        }) {
-            return malformed("block entry claims overlap a parameter path");
+        canonical_static_projection(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &claim.path,
+        )
+        .ok_or(CodecError::MalformedStructuralFoundation(
+            "block entry claim path is not static owned storage",
+        ))?;
+        for previous in &block_claim_inputs {
+            if previous.input != claim.input {
+                continue;
+            }
+            let overlap = structural_claim_paths_may_overlap(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &previous.path,
+                &claim.path,
+            )
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "block entry claim path is not static owned storage",
+            ))?;
+            if overlap {
+                return malformed("block entry claims overlap a parameter path");
+            }
         }
         block_claim_inputs.push(claim);
     }

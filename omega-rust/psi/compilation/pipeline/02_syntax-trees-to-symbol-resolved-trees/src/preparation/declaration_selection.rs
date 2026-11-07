@@ -723,6 +723,25 @@ impl<'base> ConstantSelection<'base> {
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,
     ) -> Result<&'syntax DataDefinition, String> {
+        self.data_among(syntax, None, name)
+    }
+
+    /// `data` for a caller that selects many names in one unchanged forest
+    /// and indexed its root declarations once.
+    pub(crate) fn data_in<'syntax>(
+        &self,
+        roots: &RootDeclarations<'syntax>,
+        name: &Identifier,
+    ) -> Result<&'syntax DataDefinition, String> {
+        self.data_among(roots.syntax, Some(roots), name)
+    }
+
+    fn data_among<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        roots: Option<&RootDeclarations<'_>>,
+        name: &Identifier,
+    ) -> Result<&'syntax DataDefinition, String> {
         let selected = self
             .symbols
             .find_top_level_by_name_and_kinds_from_source(
@@ -736,20 +755,22 @@ impl<'base> ConstantSelection<'base> {
                     name = name.as_str(syntax)
                 )
             })?;
-        self.data_declaration(syntax, name, selected)
+        self.data_declaration_among(syntax, roots, name, selected)
     }
 
     /// The selected data declaration's name span. A declaration the cohort no
     /// longer parses may still be selected through the retained predecessor's
     /// forest: the same span and name identify the same declaration, and the
-    /// ordinary package-visibility rule still applies to it.
-    pub(crate) fn data_span(
+    /// ordinary package-visibility rule still applies to it. `roots`, when
+    /// supplied, indexes `syntax` once for many lookups.
+    fn data_span_among(
         &self,
         syntax: &SyntaxTrees,
+        roots: Option<&RootDeclarations<'_>>,
         retained: Option<&SyntaxTrees>,
         name: &Identifier,
     ) -> Result<source::SourceSpan, String> {
-        let error = match self.data(syntax, name) {
+        let error = match self.data_among(syntax, roots, name) {
             Ok(data) => return Ok(data.name.source_span()),
             Err(error) => error,
         };
@@ -1249,7 +1270,17 @@ impl<'base> ConstantSelection<'base> {
         name: &Identifier,
         selected: symbols::SymbolHandle,
     ) -> Result<&'syntax DataDefinition, String> {
-        let declaration = self.source_declaration_item(syntax, name, selected)?;
+        self.data_declaration_among(syntax, None, name, selected)
+    }
+
+    fn data_declaration_among<'syntax>(
+        &self,
+        syntax: &'syntax SyntaxTrees,
+        roots: Option<&RootDeclarations<'_>>,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+    ) -> Result<&'syntax DataDefinition, String> {
+        let declaration = self.source_declaration_item_among(syntax, roots, name, selected)?;
         syntax
             .root_item(declaration)
             .as_data()
@@ -1280,31 +1311,45 @@ impl<'base> ConstantSelection<'base> {
         name: &Identifier,
         selected: symbols::SymbolHandle,
     ) -> Result<syntax_trees::item::ItemHandle, String> {
+        self.source_declaration_item_among(syntax, None, name, selected)
+    }
+
+    /// `source_declaration_item`, reading candidates from `roots` when the
+    /// caller indexed the forest once for many lookups. The index only
+    /// narrows candidates to the selected name span; every candidate passes
+    /// the same kind, span and spelling test in root order.
+    fn source_declaration_item_among(
+        &self,
+        syntax: &SyntaxTrees,
+        roots: Option<&RootDeclarations<'_>>,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+    ) -> Result<syntax_trees::item::ItemHandle, String> {
         let span = self
             .symbols
             .symbol_source_span(selected)
             .ok_or_else(|| "selected canonical declaration has no source".to_owned())?;
         let kind = self.symbols.get(selected).kind;
-        let mut declarations = syntax
-            .root_item_handles()
-            .iter()
-            .copied()
-            .filter_map(|handle| {
-                let (declaration_kind, declaration_name, is_public) = match syntax.root_item(handle)
-                {
-                    Item::Data(data) => (SymbolKind::Data, &data.name, data.is_public),
-                    Item::Conformance(implementation) => (
-                        SymbolKind::Conformance,
-                        implementation.alias.as_ref()?,
-                        implementation.is_public,
-                    ),
-                    _ => return None,
-                };
-                (declaration_kind == kind
-                    && declaration_name.source_span() == span
-                    && declaration_name.as_str(syntax) == self.symbols.name(selected))
-                .then_some((handle, is_public))
-            });
+        let candidates: Box<dyn Iterator<Item = syntax_trees::item::ItemHandle> + '_> = match roots
+        {
+            Some(roots) if std::ptr::eq(roots.syntax, syntax) => Box::new(roots.at(span)),
+            _ => Box::new(syntax.root_item_handles().iter().copied()),
+        };
+        let mut declarations = candidates.filter_map(|handle| {
+            let (declaration_kind, declaration_name, is_public) = match syntax.root_item(handle) {
+                Item::Data(data) => (SymbolKind::Data, &data.name, data.is_public),
+                Item::Conformance(implementation) => (
+                    SymbolKind::Conformance,
+                    implementation.alias.as_ref()?,
+                    implementation.is_public,
+                ),
+                _ => return None,
+            };
+            (declaration_kind == kind
+                && declaration_name.source_span() == span
+                && declaration_name.as_str(syntax) == self.symbols.name(selected))
+            .then_some((handle, is_public))
+        });
         let (declaration, is_public) = declarations
             .next()
             .ok_or_else(|| "selected canonical declaration lost its source custody".to_owned())?;
@@ -1678,10 +1723,62 @@ pub fn select_data_declarations_with_retained(
 ) -> Result<Vec<Result<source::SourceSpan, String>>, Vec<Diagnostic>> {
     let selection =
         ConstantSelection::with_retained_base(syntax, sources, bindings, retained_base)?;
+    // One reference per attached machine: index the forest once rather than
+    // scanning every root item for each of them.
+    let roots = RootDeclarations::of(syntax);
     Ok(references
         .iter()
-        .map(|reference| selection.data_span(syntax, retained, reference))
+        .map(|reference| selection.data_span_among(syntax, Some(&roots), retained, reference))
         .collect())
+}
+
+/// Root data and conformance declarations of one borrowed forest, ordered by
+/// their name span. The borrow keeps the forest unchanged while the index
+/// lives; ties keep root order.
+pub(crate) struct RootDeclarations<'syntax> {
+    syntax: &'syntax SyntaxTrees,
+    rows: Vec<((usize, usize, usize), usize, syntax_trees::item::ItemHandle)>,
+}
+
+impl<'syntax> RootDeclarations<'syntax> {
+    pub(crate) fn syntax(&self) -> &'syntax SyntaxTrees {
+        self.syntax
+    }
+
+    pub(crate) fn of(syntax: &'syntax SyntaxTrees) -> Self {
+        let mut rows = syntax
+            .root_item_handles()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, handle)| {
+                let name = match syntax.root_item(*handle) {
+                    Item::Data(data) => &data.name,
+                    Item::Conformance(implementation) => implementation.alias.as_ref()?,
+                    _ => return None,
+                };
+                Some((span_key(name.source_span()), position, *handle))
+            })
+            .collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(key, position, _)| (*key, *position));
+        Self { syntax, rows }
+    }
+
+    /// Root data and conformance items named at `span`, in root order.
+    pub(crate) fn at(
+        &self,
+        span: source::SourceSpan,
+    ) -> impl Iterator<Item = syntax_trees::item::ItemHandle> + '_ {
+        let key = span_key(span);
+        let start = self.rows.partition_point(|(row, _, _)| *row < key);
+        self.rows[start..]
+            .iter()
+            .take_while(move |(row, _, _)| *row == key)
+            .map(|(_, _, handle)| *handle)
+    }
+}
+
+fn span_key(span: source::SourceSpan) -> (usize, usize, usize) {
+    (span.source_id.0, span.span.start, span.span.end)
 }
 
 // Only the deferred frontier's owned predecessor is persistent. Normalization's

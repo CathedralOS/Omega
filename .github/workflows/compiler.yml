@@ -37,6 +37,9 @@ jobs:
     env:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
+      # Reuse the optimized smoke build's objects before a focused test uses
+      # its execution budget. Cargo still checks the current source and features.
+      CARGO_TARGET_DIR: /tmp/ot
       CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
       CARGO_BUILD_FINGERPRINT: content
       RUST_MIN_STACK: '67108864'
@@ -69,10 +72,12 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: compiler-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+            ${{ env.CARGO_TARGET_DIR }}
+          # New paths exclude legacy caches; focused tests also skip check-only entries.
+          key: compiler-check-objects-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ inputs.test_package && 'tests' || 'check' }}-${{ github.sha }}
           restore-keys: |
-            compiler-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            compiler-check-objects-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ inputs.test_package && 'tests' || 'check' }}-
+            compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check production dependency boundaries
         run: python tools/check_native_boundary.py
       - name: Check and lint the exact integration candidate
@@ -97,7 +102,7 @@ jobs:
               raise SystemExit('Invalid integration test target')
           command = ['cargo', 'test', '--locked', '-p', package]
           command += ['--test', target] if target else ['--lib']
-          command += [selected, '--', '--test-threads=1']
+          command += [selected, '--', '--nocapture', '--test-threads=1']
           print('Source:', os.environ['GITHUB_SHA'], flush=True)
           print('Command:', command, flush=True)
           subprocess.run(['rustc', '--version', '--verbose'], check=True)

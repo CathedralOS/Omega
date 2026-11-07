@@ -8598,6 +8598,46 @@ fail/facts/fixed_layout_bit_observation_through_parameter_rejected rejected 659m
 	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
 fail/facts/fixed_layout_bit_observation_through_target_body_rejected rejected 683ms expected @2ba727eefb59+wt
 	cannot prove assignment value `4` satisfies bounded target `value.mode` in `make.entry`; expected 5..=7
+fail/facts/fixed_layout_reference_readback_through_call_result_wrong_region_rejected rejected 10001ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4868` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+fail/facts/fixed_layout_reference_readback_through_const_name_wrong_region_rejected rejected 9965ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4866` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_field_wrong_region_rejected rejected 9966ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4867` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_local_wrong_region_rejected rejected 9845ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_match_join_wrong_region_rejected rejected 9924ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4866` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_other_machine_wrong_region_rejected rejected 10184ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4870` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_other_state_wrong_region_rejected rejected 10127ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4869` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_parameter_wrong_region_rejected rejected 10079ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4869` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_through_target_body_wrong_region_rejected rejected 10320ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4922` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+fail/facts/fixed_layout_reference_readback_wrong_region_rejected rejected 9954ms expected @bc53b23707f6
+	machine `update` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `update$specialized$e79fe363183e2bf6$0$4863` returns a view borrowing input `pointer`, which is not permitted by the declared result lifetime relation
+	machine `observe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/facts/fixed_layout_storage_through_call_result_rejected rejected 4235ms expected @6d8ad13849e1
 	cannot prove assignment value `41` satisfies bounded target `value.lo` in `make.entry`; expected 42..=42
 fail/facts/fixed_layout_storage_through_const_name_rejected rejected 2352ms expected @6d8ad13849e1
@@ -16082,7 +16122,7 @@ fail/ownership/cleanup_receiver_keeps_child_loan rejected 11826ms expected @ee4d
 	state `prepare` receives `counter` while local borrow `cleanup` is still active
 	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
 	statement 1 mutates `counter.value` while local borrow `cleanup` is still active (borrowed at statement 0)
-fail/ownership/completed_case_claim_return_double_consume rejected 9313ms expected @ee4dbb4b2d56
+fail/ownership/completed_case_claim_return_double_consume rejected 1956ms expected @1dee68c22351
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/computed_window_selector_keeps_snapshot rejected 9312ms expected @ee4dbb4b2d56
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 3 must be restored as a whole
@@ -16226,6 +16266,8 @@ fail/ownership/nested_borrowed_operand_later_read rejected 8158ms expected @ee4d
 	cannot use `holder.token.value` while `holder.token` is absent from borrowed storage: the value moved out at statement 0 must be restored first
 fail/ownership/nested_call_reuses_transferred_owner rejected 1682ms expected @ccdb99ca2214
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 2) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
+fail/ownership/nested_case_claim_constructor_duplicate rejected 1961ms expected @1dee68c22351
+	cannot use `value.inner.choice` in machine `check` state `entry` (statement 4) after `value.inner.choice` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `value.inner.choice` first
 fail/ownership/nested_selected_call_reuses_owner rejected 1753ms expected @ccdb99ca2214
 	cannot use `ticket.value` in machine `invalid` state `entry` (statement 1) after `ticket` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `ticket` first
 fail/ownership/nominal_constructor_child_second_transfer rejected 6663ms expected @ee4dbb4b2d56
@@ -16286,7 +16328,7 @@ fail/ownership/read_through_dropped_owner_rejected rejected 8842ms expected @ee4
 	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/ownership/rebound_alias_recoverable_wrong_place rejected 8127ms expected @ee4dbb4b2d56
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 4): `holder.other` must hold a value again before this state's exits consume the borrow
-fail/ownership/reconstructed_case_carrier_second_transfer rejected 6697ms expected @ee4dbb4b2d56
+fail/ownership/reconstructed_case_carrier_second_transfer rejected 1886ms expected @1dee68c22351
 	cannot use `value.slot` in machine `main` state `entry` (statement 2) after `value.slot` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `value.slot` first
 fail/ownership/reconstructed_case_write_keeps_linear_debt rejected 2782ms expected @ccdb99ca2214
 	linear value `returned.slot::Held.token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
@@ -22962,6 +23004,16 @@ pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit checked 16930m
 pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit checked 17000ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit checked 15989ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit checked 25426ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_reference_readback_exit checked 11744ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_call_result_exit checked 11671ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_const_name_exit checked 11493ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_field_exit checked 11555ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_local_exit checked 11593ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_match_join_exit checked 11554ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_other_machine_exit checked 11853ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_other_state_exit checked 11732ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_parameter_exit checked 11730ms check-target:macos_arm64 @bc53b23707f6
+pass/facts/fixed_layout_reference_readback_through_target_body_exit checked 11896ms check-target:macos_arm64 @bc53b23707f6
 pass/facts/fixed_layout_storage_through_call_result_exit checked 10268ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @6d8ad13849e1
 pass/facts/fixed_layout_storage_through_const_name_exit checked 11207ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @6d8ad13849e1
 pass/facts/fixed_layout_storage_through_field_exit checked 10597ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @6d8ad13849e1
@@ -26584,7 +26636,7 @@ pass/ownership/runtime_carried_loan_field_replacement_exit checked 11656ms check
 pass/ownership/runtime_case_alternative_custody_exit rejected 14587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(12)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
 pass/ownership/runtime_complete_array_reference_store_exit checked 3703ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/runtime_completed_case_claim_return_exit checked 16994ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/ownership/runtime_completed_case_claim_return_exit checked 3004ms check-target:macos_arm64 @1dee68c22351
 pass/ownership/runtime_computed_selector_snapshot_window_exit checked 16393ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_constructed_child_claim_frontier_exit checked 19921ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_declared_linear_local_assignment_exit checked 89924ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26599,7 +26651,7 @@ pass/ownership/runtime_fixed_selector_owned_argument_exit incomplete 73575ms che
 pass/ownership/runtime_generic_borrowed_case_restore_exit checked 4289ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_generic_linear_case_restore_exit rejected 10443ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(1), callee: Some(MachineId(13)), operation: OperationId(10), reason: "callee stored-reference effects are unresolved" }
-pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 20252ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/ownership/runtime_inactive_case_carrier_transfer_exit checked 3026ms check-target:macos_arm64 @1dee68c22351
 pass/ownership/runtime_index_before_descriptor_retarget_exit checked 13700ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_indexed_recoverable_replacement_exit checked 13473ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_indexed_replacement_effectful_singleton_exit checked 14214ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26617,6 +26669,7 @@ pass/ownership/runtime_match_projected_subject_cleanup_exit checked 10676ms chec
 pass/ownership/runtime_match_retained_observation_cleanup_exit checked 13451ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_mutable_selector_window_exit checked 17807ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/runtime_nested_borrowed_consumption_exit checked 12210ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/ownership/runtime_nested_case_claim_constructor_exit checked 5823ms check-target:macos_arm64 terminal-inspections:match @1dee68c22351
 pass/ownership/runtime_nested_owned_value_call_exit checked 3515ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_nested_owner_observation_exit checked 3309ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_nested_projected_claim_return_exit checked 16490ms check-target:macos_arm64 @ee4dbb4b2d56

@@ -1,137 +1,108 @@
-# FILESYSTEM-RELEASE-CONTRACT — scope verification and paused-closure plan (z140)
+# Filesystem release contract: current evidence and remaining proof
 
-Verified at `069276b986dc` on linux x86-64. Item row: `TASKS.md` FILESYSTEM-RELEASE-CONTRACT
-board line ~4713. Delete this plan once the program-side occurrence derivation
-lands and the structural field-store closure clears the customer's recorded
-stop.
+The unchanged Windows canonicalization customer now returns its authored exit
+70 in both native execution and Terminal execution. The test verifies the
+resolved file and directory prefixes and the missing path's NotFound result.
+It attempts cleanup without checking whether removal succeeds. These results
+do not prove that arbitrary handle use obeys the complete release contract.
 
-## What the item owns
+This is scoped evidence for **CANONICALIZE-SCALAR-RANGE-CONTRACTS** and
+**FILESYSTEM-PLATFORM-SERVICES**, not closure of either parent acceptance.
+The governing obligations remain the
+[bounded occurrence-specific release proof](../../spec/build/permissions.md#bounded-occurrence-specific-release-proof).
 
-The [bounded occurrence-specific release proof](../../spec/build/permissions.md#bounded-occurrence-specific-release-proof)
-for a program's own open/query/close occurrence:
+## Observed Windows customer
 
-1. Program-side derivation as retained Terminal evidence through checked flow —
-   exact object/argument contract, handle/alias identity preserved through
-   intervening calls, exactly one applicable release, no later use.
-2. Rejoin of the exact occurrence at native realization in
-   `abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
-   — an evidence-bound explicit-empty mechanism row, never a synthesized empty row.
-3. Native customer: `tests/omega/pass/filesystem/windows_canonicalize_exit`,
-   whose recorded stop is `structural field store: scalar field type`.
+The customer is
+[`windows_canonicalize_exit`](../../../tests/omega/pass/filesystem/windows_canonicalize_exit/main.omg).
+Its source, Build and exit-70 oracle were frozen at
+`c2c57dbbc911f2384ba3233f33f456ae6c5c610a` and remained unchanged in both runs:
 
-Explicit non-goals the row names: TWO-AXIS-TERMINAL-AUTHORITY-REVIEW owns the
-receiver rows and the broad `Filesystem` summary; general owned-handle design
-stays separate; build execution observations establish nothing.
+| Input | SHA-256 |
+| --- | --- |
+| `main.omg` | `05a70c6f73cc568af685a883324c06f4d8b1cde585736673b5cfb005397e0b0e` |
+| `build.omg` | `19e14110cb8c33d6fa3ddfd566e9aeb7512fc152cfd358ad2e0df04737a9b960` |
+| `expected_native_exit.txt` | `6442bc26a7c562f5afe6467dab36365c709909f6a81afcecfc0c25cff0f1bab0` |
 
-## Machinery inventory (already landed)
+[Baseline run 42288076952](https://github.com/CathedralOS/Omega/actions/runs/42288076952)
+used an optimized Windows producer from that source, executable SHA-256
+`26589cdde55a30f4aad366b780f710a6a61ee60f204bb188a2edbbe2b3d644ad`.
+Its ordinary CLI `update` exceeded the 600-second limit after 600.453 seconds.
+Neither execution engine ran. The only retained stderr observation said the
+standard-library review had been encoded; completed stage times were buffered
+until the outer review returned and were lost on termination.
 
-The realization side is built and only lacks its producer:
+[Attributed run 42295325098](https://github.com/CathedralOS/Omega/actions/runs/42295325098)
+used source `d6693f0c32f65e83a0d91a6ef4d406583d524a9a`, which changes only
+opt-in review timing output. Its separately authenticated producer SHA-256 was
+`d8ab75162016f09c1531c232ef072ecb82ba397f23b168387a51f1b071ccf53b`.
+Both producers reported optimization level 1 and the pinned Windows toolchain
+`rustc 1.100.0-nightly (a69a63265 2026-09-03)`.
 
-- `FilesystemOrdinaryReleaseContract` + `filesystem_ordinary_release_contract(occurrence_commitment)`
-  mint a domain-separated `CheckedSyscallArgumentContractIdentity`
-  (`omega.checked-syscall-argument-contract.filesystem-ordinary-release.v1`).
-- `filesystem_release_bound_mechanism` binds that contract into a
-  `TerminalMechanismIdentity::Syscall` (replaces the conservative contract) or
-  `NormalizedForeign` (carries it beside the admitted calling plan);
-  `CompilerIntrinsic`/`CheckedPhysical` refuse.
-- `filesystem_release_mechanism_row` emits the explicit-empty
-  `TerminalAuthorityPolicyRow` only when the mechanism key actually carries the
-  contract coordinate — a mechanism with the admitted plan alone, a different
-  contract, or a coordinate-less role earns no row.
-- `settled_filesystem_cohort` already classifies `close`/`find_close`/`close_handle`
-  as `OrdinaryReleaseContract`, so the generic `filesystem_mechanism_row`
-  refuses them today — the fence the customer needs lowered is selective, not
-  absent.
+The exact focused dispatch was:
 
-Every production-visible caller is a test; nothing in checked flow produces
-`occurrence_commitment` yet. So the missing leg is the program-side derivation
-plus the call that feeds it into the bound mechanism key.
+```sh
+gh workflow run compiler-pilot.yml --ref work/scalar-windows-release-20261106 \
+  -f native_host=windows_x86_64 \
+  -f cli_fixtures=pass/filesystem/windows_canonicalize_exit \
+  -f checking_only=false -f phase_profile=true
+```
 
-## Re-verified customer stops at `069276b986dc`
+The ordinary CLI consumer copied unchanged inputs into fresh scratch storage,
+used the existing review protocol and retained these actual outcomes:
 
-Both recorded stops have moved upstream — the structural-store frontier is real
-but currently masked:
+| Stage | Observed result | Wall time | Existing limit |
+| --- | --- | --- | --- |
+| `update --target windows_x86_64` | Exit 3, awaiting review | 527.265 s | 600 s |
+| Accept pending review rows, then `update --resume` | Exit 0 | 9.469 s | 600 s |
+| `run --both --keep main.omg` | Wrapper 70, native 70, Terminal 70 | 156.203 s | 240 s |
 
-- `omega --check tests/omega/pass/filesystem/native_close/main.omg` (linux
-  x86-64, ~11min): rejects `selected ProgramEntry Service field Main::fs
-  requires a selected Fused provider for boundary FilesystemHost` — entry-side
-  fused-provider selection, the exact gate the canary_suite roster note names
-  for this family (canary_suite.rs:985). The customer never reaches checked
-  flow, so the structural-store stop is not observable on this leg.
-- `omega --check --target windows_x86_64
-  tests/omega/pass/filesystem/windows_canonicalize_exit/main.omg` (linux host
-  compiling the windows target, ~13min): rejects `selected ProgramEntry
-  establishment rejoins 0 Terminal attachment identities; expected one; the
-  machine's unit plan was omitted at local construction at state graph: state
-  signature: parameter signature: attached data shape (state 0)` — the
-  ENTRY-CONTENT-ROOTS family that dominates the samples_compile residuals.
-  Upstream of the recorded `structural field store: scalar field type` stop.
+The 180-file input-manifest digest was identical in both runs:
+`2b5c864ed1c03cbdae96c96753cb7f40d4ffebc71c4b6505271449adee5bb544`.
+The successful run's initial discovery review spent 383.878 seconds on the
+standard library and 126.493 seconds on the customer. Its subsequent bound
+review spent 3.963 and 2.041 seconds respectively. Resume reused all four
+completed review occurrences and spent 0.346 seconds in candidate review.
+These figures locate the measured work; they do not establish why the earlier
+run exceeded its limit or show a compiler speedup from diagnostic output.
 
-Consequence: the item's paused closure remains the right plan, but landing the
-release-contract proof also needs the entry-side fused-provider and
-ProgramEntry-attachment legs closed first — both fenced by sibling claims
-(TOP-LEVEL-BOUNDARY-REQUIREMENTS / ENTRY-CONTENT-ROOTS lanes).
+Small authenticated records and bounded raw stderr members were retained under
+`build/scalar-continue-20261102/windows-canonicalize-{baseline-42288076952,attributed-42295325098}/`.
+The downloader's local receipt initially used a Linux template label; the
+receipt records its correction to Windows explicitly. Downloaded official JSON
+and stderr members remain unchanged. Source identities above describe actual
+observations, including when later changes affect comments only.
 
-## Paused prerequisite: the structural field-store closure
+## Current implementation and remaining obligations
 
-The customer's recorded stop is real but masked: `structural_scalar_store`
-admits only scalar-typed field stores (`structural field store: scalar field
-type` at `execution/terminal_unit/structural_scalar_store/mod.rs:1182` — destination
-fields must resolve to `PrimitiveType::{Bool,F32,F64}` or
-integer-literal-accepting types). `self.unit_result =
-self.fs.write_all(..)` stores a structural `UnitResult` sum.
+At the measured sources,
+[`windows_filesystem_path_query.omg`](../../../source/library/std/targets/windows_x86_64/windows_filesystem_path_query.omg)
+uses `CreateFileW` through the exact metadata-open requirement. It requests
+read-attributes access, sharing mode 7 (read/write/delete), `OPEN_EXISTING`,
+and backup semantics with anonymous SQOS, excluding `DELETE_ON_CLOSE`.
+Only a nonzero, non-invalid acquired handle reaches the query and following
+close. The old customer header describing `CreateFileA` is historical.
 
-The closure, per the item's own pause note, covers nested structural sum
-construction/extraction, borrowed case observation, and whole nominal receiver
-replacement including match-produced assignments — through shared state/value
-planning, preserving recursive layout and referent identity. Plan:
+That source sequence is not itself retained proof of its complete lifecycle.
+The measured compiler's generic filesystem policy refuses to mint an empty
+mechanism classification for an unconstrained ordinary-release cohort.
+The earlier draft's named release-contract constructors and claimed customer
+stops are not present evidence at these sources.
 
-1. **Structural field-store plan kind.** Extend `CheckedUnitEffectOperationPlan`
-   with a structural-value field store whose source is a
-   `CheckedStructuralValueHandle` / `CheckedUnitStructuralResultBindingPlan`
-   (the same currency `EstablishStructuralValue`/`StructuralCall` mint), not a
-   scalar computation root. Destination stays a structural parameter position +
-   `terminal_field_identity`. Admission site: a new arm beside
-   `scalar field type` in `build_structural_field_store_at`.
-2. **Stored-case observation.** `transition self.unit_result { UnitResult::Ok -> ... }`
-   reads a stored structural field's case; the read path must observe through
-   the stored referent, not the initial value — same referent-identity rule the
-   effect plan already enforces on `EstablishPrimitiveLocal` (reads name the
-   symbol, never the initializer). Case payload extraction needs borrowed
-   observation so `Error { kind }` projections don't consume the field.
-3. **Whole nominal receiver replacement.** `self.unit_result = <call result>`
-   is a replacement of the field's entire nominal content — referent identity
-   must survive so later transitions/reads see the stored object, and a
-   match-produced assignment (`transition` arm that writes the field) reuses the
-   same store kind at its join point.
-4. **Recursive layout.** `UnitResult::Error { kind: ErrorKind }` is a nested
-   nominal payload; layout plans must nest rather than flatten, and identity
-   keys stay the stored field's — never a synthesized flat scalar id.
-5. **Where it lands.** The store legs live in
-   `execution/terminal_unit/structural_scalar_store/` (state/value planning input);
-   observation lives in the transition/case machinery under
-   `execution/terminal_unit/composed_control` + `state_graph`; lowering consumes the new
-   plan kind in `checked-trees-to-lowered-psi` machine lowering. Per the board,
-   the frontier is owned by STATE-LOCAL-VALUE-FRONTIER with CORPUS-RED-FAMILY
-   coordination on `structural_scalar_store`/`primitive_store.rs`.
+The remaining derivation must establish and retain the exact acquired handle
+occurrence and arguments, identity through aliases and joins, preservation by
+every intervening handle-taking call, one applicable ordinary release, no later
+use, and explicit external-environment assumptions. It must bind the evidence
+to the exact mechanism and checked contract. Empty reach, query-only reach,
+method names and an integer handle domain do not establish those obligations.
+Preserve read/write/delete sharing; deletion attached to the released handle
+must prevent ordinary-empty classification.
 
-## Fence landscape at `069276b986dc` (04:1xZ)
-
-- `terminal_authority_policy/filesystem.rs` — TWO-AXIS-TERMINAL-AUTHORITY-REVIEW
-  (Zergling-68, ~04:54Z).
-- `structural_scalar_store` + `primitive_store.rs` — CORPUS-RED-FAMILY-TRAPSTORE
-  per PSI-NATIVE-FIELD-STORES's recorded fence set; STATE-LOCAL-VALUE-FRONTIER
-  owns the closure.
-- `execution/terminal_unit/{control,state_graph,composed_control}` — rotating
-  GENERAL-CYCLIC-EXECUTION claims.
-- The checked-flow occurrence-evidence producer (leg 1 of the item) has no
-  landed substrate at all — it is new machinery in checked flow plus a new
-  retained-evidence row kind.
-
-## Disposition
-
-This claim's slice: scope verification, re-measured customer stops, and this
-plan. Implementation is fenced (rejoin surface) or paused pending the closure
-plan (customer legs). Next worker: implement leg-1 derivation once the
-structural store closure lands and `filesystem.rs` frees, or take the store
-closure itself under STATE-LOCAL-VALUE-FRONTIER coordination.
+The customer's missing-path leg and separate `FailedOpen::main` exercise
+NotFound. They do not prove exactly one close or no later use. Existing
+filesystem authority rejects check missing service reach; they are not
+release-lifecycle falsifiers. Terminal's private guest-handle tracking rejects
+unknown or uncertain handles at runtime, which likewise does not establish the
+static proof. Failed acquisition, escaping or substituted handles, unproved
+intervening calls, duplicate release, later use and stale proof reuse still
+need fact-sensitive rejection evidence before this release contract closes.

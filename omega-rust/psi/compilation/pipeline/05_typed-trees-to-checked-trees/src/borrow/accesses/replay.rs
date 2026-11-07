@@ -18,15 +18,7 @@ pub(crate) fn rejoin_expression_call_accesses<'program>(
     source: &FlowCallFact,
 ) -> Option<CallSite<'program>> {
     let borrow = facts.borrow;
-    let mut states = borrow
-        .states
-        .iter()
-        .map(|(_, row)| row)
-        .filter(|row| row.machine_symbol == machine && row.state_symbol == state);
-    let state_row = states.next()?;
-    if states.next().is_some() {
-        return None;
-    }
+    let state_row = borrow.unique_state_borrow(machine, state)?;
     let mut calls = borrow.calls.span(state_row.calls)?.iter().filter(|call| {
         call.statement_index == source.statement_index && call.call_ordinal == source.call_ordinal
     });

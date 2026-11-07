@@ -154,7 +154,7 @@ updates the compiler/runtime's internal era for that slot; it does not rewrite
 source data.
 
 Runtime multiplicity uses values defined by the protocol itself: file handles,
-sessions, windows, registrations, component descriptors, or `dyn Trait` values.
+sessions, windows, registrations, component descriptors, machine values, or `some` packages.
 Those values carry their real state, ownership, and lifecycle. A generic
 `Binding<R>` routing object is not part of the source language. See
 [traits](chapter_14_traits.md) for local dynamic values,

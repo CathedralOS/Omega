@@ -7,8 +7,9 @@
 
 use std::ops::ControlFlow;
 
+use super::completed_observations::CompletedObservation;
 use super::refuted_requires::instantiated_selected_fact_judgment;
-use super::structural_judgment::StructuralJudgment;
+use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::{machine::Machine, state::State};
@@ -93,7 +94,7 @@ pub fn completed_value_proves_bound_domain_predicate(
 }
 
 #[derive(Clone, Default)]
-struct CompletedDomainJudgment {
+pub(super) struct CompletedDomainJudgment {
     observed: bool,
     proven: bool,
     refuted: bool,
@@ -134,17 +135,9 @@ fn completed_bound_domain_judgment(
     predicate: ExpressionHandle,
     projection: &[facts::PlaceSegment],
 ) -> CompletedDomainJudgment {
-    if !typed_trees::domain::has_bound_symbol_only_proof(program, domain) || domain.alias.is_some()
-    {
+    let Some(reference) = completed_domain_reference(program, machine, state, expression, domain)
+    else {
         return CompletedDomainJudgment::default();
-    }
-    // Anonymous values receive the selected domain's carrier at this admission
-    // site. A typed value retains its own actual instance, including generics.
-    let reference = crate::expression_result_type_reference(program, machine, state, expression)
-        .unwrap_or(domain.target_type);
-    let initial = CompletedDomainJudgment {
-        proven: true,
-        ..Default::default()
     };
     let result = super::completed_observations::fold_completed_values(
         program,
@@ -153,63 +146,11 @@ fn completed_bound_domain_judgment(
         statement_index,
         expression,
         reference,
-        initial,
-        |judgment| judgment.proven,
-        |judgment, observation| {
-            let Some((judge, value)) = observation else {
-                judgment.proven = false;
-                return ControlFlow::Continue(());
-            };
-            let Some(projected_reference) =
-                crate::project_type_reference_from_segments(program, reference, projection)
-            else {
-                judgment.proven = false;
-                return ControlFlow::Continue(());
-            };
-            let parameters = [typed_trees::signature::StateParameter {
-                symbol: domain.subject_symbol,
-                name: domain.subject_name.clone(),
-                // Carrier-only families observe this exact completed instance.
-                // Indexed theories remain fenced above: their arguments cannot be
-                // recovered from a family symbol.
-                type_reference: projected_reference,
-                ..Default::default()
-            }];
-            let Some(value) = super::observed_projections::project_observed_value_in_scope(
-                program, judge, reference, value, projection,
-            ) else {
-                judgment.proven = false;
-                return ControlFlow::Continue(());
-            };
-            let bindings = [(domain.subject_name.to_string(), value)];
-            // Positive callers supply the declared predicate (or a Boolean
-            // component of it); sibling memberships have their own evidence
-            // owner. Refutation scans all expression conjuncts independently.
-            let expressions = predicate.is_valid().then_some(predicate).into_iter().chain(
-                program
-                    .proof_facts(domain)
-                    .iter()
-                    .filter(|_| !predicate.is_valid())
-                    .filter_map(|fact| fact.as_expression().copied()),
-            );
-            for expression in expressions {
-                let predicate_judgment = instantiated_selected_fact_judgment(
-                    program,
-                    judge,
-                    domain.symbol,
-                    &parameters,
-                    expression,
-                    &bindings,
-                    &[],
-                    &[],
-                    Some((machine, state)),
-                    false,
-                );
-                judgment.proven &= matches!(predicate_judgment, StructuralJudgment::Proven);
-                judgment.refuted |= matches!(predicate_judgment, StructuralJudgment::Refuted);
-            }
-            ControlFlow::Continue(())
-        },
+        CompletedDomainJudgment::initial(),
+        CompletedDomainJudgment::succeeds,
+        completed_domain_fold(
+            program, machine, state, domain, predicate, projection, reference,
+        ),
     );
     let Some(result) = result else {
         return CompletedDomainJudgment::default();
@@ -218,4 +159,153 @@ fn completed_bound_domain_judgment(
     judgment.observed = result.complete;
     judgment.proven &= result.complete;
     judgment
+}
+
+/// Whether `domain`'s declared predicate holds on the value completed at one
+/// site, as `completed_value_proves_domain_predicate` with no named predicate
+/// asks it, ready to join a shared walk of that site. `None` is a domain the
+/// judgment declines without walking, which never proves anything.
+pub(super) fn completed_domain_member<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &'a Machine,
+    state: &'a State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    projection: &'a [facts::PlaceSegment],
+) -> Option<
+    CompletedObservation<
+        CompletedDomainJudgment,
+        impl Fn(
+            &mut CompletedDomainJudgment,
+            Option<(&StructuralJudge<'_>, StructuralTerm)>,
+        ) -> ControlFlow<()>
+        + 'a,
+        fn(&CompletedDomainJudgment) -> bool,
+    >,
+> {
+    let domain = program.domain_definition(domain_symbol)?;
+    let reference = completed_domain_reference(program, machine, state, expression, domain)?;
+    Some(CompletedObservation::new(
+        program,
+        state,
+        statement_index,
+        expression,
+        reference,
+        CompletedDomainJudgment::initial(),
+        CompletedDomainJudgment::succeeds as fn(&CompletedDomainJudgment) -> bool,
+        completed_domain_fold(
+            program,
+            machine,
+            state,
+            domain,
+            ExpressionHandle::invalid(),
+            projection,
+            reference,
+        ),
+    ))
+}
+
+/// The completed value's type for a domain judgment, or `None` when the
+/// judgment declines the domain before observing anything.
+fn completed_domain_reference(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    if !typed_trees::domain::has_bound_symbol_only_proof(program, domain) || domain.alias.is_some()
+    {
+        return None;
+    }
+    // Anonymous values receive the selected domain's carrier at this admission
+    // site. A typed value retains its own actual instance, including generics.
+    Some(
+        crate::expression_result_type_reference(program, machine, state, expression)
+            .unwrap_or(domain.target_type),
+    )
+}
+
+impl CompletedDomainJudgment {
+    fn initial() -> Self {
+        Self {
+            proven: true,
+            ..Default::default()
+        }
+    }
+
+    fn succeeds(&self) -> bool {
+        self.proven
+    }
+}
+
+fn completed_domain_fold<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &'a Machine,
+    state: &'a State,
+    domain: &'a typed_trees::domain::DomainDefinition,
+    predicate: ExpressionHandle,
+    projection: &'a [facts::PlaceSegment],
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> impl Fn(
+    &mut CompletedDomainJudgment,
+    Option<(&StructuralJudge<'_>, StructuralTerm)>,
+) -> ControlFlow<()>
++ 'a {
+    move |judgment, observation| {
+        let Some((judge, value)) = observation else {
+            judgment.proven = false;
+            return ControlFlow::Continue(());
+        };
+        let Some(projected_reference) =
+            crate::project_type_reference_from_segments(program, reference, projection)
+        else {
+            judgment.proven = false;
+            return ControlFlow::Continue(());
+        };
+        let parameters = [typed_trees::signature::StateParameter {
+            symbol: domain.subject_symbol,
+            name: domain.subject_name.clone(),
+            // Carrier-only families observe this exact completed instance.
+            // Indexed theories remain fenced above: their arguments cannot be
+            // recovered from a family symbol.
+            type_reference: projected_reference,
+            ..Default::default()
+        }];
+        let Some(value) = super::observed_projections::project_observed_value_in_scope(
+            program, judge, reference, value, projection,
+        ) else {
+            judgment.proven = false;
+            return ControlFlow::Continue(());
+        };
+        let bindings = [(domain.subject_name.to_string(), value)];
+        // Positive callers supply the declared predicate (or a Boolean
+        // component of it); sibling memberships have their own evidence
+        // owner. Refutation scans all expression conjuncts independently.
+        let expressions = predicate.is_valid().then_some(predicate).into_iter().chain(
+            program
+                .proof_facts(domain)
+                .iter()
+                .filter(|_| !predicate.is_valid())
+                .filter_map(|fact| fact.as_expression().copied()),
+        );
+        for expression in expressions {
+            let predicate_judgment = instantiated_selected_fact_judgment(
+                program,
+                judge,
+                domain.symbol,
+                &parameters,
+                expression,
+                &bindings,
+                &[],
+                &[],
+                Some((machine, state)),
+                false,
+            );
+            judgment.proven &= matches!(predicate_judgment, StructuralJudgment::Proven);
+            judgment.refuted |= matches!(predicate_judgment, StructuralJudgment::Refuted);
+        }
+        ControlFlow::Continue(())
+    }
 }

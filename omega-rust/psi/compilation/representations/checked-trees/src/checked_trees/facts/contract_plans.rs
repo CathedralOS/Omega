@@ -79,7 +79,7 @@ pub use scalar_contracts::{
 use std::hash::Hash;
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct MachineContractPlans {
     /// One entry per machine, in machine order.
     pub machines: Vec<MachineContractPlan>,
@@ -91,11 +91,78 @@ pub struct MachineContractPlans {
     /// identity as `machines`. Published requirement capsules remain separate;
     /// this row is the narrower realized endpoint used by callback admission.
     pub realized_envelopes: Vec<RealizedMachineContractEnvelope>,
+    /// Positions of `machines` sorted by machine symbol, published by the
+    /// producer (`index_machines`); ties keep row order. Every lowered machine
+    /// asks for its own plan, and scanning all plans per question made that
+    /// quadratic in the machine count. Derived from `machines`: never
+    /// recorded or compared, and read only while `machines` keeps the length
+    /// it was built at; a hit is checked against its row and a miss rereads
+    /// the rows, so a stale index can only cost time.
+    #[record(skip)]
+    machine_index: Vec<((u32, u32), usize)>,
+    #[record(skip)]
+    indexed_len: Option<usize>,
 }
+
+impl PartialEq for MachineContractPlans {
+    fn eq(&self, other: &Self) -> bool {
+        self.machines == other.machines
+            && self.crash_capsules == other.crash_capsules
+            && self.realized_envelopes == other.realized_envelopes
+    }
+}
+
+impl Eq for MachineContractPlans {}
 
 impl MachineContractPlans {
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineContractPlan> {
-        contract_plan_by_machine(&self.machines, machine)
+        // A row set changed after publication reads the rows themselves.
+        if self.indexed_len != Some(self.machines.len()) {
+            return contract_plan_by_machine(&self.machines, machine);
+        }
+        let key = (machine.arena_index(), machine.generation());
+        let start = self.machine_index.partition_point(|(row, _)| *row < key);
+        self.machine_index[start..]
+            .iter()
+            .take_while(|(row, _)| *row == key)
+            .filter_map(|(_, position)| self.machines.get(*position))
+            .find(|plan| plan.machine == machine)
+            .or_else(|| contract_plan_by_machine(&self.machines, machine))
+    }
+
+    /// Publish `machine_index` over the finished `machines` rows.
+    pub fn index_machines(&mut self) {
+        let mut index = self
+            .machines
+            .iter()
+            .enumerate()
+            .map(|(position, plan)| {
+                (
+                    (plan.machine.arena_index(), plan.machine.generation()),
+                    position,
+                )
+            })
+            .collect::<Vec<_>>();
+        index.sort_unstable();
+        self.machine_index = index;
+        self.indexed_len = Some(self.machines.len());
+    }
+
+    /// The published plans, indexed for `for_machine`.
+    pub fn new(
+        machines: Vec<MachineContractPlan>,
+        crash_capsules: Vec<CrashContractCapsule>,
+        realized_envelopes: Vec<RealizedMachineContractEnvelope>,
+    ) -> Self {
+        let mut plans = Self {
+            machines,
+            crash_capsules,
+            realized_envelopes,
+            machine_index: Vec::new(),
+            indexed_len: None,
+        };
+        plans.index_machines();
+        plans
     }
 
     pub fn crash_capsule(

@@ -184,9 +184,9 @@ pub fn owned_observation_projection(
         .filter(|(state, _)| *state == capture.state_symbol)
         .map(|(_, statements)| statements)
         .or_else(|| {
-            control.states.iter().find_map(|(_, state)| {
-                (state.state_symbol == capture.state_symbol).then_some(state.statements)
-            })
+            control
+                .state_by_symbol(capture.state_symbol)
+                .map(|state| state.statements)
         })?;
     let statement = control
         .statements

@@ -709,12 +709,7 @@ fn state_keeps_byte_class_after_element_stores(
     let Some(last_store) = last_store else {
         return ElementStoreClass::NoStore;
     };
-    let Some(flow) = build
-        .control
-        .states
-        .iter()
-        .find_map(|(_, flow)| (flow.state_symbol == state.symbol).then_some(flow))
-    else {
+    let Some(flow) = build.control.state_by_symbol(state.symbol) else {
         return ElementStoreClass::Retired;
     };
     let statement_span = flow.statements;
