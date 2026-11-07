@@ -256,10 +256,14 @@ fn inspect_body_cpu_state(
             if !observed.effects().machine_state().contains_all(vector) {
                 return Err("vector CPU-state control needs actual emitted vector use".into());
             }
-            require_instruction_refusal(
-                observed.require_without_floating_state(),
-                "installed body executes vector state without a CPU-state premise",
-            )?;
+            // IEEE arithmetic can read rounding control as well as vectors.
+            // Require the exact observed-state refusal, never an opaque ceiling.
+            let expected = if observed.floating_control() {
+                "installed body executes floating control without a CPU-state premise"
+            } else {
+                "installed body executes vector state without a CPU-state premise"
+            };
+            require_instruction_refusal(observed.require_without_floating_state(), expected)?;
         }
         _ => {
             return Err(
