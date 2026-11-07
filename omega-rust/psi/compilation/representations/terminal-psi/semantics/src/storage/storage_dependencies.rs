@@ -63,7 +63,30 @@ pub fn storage_operand_dependencies(
     let place_type = |place| {
         machine
             .structural_place_type(place)
-            .ok_or_else(|| format!("storage operand {place:?} has no declared carrier"))
+            .ok_or_else(|| {
+                // A place kind contains only fixed-size declaration coordinates.
+                // Retain them on refusal without formatting the machine graph.
+                let declaration = machine.structural_place(place).map(|row| row.kind);
+                let declared_block = match declaration {
+                    Some(semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                        block,
+                        position,
+                    }) => machine.blocks.iter().find(|row| row.id == block).map(|row| {
+                        (
+                            row.id,
+                            row.structural_parameters.len(),
+                            row.structural_parameters
+                                .get(position as usize)
+                                .map(|parameter| (parameter.place, parameter.structural_type)),
+                        )
+                    }),
+                    _ => None,
+                };
+                format!(
+                    "storage operand {place:?} has no declared carrier; machine {:?}, declaration {declaration:?}, declared block {declared_block:?}",
+                    machine.id,
+                )
+            })
     };
     match storage {
         StructuralStorageUse::Place(place) => {
