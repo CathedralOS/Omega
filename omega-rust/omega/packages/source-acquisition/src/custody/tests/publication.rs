@@ -1,3 +1,6 @@
+// Unit tests verifying that cache publication rejects preexisting destinations
+// and replaced staging directory names.
+
 use super::{
     CacheCustodyKind, PendingCacheEntry, SourceResolveError, open_absolute_directory_nofollow,
     publish_cache_directory, temp_root,

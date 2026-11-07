@@ -1,5 +1,18 @@
-//! Resolve requester-local dependency aliases without crossing build/product scopes.
-//! Physical lookup precedes exact-child generated-source collision checking.
+// Reconciled requester-local dependency alias resolution (`reconciled_package_import`)
+// and cross-scope / missing-edge diagnostics.
+//
+// Resolves `use` paths in package-aware compilations without crossing `Build` and
+// `Product` dependency scopes:
+// - Only the root package carries `Build`-purpose edges (`source_import_scope`);
+//   every dependency package's own files resolve through its `Product`-purpose
+//   `depend` edges even when loaded into the host `Build` context.
+// - If an import names an alias declared only in the opposite scope (`other_purpose`),
+//   we reject immediately and name the `depend_as` / `build_depend_as` declaration
+//   needed to authorize it rather than falling back to a requester-local path.
+// - If an import has no requester-local source and its first segment spells a known
+//   package in the closure or bundled library roster, we retain `MissingDependencyEdge`
+//   diagnostic metadata so exact-target resolution reports the missing dependency
+//   declaration when neither generated nor physical source exists.
 
 use super::paths::{
     bundled_omega_root, identifier_path_text, is_bundled_core_path, is_bundled_omega_path,
@@ -15,21 +28,10 @@ use syntax_trees::identifier::Identifier;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReconciledPackageImport {
     Toolchain(PathBuf),
-    /// An import authored inside a closed toolchain contract source. It owns
-    /// no package identity, so its path closes inside the registered contract
-    /// root rather than selecting reconciled package content.
-    ToolchainContract {
-        root: PathBuf,
-        path: PathBuf,
-    },
+    ToolchainContract { root: PathBuf, path: PathBuf },
     Package(ReconciledPackageImportRequest),
 }
 
-/// One syntax-derived package import before an exact target contributes its
-/// generated-source bundles.
-///
-/// Physical source lookup is target-independent. Generated-source selection
-/// and physical/generated collision rejection remain exact-child work.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct ReconciledPackageImportRequest {
     pub(super) package: semantic_vocabulary::PackageKeyIdentity,
@@ -37,18 +39,9 @@ pub(crate) struct ReconciledPackageImportRequest {
     pub(super) relative_path: PathBuf,
     dependency_build_forbidden: bool,
     requesting_source: PathBuf,
-    /// Set when the import fell back to a requester-local path although its
-    /// first segment spells a package the requester never declared in this
-    /// scope. Reported only if that local fallback finds no source.
     missing_edge: Option<MissingDependencyEdge>,
 }
 
-/// A dependency edge an import spelled but its requester never declared: the
-/// first path segment is the requester-local alias spelling of a package the
-/// compilation already knows, yet no edge in the import's scope binds it.
-/// This is diagnostic metadata only. It never adds the edge or resolves the
-/// import; the compile still rejects, but by naming the declaration that would
-/// close the gap instead of an unresolvable requester-relative source path.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct MissingDependencyEdge {
     authored_path: String,
@@ -139,9 +132,6 @@ impl ReconciledPackageImportRequest {
             }
             (Some(generated), None) => generated,
             (None, physical) => {
-                // Neither the exact bundle nor the requester's own tree has
-                // the source. When the import spelled an undeclared package,
-                // the missing edge is the actual gap.
                 if physical.is_none()
                     && let Some(missing_edge) = &self.missing_edge
                 {
@@ -189,8 +179,6 @@ impl ReconciledPackageImportRequest {
     }
 }
 
-/// The other dependency scope. Product and build scopes are independent:
-/// neither falls back to the other.
 fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
     match purpose {
         DependencyPurpose::Product => DependencyPurpose::Build,
@@ -198,17 +186,6 @@ fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
     }
 }
 
-/// The dependency edge purpose `source_path`'s own imports resolve under.
-///
-/// Only the compilation root's package carries build-scope edges: a
-/// root-owned source's checked instance selects `build_depend`/
-/// `build_depend_as` targets when that instance is build scope. Every other
-/// package's sources — including build-scope instances of dependency
-/// sources — resolve product-scope imports: a build dependency's own files
-/// use its ordinary `depend` edges even though they execute in the host
-/// context (wiki/spec/build/scoped_execution.md). Which execution profile a
-/// package's target-scoped rows select against follows its checked source
-/// instance, independently of the edges used to resolve names inside it.
 pub(crate) fn source_import_scope(
     packages: &PackageCompilationInputs,
     instance_scope: DependencyScope,
@@ -269,9 +246,6 @@ pub(crate) fn reconciled_package_import(
         ))]);
     }
     let Some(requester) = requester else {
-        // A toolchain contract source owns no package identity; its authored
-        // imports close inside the registered contract root and keep toolchain
-        // custody rather than selecting reconciled package content.
         if let Some(contract_root) = contract_root {
             return resolve_reconciled_import(
                 syntax_trees,
@@ -310,10 +284,6 @@ pub(crate) fn reconciled_package_import(
             None,
         ),
         None => {
-            // An alias declared only in the other scope is not a missing
-            // module below the requester: name the actual authorization gap
-            // and the declaration that would close it, so cross-scope
-            // spellings never fall back to local paths.
             let other = other_purpose(purpose);
             if let Some(target) =
                 packages.dependency_target_for_purpose(requester, other, first.as_str(syntax_trees))
@@ -339,9 +309,6 @@ pub(crate) fn reconciled_package_import(
             let requester_root = packages
                 .package_root(requester)
                 .expect("validated requester retains a source root");
-            // A requester-local module keeps precedence. Only an import that
-            // has no local source and spells a known package name records
-            // the edge it would need, so the eventual failure names it.
             let missing_edge =
                 (!local_source_exists(syntax_trees, requester_root, members, filesystem))
                     .then(|| {
@@ -376,8 +343,6 @@ pub(crate) fn reconciled_package_import(
     ))
 }
 
-/// Whether `members`, read as a requester-local path below `root`, reaches an
-/// existing source through any direct or prefix candidate.
 pub(super) fn local_source_exists(
     syntax_trees: &syntax_trees::SyntaxTrees,
     root: &Path,
@@ -393,11 +358,6 @@ pub(super) fn local_source_exists(
         .any(|candidate| filesystem.exists(&root.join(candidate)))
 }
 
-/// The package `first` spells as a requester-local alias, if the compilation
-/// knows one: a package of the reconciled closure other than the requester,
-/// or a bundled library package the requester could declare by path. Returns
-/// the package's diagnostic label. Matching is by the default alias spelling
-/// of the canonical package name; it grants nothing.
 fn known_package_spelling(
     packages: &PackageCompilationInputs,
     requester: semantic_vocabulary::PackageKeyIdentity,
@@ -423,15 +383,10 @@ fn known_package_spelling(
         .map(|(name, _)| format!("`{name}` (bundled)"))
 }
 
-/// An implicit dependency alias preserves the canonical package name.
 fn default_alias_spelling(package_name: &str) -> &str {
     package_name
 }
 
-/// The declared names of the bundled library packages: the packages a root
-/// could declare through `Source::Path` without acquiring anything. Read for
-/// diagnostics only; an undeclared import that spells one of these names is
-/// reported as a missing dependency edge, never resolved through it.
 fn bundled_package_roster() -> Vec<(String, PathBuf)> {
     let Some(entries) = bundled_omega_root()
         .ok()
@@ -452,8 +407,6 @@ fn bundled_package_roster() -> Vec<(String, PathBuf)> {
     roster
 }
 
-/// Read the canonical role used for admission, for diagnostic suggestions only.
-/// Invalid or non-package Build sources do not contribute a suggestion.
 fn declared_package_name(build_source: &str) -> Option<String> {
     let build_declarations::BuildDeclaration::Package(declaration) =
         build_declarations::project_build_declaration_from_source(build_source).ok()?

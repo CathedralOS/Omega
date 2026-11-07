@@ -1,3 +1,6 @@
+// Unit tests verifying that macOS extended ACL allow entries on cache ancestors,
+// roots, nodes, locks, or reused snapshots are rejected.
+
 use super::{
     CacheCustodyKind, LocalSourceLimits, OpenOptions, SourceResolveError, change_macos_acl,
     git_cache_entry_root, open_absolute_directory_nofollow, primed_git_cache,

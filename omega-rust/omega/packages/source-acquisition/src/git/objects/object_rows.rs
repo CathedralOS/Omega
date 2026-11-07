@@ -1,4 +1,11 @@
-//! In-memory rows shared by Git graph authentication and materialization.
+// In-memory tree entry rows (`GitTreeEntry`, `GitTreeEntryKind`) and shared
+// batch-slice payloads (`GitBlobBytes`) used across Git graph authentication
+// and snapshot materialization.
+//
+// `Gitlink` represents an authenticated parent-tree submodule edge that is
+// never fetched or materialized. `validate_blob_entry` rejects `Gitlink`
+// entries during blob transport, while `validate_source_entry` additionally
+// rejects `.gitmodules` manifests when projecting package source trees.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,7 +22,6 @@ pub(crate) struct GitTreeEntry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum GitTreeEntryKind {
     Tree,
-    /// An authenticated parent-tree edge, never fetched or materialized.
     Gitlink,
     File {
         executable: bool,
@@ -27,7 +33,6 @@ pub(crate) enum GitTreeEntryKind {
 }
 
 impl GitTreeEntryKind {
-    /// Only regular files and symbolic links resolve to a blob payload.
     pub(crate) fn carries_blob(&self) -> bool {
         matches!(self, Self::File { .. } | Self::Symlink { .. })
     }
@@ -55,8 +60,6 @@ impl GitBlobBytes {
 }
 
 impl GitTreeEntry {
-    /// Blob transport never follows a foreign repository edge. A manifest is
-    /// ordinary authenticated bytes here; source selection owns its policy.
     pub(crate) fn validate_blob_entry(&self) -> Result<(), crate::error::SourceResolveError> {
         if let GitTreeEntryKind::Gitlink = self.kind {
             return Err(crate::error::SourceResolveError::GitSubmodulesUnsupported {

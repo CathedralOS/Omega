@@ -1,4 +1,26 @@
-//! Scoped Source/Output authority, staging custody, and sponsored host access.
+/*
+We own the host and captured filesystem authority granted to an admitted `build.omg` machine (`BuildMachineFilesystemScope`).
+
+Every build activation operates under explicit grant roots:
+1. `BUILD_SOURCE_ROOT_IDENTITY` (`1`) is the read-only `Source` root, backed either by an immutable compiler-captured `CapturedBuildSourceInput` (`SourceSnapshot`) or by an explicitly admitted `LiveBuildSource` directory capability.
+2. `BUILD_OUTPUT_ROOT_IDENTITY` (`2`) is the append-and-seal `Output` staging directory (`build_dir`), governed by a `BuildMachineFilesystemSponsor`.
+3. `NamedBuildInput` slots (`3..`) bind additional read-only `CapturedBuildSourceInput` snapshots under `$OmegaBuildInputSlots`.
+*/
+
+/*
+Why we record `admitted_build_dir_key` at admission and re-verify at establishment:
+The write root (`build_dir`) is spelled at admission but written through by path across the build occurrence. If an ancestor directory were swapped for a symlink after admission, `create_dir_all` or subsequent file opens would silently redirect writes outside the staging fence or onto the read-only `Source` root. We compute a spelling-independent `overlap_key` (resolving the longest existing prefix through `canonicalize` while keeping dangling symlinks visible via `symlink_metadata`) at admission, verify that `source_root` does not sit inside `admitted_build_dir_key`, and re-verify both before and after materializing `build_dir` that its resolved key has not drifted.
+
+Why `staged_output_tree` canonicalizes unreachable-filesystem runs to `empty()`:
+When the selected build machine cannot reach the filesystem at all, the `Output` namespace is provably empty without needing a physical staging directory. Returning `Some(empty())` ensures sponsored review and ordinary production record the exact same staged-output observation.
+*/
+
+/*
+Provenance:
+- Capability-bound live source directory (`LiveBuildSource`): `src/build_execution/filesystem_scope/live_source.rs`.
+- Request-to-scope preparation and private sponsor provisioning: `src/build_execution/filesystem_scope/preparation.rs`.
+- Terminal Psi runtime filesystem host (`BuildFilesystemRuntime`): `src/build_execution/filesystem_scope/runtime.rs`.
+*/
 
 mod live_source;
 pub mod preparation;
@@ -32,57 +54,34 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
         None => panic!("build output root identity must be nonzero"),
     };
 
-/// Host filesystem authority granted to an admitted `build.omg` machine.
-///
-/// Source roots are read-only. The build directory is the only write root and
-/// also permits read-back through the checked interpreter's `RealScoped`
-/// contract.
-///
-/// Captured roots are exact non-following memory views; physical source grants
-/// remain a separate, explicitly authorized host protocol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
-    source_root: PathBuf,
-    live_source: Option<live_source::LiveBuildSource>,
-    canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>,
-    canonical_source_metadata_required: bool,
-    build_dir: PathBuf,
-    /// The write root's overlap key as admission resolved it. Establishment
-    /// re-resolves the same spelling and compares against this baseline: an
-    /// ancestor swapped to a host alias after admission changes the
-    /// resolution, so a key computed at establishment would admit the
-    /// redirect self-consistently.
-    admitted_build_dir_key: PathBuf,
-    sponsor: Option<BuildMachineFilesystemSponsor>,
-    root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    root_role: Option<crate::BuildDeclarationKind>,
-    build_execution_profile: Option<target::TargetProfile>,
-    captured_source_input: Option<CapturedBuildSourceInput>,
-    captured_source_view: Option<source::SourceSnapshot>,
-    required_outputs: BTreeSet<Vec<u8>>,
-    named_inputs: Vec<NamedBuildInput>,
+    source_root: PathBuf,                              // Physical source root path.
+    live_source: Option<live_source::LiveBuildSource>, // Capability-bound live source directory when uncaptured.
+    canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>, // Validated canonical Source metadata index.
+    canonical_source_metadata_required: bool, // Whether package/anonymous custody requires canonical metadata.
+    build_dir: PathBuf,                       // Physical Output staging root path.
+    admitted_build_dir_key: PathBuf,          // Overlap key of `build_dir` recorded at admission.
+    sponsor: Option<BuildMachineFilesystemSponsor>, // Staging directory quota and custody sponsor.
+    root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>, // Bound root package identity.
+    root_role: Option<crate::BuildDeclarationKind>, // Bound root declaration role (`Library` or `Product`).
+    build_execution_profile: Option<target::TargetProfile>, // Admitted execution profile for build-scope evaluation.
+    captured_source_input: Option<CapturedBuildSourceInput>, // Immutable captured Source inventory.
+    captured_source_view: Option<source::SourceSnapshot>, // Read-only memory snapshot view of `captured_source_input`.
+    required_outputs: BTreeSet<Vec<u8>>, // Declared required sealed output paths in canonical order.
+    named_inputs: Vec<NamedBuildInput>,  // Assigned named input roots (`3..`).
 }
 
-/// One slot retains both its immutable bytes and its activation-local grant.
-/// Source and input roots share the same read protocol, never the same namespace.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NamedBuildInput {
-    name: Vec<u8>,
-    input: CapturedBuildSourceInput,
-    snapshot: source::SourceSnapshot,
-    root: BuildMachineFilesystemGrantRootIdentity,
+    name: Vec<u8>,                                 // Validated UTF-8 slot name.
+    input: CapturedBuildSourceInput,               // Immutable captured input inventory.
+    snapshot: source::SourceSnapshot,              // Memory snapshot view for interpreter reads.
+    root: BuildMachineFilesystemGrantRootIdentity, // Activation-local grant root identity (`>= 3`).
 }
 
-/// Maximum declared required sealed outputs for one build occurrence.
 const REQUIRED_BUILD_OUTPUT_LIMIT: usize = 4_096;
 
-/// One spelling-independent key for root-overlap decisions. Two roots that
-/// collide on the host must share a key whichever spelling bound them: `..`
-/// and `.` components fold lexically, a relative spelling absolutizes
-/// against the current directory, and the longest existing prefix resolves
-/// through the host's canonical spelling so a symlinked ancestor names the
-/// same directory. A `..` that escapes the filesystem root keeps its
-/// original spelling — it cannot name a granted root anyway.
 fn overlap_key(path: &Path) -> PathBuf {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
@@ -104,10 +103,6 @@ fn overlap_key(path: &Path) -> PathBuf {
             other => folded.push(other.as_os_str()),
         }
     }
-    // A not-yet-created tail cannot resolve; the longest existing prefix
-    // still does, so a symlink inside an ancestor cannot alias past the
-    // fence. `symlink_metadata` keeps a dangling symlink "existing" so it
-    // still resolves through its spelling rather than falling past it.
     let mut base = folded.as_path();
     let mut tail: Vec<std::ffi::OsString> = Vec::new();
     while std::fs::symlink_metadata(base).is_err() {
@@ -129,15 +124,11 @@ fn overlap_key(path: &Path) -> PathBuf {
     key
 }
 
-/// A fence-side root resolved as far as the host currently allows: the full
-/// canonical spelling when the path exists, otherwise the admission key's
-/// longest-existing-prefix resolution for a not-yet-materialized tail.
 fn resolved_write_fence(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| overlap_key(path))
 }
 
 impl BuildMachineFilesystemScope {
-    /// Establish the physical write fence before granting captured or host access.
     pub(crate) fn establish_filesystem_access(
         &mut self,
     ) -> Result<BuildMachineFilesystemAccess, Vec<Diagnostic>> {
@@ -210,8 +201,6 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    /// Bind the root package occurrence and authored declaration role whose
-    /// validated inputs produced this scope.
     pub(crate) fn with_package_activation(
         mut self,
         root_package_identity: semantic_vocabulary::PackageKeyIdentity,
@@ -222,11 +211,6 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    /// Bind the admitted build execution profile the requesting compilation
-    /// checks its build-scope sources for and runs its build machine under.
-    /// It is a request fact (the compiler host when the request names none),
-    /// never inferred here from the compiler process. `None` records an
-    /// admitted host no catalogued profile describes rather than naming one.
     pub(crate) fn with_execution_profile(
         mut self,
         build_execution_profile: Option<target::TargetProfile>,
@@ -235,10 +219,6 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    /// Bind this build occurrence's source reads to one compiler-captured
-    /// immutable input inventory.
-    ///
-    /// Its canonical metadata must match the binding's validated index.
     pub(crate) fn with_captured_source_input(
         mut self,
         input: CapturedBuildSourceInput,
@@ -255,9 +235,6 @@ impl BuildMachineFilesystemScope {
         Ok(self.bind_captured_source_input(input))
     }
 
-    /// Keep full package provenance while narrowing the build's read grant.
-    /// The complete capture must match resolver custody, and the selected
-    /// entries must match its exact bytes, not just its file lengths.
     fn with_scoped_package_source_input(
         self,
         input: CapturedBuildSourceInput,
@@ -346,10 +323,6 @@ impl BuildMachineFilesystemScope {
             .collect()
     }
 
-    /// Declare the required sealed outputs this build occurrence must
-    /// complete before its result may publish. Each name is a canonical
-    /// slash-separated relative path naming exactly one sealed regular file
-    /// in the final staged-output tree.
     pub(crate) fn with_required_outputs(
         mut self,
         required_outputs: impl IntoIterator<Item = Vec<u8>>,
@@ -389,9 +362,6 @@ impl BuildMachineFilesystemScope {
         Ok(self)
     }
 
-    /// The activation this scope describes: the bound package occurrence
-    /// members and admitted execution profile. The Build observes no realized
-    /// target.
     pub fn activation(&self) -> BuildActivation {
         BuildActivation {
             root_package_identity: self.root_package_identity,
@@ -400,8 +370,6 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    /// The declared sealed outputs this occurrence must settle before its
-    /// result may publish, in canonical order.
     pub fn required_outputs(&self) -> &BTreeSet<Vec<u8>> {
         &self.required_outputs
     }
@@ -457,10 +425,6 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    /// The benign build exemption follows exact issued custody, not root names
-    /// or sponsorship alone. Generic sponsors may point at existing host data.
-    /// Here every read uses captured membership, and the only write root belongs
-    /// to a fresh private session whose shared owner also handles cleanup.
     pub(crate) fn is_private_snapshot_execution(
         &self,
         access: &BuildMachineFilesystemAccess,
@@ -484,14 +448,6 @@ impl BuildMachineFilesystemScope {
         self.verify_materialized_write_root()
     }
 
-    /// The write root is spelled at admission but written through by path
-    /// for the whole occurrence, so an ancestor swapped for a symlink after
-    /// admission would redirect the granted writes. Re-resolve the
-    /// now-materialized root through the host's canonical spelling and
-    /// re-run the same overlap assertions on resolved roots; an alias
-    /// planted in the window surfaces here, before first use. Refusal
-    /// deliberately leaves the resolved location untouched — a directory
-    /// reached through a racing alias is not this occurrence's to delete.
     fn verify_materialized_write_root(&self) -> Result<(), Vec<Diagnostic>> {
         let write_root = std::fs::canonicalize(&self.build_dir).map_err(|error| {
             vec![Diagnostic::error(format!(
@@ -510,13 +466,6 @@ impl BuildMachineFilesystemScope {
     }
 
     fn admit_write_roots(&self) -> Result<(), Vec<Diagnostic>> {
-        // The write root must not name the source root's directory or one
-        // of its ancestors — through any spelling — or Source's read-only
-        // contract would grant writes over every captured member. The
-        // default layout nests the write root inside the read root, which
-        // stays admitted: writes reach only the build directory itself. The
-        // baseline is admission's recorded key, not a fresh resolution — an
-        // ancestor aliased after admission must still compare against it.
         let admitted_build_dir_key = &self.admitted_build_dir_key;
         if overlap_key(&self.source_root).starts_with(admitted_build_dir_key) {
             return Err(vec![Diagnostic::error(format!(
@@ -525,10 +474,6 @@ impl BuildMachineFilesystemScope {
                 self.source_root.display()
             ))]);
         }
-        // Compare against admission's recorded key before any mutation: an
-        // ancestor aliased between them must refuse here, not after
-        // `create_dir_all` has already followed the alias. The post-creation
-        // check below keeps covering the narrower window inside establishment.
         if overlap_key(&self.build_dir) != *admitted_build_dir_key {
             return Err(vec![Diagnostic::error(format!(
                 "build write root `{}` resolves to a different directory than admission checked",
@@ -583,12 +528,6 @@ impl BuildMachineFilesystemScope {
         self.ensure_established_write_root(admitted_build_dir_key)
     }
 
-    /// Re-check the write root now that it exists. The overlap fences above
-    /// ran on the key admission computed, but a host alias planted between
-    /// that check and the first write is invisible to them — `create_dir_all`
-    /// follows a symlinked root, so establishment must confirm the spelling
-    /// still resolves to the admitted directory rather than a substituted
-    /// host path.
     fn ensure_established_write_root(
         &self,
         admitted_build_dir_key: &Path,
@@ -626,10 +565,6 @@ impl BuildMachineFilesystemScope {
         Ok(())
     }
 
-    /// Verify every declared required output is completed by exactly one
-    /// sealed regular file in this occurrence's retained staged-output tree.
-    /// Completion is linear: a required member cannot be omitted, and a
-    /// directory or inert link at its path does not complete it.
     pub(crate) fn verify_required_outputs(
         &self,
         staged_output_tree: Option<&BuildStagedOutputTree>,
@@ -689,10 +624,6 @@ impl BuildMachineFilesystemScope {
         &self,
         filesystem_reachable: bool,
     ) -> Result<Option<BuildStagedOutputTree>, Vec<Diagnostic>> {
-        // When the selected build machine cannot reach the filesystem, the
-        // Output namespace is exactly empty without needing a physical
-        // staging sponsor. Canonicalize that semantic fact so sponsored
-        // review and ordinary production retain the same observation.
         if !filesystem_reachable {
             return Ok(Some(empty()));
         }

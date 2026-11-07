@@ -62,6 +62,29 @@ pub(super) fn scalar_field_occurrence(
 }
 
 impl CurrentScalarValues<'_> {
+    /// Read only the live roster at this completed frontier. A missing or
+    /// invalidated cell cannot be reconstructed from its source initializer.
+    pub(crate) fn scalar_value_at_place(
+        &self,
+        place: &validation::CanonicalPlace,
+    ) -> Option<ScopedArithmeticValue> {
+        let owner = place.root.as_symbol()?;
+        if place.segments.is_empty() {
+            return self
+                .current
+                .iter()
+                .find(|binding| binding.symbol == owner)?
+                .value
+                .clone();
+        }
+        let path = capture_path(&place.segments, |_| None)?;
+        let mut fields = self.fields.iter().filter(|field| {
+            field.owner == owner && same_projection(self.occurrence(), &field.path, &path)
+        });
+        let value = fields.next()?.value.clone()?;
+        fields.next().is_none().then_some(value)
+    }
+
     pub(super) fn scalar_storage_path(
         &self,
         expression: ExpressionHandle,

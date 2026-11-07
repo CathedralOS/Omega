@@ -1,3 +1,9 @@
+// Domain-separated identities for rules, passes, candidates, consumed facts,
+// proof questions, and ordered rule sets (`OptimizationRuleSetIdentity`).
+//
+// `OptimizationRuleSetIdentity::from_ordered_rules` preserves the caller's
+// execution order while rejecting duplicate rule identities.
+
 use super::IDENTITY_WIDTH;
 use std::collections::BTreeSet;
 s!(OptimizationRuleIdentity => b"omega.optimization-rule-identity.v1\0");
@@ -10,9 +16,6 @@ canonical_identity!(ProofQuestionIdentity, b"omega.proof-question-identity.v1\0"
 s!(OwnershipFrontierFactIdentity => b"omega.ownership-frontier-fact-identity.v1\0");
 s!(OptimizationRuleSetIdentity => b"omega.optimization-rule-set-identity.v1\0");
 impl OptimizationRuleSetIdentity {
-    /// Bind the complete normalized execution order. Order is meaningful and
-    /// therefore is not sorted here; callers must supply the pass manager's
-    /// canonical order. Duplicate rule identities are never canonical.
     pub fn from_ordered_rules(
         rules: &[OptimizationRuleIdentity],
     ) -> Result<Self, DuplicateOptimizationRuleIdentity> {

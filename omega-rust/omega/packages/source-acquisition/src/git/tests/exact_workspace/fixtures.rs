@@ -1,3 +1,6 @@
+// Test fixture harness for exact-revision Git workspace member resolution,
+// maintaining persisted root and member tree IDs across repository drift.
+
 use super::super::{
     GitCommitId, GitSourceRequest, GitTreeId, GitWorkspaceProjectionResult, LocalSourceLimits,
     PathBuf, SourceResolver, create_git_source, fixture_storage, local_git_request, remove_fixture,

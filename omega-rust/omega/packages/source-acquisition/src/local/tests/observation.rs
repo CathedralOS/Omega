@@ -1,3 +1,7 @@
+// Unit tests verifying that `LocalSourceResolutionObservation` binds the
+// caller's request spelling and accepted limits while rejecting mismatched
+// requested roots at issuance.
+
 use super::{
     LocalSourceLimits, SourceResolveError, SourceTreePolicy, capture_local_source,
     make_tree_owner_writable, publish_local_snapshot,

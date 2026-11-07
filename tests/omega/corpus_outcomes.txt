@@ -1517,7 +1517,7 @@ fail/borrows/nested_machine_carried_live_child_rejected rejected 17528ms expecte
 	statement 6 reads `held.value` while local borrow `view` is still active (borrowed at statement 5; its last use is at statement 6)
 fail/borrows/nested_machine_carried_missing_repair_rejected rejected 15133ms expected @ccdb99ca2214
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 0): `slot` must hold a value again before this state's exits consume the borrow
-fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected rejected 15429ms expected @ccdb99ca2214
+fail/borrows/nested_machine_carried_recurrent_selector_false_guarantee_rejected rejected 22813ms expected @a5b74c596d2d
 	cannot prove ensures contract for exit from false_guarantee at statement 4: result == 23
 fail/borrows/nested_machine_carried_result_nominal_rejected rejected 13864ms expected @ccdb99ca2214
 	machine `invalid` state `entry` return value expects `Other<>`, but the value is delivered as `View<>`
@@ -3213,6 +3213,8 @@ fail/contracts/boolean_result_conflicting_normal_returns rejected 2775ms expecte
 fail/contracts/borrowed_descriptor_guarded_end_exit rejected 3223ms expected @90edc8a280a9+wt
 	cannot prove requires contract for call compare from walk: bytes[offset].number_of_pages <= 4503599627370495 && bytes[offset].physical_start <= 18446744073709551615 - bytes[offset].number_of_pages * 4096 (needs fact `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096`
 	cannot prove requires contract for call compare_mut from walk_mut: bytes[offset].number_of_pages <= 4503599627370495 && bytes[offset].physical_start <= 18446744073709551615 - bytes[offset].number_of_pages * 4096 (needs fact `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096`
+fail/contracts/borrowed_guarantee_overlapping_field_write_rejected rejected 5640ms expected @a5b74c596d2d
+	cannot prove requires contract for call consume from selected: envelope.cell.value == 32 (needs fact `cell.value == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/call_write_retires_overlapping_guard rejected 2198ms unexpected @ccdb99ca2214
 	cannot prove requires contract for call pop from twice: main.a.count >= 1 && main.a.count <= 4 (needs fact `stack.count >= 1 && stack.count <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/captured_predicate_arithmetic_policies rejected 4812ms expected @ccdb99ca2214
@@ -6105,29 +6107,29 @@ fail/facts/body_bearing_comparison_through_target_body_rejected rejected 4659ms 
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from observe: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_call_result_rejected rejected 4505ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_call_result_rejected rejected 6497ms expected @a5b74c596d2d
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_const_name_rejected rejected 4859ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_const_name_rejected rejected 6503ms expected @a5b74c596d2d
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_field_rejected rejected 4811ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_field_rejected rejected 6461ms expected @a5b74c596d2d
 	cannot prove requires contract for call carve from exercise: 32 == holder.strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && holder.strategy.tail.length == 24 && holder.strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_local_rejected rejected 4439ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_local_rejected rejected 6422ms expected @a5b74c596d2d
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_match_join_rejected rejected 5510ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_match_join_rejected rejected 6417ms expected @a5b74c596d2d
 	cannot prove requires contract for call carve from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_other_machine_rejected rejected 4747ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_other_machine_rejected rejected 6440ms expected @a5b74c596d2d
 	cannot prove requires contract for call take from exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_other_state_rejected rejected 4640ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_other_state_rejected rejected 6417ms expected @a5b74c596d2d
 	cannot prove requires contract for call next from exercise: first.length == 16 && strategy.tail.length == 32 && strategy.remaining == 32 (needs fact `first.length == 16 && strategy.tail.length == 32 && strategy.remaining == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_parameter_rejected rejected 4357ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_parameter_rejected rejected 6423ms expected @a5b74c596d2d
 	cannot prove requires contract for call carve from consume: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call finish from consume: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/borrowed_content_partition_through_target_body_rejected rejected 4652ms expected @ccdb99ca2214
+fail/facts/borrowed_content_partition_through_target_body_rejected rejected 6397ms expected @a5b74c596d2d
 	cannot prove requires contract for call carve from ArmProbe::exercise: 32 == strategy.tail.length && 8 <= 32 (needs fact `remaining == strategy.tail.length && requested <= remaining` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `exercise`
 	cannot prove requires contract for call finish from ArmProbe::exercise: first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24 (needs fact `first.length == 16 && second.length == 8 && strategy.tail.length == 24 && strategy.remaining == 24` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `exercise`
 fail/facts/borrowed_restoration_window_through_call_result_rejected rejected 2967ms expected @ccdb99ca2214
@@ -16398,8 +16400,8 @@ fail/ownership/selected_source_forwarded_live_call_carrier rejected 2921ms unexp
 fail/ownership/selected_source_live_call_carrier rejected 2884ms unexpected @ccdb99ca2214
 	statement 6 moves `left` while local borrow `holder` is still active (borrowed at statement 5; its last use is at statement 7)
 	statement 6 moves `left` while local borrow `holder` is still active (borrowed at statement 5; its last use is at statement 7)
-fail/ownership/selected_storage_join_unrelated_root rejected 4650ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from rejoin at statement 6: result in Region::Owned
+fail/ownership/selected_storage_join_unrelated_root rejected 6222ms expected @a5b74c596d2d
+	cannot prove ensures contract for exit from rejoin at statement 6: result in Region::Owned; the returned value does not establish this domain
 	linear value `first` reaches scope exit without being consumed or transferred in machine `rejoin` state `entry`
 fail/ownership/selective_constructed_owner_reuse rejected 1793ms expected @ccdb99ca2214
 	cannot use `token.value` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
@@ -20704,6 +20706,7 @@ pass/contracts/assignment_destination_before_rhs_match_guard_exit checked 2213ms
 pass/contracts/boolean_result_all_normal_returns_exit checked 3700ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/borrowed_descriptor_guarded_end_exit checked 7282ms check-target:macos_arm64 @923ef974b33c
 pass/contracts/borrowed_field_ensures checked 3420ms @ccdb99ca2214
+pass/contracts/borrowed_guarantee_disjoint_field_write_exit checked 6670ms check-target:macos_arm64 @a5b74c596d2d
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 17015ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/carry_contract_decl checked 3437ms @ccdb99ca2214
@@ -21962,15 +21965,15 @@ pass/facts/body_bearing_comparison_through_parameter_exit rejected 12585ms check
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "completed call scalar operands disagree with the target signature", gap: None })
 	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main\\", reason: \\"completed call scalar operands disagree with the target signature\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
 pass/facts/body_bearing_comparison_through_target_body_exit checked 12074ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_call_result_exit checked 4765ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_const_name_exit checked 6209ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_field_exit checked 5385ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_local_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_match_join_exit checked 5534ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_other_machine_exit checked 5497ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_other_state_exit checked 4798ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_parameter_exit checked 5473ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/borrowed_content_partition_through_target_body_exit checked 6583ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/borrowed_content_partition_through_call_result_exit checked 7668ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_const_name_exit checked 7707ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_field_exit checked 7713ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_local_exit checked 7757ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_match_join_exit checked 7676ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_other_machine_exit checked 7754ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_other_state_exit checked 7688ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_parameter_exit checked 7824ms check-target:macos_arm64 @a5b74c596d2d
+pass/facts/borrowed_content_partition_through_target_body_exit checked 10008ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @a5b74c596d2d
 pass/facts/borrowed_projection_cleanup_through_call_result_exit checked 14559ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/borrowed_projection_cleanup_through_const_name_exit checked 16315ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/borrowed_projection_cleanup_through_field_exit checked 12808ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -26710,15 +26713,12 @@ pass/ownership/runtime_zero_case_linear_inventory_exit checked 12529ms check-tar
 pass/ownership/selected_constructor_fresh_field checked 9535ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/ownership/selected_constructor_owner_cleanup checked 7539ms @ee4dbb4b2d56
 pass/ownership/selected_constructor_swapped_fields checked 20126ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/ownership/selected_storage_join_backedge_exit rejected 3582ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove ensures contract for exit from cycle at statement 0: strategy.tail.length == 48
-	cannot prove ensures contract for exit from cycle at statement 0: strategy.remaining == 48
-pass/ownership/selected_storage_join_borrowed_ingress_exit checked 5387ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/selected_storage_join_held_address_exit checked 4945ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/selected_storage_join_nested_exit checked 4845ms check-target:macos_arm64 @ccdb99ca2214
-pass/ownership/selected_storage_join_returned_owner_exit rejected 4901ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise", reason: "loan completion qualification has no exact projected carrier", gap: None })
-pass/ownership/selected_storage_join_scalar_result_exit checked 5539ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/selected_storage_join_backedge_exit checked 7730ms check-target:macos_arm64 @a5b74c596d2d
+pass/ownership/selected_storage_join_borrowed_ingress_exit checked 7703ms check-target:macos_arm64 @a5b74c596d2d
+pass/ownership/selected_storage_join_held_address_exit checked 7892ms check-target:macos_arm64 @a5b74c596d2d
+pass/ownership/selected_storage_join_nested_exit checked 7892ms check-target:macos_arm64 @a5b74c596d2d
+pass/ownership/selected_storage_join_returned_owner_exit checked 8011ms check-target:macos_arm64 @a5b74c596d2d
+pass/ownership/selected_storage_join_scalar_result_exit checked 8283ms check-target:macos_arm64 @a5b74c596d2d
 pass/ownership/shared_array_view_compile checked 3065ms @ccdb99ca2214
 pass/ownership/shared_float_view_compile checked 5484ms @ccdb99ca2214
 pass/ownership/shared_record_view_compile checked 2137ms @ccdb99ca2214

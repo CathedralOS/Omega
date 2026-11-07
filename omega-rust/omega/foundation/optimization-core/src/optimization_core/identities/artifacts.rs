@@ -1,3 +1,7 @@
+// Domain-separated identities for post-Terminal function fragments, text
+// sections, relocation-free object plans/containers, and optimized object
+// artifacts.
+
 s!(FunctionFragmentEmissionIdentity => b"omega.terminal-function-fragment-emission-identity.v1\0");
 canonical_identity!(
     FunctionFragmentEmissionManifestIdentity,

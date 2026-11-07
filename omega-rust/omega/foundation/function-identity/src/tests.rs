@@ -1,3 +1,6 @@
+// Unit tests for `MachineFunctionIdentity` scoping, 42-byte round-trip codec,
+// and rejection of zero-fingerprint or unknown-vocabulary encodings.
+
 use super::{MachineFunctionIdentity, SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 fn caller(byte: u8) -> TerminalPsiIdentity {

@@ -1,4 +1,13 @@
-//! Shared synchronized stages and atomic replacement publication.
+// Exclusive capability-relative staging (`PendingCapabilityRecord`) and atomic
+// replacement publication for `RecordFileRoot`.
+//
+// `create_exclusive_capability_stage` clones the directory handle before
+// creating `.omega-record-stage-<pid>-<seq>` so a failed clone cannot leak an
+// unguarded stage file. `prepare` writes all bytes, applies any captured
+// permissions after writing (since writing can clear mode bits), calls
+// `sync_all`, replays the written bytes from offset 0, and verifies regular-file
+// identity before returning the stage.
+
 use super::{
     CapabilityDirectory, CapabilityFile, CapabilityOpenOptions, FollowSymlinks, OsStr, OsString,
     Path, PathBuf, RecordFileError, RecordFileLimits, RecordFileRoot, enforce_byte_limit, io_at,
@@ -50,7 +59,6 @@ pub(super) fn prepare(
     enforce_byte_limit(bytes.len(), limits)?;
     let mut stage = create_exclusive_capability_stage(&root.directory, &root.display_path)?;
     io_at(stage.file.write_all(bytes), &stage.display_path)?;
-    // Apply captured permissions after writing, since a write can clear mode bits.
     if let Some(permissions) = permissions {
         io_at(stage.file.set_permissions(permissions), &stage.display_path)?;
     }
@@ -95,7 +103,6 @@ fn create_exclusive_capability_stage(
     directory: &CapabilityDirectory,
     display_directory: &Path,
 ) -> Result<PendingCapabilityRecord, RecordFileError> {
-    // Clone before creation so a failed clone cannot leave an unguarded stage.
     let directory = io_at(directory.try_clone(), display_directory)?;
     for _ in 0..MAXIMUM_STAGE_ATTEMPTS {
         let stage_id = NEXT_STAGE_ID.fetch_add(1, Ordering::Relaxed);

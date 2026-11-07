@@ -1,3 +1,6 @@
+// Unit tests for GitHub/GitLab/generic Git locator normalization, workspace
+// and external-local lineages, and Git object / content digest derivation.
+
 use super::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitObjectIdAlgorithm, GitTreeId,
     IdentityError, ImmutableSourceResolution, SourceContentDigest, SourceLineage,

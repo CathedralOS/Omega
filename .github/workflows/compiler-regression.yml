@@ -100,6 +100,9 @@ jobs:
           key: ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Install the pinned Linux smoke build tool
+        if: ${{ runner.os == 'Linux' && !inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
+        run: bash tools/agent_setup.sh --mbx-only
       - name: Execute length sample with native/Psi agreement and rejection control
         if: ${{ !inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
         run: |

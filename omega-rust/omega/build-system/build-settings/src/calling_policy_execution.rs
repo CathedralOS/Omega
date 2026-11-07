@@ -1,9 +1,30 @@
-//! Run one retained calling policy without a source compiler or source trees.
-//!
-//! Provider planning prepares the canonical signature, the selected entry and
-//! the invocation account, then calls this executor through the evaluator its
-//! `CallingProgram` carries. Build evaluation owns Terminal execution; provider
-//! planning keeps signature encoding, result decoding and validation.
+/*
+Execute a retained Terminal calling-policy machine on a canonical boundary
+signature (`evaluate_terminal_calling_policy`).
+
+`provider_planning` prepares the canonical `CallingPolicySignature`, the selected
+callable entry, and the invocation fuel/memory account, then invokes
+`evaluate_terminal_calling_policy` through the evaluator function pointer stored
+on its `CallingProgram`.
+
+Why this lives in `build-settings` without touching source trees:
+1. Calling policies are compiled once into an immutable Terminal Psi artifact (or
+   loaded from a verified package envelope) and shared across many boundary
+   signature evaluations.
+2. For each boundary signature, we admit target machine selections and target
+   layouts for `target`, verify that no boundary provider requirement is
+   unsatisfied (reporting the missing provider's display path from the retained
+   module if any requirement is unfulfilled), complete any demanded scalar
+   applications (`complete_calling_scalar_inputs`), and instantiate a fresh
+   `TerminalInstance` with the encoded structural signature argument
+   (`values::input_contents`).
+3. After `instance.invoke(&mut meter)` returns normally, we read the structural
+   result out of the instance (`values::result_value`), charge result custody to
+   the invocation account, and hand the `BuildTimeValue` back to
+   `provider_planning` (`decode_boundary_plan_result` +
+   `validate_calling_policy_result`) so every register/stack placement is checked
+   against the exact input signature.
+*/
 
 mod values;
 
@@ -20,11 +41,6 @@ use terminal_interpreter::{
 use terminal_psi::TargetMachineCallable;
 use values::{input_contents, result_value};
 
-/// Execute the selected callable on the supplied signature, decode its actual
-/// returned plan, and validate every placement against that same signature.
-/// Multiple activations borrow the same immutable code. No source elaboration,
-/// policy compilation, unchecked storage copying or alternative engine exists
-/// in this operation; envelope-loaded artifacts use the identical route.
 pub fn evaluate_terminal_calling_policy(
     invocation: TerminalCallingPolicyInvocation<'_>,
 ) -> Result<(ValidatedBoundaryEntryPlan, TerminalFuelUsage), String> {
@@ -74,8 +90,6 @@ pub fn evaluate_terminal_calling_policy(
         .execution_requirements(Some(&installation))
         .map_err(|error| format!("calling policy demands: {error:?}"))?;
     if let Some(boundary) = requirements.missing_providers.first() {
-        // A requirement with provider candidates is not a host import. Its
-        // name still comes from the same retained module the executor uses.
         let declaration = artifact
             .semantic_module()
             .boundary_machine(*boundary)
@@ -99,9 +113,6 @@ pub fn evaluate_terminal_calling_policy(
     }
     let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
         .map_err(|error| format!("calling policy fuel: {error:?}"))?;
-    let selected_entry = selected
-        .entry(selected.terminal_psi(), artifact.semantic_module(), entry)
-        .map_err(|error| format!("calling policy scalar entry: {error}"))?;
     let declaration = artifact
         .semantic_module()
         .scalar_applications
