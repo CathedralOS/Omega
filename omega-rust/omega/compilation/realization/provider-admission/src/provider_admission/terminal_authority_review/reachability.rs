@@ -1,8 +1,14 @@
-//! Physical authority observations in the shared canonical synchronous closure.
-//!
-//! Provider supply, cycle admission and authority review use the same retained
-//! call semantics. Physical mechanism classification remains native-owned and
-//! reads the corresponding lowered operations; it cannot invent call edges.
+/*
+Physical authority observations over the shared canonical synchronous closure.
+
+`AuthorityGraph` pairs `terminal_installation::SynchronousCallGraph` with
+native-owned physical mechanism observations (`PortWrite`, register/descriptor
+operations, and admitted static-interrupt `Scope` installations). When a
+reachable machine carries checked assembly whose catalog applicability rejects
+the realized target profile, `reachable_authority_edges` names the retained
+source declaration and required catalog architecture so diagnostics point
+directly at the offending machine body.
+*/
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,7 +20,7 @@ use effects::{
 use semantic_vocabulary::{BoundaryMachineId, IdSet, MachineId, OperationId};
 use terminal_psi::RegisterTargetApplicability;
 
-use super::operations::{PhysicalAuthorityUse, physical_authority_use};
+use super::{PhysicalAuthorityUse, physical_authority_use};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ReachableCheckedOperation {
@@ -28,7 +34,6 @@ pub(crate) struct ReachableAuthorityEdges {
     pub(crate) checked_operations: Vec<ReachableCheckedOperation>,
 }
 
-/// The shared canonical call graph plus this receiver's native observations.
 pub(crate) struct AuthorityGraph<'a> {
     input: &'a crate::AdmissionSource<'a>,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
@@ -75,8 +80,6 @@ impl<'a> AuthorityGraph<'a> {
         })
     }
 
-    /// Add only the finite helper calls owned by an admitted installation.
-    /// Retaining a handler address or a Scope row does not make it a call.
     pub(crate) fn with_installed_interrupts(
         mut self,
         installed: &'a crate::AdmittedInstalledInterruptCohort,
@@ -126,16 +129,8 @@ impl<'a> AuthorityGraph<'a> {
                 let function = self.functions.get(&machine).ok_or_else(|| {
                     format!("reachable internal call names absent machine {machine:?}")
                 })?;
-                // Current rewrites preserve reachable calls and their machine IDs.
-                // Any future inlining/call-erasing transform must preserve catalog
-                // applicability before this selected executable closure is walked.
                 let requirement = terminal_machine.assembly_target_requirement;
                 if !requirement.accepts_target_name(self.target_profile.target_name()) {
-                    // `MachineId` is a table coordinate. The retained source
-                    // declaration is what a reader can act on, so name it and say
-                    // which catalog architecture the realized target would have to
-                    // provide; a bare coordinate sent the next reader back to the
-                    // compiler to find out which body demanded what.
                     let declared = terminal_machine
                         .declaration
                         .as_ref()
@@ -194,8 +189,6 @@ impl<'a> AuthorityGraph<'a> {
                                 mechanism,
                             },
                         )?;
-                        // These ordinary selected bodies execute only when this
-                        // Scope executes. Arrival handlers are reviewed separately.
                         pending.extend([scope.validator(), scope.work()]);
                     }
                     match physical_authority_use(operation) {
@@ -205,9 +198,6 @@ impl<'a> AuthorityGraph<'a> {
                             port,
                             operation,
                         } => {
-                            // Psi's `validate_port_write` already proved the write's
-                            // service sits inside the machine's published ceiling;
-                            // re-asking it here would replay the same fact.
                             if self.target_profile.native_target().architecture
                                 != target::Architecture::X86_64
                             {
@@ -262,7 +252,7 @@ impl<'a> AuthorityGraph<'a> {
                                 ));
                             }
                             let intrinsic = effects::CompilerIntrinsicExecutionIdentity::checked_register(register_operation)
-                            .ok_or_else(|| format!("register access {operation:?} has no admitted compiler catalog identity"))?;
+                                .ok_or_else(|| format!("register access {operation:?} has no admitted compiler catalog identity"))?;
                             if service.is_some() != register_operation.requires_service_authority()
                             {
                                 return Err(format!(
@@ -270,8 +260,6 @@ impl<'a> AuthorityGraph<'a> {
                                 ));
                             }
                             let Some(service) = service else {
-                                // Exact no-authority catalog observation: target and identity
-                                // were checked above; no service-authority leaf is invented.
                                 continue;
                             };
                             let origin = TerminalAuthorityClosureLeafOrigin::CheckedIntrinsic {
@@ -299,7 +287,6 @@ impl<'a> AuthorityGraph<'a> {
     }
 }
 
-/// The catalog architecture a retained assembly demand names.
 fn assembly_catalog_architecture(requirement: RegisterTargetApplicability) -> &'static str {
     match requirement {
         RegisterTargetApplicability::X86_64 => "x86_64",

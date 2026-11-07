@@ -1,16 +1,29 @@
-//! Retain the ordinary operands and selected calls of guarded installation.
-//!
-//! A scope owns one activation. Its native implementation must finish every
-//! refusal check before publishing CPU state, then retain these exact loans
-//! through the selected nonreturning work call.
+// Guarded interrupt installation scope preparation and CPU configuration lease
+// enforcement.
+//
+// A scope owns one activation: its native implementation must finish every
+// refusal check before publishing CPU state, then retain the six exclusive and
+// shared loans (`table`, `GDT`, `TSS`, and `context`) through the selected
+// nonreturning `work` call.
+//
+// Borrowed table and TSS storage cannot by itself prevent a separate
+// instruction from replacing a CPU register, so `ConfigurationLease` inspects
+// the complete selected execution closure of `work` and every handler entry to
+// reject instructions that replace GDTR, TR, segment descriptors, or system/MSR
+// registers, and to require interrupt-gate handlers to keep maskable arrivals
+// disabled.
 
 use super::super::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{
     AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptScope,
     AdmittedInterruptContextAnchor,
 };
+use language_core::inline_assembly::AsmGlobalDescriptorTableOperation;
 use language_core::static_interrupts::StaticInterruptOperation;
-use terminal_psi::{OperationKind, OperationResult, StructuralAccess};
+use semantic_vocabulary::{BoundaryMachineId, IdSet, MachineId, ServiceId};
+use terminal_psi::{
+    OperationKind, OperationResult, RegisterOperation, StructuralAccess, TerminalModule,
+};
 
 pub(super) fn prepare(
     input: &NativeRealizationInput<'_>,
@@ -41,9 +54,6 @@ pub(super) fn prepare(
         installation,
         request.profile,
     )?;
-    // A private callback's provider installation describes its own executed
-    // calls. The original program entry is checked with the choices already
-    // admitted for that program, retaining its exact selected entry bridge.
     let program_calls = if let Some(context) = request.program_provider_context {
         context.require(
             artifact.view().identity(),
@@ -68,8 +78,6 @@ pub(super) fn prepare(
         .collect::<Vec<_>>();
     reached.sort_unstable();
     reached.dedup();
-    // One graph per distinct assumed entry; registrations reuse its exact
-    // selected closure rather than repeatedly walking the program.
     let mut assumed_entries = Vec::new();
     for assumption in request.installation_assumptions {
         assumption.validate_description()?;
@@ -99,8 +107,6 @@ pub(super) fn prepare(
         })
         .collect::<Result<Vec<_>, _>>()?;
     for registration in &module.installed_interrupt_registrations {
-        // Installation entries are scoped by the actual executable operations.
-        // A private handler re-entry does not execute its original Scope call.
         let first =
             ordered_entries.partition_point(|entry| entry.operation < registration.operation);
         let last =
@@ -126,10 +132,6 @@ pub(super) fn prepare(
             .boundary_machine(*boundary)
             .ok_or("installation boundary is missing")?;
         let failure = |reason| format!("installation {:?}: {reason}", operation.id);
-        // The authenticated core declaration has an ordinary `reaches` row.
-        // Its concrete contract is the published ceiling; fixed_service_reach
-        // is only the separate basis of an installation-bound requirement.
-        // This correspondence does not discharge native authority review.
         if !declaration
             .published_service_ceiling
             .contains(&registration.service)
@@ -217,8 +219,7 @@ pub(super) fn prepare(
         require_helper_input(module, validator, table_type, true)?;
         require_helper_input(module, work, context_type, false)?;
         require_retained_work(module, work)?;
-        // Boundary verdicts belong to this registration's service declaration.
-        let mut configuration = super::configuration::ConfigurationLease::new(registration.service);
+        let mut configuration = ConfigurationLease::new(registration.service);
         configuration.require(module, &calls.from_root(work)?)?;
         let mut fatal_entries = Vec::new();
         let mut anchor = None;
@@ -275,8 +276,6 @@ pub(super) fn prepare(
         if gates.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err("installed callbacks overlap one hardware gate".into());
         }
-        // Private-body reentry retains Scope's helper contract but admits only
-        // its own callback. The executing installation must own the full anchor.
         if anchor.is_none()
             && input
                 .plan()
@@ -380,9 +379,6 @@ fn require_helper_input(
     Ok(())
 }
 
-/// Publication keeps this activation and its loans live. A source promise alone
-/// cannot justify freeing that storage on a later normal return. Reconstruct
-/// the selected body's actual control before retaining its activation.
 fn require_retained_work(
     module: &terminal_psi::TerminalModule,
     work: semantic_vocabulary::MachineId,
@@ -397,9 +393,6 @@ fn require_retained_work(
     Ok(())
 }
 
-/// The sealed registrar names a formal, not a second runtime table. Bind that
-/// exact formal's retained backing type to Scope's actual exclusive table loan
-/// before any native address store can use its placement recipe.
 fn require_table_destination(
     module: &terminal_psi::TerminalModule,
     entry: &AdmittedInstalledInterruptEntry,
@@ -442,8 +435,6 @@ fn require_table_destination(
     Ok(())
 }
 
-/// The independently admitted Calling application owns the complete destination
-/// layout. Recover its gate before emission; never interpret a stack class as IST.
 fn context_anchor(
     entry: &AdmittedInstalledInterruptEntry,
 ) -> Result<AdmittedInterruptContextAnchor, String> {
@@ -480,4 +471,120 @@ fn context_anchor(
         gate_byte_offset: gate.gate_byte_offset,
         table_bytes,
     })
+}
+
+struct ConfigurationLease {
+    machine_control: ServiceId,
+    bodies: IdSet<MachineId>,
+    boundaries: IdSet<BoundaryMachineId>,
+    masked_bodies: IdSet<MachineId>,
+}
+
+impl ConfigurationLease {
+    fn new(machine_control: ServiceId) -> Self {
+        Self {
+            machine_control,
+            bodies: IdSet::default(),
+            boundaries: IdSet::default(),
+            masked_bodies: IdSet::default(),
+        }
+    }
+
+    fn require(
+        &mut self,
+        module: &TerminalModule,
+        closure: &terminal_installation::SynchronousCallClosure<'_>,
+    ) -> Result<(), String> {
+        for body in &closure.machines {
+            if !self.bodies.insert(body.id) {
+                continue;
+            }
+            for operation in body.blocks.iter().flat_map(|block| &block.operations) {
+                let replaces_configuration = match &operation.kind {
+                    OperationKind::ActivateTaskRegister { .. }
+                    | OperationKind::ReloadSegmentDescriptors { .. } => true,
+                    OperationKind::GlobalDescriptorTable { operation, .. } => {
+                        *operation == AsmGlobalDescriptorTableOperation::Load
+                    }
+                    OperationKind::RegisterAccess { event, .. } => {
+                        changes_configuration(event.operation())
+                    }
+                    _ => false,
+                };
+                if replaces_configuration {
+                    return Err(format!(
+                        "installed context requires stable CPU configuration; machine {:?} operation {:?} can replace it",
+                        body.id, operation.id,
+                    ));
+                }
+            }
+        }
+        for &boundary in &closure.boundaries {
+            if !self.boundaries.insert(boundary) {
+                continue;
+            }
+            let declaration = module
+                .boundary_machine(boundary)
+                .ok_or("installed execution reaches a missing boundary")?;
+            let intrinsic = declaration
+                .declaration
+                .as_ref()
+                .and_then(|declaration| declaration.execution.static_interrupt_operation());
+            match intrinsic {
+                Some(StaticInterruptOperation::Install) => {
+                    return Err("installed execution can publish another table before retiring the live root".into());
+                }
+                Some(
+                    StaticInterruptOperation::Context
+                    | StaticInterruptOperation::BeginCompletion
+                    | StaticInterruptOperation::FinishCompletion,
+                ) => {}
+                None if declaration
+                    .published_service_ceiling
+                    .contains(&self.machine_control) =>
+                {
+                    return Err(format!(
+                        "installed context requires a checked configuration-preserving body for machine-control boundary {boundary:?}",
+                    ));
+                }
+                None => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn require_masked(
+        &mut self,
+        closure: &terminal_installation::SynchronousCallClosure<'_>,
+    ) -> Result<(), String> {
+        for body in &closure.machines {
+            if !self.masked_bodies.insert(body.id) {
+                continue;
+            }
+            for operation in body.blocks.iter().flat_map(|block| &block.operations) {
+                if matches!(&operation.kind,
+                    OperationKind::RegisterAccess { event, .. }
+                    if event.operation() == RegisterOperation::InterruptControl(
+                        language_core::inline_assembly::AsmInterruptControlKind::Enable))
+                {
+                    return Err(format!(
+                        "masked installed handler machine {:?} operation {:?} enables nested maskable arrivals",
+                        body.id, operation.id,
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+fn changes_configuration(operation: RegisterOperation) -> bool {
+    matches!(
+        operation,
+        RegisterOperation::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Load)
+            | RegisterOperation::TaskRegisterActivate
+            | RegisterOperation::SegmentReload(_)
+            | RegisterOperation::SystemWrite(_)
+            | RegisterOperation::ModelSpecificWrite
+    )
 }

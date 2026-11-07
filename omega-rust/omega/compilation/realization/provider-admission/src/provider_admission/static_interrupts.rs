@@ -1,25 +1,38 @@
-//! Keep the exact selected handler available for an installed interrupt.
-//!
-//! This admission authorizes emission of its private code entry. Publishing a
-//! table and executing the installation helpers still require separate backing,
-//! live-arrival and physical-authority admission; these rows grant none of them.
+/*
+Static interrupt handler entry admission, arrival helper association checking,
+and installed interrupt boundary settlement.
+
+`require_helper_associations` checks semantic token associations before the
+separate physical installation gate, and `admit` binds each proposed handler
+entry to its checked installation occurrence, private placement, and registrar
+table materialization before preparing the installation's `scopes`.
+*/
+
+/*
+`settle` settles only operations whose exact installation (`Scope`) or arrival
+helper was admitted into `AdmittedInstalledInterruptCohort`. A recognized
+declaration alone never supplies a native implementation, and these rows grant
+neither root memory nor permission to publish IDTR until the native
+implementation executes its guarded installation.
+*/
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use diagnostics::Diagnostic;
+use language_core::static_interrupts::StaticInterruptOperation;
+use semantic_vocabulary::{BoundaryMachineId, OperationId};
 use terminal_psi::OperationKind;
 
-use super::{NativeRealizationInput, ProviderAdmissionRequest};
+use super::{
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
+    NativeRealizationInput, ProviderAdmissionRequest, SettledCompilerBuiltin,
+    TerminalAuthorityPolicy,
+};
 use crate::{AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry};
 
 mod arrival_helpers;
-mod configuration;
 mod scopes;
-mod settlement;
-pub(super) use settlement::settle;
 
-/// Check semantic token associations before the separate physical installation
-/// gate. Success here grants neither root memory nor permission to publish IDTR.
 pub(super) fn require_helper_associations(
     input: &NativeRealizationInput<'_>,
     request: &ProviderAdmissionRequest<'_, '_>,
@@ -44,9 +57,7 @@ pub(super) fn require_helper_associations(
             installation,
             request.profile,
         )
-        .map_err(|reason| {
-            super::diagnostics::realization_error("installed arrival call graph", reason)
-        })?;
+        .map_err(|reason| super::realization_error("installed arrival call graph", reason))?;
         arrival_helpers::validate(input, request, entry_custody, &calls, &operations).map_err(
             |reason| {
                 vec![Diagnostic::error(format!(
@@ -69,9 +80,8 @@ pub(super) fn require_helper_associations(
             .boundary_machine(boundary)
             .and_then(|boundary| boundary.declaration.as_ref())
             .and_then(|declaration| declaration.execution.static_interrupt_operation());
-        if kind.is_some_and(|kind| {
-            kind != language_core::static_interrupts::StaticInterruptOperation::Install
-        }) && !covered.contains(&operation.id)
+        if kind.is_some_and(|kind| kind != StaticInterruptOperation::Install)
+            && !covered.contains(&operation.id)
         {
             return Err(vec![Diagnostic::error(format!(
                 "installed interrupt arrival: helper {:?} has no exact registered arrival association",
@@ -114,8 +124,6 @@ pub(super) fn admit(
         .operations()
         .filter_map(|op| op.psi_operation())
         .collect();
-    // Private bodies keep the whole retained roster, but only their reached
-    // installations demand entries. Avoid indexing catalogs for unrelated code.
     if helpers.is_empty()
         && request.installed_interrupts.is_empty()
         && !module
@@ -199,9 +207,6 @@ pub(super) fn admit(
                 return Err("entry changed its retained body/placement association".into());
             }
             let thunk = occurrence.callback_thunk_artifact();
-            // The private body is re-admitted under its own entry. Its original
-            // installation need not execute inside that body, but the complete
-            // occurrence join above still binds this exact application and plan.
             if !reached.contains(&proposal.operation) && thunk.entry() != input.plan().entry {
                 return Err(
                     "entry is neither at a reached installation nor this exact private body".into(),
@@ -304,9 +309,138 @@ pub(super) fn admit(
     Ok(AdmittedInstalledInterruptCohort {
         psi: input.plan().psi,
         entries: admitted,
-        // These are the guarded operation's inputs, not a successful runtime
-        // installation. Publication still belongs to its native implementation.
         scopes,
         helpers,
     })
+}
+
+pub(super) fn settle<'execution>(
+    input: &NativeRealizationInput<'_>,
+    cohort: &AdmittedInstalledInterruptCohort,
+    policy: &TerminalAuthorityPolicy,
+) -> Result<
+    (
+        Vec<AdmittedBoundarySettlement<'execution>>,
+        Vec<AdmittedTerminalMechanism>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let fail = |reason: &str| {
+        vec![Diagnostic::error(format!(
+            "installed interrupt execution: {reason}"
+        ))]
+    };
+    if cohort.psi() != input.plan().psi {
+        return Err(fail("cohort belongs to another Terminal program"));
+    }
+    let mut scopes = cohort
+        .scopes()
+        .iter()
+        .map(|scope| (scope.operation(), scope))
+        .collect::<Vec<_>>();
+    scopes.sort_unstable_by_key(|(operation, _)| *operation);
+    if scopes.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(fail("installation operation has duplicate scopes"));
+    }
+    let mut helpers = cohort
+        .helpers()
+        .iter()
+        .map(|helper| (helper.operation(), helper.kind()))
+        .collect::<Vec<_>>();
+    helpers.sort_unstable();
+    if helpers
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Err(fail("arrival helper has conflicting operation kinds"));
+    }
+    helpers.dedup();
+    let mut boundaries = input
+        .plan()
+        .boundary_machines
+        .iter()
+        .map(|boundary| (boundary.id, boundary))
+        .collect::<Vec<_>>();
+    boundaries.sort_unstable_by_key(|(boundary, _)| *boundary);
+    if boundaries.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(fail("boundary declaration is duplicated"));
+    }
+    let mut executions: Vec<(BoundaryMachineId, StaticInterruptOperation)> = Vec::new();
+    for row in input.plan().operations() {
+        let abstract_operations::AbstractOperation::BoundaryCall {
+            psi_operation,
+            boundary,
+            ..
+        } = row
+        else {
+            continue;
+        };
+        let declaration = boundaries
+            .binary_search_by_key(boundary, |(id, _)| *id)
+            .ok()
+            .and_then(|position| boundaries[position].1.declaration.as_ref());
+        let Some(kind) =
+            declaration.and_then(|declaration| declaration.execution.static_interrupt_operation())
+        else {
+            continue;
+        };
+        match kind {
+            StaticInterruptOperation::Install => {
+                let scope = scopes
+                    .binary_search_by_key(psi_operation, |(operation, _)| *operation)
+                    .ok()
+                    .map(|position| scopes[position].1)
+                    .ok_or_else(|| fail("reached installation has no exact admitted scope"))?;
+                if scope.boundary() != *boundary {
+                    return Err(fail("installation changed its admitted boundary"));
+                }
+            }
+            _ => {
+                let position = helpers
+                    .binary_search_by_key(psi_operation, |(operation, _): &(OperationId, _)| {
+                        *operation
+                    })
+                    .map_err(|_| fail("reached helper has no admitted arrival association"))?;
+                if helpers[position].1 != kind {
+                    return Err(fail("helper changed its admitted kind"));
+                }
+            }
+        }
+        executions.push((*boundary, kind));
+    }
+    executions.sort_unstable();
+    if executions
+        .windows(2)
+        .any(|pair| pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1)
+    {
+        return Err(fail("boundary has conflicting installed operation kinds"));
+    }
+    executions.dedup();
+    let mut settlements = Vec::with_capacity(executions.len());
+    let mut mechanisms = Vec::with_capacity(executions.len());
+    for (boundary, operation) in executions {
+        let identity = effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation);
+        policy.classify(identity).map_err(|error| {
+            fail(&format!(
+                "operation has no receiving physical classification: {error:?}"
+            ))
+        })?;
+        let settled = SettledCompilerBuiltin::from_identity(identity, boundary, None)
+            .ok_or_else(|| fail("operation is absent from the compiler execution catalog"))?;
+        settlements.push(AdmittedBoundarySettlement {
+            boundary,
+            execution: AdmittedBoundaryExecution::CompilerBuiltin(settled),
+            realization: target_operations::BoundarySettlementRealization::Builtin(
+                target_operations::BoundaryRealization::StaticInterrupt {
+                    boundary,
+                    operation,
+                },
+            ),
+        });
+        mechanisms.push(AdmittedTerminalMechanism {
+            boundary,
+            mechanism: identity.into(),
+        });
+    }
+    Ok((settlements, mechanisms))
 }

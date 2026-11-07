@@ -1,8 +1,14 @@
-//! Check that an arrival helper consumes this handler's acknowledgement.
-//!
-//! Equal token layouts are insufficient. Calls must forward the unchanged
-//! arrival value, context views must name the installation's actual context,
-//! and completion must return normally before its permit can be finished.
+// Arrival helper acknowledgement and completion-permit association validation.
+//
+// Equal token layouts are insufficient to associate an arrival helper with an
+// interrupt handler. Calls must forward the unchanged arrival value, context
+// views (`Context`) must name the installation's actual context, and the
+// selected `InterruptAcknowledgementCompletion` controller must return normally
+// between `BeginCompletion` and `FinishCompletion`.
+//
+// We validate each registered handler independently through `Calls`: sharing a
+// helper body does not merge installations, and every incoming invocation to a
+// helper-bearing body must carry a registered token association.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -10,17 +16,16 @@ use language_core::static_interrupts::StaticInterruptOperation;
 use semantic_vocabulary::{
     IdTable, InvocationSite, MachineId, OperationId, PsiSemanticId, StructuralTypeId,
 };
+use terminal_installation::SynchronousCallGraph;
 use terminal_psi::{
-    OperationKind, StructuralAccess, StructuralArgument, StructuralTypeShape,
-    TerminalInstalledInterruptRegistration, TerminalMachine, TerminalModule,
+    OperationKind, OperationResult, StructuralAccess, StructuralArgument, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalInstalledInterruptRegistration, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator,
 };
 use terminal_semantics::descriptor_results::{
     self, DescriptorMachine, ValueIdentityAnalysis, ValueIdentitySeed,
 };
 
-mod invocations;
-
-/// A checked association, still awaiting installation backing and publication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ArrivalHelperUse {
     pub installation: OperationId,
@@ -57,9 +62,6 @@ struct Associations {
     calls: BTreeSet<(MachineId, Option<InvocationSite>, MachineId)>,
 }
 
-/// Validate each registered handler independently. Sharing a helper body does
-/// not merge installations: every incoming invocation must satisfy its own
-/// context and completion selection.
 pub(super) fn validate(
     input: &super::super::NativeRealizationInput<'_>,
     request: &super::super::ProviderAdmissionRequest<'_, '_>,
@@ -117,7 +119,7 @@ pub(super) fn validate(
                 .ok_or("installed handler has no retained executable occurrence")
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let invocations = invocations::Calls::new(
+    let invocations = Calls::new(
         module,
         &bodies,
         call_graph,
@@ -169,9 +171,6 @@ pub(super) fn validate(
                 "installation completion must return Unit without a recoverable crash route".into(),
             );
         }
-        // This is Scope's mandatory, exactly selected core
-        // InterruptAcknowledgementCompletion contract. Its actual formal is
-        // the Ack type even when no context-view application was instantiated.
         let [acknowledgement] = completion.structural_parameters.as_slice() else {
             return Err("installation completion lost its one acknowledgement formal".into());
         };
@@ -197,9 +196,6 @@ pub(super) fn validate(
             }) {
                 return Err("installed arrival changed its exact checked handler body".into());
             }
-            // PreparedEntries authenticates the selected entry signature. The
-            // mandatory Completion formal identifies its core Ack type.
-            // Non-Ack, nonreturning exception entries carry no token.
             let parameters = if callback.application_index == acknowledgement_entry {
                 if body.structural_parameters.len() != 1
                     || body.structural_parameters[0].access != StructuralAccess::Owned
@@ -237,13 +233,14 @@ pub(super) fn validate(
     Ok(associations.helpers)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_closure<'a>(
     module: &'a TerminalModule,
     graph: &'a [DescriptorMachine],
     identities: &mut IdTable<MachineId, Option<ValueIdentityAnalysis<'a>>>,
     orders: &mut IdTable<MachineId, Option<ExecutionOrder<'a>>>,
     bodies: &IdTable<MachineId, Option<&'a TerminalMachine>>,
-    invocations: &invocations::Calls<'a>,
+    invocations: &Calls<'a>,
     root: &Root<'_>,
     callback_application: u32,
     initial: Invocation,
@@ -275,8 +272,6 @@ fn check_closure<'a>(
         }
         let order = order.as_ref().expect("prepared arrival execution order");
         let mut births = Vec::new();
-        // Birth recognition is independent of block storage order. Identity
-        // replay still requires the producer to have completed on every path.
         for operation in body.operations() {
             if operation_kind(module, &operation.kind)
                 == Some(StaticInterruptOperation::BeginCompletion)
@@ -493,10 +488,7 @@ struct ExecutionOrder<'a> {
 }
 
 impl<'a> ExecutionOrder<'a> {
-    fn new(
-        body: &'a TerminalMachine,
-        invocations: &[invocations::Call<'a>],
-    ) -> Result<Self, String> {
+    fn new(body: &'a TerminalMachine, invocations: &[Call<'a>]) -> Result<Self, String> {
         let mut positions = BTreeMap::new();
         for block in &body.blocks {
             for (ordinal, operation) in block.operations.iter().enumerate() {
@@ -524,8 +516,6 @@ impl<'a> ExecutionOrder<'a> {
                 return Err("arrival execution order repeats a terminal invocation".into());
             }
         }
-        // Every possible target must be this exact normally returning
-        // controller. One matching dynamic alternative is not completion.
         let mut calls = Vec::new();
         for call in invocations {
             if call.normal_return
@@ -599,8 +589,6 @@ fn require_completed_controller(
     }
 }
 
-/// Body-local rosters may retain gaps after pruning. Keep those gaps explicit
-/// so lookup is an ID offset, without treating a neighboring row as a match.
 fn flat_rows<Id: PsiSemanticId, T>(
     mut rows: Vec<(Id, T)>,
 ) -> Result<IdTable<Id, Option<T>>, String> {
@@ -699,8 +687,6 @@ pub(super) fn selected_body(
     Ok(body.id)
 }
 
-/// Select the sole callback whose actual destination is the request's exact
-/// slot application. A sibling with an identical Ack signature is not a birth.
 pub(super) fn acknowledgement_entry(
     module: &TerminalModule,
     registration: &TerminalInstalledInterruptRegistration,
@@ -780,4 +766,260 @@ pub(super) fn acknowledgement_entry(
         }
     }
     selected.ok_or_else(|| "installation has no acknowledgement-producing destination".into())
+}
+
+struct Call<'a> {
+    site: Option<InvocationSite>,
+    callees: Vec<MachineId>,
+    arguments: &'a [StructuralArgument],
+    normal_return: bool,
+}
+
+struct Calls<'a> {
+    bodies: IdTable<MachineId, Option<BodyCalls<'a>>>,
+}
+
+struct BodyCalls<'a> {
+    calls: Vec<Call<'a>>,
+    has_helpers: bool,
+}
+
+impl<'a> Calls<'a> {
+    fn new(
+        module: &'a TerminalModule,
+        bodies: &IdTable<MachineId, Option<&'a TerminalMachine>>,
+        graph: &SynchronousCallGraph<'a>,
+        roots: impl IntoIterator<Item = MachineId>,
+    ) -> Result<Self, String> {
+        let mut pending: Vec<_> = roots.into_iter().collect();
+        let mut prepared = bodies.map(|_, _| None);
+        while let Some(machine) = pending.pop() {
+            if prepared.get(machine).is_some_and(Option::is_some) {
+                continue;
+            }
+            let body = bodies
+                .get(machine)
+                .copied()
+                .flatten()
+                .ok_or_else(|| format!("arrival invocation body {machine:?} is missing"))?;
+            let mut calls = Vec::new();
+            for block in &body.blocks {
+                for invocation in block.module_invocations() {
+                    let callee = bodies
+                        .get(invocation.inputs.callee)
+                        .copied()
+                        .flatten()
+                        .ok_or("arrival direct invocation has no exact body")?;
+                    calls.push(Call {
+                        site: Some(invocation.site),
+                        callees: vec![callee.id],
+                        arguments: invocation.inputs.structural_arguments,
+                        normal_return: matches!(invocation.site, InvocationSite::Operation(_))
+                            && callee.result == TerminalMachineResult::Unit
+                            && invocation.inputs.crash_continuations.is_empty(),
+                    });
+                }
+                for operation in &block.operations {
+                    let (callees, arguments, crash_free) = match &operation.kind {
+                        OperationKind::BoundaryCall {
+                            boundary,
+                            structural_arguments,
+                            ..
+                        } => {
+                            if operation_kind(module, &operation.kind).is_some() {
+                                continue;
+                            }
+                            (
+                                graph.boundary_callee(*boundary)?.into_iter().collect(),
+                                structural_arguments.as_slice(),
+                                module
+                                    .boundary_machine(*boundary)
+                                    .ok_or("arrival boundary invocation lost its declaration")?
+                                    .crash_routes
+                                    .is_empty(),
+                            )
+                        }
+                        OperationKind::CallDynamic {
+                            interface,
+                            slot,
+                            family_actuals,
+                            structural_arguments,
+                            crash_continuations,
+                            ..
+                        } => {
+                            let mut callees = graph.dynamic_callees(
+                                *interface,
+                                *slot,
+                                !family_actuals.is_empty(),
+                            )?;
+                            callees.sort_unstable();
+                            callees.dedup();
+                            (
+                                callees,
+                                structural_arguments.as_slice(),
+                                crash_continuations.is_empty(),
+                            )
+                        }
+                        _ => continue,
+                    };
+                    calls.push(Call {
+                        site: Some(InvocationSite::Operation(operation.id)),
+                        callees,
+                        arguments,
+                        normal_return: operation.result == OperationResult::Unit && crash_free,
+                    });
+                }
+                if let Terminator::ExternalCompletion {
+                    edge,
+                    boundary,
+                    structural_arguments,
+                    ..
+                } = &block.terminator
+                {
+                    calls.push(Call {
+                        site: Some(InvocationSite::ExternalCompletion(*edge)),
+                        callees: graph.boundary_callee(*boundary)?.into_iter().collect(),
+                        arguments: structural_arguments,
+                        normal_return: false,
+                    });
+                }
+                for (_, actions) in block.terminator.cleanup_rosters() {
+                    for action in actions {
+                        if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                            calls.push(Call {
+                                site: None,
+                                callees: vec![cleanup.cleanup_machine],
+                                arguments: &[],
+                                normal_return: false,
+                            });
+                        }
+                    }
+                }
+            }
+            for call in &calls {
+                if call.site.is_some() {
+                    for &callee in &call.callees {
+                        let callee = bodies
+                            .get(callee)
+                            .copied()
+                            .flatten()
+                            .ok_or("arrival invocation lost its exact callee")?;
+                        if callee.structural_parameters.len() != call.arguments.len()
+                            || callee
+                                .structural_parameters
+                                .iter()
+                                .zip(call.arguments)
+                                .any(|(formal, actual)| formal.access != actual.access)
+                        {
+                            return Err(format!(
+                                "arrival invocation {:?} changed its actual/formal roster",
+                                call.site,
+                            ));
+                        }
+                    }
+                }
+            }
+            pending.extend(calls.iter().flat_map(|call| call.callees.iter()).copied());
+            let has_helpers = body.operations().any(|operation| {
+                operation_kind(module, &operation.kind)
+                    .is_some_and(|kind| kind != StaticInterruptOperation::Install)
+            });
+            *prepared
+                .get_mut(machine)
+                .ok_or("arrival invocation has no body slot")? =
+                Some(BodyCalls { calls, has_helpers });
+        }
+        Ok(Self { bodies: prepared })
+    }
+
+    fn get(&self, machine: MachineId) -> Result<&[Call<'a>], String> {
+        self.bodies
+            .get(machine)
+            .and_then(Option::as_ref)
+            .map(|body| body.calls.as_slice())
+            .ok_or_else(|| format!("arrival invocation roster for {machine:?} is missing"))
+    }
+
+    fn reachable_from(
+        &self,
+        roots: impl IntoIterator<Item = MachineId>,
+    ) -> Result<Vec<MachineId>, String> {
+        let mut pending: Vec<_> = roots.into_iter().collect();
+        let mut reached = self.bodies.map(|_, _| false);
+        while let Some(machine) = pending.pop() {
+            let seen = reached
+                .get_mut(machine)
+                .ok_or("arrival closure has no body slot")?;
+            if !std::mem::replace(seen, true) {
+                pending.extend(
+                    self.get(machine)?
+                        .iter()
+                        .flat_map(|call| &call.callees)
+                        .copied(),
+                );
+            }
+        }
+        Ok(reached
+            .iter()
+            .filter_map(|(machine, &seen)| seen.then_some(machine))
+            .collect())
+    }
+
+    fn require_associated_calls(
+        &self,
+        reached: &IdTable<MachineId, Option<()>>,
+        associated: &BTreeSet<(MachineId, Option<InvocationSite>, MachineId)>,
+    ) -> Result<(), String> {
+        let mut reverse = self.bodies.map(|_, _| Vec::new());
+        let mut helpers = self.bodies.map(|_, _| false);
+        let mut pending = Vec::new();
+        for (caller, body) in self.bodies.iter() {
+            let Some(body) = body else {
+                continue;
+            };
+            if body.has_helpers {
+                pending.push(caller);
+            }
+            for call in &body.calls {
+                for &callee in &call.callees {
+                    reverse
+                        .get_mut(callee)
+                        .ok_or("arrival incoming call has no callee slot")?
+                        .push(caller);
+                }
+            }
+        }
+        while let Some(callee) = pending.pop() {
+            let seen = helpers
+                .get_mut(callee)
+                .ok_or("arrival helper has no body slot")?;
+            if !std::mem::replace(seen, true) {
+                let callers = reverse
+                    .get(callee)
+                    .ok_or("arrival reverse call has no body slot")?;
+                pending.extend(callers.iter().copied());
+            }
+        }
+        for (caller, body) in self.bodies.iter() {
+            if !reached.get(caller).is_some_and(Option::is_some) {
+                continue;
+            }
+            let Some(body) = body else {
+                continue;
+            };
+            for call in &body.calls {
+                for &callee in &call.callees {
+                    if helpers.get(callee) == Some(&true)
+                        && !associated.contains(&(caller, call.site, callee))
+                    {
+                        return Err(format!(
+                            "arrival invocation {:?} from {caller:?} to {callee:?} has no registered token association",
+                            call.site,
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }

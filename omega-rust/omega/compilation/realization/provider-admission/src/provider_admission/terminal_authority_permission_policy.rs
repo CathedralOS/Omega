@@ -1,19 +1,37 @@
-//! Receiving permission policy for D45's service/terminal containment join.
+/*
+Receiving permission policy and package-permission custody for service/terminal
+containment.
 
+`TerminalAuthorityPermissionPolicy` holds the exact sorted `(service_schema,
+requirement_identity)` permission rows accepted for one native realization. Both
+authority-bearing and authority-free terminal leaves require explicit
+schema/requirement permission rows under this deny-by-absence policy.
+
+`validate_retained_package_terminal_authority_permissions` rejoins the rows
+retained before checked-state destruction to the exact package-acceptance policy
+supplied independently at retained re-entry: unlike the receiving policy, it
+admits no unrelated extra rows and requires every retained rule and every
+accepted rule to match one-for-one.
+`validate_package_terminal_authority_permission_custody` rejects repeated
+`(service_schema, requirement)` coordinates across the checked compilation's
+resolved bindings even when no receiving policy was supplied.
+*/
+
+use std::collections::BTreeSet;
+
+use diagnostics::Diagnostic;
 pub use effects::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
 use effects::{
-    TerminalAuthorityDisposition, TerminalAuthorityPermissionPolicyIdentity,
-    provider_plan::ServiceSchemaDigest,
+    ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition,
+    TerminalAuthorityPermissionPolicyIdentity, provider_plan::ServiceSchemaDigest,
 };
 
 pub(crate) const TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION: u32 = 1;
 
-/// Exact receiving policy accepted for one native realization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityPermissionPolicy {
     identity: TerminalAuthorityPermissionPolicyIdentity,
-    /// Identity table every row's `requirement_identity` index resolves against.
-    identities: terminal_psi::TerminalIdentityTable,
+    identities: terminal_psi::TerminalIdentityTable, // Table every row's `requirement_identity` index resolves against.
     rows: Vec<TerminalAuthorityPermissionPolicyRow>,
 }
 
@@ -22,7 +40,6 @@ impl TerminalAuthorityPermissionPolicy {
         self.identity
     }
 
-    /// The table the policy rows' `TerminalIdentityIndex` values index.
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
     }
@@ -120,8 +137,6 @@ pub fn terminal_authority_permission_policy_with_rows(
     })
 }
 
-/// Empty, exact deny-by-absence policy. Authority-bearing and authority-free
-/// terminal leaves both require explicit schema/requirement permission rows.
 fn permission_policy_identity(
     rows: &[TerminalAuthorityPermissionPolicyRow],
     identities: &terminal_psi::TerminalIdentityTable,
@@ -147,4 +162,84 @@ fn permission_policy_identity(
         TERMINAL_AUTHORITY_PERMISSION_POLICY_VERSION,
         digest.finish(),
     )
+}
+
+pub fn validate_retained_package_terminal_authority_permissions(
+    retained: &[ServiceTerminalAuthorityPermission],
+    retained_identities: &terminal_psi::TerminalIdentityTable,
+    accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut seen = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+    for permission in retained {
+        let requirement = retained_identities
+            .text(permission.requirement_identity())
+            .unwrap_or_default()
+            .to_owned();
+        let coordinate = (permission.service_schema(), requirement.clone());
+        if !seen.insert(coordinate) {
+            diagnostics.push(Diagnostic::error(format!(
+                "retained Terminal package permission custody repeats terminal-authority permission `{requirement}` for one exact service schema",
+            )));
+            continue;
+        }
+        match accepted.rows().iter().find(|row| {
+            row.service_schema() == permission.service_schema()
+                && accepted.identities().text(row.requirement_identity())
+                    == Some(requirement.as_str())
+        }) {
+            Some(row) if row.permitted() == permission.permitted() => {}
+            Some(_) => diagnostics.push(Diagnostic::error(format!(
+                "retained Terminal package permission for `{requirement}` alters the accepted disposition",
+            ))),
+            None => diagnostics.push(Diagnostic::error(format!(
+                "retained Terminal package permission for `{requirement}` has no accepted package row",
+            ))),
+        }
+    }
+    for row in accepted.rows() {
+        let requirement = accepted
+            .identities()
+            .text(row.requirement_identity())
+            .unwrap_or_default();
+        if !seen.contains(&(row.service_schema(), requirement.to_owned())) {
+            diagnostics.push(Diagnostic::error(format!(
+                "accepted package terminal-authority permission for `{requirement}` was not retained",
+            )));
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        let mut all = vec![Diagnostic::error(
+            "retained Terminal package permissions differ from the independently accepted package policy",
+        )];
+        all.append(&mut diagnostics);
+        Err(all)
+    }
+}
+
+pub fn validate_package_terminal_authority_permission_custody<'a>(
+    permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
+    identities: &terminal_psi::TerminalIdentityTable,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut seen = BTreeSet::new();
+    let mut diagnostics = Vec::new();
+    for permission in permissions {
+        let requirement = identities
+            .text(permission.requirement_identity())
+            .unwrap_or_default()
+            .to_owned();
+        let coordinate = (permission.service_schema(), requirement.clone());
+        if !seen.insert(coordinate) {
+            diagnostics.push(Diagnostic::error(format!(
+                "package permission custody repeats terminal-authority permission `{requirement}` for one exact service schema",
+            )));
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
 }

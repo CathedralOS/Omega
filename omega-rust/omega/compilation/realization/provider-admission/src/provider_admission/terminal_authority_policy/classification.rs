@@ -1,4 +1,20 @@
-//! Optimizer module role: classification leaf. Closed intrinsic authority dispositions.
+/*
+Closed compiler-intrinsic inventory and authority-disposition classification.
+
+`committed_policy_mechanisms` enumerates the exact `CLOSED_POLICY_ROW_COUNT`
+non-parameterized compiler-intrinsic coordinates committed into the policy
+table, using `BuiltinFunction::COUNT` directly so catalog additions do not
+require a duplicate count edit here.
+
+`classify_compiler_intrinsic` assigns each intrinsic's host-authority classes:
+static interrupt installation and privileged register/descriptor operations
+require `MachineControl`, port I/O builtins require `PortIo`, hosted exit/write/
+read builtins require `ProcessTermination`/`ProcessOutput`/`ProcessInput`, and
+storage, lifecycle, address-observation, caller-RAM accessor, and arithmetic
+intrinsics exercise no host authority class.
+*/
+
+use std::sync::OnceLock;
 
 use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
@@ -9,16 +25,114 @@ use effects::{
 use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
 use symbols::BuiltinFunction;
 
-use super::model::UnclassifiedTerminalMechanism;
+use super::UnclassifiedTerminalMechanism;
+
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 494 + BuiltinFunction::COUNT as u32;
+const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
+const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
+    ArithmeticDomain::Exact,
+    ArithmeticDomain::Wrapping,
+    ArithmeticDomain::Saturating,
+    ArithmeticDomain::Trapping,
+];
+
+pub(super) fn committed_policy_mechanisms() -> &'static [CompilerIntrinsicExecutionIdentity] {
+    static MECHANISMS: OnceLock<Vec<CompilerIntrinsicExecutionIdentity>> = OnceLock::new();
+    MECHANISMS.get_or_init(closed_policy_mechanisms)
+}
+
+pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdentity> {
+    let mut mechanisms = Vec::with_capacity(CLOSED_POLICY_ROW_COUNT as usize);
+    mechanisms.extend(
+        language_core::static_interrupts::StaticInterruptOperation::ALL
+            .map(CompilerIntrinsicExecutionIdentity::StaticInterrupt),
+    );
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedExitProcessI32);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedWriteByteI32);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::HostedReadByte);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::EmptyRunRelease);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterActivate);
+    mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterRead);
+    mechanisms.extend(
+        [
+            terminal_psi::SegmentReload::Code,
+            terminal_psi::SegmentReload::Data,
+        ]
+        .map(CompilerIntrinsicExecutionIdentity::SegmentReload),
+    );
+    mechanisms.extend(
+        [
+            terminal_psi::SegmentRegister::Code,
+            terminal_psi::SegmentRegister::Data,
+            terminal_psi::SegmentRegister::Extra,
+            terminal_psi::SegmentRegister::Stack,
+            terminal_psi::SegmentRegister::Fs,
+            terminal_psi::SegmentRegister::Gs,
+        ]
+        .map(CompilerIntrinsicExecutionIdentity::SegmentRead),
+    );
+    mechanisms.extend(
+        [
+            terminal_psi::TerminalAccessLifecycleOperation::Initialize,
+            terminal_psi::TerminalAccessLifecycleOperation::MoveOut,
+            terminal_psi::TerminalAccessLifecycleOperation::View,
+            terminal_psi::TerminalAccessLifecycleOperation::Relocate,
+        ]
+        .map(CompilerIntrinsicExecutionIdentity::AccessLifecycle),
+    );
+    mechanisms.extend(
+        BuiltinFunction::ALL
+            .into_iter()
+            .map(|(function, _)| CompilerIntrinsicExecutionIdentity::BuiltinFunction(function)),
+    );
+    for operation in CompilerPrimitiveFloatBinaryOperation::ALL {
+        for format in FLOAT_FORMATS {
+            mechanisms.push(CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                operation,
+                format,
+            });
+        }
+    }
+    for operation in CompilerPrimitiveIntegerComparisonOperation::ALL {
+        for integer_type in CompilerNumericType::ALL {
+            if integer_type.is_float() {
+                continue;
+            }
+            mechanisms.push(
+                CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                    operation,
+                    integer_type,
+                },
+            );
+        }
+    }
+    mechanisms.extend(
+        FLOAT_FORMATS
+            .into_iter()
+            .map(CompilerIntrinsicExecutionIdentity::NamedFloatNegation),
+    );
+    for source in CompilerNumericType::ALL {
+        for target in CompilerNumericType::ALL {
+            for domain in ARITHMETIC_DOMAINS {
+                mechanisms.push(CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                    source,
+                    target,
+                    domain,
+                });
+            }
+        }
+    }
+    assert_eq!(mechanisms.len(), CLOSED_POLICY_ROW_COUNT as usize);
+    mechanisms
+}
 
 pub(super) fn classify_compiler_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> TerminalAuthorityDisposition {
     match mechanism {
         CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
-            // Helpers read the admitted root or retire its pending debt. Only
-            // installation changes CPU descriptor-table state; selected Work
-            // and Completion retain their own transitive port/control demands.
             if operation == language_core::static_interrupts::StaticInterruptOperation::Install {
                 disposition([TerminalAuthorityClass::MachineControl])
             } else {
@@ -26,16 +140,10 @@ pub(super) fn classify_compiler_intrinsic(
             }
         }
         CompilerIntrinsicExecutionIdentity::ProgramStorageEntry
-        | CompilerIntrinsicExecutionIdentity::EmptyRunRelease => {
-            // These operations forward existing backing authority. Entry's
-            // selected continuation still publishes its own transitive demands.
-            empty_disposition()
-        }
-        CompilerIntrinsicExecutionIdentity::AccessLifecycle(_) => {
-            // Read/write authority comes only from the existing live extent
-            // and admitted profile. Executing its lifecycle adds no host class.
-            empty_disposition()
-        }
+        | CompilerIntrinsicExecutionIdentity::EmptyRunRelease
+        | CompilerIntrinsicExecutionIdentity::AccessLifecycle(_)
+        | CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart
+        | CompilerIntrinsicExecutionIdentity::AccessorScalarAccess { .. } => empty_disposition(),
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
             disposition([TerminalAuthorityClass::ProcessTermination])
         }
@@ -44,17 +152,6 @@ pub(super) fn classify_compiler_intrinsic(
         }
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             disposition([TerminalAuthorityClass::ProcessInput])
-        }
-        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => {
-            // Address observation is not memory access or an ownership grant.
-            empty_disposition()
-        }
-        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess { .. } => {
-            // This child can only execute against an independently proved live
-            // caller RAM loan. It reaches no host/device resource; this empty
-            // classification supplies no backing, placement or access grant.
-            // Native admission still requires its exact realization and custody.
-            empty_disposition()
         }
         CompilerIntrinsicExecutionIdentity::TaskRegisterActivate
         | CompilerIntrinsicExecutionIdentity::TaskRegisterRead
