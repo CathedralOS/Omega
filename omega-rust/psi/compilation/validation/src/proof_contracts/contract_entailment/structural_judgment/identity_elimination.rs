@@ -391,6 +391,7 @@ mod tests {
             &[],
             false,
         );
+        judge.runtime_body_values = true;
         judge.intake_identity(left.clone(), right.clone());
         assert!(matches!(
             judge.judge_data_identity(left.clone(), right, 0),
@@ -416,6 +417,7 @@ mod tests {
             &[],
             false,
         );
+        judge.runtime_body_values = true;
         let marker = StructuralTerm::Variable("marker".to_owned());
         judge.intake_identity(
             constructor(
