@@ -17,7 +17,7 @@ use typed_trees::statement::StatementNode;
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
-use validation::mathematical_applications::{PreparedIndexedTheorem, operand_type_reference};
+use validation::mathematical_applications::PreparedIndexedTheorem;
 use validation::mathematical_applications::{PreparedSourceCarrier, PreparedSourceEvidence};
 
 impl Elaborator<'_> {
@@ -273,7 +273,7 @@ impl Elaborator<'_> {
         context: &Context,
         signature: &Signature,
     ) -> Result<(), Vec<Diagnostic>> {
-        let Some(reference) = operand_type_reference(self.program, expression) else {
+        let Some(reference) = self.source_operand_type_reference(expression) else {
             return Ok(());
         };
         if !self.known_source_family(reference) || !self.scope.is_empty() {

@@ -16,7 +16,7 @@ use super::dependencies::{free_positions, rebind_domain};
 use super::{Elaborator, ScalarCarrier};
 use validation::expression_traversal::children;
 use validation::mathematical_applications::{
-    integer_embedding_meaning, operand_type_reference, source_operations_have_same_meaning,
+    integer_embedding_meaning, source_operations_have_same_meaning,
 };
 
 /// Construction-time custody of one opaque source operation. The selected
@@ -248,17 +248,20 @@ impl<'a> Elaborator<'a> {
             let carrier = self.integer_carrier();
             return self.numeric_literal(carrier, value);
         }
-        if operand_type_reference(self.program, handle).is_some_and(|reference| {
-            self.program
-                .primitive_type_reference(reference)
-                .is_some_and(|primitive| primitive.is_fixed_integer())
-                && self.program.arithmetic_domain_for_type_reference(reference)
-                    != numerics::arithmetic::ArithmeticDomain::Exact
-        }) {
+        if self
+            .source_operand_type_reference(handle)
+            .is_some_and(|reference| {
+                self.program
+                    .primitive_type_reference(reference)
+                    .is_some_and(|primitive| primitive.is_fixed_integer())
+                    && self.program.arithmetic_domain_for_type_reference(reference)
+                        != numerics::arithmetic::ArithmeticDomain::Exact
+            })
+        {
             return self.open_term(handle);
         }
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         let spelling = match binary.operator {
             BinaryOperator::Add => language_core::OperatorSpelling::Add,
             BinaryOperator::Subtract => language_core::OperatorSpelling::Subtract,
@@ -326,7 +329,7 @@ impl<'a> Elaborator<'a> {
         // An opaque operation's declared result can be the first occurrence
         // of a data carrier. Elaborate that exact source domain before asking
         // which carrier it denotes; signature occurrence is not authority.
-        let source_type = operand_type_reference(self.program, handle);
+        let source_type = self.source_operand_type_reference(handle);
         let source_domain = source_type
             .map(|reference| self.elaborate_source_operand_type(reference))
             .transpose()?;

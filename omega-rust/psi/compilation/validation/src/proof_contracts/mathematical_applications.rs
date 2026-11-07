@@ -99,6 +99,20 @@ pub fn operand_type_reference(
             _ => None,
         })
         .unwrap_or_else(|| program.symbols.root());
+    operand_type_reference_in_declaration(program, owner, expression)
+}
+
+/// Read an operand under its retained declaration telescope. Sibling trait
+/// operations and applied signatures can return types that belong to that
+/// exact owner; a context-free call query cannot export those local binders.
+pub fn operand_type_reference_in_declaration(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    if !program.expression_table.expression_is_valid(expression) {
+        return None;
+    }
     crate::value_custody::expression_types::declaration_expression_result_type_reference(
         program,
         owner,

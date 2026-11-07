@@ -14,9 +14,7 @@ use typed_trees::data::DataField;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::expression_owners::{OwnerEnvironmentIndex, source_declaration_owner};
-use validation::mathematical_applications::{
-    PreparedSourceConstructor, PreparedSourceEvidence, operand_type_reference,
-};
+use validation::mathematical_applications::{PreparedSourceConstructor, PreparedSourceEvidence};
 
 /// Temporary named values are placeholders only while constructing a lambda.
 /// Each retained schema abstracts every placeholder, including dependent child
@@ -528,7 +526,7 @@ impl Elaborator<'_> {
             let operand =
                 self.source_constructor_operand(expression, reference, &literal, field)?;
             self.span = Some(self.program.expression_table.source_span(operand));
-            let actual = operand_type_reference(self.program, operand).ok_or_else(|| {
+            let actual = self.source_operand_type_reference(operand).ok_or_else(|| {
                 self.refuse("source recursive child has no retained actual application".into())
             })?;
             // Kernel descriptions can be structurally equal for distinct source

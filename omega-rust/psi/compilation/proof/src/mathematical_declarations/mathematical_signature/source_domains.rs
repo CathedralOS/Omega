@@ -52,6 +52,24 @@ pub(super) enum SourceFormation {
 }
 
 impl Elaborator<'_> {
+    /// Keep the declaration that supplied this value when reading its type.
+    /// In particular, a sibling requirement's result is scoped by the same
+    /// exact telescope as its operands, before any calculus conversion.
+    pub(super) fn source_operand_type_reference(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        if self.source_owner.is_valid() {
+            validation::mathematical_applications::operand_type_reference_in_declaration(
+                self.program,
+                self.source_owner,
+                expression,
+            )
+        } else {
+            validation::mathematical_applications::operand_type_reference(self.program, expression)
+        }
+    }
+
     /// Construct all mathematical Apply spines and retain their source-domain
     /// obligations together. Ordinary calls, generic terms and dependent type
     /// applications differ in argument roles, never in application formation.
@@ -167,7 +185,7 @@ impl Elaborator<'_> {
         {
             None
         } else {
-            validation::mathematical_applications::operand_type_reference(self.program, expression)
+            self.source_operand_type_reference(expression)
         };
         reference
             .map(|reference| {

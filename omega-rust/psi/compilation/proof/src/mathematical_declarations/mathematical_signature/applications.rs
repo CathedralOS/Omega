@@ -18,7 +18,7 @@ use validation::expression_owners::{
 };
 use validation::expression_traversal::children;
 use validation::mathematical_applications::{
-    MathematicalBinderKind, expression_nodes, operand_type_reference, source_generic_argument_plan,
+    MathematicalBinderKind, expression_nodes, source_generic_argument_plan,
 };
 
 pub(super) struct SourceApplication {
@@ -100,7 +100,7 @@ impl Elaborator<'_> {
                         || self.program.symbols.builtin_type_atom(path.symbol).is_some());
                 let reference = (!mathematical && !declaration_description)
                     .then(|| {
-                        operand_type_reference(self.program, operand).or_else(|| {
+                        self.source_operand_type_reference(operand).or_else(|| {
                             checked_expression_type_reference_from_exact_owner(
                                 self.program,
                                 &contract_facts,

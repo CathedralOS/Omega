@@ -11,7 +11,6 @@ use super::{Elaborator, ScalarCarrier};
 use numerics::literals::FloatFormat;
 use typed_trees::proposition::ProofSubstitutions;
 use typed_trees::types::PrimitiveType;
-use validation::mathematical_applications::operand_type_reference;
 
 impl<'a> Elaborator<'a> {
     /// is a proposition form at all — `None` names an ordinary term and
@@ -166,8 +165,8 @@ impl<'a> Elaborator<'a> {
                         .render_proof_expression(handle, ProofSubstitutions::None)
                 ))
             })?;
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         if let Some(term) = self.float_comparison(handle, binary, Some(carrier))? {
             return Ok(term);
         }
@@ -213,8 +212,8 @@ impl<'a> Elaborator<'a> {
         let carrier = self
             .operand_carrier(binary.left)
             .or_else(|| self.operand_carrier(binary.right));
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         if let Some(term) = self.float_comparison(handle, binary, carrier)? {
             return Ok(term);
         }
@@ -270,8 +269,8 @@ impl<'a> Elaborator<'a> {
             Some(ScalarCarrier::Float64) => (ScalarCarrier::Float64, FloatFormat::F64),
             _ => return Ok(None),
         };
-        let references = [binary.left, binary.right]
-            .map(|operand| operand_type_reference(self.program, operand));
+        let references =
+            [binary.left, binary.right].map(|operand| self.source_operand_type_reference(operand));
         if !validation::has_builtin_or_sealed_float_comparison_meaning(
             self.program,
             self.source_owner,
