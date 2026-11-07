@@ -20,7 +20,7 @@ checked-trees = { path = "../../../psi/compilation/representations/checked-trees
 effects = { path = "../backend/plans/effects" }
 package-evidence = { path = "../../packages/review-evidence" }
 arena = { path = "../../../psi/foundation/arena" }
-native-production = { path = "../native-production" }
+native-compiler = { path = "../native-compiler" }
 compilation-products = { path = "../products" }
 component-description = { path = "../backend/artifacts/component-description" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }

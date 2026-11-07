@@ -26,7 +26,7 @@ import subprocess
 import sys
 
 
-NATIVE_ROOT = "omega-rust/omega/compilation/native-production"
+NATIVE_ROOT = "omega-rust/omega/compilation/native-compiler"
 PROVIDER_SELECTION_ROOT = "omega-rust/omega/compilation/realization/provider-selection"
 PROVIDER_ADMISSION_ROOT = "omega-rust/omega/compilation/realization/provider-admission"
 TRUST_ROOT = "omega-rust/omega/compilation/realization/trust-model"

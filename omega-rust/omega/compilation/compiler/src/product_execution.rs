@@ -18,7 +18,7 @@ use compilation_products::{
 };
 use component::ComponentPublication;
 use diagnostics::Diagnostic;
-use native_production::TerminalApplication;
+use native_compiler::TerminalApplication;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 

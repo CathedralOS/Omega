@@ -134,7 +134,7 @@ members = [
     "omega-rust/psi/compilation/validation/representation-planning",
     "omega-rust/omega/compilation/realization/trust-model",
     "omega-rust/omega/compilation/products",
-    "omega-rust/omega/compilation/native-production",
+    "omega-rust/omega/compilation/native-compiler",
     "omega-rust/omega/compilation/compiler",
     "omega-rust/omega/packages/review-evidence",
     "omega-rust/omega/packages/package-compilation",

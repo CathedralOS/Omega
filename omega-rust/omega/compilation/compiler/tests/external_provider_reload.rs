@@ -107,7 +107,7 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
             .clone(),
     )
     .expect("package permission policy");
-    let bytes = native_production::retain_native_derivation_inputs(
+    let bytes = native_compiler::retain_native_derivation_inputs(
         proposal.program_entry().checked_entry(),
         proposal.program_entry().physical_adapter().is_some(),
         proposal.target_provider_proposals(),

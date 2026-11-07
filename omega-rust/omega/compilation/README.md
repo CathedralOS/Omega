@@ -6,7 +6,7 @@ that calls them lives in [../build-system/](../build-system/README.md).
 | Directory | Responsibility |
 | --- | --- |
 | [compiler/](compiler/README.md) | Product compilation coordination; Cargo package `compiler` |
-| `native-production/` | The native compiler: Terminal Psi to a native image; Cargo package `native-production` |
+| `native-compiler/` | The native compiler: Terminal Psi to a native image; Cargo package `native-compiler` |
 | [products/](products/README.md) | Requests, retained results, reports and publication |
 | [pipeline/](../../pipeline.md#connected-program-route) | Numbered transformations and optimization passes |
 | [representations/](representations/README.md) | Independent native program forms and their support packages |
