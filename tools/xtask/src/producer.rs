@@ -76,6 +76,102 @@ fn optimized(profile: &Value, flags: &Value) -> Result<(), String> {
     Ok(())
 }
 
+fn unit_fingerprints(directory: &Path, name: &str) -> Result<Vec<PathBuf>, String> {
+    let mut paths = Vec::new();
+    for entry in
+        fs::read_dir(directory).map_err(|e| format!("read {}: {e}", directory.display()))?
+    {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|value| value.ends_with(&suffix))
+        {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
+}
+
+fn artifact_fingerprints(
+    file: &Path,
+    name: &str,
+    digest: &str,
+    binary: bool,
+) -> Result<Vec<PathBuf>, String> {
+    let directory = file.parent().ok_or("artifact has no parent")?;
+    // mbx keeps each exact unit's outputs beside its own fingerprint folder.
+    if directory.file_name().is_some_and(|value| value == "out") {
+        return unit_fingerprints(
+            &directory
+                .parent()
+                .ok_or("unit output has no parent")?
+                .join("fingerprint"),
+            name,
+        );
+    }
+    let profile = if directory.file_name().is_some_and(|value| value == "deps") {
+        directory.parent().ok_or("deps has no parent")?
+    } else {
+        directory
+    };
+    let mut outputs = std::collections::BTreeMap::new();
+    let cargo = profile.join(".fingerprint");
+    if cargo.is_dir() {
+        for entry in fs::read_dir(&cargo).map_err(|e| e.to_string())? {
+            let unit = entry.map_err(|e| e.to_string())?.path();
+            let Some((_, hash)) = unit
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(|n| n.rsplit_once('-'))
+            else {
+                continue;
+            };
+            for candidate in [
+                format!("lib{name}-{hash}.rlib"),
+                format!("{name}-{hash}{}", std::env::consts::EXE_SUFFIX),
+            ] {
+                let output = profile.join("deps").join(candidate);
+                if output.is_file() && execution::digest(&output)? == digest {
+                    outputs.insert(output, unit_fingerprints(&unit, name)?);
+                }
+            }
+        }
+    }
+    // An unhashed CLI is a copy of one exact internal output. Identify that
+    // output by bytes in either layout; multiple matching old units refuse.
+    if binary && directory.file_name().is_none_or(|value| value != "deps") {
+        let builds = profile.join("build");
+        if builds.is_dir() {
+            for package in fs::read_dir(builds).map_err(|e| e.to_string())? {
+                let package = package.map_err(|e| e.to_string())?.path();
+                if !package.is_dir() {
+                    continue;
+                }
+                for unit in fs::read_dir(package).map_err(|e| e.to_string())? {
+                    let unit = unit.map_err(|e| e.to_string())?.path();
+                    let output = unit
+                        .join("out")
+                        .join(file.file_name().ok_or("binary has no name")?);
+                    if output.is_file() && execution::digest(&output)? == digest {
+                        outputs.insert(output, unit_fingerprints(&unit.join("fingerprint"), name)?);
+                    }
+                }
+            }
+        }
+    }
+    if outputs.len() != 1 {
+        return Err(format!(
+            "{} does not identify one exact compiler output",
+            file.display()
+        ));
+    }
+    Ok(outputs
+        .into_values()
+        .next()
+        .ok_or("matching output disappeared")?)
+}
+
 fn artifact_receipt(artifact: &Value) -> Result<Value, String> {
     let executable = artifact["executable"].as_str().map(PathBuf::from);
     let files = artifact["filenames"]
@@ -91,63 +187,34 @@ fn artifact_receipt(artifact: &Value) -> Result<Value, String> {
                 .map(PathBuf::from)
         })
         .ok_or("artifact has no compiler image")?;
+    if !files
+        .iter()
+        .filter_map(Value::as_str)
+        .any(|name| Path::new(name) == file.as_path())
+    {
+        return Err("compiler executable is absent from its Cargo artifact filenames".to_owned());
+    }
     let digest = execution::digest(&file)?;
     let name = artifact["target"]["name"]
         .as_str()
-        .ok_or("artifact has no target name")?;
-    let directory = file.parent().ok_or("artifact has no parent")?;
-    let profile_dir = if directory.file_name().is_some_and(|v| v == "deps") {
-        directory.parent().ok_or("deps has no parent")?
-    } else {
-        directory
-    };
-    let fingerprints = profile_dir.join(".fingerprint");
-    let mut matches = Vec::new();
-    for entry in
-        fs::read_dir(&fingerprints).map_err(|e| format!("read {}: {e}", fingerprints.display()))?
-    {
-        let path = entry.map_err(|e| e.to_string())?.path();
-        let Some((_, hash)) = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .and_then(|n| n.rsplit_once('-'))
-        else {
-            continue;
-        };
-        let candidates = [
-            format!("lib{name}-{hash}.rlib"),
-            format!("{name}-{hash}{}", std::env::consts::EXE_SUFFIX),
-        ];
-        if !candidates.iter().any(|n| {
-            let candidate = profile_dir.join("deps").join(n);
-            candidate.is_file() && execution::digest(&candidate).is_ok_and(|v| v == digest)
-        }) {
-            continue;
-        }
-        for stem in [
-            format!("bin-{name}"),
-            format!("test-integration-test-{name}"),
-            format!("lib-{name}"),
-        ] {
-            let path = path.join(format!("{stem}.json"));
-            if !path.is_file() {
-                continue;
-            }
-            let bytes = fs::read(&path).map_err(|e| e.to_string())?;
-            let fingerprint: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-            optimized(&artifact["profile"], &fingerprint["rustflags"])?;
-            matches.push(
-                json!({"path": path, "sha256": execution::digest(&path)?, "contents": fingerprint}),
-            );
-        }
-    }
-    if matches.is_empty() {
+        .ok_or("artifact has no target name")?
+        .replace('-', "_");
+    let paths = artifact_fingerprints(&file, &name, &digest, executable.is_some())?;
+    if paths.len() != 1 {
         return Err(format!(
-            "no matching Cargo fingerprint for {}",
+            "{} does not identify one exact compiler fingerprint",
             file.display()
         ));
     }
-    Ok(json!({"path": file, "sha256": digest, "cargo_artifact": artifact, "fingerprints": matches}))
+    let path = &paths[0];
+    let bytes = fs::read(path).map_err(|e| e.to_string())?;
+    let fingerprint: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+    optimized(&artifact["profile"], &fingerprint["rustflags"])?;
+    let contents = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+    Ok(
+        json!({"path": file, "sha256": digest, "cargo_artifact": artifact, "fingerprints": [{"path": path,
+        "sha256": execution::digest(path)?, "contents": contents, "rustflags": fingerprint["rustflags"]}]}),
+    )
 }
 
 fn build(
@@ -382,6 +449,58 @@ mod tests {
         assert!(producer.verify().is_err());
         assert!(artifact_receipt(&artifact).is_err());
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn authenticates_mbx_units_and_refuses_ambiguous_unhashed_outputs() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-mbx-profile-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let profile = root.join("debug");
+        let unit = profile.join("build/omega/abcd");
+        fs::create_dir_all(unit.join("out")).unwrap();
+        fs::create_dir_all(unit.join("fingerprint")).unwrap();
+        let executable = profile.join(format!("omega{}", std::env::consts::EXE_SUFFIX));
+        let internal = unit.join("out").join(executable.file_name().unwrap());
+        fs::write(&executable, b"same compiler bytes").unwrap();
+        fs::write(&internal, b"same compiler bytes").unwrap();
+        fs::write(
+            unit.join("fingerprint/bin-omega.json"),
+            br#"{"rustflags":[]}"#,
+        )
+        .unwrap();
+        let artifact = json!({"executable": executable, "filenames": [executable], "target": {"name": "omega"}, "profile": {"opt_level": "1"}});
+        assert!(artifact_receipt(&artifact).is_ok());
+        let direct = json!({"executable": internal, "filenames": [internal], "target": {"name": "omega"}, "profile": {"opt_level": "1"}});
+        assert!(artifact_receipt(&direct).is_ok());
+        let library = unit.join("out/libcompiler-abcd.rlib");
+        fs::write(&library, b"library image").unwrap();
+        fs::write(
+            unit.join("fingerprint/lib-compiler.json"),
+            br#"{"rustflags":[]}"#,
+        )
+        .unwrap();
+        assert!(artifact_receipt(&json!({"executable": null, "filenames": [library], "target": {"name": "compiler"}, "profile": {"opt_level": "1"}})).is_ok());
+        let other = profile.join("build/omega/another");
+        fs::create_dir_all(other.join("out")).unwrap();
+        fs::create_dir_all(other.join("fingerprint")).unwrap();
+        fs::copy(
+            &internal,
+            other.join("out").join(executable.file_name().unwrap()),
+        )
+        .unwrap();
+        fs::copy(
+            unit.join("fingerprint/bin-omega.json"),
+            other.join("fingerprint/bin-omega.json"),
+        )
+        .unwrap();
+        assert!(artifact_receipt(&artifact).is_err());
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

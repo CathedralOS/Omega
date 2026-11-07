@@ -245,38 +245,16 @@ fn accept_pending_decisions(review_bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 fn retain_accepted_inputs(sample_dir: &Path, evidence: &Path) -> Result<(), String> {
-    let root = repo_root();
-    let output = Command::new("git")
-        .args([
-            "ls-files",
-            "--others",
-            "--ignored",
-            "--exclude-standard",
-            "-z",
-            "--",
-            "**/omega.lock",
-            "**/omega.admissions",
-        ])
-        .current_dir(&root)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| format!("list accepted lock inputs: {e}"))?;
-    if !output.status.success() {
-        return Err("could not enumerate accepted lock inputs".to_owned());
-    }
+    // The selected root lock contains its accepted dependency closure.
     let directory = evidence.join("accepted-inputs");
     fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
     let mut retained = Vec::new();
-    for name in output
-        .stdout
-        .split(|byte| *byte == 0)
-        .filter(|name| !name.is_empty())
-    {
-        let relative = std::str::from_utf8(name).map_err(|e| e.to_string())?;
-        let source = root.join(relative);
+    for relative in ["omega.lock", "omega.admissions"] {
+        let source = sample_dir.join(relative);
+        if !source.is_file() {
+            continue;
+        }
         let target = directory.join(relative);
-        fs::create_dir_all(target.parent().ok_or("lock input has no parent")?)
-            .map_err(|e| e.to_string())?;
         let before = execution::digest(&source)?;
         let metadata = fs::metadata(&source).map_err(|e| e.to_string())?;
         fs::copy(&source, &target).map_err(|e| format!("retain {}: {e}", source.display()))?;
@@ -289,7 +267,7 @@ fn retain_accepted_inputs(sample_dir: &Path, evidence: &Path) -> Result<(), Stri
     execution::write_json(
         &directory.join("manifest.json"),
         &serde_json::json!({"project": sample_dir, "inputs": retained,
-        "capture_scope": "Omega lock and admissions files materialized in this qualification checkout after project acceptance; copied state grants no authority in another checkout."}),
+        "capture_scope": "Selected project acceptance after ordinary update/resume; the root lock includes its dependency closure, and copied state grants no authority in another checkout."}),
     )
 }
 
