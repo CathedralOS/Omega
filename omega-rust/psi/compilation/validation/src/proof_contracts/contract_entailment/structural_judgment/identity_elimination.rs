@@ -52,6 +52,14 @@ impl StructuralJudge<'_> {
                             selections,
                             self.frame_resolver(),
                         )
+                        .inspect_err(|reason| {
+                            self.trace_identity_eta(
+                                "selected-call-refusal",
+                                Some(value),
+                                None,
+                                format_args!("reason={reason}"),
+                            );
+                        })
                         .is_ok())
             }
             StructuralTerm::ObservedValue {

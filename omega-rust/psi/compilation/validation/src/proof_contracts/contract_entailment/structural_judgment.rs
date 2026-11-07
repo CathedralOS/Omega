@@ -33,6 +33,7 @@ mod data_identity;
 mod domain_premises;
 mod equations;
 mod identity_elimination;
+mod identity_eta_observations;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
