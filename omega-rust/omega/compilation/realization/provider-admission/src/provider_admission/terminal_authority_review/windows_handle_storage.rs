@@ -99,8 +99,14 @@ pub(super) struct HandleScalarStorage {
 }
 
 pub(super) enum HandleScalarSelection {
-    Exact(HandleScalarStorage),
-    Family(HandleStorageRange),
+    Exact {
+        location: DescriptorLocation,
+        storage: HandleScalarStorage,
+    },
+    Family {
+        location: DescriptorLocation,
+        range: HandleStorageRange,
+    },
 }
 
 pub(super) enum HandlePointerKind {
@@ -310,6 +316,69 @@ pub(super) struct HandleStorageGeometry<'a> {
 }
 
 impl<'a> HandleStorageGeometry<'a> {
+    pub(super) fn source_context(&self) -> (semantic_vocabulary::MachineId, usize) {
+        (self.body.id, self.activation)
+    }
+
+    /// Inline byte fields have their own original carrier contract even when
+    /// the catalog has no standalone structural type for that leaf.
+    fn inline_byte_carrier(
+        &self,
+        location: &DescriptorLocation,
+    ) -> Result<terminal_psi::ByteSequenceCarrier, String> {
+        let Some((DescriptorPathSegment::Field(field), prefix)) = location.path.split_last() else {
+            return Err(
+                "untyped handle content source is not an original inline byte field".into(),
+            );
+        };
+        let (prefix, selected_case) = match prefix.split_last() {
+            Some((DescriptorPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
+            _ => (prefix, None),
+        };
+        let owner = DescriptorLocation {
+            root: location.root,
+            path: prefix.to_vec(),
+        };
+        let carrier = self
+            .carrier(&owner)?
+            .and_then(|carrier| {
+                terminal_psi::find_structural_type(&self.module.structural_types, carrier)
+            })
+            .ok_or("inline byte field has no original parent carrier")?;
+        let fields = match selected_case {
+            Some(case) => {
+                let cases = carrier
+                    .shape
+                    .sum_cases()
+                    .ok_or("inline byte payload has no original sum carrier")?;
+                let mut matching = cases.iter().filter(|candidate| candidate.id == case);
+                let case = matching
+                    .next()
+                    .ok_or("inline byte payload has no original case")?;
+                if matching.next().is_some() {
+                    return Err("inline byte payload case is ambiguous".into());
+                }
+                case.fields.as_slice()
+            }
+            None => carrier
+                .shape
+                .record_fields()
+                .ok_or("inline byte field has no original field roster")?,
+        };
+        let mut matching = fields
+            .iter()
+            .filter(|candidate| candidate.id == *field && !candidate.relevance.is_erased());
+        let field = matching
+            .next()
+            .ok_or("inline byte field is absent from its original parent")?;
+        if matching.next().is_some() {
+            return Err("inline byte field identity is ambiguous".into());
+        }
+        field
+            .field_type
+            .byte_sequence_carrier()
+            .ok_or("untyped handle content source is not a byte carrier".into())
+    }
     pub(super) fn primitive_scalar(&self, carrier: StructuralTypeId) -> Option<ScalarType> {
         match terminal_psi::find_structural_type(&self.module.structural_types, carrier)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
@@ -336,16 +405,16 @@ impl<'a> HandleStorageGeometry<'a> {
         if !sequence.precise || sequence.length.is_none_or(|length| ordinal >= length) {
             return Err("handle collection pointer census has no exact selected element".into());
         }
-        let element = sequence
-            .element
-            .ok_or("handle collection has no declared pointer element")?;
-        let selected = self.region(element, &[])?;
+        let byte_length = match sequence.element {
+            Some(element) => self.region(element, &[])?.byte_length,
+            None if sequence.stride == 1 => 1,
+            None => return Err("handle byte collection changes its original unit stride".into()),
+        };
         let start = ordinal
             .checked_mul(sequence.stride)
             .and_then(|offset| sequence.range.byte_offset().checked_add(offset))
             .ok_or("handle collection pointer offset overflows")?;
-        let result =
-            HandleStorageRange::new(sequence.range.backing(), start, selected.byte_length)?;
+        let result = HandleStorageRange::new(sequence.range.backing(), start, byte_length)?;
         if !sequence.range.contains(&result) {
             return Err("handle collection pointer exceeds its actual data window".into());
         }
@@ -464,9 +533,10 @@ impl<'a> HandleStorageGeometry<'a> {
                             return Err("unknown handle element cannot select a resident reference's pointee".into());
                         }
                         let source = self.location(place, &selected)?;
-                        return Ok(HandleScalarSelection::Family(
-                            self.sequence(&source, references)?.range,
-                        ));
+                        return Ok(HandleScalarSelection::Family {
+                            range: self.sequence(&source, references)?.range,
+                            location: source,
+                        });
                     }
                 }
             } else {
@@ -474,9 +544,8 @@ impl<'a> HandleStorageGeometry<'a> {
             }
         }
         let location = self.location(place, &selected)?;
-        Ok(HandleScalarSelection::Exact(
-            self.scalar(&location, references, expected)?,
-        ))
+        let storage = self.scalar(&location, references, expected)?;
+        Ok(HandleScalarSelection::Exact { location, storage })
     }
 
     pub(super) fn element_stride(&self, element: StructuralTypeId) -> Result<u64, String> {
@@ -585,6 +654,21 @@ impl<'a> HandleStorageGeometry<'a> {
         references: &HandleReferences,
     ) -> Result<CapturedHandleSequence, String> {
         let (range, selected, _) = self.resolve(location, references)?;
+        if self.carrier(location)?.is_none() {
+            if !matches!(
+                self.inline_byte_carrier(location)?,
+                terminal_psi::byte_sequence_view_carrier_pattern!()
+            ) {
+                return Err("inline owned byte contents have no retained live data window".into());
+            }
+            let captured = references
+                .sequence(&range)
+                .ok_or("inline byte descriptor has no captured data window")?;
+            if captured.element.is_some() || captured.stride != 1 {
+                return Err("inline byte descriptor changes its original byte carrier".into());
+            }
+            return Ok(captured.clone());
+        }
         let carrier = self
             .carrier(location)?
             .and_then(|carrier| {
@@ -681,22 +765,22 @@ impl<'a> HandleStorageGeometry<'a> {
     ) -> Result<HandleStorageRange, String> {
         use terminal_semantics::descriptor_lifetimes::DescriptorContentsStep;
         let mut location = DescriptorLocation::whole(query.root);
-        for step in &query.steps {
+        for (ordinal, step) in query.steps.iter().enumerate() {
             match step {
                 DescriptorContentsStep::Address(segment) => location.path.push(segment.clone()),
                 DescriptorContentsStep::AnyElement { .. } => {
-                    let carrier = self.carrier(&location)?.and_then(|carrier| {
-                        terminal_psi::find_structural_type(&self.module.structural_types, carrier)
-                    });
-                    if !matches!(
-                        carrier.map(|carrier| &carrier.shape),
-                        Some(StructuralTypeShape::FixedArray { .. })
-                    ) {
+                    if query.steps[ordinal + 1..].iter().any(|step| {
+                        matches!(
+                            step,
+                            DescriptorContentsStep::Address(DescriptorPathSegment::Referent)
+                        )
+                    }) {
                         return Err(
-                            "handle may-write collection has no captured contiguous backing".into(),
+                            "unknown handle write cannot select a resident reference's pointee"
+                                .into(),
                         );
                     }
-                    break;
+                    return Ok(self.sequence(&location, references)?.range);
                 }
             }
         }

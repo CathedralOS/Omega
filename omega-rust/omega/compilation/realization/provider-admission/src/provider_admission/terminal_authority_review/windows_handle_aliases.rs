@@ -66,13 +66,22 @@ impl HandleWordAliases {
         scalar_type: ScalarType,
         operands: impl IntoIterator<Item = Self>,
     ) -> Self {
+        Self::derived_from_dependencies(
+            scalar_type,
+            operands
+                .into_iter()
+                .flat_map(|operand| operand.dependencies),
+        )
+    }
+
+    pub(super) fn derived_from_dependencies(
+        scalar_type: ScalarType,
+        dependencies: impl IntoIterator<Item = HandleInstance>,
+    ) -> Self {
         Self {
             scalar_type,
             exact: None,
-            dependencies: operands
-                .into_iter()
-                .flat_map(|operand| operand.dependencies)
-                .collect(),
+            dependencies: dependencies.into_iter().collect(),
         }
     }
 

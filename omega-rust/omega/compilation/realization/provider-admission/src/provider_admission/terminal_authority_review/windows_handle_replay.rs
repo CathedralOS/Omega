@@ -32,7 +32,8 @@ use super::windows_handle_lifetimes::{
 };
 use super::windows_handle_storage::{
     CapturedHandleReferences, CapturedHandleSequence, CapturedHandleStorage, HandlePointerKind,
-    HandleReferences, HandleScalarStorage, HandleStorageBindings, HandleStorageGeometry,
+    HandleReferences, HandleScalarSelection, HandleScalarStorage, HandleStorageBindings,
+    HandleStorageGeometry,
 };
 use super::windows_handle_values::LocalScalarExpressions;
 
@@ -321,6 +322,7 @@ struct CanonicalHandleState {
 /// operation can substitute another graph's convenient storage or equations.
 struct HandleMachineReplay<'a> {
     body: &'a terminal_psi::TerminalMachine,
+    block: &'a terminal_psi::Block,
     prepared: &'a PreparedHandleMachine,
     graph: &'a DescriptorMachine,
     calls: &'a HandleCallGraph<'a>,
@@ -340,6 +342,7 @@ struct HandleNativeOutcomes {
     contract: WindowsHandleContract,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct HandleReplayInvocation {
     parent: usize,
     caller: Caller,
@@ -348,12 +351,14 @@ struct HandleReplayInvocation {
 
 /// The suspended caller is retained in full, including retired integer
 /// aliases. Returning from another sibling invocation cannot supply its state.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct HandleReplayFrame {
     invocation: HandleReplayInvocation,
     activation: usize,
     caller: CanonicalHandleState,
     mutable_outputs: Vec<HandleCensusRoot>,
     normal_return: bool,
+    receiving: Option<terminal_psi::OperationResult>,
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -367,6 +372,7 @@ struct HandleOutputCensus {
     storage: BTreeSet<HandleStorageRange>,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum CapturedReturnValue {
     Unit,
     Scalar(CapturedHandleScalar),
@@ -376,6 +382,7 @@ enum CapturedReturnValue {
     },
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct CapturedHandleReturn {
     activation: usize,
     machine: MachineId,
@@ -383,7 +390,226 @@ struct CapturedHandleReturn {
     value: CapturedReturnValue,
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct CapturedHandleArrival {
+    source_context: (MachineId, usize),
+    target: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+    scalars: Vec<(ValueId, CapturedHandleScalar)>,
+    structural: Vec<(semantic_vocabulary::PlaceId, CapturedArrivalStorage)>,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum CapturedArrivalStorage {
+    Owned(CapturedCallArgument),
+    Borrowed {
+        access: terminal_psi::StructuralAccess,
+        storage: CapturedHandleStorage,
+    },
+}
+
 impl CanonicalHandleState {
+    fn capture_arrival(
+        &mut self,
+        position: terminal_semantics::descriptor_lifetimes::DescriptorPosition,
+        ordinal: usize,
+        target: &terminal_psi::Block,
+        machine: &HandleMachineReplay<'_>,
+        occurrence: ScalarOccurrence,
+    ) -> Result<CapturedHandleArrival, String> {
+        use terminal_semantics::descriptor_results::CapturedScalarOperand;
+        let edge = machine
+            .graph
+            .flow
+            .get(&position)
+            .and_then(|step| step.successors.get(ordinal))
+            .ok_or("handle arrival has no original successor at this ordinal")?;
+        if edge.target != (target.id, 0)
+            || position.0 != machine.block.id
+            || position.1 as usize != machine.block.operations.len()
+            || occurrence.machine != machine.body.id
+            || machine.geometry.source_context().0 != machine.body.id
+            || machine.prepared.expressions.identity != machine.body.id
+            || machine.graph.id != machine.body.id
+        {
+            return Err(
+                "handle arrival changes its original terminating cut or target block".into(),
+            );
+        }
+        let captured = machine
+            .prepared
+            .operands
+            .arrivals
+            .get(&position)
+            .and_then(|edges| edges.get(ordinal))
+            .ok_or("handle arrival has no complete original scalar capture roster")?;
+        if captured.len() != target.parameters.len()
+            || edge.bindings.len() != target.structural_parameters.len()
+        {
+            return Err("handle arrival changes its target's complete runtime signature".into());
+        }
+        let scalars = captured
+            .iter()
+            .zip(&target.parameters)
+            .map(|((formal, operand), declaration)| {
+                if *formal != declaration.id {
+                    return Err("handle arrival changes a target scalar identity".into());
+                }
+                let value = match operand {
+                    CapturedScalarOperand::Value { id, scalar_type } => {
+                        if *scalar_type != declaration.scalar_type {
+                            return Err(
+                                "handle arrival changes a scalar operand's declared type".into()
+                            );
+                        }
+                        self.scalar(*id, position, &machine.prepared.expressions)?
+                    }
+                    CapturedScalarOperand::Storage(source) => {
+                        self.read_scalar(source, declaration.scalar_type, machine.geometry)?
+                    }
+                };
+                if value.word.scalar_type() != declaration.scalar_type {
+                    return Err("handle arrival changes its evaluated scalar carrier".into());
+                }
+                Ok((*formal, value))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        self.observe(
+            scalars
+                .iter()
+                .flat_map(|(_, value)| value.word.dependencies().iter().copied()),
+            occurrence,
+        )?;
+        let mut structural = Vec::new();
+        for (binding, formal) in edge.bindings.iter().zip(&target.structural_parameters) {
+            if binding.parameter != DescriptorLocation::whole(formal.place)
+                || binding.access != formal.access
+            {
+                return Err(
+                    "handle arrival changes its original structural formal or access".into(),
+                );
+            }
+            let source = binding
+                .source
+                .exact_location()
+                .ok_or("handle structural arrival has no exact captured source address")?;
+            self.require_active_payload(source, machine.geometry)?;
+            let (range, selected, codec) = machine.geometry.resolve(source, &self.references)?;
+            match selected.scalar {
+                Some(scalar)
+                    if machine.geometry.primitive_scalar(formal.structural_type)
+                        != Some(scalar.logical_scalar) =>
+                {
+                    return Err("handle arrival changes its original logical scalar storage".into());
+                }
+                None if machine.geometry.carrier(source)? != Some(formal.structural_type) => {
+                    return Err(
+                        "handle arrival changes its original structural value carrier".into(),
+                    );
+                }
+                _ => {}
+            }
+            let value = if formal.access == terminal_psi::StructuralAccess::Owned {
+                let captured = match selected.scalar {
+                    Some(scalar) => CapturedCallArgument::Scalar(self.read_scalar(
+                        source,
+                        scalar.logical_scalar,
+                        machine.geometry,
+                    )?),
+                    None => CapturedCallArgument::Bytes(self.capture(&range)),
+                };
+                self.observe(self.aliases.stored_dependencies(&range), occurrence)?;
+                CapturedArrivalStorage::Owned(captured)
+            } else {
+                CapturedArrivalStorage::Borrowed {
+                    access: formal.access,
+                    storage: CapturedHandleStorage {
+                        range,
+                        stored_scalar: codec,
+                    },
+                }
+            };
+            structural.push((formal.place, value));
+        }
+        Ok(CapturedHandleArrival {
+            source_context: machine.geometry.source_context(),
+            target: edge.target,
+            scalars,
+            structural,
+        })
+    }
+
+    fn install_arrival(
+        mut self,
+        arrival: CapturedHandleArrival,
+        machine: &HandleMachineReplay<'_>,
+    ) -> Result<Self, String> {
+        if arrival.target != (machine.block.id, 0)
+            || arrival.source_context != machine.geometry.source_context()
+            || arrival.source_context.0 != machine.body.id
+            || machine.body.id != machine.graph.id
+        {
+            return Err("handle arrival installs values in another target block".into());
+        }
+        let mut owned = Vec::new();
+        for (place, value) in arrival.structural {
+            match value {
+                CapturedArrivalStorage::Borrowed { access, storage } => {
+                    self.bindings.bind(place, access, storage)?
+                }
+                CapturedArrivalStorage::Owned(value) => owned.push((place, value)),
+            }
+        }
+        // Geometry supplied by the execution owner must reflect these new
+        // borrowed bindings before projecting an owned destination. Owned roots
+        // have no borrowed row, so their physical homes do not depend on the
+        // newly installed addresses.
+        for (place, value) in owned {
+            let location = DescriptorLocation::whole(place);
+            match value {
+                CapturedCallArgument::Scalar(value) => {
+                    self.store_scalar(&location, &value, machine.geometry)?
+                }
+                CapturedCallArgument::Bytes(value) => {
+                    let (range, _, _) = machine.geometry.resolve(&location, &self.references)?;
+                    self.install(&range, &value)?;
+                }
+            }
+        }
+        for (formal, value) in arrival.scalars {
+            self.define(formal, value, &machine.prepared.expressions)?;
+        }
+        Ok(self)
+    }
+
+    fn require_active_payload(
+        &self,
+        location: &DescriptorLocation,
+        geometry: &HandleStorageGeometry<'_>,
+    ) -> Result<(), String> {
+        for (ordinal, part) in location.path.iter().enumerate() {
+            let terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Case(case) = part
+            else {
+                continue;
+            };
+            let subject = DescriptorLocation {
+                root: location.root,
+                path: location.path[..ordinal].to_vec(),
+            };
+            let (range, _, _) = geometry.resolve(&subject, &self.references)?;
+            let carrier = geometry
+                .carrier(&subject)?
+                .ok_or("handle payload has no original sum carrier")?;
+            if !self
+                .cases
+                .get(&range)
+                .is_some_and(|tag| tag.carrier == carrier && tag.case == *case)
+            {
+                return Err("handle payload observation has no actual selected-case guard".into());
+            }
+        }
+        Ok(())
+    }
+
     fn native(mut self, replay: &HandleNativeReplay<'_>) -> Result<HandleNativeOutcomes, String> {
         let HandleNativeReplay {
             machine,
@@ -398,11 +624,12 @@ impl CanonicalHandleState {
                 .map_err(|_| "native handle call ordinal exceeds its original position")?,
         );
         let operation = machine
-            .body
-            .block(&caller.block)
-            .and_then(|block| block.operations.get(caller.operation_index))
+            .block
+            .operations
+            .get(caller.operation_index)
             .ok_or("native handle replay lost its original operation")?;
         if caller.machine != machine.body.id
+            || caller.block != machine.block.id
             || occurrence.machine != caller.machine
             || caller.site != CallSite::Invocation(occurrence.site)
             || occurrence.site != InvocationSite::Operation(operation.id)
@@ -893,18 +1120,10 @@ impl CanonicalHandleState {
             &bindings,
         )?;
         let result = match frame.invocation.caller.site {
-            CallSite::Invocation(InvocationSite::Operation(operation)) => {
-                &caller
-                    .block(&frame.invocation.caller.block)
-                    .and_then(|block| {
-                        block
-                            .operations
-                            .get(frame.invocation.caller.operation_index)
-                    })
-                    .filter(|actual| actual.id == operation)
-                    .ok_or("handle continuation changes its original receiving operation")?
-                    .result
-            }
+            CallSite::Invocation(InvocationSite::Operation(_)) => frame
+                .receiving
+                .as_ref()
+                .ok_or("handle continuation lost its original receiving operation")?,
             CallSite::Cleanup { .. } => &terminal_psi::OperationResult::Unit,
             CallSite::Invocation(_) => {
                 return Err("handle continuation has no normal receiving operation".into());
@@ -1197,6 +1416,7 @@ impl CanonicalHandleState {
         for (ordinal, formal) in callee.structural_parameters.iter().enumerate() {
             let actual = call.storage_actual(callee, ordinal)?;
             let source = geometry.location(actual.place, actual.path)?;
+            self.require_active_payload(&source, &geometry)?;
             let (range, selected, codec) = geometry.resolve(&source, &self.references)?;
             match selected.scalar {
                 Some(scalar)
@@ -1281,6 +1501,7 @@ impl CanonicalHandleState {
                 caller: self,
                 mutable_outputs,
                 normal_return: call.normal_return,
+                receiving: call.receiving.cloned(),
             },
             next,
         ))
@@ -1297,16 +1518,18 @@ impl CanonicalHandleState {
     ) -> Result<Self, String> {
         let HandleMachineReplay {
             body,
+            block,
             prepared,
             graph,
             calls,
             geometry,
         } = *machine;
-        let operation = body
-            .block(&position.0)
-            .and_then(|block| block.operations.get(position.1 as usize))
+        let operation = block
+            .operations
+            .get(position.1 as usize)
             .ok_or("handle replay operation is absent from its original body")?;
-        if prepared.expressions.identity != body.id
+        if block.id != position.0
+            || prepared.expressions.identity != body.id
             || graph.id != body.id
             || occurrence.machine != body.id
             || occurrence.site != ScalarUseSite::Operation(operation.id)
@@ -1476,6 +1699,7 @@ impl CanonicalHandleState {
                 ));
             };
             for transfer in transfers {
+                self.require_active_payload(&transfer.source, geometry)?;
                 let (source, source_type, _) =
                     geometry.resolve(&transfer.source, &self.references)?;
                 let (destination, destination_type, _) =
@@ -1581,6 +1805,115 @@ impl CanonicalHandleState {
                         known: KnownHandleScalar::Unknown,
                     }
                 }
+            } else if let OperationKind::ByteSequencePredicate { .. }
+            | OperationKind::ByteSequenceEqual { .. } = &operation.kind
+            {
+                let operands: &[&terminal_psi::ByteSequenceOperand] = match &operation.kind {
+                    OperationKind::ByteSequencePredicate { operand, .. } => &[operand],
+                    OperationKind::ByteSequenceEqual { left, right } => &[left, right],
+                    _ => unreachable!(),
+                };
+                let mut dependencies = input_dependencies();
+                for operand in operands {
+                    let argument = operand.argument();
+                    let mut source = geometry.location(argument.place, &argument.path)?;
+                    if let terminal_psi::ByteSequenceOperand::Field { field, .. } = operand {
+                        source.path.push(
+                            terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Field(
+                                *field,
+                            ),
+                        );
+                    }
+                    self.require_active_payload(&source, geometry)?;
+                    let captured = geometry.sequence(&source, &self.references)?;
+                    if captured.element.is_some() || captured.stride != 1 {
+                        return Err(
+                            "byte predicate observes another original content carrier".into()
+                        );
+                    }
+                    dependencies.extend(captured.dependencies);
+                    dependencies.extend(self.aliases.stored_dependencies(&captured.range));
+                    dependencies.extend(
+                        self.aliases
+                            .stored_dependencies(&geometry.resolve(&source, &self.references)?.0),
+                    );
+                }
+                CapturedHandleScalar {
+                    word: HandleWordAliases::derived_from_dependencies(
+                        result.scalar_type,
+                        dependencies,
+                    ),
+                    known: KnownHandleScalar::Unknown,
+                }
+            } else if let Some(selection) = match &operation.kind {
+                OperationKind::PrimitiveScalarRead { source, path } => {
+                    Some(geometry.scalar_selection(
+                        *source,
+                        path,
+                        &self.references,
+                        result.scalar_type,
+                        operand,
+                    )?)
+                }
+                OperationKind::ElementViewRead {
+                    source,
+                    index,
+                    obligation,
+                    path,
+                    ..
+                } => {
+                    let mut selected = Vec::with_capacity(path.len() + 1);
+                    selected.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: *index,
+                        obligation: *obligation,
+                    });
+                    selected.extend_from_slice(path);
+                    Some(geometry.scalar_selection(
+                        *source,
+                        &selected,
+                        &self.references,
+                        result.scalar_type,
+                        operand,
+                    )?)
+                }
+                _ => None,
+            } {
+                match selection {
+                    HandleScalarSelection::Exact { location, storage } => {
+                        self.require_active_payload(&location, geometry)?;
+                        self.read_scalar_storage(storage, result.scalar_type)
+                    }
+                    HandleScalarSelection::Family { location, range } => {
+                        self.require_active_payload(&location, geometry)?;
+                        CapturedHandleScalar {
+                            word: HandleWordAliases::derived(
+                                result.scalar_type,
+                                [self.aliases.stored_word(&range, result.scalar_type)],
+                            ),
+                            known: KnownHandleScalar::Unknown,
+                        }
+                    }
+                }
+            } else if let OperationKind::ByteSequenceRead { source, index, .. } = &operation.kind {
+                let location = DescriptorLocation::whole(*source);
+                self.require_active_payload(&location, geometry)?;
+                let captured = geometry.sequence(&location, &self.references)?;
+                if captured.element.is_some() || captured.stride != 1 {
+                    return Err("handle byte read changes its original byte window".into());
+                }
+                let range = match operand(*index)?.filter(|_| captured.precise) {
+                    Some(index) => geometry.sequence_element(&captured, index)?,
+                    None => captured.range,
+                };
+                // A byte observation can transport a dependency but cannot
+                // recreate an exact whole HANDLE, even from a singleton view.
+                CapturedHandleScalar {
+                    word: HandleWordAliases::derived(
+                        result.scalar_type,
+                        [self.aliases.stored_word(&range, result.scalar_type)],
+                    ),
+                    known: KnownHandleScalar::Unknown,
+                }
             } else if !reads.is_empty() {
                 let [(source, ScalarTerm::Value { id, scalar_type })] = reads else {
                     return Err("handle scalar read has an ambiguous current storage roster".into());
@@ -1624,13 +1957,46 @@ impl CanonicalHandleState {
                         // Unsupported scalar observations retain every actual
                         // structural input's dependencies. They cannot become
                         // exact HANDLEs merely because no equation was emitted.
-                        let mut words = input_words().collect::<Vec<_>>();
+                        let mut dependencies = input_dependencies();
                         for source in &step.inputs {
-                            let (range, _, _) = geometry.resolve(source, &self.references)?;
-                            words.push(self.aliases.stored_word(&range, result.scalar_type));
+                            self.require_active_payload(source, geometry)?;
+                            let (range, _, codec) = geometry.resolve(source, &self.references)?;
+                            dependencies.extend(self.aliases.stored_dependencies(&range));
+                            if let Some(carrier) = geometry.carrier(source)? {
+                                // Descriptor bytes alone do not contain the
+                                // values inspected by content predicates. The
+                                // same complete pointer census follows their
+                                // actual data, including nested references.
+                                dependencies.extend(
+                                    self.output_census(
+                                        [HandleCensusRoot {
+                                            storage: CapturedHandleStorage {
+                                                range,
+                                                stored_scalar: codec,
+                                            },
+                                            carrier,
+                                        }],
+                                        geometry,
+                                        None,
+                                    )?
+                                    .dependencies,
+                                );
+                            } else {
+                                // No standalone type is not proof of an
+                                // inert leaf. Only the original inline byte
+                                // descriptor contract can resolve its data;
+                                // every other missing shape refuses.
+                                let captured = geometry.sequence(source, &self.references)?;
+                                dependencies.extend(captured.dependencies);
+                                dependencies
+                                    .extend(self.aliases.stored_dependencies(&captured.range));
+                            }
                         }
                         CapturedHandleScalar {
-                            word: HandleWordAliases::derived(result.scalar_type, words),
+                            word: HandleWordAliases::derived_from_dependencies(
+                                result.scalar_type,
+                                dependencies,
+                            ),
                             known: KnownHandleScalar::Unknown,
                         }
                     }
@@ -2070,7 +2436,16 @@ impl CanonicalHandleState {
         scalar_type: ScalarType,
         geometry: &HandleStorageGeometry<'_>,
     ) -> Result<CapturedHandleScalar, String> {
+        self.require_active_payload(location, geometry)?;
         let storage = geometry.scalar(location, &self.references, scalar_type)?;
+        Ok(self.read_scalar_storage(storage, scalar_type))
+    }
+
+    fn read_scalar_storage(
+        &self,
+        storage: HandleScalarStorage,
+        scalar_type: ScalarType,
+    ) -> CapturedHandleScalar {
         // Numeric metadata follows the same complete stored codec as the word.
         // A different-width or noninteger interpretation cannot revive a saved
         // handle identity or reinterpret its old Boolean snapshot.
@@ -2080,13 +2455,14 @@ impl CanonicalHandleState {
             .filter(|value| storage.stored_scalar == scalar_type && value.has_type(scalar_type))
             .cloned()
             .unwrap_or(KnownHandleScalar::Unknown);
-        Ok(CapturedHandleScalar {
+        CapturedHandleScalar {
             word: storage.read(&self.aliases),
             known,
-        })
+        }
     }
 }
 
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum CapturedCallArgument {
     Scalar(CapturedHandleScalar),
     Bytes(CapturedMemory),

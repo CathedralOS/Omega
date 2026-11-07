@@ -68,6 +68,8 @@ pub(super) struct RuntimeCall<'a> {
     pub target: CallTarget,
     pub arguments: RuntimeArguments<'a>,
     pub normal_return: bool,
+    /// Actual operation result; cleanup and nonnormal edges have no such lane.
+    pub receiving: Option<&'a terminal_psi::OperationResult>,
 }
 
 #[derive(Clone, Copy)]
@@ -207,6 +209,10 @@ impl<'a> HandleCallGraph<'a> {
                                 invocation.site,
                                 InvocationSite::InvokeNoNormal(_)
                             ),
+                            receiving: invocation
+                                .site
+                                .operation()
+                                .map(|_| &block.operations[caller.operation_index].result),
                         },
                         &mut pending,
                     );
@@ -231,6 +237,10 @@ impl<'a> HandleCallGraph<'a> {
                                 invocation.completion,
                                 BoundaryInvocationCompletion::Normal { .. }
                             ),
+                            receiving: match invocation.completion {
+                                BoundaryInvocationCompletion::Normal { result, .. } => Some(result),
+                                BoundaryInvocationCompletion::External(_) => None,
+                            },
                         },
                         &mut pending,
                     );
@@ -271,6 +281,7 @@ impl<'a> HandleCallGraph<'a> {
                                     structural: structural_arguments,
                                 },
                                 normal_return: true,
+                                receiving: Some(&operation.result),
                             },
                             &mut pending,
                         );
@@ -296,6 +307,7 @@ impl<'a> HandleCallGraph<'a> {
                                     target: CallTarget::Machine(cleanup.cleanup_machine),
                                     arguments: RuntimeArguments::Cleanup(cleanup),
                                     normal_return: true,
+                                    receiving: None,
                                 },
                                 &mut pending,
                             );
