@@ -72,8 +72,9 @@ cleanup:
 - Rewritten diagnostic pins. A fail fixture's `expected.txt` is the diagnostic
   the corpus requires. Rewriting that text makes a new refusal look pinned
   without the compiler learning the old one. An `expected.txt` that already
-  existed on the base keeps its diagnostic fragments. A new fixture file may
-  carry its own pin.
+  existed on the base keeps its diagnostic fragments, allowing the documented
+  display aliases used by corpus comparison. A new fixture file may carry its
+  own pin.
 - Duplicate fact programs. A fact already pinned under
   `tests/omega/{pass,fail,run}/facts` does not need another program under
   `samples/cli/facts`. A new `.omg` there fails when a base fixture's directory
@@ -106,6 +107,8 @@ import re
 import subprocess
 import sys
 from typing import Callable, NamedTuple
+
+from corpus_records import normalized_diagnostic
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -905,7 +908,8 @@ def expected_pin_violations(changes: list, before, after) -> list:
 
     `before(path)` and `after(path)` return the file at the base and at HEAD.
     A newly added expected.txt may pin a new fixture. Changing or deleting the
-    fragments of an expected.txt that already existed on the base may not.
+    fragments of an expected.txt that already existed on the base may not,
+    except for the same documented formatting aliases as corpus comparison.
     """
     violations = []
     for status, path in changes:
@@ -913,7 +917,8 @@ def expected_pin_violations(changes: list, before, after) -> list:
             continue
         old = diagnostic_fragments(before(path))
         new = frozenset() if status == "D" else diagnostic_fragments(after(path))
-        if old == new:
+        if ({normalized_diagnostic(fragment) for fragment in old}
+                == {normalized_diagnostic(fragment) for fragment in new}):
             continue
         if status == "D":
             detail = "removed the file and its pinned diagnostic"

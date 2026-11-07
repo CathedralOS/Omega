@@ -178,6 +178,29 @@ class RoundTrip(unittest.TestCase):
             corpus_records.normalized_diagnostic("other prefix: x"),
             "other prefix: x")
 
+    def test_retired_const_integer_arguments_keep_their_exact_values(self):
+        old = "expects `&Frame<Blob, schema::Storage<const 8>>`"
+        new = "expects `&Frame<Blob, schema::Storage<8>>`"
+        self.assertEqual(corpus_records.normalized_diagnostic(old), new)
+        self.assertEqual(corpus_records.normalized_diagnostic(new), new)
+        for distinct in (new.replace("Storage<8>", "Storage<9>"),
+                         new.replace("Blob", "Other"),
+                         new.replace("&Frame", "&mut Frame"),
+                         new.replace("Storage<8>", "Storage<8u64>")):
+            with self.subTest(distinct=distinct):
+                self.assertNotEqual(corpus_records.normalized_diagnostic(old),
+                                    corpus_records.normalized_diagnostic(distinct))
+
+    def test_const_words_outside_complete_integer_type_arguments_stay_exact(self):
+        for text in ("const 8", "requires `left < const 8 > right`",
+                     "expects `Frame<const Marker>`", "expects `Frame<const 8`",
+                     "expects `Frame<const 8>, const 9`",
+                     'value `"Frame<const 8>"`', "expects `Frame<const 8 + 1>`"):
+            with self.subTest(text=text):
+                expected = ("expects `Frame<8>, const 9`"
+                            if text == "expects `Frame<const 8>, const 9`" else text)
+                self.assertEqual(corpus_records.normalized_diagnostic(text), expected)
+
     def test_provenance_counts_stamps_and_reports_oldest(self):
         records = corpus_records.parse(
             "a/x checked 1ms @aaaaaaaaaaaa\n"
