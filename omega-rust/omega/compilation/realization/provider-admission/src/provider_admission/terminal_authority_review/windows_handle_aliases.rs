@@ -251,6 +251,37 @@ pub(super) struct HandleAliases {
 }
 
 impl HandleAliases {
+    /// Show only the first differing row of each resident alias inventory.
+    pub(super) fn difference_description(&self, other: &Self) -> String {
+        let scalar = self
+            .scalars
+            .iter()
+            .find(|(id, value)| other.scalars.get(*id) != Some(*value));
+        let other_scalar = other
+            .scalars
+            .iter()
+            .find(|(id, value)| self.scalars.get(*id) != Some(*value));
+        let cell = self
+            .cells
+            .iter()
+            .find(|(range, value)| other.cells.get(*range) != Some(*value));
+        let other_cell = other
+            .cells
+            .iter()
+            .find(|(range, value)| self.cells.get(*range) != Some(*value));
+        let region = self
+            .regions
+            .iter()
+            .find(|(range, value)| other.regions.get(*range) != Some(*value));
+        let other_region = other
+            .regions
+            .iter()
+            .find(|(range, value)| self.regions.get(*range) != Some(*value));
+        format!(
+            "scalar={scalar:?}/{other_scalar:?}; cell={cell:?}/{other_cell:?}; region={region:?}/{other_region:?}"
+        )
+    }
+
     pub(super) fn enter_activation(
         &self,
         values: impl IntoIterator<Item = ValueId>,

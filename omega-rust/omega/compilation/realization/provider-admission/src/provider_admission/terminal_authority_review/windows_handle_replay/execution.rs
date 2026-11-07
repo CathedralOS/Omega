@@ -204,6 +204,176 @@ fn join_numbers(retained: &mut CanonicalHandleState, incoming: &CanonicalHandleS
     changed
 }
 
+fn bounded_diagnostic(text: String) -> String {
+    let mut characters = text.chars();
+    let mut prefix = characters.by_ref().take(2048).collect::<String>();
+    if characters.next().is_some() {
+        prefix.push_str(" [truncated]");
+    }
+    prefix
+}
+
+/// Observation only at the unchanged distinct-state refusal. Numeric values
+/// omitted by the resource key remain omitted here too.
+fn describe_resource_differences(
+    left: &CanonicalHandleState,
+    right: &CanonicalHandleState,
+) -> Vec<String> {
+    let mut differences = Vec::new();
+    if left.ledger != right.ledger {
+        differences.push(format!(
+            "ledger: {}",
+            left.ledger.difference_description(&right.ledger)
+        ));
+    }
+    if left.aliases != right.aliases {
+        differences.push(format!(
+            "aliases: {}",
+            left.aliases.difference_description(&right.aliases)
+        ));
+    }
+    if left.references != right.references {
+        differences.push(format!(
+            "references: {}",
+            left.references.difference_description(&right.references)
+        ));
+    }
+    if left.cases != right.cases {
+        let a = left
+            .cases
+            .iter()
+            .find(|(range, value)| right.cases.get(range) != Some(*value));
+        let b = right
+            .cases
+            .iter()
+            .find(|(range, value)| left.cases.get(range) != Some(*value));
+        differences.push(format!("case: {a:?}/{b:?}"));
+    }
+    if left
+        .constants
+        .iter()
+        .map(|(id, value)| (id, value.is_some()))
+        .ne(right
+            .constants
+            .iter()
+            .map(|(id, value)| (id, value.is_some())))
+    {
+        let a = left.constants.iter().find(|(id, value)| {
+            right.constants.get(*id).map(Option::is_some) != Some(value.is_some())
+        });
+        let b = right.constants.iter().find(|(id, value)| {
+            left.constants.get(*id).map(Option::is_some) != Some(value.is_some())
+        });
+        differences.push(format!(
+            "evaluated_coordinate: {:?}/{:?}",
+            a.map(|(id, value)| (id, value.is_some())),
+            b.map(|(id, value)| (id, value.is_some()))
+        ));
+    }
+    if left.bindings != right.bindings {
+        differences.push(format!(
+            "bindings: {}",
+            left.bindings.difference_description(&right.bindings)
+        ));
+    }
+    differences.into_iter().map(bounded_diagnostic).collect()
+}
+
+fn describe_control_difference(left: &Control, right: &Control) -> String {
+    match (left, right) {
+        (Control::Position(left), Control::Position(right)) => {
+            format!("positions={left:?}/{right:?}")
+        }
+        (
+            Control::Cleanup {
+                completion: Completion::Return(left),
+                ..
+            },
+            Control::Cleanup {
+                completion: Completion::Return(right),
+                ..
+            },
+        ) => format!(
+            "returns={:?}/{:?}; values={}/{}",
+            (left.activation, left.machine, left.edge),
+            (right.activation, right.machine, right.edge),
+            describe_return_value(&left.value),
+            describe_return_value(&right.value)
+        ),
+        (
+            Control::Cleanup {
+                edge: a_edge,
+                ordinal: a_ordinal,
+                completion: Completion::Arrival(a),
+                ..
+            },
+            Control::Cleanup {
+                edge: b_edge,
+                ordinal: b_ordinal,
+                completion: Completion::Arrival(b),
+                ..
+            },
+        ) => {
+            let scalar = a.scalars.iter().zip(&b.scalars).find(|(a, b)| a != b);
+            let structural = a
+                .structural
+                .iter()
+                .zip(&b.structural)
+                .position(|(a, b)| a != b);
+            format!(
+                "arrival edges={a_edge:?}/{b_edge:?} ordinals={a_ordinal}/{b_ordinal} contexts={:?}/{:?} targets={:?}/{:?} first_scalar={scalar:?} first_structural={:?} lengths={}/{}:{}/{}",
+                a.source_context,
+                b.source_context,
+                a.target,
+                b.target,
+                structural.map(|i| (a.structural[i].0, b.structural[i].0)),
+                a.scalars.len(),
+                b.scalars.len(),
+                a.structural.len(),
+                b.structural.len()
+            )
+        }
+        (
+            Control::Cleanup {
+                edge: a,
+                ordinal: a_ordinal,
+                ..
+            },
+            Control::Cleanup {
+                edge: b,
+                ordinal: b_ordinal,
+                ..
+            },
+        ) => format!(
+            "cleanup/return edges={a:?}/{b:?} ordinals={a_ordinal}/{b_ordinal}; completion_payload_differs"
+        ),
+        _ => "normal position versus cleanup".into(),
+    }
+}
+
+fn describe_return_value(value: &CapturedReturnValue) -> String {
+    match value {
+        CapturedReturnValue::Unit => "Unit".into(),
+        CapturedReturnValue::Scalar(value) => bounded_diagnostic(format!("scalar={value:?}")),
+        CapturedReturnValue::Structural { carrier, value } => {
+            let details = match value {
+                CapturedCallArgument::Scalar(value) => {
+                    bounded_diagnostic(format!("scalar={value:?}"))
+                }
+                CapturedCallArgument::Bytes(value) => format!(
+                    "memory cases={} first_case={:?} constants={} first_constant={:?} dependencies={:?}",
+                    value.cases.len(),
+                    value.cases.first(),
+                    value.constants.len(),
+                    value.constants.first(),
+                    value.words.dependencies()
+                ),
+            };
+            format!("carrier={carrier:?} {details}")
+        }
+    }
+}
+
 #[derive(Default)]
 struct Pending {
     rows: BTreeMap<ResourceWork, Arc<Work>>,
@@ -211,6 +381,118 @@ struct Pending {
 }
 
 impl Pending {
+    fn report_state_limit(
+        &self,
+        incoming: (usize, DescriptorPosition),
+        describe: impl Fn(usize, DescriptorPosition) -> String,
+    ) {
+        if std::env::var_os("OMEGA_WINDOWS_HANDLE_PROFILE").as_deref()
+            != Some(std::ffi::OsStr::new("1"))
+        {
+            return;
+        }
+        // Borrow retained worlds rather than cloning them at the memory limit.
+        // The sorted temporary roster has one pointer per already retained row.
+        let mut worlds = self
+            .rows
+            .keys()
+            .map(|key| key.0.as_ref())
+            .collect::<Vec<_>>();
+        worlds.sort_by_key(|world| (world.activation, world.control.position()));
+        let mut groups = Vec::new();
+        let mut first = 0;
+        while first < worlds.len() {
+            let key = (worlds[first].activation, worlds[first].control.position());
+            let end = first
+                + worlds[first..]
+                    .partition_point(|world| (world.activation, world.control.position()) == key);
+            groups.push((end - first, first, end));
+            first = end;
+        }
+        groups.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        eprintln!(
+            "Windows handle state-cap: last_processed activation={} position={:?} retained={} queued={} cuts={}",
+            incoming.0,
+            incoming.1,
+            self.rows.len(),
+            self.queue.len(),
+            groups.len()
+        );
+        for (count, first, end) in groups.into_iter().take(3) {
+            let original = worlds[first];
+            eprintln!(
+                "Windows handle state-cap cut: activation={} position={:?} variants={count} frames={} source={}",
+                original.activation,
+                original.control.position(),
+                original.frames.len(),
+                bounded_diagnostic(describe(original.activation, original.control.position()))
+            );
+            // At most two actual comparisons from each of three crowded cuts.
+            for index in [first + (end - first) / 2, end - 1] {
+                if index == first {
+                    continue;
+                }
+                let other = worlds[index];
+                if original.control != other.control {
+                    eprintln!(
+                        "Windows handle state-cap difference: control {}",
+                        bounded_diagnostic(describe_control_difference(
+                            &original.control,
+                            &other.control
+                        ))
+                    );
+                }
+                if original.frames.len() != other.frames.len() {
+                    eprintln!(
+                        "Windows handle state-cap difference: frame_depth={}/{}",
+                        original.frames.len(),
+                        other.frames.len()
+                    );
+                }
+                if let Some((index, (left, right))) =
+                    original.frames.iter().zip(&other.frames).enumerate().find(
+                        |(_, (left, right))| compare_suspended(left, right) != Ordering::Equal,
+                    )
+                {
+                    eprintln!(
+                        "Windows handle state-cap difference: caller_frame={index} invocation={:?}/{:?}; activation={}/{} normal={}/{} receiving={:?}/{:?} outputs={}/{} continuation={} fields={:?}",
+                        (
+                            left.frame.invocation.parent,
+                            left.frame.invocation.caller,
+                            left.frame.invocation.callee
+                        ),
+                        (
+                            right.frame.invocation.parent,
+                            right.frame.invocation.caller,
+                            right.frame.invocation.callee
+                        ),
+                        left.frame.activation,
+                        right.frame.activation,
+                        left.frame.normal_return,
+                        right.frame.normal_return,
+                        left.frame.receiving,
+                        right.frame.receiving,
+                        left.frame.mutable_outputs.len(),
+                        right.frame.mutable_outputs.len(),
+                        if left.continuation == right.continuation {
+                            "equal".into()
+                        } else {
+                            bounded_diagnostic(describe_control_difference(
+                                &left.continuation,
+                                &right.continuation,
+                            ))
+                        },
+                        describe_resource_differences(&left.frame.caller, &right.frame.caller)
+                    );
+                }
+                eprintln!(
+                    "Windows handle state-cap difference: current={:?}",
+                    describe_resource_differences(&original.state, &other.state)
+                );
+            }
+        }
+    }
+
     fn push(&mut self, work: Work) -> Result<(), String> {
         let work = Arc::new(work);
         let key = ResourceWork(Arc::clone(&work));
@@ -968,7 +1250,23 @@ pub(super) fn derive(
         if steps > 1_048_576 {
             return Err("handle execution exceeds its bounded total replay steps".into());
         }
-        execution.step(Arc::unwrap_or_clone(work))?;
+        let original_cut = (work.activation, work.control.position());
+        execution.step(Arc::unwrap_or_clone(work)).map_err(|error| {
+            if error == "handle execution exceeds its bounded distinct control and resource states"
+                && std::env::var_os("OMEGA_WINDOWS_HANDLE_PROFILE").as_deref() == Some(std::ffi::OsStr::new("1"))
+                && let Ok(body) = execution.body(original_cut.0)
+            {
+                eprintln!("Windows handle state-cap source: activation={} machine={:?} declaration={:?} position={:?}", original_cut.0, body.id, body.declaration, original_cut.1);
+                execution.pending.report_state_limit(original_cut, |activation, position| {
+                    let Ok(body) = execution.body(activation) else { return "missing original body".into(); };
+                    let block = execution.block(body.id, position.0).ok();
+                    format!("machine={:?} declaration={:?} operation={:?} terminator={:?}", body.id, body.declaration,
+                        block.and_then(|block| block.operations.get(position.1 as usize)).map(|operation| operation.id),
+                        block.filter(|block| position.1 as usize == block.operations.len()).map(|block| std::mem::discriminant(&block.terminator)))
+                });
+            }
+            error
+        })?;
         progress.replay(
             steps,
             execution.pending.rows.len(),

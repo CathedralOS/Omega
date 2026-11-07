@@ -225,6 +225,19 @@ pub(super) struct HandleStorageBindings {
 }
 
 impl HandleStorageBindings {
+    /// Allocation sharing is irrelevant; report the original differing slot.
+    pub(super) fn difference_description(&self, other: &Self) -> String {
+        let left = self
+            .rows
+            .iter()
+            .find(|(id, value)| other.rows.get(*id) != Some(*value));
+        let right = other
+            .rows
+            .iter()
+            .find(|(id, value)| self.rows.get(*id) != Some(*value));
+        format!("slot={left:?}/{right:?}")
+    }
+
     pub(super) fn new(body: &TerminalMachine) -> Result<Self, String> {
         let mut rows = body
             .structural_parameters
@@ -317,6 +330,27 @@ pub(super) struct HandleReferences {
 }
 
 impl HandleReferences {
+    /// Keep descriptor and data-window differences separate in cap failures.
+    pub(super) fn difference_description(&self, other: &Self) -> String {
+        let value = self
+            .values
+            .iter()
+            .find(|(range, value)| other.values.get(*range) != Some(*value));
+        let other_value = other
+            .values
+            .iter()
+            .find(|(range, value)| self.values.get(*range) != Some(*value));
+        let sequence = self
+            .sequences
+            .iter()
+            .find(|(range, value)| other.sequences.get(*range) != Some(*value));
+        let other_sequence = other
+            .sequences
+            .iter()
+            .find(|(range, value)| self.sequences.get(*range) != Some(*value));
+        format!("descriptor={value:?}/{other_value:?}; sequence={sequence:?}/{other_sequence:?}")
+    }
+
     pub(super) fn retire_activation(&mut self, activation: usize) {
         let owner = HandleStorageOwner::Activation(activation);
         self.values.retain(|slot, _| slot.backing().owner != owner);

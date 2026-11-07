@@ -124,6 +124,57 @@ pub(super) struct HandleLifetimes {
 }
 
 impl HandleLifetimes {
+    /// Bounded failure context only; this does not merge or discard a history.
+    pub(super) fn difference_description(&self, other: &Self) -> String {
+        let instance = self
+            .handles
+            .iter()
+            .find(|(id, handle)| other.handles.get(*id) != Some(*handle))
+            .map(|(id, _)| *id)
+            .or_else(|| {
+                other
+                    .handles
+                    .keys()
+                    .find(|id| !self.handles.contains_key(*id))
+                    .copied()
+            });
+        if let Some(instance) = instance {
+            let left = self.handles.get(&instance);
+            let right = other.handles.get(&instance);
+            let first_use = left.zip(right).and_then(|(left, right)| {
+                left.uses.symmetric_difference(&right.uses).next().copied()
+            });
+            return format!(
+                "instance={instance:?} left={:?} right={:?} first_different_use={first_use:?}",
+                left.map(|handle| (
+                    handle.object,
+                    &handle.origin,
+                    handle.release,
+                    handle.uses.len()
+                )),
+                right.map(|handle| (
+                    handle.object,
+                    &handle.origin,
+                    handle.release,
+                    handle.uses.len()
+                ))
+            );
+        }
+        let object = self
+            .objects
+            .iter()
+            .zip(&other.objects)
+            .position(|(left, right)| left != right)
+            .unwrap_or(self.objects.len().min(other.objects.len()));
+        format!(
+            "object={object} left={:?} right={:?} object_counts={}/{}",
+            self.objects.get(object),
+            other.objects.get(object),
+            self.objects.len(),
+            other.objects.len()
+        )
+    }
+
     #[cfg(test)]
     pub(super) fn has_live_handles(&self) -> bool {
         self.handles.values().any(|handle| handle.release.is_none())
