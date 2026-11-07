@@ -117,7 +117,11 @@ impl StructuralJudge<'_> {
             self.normal_results.len(),
             self.substitutions.len(),
             self.ring_licenses.iter().take(16).collect::<Vec<_>>(),
-            self.semiring_licenses.iter().take(16).collect::<Vec<_>>()
+            self.semiring_licenses
+                .iter()
+                .take(16)
+                .map(|license| (license.add_machine, license.mul_machine))
+                .collect::<Vec<_>>()
         );
         eprintln!(
             "TEMP-IDQUERY formed-scope={:?}",
