@@ -5,7 +5,7 @@ normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
 `PreparedBuildExecution::prepare` lowers the checked `Build` program into an
 invocation-scoped Terminal Psi artifact (`TerminalPublication::Invocation`),
 admits its `BuildProviderPlans` against the produced artifact view, and opens a
-`100,000`-fuel `EvaluationInvocationAccount` under the caller's
+`100,000`-work `EvaluationInvocationAccount` under the caller's
 `BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
 measurement identity if none was supplied).
 
@@ -70,12 +70,12 @@ impl PreparedBuildExecution {
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
-        const INVOCATION_FUEL: u64 = 100_000;
+        const INVOCATION_WORK: u64 = 100_000;
         let sponsor = match evaluation_sponsor {
             Some(sponsor) => sponsor,
             None => {
                 let limits = BuildEvaluationSponsorLimits::new(
-                    INVOCATION_FUEL,
+                    INVOCATION_WORK,
                     u64::MAX,
                     u64::MAX,
                     u64::MAX,
@@ -90,7 +90,7 @@ impl PreparedBuildExecution {
             }
         };
         let account = sponsor
-            .begin_invocation(measurement, INVOCATION_FUEL)
+            .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
             execution_purpose,

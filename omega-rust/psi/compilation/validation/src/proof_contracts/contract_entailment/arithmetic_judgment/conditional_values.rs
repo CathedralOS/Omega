@@ -81,7 +81,7 @@ impl Engine<'_> {
         Some(())
     }
 
-    /// A compiler-query allowance, never executable fuel or a language bound.
+    /// A compiler-query allowance, never executable work or a language bound.
     /// Clones share the invocation allowance so shallow Boolean width cannot
     /// allocate an unbounded path tree. Exhaustion proves nothing. Charging
     /// captured facts/definitions also bounds the state copied at each fork.

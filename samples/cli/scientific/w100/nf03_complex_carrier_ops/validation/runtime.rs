@@ -68,7 +68,7 @@ fn validate() -> Result<(), String> {
             target: Some(target.target_name()),
             provisions: report.runtime_provisions(),
             provider_proposal: None,
-            fuel_allowance: 10_000_000,
+            work_budget: 10_000_000,
             domain_exit: TerminalDomainExitDelegation::IsolatedContainingDomain,
             standard_input: Some(Box::new(Cursor::new(Vec::<u8>::new()))),
             clock: None,

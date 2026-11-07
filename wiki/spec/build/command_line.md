@@ -54,8 +54,8 @@ the public artifact name. Source-language terminal transfers/outcomes are
 unrelated terminology and keep their ordinary meaning.
 
 The interpreted engine spelling is `--engine psi`. The interpreted work limit
-is `--psi-fuel-allowance <positive-u64>` wherever that allowance is applicable.
-This renames public selectors only: fuel semantics, `--both` comparison,
+is `--psi-work-budget <positive-u64>` wherever that budget is applicable.
+This renames public selectors only: work semantics, `--both` comparison,
 wire identities, internal stage names and crate paths do not change.
 See [execution selection](embedding.md#standalone-execution-selection).
 

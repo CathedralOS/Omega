@@ -137,13 +137,13 @@ fn conditional_fold_accounting(
         selected_site,
         selected_site,
         &selected.provenance,
-        &selected.fuel,
+        &selected.work,
     )];
     let mut unreachable = vec![provenance_proven_unreachable_at(
         rejected_site,
         rejected_site,
         &rejected.provenance,
-        &rejected.fuel,
+        &rejected.work,
     )];
     let mut expected_effect = 0u64;
     for block in &function.blocks {
@@ -160,7 +160,7 @@ fn conditional_fold_accounting(
                         site,
                         site,
                         &node.provenance,
-                        &node.fuel,
+                        &node.work,
                     ));
                 }
                 for edge in &node.successors {
@@ -172,7 +172,7 @@ fn conditional_fold_accounting(
                         site,
                         site,
                         &edge.provenance,
-                        &edge.fuel,
+                        &edge.work,
                     ));
                 }
             }

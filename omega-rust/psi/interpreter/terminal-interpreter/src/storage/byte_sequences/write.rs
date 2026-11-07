@@ -293,7 +293,7 @@ impl TerminalExecution<'_> {
         }
     }
 
-    /// Dispatch charges fuel before execution. Stage and check all operands and
+    /// Dispatch charges work before execution. Stage and check all operands and
     /// the destination's live extent before detaching or mutating backing.
     pub(crate) fn execute_byte_sequence_write(
         &mut self,

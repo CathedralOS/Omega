@@ -13,7 +13,7 @@ use crate::{
 };
 use optimization_core::OptimizationUnitIdentity;
 use register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId, RegisterViewId};
-use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 
 use crate::{LivenessIdentity, LivenessPosition};
@@ -28,7 +28,7 @@ pub struct LiveRangePlan {
     pub selected: SelectedInstructionPlanIdentity,
     pub liveness: LivenessIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub target: NativeTarget,
     /// One row per selected function, in plan order. Rows are shared between
     /// the successive plans runtime-spill recovery analyzes: a step that

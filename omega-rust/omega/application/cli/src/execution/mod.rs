@@ -27,11 +27,11 @@ We support two entry points:
   `<case>.stdout`, `<case>.stderr`, `<case>.terminal.stdout`,
   `<case>.terminal.stderr`, and `results.tsv` into `output_directory`.
 
-Reference runs are sponsored by the CLI with `DEFAULT_TERMINAL_FUEL_ALLOWANCE`
-(10,000,000 fuel units) unless overridden by `terminal_fuel_allowance`. Exhausting
-fuel during `--both` declines the comparison (`InterpreterComparison::Declined`)
+Reference runs are sponsored by the CLI with `DEFAULT_PSI_WORK_ALLOWANCE`
+(10,000,000 work units) unless overridden by `psi_work_budget`. Exhausting
+work during `--both` declines the comparison (`InterpreterComparison::Declined`)
 rather than failing the native run. When `keep_artifacts` is true, we also write
-`terminal.stdout`, `terminal.stderr`, `terminal.fuel.tsv`, `terminal.effects`,
+`terminal.stdout`, `terminal.stderr`, `psi.work.tsv`, `terminal.effects`,
 and any `*.entry-ram.*` snapshots into `build_dir`.
 
 */
@@ -84,7 +84,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
-const DEFAULT_TERMINAL_FUEL_ALLOWANCE: u64 = 10_000_000;
+const DEFAULT_PSI_WORK_ALLOWANCE: u64 = 10_000_000;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ExecutionSelection {
@@ -99,7 +99,7 @@ pub struct RunRequest {
     pub root_path: PathBuf,
     pub target_name: Option<String>,
     pub selection: ExecutionSelection,
-    pub terminal_fuel_allowance: Option<std::num::NonZeroU64>, // None selects DEFAULT_TERMINAL_FUEL_ALLOWANCE.
+    pub psi_work_budget: Option<std::num::NonZeroU64>, // None selects DEFAULT_PSI_WORK_ALLOWANCE.
     pub keep_artifacts: bool,
 }
 
@@ -186,14 +186,14 @@ impl std::fmt::Display for RunError {
 impl std::error::Error for RunError {}
 
 pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
-    let terminal_fuel_allowance = request
-        .terminal_fuel_allowance
-        .map_or(DEFAULT_TERMINAL_FUEL_ALLOWANCE, std::num::NonZeroU64::get);
+    let psi_work_budget = request
+        .psi_work_budget
+        .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
     if request.selection == ExecutionSelection::Terminal {
-        return run_terminal(request, build_dir, terminal_fuel_allowance);
+        return run_terminal(request, build_dir, psi_work_budget);
     }
     let compilation::ProbeCompilation {
         report,
@@ -208,33 +208,32 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         },
         orchestration::NativeDestination::Retained,
         Vec::new(),
-        terminal_fuel_allowance,
+        psi_work_budget,
     )
     .map_err(RunError::Compilation)?;
-    let (replay_input, interpretation) = if request.selection == ExecutionSelection::Both
-        && request.target_name.is_none()
-    {
-        match compilation::interpret_product(&report, None, target_name, terminal_fuel_allowance) {
-            Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
-                capability: "runtime-standard-input",
-                ..
-            }) => {
-                let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
-                    .map_err(RunError::StandardInput)?;
-                let input = captured.open_input().map_err(RunError::StandardInput)?;
-                let retry = compilation::interpret_product(
-                    &report,
-                    Some(Box::new(input)),
-                    target_name,
-                    terminal_fuel_allowance,
-                );
-                (Some(captured), Some(retry))
+    let (replay_input, interpretation) =
+        if request.selection == ExecutionSelection::Both && request.target_name.is_none() {
+            match compilation::interpret_product(&report, None, target_name, psi_work_budget) {
+                Err(terminal_runtime::TerminalRuntimeError::MissingProvision {
+                    capability: "runtime-standard-input",
+                    ..
+                }) => {
+                    let captured = standard_input::ReplayInput::capture(std::io::stdin().lock())
+                        .map_err(RunError::StandardInput)?;
+                    let input = captured.open_input().map_err(RunError::StandardInput)?;
+                    let retry = compilation::interpret_product(
+                        &report,
+                        Some(Box::new(input)),
+                        target_name,
+                        psi_work_budget,
+                    );
+                    (Some(captured), Some(retry))
+                }
+                outcome => (None, Some(outcome)),
             }
-            outcome => (None, Some(outcome)),
-        }
-    } else {
-        (None, None)
-    };
+        } else {
+            (None, None)
+        };
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
@@ -283,7 +282,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             if request.keep_artifacts
                 && let Some(Ok(reference)) = interpretation.as_ref()
             {
-                retain_terminal_observation(&build_dir, reference, terminal_fuel_allowance)?;
+                retain_terminal_observation(&build_dir, reference, psi_work_budget)?;
             }
             let comparison = compare_interpretation(exit, interpretation);
             ExecutionOutcome::Host {
@@ -303,7 +302,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
 fn run_terminal(
     request: RunRequest,
     build_dir: PathBuf,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> Result<RunOutcome, RunError> {
     let compilation::ProbeCompilation {
         report,
@@ -318,7 +317,7 @@ fn run_terminal(
         },
         orchestration::NativeDestination::RuntimeAdmission,
         Vec::new(),
-        terminal_fuel_allowance,
+        psi_work_budget,
     )
     .map_err(RunError::Compilation)?;
     if request.keep_artifacts {
@@ -328,11 +327,11 @@ fn run_terminal(
         &report,
         Some(Box::new(std::io::stdin())),
         target_name,
-        terminal_fuel_allowance,
+        psi_work_budget,
     ) {
         Ok(observation) => {
             if request.keep_artifacts {
-                retain_terminal_observation(&build_dir, &observation, terminal_fuel_allowance)?;
+                retain_terminal_observation(&build_dir, &observation, psi_work_budget)?;
             }
             TerminalOutcome::Completed(observation)
         }
@@ -350,15 +349,15 @@ fn run_terminal(
 fn retain_terminal_observation(
     build_dir: &std::path::Path,
     reference: &terminal_runtime::TerminalRuntimeObservation,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> Result<(), RunError> {
     std::fs::write(build_dir.join("terminal.stdout"), &reference.stdout)
         .map_err(RunError::ReferenceOutput)?;
     std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
         .map_err(RunError::ReferenceOutput)?;
     std::fs::write(
-        build_dir.join("terminal.fuel.tsv"),
-        format_fuel_tsv(reference, terminal_fuel_allowance),
+        build_dir.join("psi.work.tsv"),
+        format_work_tsv(reference, psi_work_budget),
     )
     .map_err(RunError::ReferenceOutput)?;
     let events = reference
@@ -378,14 +377,14 @@ fn retain_terminal_observation(
     Ok(())
 }
 
-fn format_fuel_tsv(
+fn format_work_tsv(
     reference: &terminal_runtime::TerminalRuntimeObservation,
-    terminal_fuel_allowance: u64,
+    psi_work_budget: u64,
 ) -> String {
     format!(
-        "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
-        reference.fuel_usage.total_units(),
-        reference.fuel_usage.schedule(),
+        "work_budget\t{psi_work_budget}\nwork_used\t{}\nwork_schedule\t{:?}\n",
+        reference.work_usage.total_units(),
+        reference.work_usage.schedule(),
     )
 }
 
@@ -393,7 +392,7 @@ pub struct CaseRunRequest {
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
-    pub terminal_fuel_allowance: Option<std::num::NonZeroU64>,
+    pub psi_work_budget: Option<std::num::NonZeroU64>,
     pub inputs: Vec<PathBuf>, // Run in order; each case is named by its file stem.
     pub output_directory: PathBuf,
     pub keep_artifacts: bool,
@@ -411,9 +410,9 @@ pub struct CaseRunOutcome {
 }
 
 pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunError> {
-    let terminal_fuel_allowance = request
-        .terminal_fuel_allowance
-        .map_or(DEFAULT_TERMINAL_FUEL_ALLOWANCE, std::num::NonZeroU64::get);
+    let psi_work_budget = request
+        .psi_work_budget
+        .map_or(DEFAULT_PSI_WORK_ALLOWANCE, std::num::NonZeroU64::get);
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
@@ -441,7 +440,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         },
         orchestration::NativeDestination::Retained,
         reference_inputs,
-        terminal_fuel_allowance,
+        psi_work_budget,
     )
     .map_err(RunError::Compilation)?;
     if request.keep_artifacts {
@@ -490,8 +489,8 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
             write("terminal.stdout", &reference.stdout)?;
             write("terminal.stderr", &reference.stderr)?;
             write(
-                "terminal.fuel.tsv",
-                format_fuel_tsv(reference, terminal_fuel_allowance).as_bytes(),
+                "psi.work.tsv",
+                format_work_tsv(reference, psi_work_budget).as_bytes(),
             )?;
         }
         let exit = ProcessExitObservation::observe(&output.status);
@@ -557,11 +556,10 @@ fn compare_interpretation(
                         "program entry returned a non-process result: {result:?}"
                     ));
                 }
-                TerminalExecutionStatus::SponsorExhausted(_) => {
-                    return InterpreterComparison::Declined(
-                        "Terminal reference execution exhausted its sponsor fuel allowance"
-                            .to_owned(),
-                    );
+                TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+                    return InterpreterComparison::Declined(format!(
+                        "Psi reference execution: {exhaustion}; raise --psi-work-budget to permit more work"
+                    ));
                 }
                 TerminalExecutionStatus::AwaitingEffect(site) => {
                     return InterpreterComparison::Declined(format!(

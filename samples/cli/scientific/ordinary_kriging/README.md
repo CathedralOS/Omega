@@ -74,8 +74,8 @@ frozen oracle. Exit agreement alone cannot pass. Before execution, the sponsor r
 retained host roster and refuses operations outside Console input/output/exit
 and pure numeric realization. It supplies no clock or filesystem authority.
 Native runs have a 30-second
-limit; the sponsor has a 100-million-fuel allowance per case and the whole
-observer invocation has a 30-minute wall-clock limit. Declines, fuel exhaustion,
+limit; the sponsor has a 100-million-work budget per case and the whole
+observer invocation has a 30-minute wall-clock limit. Declines, work-budget exhaustion,
 partial execution, wrong refusal identities, and nonfinite output fail.
 
 `validation/oracle.py` was run before application execution to freeze

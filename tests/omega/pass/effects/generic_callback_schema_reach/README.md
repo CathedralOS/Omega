@@ -27,4 +27,4 @@ An unchanged commitment cannot authorize an independently changed callee tuple.
 These relations remain ordinary producer-trusted source projections, not
 authenticated original source-contract openings. Generic
 execution is absent: the calls execute ordinary concrete machines with ordinary
-fuel accounting.
+work accounting.

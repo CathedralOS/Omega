@@ -16,7 +16,7 @@ psi_rule_contract!(
     /// Binds the proven constant on an incoming edge — an unconditional `Jump`
     /// successor or one arm of a `Conditional` predecessor — to a
     /// `Conditional`-terminated dispatch block's parameter and fuses the resolved
-    /// arm, keeping both edges' provenance and fuel settlements on the fused
+    /// arm, keeping both edges' provenance and work settlements on the fused
     /// traversal. The condition reads the parameter directly (a Boolean
     /// argument) or through an in-block `parameter CMP literal` integer
     /// comparison against a pure scalar-constant prefix (an integer argument).

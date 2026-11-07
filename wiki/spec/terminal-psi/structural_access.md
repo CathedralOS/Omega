@@ -110,7 +110,7 @@ under ordinary producer dominance, while the consumed paths stay unavailable.
 Release opens no borrowed-storage repair obligation. Same-block restoration
 precedes any renewed parent use, and shared backing stays frozen until the
 complete shared cohort ends. Formation, release, and successful return commit
-only after their fuel charge.
+only after their work charge.
 
 Ordinary calls and returns must retain whole mutable primitive references,
 mutable references to plain records, record-contained reference leaves and their
@@ -384,7 +384,7 @@ Its transfer consumes the current subtree custody and preserves the remaining
 siblings; the whole source name alone grants no partial-transfer authority. Ordinary borrowed projections retain their access rules.
 
 Each operand is evaluated in authored order before this operation. Establishment
-is atomic after all operands are available, with one logical fuel charge before
+is atomic after all operands are available, with one logical work charge before
 any child transfer or parent publication. A paused or failing operand computation
 therefore retains the previously completed temporaries under their ordinary
 cleanup rules, rather than exposing a partially initialized destination. Every
@@ -675,7 +675,7 @@ than enumerating combinations of old and new observations.
 Consumers reconstruct projections from retained field/index identities and
 types, rather than trusting an accumulated byte offset. Runtime scalar inputs
 retain value identity; integer, Boolean, and IEEE literals retain their exact
-type and value or raw bits. Fuel is consumed before mutation; suspension and
+type and value or raw bits. Work is consumed before mutation; suspension and
 resumption must not repeat a committed store. Referent backing survives callee
 frames so a completed write remains visible to the caller.
 

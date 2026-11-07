@@ -47,7 +47,7 @@ The validator compiles its auxiliary observer from the same producer's retained
 libraries, publishes the actual admitted native product, captures native and
 canonical Terminal numerical output, and compares both with immutable independent
 70-digit expectations within 1e-7. Its per-case wall clock and explicit sponsor
-fuel bound execution. Source-invalid reflection rank 8 must reject before runtime.
+work bound execution. Source-invalid reflection rank 8 must reject before runtime.
 `validation/oracle.json` and its input hashes were frozen before Omega execution.
 `validation/freeze_reference.py` uses signed enumeration and combinations,
 independent of the application's canonical-triple and bitmask enumeration.

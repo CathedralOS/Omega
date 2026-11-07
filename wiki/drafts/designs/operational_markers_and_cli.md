@@ -41,7 +41,7 @@ do not leave two public spellings. Validator tooling can land separately.
 4. Migrate argument parsers, help/errors, entry routing, tooling invocations,
    tests and documentation together. Route both package audits under packages;
    keep locator/project modes distinct. Preserve both Psi inspection forms.
-   Rename exposed `terminal` engine/fuel selectors to `psi`; internal engine
+   Rename exposed `terminal` engine/work selectors to `psi`; internal engine
    enums, crate paths, wire tags and measured historical records need not change.
 5. Register exact validator identities with stage/product/target applicability.
    Execute through the owning compiler driver and publish report rows. Explicit

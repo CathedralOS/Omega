@@ -54,7 +54,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
         allocator_availability: availability.receipt().identity(),
         machine_effect_catalog: effect_catalog.identity(),
         optimization_unit: selected.optimization_unit_identity(),
-        fuel_schedule: selected.fuel_schedule_identity(),
+        work_schedule: selected.work_schedule_identity(),
         policy,
         budget,
         usage,

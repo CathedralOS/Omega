@@ -84,7 +84,7 @@ pub(super) fn validate_redundant_block_parameter_candidate(
                     machine: patch.machine,
                     edge: edge.psi_edge,
                 };
-                expected_provenance.push(realized_at_own_site(site, &edge.provenance, &edge.fuel));
+                expected_provenance.push(realized_at_own_site(site, &edge.provenance, &edge.work));
             }
             if changes_use {
                 affected_blocks.insert(source.id);

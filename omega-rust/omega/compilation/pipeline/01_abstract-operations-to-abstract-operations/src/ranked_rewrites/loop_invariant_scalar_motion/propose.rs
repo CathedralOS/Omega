@@ -923,7 +923,7 @@ pub(super) fn component_plan(
                     root_rewrite,
                     argument_rewrites,
                     node.provenance.clone(),
-                    node.fuel.clone(),
+                    node.work.clone(),
                 ));
                 progressed = true;
             }

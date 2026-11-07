@@ -93,7 +93,7 @@ The repair in stage03 `scalar_graph/integer_arithmetic.rs` reads the selected
 row's fixed-use and early-clobber constraints. It transports each pinned input
 occurrence to a fresh short-lived register without changing the original source
 value's mapping. Flexible equal inputs are separated where early clobber requires
-it. Copies retain type/value/definition lineage; arithmetic obligations and fuel
+it. Copies retain type/value/definition lineage; arithmetic obligations and work
 remain on the arithmetic instruction. This replaces the prior source-equality
 recognizers for division, multiplication and shifts. No home-assignment rejection,
 proof rule, provider authority or runtime output check was weakened. Incoming

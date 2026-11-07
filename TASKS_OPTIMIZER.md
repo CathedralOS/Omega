@@ -173,7 +173,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   - `StructuralByteSequenceFieldRead` needs same-root/path/field length facts
     and pinned index/length identities, not just invariant member parameters.
   - Profitability beyond the relocated-node-count estimate; keep semantic
-    non-speculation, logical fuel and optimization cost distinct under
+    non-speculation, logical work and optimization cost distinct under
     [optimization semantics](wiki/spec/build/optimizations.md).
   - Motion that needs new blocks or run duplication, beyond the existing
     preheader.
@@ -307,7 +307,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   - Bind summaries to callee revisions, projected storage and aliases;
     invalidate them when the callee changes. Integrate inlining as an exact
     selection under [optimization semantics](wiki/spec/build/optimizations.md),
-    preserving ownership, effects, cleanup and fuel.
+    preserving ownership, effects, cleanup and work.
   Acceptance: a corpus fixture selects inlining/summaries, the call is
   rewritten, and the program runs to its authored result; disabled selection
   runs identically.

@@ -45,7 +45,7 @@ pub(super) fn observed_source<'a>(
             if edge == psi_edge && target == successor.source_target)
         || normalization.provenance.edges != [psi_edge]
         || !normalization.provenance.operations.is_empty()
-        || !normalization.provenance.fuel.is_empty()
+        || !normalization.provenance.work.is_empty()
     {
         return None;
     }

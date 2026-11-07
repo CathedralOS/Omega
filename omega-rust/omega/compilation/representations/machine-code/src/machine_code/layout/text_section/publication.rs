@@ -15,7 +15,7 @@ use optimization_core::{
     PostAllocationOptimizationManifestIdentity, TerminalRelocationFreeTextSectionIdentity,
 };
 use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -57,7 +57,7 @@ pub struct FunctionFragmentTextSectionManifest {
     pub source_realization: FunctionRelativeOptimizationRealizationManifestIdentity,
     pub selections: OptimizationSelectionIdentity,
     pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub post_allocation_machine: physical_instructions::PostAllocationMachineIdentity,

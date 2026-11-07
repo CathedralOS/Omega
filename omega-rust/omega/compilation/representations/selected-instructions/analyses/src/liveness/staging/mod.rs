@@ -19,7 +19,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedProgram;
 use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_liveness(

@@ -22,7 +22,7 @@ directory (or its internal `#[cfg(test)]` modules). Those directories are local
 Cargo test targets, not additional repository test roots.
 
 Standalone failing Build fixtures may declare `build_resource_limits.txt` with
-four positive integers: evaluator fuel, staging entries, total logical bytes,
+four positive integers: evaluator work, staging entries, total logical bytes,
 and maximum object extent. The corpus checked request supplies these host
 sponsors and fresh private staging; Omega code cannot select its own budget.
 Other evaluator ceilings are non-binding in these controls. This keeps refusal

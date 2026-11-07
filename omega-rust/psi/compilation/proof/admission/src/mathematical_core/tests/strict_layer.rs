@@ -44,14 +44,14 @@ fn empty_elimination_rejects_non_type_targets_and_foreign_scrutinees() {
     assert!(matches!(error, CoreError::NotASort { .. }));
 
     // A scrutinee of a relevant type is not an `sEmpty` proof: `x : A`
-    // cannot fuel ex falso.
+    // cannot work ex falso.
     let target = variable(&mut arena, 2);
     let wrong = variable(&mut arena, 0);
     let bad = empty_elim(&mut arena, target, wrong);
     let error = infer_type(&mut arena, &context, bad, &mut budget).unwrap_err();
     assert!(matches!(error, CoreError::TypeMismatch { .. }));
 
-    // The dual control: `e : sEmpty` *does* fuel `Two` — elimination
+    // The dual control: `e : sEmpty` *does* work `Two` — elimination
     // into relevant types is exactly what the rule licenses.
     let two_target = two(&mut arena);
     let scrutinee = variable(&mut arena, 1);

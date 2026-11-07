@@ -69,5 +69,5 @@ The separate `invalid` project must reject reading species index 3 from length 3
 `terminal_validate.py` compiles an output observer against exact recorded producer
 libraries. It consumes the actual admitted application's retained canonical
 Terminal artifact and provisions via shipped APIs and validates captured stdout
-against the same oracle and refusals. Fuel and wall-clock sponsor bounds are
+against the same oracle and refusals. Work and wall-clock sponsor bounds are
 explicit. Native/Terminal exit parity alone is not numerical qualification.

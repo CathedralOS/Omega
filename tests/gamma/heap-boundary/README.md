@@ -45,7 +45,7 @@ functions, alter counters, or model pair allocation. `evaluator.tsv` pins the
 selected Beta source and tape; `functional-evaluator.sh` separately reconstructs
 that tape through the trusted Beta compiler.
 
-Each child has a 1,200-second watchdog, not a language fuel limit. A timeout is
+Each child has a 1,200-second watchdog, not a language work limit. A timeout is
 a failing observation without a language judgment. A slower host can increase
 the observation allowance; an exact selector supports isolated measurement:
 

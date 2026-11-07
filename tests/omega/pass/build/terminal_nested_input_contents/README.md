@@ -11,7 +11,7 @@ a record array, both primitive-array dimensions, boolean contents, byte-array
 backing, empty-array establishment and nonzero neighboring fields. The guest
 checks each position, returning 343 or 727; a changed canary must return 3.
 Each inspection executes borrowed and encoded/reloaded artifacts from the same
-canonical module, through a fuel pause, with sponsored storage released on close.
+canonical module, through a work-budget pause, with sponsored storage released on close.
 
 The portable provision also rejects missing/duplicate/inactive paths, unknown
 nominal cases, wrong logical/stored carriers, out-of-bounds indices, overlapping

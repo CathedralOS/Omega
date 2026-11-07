@@ -1320,6 +1320,11 @@ fn fixture_of(
     None
 }
 
+fn source_oracle_input(path: &str) -> bool {
+    !path.ends_with("README.md")
+        && !(path.contains("/validation/") && (path.ends_with(".rs") || path.ends_with(".py")))
+}
+
 fn golden_violations(
     changes: &[(char, String)],
     base_rows: &BTreeSet<String>,
@@ -1330,7 +1335,7 @@ fn golden_violations(
     let all_rows: BTreeSet<String> = base_rows.union(head_rows).cloned().collect();
     let mut touched = BTreeSet::new();
     for (_, path) in changes {
-        if !path.ends_with("README.md")
+        if source_oracle_input(path)
             && let Some(f) = fixture_of(path, &all_rows, fixture_dirs)
         {
             touched.insert(f);
@@ -1364,6 +1369,41 @@ fn golden_violations(
     violations
 }
 
+// The ratified work-accounting rename changes spelling, not diagnostic strength.
+// Keep complete fragments: comparison operators, numbers and all other words bind.
+fn work_vocabulary_pin(fragment: &str) -> String {
+    match fragment {
+        "evaluation Fuel allowance exhausted" => "evaluation Work budget exhausted".to_owned(),
+        "AllowanceExhausted(Fuel)" => "BudgetExhausted(Work)".to_owned(),
+        "fuel > 0" => "remaining_steps > 0".to_owned(),
+        _ => fragment.replace(
+            "constant Terminal execution exhausted its fuel allowance",
+            "constant Terminal execution exhausted its work budget",
+        ),
+    }
+}
+
+fn canonical_work_pins(pins: &BTreeSet<String>) -> Vec<String> {
+    let mut canonical: Vec<_> = pins.iter().map(|pin| work_vocabulary_pin(pin)).collect();
+    canonical.sort();
+    canonical
+}
+
+fn equivalent_work_pin(root: &Path, base_rev: &str, status: char, path: &str) -> bool {
+    if status != 'M' || !path.ends_with("/expected.txt") {
+        return false;
+    }
+    let fragments = |text: String| -> BTreeSet<String> {
+        text.lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    canonical_work_pins(&fragments(show_git_file(root, base_rev, path)))
+        == canonical_work_pins(&fragments(show_git_file(root, "HEAD", path)))
+}
+
 fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
     for (status, path) in changes {
@@ -1386,7 +1426,7 @@ fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String
                 .map(str::to_owned)
                 .collect()
         };
-        if old == new {
+        if canonical_work_pins(&old) == canonical_work_pins(&new) {
             continue;
         }
         let detail = if *status == 'D' {
@@ -1692,8 +1732,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             git(&root, &["diff", "-U0", &base_rev, "HEAD", "--", GOLDEN]).unwrap_or_default();
         let base_golden = show_git_file(&root, &base_rev, GOLDEN);
         let head_golden = show_git_file(&root, "HEAD", GOLDEN);
+        let freshness_changes: Vec<_> = changes
+            .iter()
+            .filter(|(status, path)| !equivalent_work_pin(&root, &base_rev, *status, path))
+            .cloned()
+            .collect();
         violations.extend(golden_violations(
-            &changes,
+            &freshness_changes,
             &golden_rows(&base_golden),
             &golden_rows(&head_golden),
             &changed_golden_rows(&golden_diff),
@@ -1779,6 +1824,48 @@ mod tests {
             "dangling task IDs differed:\n{}",
             violations.join("\n")
         );
+    }
+
+    #[test]
+    fn work_pin_migration_preserves_the_complete_requirement() {
+        for (old, new) in [
+            (
+                "evaluation Fuel allowance exhausted",
+                "evaluation Work budget exhausted",
+            ),
+            ("AllowanceExhausted(Fuel)", "BudgetExhausted(Work)"),
+            ("fuel > 0", "remaining_steps > 0"),
+        ] {
+            assert_eq!(work_vocabulary_pin(old), work_vocabulary_pin(new));
+        }
+        assert_ne!(
+            work_vocabulary_pin("fuel > 0"),
+            work_vocabulary_pin("remaining_steps >= 0")
+        );
+        assert_ne!(
+            work_vocabulary_pin("fuel > 0"),
+            work_vocabulary_pin("remaining_steps > 1")
+        );
+        assert_eq!(work_vocabulary_pin("other_fuel > 0"), "other_fuel > 0");
+        assert_ne!(work_vocabulary_pin("fuel > 0"), work_vocabulary_pin(""));
+        let two: BTreeSet<String> = ["fuel > 0", "remaining_steps > 0"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        let one: BTreeSet<String> = ["remaining_steps > 0"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_ne!(canonical_work_pins(&two), canonical_work_pins(&one));
+        assert!(!source_oracle_input(
+            "tests/omega/pass/provider/check/validation/terminal.rs"
+        ));
+        assert!(source_oracle_input(
+            "tests/omega/pass/provider/check/main.omg"
+        ));
+        assert!(source_oracle_input(
+            "tests/omega/pass/provider/check/validation/main.omg"
+        ));
     }
 
     #[test]

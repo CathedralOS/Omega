@@ -51,7 +51,7 @@ mod tests {
             block: SelectedBlockId(block),
             source_target: BlockId::new(source_target).expect("block"),
             bindings: Vec::new(),
-            fuel: Vec::new(),
+            work: Vec::new(),
         }
     }
 

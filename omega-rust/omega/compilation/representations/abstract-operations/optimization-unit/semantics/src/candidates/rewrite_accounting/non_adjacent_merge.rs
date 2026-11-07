@@ -32,7 +32,7 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
             incoming_site,
             PsiRealizationSite::Node(patch.predecessor),
             &incoming.provenance,
-            &incoming.fuel,
+            &incoming.work,
         )]
     } else if !first.successors.is_empty() {
         first
@@ -46,7 +46,7 @@ pub(crate) fn reconstruct_non_adjacent_merge_accounting(
                         edge: successor.psi_edge,
                     },
                     &incoming.provenance,
-                    &incoming.fuel,
+                    &incoming.work,
                 )
             })
             .collect()

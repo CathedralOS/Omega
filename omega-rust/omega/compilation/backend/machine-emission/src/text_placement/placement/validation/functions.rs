@@ -122,7 +122,7 @@ pub(super) fn check(
                         target_operations::CallSiteOwner::CleanupAction { edge, .. }
                             if source_row.provenance.operations.is_empty()
                                 && source_row.provenance.edges.as_slice() == [edge]
-                                && source_row.provenance.fuel.is_empty() => {}
+                                && source_row.provenance.work.is_empty() => {}
                         _ => return Err(TextPlacementError::SourceShapeMismatch),
                     }
                     let candidate = resolutions

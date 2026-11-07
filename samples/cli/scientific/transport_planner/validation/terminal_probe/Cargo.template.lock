@@ -24,7 +24,7 @@ dependencies = [
  "proof-admission",
  "semantic-vocabulary",
  "terminal-codec",
- "terminal-fuel",
+ "psi-work",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
@@ -438,7 +438,7 @@ dependencies = [
  "target",
  "target-operations",
  "terminal-codec",
- "terminal-fuel",
+ "psi-work",
  "terminal-interpreter",
  "terminal-production",
  "terminal-psi",
@@ -690,7 +690,7 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
- "terminal-fuel",
+ "psi-work",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
@@ -978,7 +978,7 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-operations",
- "terminal-fuel",
+ "psi-work",
  "terminal-psi-to-abstract-operations",
 ]
 
@@ -1138,7 +1138,7 @@ dependencies = [
  "optimization-unit",
  "semantic-vocabulary",
  "terminal-codec",
- "terminal-fuel",
+ "psi-work",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -1968,7 +1968,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-fuel"
+name = "psi-work"
 version = "0.1.0"
 dependencies = [
  "semantic-vocabulary",
@@ -1992,7 +1992,7 @@ dependencies = [
  "proof-admission",
  "semantic-vocabulary",
  "terminal-codec",
- "terminal-fuel",
+ "psi-work",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",

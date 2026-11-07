@@ -153,7 +153,7 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for pointer loads and indirect stores (`mov [rax], rcx` on `x86_64`, `str x1, [x0]` on `arm64`), as well as the cleanup hook invocation. Register allocators assign register homes and disjoint stack-frame activation storage for the local `Counter` referent and `Keeper` carrier, inserting function prologues and multi-return restoration epilogues that respect `StatePlan` stack bounds.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements for local referents resolve into concrete frame offsets. Function basic blocks, cleanup edges, and transition jumps lay out with branch relaxation and offset reflow. Transitive machine-state footprints validate, and direct PE/ELF/Mach-O emission produces native executables agreeing with Terminal Psi (`omega run --both` exit 0) across host targets.
 
-Remaining open on CML4: residual-cleanup, crash routes, fuel/retry, suspension, and cross-host acceptance; CML4's remaining residual-cleanup and computed-call requirements stay open on the board.
+Remaining open on CML4: residual-cleanup, crash routes, work/retry, suspension, and cross-host acceptance; CML4's remaining residual-cleanup and computed-call requirements stay open on the board.
 
 ## Build-owned target-body migration
 
