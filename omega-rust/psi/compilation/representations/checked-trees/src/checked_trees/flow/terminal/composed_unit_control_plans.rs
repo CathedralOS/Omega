@@ -87,7 +87,7 @@ pub struct CheckedGuardedReturnValue {
     pub is_continuation: bool,
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
     pub operation: CheckedUnitEffectOperationPlan,
-    pub copied_payloads: arena::HandleSpan<crate::FlowOperandFact>,
+    pub copied_payloads: Vec<crate::CheckedSelectedPayloadCopy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -259,6 +259,8 @@ pub enum CheckedStateContractRequirement {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedComposedUnitControlStatePlan {
+    /// Admitted payload births for the exact selected outgoing targets.
+    pub selected_copies: Vec<crate::CheckedSelectedPayloadCopies>,
     pub state: SymbolHandle,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,

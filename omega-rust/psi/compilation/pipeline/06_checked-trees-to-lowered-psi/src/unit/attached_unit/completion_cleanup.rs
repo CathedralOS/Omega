@@ -9,7 +9,6 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{
     Evaluation, ScalarReturnCleanup, StructuralValueStorage,
 };
-use crate::unit::attached_unit::scalar_completion::control::returning_destinations;
 use crate::unit::unit_cleanup::CleanupRegion;
 use crate::unit::unit_cleanup::bind_consumed_claims;
 mod owner_order;
@@ -89,17 +88,14 @@ pub(crate) fn scalar_returns(
     // plan selects runtime returns; preparing dead cleanup rows would allocate
     // orphan completion blocks and their obligations. Every selected return
     // still requires its unique, exact source-owned cleanup coordinate.
-    let destinations = returning_destinations(checked, control)?;
-    let mut copies = std::collections::BTreeMap::new();
-    for row in &control.selected_copies {
-        copies
-            .entry((row.statement_ordinal, row.is_continuation))
-            .and_modify(|captured| *captured = None)
-            .or_insert(Some(row.copied_payloads));
-    }
-    destinations
-        .into_iter()
-        .map(|destination| {
+    control
+        .selected_copies
+        .iter()
+        .map(|row| {
+            let destination = CheckedScalarBranchDestination::Return {
+                statement_ordinal: row.statement_ordinal,
+                is_continuation: row.is_continuation,
+            };
             let exit = self::destination(source, &destination)?;
             let mut actions = for_exit_regions(
                 identities, claims, checked, source, exit, catalog, parameters, evaluation,
@@ -112,27 +108,11 @@ pub(crate) fn scalar_returns(
                 operations,
                 &mut actions,
             )?;
-            let CheckedScalarBranchDestination::Return {
-                statement_ordinal,
-                is_continuation,
-            } = destination
-            else {
-                return Err(LoweringError::Unsupported(
-                    "scalar completion lost its return coordinate",
-                ));
-            };
-            let copied_payloads = copies
-                .get(&(statement_ordinal, is_continuation))
-                .copied()
-                .flatten()
-                .ok_or(LoweringError::Unsupported(
-                    "scalar completion lost its selected payload roster",
-                ))?;
             Ok(ScalarReturnCleanup {
                 exit,
                 destination,
                 actions,
-                copied_payloads,
+                copied_payloads: row.copied_payloads.clone(),
             })
         })
         .collect()

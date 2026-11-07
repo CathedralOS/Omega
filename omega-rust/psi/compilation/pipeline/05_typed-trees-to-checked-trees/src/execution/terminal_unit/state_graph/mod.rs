@@ -481,6 +481,13 @@ pub(super) fn build_traced(
             trace,
         )?;
         planned.push(CheckedComposedUnitControlStatePlan {
+            selected_copies: control::selected_copies::SelectedCopies::new(
+                program,
+                facts,
+                owner.symbol,
+                state,
+            )?
+            .into_rows()?,
             normal_exit_cleanups: checked_trees::CheckedNormalExitCleanups {
                 completion,
                 ..Default::default()

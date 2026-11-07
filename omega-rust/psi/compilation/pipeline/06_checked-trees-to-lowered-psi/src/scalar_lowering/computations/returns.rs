@@ -16,7 +16,7 @@ impl Expansion<'_> {
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         exit: &checked_trees::FlowClaimJoinExit,
-        copied_payloads: arena::HandleSpan<checked_trees::FlowOperandFact>,
+        copied_payloads: &[checked_trees::CheckedSelectedPayloadCopy],
         role: CheckedScalarExpressionRole,
         bindings: &storage::ScalarBindings,
         source_types: &[QualifiedScalarType],
@@ -81,7 +81,12 @@ impl Expansion<'_> {
                 },
             ))
         };
-        let copies = self.selected_payload_values(identities, exit, copied_payloads)?;
+        let copies = super::super::branch_states::structural_values::selected_copies(
+            identities,
+            self.checked,
+            copied_payloads,
+            self.structural_types,
+        )?;
         let target = if copies.is_empty() {
             target
         } else {
@@ -117,75 +122,5 @@ impl Expansion<'_> {
                 }
             }).collect(),
         )))
-    }
-    fn selected_payload_values(
-        &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        exit: &checked_trees::FlowClaimJoinExit,
-        copied_payloads: arena::HandleSpan<checked_trees::FlowOperandFact>,
-    ) -> Result<Vec<super::super::branch_states::structural_values::ValueRequest>, LoweringError>
-    {
-        let mut values = Vec::new();
-        for copy in crate::shared::checked_facts::flow_facts(self.checked)
-            .control
-            .operands
-            .span(copied_payloads)
-            .ok_or(LoweringError::Unsupported(
-                "selected scalar payload roster is stale",
-            ))?
-        {
-            if copy.state_symbol != exit.state_symbol
-                || copy.statement_index != exit.statement_index
-            {
-                return unsupported("selected scalar payload has another source coordinate");
-            }
-            if self
-                .checked
-                .primitive_type_reference(copy.type_reference)
-                .is_some()
-                && validation::reference_shell(&self.checked.typed, copy.type_reference).is_none()
-            {
-                continue;
-            }
-            let checked_trees::FlowOperandCompletion::Copied { copy: identity, .. } =
-                copy.completion
-            else {
-                return unsupported("selected scalar payload has no completed copy identity");
-            };
-            let root = value_facts(self.checked)
-                .structural_values
-                .root_for_captured_copy(
-                    exit.state_symbol,
-                    u32::try_from(exit.statement_index).map_err(|_| {
-                        LoweringError::Unsupported("scalar return statement exceeds u32")
-                    })?,
-                    identity,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "selected scalar payload has no checked value producer",
-                ))?;
-            if !validation::type_satisfies_declared_property(
-                &self.checked.typed,
-                &[],
-                root.type_reference,
-                validation::DeclaredPropertyRequirement::Copy,
-            ) || !validation::has_contents(
-                &self.checked.typed,
-                root.type_reference,
-                &[],
-                validation::ContentsRequirement::DescriptorCleanup,
-            ) {
-                return unsupported("selected scalar payload lost its copy and cleanup capability");
-            }
-            values.push(
-                super::super::branch_states::structural_values::ValueRequest::prepare(
-                    identities,
-                    self.checked,
-                    root.root,
-                    self.structural_types,
-                )?,
-            );
-        }
-        Ok(values)
     }
 }

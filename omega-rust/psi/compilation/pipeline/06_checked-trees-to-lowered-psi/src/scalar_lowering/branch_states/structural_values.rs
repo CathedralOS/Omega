@@ -140,3 +140,31 @@ impl ValueRequest {
         ))
     }
 }
+
+/// Psi 05 already admitted these exact private births and their disposal.
+/// Realization joins their stored carriers to this target's type catalog.
+pub(crate) fn selected_copies(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    copies: &[checked_trees::CheckedSelectedPayloadCopy],
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<ValueRequest>, LoweringError> {
+    copies
+        .iter()
+        .map(|copy| {
+            let declaration =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    copy.type_identity,
+                    "selected copy has no realized carrier",
+                )?;
+            Ok(ValueRequest {
+                value: copy.value,
+                structural_type: declaration.id,
+                captured: true,
+            })
+        })
+        .collect()
+}

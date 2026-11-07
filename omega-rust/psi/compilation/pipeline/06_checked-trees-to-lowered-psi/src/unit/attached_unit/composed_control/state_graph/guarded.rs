@@ -202,8 +202,7 @@ pub(super) fn emit_return(
     let copied_values = DispatchCopies::new(checked, state, owner, catalogs, erased_parameters)
         .capture(
             identities,
-            returned.statement_ordinal,
-            returned.copied_payloads,
+            &returned.copied_payloads,
             parameters,
             FrameValues {
                 source_value_count: values.len(),

@@ -26,22 +26,22 @@ pub(crate) struct ScalarReturnCleanup {
     pub(crate) exit: checked_trees::FlowClaimJoinExit,
     pub(crate) destination: CheckedScalarBranchDestination,
     pub(crate) actions: Vec<crate::unit::unit_cleanup::CleanupRegion>,
-    pub(crate) copied_payloads: arena::HandleSpan<checked_trees::FlowOperandFact>,
+    pub(crate) copied_payloads: Vec<checked_trees::CheckedSelectedPayloadCopy>,
 }
 
-fn completion_target(
+fn completion_target<'a>(
     destination: &CheckedScalarBranchDestination,
-    completions: &[(
+    completions: &'a [(
         CheckedScalarBranchDestination,
         usize,
         checked_trees::FlowClaimJoinExit,
-        arena::HandleSpan<checked_trees::FlowOperandFact>,
+        &'a [checked_trees::CheckedSelectedPayloadCopy],
     )],
 ) -> Result<
     (
         usize,
         checked_trees::FlowClaimJoinExit,
-        arena::HandleSpan<checked_trees::FlowOperandFact>,
+        &'a [checked_trees::CheckedSelectedPayloadCopy],
     ),
     LoweringError,
 > {
@@ -81,7 +81,7 @@ fn push_arm_target(
         CheckedScalarBranchDestination,
         usize,
         checked_trees::FlowClaimJoinExit,
-        arena::HandleSpan<checked_trees::FlowOperandFact>,
+        &[checked_trees::CheckedSelectedPayloadCopy],
     )],
 ) -> Result<usize, LoweringError> {
     let CheckedScalarBranchDestination::Return {
@@ -342,7 +342,7 @@ impl Evaluation {
                     cleanup.destination.clone(),
                     target,
                     cleanup.exit,
-                    cleanup.copied_payloads,
+                    cleanup.copied_payloads.as_slice(),
                 )
             })
             .collect::<Vec<_>>();
