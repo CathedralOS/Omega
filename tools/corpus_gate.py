@@ -610,6 +610,8 @@ def runner_build_environment(root: Path = ROOT) -> dict:
 def build_runner(root: Path = ROOT) -> Path:
     """Build `root`'s runner via cargo/mbx message-format JSON; return its path."""
     tool = "mbx" if shutil_which("mbx") else "cargo"
+    if sys.platform.startswith("linux") and tool != "mbx":
+        raise InfrastructureFailure("Linux runner preparation requires the pinned mbx; no Cargo fallback")
     args = [tool, "test", "--no-run", "--message-format=json", *CORPUS_RUNNER_ARGUMENTS]
     env = runner_build_environment(root)
     import build_slot

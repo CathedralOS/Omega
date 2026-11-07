@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "16ffb061832269497406481027752c7220c41274",
-    "tree": "4ea078e4b83ebedefab113d60fe1880af90920d1",
+    "revision": "8b5d3bdc85e061ddd22063ced18b4bb0fa3ebb47",
+    "tree": "e957d91e4b2c356aa264a0ae4fc2a2b4b9f0dcb8",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "b1699e6824e931a4422b2bbd1bc083e46669e684",
+      "omega-rust": "b28d5a80c45e3ae5f75d27ffa25851f4b9b5af91",
       "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,27 +19,59 @@
     },
     "executables": {
       "cli": {
-        "sha256": "53adf53fd7e5bf48e6101f84b71afe28797c27cab0e4e8b62eeda6c7f7efbaec",
+        "sha256": "ac2d03f41c5c585210efd7762a668ad2f2ede08f060d428df52793f7741162f9",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "acf169296d932ff125a6721d17f7e14d8c51a755fa7c3ade2ddf9d236b8b4075",
+        "sha256": "56b2be1b0c6750124707538a21410030e1ed479283e5c94af2c14aeca6edb03f",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42387300057,
-    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-16ffb061832269497406481027752c7220c41274-prepared-v1-with-runner"
+    "origin_run": 42398396452,
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-8b5d3bdc85e061ddd22063ced18b4bb0fa3ebb47-prepared-v1-with-runner"
   },
-  "fixtures": [],
-  "source_only": false,
+  "fixtures": [
+    "pass/control_flow/runtime_scalar_case_arm_evaluation_exit",
+    "pass/cases/runtime_case_component_borrow_identity_exit",
+    "pass/atomics/runtime_mixed_common_atomic_cell_exit",
+    "pass/borrows/runtime_case_payload_partial_transfer_exit",
+    "pass/calls/mixed_value_forwarding_exit",
+    "pass/calls/runtime_constructed_borrowed_payload_arguments_exit",
+    "pass/calls/runtime_constructed_copy_payload_arguments_exit",
+    "pass/cases/mixed_record_cases",
+    "pass/control_flow/captured_nominal_result_region_identity_exit",
+    "pass/data/mixed_record_common_field_and_payload_dispatch_exit",
+    "pass/data/runtime_mixed_case_payload_dispatch_exit",
+    "pass/data/runtime_mixed_shape_exit",
+    "pass/data/runtime_zeroed_first_case_enum_payload_exit",
+    "pass/dependent/closed_case_common_and_active_payload_projection",
+    "pass/domains/runtime_case_constructor_child_memberships_exit",
+    "pass/generics/runtime_case_qualified_reference_storage_exit",
+    "pass/generics/runtime_mixed_generic_erased_sum_exit",
+    "pass/host/runtime_descriptor_nested_case_array_exit",
+    "pass/proofs/case_call_premises",
+    "pass/storage/large_zero_initialized_local_exit",
+    "pass/structs/case_field_type_store_shapes",
+    "pass/structs/runtime_composed_case_payload_reads_exit",
+    "pass/structs/runtime_mixed_common_field_store_exit",
+    "pass/structural/runtime_state_local_whole_store_exit",
+    "pass/text/runtime_inline_byte_case_payload_variants_exit",
+    "pass/text/runtime_inline_byte_case_values_exit",
+    "pass/wire/reflection_active_mutation_exit",
+    "fail/cases/borrowed_case_component_cannot_recover_common_fields",
+    "fail/cases/borrowed_case_wrong_pattern_owner",
+    "fail/proofs/completed_case_guarantee_keeps_common_fields_unknown",
+    "fail/wire/reflection_active_mutation_shared_subject",
+    "fail/calls/void_value_callee_rejected",
+    "fail/arithmetic/unit_match_terminal_bad_cast"
+  ],
+  "source_only": true,
   "samples": [],
-  "cli_fixtures": [
-    "pass/cases/runtime_case_component_borrow_identity_exit"
-  ]
+  "cli_fixtures": []
 }

@@ -369,6 +369,8 @@ def prepare_producer(output, *, need_runner=True):
     output.mkdir(parents=True, exist_ok=True)
     retained = Path(tempfile.mkdtemp(prefix="producer-", dir=output))
     tool = "mbx" if shutil.which("mbx") else "cargo"
+    if sys.platform.startswith("linux") and tool != "mbx":
+        raise ValueError("Linux producer preparation requires the pinned mbx; no Cargo fallback")
     arguments = [tool, "build", "--locked", "-p", "omega", "--message-format=json"]
     import build_slot
     if need_runner:
