@@ -204,12 +204,12 @@ impl SourceBuild {
         Ok(BuildAdvance::Continue)
     }
 
-    pub(super) fn validate_return(
-        &self,
-        returned: &build_settings::ReturnedBuild,
-    ) -> Result<(), CompileFailure> {
-        match &self.state {
-            State::Root { invocation, .. } => invocation.validate_return(returned),
+    pub(super) fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut build_settings::ReturnedBuild>,
+    ) -> Result<build_settings::BuildSourceResult<'result>, CompileFailure> {
+        match &mut self.state {
+            State::Root { invocation, .. } => invocation.source_result(returned),
             _ => Err(vec![Diagnostic::error(
                 "root Build has not completed its core companion",
             )]

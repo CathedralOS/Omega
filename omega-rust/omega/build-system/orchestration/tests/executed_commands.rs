@@ -29,6 +29,189 @@ fn copy_project(root: &Path, name: &str, files: &[&str]) {
 }
 
 #[test]
+fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
+    let temporary = TemporaryDirectory::create("pure-build-review", false).unwrap();
+    let root = temporary.path();
+    copy_project(
+        root,
+        "executed_project_identity_exit",
+        &["main.omg", "build.omg", "naming.omg", "result.omg"],
+    );
+    copy_project(
+        root,
+        "executed_dependency_source_join_exit",
+        &["main.omg", "build.omg"],
+    );
+    copy_project(
+        root,
+        "executed_dependency_source_library",
+        &["main.omg", "build.omg"],
+    );
+    copy_project(
+        root,
+        "product_entry_query_product_scope_alias",
+        &[
+            "main.omg",
+            "build.omg",
+            "helper/build.omg",
+            "helper/setup.omg",
+        ],
+    );
+    for (fixture, executions) in [
+        ("executed_project_identity_exit", 1),
+        ("product_entry_query_product_scope_alias", 2),
+        ("executed_dependency_source_join_exit", 2),
+    ] {
+        let project = root.join(fixture);
+        let mut session = BuildSession::create(&project.join("build/package-manager")).unwrap();
+        let mut options = PackageCommandOptions {
+            project_root: project.clone(),
+            targets: vec![TargetProfile::host_if_supported().unwrap()],
+            offline: true,
+            build_inputs: None,
+        };
+        let before = counters::build_execution_count();
+        let mut outcome = execute_package_command(
+            PackageCommand::Update {
+                packages: Vec::new(),
+                revision: None,
+            },
+            options.clone(),
+            &mut session,
+        )
+        .unwrap();
+        assert_eq!(counters::build_execution_count() - before, executions);
+        assert_ne!(outcome.status, PackageCommandStatus::Published);
+        options.targets.clear();
+        for _ in 0..3 {
+            accept_decisions(&outcome.review_paths);
+            let before = counters::build_execution_count();
+            outcome = execute_package_command(
+                PackageCommand::Resume {
+                    kind: PackageCommandKind::Update,
+                },
+                options.clone(),
+                &mut session,
+            )
+            .unwrap();
+            assert_eq!(
+                counters::build_execution_count(),
+                before,
+                "matching Pure results must survive same-session source discovery"
+            );
+            if outcome.status == PackageCommandStatus::Published {
+                break;
+            }
+        }
+        assert_eq!(
+            outcome.status,
+            PackageCommandStatus::Published,
+            "{}",
+            outcome.report
+        );
+        let lock = std::fs::read(project.join("omega.lock")).unwrap();
+        execute_accepted_project(&project);
+        if fixture == "executed_dependency_source_join_exit" {
+            let build = project.join("build.omg");
+            let source = std::fs::read_to_string(&build).unwrap();
+            std::fs::write(
+                &build,
+                source.replace(
+                    "../executed_dependency_source_library",
+                    "../changed_missing_source",
+                ),
+            )
+            .unwrap();
+            let before = counters::build_execution_count();
+            let error = execute_package_command(
+                PackageCommand::Update {
+                    packages: Vec::new(),
+                    revision: None,
+                },
+                options,
+                &mut session,
+            )
+            .expect_err("changed source requests must not reuse the previous declaration ledger");
+            assert!(
+                format!("{error:?}").contains("changed_missing_source"),
+                "{error:?}"
+            );
+            assert!(counters::build_execution_count() > before);
+            assert_eq!(std::fs::read(project.join("omega.lock")).unwrap(), lock);
+        }
+        session.close().unwrap();
+    }
+}
+
+fn execute_accepted_project(project: &Path) {
+    let mut outcomes = build(BuildRequest {
+        root_path: project.join("main.omg"),
+        build_directory: Some(project.join("build/accepted-native")),
+        targets: BuildTargets::Host,
+        product: ProjectProduct::Native {
+            destination: NativeDestination::Retained,
+            private_entry_ram: Vec::new(),
+        },
+        timings: false,
+        offline: true,
+        verify: false,
+        require_package_project: true,
+        optimization_rollback: Default::default(),
+        build_snapshot: None,
+    })
+    .unwrap();
+    assert_eq!(outcomes.len(), 1);
+    let report = outcomes
+        .pop()
+        .unwrap()
+        .result
+        .unwrap()
+        .into_report()
+        .unwrap()
+        .report;
+    let artifact = report.retained_native_artifact().unwrap().psi_artifact();
+    let reloaded =
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+        native_image: report.retained_native_artifact(),
+        entry: None,
+        filesystem: Default::default(),
+        native_services: Default::default(),
+        native_provider: None,
+        x86_flags: None,
+        memory_ordering: None,
+        provider_proposal: None,
+        artifact: &reloaded,
+        target: Some(TargetProfile::host_if_supported().unwrap().target_name()),
+        provisions: report.runtime_provisions(),
+        fuel_allowance: 100_000,
+        domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
+        standard_input: None,
+        clock: None,
+    })
+    .unwrap();
+    assert!(
+        matches!(
+            observation.status,
+            terminal_runtime::TerminalExecutionStatus::Complete(
+                terminal_runtime::TerminalExecutionResult::Unit
+            )
+        ),
+        "{:?}",
+        observation.status
+    );
+    let published = compilation_products::publication::publish_compilation(
+        report,
+        &project.join("build/native-product"),
+    )
+    .unwrap();
+    let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
+        .output()
+        .unwrap();
+    assert_eq!(observed.status.code(), Some(0), "{observed:?}");
+}
+
+#[test]
 fn product_entry_queries_reuse_build_across_accepted_targets() {
     let temporary = TemporaryDirectory::create("product-entry-queries", false).unwrap();
     let root = temporary.path();

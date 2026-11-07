@@ -11,7 +11,10 @@ mod project;
 mod provider_installation;
 pub mod scalar_completion;
 mod source_join;
+mod source_result;
 pub use source_join::BuildDependencySelection;
+pub use source_result::BuildSourceResult;
+pub(crate) use source_result::CompletedBuildSource;
 
 use evaluation_accounting::EvaluationInvocationAccount;
 use language_semantics::declaration_selection::{
@@ -60,6 +63,9 @@ pub struct ReturnedBuild {
 }
 
 impl ReturnedBuild {
+    pub fn source_result(&mut self) -> BuildSourceResult<'_> {
+        BuildSourceResult::executed(self)
+    }
     /// An authored role established by this activation's normal return. The
     /// compiler-owned default preserves its admitted context and has no named
     /// declaration. A name alone never settles dependencies or publishes Product.

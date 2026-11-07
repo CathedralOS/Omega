@@ -5,6 +5,7 @@
 //! successful admission/value/output protocol may publish a completed value;
 //! public callers can share its owner, but cannot extract or inject carriers.
 
+use super::CompletedBuildSource;
 use crate::ComputedBuildConfig;
 use build_time_evaluation::BuildTimeValue;
 use evaluation_accounting::{BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity};
@@ -163,10 +164,10 @@ impl PureBuildCompilation {
             .collect())
     }
 
-    pub(crate) fn matching_configuration(
+    pub(crate) fn matching_result(
         &self,
         inputs: &CompletedPureBuildInputs,
-    ) -> Result<Option<Arc<ComputedBuildConfig>>, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<Option<Arc<CompletedPureBuild>>, Vec<diagnostics::Diagnostic>> {
         // Snapshot only shared immutable entries while locked. Exact checked
         // program equality can traverse the whole program and all CheckFacts.
         let completed = self
@@ -180,7 +181,8 @@ impl PureBuildCompilation {
             .clone();
         Ok(completed
             .iter()
-            .find_map(|completed| completed.matching_configuration(inputs)))
+            .find(|completed| completed.inputs.matches(inputs))
+            .cloned())
     }
 
     /// Evaluation publishes here only after successful value/output settlement.
@@ -190,8 +192,10 @@ impl PureBuildCompilation {
         &self,
         inputs: CompletedPureBuildInputs,
         configuration: Arc<ComputedBuildConfig>,
+        source: Arc<CompletedBuildSource>,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        let Some(completed) = CompletedPureBuild::from_completed(inputs, configuration) else {
+        let Some(completed) = CompletedPureBuild::from_completed(inputs, configuration, source)
+        else {
             return Ok(());
         };
         let completed = Arc::new(completed);
@@ -229,9 +233,10 @@ impl PureBuildCompilation {
 /// No prepared entry token, host grant, checked product, or consuming account
 /// receipt survives here. Each consumer must independently admit and charge.
 #[derive(Clone)]
-struct CompletedPureBuild {
+pub(crate) struct CompletedPureBuild {
     inputs: CompletedPureBuildInputs,
-    configuration: Arc<ComputedBuildConfig>,
+    pub(crate) configuration: Arc<ComputedBuildConfig>,
+    pub(crate) source: Arc<CompletedBuildSource>,
 }
 
 impl CompletedPureBuild {
@@ -240,6 +245,7 @@ impl CompletedPureBuild {
     fn from_completed(
         inputs: CompletedPureBuildInputs,
         configuration: Arc<ComputedBuildConfig>,
+        source: Arc<CompletedBuildSource>,
     ) -> Option<Self> {
         let usage = configuration.evaluation_usage?;
         let observations = configuration.observation_summary.as_ref()?;
@@ -264,18 +270,8 @@ impl CompletedPureBuild {
         Some(Self {
             inputs,
             configuration,
+            source,
         })
-    }
-
-    /// Content match is not admission or a policy charge. The evaluator calls
-    /// this only after fresh admission and charges before returning the result.
-    fn matching_configuration(
-        &self,
-        inputs: &CompletedPureBuildInputs,
-    ) -> Option<Arc<ComputedBuildConfig>> {
-        self.inputs
-            .matches(inputs)
-            .then(|| Arc::clone(&self.configuration))
     }
 }
 

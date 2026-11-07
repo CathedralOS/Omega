@@ -143,6 +143,33 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
+        self.acquire_requests(
+            requester,
+            requests.iter().map(|issued| issued.request()),
+            purpose,
+            ordinal,
+        )
+    }
+
+    /// Resolve an occurrence retained by an eligible completed Pure result.
+    /// Current source custody, lock admission and exact ordinal checks still apply.
+    pub fn acquire_completed(
+        &mut self,
+        requester: &AcquiredBuildSource,
+        result: &build_settings::BuildSourceResult<'_>,
+        purpose: build_declarations::DependencyPurpose,
+        ordinal: usize,
+    ) -> Result<AcquiredSourceSelection, String> {
+        self.acquire_requests(requester, result.requests(), purpose, ordinal)
+    }
+
+    fn acquire_requests<'request>(
+        &mut self,
+        requester: &AcquiredBuildSource,
+        requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
+        purpose: build_declarations::DependencyPurpose,
+        ordinal: usize,
+    ) -> Result<AcquiredSourceSelection, String> {
         if !self.sources.iter().any(|source| {
             source.lineage == requester.lineage
                 && source.navigation == requester.navigation
@@ -153,9 +180,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                 "requesting Build has no source custody in this acquisition operation".into(),
             );
         }
-        let projected = DependencyProjections::from_executed_requests(
-            requests.iter().map(|issued| issued.request()),
-        )?;
+        let projected = DependencyProjections::from_executed_requests(requests)?;
         if projected.authored_request_count()
             > PackageSourceClosureLimits::default().max_dependency_requests
         {
@@ -530,9 +555,25 @@ impl AcquiredBuildSource {
         &self,
         returned: &build_settings::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
-        let declaration = returned
-            .declaration()
-            .ok_or("default Build has no authored named source owner")?;
+        self.declare_requests(
+            returned.declaration(),
+            returned.requests().iter().map(|issued| issued.request()),
+        )
+    }
+
+    pub fn declare_source_result(
+        &self,
+        result: &build_settings::BuildSourceResult<'_>,
+    ) -> Result<DeclaredBuildSource, String> {
+        self.declare_requests(result.declaration(), result.requests())
+    }
+
+    fn declare_requests<'request>(
+        &self,
+        declaration: Option<&build_declarations::BuildDeclaration>,
+        requests: impl Iterator<Item = &'request build_declarations::BuildRequest>,
+    ) -> Result<DeclaredBuildSource, String> {
+        let declaration = declaration.ok_or("default Build has no authored named source owner")?;
         let name = match declaration {
             build_declarations::BuildDeclaration::Package(package) => &package.name,
             build_declarations::BuildDeclaration::Application(application) => &application.name,
@@ -545,9 +586,7 @@ impl AcquiredBuildSource {
         {
             return Err("returned Build name differs from its executed workspace selection".into());
         }
-        let requests = DependencyProjections::from_executed_requests(
-            returned.requests().iter().map(|issued| issued.request()),
-        )?;
+        let requests = DependencyProjections::from_executed_requests(requests)?;
         let custody = PackageSourceCustody::from_resolved_parts(
             PackageKey::new(name.clone().into(), self.lineage.clone()),
             declaration.kind(),

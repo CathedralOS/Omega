@@ -225,11 +225,11 @@ impl BuildSourceInvocation {
             self.build_execution_profile,
         )
     }
-    pub(super) fn validate_return(
-        &self,
-        returned: &build_settings::ReturnedBuild,
-    ) -> Result<(), CompileFailure> {
-        self.evaluation.validate_return(returned)
+    pub(super) fn source_result<'result>(
+        &'result mut self,
+        returned: Option<&'result mut build_settings::ReturnedBuild>,
+    ) -> Result<build_settings::BuildSourceResult<'result>, CompileFailure> {
+        self.evaluation.source_result(returned)
     }
     pub(super) fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.evaluation.execution()
@@ -314,11 +314,7 @@ impl BuildSourceInvocation {
             inputs.validate_execution_context(selected_target_profile, build_execution_profile)?;
         }
         let initial_sources = frontier.base_sources.clone();
-        if let Some(returned) = &returned {
-            returned
-                .validate_source_join(package_inputs, initially_unbound)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        }
+        evaluation.validate_source_join(returned.as_ref(), package_inputs, initially_unbound)?;
         let evaluated = evaluation.complete(returned).map_err(|failure| {
             super::attribute_failure(failure, &initial_sources, package_inputs)
         })?;
