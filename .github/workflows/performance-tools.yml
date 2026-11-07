@@ -1,16 +1,6 @@
 name: Performance tooling instruments
 
 on:
-  pull_request:
-    paths:
-      - tools/benchmark/**
-      - omega-rust/omega/foundation/bounded-process/**
-      - omega-rust/omega/application/cli/Cargo.toml
-      - omega-rust/omega/application/cli/src/main.rs
-      - Cargo.toml
-      - Cargo.lock
-      - .config/nextest.toml
-      - .github/workflows/performance-tools.yml
   workflow_dispatch:
 
 permissions:
