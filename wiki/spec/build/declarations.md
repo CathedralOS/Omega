@@ -229,6 +229,9 @@ evaluated root-authorized product selection under the
 [assumed-binding contract](assumed_binding_contracts.md), not a statically
 projected project/dependency declaration. Its exact product references do not
 execute either requirement or grant any assumption to the build-host context.
+Ordinary applications should not use this selection. Build helpers and libraries
+must not insert it as a workaround for a failed provider contract or checker
+diagnostic; the exceptional-use rationale belongs to the consuming root.
 
 Filesystem operations use ordinary explicitly supplied backing and selected
 implementations. The old BuildSource/BuildOutput filesystem facets are retired

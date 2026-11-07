@@ -154,6 +154,13 @@ audit. Exceeding a packet limit rejects rather than silently truncating evidence
 
 ## Assumed binding contract acceptance
 
+Ordinary applications should reject this category outright. A dependency must
+not turn an ordinary ownership, proof, contract or compiler failure into a
+request for consumer trust. Exceptional acceptance needs a concrete requirement
+to operate outside the checked model, following the
+[usage rule](../build/assumed_binding_contracts.md). A compiler rejection by
+itself supplies no such requirement.
+
 An explicit [assumed binding contract](../build/assumed_binding_contracts.md)
 is an **Extremely high risk - assumed binding contract** finding, including
 when reached only through dependencies or wrappers. Install, update and audit

@@ -7,6 +7,9 @@ provider rows or grant runtime permission. An explicit
 [assumed binding contract](assumed_binding_contracts.md) is the separate,
 root-only runtime route for linking compatible requirements without a proved
 semantic refinement. Ordinary selection and `satisfies` never imply that route.
+Ordinary programs should reject assumed bindings. If a provider fails to satisfy
+a requirement, repair its implementation or contract, or use a checked adapter;
+do not substitute an assumed relationship merely to make selection succeed.
 Receiving [permission policy](permissions.md) independently checks exact
 service/schema permissions against exercised physical mechanisms at explicit
 receiver admission, not as a mandatory gate on ordinary artifact production.
