@@ -2161,6 +2161,9 @@ impl<'program> StructuralJudge<'program> {
                 .struct_fields(literal.fields)
                 .iter()
                 .find(|candidate| candidate.field_symbol == field)?;
+            // Nested calls still belong to the callee declaration. Their own
+            // result query uses this frame; the field type supplies only the
+            // retained landing for anonymous arithmetic.
             self.callee_term(
                 projected.value,
                 &environment,
@@ -2168,7 +2171,7 @@ impl<'program> StructuralJudge<'program> {
                     machine_bindings: &static_environment,
                     body_parameters: &[],
                 },
-                None,
+                Some((machine, state, projected_field.type_reference)),
                 depth + 1,
             )
         };
