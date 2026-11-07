@@ -10,6 +10,9 @@
 //! more to publish complete output. If the incoming values do not settle, it
 //! rebuilds every state once with all incoming values unknown. `reach` then
 //! attaches service-reach, suspension, and blocking summaries.
+//! `normal_returns` intersects completed exits over exact invocation storage;
+//! these handle-free rows participate in the same fixed point through reverse
+//! caller dependencies and are discarded with a nonconvergent attempt.
 //!
 //! `state::build_state_flow_fact` runs one state in this order: declaration and
 //! state-entry contexts (with incoming values from `state_values`) rebased by
@@ -32,6 +35,7 @@ pub(crate) mod atomic_effects;
 mod builder;
 pub(crate) mod completed_values;
 mod context;
+mod normal_returns;
 mod reach;
 mod state_values;
 pub(crate) mod stored_values;
