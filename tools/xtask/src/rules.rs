@@ -1400,7 +1400,8 @@ fn equivalent_work_pin(root: &Path, base_rev: &str, status: char, path: &str) ->
             .map(str::to_owned)
             .collect()
     };
-    fragments(show_git_file(root, base_rev, path)) == fragments(show_git_file(root, "HEAD", path))
+    canonical_work_pins(&fragments(show_git_file(root, base_rev, path)))
+        == canonical_work_pins(&fragments(show_git_file(root, "HEAD", path)))
 }
 
 fn expected_pin_violations(root: &Path, base_rev: &str, changes: &[(char, String)]) -> Vec<String> {
