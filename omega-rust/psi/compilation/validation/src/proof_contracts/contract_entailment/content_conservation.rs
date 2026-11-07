@@ -250,6 +250,7 @@ pub fn completed_value_conservation_answers(
                     conservation_fold_succeeds,
                     conservation_fold(program, plan, projections),
                 )
+                .isolated()
             })
         })
         .collect::<Vec<_>>();
