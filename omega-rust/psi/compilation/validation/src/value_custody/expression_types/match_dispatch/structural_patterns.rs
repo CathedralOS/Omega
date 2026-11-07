@@ -304,7 +304,13 @@ pub(crate) fn validate_for_subject(
             return Some(field_symbol);
         }
         program
-            .data_constructor_field(reference, data.symbol, field_symbol)
+            .data_constructor_field(
+                program
+                    .type_reference_table
+                    .peeled_type_reference(reference),
+                data.symbol,
+                field_symbol,
+            )
             .map(|selected| selected.symbol)
     };
     for (ordinal, field) in fields.iter().enumerate() {
