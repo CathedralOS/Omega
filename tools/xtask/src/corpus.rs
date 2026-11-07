@@ -9,7 +9,7 @@ use crate::{execution, producer};
 
 use crate::repo_root;
 
-const SELECTION_BUDGET: usize = 200;
+pub(crate) const SELECTION_BUDGET: usize = 200;
 const REGRESSION_PREFIX: &str = "regressed-from:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -325,20 +325,26 @@ pub fn selected_fixture_names(root: &Path, filter_text: &str) -> Result<Vec<Stri
                 .map_err(|e| format!("read {}: {e}", directory.display()))?
             {
                 let entry = entry.map_err(|e| e.to_string())?;
-                if entry.file_type().map_err(|e| e.to_string())?.is_dir() {
-                    pending.push(entry.path());
-                } else if entry.file_name() == "main.omg" {
+                if !entry.file_type().map_err(|e| e.to_string())?.is_dir() {
+                    continue;
+                }
+                let candidate = entry.path();
+                if candidate.join("main.omg").is_file() {
                     let name = format!(
                         "{tier}/{}",
-                        directory
+                        candidate
                             .strip_prefix(&base)
                             .map_err(|e| e.to_string())?
                             .to_string_lossy()
                             .replace('\\', "/")
                     );
-                    if fragments.is_empty() || fragments.iter().any(|f| name.contains(f)) {
+                    if fragments.is_empty()
+                        || fragments.iter().any(|fragment| name.contains(fragment))
+                    {
                         names.push(name);
                     }
+                } else {
+                    pending.push(candidate);
                 }
             }
         }
@@ -733,6 +739,35 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selection_stops_at_fixture_roots_like_the_harness() {
+        let root = std::env::temp_dir().join(format!(
+            "omega-fixture-selection-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for tier in ["pass", "fail", "run"] {
+            fs::create_dir_all(root.join("tests/omega").join(tier)).unwrap();
+        }
+        for path in [
+            "pass/group/control",
+            "pass/group/control/build/generated",
+            "pass/group/control_more",
+        ] {
+            let directory = root.join("tests/omega").join(path);
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(directory.join("main.omg"), "input").unwrap();
+        }
+        assert_eq!(
+            selected_fixture_names(&root, "pass/group/control").unwrap(),
+            ["pass/group/control", "pass/group/control_more"]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn identifies_positive_and_negative_pinned_regressions() {

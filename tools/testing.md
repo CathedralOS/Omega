@@ -164,6 +164,23 @@ summary is unfinished qualification, with the original source/compiler or workfl
 failure preserved for diagnosis. Records and source revisions stay attached to the
 producer that actually emitted them.
 
+The optional `--runtime-controls tools/xtask/qualification/representation-wrong-branch.json`
+adds the existing three wrong-branch controls after the requested good programs
+pass. Include all three plan fixtures in `--runtime`. The workflow exposes this
+as `qualification_controls`. One prepared compiler remains unchanged through good,
+weak and strong source phases. The weak source must execute with exit 0 in both
+engines; the strong source must build and reach the intended native Trap and Psi
+trap while its authored exit-0 oracle remains unchanged. Those private rows stay
+outside golden recording. Exact source substitutions and all six original files
+are checked before compiler preparation. Backups retain original bytes, modes and
+access/modified times; restoration also runs on ordinary errors and unwinding.
+A hard interruption leaves the complete backup and recovery metadata in the
+retained output directory. Source is authenticated again immediately before each
+change, and unexpected edits are preserved before restoration. Each plan source
+explicitly names its fixture or mirror association. Each phase records its actual
+source hashes and separates the intended control outcome from the authored
+exit-0 oracle. Each control adds two executions to the 200-program budget.
+
 ### Optimized validation compilers
 
 Current gates prepare executables through `mbx` for their source checkout. They

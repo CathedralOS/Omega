@@ -9,6 +9,8 @@ use serde_json::json;
 
 use crate::{corpus, execution, producer, repo_root, samples};
 
+mod runtime_controls;
+
 #[derive(Default, serde::Serialize)]
 struct Selection {
     checking: Vec<String>,
@@ -199,12 +201,24 @@ fn execute(
     directory: &Path,
     selection: &Selection,
     target: &str,
+    control_plan: Option<&runtime_controls::ControlPlan>,
 ) -> Result<(), String> {
     let source = producer::source_identity(root)?;
     execution::write_json(&directory.join("source-before.json"), &source)?;
     if source["tracked_changes"] != "" {
         return Err("qualification requires a clean committed source tree".to_owned());
     }
+    let mut controls = control_plan
+        .map(|path| {
+            runtime_controls::Replay::prepare(
+                root,
+                path,
+                &directory.join("runtime-controls"),
+                &selection.runtime,
+                target,
+            )
+        })
+        .transpose()?;
     let archive = directory.join("source.zip");
     let status = execution::run(
         Command::new("git")
@@ -288,6 +302,9 @@ fn execute(
         }
         execution::write_json(&directory.join("sample-rows.json"), &observations)?;
         if failures.is_empty() {
+            if let Some(controls) = controls.as_mut() {
+                controls.run(&prepared, target)?;
+            }
             Ok(())
         } else {
             Err(failures.join("\n"))
@@ -296,13 +313,23 @@ fn execute(
     let verified = prepared.verify();
     let after = producer::source_identity(root)?;
     execution::write_json(&directory.join("source-after.json"), &after)?;
-    verified?;
+    let mut errors = Vec::new();
+    if let Err(error) = result {
+        errors.push(error);
+    }
+    if let Err(error) = verified {
+        errors.push(error);
+    }
     if source != after {
-        return Err(
+        errors.push(
             "source changed during qualification; before/after identities retained".to_owned(),
         );
     }
-    result
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
@@ -310,13 +337,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let root = repo_root();
         let mut selection = Selection::default();
         let mut directory = None;
+        let mut control_plan = None;
         let mut target = producer::host_target().to_owned();
         let mut i = 0;
         let mut options = BTreeSet::new();
         while i < args.len() {
             if matches!(args[i].as_str(), "--help" | "-h") {
                 println!(
-                    "usage: mbx xtask qualify [--corpus tier/group/name,...] [--runtime tier/group/name,...] [--samples samples/path,...] --output <new-directory> [--target <host>]"
+                    "usage: mbx xtask qualify [--corpus tier/group/name,...] [--runtime tier/group/name,...] [--samples samples/path,...] --output <new-directory> [--target <host>] [--runtime-controls <plan.json>]"
                 );
                 return Ok(());
             }
@@ -334,12 +362,27 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 "--samples" => selection.samples = exact_paths(value, "samples/")?,
                 "--target" => target = value.clone(),
                 "--output" => directory = Some(PathBuf::from(value)),
+                "--runtime-controls" => control_plan = Some(PathBuf::from(value)),
                 _ => return Err(format!("unknown qualification option: {option}")),
             }
             i += 1;
         }
-        let count = selection.checking.len() + selection.runtime.len() + selection.samples.len();
-        if count == 0 || count > 200 {
+        let control_plan = control_plan
+            .map(|path| {
+                runtime_controls::ControlPlan::read(if path.is_absolute() {
+                    path
+                } else {
+                    root.join(path)
+                })
+            })
+            .transpose()?;
+        let count = selection.checking.len()
+            + selection.runtime.len()
+            + selection.samples.len()
+            + control_plan
+                .as_ref()
+                .map_or(0, runtime_controls::ControlPlan::observation_count);
+        if count == 0 || count > corpus::SELECTION_BUDGET {
             return Err(
                 "request 1 through 200 exact programs before preparing a producer".to_owned(),
             );
@@ -412,9 +455,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             .map_err(|e| format!("reserve new output {}: {e}", directory.display()))?;
         execution::write_json(
             &directory.join("request.json"),
-            &json!({"target": target, "selection": selection}),
+            &json!({"target": target, "selection": selection, "runtime_controls": control_plan.as_ref().map(|input| &input.path)}),
         )?;
-        let outcome = execute(&root, &directory, &selection, &target);
+        let outcome = execute(
+            &root,
+            &directory,
+            &selection,
+            &target,
+            control_plan.as_ref(),
+        );
         execution::write_json(
             &directory.join("summary.json"),
             &json!({"success": outcome.is_ok(), "error": outcome.as_ref().err(), "target": target, "requested_programs": count}),
