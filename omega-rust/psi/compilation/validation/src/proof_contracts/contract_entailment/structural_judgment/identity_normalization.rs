@@ -136,10 +136,17 @@ impl StructuralJudge<'_> {
             // custody. Normalization never opens them to rewrite contents.
             other => return Ok(other),
         };
-        let value = self.resolve_at(value, depth + 1);
-        if !self.identity_value_is_available(&value) {
+        let resolved = self.resolve_at(value.clone(), depth + 1);
+        if !self.identity_value_is_available(&resolved) {
             return Err("the normalized Id context is not an admitted stable value");
         }
+        // Reduction can expose new value children after the original children
+        // were normalized. Revisit only a changed resolvent, through the same
+        // own-type boundary and shared finite query allowance.
+        if !resolved.same_resolution_payload(&value) {
+            return self.normalize_identity_context(resolved, depth + 1, remaining);
+        }
+        let value = resolved;
         for (from, to) in self.rewrites.value_identities() {
             if *remaining == 0 {
                 return Err("the Id substitution lookup exhausted the shared query allowance");
