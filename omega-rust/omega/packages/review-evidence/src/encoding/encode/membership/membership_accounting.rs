@@ -1,6 +1,7 @@
+// Work budgets, usage counters, failure kinds, and bounded malformed-identity excerpts for semantic package-owner membership verification.
+
 use semantic_vocabulary::PackageKeyIdentity;
 
-/// Lowerable work and requested-scratch ceilings for semantic owner descent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackagePolicyMembershipLimits {
     pub(super) maximum_owned_bytes: usize,
@@ -44,7 +45,6 @@ impl Default for PackagePolicyMembershipLimits {
     }
 }
 
-/// Plain aggregate charges, not authority. Debit both before the next baseline.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PackagePolicyMembershipUsage {
     pub(super) owned_bytes: usize,
@@ -76,13 +76,6 @@ impl std::fmt::Display for PackagePolicyMembershipError {
 }
 impl std::error::Error for PackagePolicyMembershipError {}
 
-/// A membership refusal with the identity text behind it. The error stays a
-/// closed `Copy` value because the grammar's callbacks carry it through every
-/// nested descent; the excerpt joins it once, where the descent returns. Only
-/// `MalformedIdentity` has one: a limit or an unknown package already names
-/// its cause, while a malformed identity names a rule and not the declaration
-/// that broke it, and a lock reaches this check only after compiling every
-/// reviewed package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyMembershipFailure {
     error: PackagePolicyMembershipError,
@@ -123,9 +116,6 @@ impl std::fmt::Display for PackagePolicyMembershipFailure {
 }
 impl std::error::Error for PackagePolicyMembershipFailure {}
 
-/// A bounded copy of the text the descent could not read, with the byte range
-/// it covers in the whole identity. Identities reach 4 MiB; a failure report
-/// keeps at most one window.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MalformedIdentityExcerpt {
     field: &'static str,
@@ -140,8 +130,6 @@ impl MalformedIdentityExcerpt {
     const WINDOW_BEFORE_STOP: usize = 192;
     const WINDOW: usize = 256;
 
-    /// Window `identity` around `stopped`, where the grammar gave up, or take
-    /// its head when the failure is a framing rule with no position.
     pub(super) fn new(field: &'static str, identity: &str, stopped: Option<usize>) -> Self {
         let stop = stopped.map(|stop| stop.min(identity.len()));
         let mut start = stop.map_or(0, |stop| stop.saturating_sub(Self::WINDOW_BEFORE_STOP));
@@ -171,14 +159,12 @@ impl MalformedIdentityExcerpt {
                 .collect(),
         }
     }
-    /// Which retained field held the identity.
     pub const fn field(&self) -> &'static str {
         self.field
     }
     pub const fn identity_length(&self) -> usize {
         self.length
     }
-    /// Byte offset where the grammar stopped, when it reports one.
     pub const fn stopped_at(&self) -> Option<usize> {
         self.stopped
     }

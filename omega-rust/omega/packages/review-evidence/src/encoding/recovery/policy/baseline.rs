@@ -1,4 +1,5 @@
-//! Inert baseline recovery under one shared reader and allocation budget.
+// Inert baseline recovery under one shared reader and allocation budget.
+// `recover_canonical` restores comparison meaning without old source, proof, or native replay.
 
 use crate::record::PackagePolicyBaseline;
 pub(in crate::encoding::recovery) mod boundary;
@@ -14,7 +15,6 @@ use crate::encoding::{PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VER
 use crate::record::PackagePolicyNativeBinding;
 
 impl PackagePolicyBaseline {
-    /// Recover comparison meaning without old source, proof, or native replay.
     pub fn recover_canonical(
         bytes: &[u8],
         limits: PackagePolicyRecoveryLimits,

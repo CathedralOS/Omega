@@ -1,4 +1,4 @@
-//! Stable callable-contract, expression, proposition, and declaration vocabulary.
+// Stable callable-contract, expression, proposition, and declaration vocabulary.
 
 mod callable_contracts;
 mod declarations;

@@ -1,4 +1,4 @@
-//! Receipt-free, source-handle-free selected conformance policy components.
+// Receipt-free, source-handle-free selected conformance policy components.
 
 mod policy;
 

@@ -1,9 +1,4 @@
-//! Restricted build-host request meaning, in grant order.
-//!
-//! The captured-inventory presence flag is retained; the inventory's entry
-//! counts and identity are not — they bind source content, and folding them
-//! into the row would demand fresh acceptance on every source edit even when
-//! the requested authority is unchanged.
+// Canonical encoding for restricted build-host requests in grant order, retaining captured-inventory presence without binding volatile source entry counts.
 
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
@@ -16,8 +11,6 @@ use crate::record::PackagePolicyRestrictedBuildOperation;
 use crate::record::PackagePolicyRestrictedBuildRequest;
 use target::TargetProfile;
 
-/// The operation's closed-vocabulary spelling and tag; the row key reuses it
-/// so a request's identity and its retained value agree.
 pub(in crate::encoding::encode) fn operation(
     operation: PackagePolicyRestrictedBuildOperation,
 ) -> (&'static str, u8) {

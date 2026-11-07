@@ -1,4 +1,4 @@
-//! Stable type, callable, trait, conformance, and external-supply signatures.
+// Stable type, callable, trait, conformance, and external-supply signatures.
 
 use super::identity::PackageReviewNominalIdentity;
 

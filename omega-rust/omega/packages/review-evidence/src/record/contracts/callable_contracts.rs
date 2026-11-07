@@ -1,3 +1,11 @@
+// Callable contract facts, outcome-specific result-arm coordinates, and
+// synchronous invocation targets.
+//
+// `CarryMembership` records a closed compiler permission fact without a nominal
+// value-domain owner. `PackageReviewResultCaseIdentity` names the exact nominal
+// result-arm coordinate guarding an outcome-specific guarantee (`None` for
+// unconditional `requires`/`ensures` rows).
+
 use crate::record::PackageReviewContractExpression;
 use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewNominalIdentity;
@@ -12,8 +20,6 @@ pub enum PackageReviewContractFact {
         value: PackageReviewContractExpression,
         domain: PackageReviewNominalIdentity,
     },
-    /// Closed compiler permission fact; no nominal value-domain owner exists.
-    /// This describes the checked contract and grants no runtime authority.
     CarryMembership {
         value: PackageReviewContractExpression,
         permission: language_semantics::CarryPermission,
@@ -22,9 +28,6 @@ pub enum PackageReviewContractFact {
     PropositionParameter(PackageReviewPropositionParameterApplication),
 }
 
-/// Exact nominal result-arm coordinate guarding one outcome-specific
-/// guarantee. The coordinate is absent for unconditional `requires` and
-/// `ensures` rows.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewResultCaseIdentity {
     pub(crate) result_data: PackageReviewNominalIdentity,

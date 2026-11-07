@@ -1,4 +1,4 @@
-//! Normalized public API meaning, sharing its enclosing baseline budget.
+// Normalized public API meaning recovery sharing its enclosing baseline budget.
 
 pub(in crate::encoding::recovery) mod data;
 pub(in crate::encoding::recovery) mod domains;

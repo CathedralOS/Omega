@@ -1,3 +1,5 @@
+// Canonical encoding for calling-policy callback binders, demands, materializations, and layouts.
+
 use super::{Encoder, PackageReviewEncodingError, type_identity};
 use crate::encoding::encode::values::conformance_policy::encode_application;
 use crate::encoding::encode::values::identity::encode_nominal;

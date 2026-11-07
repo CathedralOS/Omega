@@ -1,3 +1,5 @@
+// Provider family records and coordinate projections for selected package providers.
+
 use crate::record::accessors::field_projection_accessors;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewProviderFamilyCoverage,

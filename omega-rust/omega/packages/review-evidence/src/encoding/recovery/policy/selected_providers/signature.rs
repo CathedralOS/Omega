@@ -1,3 +1,5 @@
+// Bounded recovery for selected-provider service signatures, schema arguments, and formals.
+
 use super::{Error, Reader};
 use crate::encoding::recovery::policy::{
     identity::{signature_parameter, type_identity},
