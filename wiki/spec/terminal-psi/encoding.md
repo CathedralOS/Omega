@@ -80,17 +80,27 @@ Compiler-local handles and compression cannot change published identity.
 
 [Compatibility evidence](../proofs/contracts.md#exact-matching-and-evidence-transport)
 retains its exact proposition, subjects, substitution and selected law authority
-separately from keys. Proof-discovery policy and usage are provenance/accounting;
-they neither rename applications nor replace the evidence. Published proofs
-are verified at trust boundaries without repeating producer search.
-Artifact bytes or cache provenance may differ with proof records while semantic
-identities remain fixed. Closed values retain their own evaluation obligations.
+separately from keys within compilation. Publication retains the claim and the
+semantic definitions and dependencies needed to establish it, without the
+producer's derivation. The receiver reconstructs and proves the required claim
+under its own work budget. Proof-discovery policy and usage are accounting;
+they neither rename applications nor establish claims. Closed values retain
+their own evaluation obligations.
 
 The migration must update identity-profile provenance and evidence serialization
 together, rejecting or explicitly migrating artifacts with legacy law-sensitive
 keys rather than silently reinterpreting them. No new numeric wire tags are
 assigned by this documentation change. Distributivity requires no runtime
 polynomial representation or executable wire operation.
+
+The [Psi claim-admission decision](product.md#publication-and-separate-consumption)
+retires producer proof payloads from the portable encoding. Mathematical values,
+types and definitions remain semantic data. Their replacement encoding must be
+canonical and retain exact subjects and dependencies independently of derivations.
+The [implementation migration](../../drafts/designs/psi_claim_admission.md)
+updates format markers, commitments and decoders together. Retired proof-bearing
+forms reject; they cannot be decoded as established facts. Exact replacement wire
+tags are assigned with that migration.
 
 An optional predicate is a presence Boolean, followed when present by its
 subject value id and one canonical proposition. Its domain-local subject is
@@ -303,8 +313,10 @@ the verifier rejoins them to that callee's retained closed application. Argument
 tags distinguish type, const, proposition, and machine selections; machine
 arguments retain selected identity and contract commitment without duplicating
 the callee's dependency graph. Missing, differently typed, reordered, or changed
-tuples reject even if a stale commitment is unchanged. The original source
-projection remains producer-trusted without independently checkable openings.
+tuples reject even if a stale commitment is unchanged. Correspondence to the
+original source projection remains a compiler responsibility. The receiver
+still establishes the retained callee's contract and reach obligations; trusting
+source correspondence does not admit an unsupported artifact claim.
 These contract records add no executable call variant or work rule.
 
 An unused selected family retains its selected identity, public contract
@@ -546,9 +558,14 @@ record/enum carrier construction and never stands in for a runtime operand.
 | 2 | Formal (block scope) | `u32` position |
 | 3 | Scalar | scalar term |
 | 4 | Array | type identity string + counted proof terms |
-| 5 | Mathematical | type identity string + counted canonical mathematical-certificate bytes |
-| 6 | MathematicalApplication | result type identity string + counted canonical mathematical-function certificate bytes + `u8` formal namespace (0 block, 1 invocation) + counted `u32` caller proof-formal positions |
+| 5 | Retired certificate-bearing Mathematical form | rejected |
+| 6 | Retired certificate-bearing MathematicalApplication form | rejected |
 | 7 | InvocationFormal | `u32` position in the machine contract proof roster |
+
+Mathematical values and function applications still require semantic encoding:
+their types, definitions, arguments and formal namespaces must survive removal
+of the certificate wrapper. Retirement of these wire forms does not erase that
+information or remove the corresponding mathematical operations.
 
 ## Content terms and places
 
@@ -895,20 +912,22 @@ its words by shared copy or exclusive transfer, independently of ownership of
 its backing. Projection, live-loan and current-backing checks remain separate;
 these roles provide no read permission from write-only access.
 
-The indexed theorem root row encodes a checked-machine declaration, `u32` ensure
-ordinal, `u32` evidence source position, `u32` carrier identity-table index,
-counted canonical mathematical-certificate bytes, then counted `u32` assumption
-positions. A mathematical carrier row encodes a `u32` identity-table index and
-counted canonical carrier-key bytes.
+An indexed theorem root retains its checked-machine declaration, ensure ordinal,
+source position, carrier identity, exact proposition and assumption positions.
+Its semantic definitions, subjects and substitutions must identify the question
+the receiver establishes. The row carries no producer derivation. A mathematical
+carrier row retains its identity and canonical semantic carrier key. Neither a
+theorem root nor a carrier key grants proof authority by being present.
 
 The checked-machine declaration encodes the machine, state and semantic-declaration
 identity-table indices, counted parameter identity-table indices, callable and
 result identity-table indices, the 32-byte contract commitment, then a Boolean
 specialization flag. When set, the flag is followed by template and template-callable
 identity-table indices and the 32-byte specialization commitment. Each identity-table
-index is a `u32`. Mathematical certificates use the `PSICORE\0` format described
-below; a carrier key uses that same format with the claimed type as both judgment
-roots.
+index is a `u32`. Carrier keys encode mathematical types independently of proof
+judgments. The former certificate-bearing theorem rows and certificate-wrapped
+carrier keys are retired together with proof-term forms 5 and 6; the migration
+must preserve their semantic data in the replacement encoding.
 
 The quotient catalog retains nominal formations and executable copy/call joins.
 A call join names the public machine, representative machine and call occurrence,
@@ -1496,7 +1515,7 @@ when present, by the call application.
 ## Module declaration tables
 
 The counted module tables that precede the machine roster carry the module's
-declarations, custody evidence, and certificate indexes. Their rows are
+declarations, custody evidence, and mathematical-claim indexes. Their rows are
 byte-encoded exactly as below; a receiver decodes them with no access to
 producer state and rederives every ordering rule.
 
@@ -2322,84 +2341,17 @@ Decoding rejects trailing bytes, requires the empty selection set to leave
 both input/output identities unchanged, and requires byte-for-byte
 re-encoding.
 
-## Mathematical certificate
+## Local mathematical proof checking
 
-A mathematical certificate is `PSICORE\0` + `u16` format marker 3 + `u32`
-level arity + the counted node table + the counted declaration signature +
-the counted context + two `u32` root handles. It is the self-contained
-judgment the kernel re-decides: declaration statements and bodies,
-context bindings, and the claimed `term : expected` pair all name rows in one
-shared term table.
+The mathematical kernel checks locally constructed proof objects against their
+exact statements and premises. Its proof-object representation is an internal
+interface; Psi publishes the semantic claims and definitions needed for receiving
+admission. See [the mathematical foundation](../proofs/foundation.md) and
+[fact validity](fact_validity.md#establishing-facts-on-receipt).
 
-<!-- certificate-framing -->
-| # | Framing field | Bytes |
-| --- | --- | --- |
-| 1 | level arity | `u32` level parameter count of the judgment |
-| 2 | term table | `u32` node count + concatenated node bytes |
-| 3 | declaration signature | counted rows: `u32` level arity + `u32` statement handle + `u8` body presence (1 + `u32` body handle, or 0) |
-| 4 | context | counted `u32` binding handles |
-| 5 | judgment roots | `u32` term handle + `u32` expected-type handle |
-
-Every `u32` field in a node row is a handle into earlier rows: the table is a
-postorder DAG whose nodes are keyed by their own wire bytes, so two encoders
-of the same judgment emit the same table and producer-local aliases collapse
-onto one entry. Signature statements and bodies enter the table first, in
-signature order, then the context, then the judgment roots. A `Dummy` term
-reachable from any root rejects the certificate. Decoding bounds term nesting
-and level nesting at 256 each, requires every child index to precede its
-parent, rejects trailing bytes, and requires the decoded certificate to
-re-encode byte-for-byte — unreachable nodes and alternate tables cannot alias
-one certificate.
-
-<!-- certificate-term-tags -->
-| Tag | Term | Fields after the tag |
-| --- | --- | --- |
-| 1 | Variable | `u32` de Bruijn index |
-| 2 | Sort | sort row |
-| 3 | Pi | domain + codomain |
-| 4 | Lambda | domain + body |
-| 5 | Apply | function + argument |
-| 6 | Sigma | domain + codomain |
-| 7 | Pair | first + second |
-| 8 | Fst | pair |
-| 9 | Snd | pair |
-| 10 | Two | — |
-| 11 | TwoZero | — |
-| 12 | TwoOne | — |
-| 13 | CaseTwo | motive + zero branch + one branch + scrutinee |
-| 14 | Id | ty + left + right |
-| 15 | Refl | ty + value |
-| 16 | IdElim | motive + base + endpoint + proof |
-| 17 | W | carrier + children |
-| 18 | Sup | carrier + children + label + function |
-| 19 | IndW | motive + step + tree |
-| 20 | Constant | `u32` declaration index + counted level arguments |
-| 21 | Empty | — |
-| 22 | EmptyElim | ty + scrutinee |
-| 23 | Squash | ty |
-| 24 | SquashIntro | ty + value |
-| 25 | SquashElim | proposition + function + scrutinee |
-| 26 | Box | ty |
-| 27 | BoxIntro | ty + value |
-| 28 | BoxElim | motive + body + scrutinee |
-
-Unadorned names in the field column are `u32` handles into earlier table
-rows. A sort row is one `u8` tag plus its level; a level is a small tree,
-written inline with no sharing table.
-
-<!-- certificate-sort-tags -->
-| Tag | Sort | Fields after the tag |
-| --- | --- | --- |
-| 1 | Type | level |
-| 2 | Strict | level |
-
-<!-- certificate-level-tags -->
-| Tag | Level | Fields after the tag |
-| --- | --- | --- |
-| 1 | Constant | `u32` value |
-| 2 | Parameter | `u32` index |
-| 3 | Successor | level |
-| 4 | Maximum | level + level |
+The former `PSICORE` producer-certificate envelope is retired from artifact
+encoding. Canonical decoding establishes representation validity; the receiver
+must separately discharge required claims before accepting the product.
 
 ## Section identities
 
@@ -2423,7 +2375,6 @@ outside this codec.
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
-| mathematical certificate | `PSICORE\0` | 3 | no |
 
 The reconstructed manifest binds each present component under its own hash domain.
 Absent differs from present-but-empty. Replacing valid nonsemantic evidence

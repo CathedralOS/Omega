@@ -141,8 +141,8 @@ Delete completed bullets; keep discrete work lines without growing the board. [O
 - **NORMALIZED-ABI-LOWERING.** (covers **OPAQUE-BY-VALUE-BOUNDARY-ABI**, **FOREIGN-RETAINED-ARGUMENT-BACKING**) Complete [calling plans](wiki/spec/build/calling_plans.md) and [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody) (`boundary_signatures.rs`, `retained_borrow_custody.rs`).
   Acceptance: `samples/cli/facts/{opaque_closed_carrier_exchange,foreign_retained_*,foreign_nested_record_backing}` and `providers/foreign_*` pass `omega run --both`.
 
-- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**) Finish [proofs](wiki/spec/proofs/foundation.md), identity and metatheory; source mutual/nested/derivation families, higher indices and open carrier transport; polymorphic-identity storage receipts and UIP/extensionality rejection controls.
-  Acceptance: `samples/cli/facts/{closed_integer_bound,negated_mathematical_order,source_indexed_*,erased_reference_contract}` and `proofs/quotient_*` pass `--both`.
+- **PROOF-KERNEL-CORE.** (covers **PROOF-CONTRACT-MIGRATION**, **QUOTIENT-THEOREM-LIFT**, **PSI-CLAIM-ADMISSION**) Complete [source proofs](wiki/spec/proofs/foundation.md) and [Psi admission](wiki/drafts/designs/psi_claim_admission.md).
+  Acceptance: [kernel and receipt controls](wiki/drafts/designs/psi_claim_admission.md#acceptance) pass, including existing source-indexed, erased-reference and quotient samples through `--both`.
 
 ## Build-level behavior exclusions
 

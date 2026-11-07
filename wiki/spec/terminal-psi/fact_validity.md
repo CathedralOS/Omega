@@ -7,6 +7,22 @@ facts. See the [product](product.md), [encoding](encoding.md), and
 [observation](observations.md) contracts. Runtime cycles follow
 [control flow and ranking](control_flow.md).
 
+## Establishing facts on receipt
+
+An incoming artifact supplies the semantic statements and definitions from which
+the receiver reconstructs its obligations. Each premise must follow from checked
+operation semantics, established arrival predicates, checked contracts or an
+explicitly admitted external assumption. A producer's theorem name, success flag
+or asserted conclusion does not establish a premise.
+
+Erasing a source proof preserves the semantic definitions, subjects and dependencies
+needed to establish every affected published obligation. The receiver may construct
+local proofs and check them with the mathematical kernel. Missing justification,
+unsupported reasoning and exhausted proof work refuse admission under the
+[product contract](product.md#publication-and-separate-consumption). Within a
+trusted compilation, later stages may reuse judgments from checked immutable
+outputs while preserving their exact subjects and validity conditions.
+
 ## Premise availability
 
 A premise must dominate its use and remain valid on every path to it. Acyclic

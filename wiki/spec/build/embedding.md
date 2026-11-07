@@ -32,6 +32,14 @@ component realizations share requirement and lifecycle contracts, not necessaril
 container formats, physical representations, or provider implementations. A native
 plugin product still needs its selected ABI/container; a Psi artifact is not a DLL.
 
+Loading bytes or a caller-supplied module requires
+[Psi claim admission](../terminal-psi/product.md#publication-and-separate-consumption)
+before execution state is created. The receiver establishes the retained claims
+under its own work budget; missing justification, unsupported reasoning or budget
+exhaustion refuses admission. An immutable admitted product may be reused under
+its checked assumptions and authority. Creating another instance of that product
+does not repeat its proof search.
+
 ## Target environments and execution engines
 
 Target environment and execution engine are separate selections. Windows,

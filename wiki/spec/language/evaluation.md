@@ -302,16 +302,15 @@ recorded logical charge, so warm and cold builds make the same hard-ceiling
 decision. Linking an already-built dependency does not charge its historical
 production cost.
 
-Published proof-only selected-conformance evidence is separate compilation,
-not a local cache exception. A producer performs witness search; a consumer
-projects the retained proposition and verifies its artifact/kernel
-evidence without rerunning the search. This includes compatibility derivations
-for differently written indices: a smaller consumer discovery budget does not
-invalidate the producer's checked proof. Search policy/usage and certificate
-verification requirements are separate records; a verification resource or
-trust refusal is not a failure to rediscover the proof. Ordinary theorem
-contracts and named witness/law bundles follow [proof contracts](../proofs/contracts.md);
-a cache does not turn erased evidence into runtime values. The separate
+Published proof-only contracts retain their propositions, exact subjects,
+selected conformances, premises and necessary semantic definitions. They ship
+no producer derivations. External [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption)
+establishes their required claims under the consumer's work policy, including
+compatibility between differently written indices. A smaller budget may prevent
+admission while leaving the claim's meaning unchanged. Within a trusted compile,
+specialization reuses the checked judgment. Ordinary theorem contracts and named
+witness/law bundles follow [proof contracts](../proofs/contracts.md); a cache does
+not turn erased evidence into runtime values. The separate
 [proof-search-cache draft](../../drafts/reference/proof_search_cache.md) explores
 untrusted search reuse, not a replacement admission route.
 

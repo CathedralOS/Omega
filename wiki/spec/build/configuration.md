@@ -76,7 +76,7 @@ magnitude, or total proof cost. Other sponsor-controlled work/storage ceilings
 remain independent. Zero is rejected rather than treated as unlimited.
 
 Only the root may select or raise the effective allowance. Dependencies may
-publish expected discovery cost and checked proofs, but cannot increase the
+publish expected discovery cost and mathematical claims, but cannot increase the
 root's grant. Normalize and retain the effective value even when defaulted.
 Product discovery uses the admitted policy; preflight or Build-stage checking
 uses its already granted policy, never a later setting to justify its own
@@ -99,11 +99,12 @@ proofs. Larger discovery can establish more compatibility; it cannot rename
 types, merge declarations, alter canonical matching, or change specialization
 keys. The resulting proof record and artifact bytes need not be identical.
 
-Published compatibility proofs travel with their artifact. A consumer with a
-smaller discovery allowance verifies the retained evidence without rediscovering
-it or charging the producer's historical search to that allowance. Verification
-has its own resource and trust admission. A local cached search still follows
-the ordinary usage-receipt accounting rules; it is not a way to evade a grant.
+Published compatibility claims retain their semantic definitions and dependencies.
+External [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption)
+establishes them under the receiver's own policy. A smaller allowance may prevent
+admission; it neither refutes the claim nor changes its identity. Charge receiving
+work rather than historical producer search. Internal specialization reuses checked
+judgments, and local cached search follows ordinary usage-receipt accounting.
 
 ## ELF executable loader selection
 

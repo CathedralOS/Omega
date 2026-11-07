@@ -47,7 +47,7 @@ turning its policy into language semantics.
 ## Proof discovery and evidence checking
 
 [Index compatibility](../proofs/contracts.md#proved-index-compatibility) separates
-proof discovery from semantic identity and from checking supplied evidence.
+proof discovery from semantic identity and from local checking of proof steps.
 Root [Build proof-work policy](../build/configuration.md#proof-work-policy)
 records the automatic expansion allowance, defaulting to 64 resulting terms
 per product expansion. This is a search-strategy ceiling; it is neither a
@@ -60,14 +60,15 @@ account, with its resource bounds/receipts, and charge before admitted work.
 An increased expansion allowance does not waive another work or storage limit.
 Missing proof or exhausted resources cannot establish a negative proposition.
 
-A successfully checked compatibility derivation is evidence, not a record that
-a search once returned true. Generic substitution carries that derivation.
-A published artifact consumer verifies its evidence under ordinary trust and
-verification-resource admission without rerunning discovery under the consumer's
-search limit. Importing a proof does not charge historical producer search.
-Local cached work remains subject to
+A successful compatibility judgment remains available through exact generic
+substitution inside its trusted compilation. External Psi admission reconstructs
+the required claims from retained semantics and proves them under its own granted
+work and storage budgets. Charge that receiving work, not historical producer
+search. A smaller receiver budget can prevent admission without changing any
+semantic identity or refuting the claim. Neither a producer work receipt nor a
+reported success grants a fact. Local cached work remains subject to
 [usage-record accounting](../language/evaluation.md#result-caching-and-published-evidence).
-Verification exhaustion must be diagnosed separately from unsuccessful search.
+Report receiver exhaustion, unsupported reasoning and a refuted claim distinctly.
 
 ## Composition and charged work
 
