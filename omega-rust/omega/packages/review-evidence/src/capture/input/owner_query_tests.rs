@@ -1,3 +1,7 @@
+// Unit tests verifying that `ContractOwnerQueries` lazily initializes its owner map
+// and scopes checked call-target derivation strictly to the supplied contract-fact
+// arena rather than leaking across requests.
+
 use super::*;
 use checked_trees::{CheckFacts, ContractProofFact, ContractProofFactOwner};
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
@@ -78,8 +82,6 @@ fn contract_owner_queries_keep_lazy_setup_and_exact_fact_namespaces() {
         );
         assert_eq!(std::ptr::from_ref(queries.owners.get().unwrap()), prepared);
     }
-    // The same typed handles with a different supplied contract arena have no
-    // checked owner. No program-only or another request's facts may fill it in.
     let other_facts = CheckFacts::default();
     let other = ContractOwnerQueries::new(&program, &other_facts);
     assert!(other.owners.get().is_none());

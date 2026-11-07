@@ -1,3 +1,6 @@
+// Selected compiler-intrinsic execution identity derivation and reconciliation for
+// provider plan rows.
+
 use crate::capture::EvidenceOption;
 use crate::capture::PackageReviewInput;
 use crate::record::PackageReviewCompilerIntrinsicExecution;

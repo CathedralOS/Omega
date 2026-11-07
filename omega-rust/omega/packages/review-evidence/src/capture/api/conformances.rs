@@ -1,3 +1,7 @@
+// Public conformance projection verifying target trait visibility, lifetime
+// argument arity, inherited evidence requirements, and complete normalized
+// realization rows.
+
 use super::super::contracts::propositions::evidence::collect_evidence_requirements;
 use super::super::semantics::declarations::{
     nominal_identity, owned_identity, trait_requirement_identity,

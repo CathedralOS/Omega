@@ -1,4 +1,5 @@
-//! Collection, substituted, computed, and checked-path member projection.
+// Collection, substituted, computed, and checked-path member-expression projection
+// for contract expressions.
 
 use super::super::calls::exact_fact_call_projection;
 use super::super::members::{

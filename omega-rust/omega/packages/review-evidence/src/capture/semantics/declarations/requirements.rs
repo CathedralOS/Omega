@@ -1,3 +1,5 @@
+// Canonical nominal identities for trait requirements, provider requirements, and top-level boundary requirements.
+
 use crate::capture::EvidenceOption;
 use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::declarations::{

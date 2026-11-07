@@ -1,4 +1,10 @@
-//! Complete selected-provider policy captured from live checked associations.
+// Selected-provider policy projection captured from live checked associations.
+// Canonical-to-custody plan indices travel to boundary-application projection within
+// the same immutable capture invocation without entering serialized evidence.
+// Selected-instance custody is derived from the original compiler program, grounded
+// installation dependency ordering is verified against circular rows, and
+// toolchain-settled plans (such as `FilesystemHost`) omit authored provider types
+// while covering only the leaves the toolchain binds.
 
 pub(crate) mod bindings;
 mod families;
@@ -23,9 +29,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 use trust_model::ProviderGrantSelectorKind;
 
-/// Retain selected provider meaning and its canonical-to-custody coordinates.
-/// The coordinates travel to boundary application projection in the same
-/// immutable capture invocation; they are never serialized or admission evidence.
 pub(crate) fn project_checked_selected_provider_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
@@ -48,15 +51,10 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         ..input
     };
     let selected_execution = compilation.custody.execution();
-    // The candidate under review cannot manufacture selected-instance custody.
-    // Derive this source-only projection from the original compiler program;
-    // ordinary native products obtain their associations from Terminal instead.
     let selected_instances = compilation
         .custody
         .source_inspection()
         .project_instances()?;
-    // Every selected plan reads this capture's same declaration vocabulary.
-    // Reuse it across plans; each signature still receives fresh mutable tables.
     let mut signatures = services::SignatureProjection::new(*compilation);
     let mut plans = selected_execution
         .selected_provider_provenance
@@ -70,9 +68,6 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
         .collect::<Result<Vec<_>, _>>()?;
     drop(signatures);
     plans.sort_by(|(_, left), (_, right)| left.compare_canonical(right));
-    // Row-local substitution checks cannot justify a circular collection of
-    // mutually asserted rows. Require grounded checked dependency paths before
-    // publishing the complete selected-provider policy.
     super::installation::validate_installation_dependency_order(compilation, &selected_instances)?;
     let families = families::project(compilation, target, &plans)?;
     let projected_installation_reaches = plans
@@ -116,9 +111,6 @@ fn project_plan(
     let compilation = &input;
     let selected_execution = compilation.custody.execution();
     let plan = &retained.plan;
-    // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
-    // names no authored provider type and deliberately covers only the
-    // leaves the toolchain can bind honestly.
     let toolchain_settled = selected_execution.plans().is_toolchain_settled(plan);
     let schema_declaration = nominal_identity(compilation, retained.provider.schema.symbol())?;
     validate_selected_provider_declaration_owner(

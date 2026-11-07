@@ -1,3 +1,14 @@
+/*
+We project value parameters, static type parameters, and nested static-machine
+contracts for public and policy signatures.
+
+Callables, trait requirements, and operator operands spell the same reviewed
+value parameter; only the checked list and its lifetime telescope differ per
+owner. `CallingContractScope` retains temporary source custody for expressions
+in a clone-instantiated contract, where lifetime substitutions are ordered
+outer-first so the last matching source name is the lexical binder.
+*/
+
 use super::policy_crashes;
 
 mod policy;
@@ -32,12 +43,10 @@ struct Projection<'a> {
     contract_scopes: Option<&'a [CallingContractScope]>,
 }
 
-/// Temporary source custody for expressions in a clone-instantiated contract.
 pub(crate) struct CallingContractScope {
     pub parameter_symbol: SymbolHandle,
     pub signature_symbol: SymbolHandle,
-    /// Outer-first; the last matching source name is the lexical binder.
-    pub lifetime_substitutions: Vec<(typed_trees::name::Identifier, typed_trees::name::Identifier)>,
+    pub lifetime_substitutions: Vec<(typed_trees::name::Identifier, typed_trees::name::Identifier)>, // Outer-first; last matching source name is the lexical binder.
     pub parameters: Vec<typed_trees::signature::StateParameter>,
     pub original_signature: typed_trees::signature::StateSignature,
 }
@@ -66,8 +75,6 @@ impl Projection<'_> {
     }
 }
 
-/// Each lifetime binder against itself: the substitution an uninstantiated
-/// static telescope performs, in authored order.
 pub(crate) fn identity_lifetime_substitutions(
     lifetimes: &[Identifier],
 ) -> Vec<(Identifier, Identifier)> {
@@ -78,9 +85,6 @@ pub(crate) fn identity_lifetime_substitutions(
         .collect()
 }
 
-/// Review parameters for one checked parameter sequence. Callables, trait
-/// requirements, and operator operands spell the same reviewed value parameter;
-/// only the checked list and its lifetime telescope differ per owner.
 pub(crate) fn project_signature_parameters(
     compilation: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::signature::StateParameter],

@@ -1,4 +1,12 @@
-//! Report coordinates are only a checked join to the complete calling value.
+/*
+We join service report coordinates to their complete source-qualified calling
+plans.
+
+The ABI producer retains generic operands under their supplying conformance,
+while a nongeneric boundary has no supplied type operands and uses its own
+declaration symbol as the argument owner.
+*/
+
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::SignatureProjection;
@@ -100,8 +108,6 @@ pub(super) fn boundary_arguments<'a>(
     Ok(arguments)
 }
 
-/// The ABI producer retains generic operands under their supplying conformance.
-/// A nongeneric boundary has no supplied type operands and uses its declaration.
 pub(super) fn argument_owner(
     compilation: &PackageReviewInput<'_>,
     schema: SymbolHandle,

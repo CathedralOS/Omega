@@ -1,6 +1,6 @@
-//! Public domains: `projection` projects a domain declaration, `facts` its
-//! predicate and definition-contract facts, and `aliases` the alias
-//! expansion and establishment route it names.
+// Public domain declaration projection (`projection`), predicate and
+// definition-contract fact verification (`facts`), and alias expansion /
+// establishment route capture (`aliases`).
 
 pub(in crate::capture) mod aliases;
 pub(in crate::capture) mod facts;
