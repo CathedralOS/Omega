@@ -128,6 +128,8 @@ checking, `--runtime tier/group/name,...` for native/Psi execution, and
 directory with `--output`; an existing directory refuses rather than mixing runs.
 The total selection is limited to 200 programs. These are exact paths, not search
 fragments. Selection and authored oracles are checked before compiler preparation.
+An existing numeric `Expected exit` header is the fallback when no explicit exit
+file exists; target-specific and portable files keep their precedence.
 
 For example:
 

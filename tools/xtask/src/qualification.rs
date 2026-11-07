@@ -92,12 +92,21 @@ fn expected_exit(directory: &Path, target: &str, interpreted: bool) -> Result<St
     } else {
         portable
     };
-    let text = fs::read_to_string(&path).map_err(|e| {
-        format!(
-            "runtime selection needs an authored exit oracle {}: {e}",
-            path.display()
-        )
-    })?;
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return samples::parse_header_oracle(&directory.join("main.omg"))
+                .0
+                .map(|value| value.to_string())
+                .ok_or_else(|| {
+                    format!(
+                        "runtime selection needs an authored exit file or Expected exit header: {}",
+                        directory.display()
+                    )
+                });
+        }
+        Err(error) => return Err(format!("read exit oracle {}: {error}", path.display())),
+    };
     let value = text
         .trim()
         .parse::<i32>()
@@ -490,6 +499,46 @@ mod tests {
         row.facts[1].1 = "255".to_owned();
         assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn existing_header_oracle_is_the_last_fallback_after_explicit_files() {
+        let directory = std::env::temp_dir().join(format!(
+            "omega-header-oracle-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("main.omg"), "// Expected exit: 0.\n").unwrap();
+        assert_eq!(
+            expected_exit(&directory, "linux_x86_64", false).unwrap(),
+            "0"
+        );
+        fs::write(directory.join("expected_native_exit.txt"), "70\n").unwrap();
+        assert_eq!(
+            expected_exit(&directory, "linux_x86_64", false).unwrap(),
+            "70"
+        );
+        fs::write(
+            directory.join("expected_native_exit.linux_x86_64.txt"),
+            "77\n",
+        )
+        .unwrap();
+        assert_eq!(
+            expected_exit(&directory, "linux_x86_64", true).unwrap(),
+            "77"
+        );
+        fs::write(directory.join("expected_interpreter_exit.txt"), "-1\n").unwrap();
+        assert_eq!(
+            expected_exit(&directory, "linux_x86_64", true).unwrap(),
+            "-1"
+        );
+        fs::write(directory.join("expected_native_exit.txt"), "not an exit\n").unwrap();
+        assert!(expected_exit(&directory, "windows_x86_64", false).is_err());
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]
