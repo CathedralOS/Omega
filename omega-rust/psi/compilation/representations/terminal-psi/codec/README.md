@@ -18,18 +18,23 @@ in the vocabulary reference while that part is consolidated.
   decoding or replay caches. The manifest is reconstructed from the sections.
 
 The [Psi product contract](../../../../../../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-retains semantic claims and requires receivers to discharge them without producer
-derivations. Canonical decoding checks encoding and structural foundations;
-successful decoding alone does not establish logical claims or installation
-authority. Trusted immutable compiler outputs can reuse their checked judgments.
+permits checked judgments to be reused under host authorization of a trusted
+producer's exact artifact. Canonical decoding establishes encoding and structural
+validity, not truth of arbitrary claims or execution authority. No receiving
+theorem rediscovery or certificate replay is required.
 
-The current codec still embeds certificate bytes in mathematical proof terms
-and indexed theorem roots. Its receiver-replay helpers are exercised by tests;
-they are not complete production admission. The
-[admission migration](../../../../../../wiki/drafts/designs/psi_claim_admission.md)
-owns removal of derivation payloads, preservation of semantic mathematical data,
-format migration and integration of receiver checking. Local kernel proof objects
-and interpreter oracle calls remain in use.
+The codec carries certificate bytes in mathematical proof terms and indexed
+theorem roots, including the `PSICORE` framing. Keep those canonical encodings;
+they grant nothing at admission. The local proof kernel and interpreter's closed
+evaluation uses remain separate from byte transport.
+
+The [implementation plan](../../../../../../wiki/drafts/designs/psi_claim_admission.md)
+splits canonical/structural inspection from execution-only preparation. Today
+decode also performs module-foundation and dynamic-result analyses, including
+descriptor and entailment work. The split preserves structural validation, moves
+execution-only work to preparation and retains exact reusable results. Shared
+input and aggregate work limits must cover these paths; per-query search caps
+alone do not bound total loading cost to a host-granted budget.
 
 The other `sections/` owners encode manifest, debug, optimization and
 observation-profile data.
@@ -68,8 +73,8 @@ for a bounded integer field, its declaration-derived range obligation. The case,
 operand identities, and obligation identities all participate in semantic identity;
 an empty roster is the payloadless case of the same operation. Encoding a module
 does not establish its proofs. Source checking establishes the range facts;
-the receiving admission contract requires establishing them again from retained
-semantics, including their exact structural correspondence.
+receiving structural checks retain their exact correspondence, while source
+judgments are reused only under the host's producer-trust authorization.
 
 ## Observation-profile implementation
 
@@ -104,8 +109,8 @@ The module decoder accepts only the current semantic format and vocabulary
 markers. It rejects every other marker before reading the module body, including
 crossed format/vocabulary pairs. All current rosters are required; the decoder
 does not supply missing historical rows or migrate an older artifact.
-Envelope and installation markers remain independently owned. Certificate-bearing
-formats are retired by the admission migration above.
+Proof, envelope and installation markers remain independently owned. Current
+certificate-bearing forms remain carried and canonically decoded.
 
 Run the codec's existing controls with:
 

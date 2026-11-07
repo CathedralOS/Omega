@@ -484,9 +484,10 @@ at this invocation without changing the published contract. In contrast,
 suspension/blocking ceilings are not narrowed by one non-waiting path.
 
 Only a body inside the same fingerprinted verification unit may supply a local
-body summary; otherwise use the published ceiling. Incoming Psi must establish
-that its bodies respect their retained ceilings under
-[receiver admission](../terminal-psi/product.md#publication-and-separate-consumption).
+body summary; otherwise use the published ceiling. Reuse of published judgments
+follows [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
+During interpretation, actual operation checks and installed host permissions
+apply independently of a guest's declared ceiling.
 A physical check may remain after its semantic route is disproved unless valid
 specialization removes it. Crash-frontier lower bounds report definitely live obligations, not
 safe survivors or complete external custody. [Crash semantics](../terminal-psi/calls_and_outcomes.md#crash)

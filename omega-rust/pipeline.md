@@ -75,12 +75,15 @@ Source checking, decoding and installation checks remain required at their
 owning boundaries. A new or changed foreign package is verified during review,
 and an untrusted build script is confined and checked while it executes.
 [Psi consumption](../wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-reconstructs and discharges the incoming artifact's structural, ownership,
-contract and authority obligations. It uses retained semantics and admitted
-premises rather than replaying producer proofs or trusting a recorded success.
-This required receiving boundary is distinct from rechecking a trusted stage's
-output inside the same compilation. The portable product contains claims,
-semantic definitions and provenance, with no producer proof derivations.
+reuses judgments from a trusted producer's exact artifact under host authorization.
+This includes separately built accepted artifacts; it is not limited to the same
+process. Receipt requires neither source-theorem rediscovery nor replay of carried
+proof bytes. Canonical decoding grants no execution or provider authority.
+
+Native optimization/lowering requires trusted input. Interpretation enforces
+actual operation safety even for trusted inputs. General untrusted artifact
+execution remains gated on a containment audit of the interpreter, host bindings
+and teardown; inspection remains available under bounded structural decoding.
 
 The corpus and tests exercise independent validators where those validators
 exist. The default compile path does not run these stage-output validators on
@@ -95,21 +98,23 @@ optimization infallible.
 | Source to checked trees | Parsing, typing, ownership and [source contract automation](psi/compilation/validation/README.md#source-proof-automation), including admitted mathematical proofs; positive and rejection tests exercise these judgments. | The source checker, proof kernel and explicitly admitted premises. Contract automation remains trusted wherever it accepts an obligation without kernel-checked evidence. Not every source obligation passes through the proof kernel. |
 | Checked trees to Terminal Psi | Lowering and selected Psi transformations; focused tests and independent validators exercise their contracts. | Preservation of the checked source's meaning and obligations through these transformations. |
 | Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
-| Received artifacts and installed providers | Canonical decoding, reconstruction and discharge of retained claims, and consumer-owned ownership, authority and installation checks. Unknown or unproved obligations prevent admission. | The receiving checker and its local proof kernel, explicitly admitted external premises, source-to-artifact correspondence and subsequent native realization. Producer provenance identifies a subject; it does not prove its claims. |
+| Received artifacts and installed providers | Bounded canonical/structural decoding; explicit host authorization of the exact artifact and producer; preparation and installation checks; concrete interpreter operation and host-access checks. | Authorized producer judgments, admitted assumptions, faithful lowering, the interpreter and installed adapters. Future untrusted interpretation requires audited containment and does not certify source claims. |
 | Foreign packages and build execution | Package review, exact acceptance and confined build services. | Accepted external claims and the enforcing review/execution machinery. |
 
 Three kinds of information have different roles:
 
-- Local proof derivations let a kernel check a prover's reasoning within source
-  checking or receiver checking. They are not serialized into Psi.
-- Retained contracts, mathematical definitions, subject identities and custody
-  relationships let the receiver reconstruct its questions and establish facts.
-  A declared conclusion alone is not an established fact.
-- Internal checked judgments are reusable outputs of trusted compiler stages.
-  Their validity cannot be asserted by an incoming artifact to bypass admission.
+- Local proof objects let the kernel check source proving and supported local
+  evaluation. Existing carried certificate encodings are decoded canonically;
+  their presence grants no admission authority and triggers no required replay.
+- Retained contracts, definitions, subject identities and custody relationships
+  describe the program and bind reusable judgments to their exact questions.
+- Host authorization permits reuse of a trusted producer's judgments. An artifact
+  cannot authorize itself with a flag, digest or producer name. Interpreter checks
+  of actual operations and host permissions remain independent of those claims.
 
-The [admission migration](../wiki/drafts/designs/psi_claim_admission.md) records
-the implementation work. Optional stage validators exercise independent checks
+The [admission and preparation plan](../wiki/drafts/designs/psi_claim_admission.md)
+records the execution-API gate, codec split, shared limits, static operation plans,
+performance measurements and containment work. Optional stage validators exercise independent checks
 on compiler output; they neither replace required external admission nor certify
 the full source-to-executable correspondence.
 
@@ -1144,7 +1149,7 @@ separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
 owns source provider derivation, declaration preparation, and calling/component
-planning. [`provider-selection/src/choice/provider_selection.rs`](omega/compilation/realization/provider-selection/src/choice/provider_selection.rs)
+planning. [`provider-selection/src/choice.rs`](omega/compilation/realization/provider-selection/src/choice.rs)
 owns shared whole-provider choice and admission; its `publication.rs` selects
 canonical companions against Terminal demand without source dependencies.
 Psi projects checked task activation requirements, exact specialization and

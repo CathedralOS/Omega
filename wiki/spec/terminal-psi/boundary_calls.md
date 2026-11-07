@@ -84,13 +84,26 @@ evaluation limits are service limits, not mathematical integer widths or a new
 language restriction. A true guard still permits normal completion; checking a
 reported crash establishes no normal result, disposition, or staged writeback.
 
+A declared crash route describes a permitted failure, not an operation-safety
+check. The interpreter enforces concrete operation safety independently; an
+invalid operation faults even when the guest declares no crash route. A malformed
+provider outcome cannot authorize an unchecked result or staged writeback.
+
 ## Structural domain requirements
 
 A boundary structural requirement identifies an argument position and an exact
 domain identity. Admission checks that identity in the argument's carried
 qualification roster. The qualification was established through whatever proof
-and/or sealed introduction its domain requires; the boundary call does not
-establish it again.
+and/or sealed introduction its domain requires in a trusted checked program;
+the boundary call may reuse that established judgment.
+
+Under [untrusted interpretation](product.md#publication-and-separate-consumption),
+a guest-supplied roster establishes no qualification or capability. An available
+host adapter must enforce the actual permissions, resource limits, custody and
+supported value conditions it relies on. A requirement with no such enforcement
+route makes that crossing unavailable. Arbitrary mathematical contracts are not
+implicitly executable tests, and no runtime theorem-search fallback is required.
+Installed bindings and host grants bound reach independently of guest declarations.
 
 This requirement is not a proposition term or conclusion and creates no
 `ObligationId`. Boundary calls have no positional proof-obligation vector for

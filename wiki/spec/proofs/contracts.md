@@ -473,15 +473,13 @@ generic substitution and lowering. Specialization consumes that judgment instead
 of rediscovering the generic proof. It remains bound to its proposition, subjects,
 selected operations/laws and premises.
 
-Published Psi retains that semantic question and the definitions and dependencies
-needed to establish it, without the producer's derivation. An external consumer
-reconstructs and discharges the obligation under
-[Psi admission](../terminal-psi/product.md#publication-and-separate-consumption).
-A theorem identity or recorded success is not proof of its conclusion. A receiver
-with insufficient reasoning support or a smaller work budget may refuse admission;
-it must not report the indices mathematically unequal or silently accept the
-producer's judgment. Publication does not change canonical identity or authorize
-a different declaration selection.
+Published Psi retains the judgment's semantic question, definitions and exact
+dependencies. Under [Psi admission](../terminal-psi/product.md#publication-and-separate-consumption),
+host authorization of the trusted producer's exact artifact permits reuse without
+rediscovery or certificate replay. A theorem identity or recorded success cannot
+authorize that trust. A smaller receiving discovery budget does not invalidate
+reuse; loading/preparation exhaustion remains a separate resource refusal.
+Publication changes neither canonical identity nor declaration selection.
 
 ### Bounded canonical index normalization
 
@@ -617,8 +615,9 @@ replayed normalizer remains trusted checker logic unless it emits a lower-level
 certificate; totality alone does not establish soundness. Normalization cites
 its exact conformance and laws and inherits their complete assumption closure.
 
-Local proof checking may use a kernel certificate; this is an in-process proof
-object, not a published Psi payload. Derive the review synopsis from that checked
+Local proof checking may use a kernel certificate: an object checked against
+the exact question. Existing artifact encodings may carry such objects, but
+receipt neither grants authority nor requires replay. Derive the review synopsis from that checked
 object and its source-attribution metadata, never a second analysis of what
 probably happened. It reports certificate identity, recursive components, implicit
 closure rules, cited laws, and trust closure. The synopsis is explanatory; the complete

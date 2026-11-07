@@ -609,11 +609,10 @@ apply. If an obligatory equality remains unproved, the diagnostic names the
 missing evidence or exhausted budget; it does not claim mathematical inequality.
 A checked theorem can establish equality without expanding the whole product.
 
-A generic compatibility judgment survives specialization inside the compilation.
-Published Psi carries the claim and the semantic information needed to check it.
-An external receiver proves that claim with its own budget; if the budget is
-insufficient, it refuses the artifact rather than assuming the claim. Adding a
-valid law leaves existing proofs valid and canonical keys unchanged.
+A generic compatibility judgment survives specialization. A consumer that trusts
+the library's exact Psi artifact reuses that judgment, so it needs no larger
+proof-search budget to import a difficult proof. Adding a valid law leaves
+existing proofs valid and canonical keys unchanged.
 
 Exact declaration and conformance matching still uses canonical keys.
 Consequently, a conformance for one symbolic spelling does not automatically

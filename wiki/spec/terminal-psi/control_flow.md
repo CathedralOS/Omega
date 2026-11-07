@@ -104,9 +104,10 @@ to establish that same operation's safety.
 
 A ranking declaration binds a well-founded relation, block ranks, and every
 derived in-component edge. Source measures normalize to this relation and its
-comparisons. The receiver establishes well-foundedness and each comparison from
-retained semantics; it need not invent the author's measure. Producer proof
-derivations are omitted. For the natural-rank form:
+comparisons. Checking establishes well-foundedness and each comparison;
+authorized consumers reuse the trusted producer's judgment under
+[Psi admission](product.md#publication-and-separate-consumption). Receipt does not
+search for a measure or repeat the proof. For the natural-rank form:
 
 | Edge role | Required comparison |
 | --- | --- |
@@ -143,8 +144,9 @@ coordinates. A strict structural-subterm path must be nonempty, resolve every
 field, and return to the component's rank type. It grants no runtime layout.
 
 The verifier reconstructs one ranking-relation identity, one well-foundedness
-question, and one decrease question per call row, then establishes them under
-the [admission rules](product.md#publication-and-separate-consumption).
+question, and one decrease question per call row during checking. Reuse of
+established judgments follows the
+[admission rules](product.md#publication-and-separate-consumption).
 Component acceptance remains distinct from flat contract checking.
 Source production retains the complete reachable proof-call closure and exact
 hermetic declaration identities, not frontend handles. The general citation

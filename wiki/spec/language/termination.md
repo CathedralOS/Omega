@@ -57,11 +57,11 @@ and its proof cache, not caller/requirement identity or contract-driven dependen
 compilation. Explicit complexity/resource promises belong to their own public
 contracts, not hidden ranking data.
 
-This privacy concerns the source interface. Published Psi retains the semantic
-definitions and progress relationships needed for a receiver to establish its
-termination claims under [admission](../terminal-psi/product.md#publication-and-separate-consumption).
-The producer's proof derivation is omitted; an asserted termination flag is
-insufficient.
+This privacy concerns the source interface. Published Psi retains the progress
+relationships and dependencies of its termination judgments. Reuse follows
+[producer trust](../terminal-psi/product.md#publication-and-separate-consumption),
+without receiver search for a measure or proof. Interpreter work limits apply
+independently of a guest's termination claim.
 
 Declared measures are package-private; `public measure` rejects, and other packages
 cannot name them directly. An exported machine may use its package's private

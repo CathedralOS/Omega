@@ -22,9 +22,9 @@ entries. A key computed from the proof term can identify a stored proof, but
 does not alone provide the lookup key for finding it from an obligation.
 
 Published [Psi claims](../../spec/terminal-psi/product.md#publication-and-separate-consumption)
-carry semantic definitions and dependencies, without producer derivations. Their
-receiver establishes the required claims under its own budget. This draft explores
-local search caching separately. Evaluator-result caches retain logical
+retain exact subjects and dependencies. Host-authorized consumers reuse trusted
+producer judgments without rediscovery. This draft explores local search caching
+separately; it does not define an artifact-admission route. Evaluator-result caches retain logical
 usage under the [evaluation contract](../../spec/language/evaluation.md).
 
 ## Alternatives and unresolved choices
