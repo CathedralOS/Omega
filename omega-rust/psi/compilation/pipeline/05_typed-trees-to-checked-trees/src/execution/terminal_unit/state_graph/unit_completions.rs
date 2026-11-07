@@ -37,15 +37,13 @@ pub(super) fn build(
     }
     let flow = super::super::types::state_flow(facts, machine.symbol, state.symbol)?;
     let call_roster = facts.flow.control.calls.span_or_empty(flow.calls);
-    let calls = flow
-        .calls
-        .handles()
-        .map(|handle| (handle.arena_index(), handle.generation()))
-        .collect::<BTreeSet<_>>();
     let mut bind_call =
         |node: &checked_trees::CheckedCompletionExpression,
          source_call: arena::Handle<checked_trees::FlowCallFact>| {
-            if !calls.contains(&(source_call.arena_index(), source_call.generation())) {
+            let offset = source_call
+                .arena_index()
+                .checked_sub(flow.calls.start().arena_index())?;
+            if flow.calls.handles().nth(offset as usize) != Some(source_call) {
                 return None;
             }
             let call = facts.flow.control.calls.get(source_call);
