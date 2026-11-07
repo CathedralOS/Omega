@@ -74,7 +74,6 @@ fn evaluate_requested_calls(
     context: crate::BuildTimeSources<'_>,
     requested: Option<&ClosedDeclarationConstantUses>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-    let _profile = phase_profile::guard("pre_resolution.constant_calls");
     loop {
         // Readiness precedes admission: a provisional carrier can reveal exact
         // dependencies but must not supply an executable layout. Every layer

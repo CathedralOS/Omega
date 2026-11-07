@@ -37,7 +37,7 @@ The order is:
   after required tests pass.
 
 The application coordinator owns this lifecycle; package management owns source
-resolution and review; Psi owns checking and admission; the Terminal interpreter
+resolution and review; Psi owns checking and admission; the Psi interpreter
 owns suspension, provider-slot installation, and continuation resumption. A
 dependency declaration may complete in the background when Build code never
 awaits its provider slot. Build return is still a mandatory join, so no unresolved request leaks

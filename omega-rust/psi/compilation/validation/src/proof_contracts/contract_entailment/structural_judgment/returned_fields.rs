@@ -102,15 +102,20 @@ impl StructuralJudge<'_> {
             .machine(callee.symbol)
             .is_some_and(|stored| std::ptr::eq(stored, callee));
         if is_stored_machine
-            && let Some(memos) = crate::frozen_program::frozen_program_memos(program)
-            && let Ok(cached) = memos.returned_field_projections.lock()
-            && let Some(entry_memo) = cached.get(&callee.symbol).cloned()
+            && let Some(entry_memo) =
+                crate::frozen_program::readable_memos(program).find_map(|memos| {
+                    memos
+                        .returned_field_projections
+                        .lock()
+                        .ok()?
+                        .get(&callee.symbol)
+                        .cloned()
+                })
             && entry_memo
                 .1
                 .iter()
                 .all(|visited| !self.returned_field_owners.contains(visited))
         {
-            drop(cached);
             for &visited in &entry_memo.1 {
                 self.record_returned_field_dependency(visited);
             }
@@ -124,6 +129,8 @@ impl StructuralJudge<'_> {
                 })
                 .collect();
         }
+        // A template that read no recursion cut holds in every context.
+        let cut_guard = crate::frozen_program::CutGuard::start(program);
         let outer_len = self.returned_field_owners.len();
         let trace = std::sync::Arc::new(std::sync::Mutex::new(ReturnedFieldTrace {
             min_cycle_owner_index: usize::MAX,
@@ -150,7 +157,7 @@ impl StructuralJudge<'_> {
             }
             if is_stored_machine
                 && min_cycle >= outer_len
-                && let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+                && let Some(memos) = cut_guard.memos()
                 && let Ok(mut cached) = memos.returned_field_projections.lock()
             {
                 cached.insert(callee.symbol, std::sync::Arc::new((template, visited)));
@@ -162,16 +169,14 @@ impl StructuralJudge<'_> {
         std::sync::Arc::make_mut(&mut judge.returned_field_owners).push(callee.symbol);
         judge.query_state.returned_field_trace = Some(std::sync::Arc::clone(&trace));
         let mut diagnostics = Vec::new();
-        let Some(leaves) = phase_profile::scope("psi.05.returned_fields.recognize", || {
-            recognize_structural_case_arms(
-                program,
-                callee,
-                &judge,
-                &crate::proof_only_classification(program),
-                &mut diagnostics,
-                None,
-            )
-        }) else {
+        let Some(leaves) = recognize_structural_case_arms(
+            program,
+            callee,
+            &judge,
+            &crate::proof_only_classification(program),
+            &mut diagnostics,
+            None,
+        ) else {
             store_template(Vec::new());
             return decline("normal-return paths are incomplete or recurrent");
         };

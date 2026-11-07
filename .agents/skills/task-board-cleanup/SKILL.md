@@ -148,7 +148,7 @@ evidence across the pipeline, over-split sibling items are merged into cohesive
 single-agent outcomes, every status is verified, and every assignment traces to
 an original item. Preserve referenced task identities where practical and update
 active references to consolidated or removed items. Run
-`python tools/board_paths.py --board TASKS.md` when cited paths move. Keep
+`cargo xtask check-rules --base origin/main` when cited paths or task IDs move. Keep
 bootstrap and optimizer work with their owning boards; leave historical records
 alone.
 

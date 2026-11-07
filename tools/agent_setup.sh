@@ -2,10 +2,9 @@
 # Prepare a Linux host so an agent can build and test Omega immediately.
 #
 # A fresh cloud container has Rust but not the repository's pinned nightly,
-# mbx, cargo-nextest or zstd, so the first build, the first `mbx nextest run`
-# and the SessionStart warm-build restore (tools/warm_build.py) all fail or
-# fall back to slower paths. This script installs each of them once, from the
-# documented release channels, and is safe to rerun.
+# mbx, cargo-nextest or zstd, so the first build and the first `mbx nextest run`
+# fail or fall back to slower paths. This script installs each of them once,
+# from the documented release channels, and is safe to rerun.
 #
 #   bash tools/agent_setup.sh             # from anywhere; finds its checkout
 #
@@ -20,7 +19,7 @@ set -euo pipefail
 # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
 # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
 MBX_VERSION=1.29.2
-# tools/doctor.py requires cargo-nextest 0.9.140 or newer.
+# cargo xtask doctor requires cargo-nextest 0.9.140 or newer.
 NEXTEST_VERSION=0.9.150
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -79,4 +78,4 @@ fi
 git -C "$repo" submodule update --init --recursive ||
   echo "submodule samples/apps/squalr skipped"
 
-step "done; check with: python3 tools/doctor.py"
+step "done; check with: cargo xtask doctor"

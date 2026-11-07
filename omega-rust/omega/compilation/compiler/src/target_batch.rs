@@ -169,7 +169,7 @@ fn select_target_product(
 /// Produce requested products from checked source and selected target inputs.
 /// Standalone, session and package requests use this same production sequence.
 /// This includes Terminal production; it is not the source-free Terminal-to-native
-/// entrance, which belongs to `native_production::compile`.
+/// entrance, which belongs to `native_compiler::compile`.
 /// Completed stops and errors stay in the ordered roster; only executable work
 /// borrows the shared Terminal producer. No parallel index table or empty output
 /// slots need to be reconstructed after production.

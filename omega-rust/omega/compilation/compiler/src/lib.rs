@@ -31,9 +31,7 @@ mod product_execution;
 #[cfg(test)]
 mod product_boundary;
 
-pub use identity::{
-    compiler_build_profile, compiler_identity, compiler_input_identity, compiler_optimization_level,
-};
+pub use identity::{compiler_identity, compiler_input_identity, compiler_optimization_level};
 
 pub mod checked;
 #[doc(hidden)]
@@ -64,7 +62,7 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
-pub use native_production::SourceEvaluatedImportSettlement;
+pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{

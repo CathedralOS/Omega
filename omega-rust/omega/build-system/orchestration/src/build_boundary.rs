@@ -1,13 +1,21 @@
-//! Source guards for the application/compiler ownership boundary.
-//!
-//! Which crates Build may depend on is checked by `tools/check_native_boundary.py`
-//! from `cargo metadata`. What remains here is who schedules and executes work
-//! inside crates that legitimately depend on each other, and the order of the
-//! lifecycle steps. Behavior that holds by construction is not repeated: Build
-//! executing once per compilation is counted by `tests/executed_commands.rs`.
+/*
 
-/// Assert every `source` omits each listed token, naming the owner that must
-/// not spell it.
+Source-level ownership and call-order checks for the orchestration boundary.
+
+Crate-level dependency edges are checked by `cargo xtask check-boundary` from
+`cargo metadata`. These tests check the finer-grained division of labor *within*
+the crates that legitimately depend on one another:
+- `readiness.rs` drives dependency and helper-product work iteratively on its
+  explicit work stack rather than through recursive Rust calls.
+- `package_inspection`, `package_commands`, `package_review`, `native_completion`,
+  `build.rs`, and `project_compilation` execute their lifecycle steps in canonical
+  order while `package-manager` and `compiler` remain free of cross-layer
+  scheduling calls.
+- `assert_in_order` strips whitespace before matching so `rustfmt` line-breaks
+  never cause false failures.
+
+*/
+
 fn assert_absent(sources: &[&str], complaint: &str, tokens: &[&str]) {
     for source in sources {
         for token in tokens {
@@ -16,8 +24,6 @@ fn assert_absent(sources: &[&str], complaint: &str, tokens: &[&str]) {
     }
 }
 
-/// Assert the operations first appear in `source` in the listed order, ignoring
-/// whitespace so rustfmt may break a receiver from its method.
 fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
     let compact = source.split_whitespace().collect::<String>();
     let mut previous = None;
@@ -123,7 +129,6 @@ fn review_policy_admits_work_and_application_executes_it() {
         "application bypasses the review round:",
         &["execute_package_build("],
     );
-    // The round retains its result before optional cache work publishes it.
     assert_in_order(
         execution,
         "package review",
@@ -157,7 +162,7 @@ fn package_commands_schedule_work_outside_package_policy() {
 fn application_depends_on_facades_not_language_stages() {
     assert_absent(
         &[include_str!(
-            "../../../application/cli/src/cli/compilation.rs"
+            "../../../application/cli/src/commands/compile.rs"
         )],
         "CLI reaches behind Build:",
         &["publish_compilation("],
@@ -198,11 +203,11 @@ fn application_completes_native_products_without_source_continuations() {
         completion,
         "native completion",
         &[
-            "native_production::prepare(",
+            "native_compiler::prepare(",
             "prepared.scalar_completions()",
             "build_settings::scalar_completion::complete(",
             "completion.complete(completed)",
-            "native_production::compile(prepared)",
+            "native_compiler::compile(prepared)",
             ".finish_native(",
             ".with_runtime_provisions(",
         ],

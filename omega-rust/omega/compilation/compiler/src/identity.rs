@@ -6,9 +6,7 @@
 //! The complete input identity additionally joins the selected toolchain library.
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
-    let library = phase_profile::scope("source.compiler_library_identity", || {
-        package_compilation::toolchain_library::identity()
-    })?;
+    let library = package_compilation::toolchain_library::identity()?;
     let mut digest = optimization_core::digest_encoder::DomainDigestEncoder::new(
         b"omega-accepted-compiler-inputs-v1\0",
     );
@@ -25,12 +23,4 @@ pub const fn compiler_identity() -> [u8; 32] {
 /// Runtime environment variables cannot change the loaded producer's profile.
 pub const fn compiler_optimization_level() -> &'static str {
     env!("OMEGA_COMPILER_OPT_LEVEL")
-}
-
-/// Machine-readable build metadata shared by the CLI and corpus runner.
-pub fn compiler_build_profile() -> String {
-    format!(
-        "{{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"{}\"}}",
-        compiler_optimization_level()
-    )
 }

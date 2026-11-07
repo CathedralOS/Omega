@@ -456,6 +456,8 @@ public machine example() -> u32 {
 `apply`'s body acknowledges the requirement's maximum permission. Its checked
 summary says suspension depends on F. `local`'s public contract forbids
 suspension, so `example` needs neither a marker nor a `suspends` clause.
+It may also write `suspend apply<local>(42)` without adding suspension to its
+contract. That redundant marker still occupies a legal suspension position.
 A callback whose published contract permits suspension instead requires
 `suspend apply<Callback>(42)` in a caller that admits suspension. Blocking is an
 independent dependency with the same rules. An unrelated potentially suspending
@@ -466,10 +468,10 @@ the corresponding behavior for all admitted callbacks; a public generic cannot
 omit `suspends` merely because its current callers happen to be synchronous.
 Unknown callback selections use their requirement ceiling.
 
-Body markers are checked once against the abstract envelope; callers' markers
-use the specialized envelope. Do not reject a template's `suspend F(...)` as
-redundant after F becomes synchronous. This is published contract substitution,
-not an optimizer decision. Carry, loans and invariant windows inside the body
+Body markers must cover the abstract envelope; callers' markers must cover
+the specialized envelope. Redundant markers are permitted in either context,
+including a template's `suspend F(...)` after F becomes synchronous. This is
+published contract substitution, not an optimizer decision. Carry, loans and invariant windows inside the body
 still satisfy its upper-bound obligations, with no conditional carry exemption.
 Omitted published crash causes remain forbidden.
 

@@ -21,7 +21,7 @@ use typed_trees::types::PrimitiveType;
 
 mod operand_preparation;
 mod rank_comparison;
-use operand_preparation::PreparedIntegerOperand;
+use operand_preparation::PreparedIntegerOperands;
 pub(in crate::proof_contracts::contract_entailment) use rank_comparison::{
     CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank,
 };
@@ -111,7 +111,7 @@ struct IntegerObservations<'program> {
     installed_carrier_bounds: usize,
     next_operation_id: usize,
     // Only one immutable judge's preparation or goal batch shares descriptions.
-    operand_preparations: Option<Vec<PreparedIntegerOperand>>,
+    operand_preparations: Option<PreparedIntegerOperands>,
 }
 
 /// Every retained comparison and operation has been independently admitted.
@@ -1212,7 +1212,6 @@ impl<'program> StructuralJudge<'program> {
         predicates: &[StructuralTerm],
         depth: usize,
     ) -> Vec<bool> {
-        let _eq_guard = phase_profile::guard("psi.05.numeric.prove.eq_loop");
         let mut proofs = Vec::with_capacity(predicates.len());
         let mut unresolved = Vec::new();
         let has_mathematical_binary_rewrite = self.rewrites.has_mathematical_binary_pattern();
@@ -1257,10 +1256,7 @@ impl<'program> StructuralJudge<'program> {
             }
             proofs.push(matches!(judgment, StructuralJudgment::Proven));
         }
-        drop(_eq_guard);
-        let shared = phase_profile::scope("psi.05.numeric.prove.shared", || {
-            self.prepared_predicate_proofs(predicates, &unresolved)
-        });
+        let shared = self.prepared_predicate_proofs(predicates, &unresolved);
         for (index, position) in unresolved.into_iter().enumerate() {
             // Shared false grants no negative fact. Preserve the original
             // goal-first sufficient proof when the goal registered operations.
@@ -1271,9 +1267,7 @@ impl<'program> StructuralJudge<'program> {
                 .flatten()
             {
                 Some(proven) => proven,
-                None => phase_profile::scope("psi.05.numeric.prove.fallback", || {
-                    self.proves_observed_integer_predicate(&predicates[position])
-                }),
+                None => self.proves_observed_integer_predicate(&predicates[position]),
             };
         }
         proofs
@@ -1287,9 +1281,7 @@ impl<'program> StructuralJudge<'program> {
         if !self.runtime_body_values || self.case_facts_only || unresolved.is_empty() {
             return None;
         }
-        let prepared = phase_profile::scope("psi.05.numeric.prove.prep", || {
-            self.cached_prepared_integer_premises()
-        })?;
+        let prepared = self.cached_prepared_integer_premises()?;
         let base_atoms = prepared.observations.atoms.len();
         let base_bounds = prepared.observations.carrier_bounds.len();
         let base_engine_reg = prepared
@@ -1299,20 +1291,19 @@ impl<'program> StructuralJudge<'program> {
         let has_premises = prepared.observations.engine.requires_unsatisfiable
             || !prepared.observations.engine.bounds.is_empty();
         let mut work = prepared.take_goal_work();
-        work.operand_preparations = Some(Vec::new());
+        work.operand_preparations = Some(PreparedIntegerOperands::default());
         let results = unresolved
             .iter()
             .map(|position| {
                 prepared.reset_goal_work(&mut work);
-                let comparison = match phase_profile::scope("psi.05.numeric.prove.project", || {
-                    self.project_integer_comparison(&predicates[*position], &mut work)
-                }) {
-                    IntegerComparisonProjection::Comparison(comparison) => comparison,
-                    IntegerComparisonProjection::NotInteger
-                    | IntegerComparisonProjection::UnavailableOperand => {
-                        return Some(false);
-                    }
-                };
+                let comparison =
+                    match self.project_integer_comparison(&predicates[*position], &mut work) {
+                        IntegerComparisonProjection::Comparison(comparison) => comparison,
+                        IntegerComparisonProjection::NotInteger
+                        | IntegerComparisonProjection::UnavailableOperand => {
+                            return Some(false);
+                        }
+                    };
                 let (operator, left, right) = comparison;
                 let goal_only_linear_ops = work.operations.iter().all(|op| {
                     matches!(
@@ -1498,7 +1489,6 @@ impl<'program> StructuralJudge<'program> {
                         }
                     }
                 }
-                let _fork_guard = phase_profile::guard("psi.05.numeric.prove.fork");
                 let operations = 0..work.operations.len();
                 let goal_has_no_operations = operations.is_empty();
                 let no_rewrites = self.has_no_rewrites();
@@ -1524,28 +1514,6 @@ impl<'program> StructuralJudge<'program> {
                     {
                         return Some(false);
                     }
-                }
-                if operator != BinaryOperator::Equal {
-                    phase_profile::count("psi.05.numeric.prove.fork.non_equal", 1);
-                } else if goal_has_addr_bound {
-                    phase_profile::count("psi.05.numeric.prove.fork.addr_bound", 1);
-                } else if work.atoms.len() == base_atoms {
-                    phase_profile::count("psi.05.numeric.prove.fork.existing_atoms", 1);
-                    if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
-                        phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.opaque", 1);
-                    } else if !goal_only_linear_ops {
-                        phase_profile::count(
-                            "psi.05.numeric.prove.fork.existing_atoms.non_linear",
-                            1,
-                        );
-                    } else if work.carrier_bounds.len() != base_bounds {
-                        phase_profile::count(
-                            "psi.05.numeric.prove.fork.existing_atoms.carrier_bounds",
-                            1,
-                        );
-                    }
-                } else {
-                    phase_profile::count("psi.05.numeric.prove.fork.new_atoms_correlated", 1);
                 }
                 let mut observations = work.clone();
                 // Only this goal has registered since the sealed premise context.
@@ -1604,10 +1572,8 @@ impl<'program> StructuralJudge<'program> {
         if let Ok(mut cache) = self.query_state.prepared_integer_premises_cache.lock()
             && let Some(cached) = cache.get(&state)
         {
-            phase_profile::count("psi.05.numeric.prove.prep.hit", 1);
             return cached;
         }
-        phase_profile::count("psi.05.numeric.prove.prep.miss", 1);
         let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
         if let Ok(mut cache) = self.query_state.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());
@@ -1617,7 +1583,7 @@ impl<'program> StructuralJudge<'program> {
 
     fn prepare_integer_premises(&self) -> Option<PreparedIntegerPremises<'program>> {
         let mut observations = IntegerObservations::empty(self.program);
-        observations.operand_preparations = Some(Vec::new());
+        observations.operand_preparations = Some(PreparedIntegerOperands::default());
         let mut premises = self.project_observed_integer_premises(&mut observations);
         // Descriptions belong to this immutable judge invocation. The retained
         // premise owner and its reusable goal scratch must not retain them.
@@ -2290,7 +2256,7 @@ mod tests {
         );
         let prepared = judge.prepare_integer_premises().unwrap();
         let mut work = prepared.take_goal_work();
-        work.operand_preparations = Some(Vec::new());
+        work.operand_preparations = Some(PreparedIntegerOperands::default());
         let observation = |observed_type| StructuralTerm::ObservedValue {
             observed_type,
             value: Box::new(StructuralTerm::Integer(BigInt::from_i64(1))),
@@ -2322,7 +2288,7 @@ mod tests {
                 "value".into(),
                 StructuralTerm::Integer(BigInt::from_i64(expected)),
             )]);
-            work.operand_preparations = Some(Vec::new());
+            work.operand_preparations = Some(PreparedIntegerOperands::default());
             for _ in 0..2 {
                 assert_eq!(
                     judge.resolve_integer_operand(variable.clone(), &mut work),

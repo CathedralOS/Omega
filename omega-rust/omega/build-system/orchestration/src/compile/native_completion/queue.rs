@@ -1,4 +1,11 @@
-//! Drain admitted native products with a bounded number of compiler-stack workers.
+// Drain native-completion jobs across at most `MAX_NATIVE_EXECUTORS` (4) compiler-stack worker threads.
+//
+// Zero or one job runs inline on the calling thread without spawning. When two
+// or more jobs are queued, we spawn up to `MAX_NATIVE_EXECUTORS - 1` helper
+// threads via `spawn_compile_worker` while the calling thread also drains the
+// shared `Mutex<IntoIter>`. If spawning an optional helper thread fails, the
+// remaining threads still drain every job; each mutex lock guard is dropped
+// before running `execute()`.
 
 const MAX_NATIVE_EXECUTORS: usize = 4;
 
@@ -15,14 +22,10 @@ where
     std::thread::scope(|scope| {
         let mut workers = Vec::with_capacity(count.min(MAX_NATIVE_EXECUTORS) - 1);
         for _ in 1..count.min(MAX_NATIVE_EXECUTORS) {
-            match compiler::checked::spawn_compile_worker(scope, || drain(&pending)) {
-                Ok(worker) => workers.push(worker),
-                // An optional worker failure leaves every job in the queue.
-                Err(_) => phase_profile::count("native.scheduling.worker_spawn_fallback", 1),
+            if let Ok(worker) = compiler::checked::spawn_compile_worker(scope, || drain(&pending)) {
+                workers.push(worker);
             }
         }
-        phase_profile::count("native.scheduling.executors", (workers.len() + 1) as u64);
-        phase_profile::count("native.scheduling.jobs", count as u64);
         let mut completed = drain(&pending);
         for worker in workers {
             completed.extend(
@@ -47,7 +50,6 @@ fn drain<Work: FnOnce() -> Output, Output>(
         let Some((position, execute)) = job else {
             break;
         };
-        // The guard is dropped before native work or its failure runs.
         completed.push((position, execute()));
     }
     completed

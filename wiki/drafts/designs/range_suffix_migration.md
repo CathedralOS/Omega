@@ -1208,3 +1208,50 @@ records the generic program's source check and both-engine agreement with its
 own optimized producer at `071034107c35`. Source records retain the authored
 `macos_arm64` checking target; execution observations are Linux x86_64 only.
 Other hosts and the parent scalar migration remain open.
+
+
+## Captured byte destinations
+
+The unchanged [captured-destination program](../../../tests/omega/run/domains/qualified_fixed_byte_array_captured_destination_exit/main.omg)
+returned 0 in native and Terminal execution on Linux x86_64. The assignment
+updates the original array to `Amega600` even though its right-hand side replaces
+the selecting reference; the replacement array remains `omega601`, and the
+neighboring fields and layout remain intact. The checker retains the selected
+storage before the right-hand side and proves that the stored byte preserves
+Ascii. The existing out-of-range-byte, retargeted-reference and changed-index
+controls still reject for their intended obligations. No source, Build binding,
+oracle or rejection pin changed.
+
+[Source run 42346932689](https://github.com/CathedralOS/Omega/actions/runs/42346932689)
+records the positive and byte control at `413fb4703959`; the source row retains
+its authored `macos_arm64` checking target. The two U64 controls retain their
+[run 42344159641](https://github.com/CathedralOS/Omega/actions/runs/42344159641)
+observations at `cf504bf87162`: the later byte-proof change only handles U8
+values and leaves their rejection paths unchanged.
+[Replay 42347834202](https://github.com/CathedralOS/Omega/actions/runs/42347834202)
+executes consumer `cc3dd85de6a3` with the authenticated optimized `413fb4703959`
+producer; all ten declared compiler input objects match. Execution on other
+hosts and the parent scalar migration remain open.
+
+
+## Field reads after selector writes
+
+The unchanged [selector-write program](../../../tests/omega/pass/proofs/scalar_field_snapshot_selector_writes_payload/main.omg)
+returned 0 in native and Terminal execution on Linux x86_64. Its direct read
+observes 7 and its stored-reference read observes 11 after each selector writes
+the selected payload. Each selector runs once. The checker preserves the field's
+complete declared type, then checks that every captured reference descriptor
+still names the same storage when the read occurs. Payload writes do not count
+as descriptor replacement. The existing changed-selector and replaced-collection
+controls still reject their equality obligations. Source, Build bindings, oracles
+and diagnostic pins are unchanged.
+
+[Source run 42352183267](https://github.com/CathedralOS/Omega/actions/runs/42352183267)
+records both affected positives and all three intended rejections at
+`7a71b2c1f2d4`, retaining the authored `macos_arm64` checking target.
+[Replay 42354136490](https://github.com/CathedralOS/Omega/actions/runs/42354136490)
+records the selector program's 0/0 agreement at consumer `e9feda3dd89d` using
+that same authenticated optimized producer; all ten compiler input objects
+match. The earlier captured-byte 0/0 execution remains applicable because its
+selector has no writes; its fresh source check covers the changed receiving-type
+validation. Other runtime hosts and the parent scalar migration remain open.

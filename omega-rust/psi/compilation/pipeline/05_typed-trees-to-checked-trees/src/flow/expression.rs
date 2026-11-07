@@ -535,40 +535,32 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         else {
             return CompletedInvocation::default();
         };
-        let _invoke_guard = phase_profile::guard("psi.05.build_check_facts.flow.expression.invoke");
         invocation.visited = true;
         let captured_operands = inputs.operands;
         let borrowed_call = invocation.call;
-        let writes = phase_profile::scope(
-            "psi.05.build_check_facts.flow.invoke.storage_writes",
-            || {
-                super::call_phases::call_storage_writes(
-                    self.program,
-                    self.borrow,
-                    self.context,
-                    self.machine,
-                    self.state,
-                    borrowed_call,
-                )
-            },
+        let writes = super::call_phases::call_storage_writes(
+            self.program,
+            self.borrow,
+            self.context,
+            self.machine,
+            self.state,
+            borrowed_call,
         );
-        let built = phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
-            build_call_flow_fact(
-                self.program,
-                self.borrow,
-                self.proof,
-                self.semantic,
-                self.domains,
-                self.context,
-                self.machine,
-                self.state,
-                contexts,
-                constraints,
-                borrowed_call,
-                captured_operands,
-                writes.as_deref(),
-            )
-        });
+        let built = build_call_flow_fact(
+            self.program,
+            self.borrow,
+            self.proof,
+            self.semantic,
+            self.domains,
+            self.context,
+            self.machine,
+            self.state,
+            contexts,
+            constraints,
+            borrowed_call,
+            captured_operands,
+            writes.as_deref(),
+        );
         let mut call = built.call;
         let writes = built.storage_writes;
         // Evaluation consumers need this occurrence before the later package
@@ -604,26 +596,19 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let binding_writes = writes
             .as_ref()
             .and_then(|writes| writes.descriptor_stores());
-        let stores = phase_profile::scope(
-            "psi.05.build_check_facts.flow.invoke.capture_stores",
-            || self.capture_call_stores(site, borrowed_call, argument_operands, binding_writes),
-        );
+        let stores =
+            self.capture_call_stores(site, borrowed_call, argument_operands, binding_writes);
         // Exact binding writes retire replaced reference resources independently
         // of value-history association and pointee observation invalidation.
-        phase_profile::scope(
-            "psi.05.build_check_facts.flow.invoke.reference_custody",
-            || {
-                super::call_phases::install_returned_reference_custody(
-                    self.program,
-                    self.borrow,
-                    self.context,
-                    self.machine.symbol,
-                    self.state.symbol,
-                    borrowed_call,
-                    binding_writes,
-                    constraints,
-                )
-            },
+        super::call_phases::install_returned_reference_custody(
+            self.program,
+            self.borrow,
+            self.context,
+            self.machine.symbol,
+            self.state.symbol,
+            borrowed_call,
+            binding_writes,
+            constraints,
         );
         let observations = call
             .normal_return_writes_complete

@@ -312,8 +312,8 @@ pub fn storage_address_operand(
 
 /// These operations do not replace references stored in caller data. Provider
 /// selection requires its retained declaration operation; spelling alone cannot
-/// supply that record. Byte and address observations keep their selected meaning.
-/// Arguments still execute first, and their effects remain.
+/// supply that record. Layout, byte and address observations keep their selected
+/// meaning. Arguments still execute first, and their effects remain.
 pub(crate) fn call_preserves_reference_slots(
     program: &dyn crate::CheckingInput,
     call: StaticArgumentCall<'_>,
@@ -327,6 +327,8 @@ pub(crate) fn call_preserves_reference_slots(
                     | AuthoredDeclarationSelectionIntrinsic::StorageAddress
             )
         )
+        || matches!(call, StaticArgumentCall::Expression(_, call)
+            if expression_call_only_observes_operands(program, call))
 }
 
 /// These resolved observations neither write caller storage nor install

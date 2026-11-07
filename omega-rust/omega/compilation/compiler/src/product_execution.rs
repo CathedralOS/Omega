@@ -18,7 +18,7 @@ use compilation_products::{
 };
 use component::ComponentPublication;
 use diagnostics::Diagnostic;
-use native_production::TerminalApplication;
+use native_compiler::TerminalApplication;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
 
@@ -292,20 +292,15 @@ impl RequestedTerminalCompilation {
     ) -> Result<CompilationOutput, CompilationProductError> {
         let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
         let checked = self.realization.into_checked_compilation();
-        phase_profile::scope(
-            "omega.product.admit_permissions_and_trust",
-            || -> Result<_, CompilationProductError> {
-                admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), true)?;
-                checked
-                    .admit_trust()
-                    .map_err(CompilationProductError::TrustAdmission)
-            },
-        )?;
+        (|| -> Result<_, CompilationProductError> {
+            admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), true)?;
+            checked
+                .admit_trust()
+                .map_err(CompilationProductError::TrustAdmission)
+        })()?;
         // Product eligibility precedes application completion, as it did before
         // batching. Both production halves consume the same settled choices.
-        let product = phase_profile::scope("omega.product.report_prepare", || {
-            self.report.prepare(&checked)
-        })?;
+        let product = self.report.prepare(&checked)?;
         let report = match product {
             CheckedProductReport::Complete(_) => {
                 return Err(vec![Diagnostic::error(
@@ -329,46 +324,37 @@ impl RequestedTerminalCompilation {
                 request,
                 rollback,
             } => {
-                let (terminal, captured_inputs) =
-                    phase_profile::scope("omega.product.finish_terminal_application", || {
-                        let native_request =
-                            checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                        // Save inputs while their checked owner is available. Keep
-                        // capture failures pending until ordinary preparation succeeds.
-                        let captured_inputs = request.retain_native_inputs.then(|| {
-                            let permissions =
-                                native_inputs::accepted_terminal_authority_permission_policy(
-                                    &checked,
-                                )?;
-                            let bytes = native_production::retain_native_derivation_inputs(
-                                &produced.receipt,
-                                produced.physical_entry_adapter,
-                                &produced.provider_proposals,
-                                &native_request,
-                                &permissions,
-                                &request.installation_assumptions,
-                            )
-                            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                            Ok::<_, Vec<Diagnostic>>((bytes, permissions))
-                        });
-                        produced
-                            .prepare(native_request)
-                            .map(|terminal| (terminal, captured_inputs))
-                    })?;
-                let captured_or_ordinary = match captured_inputs {
+                let native_request =
+                    checked.terminal_native_proposal_request(rollback.effective(), &[])?;
+                // Save inputs while their checked owner is available. Keep
+                // capture failures pending until ordinary preparation succeeds.
+                let captured_inputs = request.retain_native_inputs.then(|| {
+                    let permissions =
+                        native_inputs::accepted_terminal_authority_permission_policy(&checked)?;
+                    let bytes = native_compiler::retain_native_derivation_inputs(
+                        &produced.receipt,
+                        produced.physical_entry_adapter,
+                        &produced.provider_proposals,
+                        &native_request,
+                        &permissions,
+                        &request.installation_assumptions,
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                    Ok::<_, Vec<Diagnostic>>((bytes, permissions))
+                });
+                let terminal = produced.prepare(native_request)?;
+                let inputs = match captured_inputs {
                     Some(captured) => {
                         captured.map(|(bytes, permissions)| (Some(bytes), permissions))
                     }
                     None => native_inputs::accepted_terminal_authority_permission_policy(&checked)
                         .map(|permissions| (None, permissions)),
                 };
-                let (retained_native_inputs, accepted_package_permissions) = captured_or_ordinary
-                    .map_err(
-                    |diagnostics| CompilationProductError::ProductionAttempt {
+                let (retained_native_inputs, accepted_package_permissions) =
+                    inputs.map_err(|diagnostics| CompilationProductError::ProductionAttempt {
                         diagnostics,
                         accounting: std::mem::take(settlement.source_completion_accounting_mut()),
-                    },
-                )?;
+                    })?;
                 let subsystem = checked.build().config.settings.subsystem;
                 let settlement = settlement.with_timings(checked.timings().phases().to_vec());
                 return Ok(CompilationOutput::Native(Box::new(

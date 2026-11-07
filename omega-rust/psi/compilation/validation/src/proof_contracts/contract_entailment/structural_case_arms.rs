@@ -679,9 +679,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         );
                         if active_paths[idx].checked_contradiction_state != Some(current_state) {
                             let is_contradictory = active_paths[idx].judge.hypotheses_contradictory
-                                || phase_profile::scope("psi.05.numeric.visit.contra", || {
-                                    active_paths[idx].judge.integer_premises_contradictory()
-                                });
+                                || active_paths[idx].judge.integer_premises_contradictory();
                             if is_contradictory {
                                 visitor.entered();
                                 active_paths.remove(idx);
@@ -690,25 +688,23 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             active_paths[idx].checked_contradiction_state = Some(current_state);
                         }
                         let path = &active_paths[idx];
-                        phase_profile::scope("psi.05.numeric.visitor_visit", || {
-                            if completion_visitors[visitor_idx]
-                                && let Some(completed) = &path.completion
-                            {
-                                visitor.entered();
-                                if !visitor.is_complete() {
-                                    visitor.observe_completed(
-                                        (
-                                            program,
-                                            machine,
-                                            state,
-                                            path.judge.clone(),
-                                            &path.environment,
-                                        ),
-                                        completed,
-                                    );
-                                }
-                                return;
+                        if completion_visitors[visitor_idx]
+                            && let Some(completed) = &path.completion
+                        {
+                            visitor.entered();
+                            if !visitor.is_complete() {
+                                visitor.observe_completed(
+                                    (
+                                        program,
+                                        machine,
+                                        state,
+                                        path.judge.clone(),
+                                        &path.environment,
+                                    ),
+                                    completed,
+                                );
                             }
+                        } else {
                             super::structural_prefix::visit_non_contradictory_arm(
                                 &mut **visitor,
                                 program,
@@ -719,7 +715,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 &[],
                                 &CitationFacts::default(),
                             );
-                        });
+                        }
                         idx += 1;
                     }
                     valid[visitor_idx] = true;
@@ -746,11 +742,6 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         if saw_transition {
             return valid;
         }
-        let _step_guard = phase_profile::guard("psi.05.numeric.step_statement");
-        phase_profile::count(
-            "psi.05.numeric.active_paths_stepped",
-            active_paths.len() as u64,
-        );
         let call_write_frame = if let StatementNode::Call(call) = statement
             && active_paths
                 .first()
@@ -1103,9 +1094,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         );
                     } else {
                         let is_contradictory = path.judge.hypotheses_contradictory
-                            || phase_profile::scope("psi.05.numeric.visit.contra", || {
-                                path.judge.integer_premises_contradictory()
-                            });
+                            || path.judge.integer_premises_contradictory();
                         if is_contradictory {
                             continue;
                         }
@@ -1504,9 +1493,6 @@ fn recognize_structural_state_leaves_from<'a>(
             if judge.requires_value_preservation()
                 && let StatementNode::Call(call) = statement
             {
-                let _s = phase_profile::guard(
-                    "psi.05.check_checked_facts.check_flow_call_contracts.cap.call_writes",
-                );
                 let frames = judge.frame_resolver()?;
                 let mut writes = Vec::new();
                 let mut complete = true;
@@ -1542,9 +1528,6 @@ fn recognize_structural_state_leaves_from<'a>(
                     judge.has_runtime_body_values(),
                 )
             {
-                let _s = phase_profile::guard(
-                    "psi.05.check_checked_facts.check_flow_call_contracts.cap.citation",
-                );
                 // Value-position runtime calls, including their tag facts,
                 // belong to the normal-return traversal below. Termifying
                 // their operands here would replay an execution and rejects
@@ -1585,26 +1568,20 @@ fn recognize_structural_state_leaves_from<'a>(
                 } else if !judge.has_runtime_body_values() {
                     return None;
                 }
-                drop(_s);
             }
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
-                    let mut outcomes = phase_profile::scope(
-                        "psi.05.check_checked_facts.check_flow_call_contracts.cap.local_init",
-                        || {
-                            judge
-                                .complete_prefix_statement(
-                                    statement,
-                                    statement_index,
-                                    &environment,
-                                    (invocation, state, local.type_reference),
-                                    &[],
-                                    &[],
-                                    true,
-                                )
-                                .and_then(|completed| completed.binding_outcomes())
-                        },
-                    )?;
+                    let mut outcomes = judge
+                        .complete_prefix_statement(
+                            statement,
+                            statement_index,
+                            &environment,
+                            (invocation, state, local.type_reference),
+                            &[],
+                            &[],
+                            true,
+                        )
+                        .and_then(|completed| completed.binding_outcomes())?;
 
                     if outcomes.len() > 1
                         && outcomes.iter().all(|(_, outcome_judge)| {
@@ -1617,16 +1594,7 @@ fn recognize_structural_state_leaves_from<'a>(
                             &execution,
                             execution_position + 1,
                             local.symbol,
-                            !visitors.is_empty()
-                                && visitors.iter().all(|observer| {
-                                    observer.site().state == state.symbol
-                                        && !observer.site().in_transition_target
-                                        && observer.site().statement_index < statements.len()
-                                        && !matches!(
-                                            statements[observer.site().statement_index],
-                                            StatementNode::Transition(_)
-                                        )
-                                }),
+                            all_sites_local(visitors, state.symbol, statements),
                         );
                         if dead_local {
                             let judge_refs: Vec<_> = outcomes
@@ -1644,16 +1612,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 &execution,
                                 execution_position + 1,
                                 local.symbol,
-                                !visitors.is_empty()
-                                    && visitors.iter().all(|observer| {
-                                        observer.site().state == state.symbol
-                                            && !observer.site().in_transition_target
-                                            && observer.site().statement_index < statements.len()
-                                            && !matches!(
-                                                statements[observer.site().statement_index],
-                                                StatementNode::Transition(_)
-                                            )
-                                    }),
+                                all_sites_local(visitors, state.symbol, statements),
                             )
                         {
                             let judge_refs: Vec<_> = outcomes
@@ -1685,15 +1644,10 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::Assignment(_)
                     if !saw_transition && judge.has_runtime_body_values() =>
                 {
-                    let outcomes = phase_profile::scope(
-                        "psi.05.check_checked_facts.check_flow_call_contracts.cap.assign",
-                        || {
-                            judge.normal_assignment_paths(
-                                statement,
-                                &environment,
-                                (invocation, state, state.return_type),
-                            )
-                        },
+                    let outcomes = judge.normal_assignment_paths(
+                        statement,
+                        &environment,
+                        (invocation, state, state.return_type),
                     )?;
                     return Some(StateLeafStep::Continue {
                         outcomes: outcomes
@@ -1876,9 +1830,6 @@ fn recognize_structural_state_leaves_from<'a>(
         // Boolean guard as false, while the chosen arm alone receives its
         // positive refinement. Keep those completed observations on the
         // remaining path, never in a sibling's selected branch environment.
-        let _s_trans = phase_profile::guard(
-            "psi.05.check_checked_facts.check_flow_call_contracts.cap.transitions",
-        );
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
         let transition_order: Vec<usize> = transitions.iter().map(|(index, _)| *index).collect();
@@ -2486,6 +2437,86 @@ fn recognize_structural_state_leaves_from<'a>(
 /// Reachability is over exact call identities, not membership in the root
 /// machine's former state list. This is only a pruning query: the path walker
 /// still checks each entered body and substitutes every actual argument.
+/// The visitor properties this walk's shared choices read. Everything else a
+/// visitor answers (its own site match, completion, observations) only decides
+/// what that visitor receives. The shared choices are:
+/// - a dead-local or never-branched rejoin, taken only when every site is local
+///   to the walked state (`all_sites_local`);
+/// - leaving a state, entering a body or riding a call entry, which ask whether
+///   a site is reachable (`prefix_site_is_reachable`): the site's state and the
+///   machines the visitor stops at.
+///
+/// Visitors with equal reads make each shared choice the same way alone as
+/// together, so one batched walk gives each the events of its solo walk.
+/// `shared_proof_walks` groups by these reads; a property the walker starts
+/// reading belongs here, and grouping follows it.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct SharedChoiceReads {
+    state: SymbolHandle,
+    local_site: bool,
+    stops_at: Vec<SymbolHandle>,
+}
+
+impl SharedChoiceReads {
+    pub(super) fn of(
+        program: &dyn crate::CheckingInput,
+        visitor: &(dyn StructuralPrefixVisitor + '_),
+    ) -> Self {
+        let site = visitor.site();
+        let local_site = program.state_by_symbol(site.state).is_some_and(|state| {
+            site_is_local(
+                site,
+                state.symbol,
+                program.statement_table.statements(state.statement_nodes),
+            )
+        });
+        // ponytail: scans every machine per visitor; only proof-caller
+        // requirement sites are keyed, a few hundred per compile. Restrict to
+        // the walked machine's reachable owners if this shows in a profile.
+        let stops_at = program
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .filter(|&machine| visitor.stops_at_machine(machine))
+            .collect();
+        Self {
+            state: site.state,
+            local_site,
+            stops_at,
+        }
+    }
+
+    /// The site sits at entry of a non-transition statement of its own state.
+    pub(super) fn local_site(&self) -> bool {
+        self.local_site
+    }
+}
+
+fn site_is_local(
+    site: super::structural_prefix::StructuralPrefixSite,
+    state: SymbolHandle,
+    statements: &[StatementNode],
+) -> bool {
+    site.state == state
+        && !site.in_transition_target
+        && site.statement_index < statements.len()
+        && !matches!(
+            statements[site.statement_index],
+            StatementNode::Transition(_)
+        )
+}
+
+fn all_sites_local(
+    visitors: &[&mut (dyn StructuralPrefixVisitor + '_)],
+    state: SymbolHandle,
+    statements: &[StatementNode],
+) -> bool {
+    !visitors.is_empty()
+        && visitors
+            .iter()
+            .all(|visitor| site_is_local(visitor.site(), state, statements))
+}
+
 pub(super) fn prefix_site_is_reachable(
     program: &dyn crate::CheckingInput,
     source: &typed_trees::state::State,

@@ -69,6 +69,24 @@ use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit};
 
+pub(super) fn assignment_storage_capture(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    receiving: typed_trees::types::TypeReferenceHandle,
+    prefix: &CollectedStatementPrefix,
+    symbols: &TopLevelSymbols<'_>,
+) -> Result<(Vec<FramePlaceOrigin>, CollectedStatementPrefix), &'static str> {
+    let (target, current) = expression_effects::assignment_destination(
+        program, machine, state, statement, prefix, symbols,
+    )
+    .ok_or("assignment has no complete ordered destination capture and operand effects")?;
+    let destinations =
+        captured_inputs::assignment_addresses(program, machine, &target, receiving, symbols)?;
+    Ok((destinations, current))
+}
+
 fn call_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

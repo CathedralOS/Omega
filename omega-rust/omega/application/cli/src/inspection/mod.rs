@@ -1,5 +1,21 @@
-//! Inspect a source product through Build, or admit an existing Terminal envelope.
-//! Neither route grants native installation or runtime authority.
+/*
+
+Terminal Psi inspection entry points (`omega inspect-terminal`).
+
+We support two inspection routes, neither of which emits a native image or
+grants runtime execution authority:
+- `inspect_terminal`: compiles a source root through `orchestration::build`
+  with `ProjectProduct::Inspection { machine }` and `verify: true`, returning
+  the selected machine's `CanonicalTerminalArtifact`.
+- `inspect_terminal_artifact`: decodes and validates an existing `.psi`
+  envelope from raw bytes (`CanonicalTerminalArtifact::from_bytes`) without
+  preparing packages, compiling source, or establishing bindings.
+
+*/
+
+mod summary;
+
+pub use summary::terminal_summary;
 
 use diagnostics::Diagnostic;
 use orchestration::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
@@ -77,8 +93,6 @@ pub fn inspect_terminal(
     })
 }
 
-/// Inspect external envelope bytes through canonical admission. This route does
-/// not prepare packages, compile source, establish bindings or execute code.
 pub fn inspect_terminal_artifact(bytes: &[u8]) -> Result<TerminalInspection, InspectTerminalError> {
     let artifact =
         CanonicalTerminalArtifact::from_bytes(bytes).map_err(InspectTerminalError::Artifact)?;

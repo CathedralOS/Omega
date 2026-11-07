@@ -951,23 +951,52 @@ pub fn machine_scalar_constant_origin(
     machine: &terminal_psi::TerminalMachine,
     value: semantic_vocabulary::ValueId,
 ) -> Option<ScalarConstantOrigin> {
-    use terminal_psi::OperationKind;
-    if let Some((scalar_type, literal)) = machine.operations().find_map(|operation| {
-        let result = operation.result.scalar_ref()?;
-        let OperationKind::IntegerConstant { value: literal } = operation.kind else {
-            return None;
-        };
-        (result.id == value).then_some((result.scalar_type, literal))
-    }) {
+    scalar_constant_origin_with(
+        machine,
+        machine
+            .operations()
+            .find_map(|operation| integer_constant(operation, value)),
+        || {
+            machine.blocks.iter().find_map(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .position(|parameter| parameter.id == value)
+                    .map(|ordinal| (block.id, ordinal))
+            })
+        },
+    )
+}
+
+fn integer_constant(
+    operation: &Operation,
+    value: semantic_vocabulary::ValueId,
+) -> Option<(
+    semantic_vocabulary::ScalarType,
+    semantic_vocabulary::IntegerValue,
+)> {
+    let result = operation.result.scalar_ref()?;
+    let terminal_psi::OperationKind::IntegerConstant { value: literal } = operation.kind else {
+        return None;
+    };
+    (result.id == value).then_some((result.scalar_type, literal))
+}
+
+/// The shared body of both origin lookups. `literal` is the first integer
+/// constant defining `value` in operation order; `parameter` names the first
+/// block, in block order, that declares `value` and its first ordinal there.
+fn scalar_constant_origin_with(
+    machine: &terminal_psi::TerminalMachine,
+    literal: Option<(
+        semantic_vocabulary::ScalarType,
+        semantic_vocabulary::IntegerValue,
+    )>,
+    parameter: impl FnOnce() -> Option<(semantic_vocabulary::BlockId, usize)>,
+) -> Option<ScalarConstantOrigin> {
+    if let Some((scalar_type, literal)) = literal {
         return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
     }
-    let (owner, ordinal) = machine.blocks.iter().find_map(|block| {
-        block
-            .parameters
-            .iter()
-            .position(|parameter| parameter.id == value)
-            .map(|ordinal| (block.id, ordinal))
-    })?;
+    let (owner, ordinal) = parameter()?;
     if owner == machine.entry {
         return None;
     }
@@ -983,4 +1012,85 @@ pub fn machine_scalar_constant_origin(
         }
     }
     Some(ScalarConstantOrigin::Incoming(incoming))
+}
+
+/// One machine's scalar definitions and block parameters, sorted by value
+/// identity so each lookup is a binary search instead of a scan of every
+/// operation. Descriptor adaptation asks for many values of the same machine,
+/// and core's Build program alone has hundreds of selection calls per machine.
+///
+/// The sort is stable over operation order and over (block order, ordinal),
+/// so the first entry of each run is exactly what the linear `find` in
+/// [`machine_scalar_constant_origin`] would return, even if one identity were
+/// declared twice. Built per machine within one adaptation; nothing outlives it.
+pub struct MachineScalarIndex<'machine> {
+    machine: &'machine terminal_psi::TerminalMachine,
+    definitions: Vec<(semantic_vocabulary::ValueId, &'machine Operation)>,
+    parameters: Vec<(
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::BlockId,
+        usize,
+    )>,
+}
+
+impl<'machine> MachineScalarIndex<'machine> {
+    pub fn new(machine: &'machine terminal_psi::TerminalMachine) -> Self {
+        let mut definitions: Vec<_> = machine
+            .operations()
+            .filter_map(|operation| Some((operation.result.scalar_ref()?.id, operation)))
+            .collect();
+        definitions.sort_by_key(|(value, _)| *value);
+        let mut parameters: Vec<_> = machine
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block
+                    .parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(ordinal, parameter)| (parameter.id, block.id, ordinal))
+            })
+            .collect();
+        parameters.sort_by_key(|(value, _, _)| *value);
+        Self {
+            machine,
+            definitions,
+            parameters,
+        }
+    }
+
+    pub fn machine(&self) -> &'machine terminal_psi::TerminalMachine {
+        self.machine
+    }
+
+    /// Every operation whose scalar result is `value`, in operation order.
+    pub fn definitions(
+        &self,
+        value: semantic_vocabulary::ValueId,
+    ) -> impl Iterator<Item = &'machine Operation> + '_ {
+        let start = self.definitions.partition_point(|(id, _)| *id < value);
+        self.definitions[start..]
+            .iter()
+            .take_while(move |(id, _)| *id == value)
+            .map(|(_, operation)| *operation)
+    }
+
+    /// [`machine_scalar_constant_origin`] through this index.
+    pub fn constant_origin(
+        &self,
+        value: semantic_vocabulary::ValueId,
+    ) -> Option<ScalarConstantOrigin> {
+        scalar_constant_origin_with(
+            self.machine,
+            self.definitions(value)
+                .find_map(|operation| integer_constant(operation, value)),
+            || {
+                let start = self.parameters.partition_point(|(id, _, _)| *id < value);
+                self.parameters
+                    .get(start)
+                    .filter(|(id, _, _)| *id == value)
+                    .map(|(_, block, ordinal)| (*block, *ordinal))
+            },
+        )
+    }
 }

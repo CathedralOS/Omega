@@ -64,10 +64,6 @@ fn main() {
         restricted_consent::run();
         return;
     }
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--default-context")) {
         settled_default_build_contexts();
         return;

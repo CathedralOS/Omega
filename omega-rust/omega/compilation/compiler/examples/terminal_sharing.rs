@@ -12,7 +12,7 @@
 //! evaluation; ordinary debt-free Check defaults to zero productions.
 //! `--compare-single-targets` compares native bytes with independent requests.
 //! `--assert-native-stage-counts` observes each target's real Omega 00-09 calls
-//! and emission attempts; collection requires OMEGA_PHASE_PROFILE=1.
+//! and emission attempts.
 //! This does not claim numbered source/Psi invocation coverage.
 
 #[path = "../tests/support/fixture_package_inputs.rs"]
@@ -24,10 +24,6 @@ use artifacts::compile_timings::counters;
 use compiler::{CompileOutputKind, CompileRequest, RequestedCompileProduct};
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     let mut arguments = std::env::args().skip(1).peekable();
     let mut execute_host = false;
     let mut compare_single_targets = false;
@@ -99,10 +95,6 @@ fn main() {
         request = request.with_package_inputs(inputs.clone());
     }
     if assert_native_stage_counts {
-        assert!(
-            phase_profile::enabled(),
-            "stage observations require OMEGA_PHASE_PROFILE=1"
-        );
         assert_eq!(product, RequestedCompileProduct::NativeArtifact);
     }
     let evidence_directory = assert_native_stage_counts.then(|| {
@@ -111,7 +103,7 @@ fn main() {
             std::process::id()
         ))
     });
-    let native_invocations_before = native_production::native_pipeline_invocations().len();
+    let native_invocations_before = native_compiler::native_pipeline_invocations().len();
     let sources_before = counters::product_source_completion_count();
     let builds_before = counters::build_execution_count();
     let checks_before = counters::settled_check_totals().0;
@@ -207,7 +199,7 @@ fn main() {
         reports.len()
     );
     if assert_native_stage_counts {
-        let invocations: Vec<_> = native_production::native_pipeline_invocations()
+        let invocations: Vec<_> = native_compiler::native_pipeline_invocations()
             .into_iter()
             .skip(native_invocations_before)
             .collect();
@@ -220,7 +212,7 @@ fn main() {
             );
             assert_eq!(
                 invocation.unit,
-                native_production::NativePipelineUnit::Application,
+                native_compiler::NativePipelineUnit::Application,
                 "additional callable pipeline observed in once-per-target fixture"
             );
             assert!(invocation.stages.iter().all(|count| *count <= 1));

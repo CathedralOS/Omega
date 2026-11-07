@@ -141,7 +141,7 @@ ordinary trust settlement, and requested compiler observations remain intact.
 Reporting uses the retained checked root; it does not run Build again.
 
 Check-only observation without a lock is permitted but creates no accepted state
-or native-production authority. Malformed and older locks reject rather than
+or native-compiler authority. Malformed and older locks reject rather than
 becoming absent acceptance. Full-package discovery/bound review remains an
 explicit review, acceptance, or update operation.
 
@@ -208,7 +208,7 @@ targets and rounds. Application Build's
 [`package_inspection.rs`](../../build-system/orchestration/src/package/package_inspection.rs)
 creates and disposes the audit's owner and executes its ordered target roster.
 The CLI's
-[`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
+[`packages::run`](../../application/cli/src/commands/packages.rs) retains the
 install/update owner across automatic acceptance and resume rounds, lending it
 to `orchestration::execute_package_command`. A later user-issued command creates its own
 session. Discard requires only project-state recovery, without a Build owner.

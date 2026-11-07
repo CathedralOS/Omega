@@ -3,7 +3,7 @@
 Optimization changes a realization while preserving its semantic contract.
 This reference defines selection, transformation admission, and reporting;
 it does not imply implementation of every rule, phase, or program shape.
-[Terminal Psi](../terminal-psi/product.md) owns the portable boundary.
+[Psi](../terminal-psi/product.md) owns the portable boundary.
 
 ## Exact selection
 
@@ -51,7 +51,10 @@ Each applied transformation and the final representation keep an independent
 validator. Under [verification placement](../../../omega-rust/pipeline.md#verification-placement), set by the owner in
 `b1423f5385d` (2026-10-04), the corpus runner and the tests run those
 validators; the default compile path does not re-validate the input or output
-that the same compile just produced.
+that the same compile just produced. Explicit
+[validator selection](command_line.md#independent-stage-validators) runs requested
+applicable validators inside a compilation and reports their actual coverage;
+it does not change optimization selection or required admission checks.
 
 An empty selection is the same phase's identity execution: output equals input,
 with no pass manifests or transformation records, and the validators accept it

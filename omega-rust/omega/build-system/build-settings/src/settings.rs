@@ -154,6 +154,28 @@ fn read_structural(
         StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
             read_leaf(instance, path)
         }
+        // Fixed counter arrays such as `Optimizations.selected` are settings
+        // data. Only a literal extent has a closed element count to copy.
+        StructuralTypeShape::FixedArray { element, length } => {
+            let length = length
+                .literal()
+                .ok_or_else(|| "Build array setting has no literal extent".to_owned())?;
+            let templates = match template {
+                Some(BuildTimeValue::Array(elements)) => elements.as_slice(),
+                _ => &[][..],
+            };
+            let mut elements = Vec::new();
+            for index in 0..length {
+                let template = usize::try_from(index)
+                    .ok()
+                    .and_then(|index| templates.get(index));
+                path.push(Path::FixedIndex(index));
+                let element = read_structural(instance, path, *element, template);
+                path.pop();
+                elements.push(element?);
+            }
+            Ok(BuildTimeValue::Array(elements))
+        }
         _ => Err("Build setting has no plain result representation; references and host facets cannot be published as settings".to_owned()),
     }
 }

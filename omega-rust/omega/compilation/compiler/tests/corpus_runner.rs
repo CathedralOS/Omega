@@ -2228,14 +2228,6 @@ fn prior_millis() -> std::collections::HashMap<String, u64> {
 
 fn main() {
     terminal_runtime::run_native_provider_worker_if_requested();
-    if env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        if env::args_os().count() != 2 {
-            eprintln!("corpus_runner --build-profile takes no arguments");
-            std::process::exit(64);
-        }
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     if env::var_os("NEXTEST").is_some() {
         return;
     }
@@ -2432,10 +2424,6 @@ fn main() {
         "corpus_runner: library slices: {} distinct, {} computed",
         slices.distinct, slices.computed
     );
-    if phase_profile::enabled() {
-        eprint!("{}", phase_profile::render());
-        eprint!("{}", phase_profile::render_subject_report());
-    }
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }

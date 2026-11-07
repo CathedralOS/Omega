@@ -24,7 +24,6 @@ source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-phase-profile = { path = "../../foundation/phase-profile" }
 checked-trees = { path = "../representations/checked-trees" }
 psi-terminal-production = { path = "terminal-production" }
 optimization = { path = "../../foundation/optimization" }

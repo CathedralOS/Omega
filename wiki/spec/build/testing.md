@@ -203,7 +203,7 @@ The lifecycle is:
    provider closures for each selected package/target occurrence and expose
    its target/engine execution plan.
 3. Reconstruct test-time authority requests, check lock agreement and actual
-   grants, and verify Terminal Psi and entry provisioning before execution.
+   grants, and verify Psi and entry provisioning before execution.
 4. Run every scheduled test/engine invocation with fresh activation, context,
    captured-output and mock-provider state. Settle its ordinary owned resources
    on normal completion.
@@ -267,7 +267,7 @@ is already proved; functional results remain a separate subject.
 ## Products, reuse, and native harnesses
 
 Test roots and application roots are separate selections over checked source.
-Interpreted tests execute Terminal Psi; native tests lower separate runner roots
+Interpreted tests execute Psi; native tests lower separate runner roots
 to a test executable. Their exclusive entries, fixtures and providers are not
 roots of the published application Psi or native image. Do not rely on optional
 dead-code elimination or remove still-called code

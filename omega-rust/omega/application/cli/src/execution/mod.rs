@@ -1,7 +1,74 @@
-//! Compile, publish, and optionally execute one project with a private output directory,
-//! or execute its admitted Terminal program without a native image (`--engine terminal`).
-//! Interpreter comparison observes the same produced Terminal artifact. This operation
-//! neither prints nor exits; callers decide how to present outcomes and exit status.
+/*
+
+Compile, publish, and execute an Omega project (`omega run`).
+
+This module owns the execution pipeline behind `commands::run` without printing
+to the console or exiting the process; callers decide how to present `RunOutcome`
+and `CaseRunOutcome`.
+
+We support two entry points:
+- `run_project`: compiles the project into a temporary `probe` directory (removed
+  on return unless `keep_artifacts` is set) and runs it according to
+  `ExecutionSelection`:
+  - `Native`: emits and publishes the native executable (`NativeDestination::Retained`)
+    and spawns it on the host, or stops at `ExecutionOutcome::TargetOnly` when
+    `target_name` names a foreign target.
+  - `Terminal`: stops compilation after Build, package, trust, provider, and
+    entry admission (`NativeDestination::RuntimeAdmission`) without emitting any
+    object file or native executable, and runs the admitted Terminal Psi program
+    directly on `terminal_runtime` with the caller's live `stdin`.
+  - `Both`: runs the produced Terminal Psi artifact on `terminal_runtime`,
+    publishes and spawns the native executable, verifies that any
+    `private_entry_ram` observations match byte-for-byte, and compares how both
+    runs terminated (`InterpreterComparison`).
+- `run_project_cases`: compiles the project once on the host, replays every case
+  file in `inputs` through the Terminal Psi interpreter (when
+  `compare_interpreter` is true) and the native executable, and writes
+  `<case>.stdout`, `<case>.stderr`, `<case>.terminal.stdout`,
+  `<case>.terminal.stderr`, and `results.tsv` into `output_directory`.
+
+Reference runs are sponsored by the CLI with `DEFAULT_TERMINAL_FUEL_ALLOWANCE`
+(10,000,000 fuel units) unless overridden by `terminal_fuel_allowance`. Exhausting
+fuel during `--both` declines the comparison (`InterpreterComparison::Declined`)
+rather than failing the native run. When `keep_artifacts` is true, we also write
+`terminal.stdout`, `terminal.stderr`, `terminal.fuel.tsv`, `terminal.effects`,
+and any `*.entry-ram.*` snapshots into `build_dir`.
+
+*/
+
+/*
+
+Why `--both` captures `stdin` lazily and distinguishes preflight unavailability:
+
+1. Lazy `stdin` snapshot (`ReplayInput::capture`):
+   When running both engines (`ExecutionSelection::Both`), both the Terminal Psi
+   interpreter and the native child process need to see the exact same `stdin`
+   bytes from offset 0. However, snapping caller `stdin` to EOF unconditionally
+   before execution would hang any program that does not read `stdin` whenever
+   `omega run --both` is invoked from an interactive terminal or an open pipe.
+   Instead, we first call `interpret_product` with `stdin = None`. If the program
+   does not import `runtime-standard-input`, preflight and execution finish
+   without touching caller `stdin`, and we pass `Stdio::null()` to the native
+   child. Only when preflight refuses with `MissingProvision { capability:
+   "runtime-standard-input", .. }` do we snapshot caller `stdin` into a
+   temporary file (`ReplayInput`) and replay fresh file handles to both engines.
+
+2. `TerminalOutcome::Unavailable` vs. `TerminalOutcome::Failed`:
+   In `run_terminal`, an error where `unavailable_before_guest_effects()` is true
+   (a missing provider, host adapter, or interpreter capability caught during
+   preflight) becomes `Unavailable`. Any failure after guest execution has
+   started becomes `Failed`, because earlier boundary calls may already have
+   performed host side effects and any buffered output inside the runtime is
+   lost.
+
+3. Host-presented exit comparison (`InterpreterComparison`):
+   `InterpreterComparison` compares whether the native process exit status
+   (`ProcessExitObservation`) agrees with how the host OS presents the
+   interpreter's completion or trap. The enum still stores the exact 32-bit
+   interpreter exit code even on Unix, where `waitpid` only preserves the low 8
+   bits.
+
+*/
 
 mod compilation;
 mod private_observation;
@@ -11,50 +78,33 @@ mod standard_input;
 
 pub use process_exit::ProcessExitObservation;
 
-use compiler::{CompileOptions, CompileReport};
+use compiler::CompileOptions;
 use diagnostics::Diagnostic;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
-// The receiving CLI sponsors reference execution independently of program meaning.
-// A measured long workload may request more fuel; exhaustion still declines comparison.
 const DEFAULT_TERMINAL_FUEL_ALLOWANCE: u64 = 10_000_000;
 
-/// The `omega run` execution axis
-/// ([standalone execution selection](../../../../../wiki/spec/build/embedding.md#standalone-execution-selection)).
-/// `Both` is the comparison request, not a third engine.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ExecutionSelection {
     #[default]
     Native,
-    /// Execute the admitted Terminal program without emitting or launching a
-    /// native image. Missing support is reported before guest effects; there
-    /// is no native fallback.
     Terminal,
-    Both,
+    Both, // Differential comparison (Native + Terminal), not a third engine.
 }
 
 pub struct RunRequest {
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
-    /// With the native engine, an explicit target produces an image without
-    /// executing it on the host. The Terminal engine keeps the target as its
-    /// execution environment and still executes.
     pub target_name: Option<String>,
-    /// `Both` snapshots process stdin to EOF when the compiled program demands
-    /// a stdin host import, replaying that stream to Terminal and native
-    /// execution. Programs without stdin imports run without reading caller stdin.
     pub selection: ExecutionSelection,
-    /// Positive sponsor budget per Terminal invocation; None selects ten million.
-    pub terminal_fuel_allowance: Option<std::num::NonZeroU64>,
+    pub terminal_fuel_allowance: Option<std::num::NonZeroU64>, // None selects DEFAULT_TERMINAL_FUEL_ALLOWANCE.
     pub keep_artifacts: bool,
 }
 
 pub struct RunOutcome {
-    pub report: CompileReport,
-    /// Removed on return unless keep_artifacts was requested.
-    pub build_dir: PathBuf,
+    pub build_dir: PathBuf, // Removed on return unless keep_artifacts was requested.
     pub execution: ExecutionOutcome,
 }
 
@@ -64,29 +114,19 @@ pub enum ExecutionOutcome {
     },
     Host {
         output: Output,
-        /// How the child terminated, observed portably.
         exit: ProcessExitObservation,
         comparison: InterpreterComparison,
         private_entry_ram: Vec<(u32, Vec<u8>)>,
     },
-    /// `--engine terminal`: the exact Terminal semantic outcome; no native
-    /// image exists for this invocation.
     Terminal(TerminalOutcome),
 }
 
-/// One Terminal-only execution. `Unavailable` is a refusal raised before the
-/// guest's first instruction (a missing provider, host adapter or interpreter
-/// capability). `Failed` covers everything later; its buffered program output
-/// is not returned by the runtime and is lost.
 pub enum TerminalOutcome {
     Completed(terminal_runtime::TerminalRuntimeObservation),
     Unavailable(String),
     Failed(String),
 }
 
-/// Host-presented termination comparison only, not an equivalence proof, a semantic
-/// trace comparison or an output comparison. Stored codes remain exact
-/// interpreter statuses even when the host presents fewer bits.
 #[derive(Debug)]
 pub enum InterpreterComparison {
     NotRequested,
@@ -171,9 +211,6 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         terminal_fuel_allowance,
     )
     .map_err(RunError::Compilation)?;
-    // Only comparison of a stdin-reading program needs a finite snapshot.
-    // Programs without a stdin host import complete preflight and execution
-    // with `None` without blocking on an open caller pipe or console.
     let (replay_input, interpretation) = if request.selection == ExecutionSelection::Both
         && request.target_name.is_none()
     {
@@ -236,8 +273,6 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                 }
             }
             let exit = ProcessExitObservation::observe(&output.status);
-            // `--both --keep` retains the exact reference streams for callers
-            // that need to compare numerical bytes rather than exit alone.
             if let Some(Ok(reference)) = interpretation.as_ref()
                 && reference.private_entry_ram != private_entry_ram
             {
@@ -260,16 +295,11 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         }
     };
     Ok(RunOutcome {
-        report,
         build_dir,
         execution,
     })
 }
 
-/// `--engine terminal`: the native request stops after Build, package, trust,
-/// provider and entry admission, before any object or image is emitted, and
-/// the admitted Terminal program executes on the shared runtime with the
-/// caller's live stdin. Nothing is published or launched.
 fn run_terminal(
     request: RunRequest,
     build_dir: PathBuf,
@@ -306,21 +336,17 @@ fn run_terminal(
             }
             TerminalOutcome::Completed(observation)
         }
-        // A mid-execution unsupported capability is not unavailability:
-        // earlier boundary calls may already have acted on the host.
         Err(error) if error.unavailable_before_guest_effects() => {
             TerminalOutcome::Unavailable(error.to_string())
         }
         Err(error) => TerminalOutcome::Failed(error.to_string()),
     };
     Ok(RunOutcome {
-        report,
         build_dir,
         execution: ExecutionOutcome::Terminal(outcome),
     })
 }
 
-/// `--keep` retains the exact Terminal streams, fuel and effect receipts.
 fn retain_terminal_observation(
     build_dir: &std::path::Path,
     reference: &terminal_runtime::TerminalRuntimeObservation,
@@ -330,12 +356,11 @@ fn retain_terminal_observation(
         .map_err(RunError::ReferenceOutput)?;
     std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
         .map_err(RunError::ReferenceOutput)?;
-    let fuel = format!(
-        "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
-        reference.fuel_usage.total_units(),
-        reference.fuel_usage.schedule(),
-    );
-    std::fs::write(build_dir.join("terminal.fuel.tsv"), fuel).map_err(RunError::ReferenceOutput)?;
+    std::fs::write(
+        build_dir.join("terminal.fuel.tsv"),
+        format_fuel_tsv(reference, terminal_fuel_allowance),
+    )
+    .map_err(RunError::ReferenceOutput)?;
     let events = reference
         .effects
         .iter()
@@ -353,18 +378,23 @@ fn retain_terminal_observation(
     Ok(())
 }
 
-/// Many stdin cases against one compilation: each input file is replayed
-/// through the Terminal reference (when requested) and the native program.
+fn format_fuel_tsv(
+    reference: &terminal_runtime::TerminalRuntimeObservation,
+    terminal_fuel_allowance: u64,
+) -> String {
+    format!(
+        "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
+        reference.fuel_usage.total_units(),
+        reference.fuel_usage.schedule(),
+    )
+}
+
 pub struct CaseRunRequest {
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
-    /// Positive sponsor budget per Terminal invocation; None selects ten million.
     pub terminal_fuel_allowance: Option<std::num::NonZeroU64>,
-    /// Input files, run in this order; each case is named by its file stem.
-    pub inputs: Vec<PathBuf>,
-    /// Receives `<case>.stdout`, `<case>.stderr`, `<case>.terminal.stdout`,
-    /// `<case>.terminal.stderr` and `results.tsv`.
+    pub inputs: Vec<PathBuf>, // Run in order; each case is named by its file stem.
     pub output_directory: PathBuf,
     pub keep_artifacts: bool,
 }
@@ -376,7 +406,6 @@ pub struct CaseOutcome {
 }
 
 pub struct CaseRunOutcome {
-    pub report: CompileReport,
     pub build_dir: PathBuf,
     pub cases: Vec<CaseOutcome>,
 }
@@ -460,12 +489,10 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         if let Some(Ok(reference)) = interpretation.as_ref() {
             write("terminal.stdout", &reference.stdout)?;
             write("terminal.stderr", &reference.stderr)?;
-            let fuel = format!(
-                "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
-                reference.fuel_usage.total_units(),
-                reference.fuel_usage.schedule(),
-            );
-            write("terminal.fuel.tsv", fuel.as_bytes())?;
+            write(
+                "terminal.fuel.tsv",
+                format_fuel_tsv(reference, terminal_fuel_allowance).as_bytes(),
+            )?;
         }
         let exit = ProcessExitObservation::observe(&output.status);
         let comparison = compare_interpretation(exit, interpretation);
@@ -483,11 +510,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
     }
     std::fs::write(request.output_directory.join("results.tsv"), table)
         .map_err(RunError::ReferenceOutput)?;
-    Ok(CaseRunOutcome {
-        report,
-        build_dir,
-        cases,
-    })
+    Ok(CaseRunOutcome { build_dir, cases })
 }
 
 fn comparison_columns(comparison: &InterpreterComparison) -> (&'static str, String) {

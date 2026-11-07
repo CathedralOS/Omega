@@ -210,14 +210,12 @@ Profiles are separate correctness-checked executions. Their durations never
 enter an uninstrumented timing comparison:
 
 ```text
-target/debug/omega-bench profile compiler-plan.json candidate phase build/performance/phases
 target/debug/omega-bench profile allocation-plan.json candidate allocations build/performance/allocations
 target/debug/omega-bench profile compiler-plan.json candidate wpr build/performance/cpu
 target/debug/omega-bench profile compiler-plan.json candidate perf-stat build/performance/counters
 target/debug/omega-bench profile compiler-plan.json candidate perf-record build/performance/stacks
 ```
 
-`phase` sets `OMEGA_PHASE_PROFILE=1` and requires actual compiler scopes/counters.
 `allocations` requires an instrumented subject. Build and retain it separately:
 
 ```text

@@ -174,10 +174,6 @@ impl TerminalEffectHandler for Host {
 }
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     for (project, region_control) in [
         (
             "samples/cli/facts/foreign_reference_result/local/main.omg",

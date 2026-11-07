@@ -1,12 +1,45 @@
-//! Application Build-directory ownership and occupancy records.
-//!
-//! A product compile publishes into a caller-visible build directory. Two
-//! source roots defaulting to the same directory, one directory reached
-//! through different spellings (symlinks, `..` segments, shared mounts), and
-//! concurrent invocations all share the same output files. The owner record
-//! names the canonical source root; the occupant record, created atomically,
-//! names the live invocation. A second occupant is refused before any build
-//! content is written rather than interleaving artifacts.
+/*
+
+Build-directory ownership and live occupancy locking (`admit_outputs`, `acquire`).
+
+A product compilation writes artifacts into a caller-visible build directory.
+Two different source roots defaulting to the same output path, one directory
+reached through different path spellings (symlinks, `..` segments, or shared
+mounts), or two concurrent `omega` processes targeting the same directory would
+otherwise overwrite or interleave each other's outputs.
+
+We guard each non-private target directory with two marker files written inside
+ the canonical directory:
+- `.omega-owner` (`OWNER_FILE`): records the canonical `root <path>` of the
+  source project that owns this build directory. This file persists across
+  invocations (even if a compile is interrupted), so a later compile from a
+  different source root is refused with `BuildDirConflict::AliasedRoot` before
+  touching any existing artifacts. If two processes for the same root race to
+  create `.omega-owner` for the first time, the loser catches `AlreadyExists`
+  and re-reads the winner's file.
+- `.omega-occupant` (`OCCUPANT_FILE`): created atomically with `File::create_new`
+  for the duration of the compile and removed when `BuildDirOccupancy` drops. A
+  second concurrent compile sees `AlreadyExists` and fails immediately with
+  `BuildDirConflict::Occupied` (reporting the live PID, host, and timestamp from
+  the marker).
+
+*/
+
+/*
+
+Why we recheck `DirectoryIdentity` after creating `.omega-occupant` (`confirm_admitted`):
+
+Between resolving `build_dir` and creating `.omega-occupant`, an external
+process could rename the directory away and create a new one at the same path,
+or retarget a symlink ancestor. We capture `DirectoryIdentity` (both the
+canonical path spelling and the OS filesystem object `(dev, ino)` / file index
+from `platform_custody::filesystem_object_identity`) before `create_new`, and
+re-query `directory_identity(build_dir)` immediately after writing `.omega-occupant`.
+If the identity changed (`BuildDirConflict::MovedDuringAdmission`), we unlink
+our `.omega-occupant` marker from the old directory and abort before publishing
+any artifacts into an unverified location.
+
+*/
 
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -23,8 +56,6 @@ pub(crate) struct TargetWork {
     pub directory: Result<PathBuf, crate::BuildError>,
 }
 
-/// Guards live for the entire invocation, independently of target report order.
-/// A target retains its admitted canonical destination or its own refusal.
 pub(crate) fn admit_outputs(
     profiles: &[target::TargetProfile],
     base: &Path,
@@ -60,22 +91,17 @@ pub(crate) fn admit_outputs(
     (work, occupancies)
 }
 
-/// A build directory refused this invocation before any output was written.
 #[derive(Debug, PartialEq, Eq)]
 pub enum BuildDirConflict {
-    /// The directory already records a different canonical source root.
     AliasedRoot {
         build_dir: PathBuf,
         recorded: String,
         requested: String,
     },
-    /// A live marker says another invocation is compiling into it.
-    Occupied { build_dir: PathBuf, detail: String },
-    /// The spelled directory resolved to a different directory after admission
-    /// than at admission — an alias (symlink, rename, mount) moved inside the
-    /// admission window, or the admitted directory was renamed away and a new
-    /// one created under its name — so record writes would land under a
-    /// different identity than the one that was checked.
+    Occupied {
+        build_dir: PathBuf,
+        detail: String,
+    },
     MovedDuringAdmission {
         build_dir: PathBuf,
         observed: PathBuf,
@@ -120,20 +146,13 @@ impl std::fmt::Display for BuildDirConflict {
 
 impl std::error::Error for BuildDirConflict {}
 
-/// Removes the occupant record this invocation created. The owner record
-/// persists: an interrupted compile still left artifacts attributed to its
-/// root, and the next invocation must see that ownership.
 #[derive(Debug)]
 pub struct BuildDirOccupancy {
     occupant: PathBuf,
-    /// The canonical directory identity this invocation admitted. Records and
-    /// downstream writes bind to it, so a spelling swapped underneath the
-    /// admission window cannot redirect or shadow them.
-    directory: PathBuf,
+    directory: PathBuf, // Canonical directory path that records and downstream artifact writes bind to.
 }
 
 impl BuildDirOccupancy {
-    /// The canonical build directory the records and artifact writes belong to.
     pub fn directory(&self) -> &Path {
         &self.directory
     }
@@ -145,13 +164,6 @@ impl Drop for BuildDirOccupancy {
     }
 }
 
-/// Claim `build_dir` for one compile of `root_path`. Canonicalization folds
-/// spelling aliases (`..`, `.`, symlinks) before ownership is compared, so the
-/// same root keeps working under a different working-directory spelling while
-/// a genuinely different root refuses. The owner and occupant records are
-/// written through the canonical directory name, and the spelling is rechecked
-/// after acquisition so an alias swapped in during admission cannot redirect
-/// the records or shadow them from later artifact writes.
 pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, BuildDirConflict> {
     if fs::create_dir_all(build_dir).is_err() {
         return Err(occupied_io(build_dir));
@@ -168,9 +180,6 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
             let _ = writeln!(marker, "host {}", host_name());
             let _ = writeln!(marker, "unix_ms {}", unix_millis());
             if let Err(conflict) = confirm_admitted(build_dir, &admitted) {
-                // The record is ours but the spelling moved; leave the admitted
-                // directory without a live marker rather than publish into an
-                // identity the caller did not request.
                 let _ = fs::remove_file(&occupant);
                 return Err(conflict);
             }
@@ -192,11 +201,6 @@ pub fn acquire(build_dir: &Path, root_path: &Path) -> Result<BuildDirOccupancy, 
     }
 }
 
-/// A build directory's host identity: the canonical spelling plus the
-/// filesystem object behind it, so renaming the admitted directory away and
-/// recreating a fresh one at the same spelling still reads as a different
-/// directory. A host that cannot report the object degrades to the canonical
-/// spelling alone.
 #[derive(Debug, PartialEq, Eq)]
 struct DirectoryIdentity {
     canonical: PathBuf,
@@ -213,9 +217,6 @@ fn directory_object(path: &Path) -> Option<(u64, u64)> {
     platform_custody::filesystem_object_identity(path).ok()
 }
 
-/// The directory `spelled` names must still be the one `admitted` recorded: a
-/// symlink, rename, or mount swapped inside the admission window must not let
-/// record writes follow an identity the caller never asked about.
 fn confirm_admitted(spelled: &Path, admitted: &DirectoryIdentity) -> Result<(), BuildDirConflict> {
     let observed = directory_identity(spelled);
     if observed != *admitted {
@@ -241,7 +242,6 @@ fn check_owner(build_dir: &Path, root: &str) -> Result<(), BuildDirConflict> {
                     let _ = writeln!(marker, "root {root}");
                     Ok(())
                 }
-                // Lost the creation race: the winner's record decides.
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
                     check_owner(build_dir, root)
                 }

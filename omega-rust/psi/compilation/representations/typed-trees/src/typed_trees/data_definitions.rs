@@ -7,6 +7,7 @@
 //! or count must not reuse another roster's declarations. Other declaration
 //! indexes keep their own freshness rules in `declaration_index`.
 
+use super::declaration_index::SymbolRows;
 use crate::data::DataDefinition;
 use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
@@ -16,28 +17,24 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 #[cfg(test)]
 mod tests;
 
-/// Every declaration position per symbol and name, plus the first symbol row.
+/// Every declaration position per symbol and per name, in declaration order.
 /// Duplicate symbols remain observable to readers that require a unique owner.
 #[derive(Clone, Default)]
 pub struct DataDefinitionIndex {
-    by_symbol: HashMap<SymbolHandle, Vec<u32>>,
+    by_symbol: SymbolRows<u32>,
     by_name: HashMap<Box<str>, Vec<u32>>,
-    first_position: HashMap<SymbolHandle, u32>,
 }
 
 impl DataDefinitionIndex {
     /// Every position declaring `symbol`, in declaration order — absent,
     /// unique, and duplicate answers all read the same slice.
     pub fn positions_for_symbol(&self, symbol: SymbolHandle) -> &[u32] {
-        self.by_symbol
-            .get(&symbol)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
+        self.by_symbol.get(symbol)
     }
 
     pub(super) fn first_position(&self, symbol: SymbolHandle) -> Option<usize> {
-        self.first_position
-            .get(&symbol)
+        self.by_symbol
+            .first(symbol)
             .map(|position| *position as usize)
     }
 
@@ -46,27 +43,22 @@ impl DataDefinitionIndex {
     }
 
     fn build(definitions: &[DataDefinition]) -> Self {
-        let mut index = Self::default();
+        let mut by_symbol = Vec::with_capacity(definitions.len());
+        let mut by_name: HashMap<Box<str>, Vec<u32>> = HashMap::default();
         for (position, definition) in definitions.iter().enumerate() {
             let position = position as u32;
             if definition.symbol.is_valid() {
-                index
-                    .by_symbol
-                    .entry(definition.symbol)
-                    .or_default()
-                    .push(position);
-                index
-                    .first_position
-                    .entry(definition.symbol)
-                    .or_insert(position);
+                by_symbol.push((definition.symbol, position));
             }
-            index
-                .by_name
+            by_name
                 .entry(definition.name.as_str().into())
                 .or_default()
                 .push(position);
         }
-        index
+        Self {
+            by_symbol: SymbolRows::new(by_symbol),
+            by_name,
+        }
     }
 }
 
@@ -144,7 +136,7 @@ impl DataDefinitionTable {
     }
 
     pub(super) fn seal(&mut self) {
-        self.index.seal();
+        self.index.seal_with(|index| index.by_symbol.densify());
     }
 
     pub(super) fn unseal(&mut self) {

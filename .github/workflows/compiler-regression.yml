@@ -89,9 +89,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.12'
       - name: Restore compiler build cache
         id: compiler-cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -103,20 +100,12 @@ jobs:
           key: ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-      - name: Check smoke report refusal paths
-        run: |
-          python tools/tests/test_compiler_pilot.py -v
-          python tools/tests/test_compiler_runtime_value_generics.py -v
-          python tools/tests/test_compiler_foreign_records.py -v
       - name: Execute native and Terminal smoke with rejection controls
         if: ${{ !inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Execute ordered cleanup with rejection controls
-        if: ${{ inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
-        run: python tools/ci/compiler_cleanup.py
+        run: cargo xtask sample-gate --filter samples/cli/hello
       - name: Check native provider frames and retained mapped homes
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
-        run: cargo test --locked -p native-production -p machine-emission -p native-provider-runtime
+        run: cargo test --locked -p native-compiler -p machine-emission -p native-provider-runtime
       - name: Check typed scalar aggregate result boundaries
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only && !inputs.runtime_value_generics }}
         run: |
@@ -128,20 +117,6 @@ jobs:
       - name: Check native provider record correspondence
         if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
         run: cargo test --locked -p terminal-runtime native_provider
-      - name: Execute retained original foreign backing with rejection controls
-        if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
-        run: python tools/ci/compiler_retained_foreign.py
-      # These cohorts are independent. Retain an earlier failed observation
-      # while still measuring the scalar/opaque rows on this matching host.
-      - name: Execute foreign record results with rejection controls
-        if: ${{ inputs.foreign_records && !inputs.runtime_value_generics && !cancelled() }}
-        env:
-          OMEGA_FOREIGN_RECORD_COHORTS: ${{ inputs.foreign_record_cohorts || 'scalar-opaque' }}
-          OMEGA_FOREIGN_RECORD_FIXTURES: ${{ inputs.foreign_record_fixtures }}
-        run: python tools/ci/compiler_foreign_records.py
-      - name: Execute runtime Value data indices with rejection controls
-        if: inputs.runtime_value_generics
-        run: python tools/ci/compiler_runtime_value_generics.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

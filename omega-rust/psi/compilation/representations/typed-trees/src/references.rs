@@ -788,7 +788,6 @@ pub fn collect_program_references_with_roles(
     selection: &DeclarationSelection,
     classify_static_arguments: Option<StaticArgumentClassifier>,
 ) -> ProgramReferences {
-    let _guard = phase_profile::guard("typed_trees::collect_program_references");
     let mut roots = ReferenceCollector {
         selection: selection.clone(),
         classify_static_arguments,
@@ -1107,7 +1106,6 @@ pub fn program_proof_facts(
 pub fn program_scoped_proof_facts(
     program: &TypedTrees,
 ) -> impl Iterator<Item = (SymbolHandle, arena::Handle<ProofFact>, &ProofFact)> {
-    let _guard = phase_profile::guard("typed_trees::program_scoped_proof_facts");
     let mut roots = ProofFactCollector::default();
     visit_program(program, &mut roots);
     let mut facts = roots.facts.into_iter().collect::<Vec<_>>();
