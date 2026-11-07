@@ -9,6 +9,33 @@ use super::{ResolutionPurpose, StructuralJudge, StructuralTerm, value_predicates
 use std::sync::Arc;
 
 impl StructuralJudge<'_> {
+    /// The path owner has established this complete, formed predicate. Keep
+    /// Id elimination separate from Boolean truth: IEEE comparison truth
+    /// cannot donate identity, and forming an Id supplies no proof of it.
+    pub(in crate::proof_contracts::contract_entailment) fn intake_observed_predicate(
+        &mut self,
+        predicate: StructuralTerm,
+        depth: usize,
+    ) {
+        if self.case_facts_only || depth >= 32 {
+            return;
+        }
+        match predicate.into_semantic_value() {
+            StructuralTerm::Identity { left, right, .. } => self.intake_identity(*left, *right),
+            StructuralTerm::MathematicalBinary {
+                operator: BinaryOperator::And,
+                left,
+                right,
+            } if left.is_checked_predicate() && right.is_checked_predicate() => {
+                self.intake_observed_predicate(*left, depth + 1);
+                self.intake_observed_predicate(*right, depth + 1);
+            }
+            predicate => {
+                self.intake_equation(predicate, value_predicates::boolean_term(true), depth)
+            }
+        }
+    }
+
     /// One structural equation: constructor pairs DECOMPOSE (injectivity --
     /// `Succ(a) == Succ(b)` yields `a == b`), distinct cases of one data
     /// make the hypotheses contradictory (disjointness), and a variable side

@@ -23,6 +23,7 @@ use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
+mod algebraic_identity;
 mod cases;
 pub(crate) use cases::CaseGuaranteeEligibility;
 mod conditional_guarantees;
@@ -55,10 +56,7 @@ mod value_predicates;
 pub(crate) use licenses::{
     EntryMachines, LicenseCandidates, declared_index_algebra_laws, literal_index_identities,
 };
-use licenses::{
-    RingLicense, SemiringLicense, additive_addends, fold_scalar_binary, polynomial_normal_form,
-    sorted_multiset_subtract, term_uses_application,
-};
+use licenses::{RingLicense, SemiringLicense, fold_scalar_binary};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum StructuralJudgment {
@@ -81,6 +79,20 @@ pub(super) fn specification_application_candidate(
         program, owner, target, selections,
     ) {
         return Err("the selected application depends on the active declaration");
+    }
+    if let Some(operator) = program.operator_definition_by_symbol(target) {
+        if !selections.is_empty() {
+            return Err("a closed catalog operation has no static selection telescope");
+        }
+        // The exact sealed catalog already supplies this operation's total
+        // value meaning. A bodyless signature or an admitted runtime boundary
+        // alone cannot close this leaf, and a failed selection cannot fall
+        // through to a different checked machine.
+        return crate::machine_calls::denotational_calls::selected_operator_has_closed_value_denotation(
+            program, operator,
+        )
+        .then_some(())
+        .ok_or("the selected operator has no exact closed value denotation");
     }
     let machine = super::structural_terms::selected_application_machine(program, target)
         .ok_or("the application has no exact selected entry")?;
@@ -214,10 +226,8 @@ pub(crate) enum StructuralTerm {
     Float(numerics::literals::FloatLiteral),
     /// Data name, case name, and complete common/payload fields (sorted by
     /// field name; empty for a fieldless value like `Nat::Zero`). Payload-carrying
-    /// terms spell as parenthesized case literals in fact position
-    /// (`(Nat::Succ { prev: a })` -- the parens re-enable struct literals in
-    /// the contract grammar), and both lowering fences stand down for
-    /// recursive data so the raw Binary reaches this judge.
+    /// terms retain their exact complete carrier and selected case. Explicit
+    /// Id can compare them without selecting executable equality.
     Constructor {
         identity: ConstructorIdentity,
         data: String,
@@ -3876,180 +3886,5 @@ impl<'program> StructuralJudge<'program> {
                     }
             })
         })
-    }
-
-    /// The rearrange tier's comparison: for each ring license whose op
-    /// appears in the equation, flatten both sides into addend multisets
-    /// (nested applications of the licensed op associate away; everything
-    /// else is a structural atom) and compare. At least two
-    /// addends must appear -- a single atom has nothing to rearrange.
-    fn ring_rearranged_equal(&self, left: &StructuralTerm, right: &StructuralTerm) -> bool {
-        for license in &self.ring_licenses {
-            let op = &license.add_machine;
-            if !term_uses_application(left, op) && !term_uses_application(right, op) {
-                continue;
-            }
-            let mut left_addends = Vec::new();
-            additive_addends(left, op, &mut left_addends);
-            let mut right_addends = Vec::new();
-            additive_addends(right, op, &mut right_addends);
-            if left_addends.len() < 2 {
-                continue;
-            }
-            left_addends.sort_by_key(|term| format!("{term:?}"));
-            right_addends.sort_by_key(|term| format!("{term:?}"));
-            if left_addends.len() == right_addends.len() && left_addends == right_addends {
-                return true;
-            }
-            // HYPOTHESIS EXCHANGE (bounded, depth 2): a requires / citation /
-            // IH equation whose sides flatten over this SAME licensed op
-            // licenses swapping that sub-multiset of addends -- sum(left) ==
-            // sum(left - from + to) because sum(from) == sum(to) is the
-            // hypothesis and the op's comm+assoc closure is exactly what the
-            // license's conformance proved. This is what makes QUOTIENT
-            // lemmas provable: congruence needs ONE exchange (a.pos + a2.neg
-            // exchanges inside a.pos + b.pos + a2.neg + b.neg), transitivity
-            // needs TWO (h1 then h2 inside the cancellation citation's
-            // requires). Whole-term matches were already rewritten during
-            // resolve; this reaches the sub-multisets the rewriter cannot
-            // see. Frontier-capped BFS -- over-refusal past the cap, never
-            // unsound.
-            let mut rewrite_addends: Vec<(Vec<StructuralTerm>, Vec<StructuralTerm>)> = Vec::new();
-            for (pattern, replacement) in self.rewrites.iter() {
-                for (from, to) in [(pattern, replacement), (replacement, pattern)] {
-                    let mut from_addends = Vec::new();
-                    additive_addends(from, op, &mut from_addends);
-                    let mut to_addends = Vec::new();
-                    additive_addends(to, op, &mut to_addends);
-                    from_addends.sort_by_key(|term| format!("{term:?}"));
-                    rewrite_addends.push((from_addends, to_addends));
-                }
-            }
-            let mut frontier: Vec<Vec<StructuralTerm>> = vec![left_addends.clone()];
-            for _depth in 0..2 {
-                let mut next: Vec<Vec<StructuralTerm>> = Vec::new();
-                for current in &frontier {
-                    for (from_addends, to_addends) in &rewrite_addends {
-                        let Some(mut candidate) = sorted_multiset_subtract(current, from_addends)
-                        else {
-                            continue;
-                        };
-                        candidate.extend(to_addends.iter().cloned());
-                        candidate.sort_by_key(|term| format!("{term:?}"));
-                        if candidate == right_addends {
-                            return true;
-                        }
-                        if next.len() < 64 {
-                            next.push(candidate);
-                        }
-                    }
-                }
-                frontier = next;
-                if frontier.is_empty() {
-                    break;
-                }
-            }
-        }
-        // Tier-2 FULL POLYNOMIAL: under a paired license, both sides
-        // normalize by distributing the licensed mul through the licensed
-        // add into a multiset of monomials (each a sorted factor multiset).
-        // The distributivity law is CONFORMED (machine-checked), so the
-        // normal form is exactly what the carrier proved.
-        for license in &self.semiring_licenses {
-            if !term_uses_application(left, &license.mul_machine)
-                && !term_uses_application(right, &license.mul_machine)
-            {
-                continue;
-            }
-            let (Some(mut left_poly), Some(mut right_poly)) = (
-                polynomial_normal_form(left, license),
-                polynomial_normal_form(right, license),
-            ) else {
-                continue;
-            };
-            left_poly.sort_by_key(|term| format!("{term:?}"));
-            right_poly.sort_by_key(|term| format!("{term:?}"));
-            if left_poly == right_poly {
-                return true;
-            }
-            // SCALED-HYPOTHESIS EXCHANGE (tier-2 twin of the addend
-            // exchange): a hypothesis equation polynomial-normalizes to a
-            // monomial-multiset pair (hl, hr), and multiplying BOTH sides by
-            // any monomial factor m keeps it an equation (the semiring's
-            // conformed distributivity is exactly that license), so hl*m
-            // exchanges for hr*m inside the goal's monomials. Factors are
-            // drawn from the goal's own atoms (plus unscaled) -- this is
-            // what proves mul-CONGRUENCE over a quotient: the cross-sum
-            // hypothesis scaled by b.pos and by b.neg equalizes the product
-            // components in two exchanges. Depth-2 frontier-capped BFS.
-            let mut atoms: Vec<StructuralTerm> = left_poly
-                .iter()
-                .chain(right_poly.iter())
-                .flatten()
-                .cloned()
-                .collect();
-            atoms.sort_by_key(|term| format!("{term:?}"));
-            atoms.dedup();
-            let mut scales: Vec<Vec<StructuralTerm>> = vec![Vec::new()];
-            scales.extend(atoms.into_iter().map(|atom| vec![atom]));
-            let mut hypothesis_polys: Vec<(Vec<Vec<StructuralTerm>>, Vec<Vec<StructuralTerm>>)> =
-                Vec::new();
-            for (pattern, replacement) in self.rewrites.iter() {
-                if let (Some(mut hl), Some(mut hr)) = (
-                    polynomial_normal_form(pattern, license),
-                    polynomial_normal_form(replacement, license),
-                ) {
-                    hl.sort_by_key(|term| format!("{term:?}"));
-                    hr.sort_by_key(|term| format!("{term:?}"));
-                    hypothesis_polys.push((hl, hr));
-                }
-            }
-            let scaled = |poly: &[Vec<StructuralTerm>],
-                          scale: &[StructuralTerm]|
-             -> Vec<Vec<StructuralTerm>> {
-                poly.iter()
-                    .map(|monomial| {
-                        let mut product = monomial.clone();
-                        product.extend(scale.iter().cloned());
-                        product.sort_by_key(|term| format!("{term:?}"));
-                        product
-                    })
-                    .collect()
-            };
-            let mut frontier: Vec<Vec<Vec<StructuralTerm>>> = vec![left_poly.clone()];
-            for _depth in 0..2 {
-                let mut next: Vec<Vec<Vec<StructuralTerm>>> = Vec::new();
-                for current in &frontier {
-                    for (hypothesis_left, hypothesis_right) in &hypothesis_polys {
-                        for (from, to) in [
-                            (hypothesis_left, hypothesis_right),
-                            (hypothesis_right, hypothesis_left),
-                        ] {
-                            for scale in &scales {
-                                let from_scaled = scaled(from, scale);
-                                let Some(mut candidate) =
-                                    sorted_multiset_subtract(current, &from_scaled)
-                                else {
-                                    continue;
-                                };
-                                candidate.extend(scaled(to, scale));
-                                candidate.sort_by_key(|term| format!("{term:?}"));
-                                if candidate == right_poly {
-                                    return true;
-                                }
-                                if next.len() < 64 {
-                                    next.push(candidate);
-                                }
-                            }
-                        }
-                    }
-                }
-                frontier = next;
-                if frontier.is_empty() {
-                    break;
-                }
-            }
-        }
-        false
     }
 }

@@ -52,12 +52,12 @@ pub(crate) struct StructuralCaseArm<'program> {
     /// such as `saturating_sub(b, a)` cannot be a substitution, so it is retained as an
     /// equation to intake instead.
     pub(crate) case_equations: Vec<(StructuralTerm, StructuralTerm)>,
-    /// PER-ARM CITATIONS (N3 rung 2): equations injected by citation
+    /// PER-ARM CITATIONS: established predicates injected by citation
     /// statements in the arm's SUB-STATE, instantiated under the arm
     /// environment -- the only route to cite a lemma AT A CASE PAYLOAD
     /// (comm's step case cites add_succ_law at `prev`, which machine-level
     /// statements cannot see). Empty for direct value arms.
-    pub(crate) citations: Vec<(StructuralTerm, StructuralTerm)>,
+    pub(crate) citations: Vec<StructuralTerm>,
     /// Selected callable guarantees captured on this normal path only.
     pub(crate) normal_guarantees: Vec<(StructuralTerm, StructuralTerm)>,
     /// The arm's value term, converted under the case environment (payload
@@ -675,7 +675,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         }
                         let current_state = (
                             active_paths[idx].judge.integer_premise_revision(),
-                            active_paths[idx].established_guarantees.equations.len(),
+                            active_paths[idx].established_guarantees.predicates.len(),
                         );
                         if active_paths[idx].checked_contradiction_state != Some(current_state) {
                             let is_contradictory = active_paths[idx].judge.hypotheses_contradictory
@@ -1079,7 +1079,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     }
                     let current_contra_state = (
                         path.judge.integer_premise_revision(),
-                        path.established_guarantees.equations.len(),
+                        path.established_guarantees.predicates.len(),
                     );
                     if path.checked_contradiction_state == Some(current_contra_state) {
                         super::structural_prefix::visit_non_contradictory_arm(
@@ -2873,7 +2873,7 @@ fn finalize_structural_case_arm<'program>(
                 true,
             );
             established.intake(&mut arm_judge);
-            citations.extend(established.equations);
+            citations.extend(established.predicates);
             // An earlier citation may establish a recursive application's
             // requires, making its conditional IH available to later
             // citations in the same authored statement order.

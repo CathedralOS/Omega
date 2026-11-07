@@ -1274,7 +1274,7 @@ pub(super) fn capture_guarantees(
         return;
     };
     if let StructuralTerm::Identity { left, right, .. } = &predicate {
-        if judge.data_identity_is_observed(left) && judge.data_identity_is_observed(right) {
+        if judge.identity_value_is_available(left) && judge.identity_value_is_available(right) {
             data_identities.push((left.as_ref().clone(), right.as_ref().clone()));
         }
         return;

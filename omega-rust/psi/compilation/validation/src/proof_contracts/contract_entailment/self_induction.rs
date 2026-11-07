@@ -2,7 +2,7 @@
 
 use crate::proof_contracts::contract_entailment::RESULT_BINDER;
 use crate::proof_contracts::contract_entailment::citations::instantiated_fact_established;
-use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_conjuncts;
+use crate::proof_contracts::contract_entailment::refuted_requires::collect_instantiated_predicates;
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralTerm,
 };
@@ -76,17 +76,17 @@ pub(crate) fn intake_available_self_induction_hypotheses(
         }
         map.push((RESULT_BINDER.to_owned(), application.clone()));
         for fact in &ensures {
-            let mut equations = Vec::new();
-            collect_instantiated_conjuncts(
+            let mut predicates = Vec::new();
+            collect_instantiated_predicates(
                 program,
                 machine.symbol,
                 program.state_parameters(entry),
                 *fact,
                 &map,
-                &mut equations,
+                &mut predicates,
             );
-            for (left, right) in equations {
-                judge.intake_equation(left, right, 0);
+            for predicate in predicates {
+                judge.intake_observed_predicate(predicate, 0);
             }
         }
     }

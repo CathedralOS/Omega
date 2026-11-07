@@ -26,6 +26,17 @@ impl StructuralJudge<'_> {
                 ..
             } => {
                 result_type.is_valid()
+                    && self
+                        .program
+                        .operator_definition_by_symbol(*target)
+                        .is_none_or(|operator| {
+                            self.program.operator_parameters(operator).len() == arguments.len()
+                                && crate::value_custody::type_references::type_references_match(
+                                    self.program,
+                                    *result_type,
+                                    operator.return_type,
+                                )
+                        })
                     && arguments
                         .iter()
                         .all(|value| self.identity_value_is_available(value))

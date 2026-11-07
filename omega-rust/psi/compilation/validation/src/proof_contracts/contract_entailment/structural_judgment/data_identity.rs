@@ -244,6 +244,14 @@ impl StructuralJudge<'_> {
             _ => {
                 if self.exact_record_eta(&left, &right, depth + 1)
                     || self.exact_record_eta(&right, &left, depth + 1)
+                    || self.licensed_algebra_equal(
+                        &left,
+                        &right,
+                        self.captured_result_equations
+                            .iter()
+                            .filter(|equation| equation.is_data_identity())
+                            .map(|equation| (&equation.left, &equation.right)),
+                    )
                 {
                     StructuralJudgment::Proven
                 } else {

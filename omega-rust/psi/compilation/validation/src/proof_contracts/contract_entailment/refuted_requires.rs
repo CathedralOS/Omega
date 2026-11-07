@@ -964,52 +964,28 @@ fn declared_len_extent_term(
     StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(extent as u64))
 }
 
-/// Walk an ensures fact's `&&`-conjuncts; each `==` conjunct whose sides
-/// term-ify yields one instantiated equation under the citation's
-/// parameter map.
-pub(crate) fn collect_instantiated_conjuncts(
+/// Read every formed, non-case conjunct of an established contract, then
+/// substitute the exact citation arguments without changing predicate kind.
+pub(crate) fn collect_instantiated_predicates(
     program: &dyn crate::CheckingInput,
     scope: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
-    equations: &mut Vec<(StructuralTerm, StructuralTerm)>,
+    predicates: &mut Vec<StructuralTerm>,
 ) {
     if super::structural_terms::is_case_observation(program, fact) {
         return;
     }
-    let Some(binary) = expression_table(program).binary_node(fact) else {
-        return;
-    };
-    match binary.operator {
-        BinaryOperator::And => {
-            if !crate::has_builtin_parameter_bound_expression_meaning(
-                program, scope, parameters, fact,
-            ) {
-                return;
-            }
-            collect_instantiated_conjuncts(program, scope, parameters, binary.left, map, equations);
-            collect_instantiated_conjuncts(
-                program,
-                scope,
-                parameters,
-                binary.right,
-                map,
-                equations,
-            );
-        }
-        BinaryOperator::Equal => {
-            let Some((left, right)) =
-                super::structural_terms::identity_equality_terms(program, scope, parameters, fact)
-            else {
-                return;
-            };
-            equations.push((
-                StructuralJudge::substitute_term(&left, map),
-                StructuralJudge::substitute_term(&right, map),
-            ));
-        }
-        _ => {}
+    if let Some(binary) = expression_table(program).binary_node(fact)
+        && binary.operator == BinaryOperator::And
+    {
+        collect_instantiated_predicates(program, scope, parameters, binary.left, map, predicates);
+        collect_instantiated_predicates(program, scope, parameters, binary.right, map, predicates);
+    } else if let Some(predicate) = super::structural_terms::structural_predicate_for_parameters(
+        program, scope, parameters, fact,
+    ) {
+        predicates.push(StructuralJudge::substitute_term(&predicate, map));
     }
 }
 
