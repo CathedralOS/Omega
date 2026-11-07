@@ -135,6 +135,29 @@ impl ConstructorIdentity {
             }
     }
 
+    /// A constructor can be formed through distinct checked type references.
+    /// Its value still names the same complete carrier and exact declared case;
+    /// the receiver must interpret each reference's field schema separately.
+    pub(super) fn same_constructor(self, other: Self) -> bool {
+        self == other
+            && match (self, other) {
+                (
+                    Self::Nominal {
+                        declaration: left,
+                        case: left_case,
+                        ..
+                    },
+                    Self::Nominal {
+                        declaration: right,
+                        case: right_case,
+                        ..
+                    },
+                ) => left == right && left_case == right_case,
+                (Self::Boolean(_), Self::Boolean(_)) => true,
+                _ => false,
+            }
+    }
+
     /// Classifiers can name an authored template case. Rejoin that exact case
     /// through the receiving application; spelling never selects its owner.
     pub(in crate::proof_contracts::contract_entailment) fn matches_case(

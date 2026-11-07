@@ -173,32 +173,16 @@ impl StructuralJudge<'_> {
                 self.hypotheses_contradictory = true;
                 return;
             }
-            if !left_identity.same_resolution_payload(*right_identity)
-                || left_fields.len() != right_fields.len()
-            {
-                return;
-            }
-            let Some(fields) = self.identity_constructor_fields(*left_identity) else {
+            let Some(fields) = self.identity_constructor_field_pairs(
+                *left_identity,
+                left_fields,
+                *right_identity,
+                right_fields,
+            ) else {
                 return;
             };
-            if fields.len() != left_fields.len() {
-                return;
-            }
-            for ((left_name, left), (right_name, right)) in left_fields.iter().zip(right_fields) {
-                let Some(reference) = fields.get(left_name.as_str()) else {
-                    return;
-                };
-                if left_name != right_name {
-                    return;
-                }
-                let observe = |value| {
-                    super::super::structural_terms::owned_projection_observation(
-                        self.program,
-                        *reference,
-                        value,
-                    )
-                };
-                self.eliminate_identity(observe(left.clone()), observe(right.clone()), depth + 1);
+            for (left, right) in fields {
+                self.eliminate_identity(left, right, depth + 1);
             }
             return;
         }
@@ -239,7 +223,62 @@ impl StructuralJudge<'_> {
         }
     }
 
-    pub(super) fn identity_constructor_fields(
+    /// Rejoin both checked construction contexts before comparing fields. A
+    /// reference handle identifies the producing context, not a new value, but
+    /// neither side may borrow the other's substituted field types or policy.
+    pub(super) fn identity_constructor_field_pairs(
+        &self,
+        left: ConstructorIdentity,
+        left_fields: &[(String, StructuralTerm)],
+        right: ConstructorIdentity,
+        right_fields: &[(String, StructuralTerm)],
+    ) -> Option<Vec<(StructuralTerm, StructuralTerm)>> {
+        if !left.same_constructor(right) || left_fields.len() != right_fields.len() {
+            return None;
+        }
+        let left_declared = self.identity_constructor_fields(left)?;
+        let right_declared = self.identity_constructor_fields(right)?;
+        if left_declared.len() != left_fields.len() || right_declared.len() != right_fields.len() {
+            return None;
+        }
+        let mut right_by_name = right_fields
+            .iter()
+            .map(|(name, value)| (name.as_str(), value))
+            .collect::<std::collections::HashMap<_, _>>();
+        if right_by_name.len() != right_fields.len() {
+            return None;
+        }
+        let mut pairs = Vec::with_capacity(left_fields.len());
+        for (name, left) in left_fields {
+            let right = right_by_name.remove(name.as_str())?;
+            let left_reference = *left_declared.get(name.as_str())?;
+            let right_reference = *right_declared.get(name.as_str())?;
+            if !left_reference.is_valid()
+                || !right_reference.is_valid()
+                || !crate::value_custody::type_references::type_references_match(
+                    self.program,
+                    left_reference,
+                    right_reference,
+                )
+            {
+                return None;
+            }
+            let observe = |reference, value| {
+                super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    reference,
+                    value,
+                )
+            };
+            pairs.push((
+                observe(left_reference, left.clone()),
+                observe(right_reference, right.clone()),
+            ));
+        }
+        Some(pairs)
+    }
+
+    fn identity_constructor_fields(
         &self,
         identity: ConstructorIdentity,
     ) -> Option<std::collections::HashMap<String, typed_trees::types::TypeReferenceHandle>> {
