@@ -141,6 +141,47 @@ fn require_unchanged_between(
     observation: DescriptorPosition,
     payload: &DescriptorPayloadTarget,
 ) -> Result<(), &'static str> {
+    require_unchanged_from(
+        machine,
+        analysis,
+        VersionStart::Completed(producer),
+        observation,
+        payload,
+    )
+}
+
+/// Preserve the incoming contents from before the entry operation. This is an
+/// entry-value transport obligation, not a local producer or permission to read
+/// a borrowed input. In particular a write by the first operation is checked;
+/// it cannot be skipped by pretending entry was a completed establishment.
+pub fn require_unchanged_entry_storage(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    identity: MachineId,
+    observation: DescriptorPosition,
+    payload: &DescriptorPayloadTarget,
+) -> Result<(), &'static str> {
+    if !analysis.uses_source_graph(types, graph) {
+        return Err("entry storage analysis belongs to another immutable source graph");
+    }
+    let machine = descriptor_machine(graph, identity).ok_or("entry payload machine is absent")?;
+    require_unchanged_from(machine, analysis, VersionStart::Entry, observation, payload)
+}
+
+#[derive(Clone, Copy)]
+enum VersionStart {
+    Entry,
+    Completed(DescriptorPosition),
+}
+
+fn require_unchanged_from(
+    machine: &DescriptorMachine,
+    analysis: &mut DescriptorAnalysis<'_>,
+    start: VersionStart,
+    observation: DescriptorPosition,
+    payload: &DescriptorPayloadTarget,
+) -> Result<(), &'static str> {
     let identity = machine.id;
     let relevant = super::payload_reachability::predecessors(machine, observation)
         .ok_or("produced payload observation has unresolved control flow")?;
@@ -155,10 +196,10 @@ fn require_unchanged_between(
     };
     let overlaps =
         |location: &DescriptorLocation| home.contains(location) || location.contains(&home);
-    let unchanged = version_flow(
+    let unchanged = version_flow_from(
         &machine.flow,
         machine.entry,
-        producer,
+        start,
         observation,
         |position, ordinal| relevant.includes_edge(position, ordinal),
         |position, step| {
@@ -268,6 +309,26 @@ fn version_flow(
     producer: DescriptorPosition,
     observation: DescriptorPosition,
     includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
+    modifies: impl FnMut(DescriptorPosition, &DescriptorFlowStep) -> Result<bool, &'static str>,
+    replaces_on_arrival: impl Fn(&crate::descriptors::descriptor_lifetimes::DescriptorFlowEdge) -> bool,
+) -> Result<bool, &'static str> {
+    version_flow_from(
+        flow,
+        entry,
+        VersionStart::Completed(producer),
+        observation,
+        includes_edge,
+        modifies,
+        replaces_on_arrival,
+    )
+}
+
+fn version_flow_from(
+    flow: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    entry: DescriptorPosition,
+    start: VersionStart,
+    observation: DescriptorPosition,
+    includes_edge: impl Fn(DescriptorPosition, usize) -> bool,
     mut modifies: impl FnMut(DescriptorPosition, &DescriptorFlowStep) -> Result<bool, &'static str>,
     replaces_on_arrival: impl Fn(&crate::descriptors::descriptor_lifetimes::DescriptorFlowEdge) -> bool,
 ) -> Result<bool, &'static str> {
@@ -279,10 +340,12 @@ fn version_flow(
     };
     let entry_index = position_index(entry)?;
     let observation_index = position_index(observation)?;
-    position_index(producer)?;
+    if let VersionStart::Completed(producer) = start {
+        position_index(producer)?;
+    }
     let mut versions = vec![None; positions.len()];
     let mut writes = vec![None; positions.len()];
-    versions[entry_index] = Some(false);
+    versions[entry_index] = Some(matches!(start, VersionStart::Entry));
     let mut pending = VecDeque::from([entry_index]);
     while let Some(current_index) = pending.pop_front() {
         let current = positions[current_index];
@@ -290,7 +353,7 @@ fn version_flow(
             .get(&current)
             .ok_or("payload version flow lost its step")?;
         let before = versions[current_index].ok_or("payload version arrival is absent")?;
-        let after = if current == producer {
+        let after = if matches!(start, VersionStart::Completed(producer) if current == producer) {
             true
         } else if before {
             let modifies = match writes[current_index] {
@@ -351,7 +414,7 @@ pub fn unchanged_stored_sources<Source: Ord>(
     graph: &[DescriptorMachine],
     identity: MachineId,
     value: ValueId,
-    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+    actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
 ) -> Option<Vec<Source>> {
     let machine = descriptor_machine(graph, identity)?;
     let mut reads = machine
@@ -368,6 +431,39 @@ pub fn unchanged_stored_sources<Source: Ord>(
         return None;
     }
     let mut analysis = DescriptorAnalysis::with_reference_slots(types, graph);
+    unchanged_stored_projection_sources_in(
+        types,
+        graph,
+        &mut analysis,
+        identity,
+        observation,
+        observed,
+        actual_writes,
+    )
+}
+
+/// Read the unchanged producing sources of an exact storage projection at a
+/// current-body cut, including a projection passed as a call argument or
+/// returned directly without a scalar-read operation. This query establishes
+/// storage version only, not read access, initialization, producer authenticity
+/// or a native call's successful completion. The caller supplies its shared
+/// reference/view analysis and authenticates every reported writer.
+pub fn unchanged_stored_projection_sources_in<Source: Ord>(
+    types: &[StructuralTypeDeclaration],
+    graph: &[DescriptorMachine],
+    analysis: &mut DescriptorAnalysis<'_>,
+    identity: MachineId,
+    observation: DescriptorPosition,
+    observed: &DescriptorLocation,
+    mut actual_writes: impl FnMut(DescriptorPosition) -> Vec<(DescriptorLocation, Source)>,
+) -> Option<Vec<Source>> {
+    if !analysis.uses_source_graph(types, graph) {
+        return None;
+    }
+    let machine = descriptor_machine(graph, identity)?;
+    if !machine.flow.contains_key(&observation) {
+        return None;
+    }
     let home = direct_owned_storage(types, machine, observed)
         .or_else(|| analysis.location(identity, observation, observed))?;
     let mut sources = Vec::new();
@@ -394,7 +490,7 @@ pub fn unchanged_stored_sources<Source: Ord>(
             }
             if require_unchanged_between(
                 machine,
-                &mut analysis,
+                analysis,
                 producer,
                 observation,
                 &DescriptorPayloadTarget::Storage(home.clone()),
@@ -517,6 +613,27 @@ mod tests {
             normal_exits: vec![position(5)],
         };
         (types, machine)
+    }
+
+    #[test]
+    fn entry_version_includes_the_first_operation_write() {
+        let (_, machine) = copy_graph();
+        let observe = |start, first_writes| {
+            version_flow_from(
+                &machine.flow,
+                machine.entry,
+                start,
+                position(5),
+                |_, _| true,
+                |position, _| Ok(first_writes && position == machine.entry),
+                |_| false,
+            )
+            .unwrap()
+        };
+        assert!(observe(VersionStart::Entry, false));
+        assert!(!observe(VersionStart::Entry, true));
+        // A completed producer names the post-operation version instead.
+        assert!(observe(VersionStart::Completed(machine.entry), true));
     }
 
     #[test]

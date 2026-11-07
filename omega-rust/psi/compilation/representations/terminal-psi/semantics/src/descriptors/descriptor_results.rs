@@ -55,8 +55,9 @@ pub use payload_predicates::{
     PayloadEntryScalarIdentity, PayloadScalarObservation, scalar_payload_expression,
 };
 pub use payload_versions::{
-    ProducedPayloadVersion, require_completed_scalar_capture, require_unchanged_observed_storage,
-    require_unchanged_produced_payload, unchanged_payload_producer,
+    ProducedPayloadVersion, require_completed_scalar_capture, require_unchanged_entry_storage,
+    require_unchanged_observed_storage, require_unchanged_produced_payload,
+    unchanged_payload_producer, unchanged_stored_projection_sources_in,
     unchanged_stored_scalar_sources, unchanged_stored_sources,
 };
 pub use scalar_contracts::{case_payload_scalar_types, instantiate_payload_scalar_guarantees};
@@ -743,21 +744,46 @@ pub fn terminal_graph_from(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
 ) -> Vec<DescriptorMachine> {
-    terminal_graph_closure(module, roots).unwrap_or_default()
+    terminal_graph_closure(module, roots, DescriptorSlotKind::Views, &[]).unwrap_or_default()
+}
+
+/// Complete reference and view storage for an actual executable closure. The
+/// execution owner supplies already admitted selected-body joins; these rows
+/// grant neither selection authority nor payload/handle provenance.
+pub fn terminal_borrowed_storage_graph_from(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = MachineId>,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
+) -> Result<Vec<DescriptorMachine>, &'static str> {
+    terminal_graph_closure(
+        module,
+        roots,
+        DescriptorSlotKind::BorrowedStorage,
+        selected_calls,
+    )
+    .ok_or("executable borrowed-storage closure cannot be reconstructed")
 }
 
 fn terminal_graph_closure(
     module: &TerminalModule,
     roots: impl IntoIterator<Item = MachineId>,
+    kind: DescriptorSlotKind,
+    selected_calls: &[(semantic_vocabulary::BoundaryMachineId, MachineId)],
 ) -> Option<Vec<DescriptorMachine>> {
+    let mut machines = BTreeMap::new();
+    for machine in &module.machines {
+        if machines.insert(machine.id, machine).is_some() {
+            return None;
+        }
+    }
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut reached = BTreeMap::new();
     while let Some(identity) = pending.pop() {
         if reached.contains_key(&identity) {
             continue;
         }
-        let body = exactly_one(module.machines.iter(), |body| body.id == identity)?;
-        let graph = terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], None)?;
+        let body = *machines.get(&identity)?;
+        let graph = terminal_flow::adapt(module, body, kind, selected_calls, None)?;
         for call in graph.calls.values() {
             match &call.target {
                 DescriptorInvocationTarget::Machine(callee) => pending.push(*callee),
@@ -791,9 +817,7 @@ fn terminal_graph_closure(
     }
     bodies
         .into_iter()
-        .map(|body| {
-            terminal_flow::adapt(module, body, DescriptorSlotKind::Views, &[], Some(&initial))
-        })
+        .map(|body| terminal_flow::adapt(module, body, kind, selected_calls, Some(&initial)))
         .collect()
 }
 

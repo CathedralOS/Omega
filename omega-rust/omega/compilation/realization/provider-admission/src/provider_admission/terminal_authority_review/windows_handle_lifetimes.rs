@@ -6,7 +6,7 @@
 //! or turn an asserted digest into evidence. Close candidates remain provisional
 //! until every continuation has established preservation and absence of later use.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId};
 
@@ -18,6 +18,28 @@ pub(super) struct NativeOccurrence {
     pub site: InvocationSite,
     pub context: [u8; 32],
     pub boundary: BoundaryMachineId,
+}
+
+/// A source-level scalar observation is a real operation, but has no foreign
+/// boundary. Keep it distinct so checking a stale integer copy never needs an
+/// invented native call identity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct ScalarOccurrence {
+    pub machine: MachineId,
+    pub site: InvocationSite,
+    pub context: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum HandleUseOccurrence {
+    Native(NativeOccurrence),
+    Scalar(ScalarOccurrence),
+}
+
+impl From<NativeOccurrence> for HandleUseOccurrence {
+    fn from(occurrence: NativeOccurrence) -> Self {
+        Self::Native(occurrence)
+    }
 }
 
 /// Analysis-owned coordinates, never fabricated Terminal ValueId/PlaceId rows.
@@ -41,7 +63,7 @@ struct Handle {
     object: FileObject,
     origin: HandleOrigin,
     release: Option<NativeOccurrence>,
-    uses: Vec<NativeOccurrence>,
+    uses: BTreeSet<HandleUseOccurrence>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -55,19 +77,19 @@ struct FileObjectState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum HandleLifetimeFailure {
-    UnprovedOccurrence(NativeOccurrence),
+    UnprovedOccurrence(HandleUseOccurrence),
     UnknownHandle {
         instance: HandleInstance,
-        use_site: NativeOccurrence,
+        use_site: HandleUseOccurrence,
     },
     UseAfterRelease {
         acquisition: NativeOccurrence,
         release: NativeOccurrence,
-        later_use: NativeOccurrence,
+        later_use: HandleUseOccurrence,
     },
     EscapedObject {
         acquisition: NativeOccurrence,
-        use_site: NativeOccurrence,
+        use_site: HandleUseOccurrence,
     },
     AttachedDeletion {
         acquisition: NativeOccurrence,
@@ -100,7 +122,7 @@ impl HandleLifetimes {
         occurrence: NativeOccurrence,
         flags: u32,
     ) -> Result<(), HandleLifetimeFailure> {
-        Self::require_occurrence(occurrence)?;
+        Self::require_occurrence(occurrence.into())?;
         if self.handles.contains_key(&instance) {
             return Err(HandleLifetimeFailure::RepeatedAcquisition { instance });
         }
@@ -115,7 +137,7 @@ impl HandleLifetimes {
                 object,
                 origin: HandleOrigin::Acquired(occurrence),
                 release: None,
-                uses: Vec::new(),
+                uses: BTreeSet::new(),
             },
         );
         Ok(())
@@ -130,20 +152,24 @@ impl HandleLifetimes {
         duplicate: HandleInstance,
         occurrence: NativeOccurrence,
     ) -> Result<(), HandleLifetimeFailure> {
-        let object = self.require_live(source, occurrence)?;
+        let object = self.require_live(source, occurrence.into())?;
         if self.handles.contains_key(&duplicate) {
             return Err(HandleLifetimeFailure::RepeatedAcquisition {
                 instance: duplicate,
             });
         }
-        self.handles.get_mut(&source).unwrap().uses.push(occurrence);
+        self.handles
+            .get_mut(&source)
+            .unwrap()
+            .uses
+            .insert(occurrence.into());
         self.handles.insert(
             duplicate,
             Handle {
                 object,
                 origin: HandleOrigin::Duplicated { occurrence, source },
                 release: None,
-                uses: Vec::new(),
+                uses: BTreeSet::new(),
             },
         );
         Ok(())
@@ -157,12 +183,32 @@ impl HandleLifetimes {
         instance: HandleInstance,
         occurrence: NativeOccurrence,
     ) -> Result<(), HandleLifetimeFailure> {
-        self.require_live(instance, occurrence)?;
+        self.require_live(instance, occurrence.into())?;
         self.handles
             .get_mut(&instance)
             .unwrap()
             .uses
-            .push(occurrence);
+            .insert(occurrence.into());
+        Ok(())
+    }
+
+    /// A comparison, copy or numeric derivation still observes this precise
+    /// handle generation. Recording its real scalar site catches later use even
+    /// when no second foreign call is made. Repeated loop observations of the
+    /// same live input are a set of static obligations, not growing execution
+    /// logs; acquisitions and retirement retain their separate transitions.
+    pub(super) fn observe_scalar(
+        &mut self,
+        instance: HandleInstance,
+        occurrence: ScalarOccurrence,
+    ) -> Result<(), HandleLifetimeFailure> {
+        let use_site = HandleUseOccurrence::Scalar(occurrence);
+        self.require_live(instance, use_site)?;
+        self.handles
+            .get_mut(&instance)
+            .unwrap()
+            .uses
+            .insert(use_site);
         Ok(())
     }
 
@@ -200,8 +246,8 @@ impl HandleLifetimes {
         instance: HandleInstance,
         occurrence: NativeOccurrence,
     ) -> Result<(), HandleLifetimeFailure> {
-        let object = self.require_live(instance, occurrence)?;
-        let acquisition = self.acquisition(instance, occurrence)?;
+        let object = self.require_live(instance, occurrence.into())?;
+        let acquisition = self.acquisition(instance, occurrence.into())?;
         if self.objects[object.0].attached_deletion {
             return Err(HandleLifetimeFailure::AttachedDeletion {
                 acquisition,
@@ -209,7 +255,7 @@ impl HandleLifetimes {
             });
         }
         let handle = self.handles.get_mut(&instance).unwrap();
-        handle.uses.push(occurrence);
+        handle.uses.insert(occurrence.into());
         handle.release = Some(occurrence);
         Ok(())
     }
@@ -226,7 +272,7 @@ impl HandleLifetimes {
             if let Some(escape) = self.objects[handle.object.0].escaped {
                 return Err(HandleLifetimeFailure::EscapedObject {
                     acquisition: Self::origin_occurrence(&handle.origin),
-                    use_site: escape,
+                    use_site: escape.into(),
                 });
             }
             if handle.release.is_none() && !retained_by_caller.contains(instance) {
@@ -238,8 +284,12 @@ impl HandleLifetimes {
         Ok(())
     }
 
-    fn require_occurrence(occurrence: NativeOccurrence) -> Result<(), HandleLifetimeFailure> {
-        if occurrence.context == [0; 32] || occurrence.site.operation().is_none() {
+    fn require_occurrence(occurrence: HandleUseOccurrence) -> Result<(), HandleLifetimeFailure> {
+        let (context, site) = match occurrence {
+            HandleUseOccurrence::Native(native) => (native.context, native.site),
+            HandleUseOccurrence::Scalar(scalar) => (scalar.context, scalar.site),
+        };
+        if context == [0; 32] || site.operation().is_none() {
             return Err(HandleLifetimeFailure::UnprovedOccurrence(occurrence));
         }
         Ok(())
@@ -248,7 +298,7 @@ impl HandleLifetimes {
     fn require_live(
         &self,
         instance: HandleInstance,
-        occurrence: NativeOccurrence,
+        occurrence: HandleUseOccurrence,
     ) -> Result<FileObject, HandleLifetimeFailure> {
         Self::require_occurrence(occurrence)?;
         let acquisition = self.acquisition(instance, occurrence)?;
@@ -272,7 +322,7 @@ impl HandleLifetimes {
     fn acquisition(
         &self,
         instance: HandleInstance,
-        occurrence: NativeOccurrence,
+        occurrence: HandleUseOccurrence,
     ) -> Result<NativeOccurrence, HandleLifetimeFailure> {
         self.handles
             .get(&instance)
@@ -304,6 +354,47 @@ mod transition_tests {
             context: [1; 32],
             boundary: BoundaryMachineId::new(1).unwrap(),
         }
+    }
+
+    #[test]
+    fn scalar_observation_after_release_and_escaped_alias_cannot_retire() {
+        let source = HandleInstance(0);
+        let alias = HandleInstance(1);
+        let mut retired = HandleLifetimes::default();
+        retired.acquire_file(source, occurrence(1), 0).unwrap();
+        retired.release_file(source, occurrence(2)).unwrap();
+        let before = retired.clone();
+        let native = occurrence(3);
+        assert!(matches!(
+            retired.observe_scalar(
+                source,
+                ScalarOccurrence {
+                    machine: native.machine,
+                    site: native.site,
+                    context: native.context,
+                }
+            ),
+            Err(HandleLifetimeFailure::UseAfterRelease {
+                later_use: HandleUseOccurrence::Scalar(_),
+                ..
+            })
+        ));
+        assert_eq!(retired, before);
+
+        let mut escaped = HandleLifetimes::default();
+        escaped.acquire_file(source, occurrence(4), 0).unwrap();
+        escaped
+            .duplicate_file(source, alias, occurrence(5))
+            .unwrap();
+        escaped.escape(alias, occurrence(6)).unwrap();
+        assert!(matches!(
+            escaped.returning_path(&[source, alias]),
+            Err(HandleLifetimeFailure::EscapedObject { .. })
+        ));
+        assert!(matches!(
+            escaped.release_file(source, occurrence(7)),
+            Err(HandleLifetimeFailure::EscapedObject { .. })
+        ));
     }
 
     #[test]
