@@ -387,7 +387,8 @@ impl Replay {
         for file in &self.files {
             let result = (|| {
                 if file.path.exists() {
-                    fs::set_permissions(&file.path, file.permissions.clone()).map_err(|e| e.to_string())?;
+                    fs::set_permissions(&file.path, file.permissions.clone())
+                        .map_err(|e| e.to_string())?;
                 }
                 fs::write(&file.path, &file.original).map_err(|e| e.to_string())?;
                 if execution::digest(&file.path)? != file.sha256 {
