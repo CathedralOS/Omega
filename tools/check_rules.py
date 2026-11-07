@@ -1033,7 +1033,11 @@ def diff_hygiene_violations(changes: list) -> list:
     4. No new tools/swarm/waves/ files committed to git (use build/swarm/<wave>/)."""
     violations = []
     added_omg = []
+    deleted_omg = 0
     for status, path in changes:
+        if status == "D" and path.endswith(".omg"):
+            deleted_omg += 1
+            continue
         if status != "A":
             continue
         if path.endswith(".omg"):
@@ -1051,9 +1055,10 @@ def diff_hygiene_violations(changes: list) -> list:
         elif path.startswith("tools/swarm/waves/"):
             violations.append(
                 f"{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/")
-    if len(added_omg) > MAX_NEW_OMG_FILES:
+    net_added_omg = len(added_omg) - deleted_omg
+    if net_added_omg > MAX_NEW_OMG_FILES:
         violations.append(
-            f"PR adds {len(added_omg)} .omg files (limit is {MAX_NEW_OMG_FILES}); "
+            f"PR adds {net_added_omg} .omg files (limit is {MAX_NEW_OMG_FILES}); "
             "pin repairs with at most a focused positive/negative fixture pair, never a combinatorial matrix")
     return violations
 

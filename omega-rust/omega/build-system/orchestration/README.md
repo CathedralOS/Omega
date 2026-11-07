@@ -72,7 +72,7 @@ component closure before resuming. Normal return still joins every source
 request; early helper completion neither replaces that join nor replays Build.
 Source acquisition, pins, aliases and workspace selection remain package-owned.
 
-The runnable [provider-readiness projects](../../../../samples/cli/compilation/provider_readiness)
+The runnable [provider-readiness projects](../../../../samples/cli/probes/provider_readiness)
 exercise this route through ordinary CLI review and native/Terminal execution.
 The legacy source-only corpus route below cannot acquire a missing helper;
 its migration to executed project discovery remains open. Workspace observations
