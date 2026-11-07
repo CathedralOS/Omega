@@ -229,3 +229,182 @@ pub(super) fn inspect(
     }
     Ok(())
 }
+
+/// Check a real returned slice without treating its descriptor as its backing.
+pub(super) fn inspect_container(
+    report: &compilation_products::CompileReport,
+    fixture: &Path,
+) -> Result<(), String> {
+    let oracle = fixture.join("expected_native_inline_container_controls.txt");
+    if !oracle.exists() {
+        return Ok(());
+    }
+    if std::fs::read_to_string(oracle)
+        .map_err(|error| error.to_string())?
+        .trim()
+        != "required"
+    {
+        return Err("inline-container control oracle must say required".into());
+    }
+    let object = report
+        .retained_native_artifact()
+        .ok_or("container control needs a real native object")?
+        .object();
+    let rows = object
+        .native_instruction_source_rows()
+        .ok_or("container control lost native source")?;
+    let current = rows.frame_application.source().source();
+    let source = current.optimized_target().optimized().plan();
+    let types = source.structural_types.as_slice();
+    let target = current.optimized_target().target_operations();
+    let mut calls = Vec::new();
+    for caller in &target.functions {
+        for row in caller.graph.operations() {
+            let target_operations::TargetUnitOperation::Call {
+                target,
+                psi_operation,
+                ..
+            } = row
+            else {
+                continue;
+            };
+            let Some(callee) = target.machine() else {
+                continue;
+            };
+            let declaration = source
+                .functions
+                .iter()
+                .find(|row| row.machine == callee)
+                .ok_or("selected callee is absent")?;
+            let [formal] = declaration.structural_parameters.as_slice() else {
+                continue;
+            };
+            if terminal_psi::find_structural_type(types, formal.structural_type).is_some_and(
+                |row| {
+                    matches!(
+                        row.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    )
+                },
+            ) {
+                calls.push((caller.machine, *psi_operation, callee, formal));
+            }
+        }
+    }
+    let [(caller, operation, callee, formal)] = calls.as_slice() else {
+        return Err("control needs one real slice-input call".into());
+    };
+    let formal_origin = DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+        source: formal.place,
+        projection: Projection::new(&[]),
+    });
+    let origins = object
+        .observe_invocation_input_sources(
+            *caller,
+            CallSiteOwner::Operation(*operation),
+            *callee,
+            &formal_origin,
+        )
+        .map_err(|error| error.to_string())?;
+    if origins.is_empty() {
+        return Err("slice call has no actual sources".into());
+    }
+    let graph =
+        optimization_unit_semantics::descriptor_results::abstract_borrowed_storage_catalog_graph(
+            &source.functions,
+            &source.boundary_machines,
+            types,
+            &source.dynamic_dispatch,
+        )
+        .ok_or("container control needs a complete descriptor graph")?;
+    let body = descriptor_machine(&graph, *caller).ok_or("actual slice caller is absent")?;
+    for origin in origins {
+        let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+            source: place,
+            projection,
+        }) = origin
+        else {
+            return Err("slice source is not its caller's backing".into());
+        };
+        let root = *body
+            .place_types
+            .get(&place)
+            .ok_or("slice backing type is absent")?;
+        if !terminal_psi::find_structural_type(types, root).is_some_and(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+        }) || projection.exact
+            || projection.indirect
+        {
+            return Err("control did not retain its inexact direct array window".into());
+        }
+        let before = projection.clone();
+        let container = terminal_semantics::inline_backing_container(types, root, &projection)
+            .ok_or("real returned window lost its inline container")?;
+        if container != [terminal_psi::StructuralPathSegment::FixedIndex(1)] || projection != before
+        {
+            return Err("container changed the captured window or lost its selected row".into());
+        }
+        let allocated = rows
+            .selected
+            .function(*caller)
+            .ok_or("window caller has no selected body")?
+            .local_storage_slots
+            .iter()
+            .filter(|slot| slot.id.structural_place() == Some(place))
+            .collect::<Vec<_>>();
+        if !matches!(allocated.as_slice(), [slot] if slot.byte_size >= 24) {
+            return Err("window source has no real nested-array allocation".into());
+        }
+        let mut indirect = projection.clone();
+        indirect.indirect = true;
+        if terminal_semantics::inline_backing_container(types, root, &indirect).is_some()
+            || terminal_semantics::inline_backing_container(
+                types,
+                semantic_vocabulary::StructuralTypeId::new(u64::MAX).unwrap(),
+                &projection,
+            )
+            .is_some()
+            || terminal_semantics::inline_backing_container(
+                types,
+                root,
+                &Projection::new(&[terminal_psi::StructuralPathSegment::FixedIndex(u64::MAX)]),
+            )
+            .is_some()
+            || terminal_semantics::inline_backing_container(
+                types,
+                formal.structural_type,
+                &Projection::new(&[]),
+            )
+            .is_some()
+        {
+            return Err(
+                "container accepted an indirect, unknown, out-of-range or view-metadata source"
+                    .into(),
+            );
+        }
+    }
+    let pointer = types
+        .iter()
+        .find(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            )
+        })
+        .ok_or("control has no real reference declaration")?;
+    if terminal_semantics::inline_backing_container(types, pointer.id, &Projection::new(&[]))
+        .is_some()
+        || terminal_semantics::inline_backing_container(
+            types,
+            pointer.id,
+            &Projection::new(&[terminal_psi::StructuralPathSegment::Referent]),
+        )
+        .is_some()
+    {
+        return Err("container treated reference metadata as its pointee".into());
+    }
+    Ok(())
+}

@@ -160,6 +160,11 @@ pub(super) fn produce(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     incoming_backing_controls::inspect(&primary, root_path.parent().unwrap_or(&root_path))
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    incoming_backing_controls::inspect_container(
+        &primary,
+        root_path.parent().unwrap_or(&root_path),
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(NativeFixtureCohort {
         primary,
         companions,

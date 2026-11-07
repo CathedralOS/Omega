@@ -1,4 +1,7 @@
-//! Discharge borrowed-formal geometry against every actual incoming backing.
+//! Borrowed values must still lead to real storage after passing through calls.
+//! Follow every actual input, then check the allocation that owns each possible
+//! source. A slice's containing allocation can stay live even when its exact
+//! byte address is unknown; placed views separately require exact layout.
 //!
 //! The descriptor analysis owns operation epochs, aliases and call substitution.
 //! Its origins are not alignment evidence: only the selected allocation at the
@@ -43,6 +46,8 @@ pub(in crate::object::function_fragments::source) struct BackingGeometry<'a> {
     graph: &'a [DescriptorMachine],
     analysis: DescriptorAnalysis<'a>,
     incoming: incoming_calls::IncomingCalls,
+    /// Error context only; never used to establish a backing relation.
+    failure_detail: Option<String>,
 }
 
 /// A selected machine call whose portable graph only kept the placed formation
@@ -242,6 +247,7 @@ impl<'a> BackingGeometry<'a> {
             targeted,
             graph,
             incoming: incoming_calls::IncomingCalls::new(abstracted, targeted, graph),
+            failure_detail: None,
             analysis: DescriptorAnalysis::with_reference_slots(
                 abstracted.structural_types.as_slice(),
                 graph,
@@ -328,10 +334,73 @@ impl<'a> BackingGeometry<'a> {
         Ok(())
     }
 
+    fn describe_origin(&self, machine: MachineId, origin: &DescriptorSourceOrigin) -> String {
+        let place = match origin {
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, .. }) => {
+                Some(*source)
+            }
+            DescriptorSourceOrigin::IncomingSlot(location) => Some(location.root),
+            DescriptorSourceOrigin::IncomingContents { query, .. } => Some(query.root),
+            _ => None,
+        };
+        let home = place.and_then(|place| {
+            let target = self
+                .targeted
+                .functions
+                .iter()
+                .find(|row| row.machine == machine)?;
+            let selected = self.selected.function(machine)?;
+            Some(
+                match super::super::structural_homes::resolve(target, selected, place) {
+                    Ok((
+                        ty,
+                        super::super::structural_homes::SourceHome::Allocation { slot, indirect },
+                    )) => format!("type {ty:?}, allocated {slot:?}, indirect={indirect}"),
+                    Ok((
+                        ty,
+                        super::super::structural_homes::SourceHome::BorrowedFormal(formal),
+                    )) => format!("type {ty:?}, borrowed formal {formal:?}"),
+                    Err(reason) => format!("unresolved home: {reason}"),
+                },
+            )
+        });
+        let definition = place.and_then(|place| {
+            let body = descriptor_machine(self.graph, machine)?;
+            let declaration = body.places.iter().find(|row| row.place == place)?;
+            Some(match &declaration.definition {
+                DescriptorDefinition::Parameter {
+                    position,
+                    access,
+                    structural_type,
+                } => format!("parameter {position}, {access:?}, type {structural_type:?}"),
+                DescriptorDefinition::Arrival { access } => format!("arrival {access:?}"),
+                DescriptorDefinition::Local => "local".to_owned(),
+                DescriptorDefinition::Literal => "literal".to_owned(),
+            })
+        });
+        format!(
+            "inner machine {machine:?}, source {place:?}, definition {definition:?}, {home:?}, origin {origin:?}"
+        )
+    }
+
     fn origin(
         &mut self,
         machine: MachineId,
         origin: DescriptorSourceOrigin,
+        required: BackingRequirement<'_>,
+        pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
+    ) -> Result<(), &'static str> {
+        let result = self.check_origin(machine, &origin, required, pending);
+        if result.is_err() && self.failure_detail.is_none() {
+            self.failure_detail = Some(self.describe_origin(machine, &origin));
+        }
+        result
+    }
+
+    fn check_origin(
+        &mut self,
+        machine: MachineId,
+        origin: &DescriptorSourceOrigin,
         required: BackingRequirement<'_>,
         pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
     ) -> Result<(), &'static str> {
@@ -341,7 +410,7 @@ impl<'a> BackingGeometry<'a> {
         {
             return Err("backing caller equation is cyclic");
         }
-        let (source, incoming_contents) = match &origin {
+        let (source, incoming_contents) = match origin {
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, .. }) => {
                 (*source, false)
             }
@@ -393,15 +462,22 @@ impl<'a> BackingGeometry<'a> {
             };
         }
         let DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { projection, .. }) =
-            &origin
+            origin
         else {
             return Err("incoming contents did not resolve to an actual backing");
         };
         let required = match required {
             BackingRequirement::Activation => {
-                if !projection.exact || projection.indirect {
-                    return Err("activation backing has unresolved pointer traversal");
-                }
+                let root = *current
+                    .place_types
+                    .get(&source)
+                    .ok_or("activation backing has no retained root type")?;
+                terminal_semantics::inline_backing_container(
+                    self.abstracted.structural_types.as_slice(),
+                    root,
+                    projection,
+                )
+                .ok_or("activation backing has no direct inline container")?;
                 let target = self
                     .targeted
                     .functions

@@ -1783,6 +1783,12 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                     {
                         facts.push("native-input-backing-controls:match".to_owned());
                     }
+                    if fixture_dir
+                        .join("expected_native_inline_container_controls.txt")
+                        .is_file()
+                    {
+                        facts.push("native-inline-container-controls:match".to_owned());
+                    }
                     if let Some(receipt) = receipt {
                         facts.push(format!("rollback:{}", space_free(receipt)));
                     }

@@ -85,6 +85,7 @@ pub(in crate::object::function_fragments::source) fn validate(
         operation: first_operation,
         argument: None,
         reason: "installation operands have no complete borrowed-storage graph",
+        detail: None,
     })?;
     let mut analysis =
         BackingGeometry::for_activation_residence(source, selected, targeted, &graph);
@@ -97,6 +98,7 @@ pub(in crate::object::function_fragments::source) fn validate(
                     operation,
                     argument,
                     reason,
+                    detail: analysis.failure_detail.take(),
                 },
             )?;
     }
@@ -116,6 +118,7 @@ impl<'a> BackingGeometry<'a> {
             targeted,
             graph,
             incoming: super::incoming_calls::IncomingCalls::new(abstracted, targeted, graph),
+            failure_detail: None,
             analysis: DescriptorAnalysis::with_borrowed_storage_slots(
                 abstracted.structural_types.as_slice(),
                 graph,

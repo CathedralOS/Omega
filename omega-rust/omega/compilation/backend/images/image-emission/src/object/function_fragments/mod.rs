@@ -79,6 +79,7 @@ pub enum FunctionFragmentObjectArtifactError {
         operation: semantic_vocabulary::OperationId,
         argument: Option<usize>,
         reason: &'static str,
+        detail: Option<String>,
     },
     AccessBackingGeometry {
         machine: semantic_vocabulary::MachineId,
@@ -165,10 +166,17 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
                 operation,
                 argument,
                 reason,
-            } => write!(
-                formatter,
-                "installation activation backing at {machine:?}/{operation:?}, operand {argument:?}: {reason}",
-            ),
+                detail,
+            } => {
+                write!(
+                    formatter,
+                    "installation activation backing at {machine:?}/{operation:?}, operand {argument:?}: {reason}"
+                )?;
+                if let Some(detail) = detail {
+                    write!(formatter, "; {detail}")?;
+                }
+                Ok(())
+            }
             Self::AccessBackingGeometry {
                 machine,
                 operation,
