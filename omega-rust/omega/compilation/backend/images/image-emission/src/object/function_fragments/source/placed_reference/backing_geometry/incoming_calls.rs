@@ -147,6 +147,21 @@ impl IncomingCalls {
         rows.sort_by_key(|row| (row.callee, row.caller, row.site));
         Self { rows }
     }
+    pub(super) fn index(
+        &self,
+        caller: MachineId,
+        site: CallSiteOwner,
+        callee: MachineId,
+    ) -> Result<usize, &'static str> {
+        let mut matches = self.range(callee).filter(|index| {
+            let row = &self.rows[*index];
+            row.caller == caller && row.site == site
+        });
+        let (Some(index), None) = (matches.next(), matches.next()) else {
+            return Err("invocation input has no unique selected caller, site and callee");
+        };
+        Ok(index)
+    }
     pub(super) fn range(&self, callee: MachineId) -> std::ops::Range<usize> {
         self.rows.partition_point(|row| row.callee < callee)
             ..self.rows.partition_point(|row| row.callee <= callee)

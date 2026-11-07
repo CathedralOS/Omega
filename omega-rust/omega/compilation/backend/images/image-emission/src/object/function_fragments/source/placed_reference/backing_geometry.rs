@@ -209,6 +209,26 @@ pub(in crate::object::function_fragments::source) fn completed_graph(
     Some(graph)
 }
 
+/// Inspect current input sources without proving allocation size, lifetime or permission.
+pub(in crate::object::function_fragments::source) fn observe_inputs(
+    source: &AbstractOperationPlan,
+    targeted: &target_operations::TargetOperationPlan,
+    caller: MachineId,
+    site: target_operations::CallSiteOwner,
+    callee: MachineId,
+    origin: &DescriptorSourceOrigin,
+) -> Result<Vec<DescriptorSourceOrigin>, &'static str> {
+    let graph = activation_residence::graph(source, targeted)
+        .ok_or("invocation input has no complete borrowed-storage graph")?;
+    let incoming = incoming_calls::IncomingCalls::new(source, targeted, &graph);
+    let index = incoming.index(caller, site, callee)?;
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(source.structural_types.as_slice(), &graph);
+    incoming
+        .substitute(index, &mut analysis, origin)
+        .map(|(_, sources)| sources)
+}
+
 impl<'a> BackingGeometry<'a> {
     pub(in crate::object::function_fragments::source) fn new(
         abstracted: &'a AbstractOperationPlan,

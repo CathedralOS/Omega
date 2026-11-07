@@ -79,6 +79,30 @@ pub struct ObjectByteLiteralAddress {
 }
 
 impl ObjectArtifact {
+    /// Observe current borrowed input sources at one real selected invocation.
+    /// The result is symbolic provenance only: no allocation, size/alignment,
+    /// mapped memory, caller lifetime or permission certificate is returned.
+    pub fn observe_invocation_input_sources(
+        &self,
+        caller: MachineId,
+        site: target_operations::CallSiteOwner,
+        callee: MachineId,
+        origin: &terminal_semantics::descriptor_results::DescriptorSourceOrigin,
+    ) -> Result<
+        Vec<terminal_semantics::descriptor_results::DescriptorSourceOrigin>,
+        crate::FunctionFragmentObjectArtifactError,
+    > {
+        let body = self.composition_source.as_deref().unwrap_or(self);
+        let replay = body.fragment_replay.as_ref().ok_or(
+            crate::FunctionFragmentObjectArtifactError::Mismatch(
+                "invocation input observation requires retained native source",
+            ),
+        )?;
+        crate::object::function_fragments::invocation_input_sources(
+            &replay.0, caller, site, callee, origin,
+        )
+    }
+
     /// Ordinary retained instruction correspondence in this object's namespace.
     /// The copied physical coordinates are observations. They do not establish
     /// generated transport, final bytes, fault exclusion or stack backing.

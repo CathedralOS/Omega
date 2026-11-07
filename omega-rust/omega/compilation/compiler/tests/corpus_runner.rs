@@ -155,6 +155,8 @@ mod checked_interpreter_dispatch;
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/incoming_backing_controls.rs"]
+mod incoming_backing_controls;
 #[path = "support/native_component_descriptions.rs"]
 mod native_component_descriptions;
 #[path = "support/native_entry_controls.rs"]
@@ -1774,6 +1776,12 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                         .is_file()
                     {
                         facts.push("native-cpu-state-controls:match".to_owned());
+                    }
+                    if fixture_dir
+                        .join("expected_native_input_backing_controls.txt")
+                        .is_file()
+                    {
+                        facts.push("native-input-backing-controls:match".to_owned());
                     }
                     if let Some(receipt) = receipt {
                         facts.push(format!("rollback:{}", space_free(receipt)));

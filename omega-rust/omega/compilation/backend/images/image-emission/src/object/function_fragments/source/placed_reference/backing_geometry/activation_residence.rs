@@ -16,7 +16,7 @@ use terminal_semantics::descriptor_results::{
     DescriptorSourceOrigin, descriptor_contents_query, descriptor_machine,
 };
 
-fn graph(
+pub(super) fn graph(
     source: &AbstractOperationPlan,
     targeted: &target_operations::TargetOperationPlan,
 ) -> Option<Vec<DescriptorMachine>> {

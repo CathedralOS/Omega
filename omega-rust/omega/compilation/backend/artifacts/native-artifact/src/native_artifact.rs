@@ -16,6 +16,9 @@ use installation_evidence::ProviderExecutionEvidence;
 use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
 use terminal_psi::TerminalPsiIdentity;
 
+mod validation_error;
+pub use validation_error::NativeArtifactValidationError;
+
 mod boundary_applications;
 mod dynamic_elf;
 mod emission;
@@ -359,7 +362,9 @@ impl NativeArtifact {
     }
 
     /// Replay every source-free identity and byte relation retained here.
-    pub fn from_replayed_parts(parts: NativeArtifactParts) -> Result<Self, &'static str> {
+    pub fn from_replayed_parts(
+        parts: NativeArtifactParts,
+    ) -> Result<Self, NativeArtifactValidationError> {
         let physical_evidence_gap = parts.replayed_gap(
             parts.image.output(),
             *parts.image.final_image_symbol_digest().as_bytes(),
@@ -384,23 +389,23 @@ impl NativeArtifact {
         artifact
     }
 
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self) -> Result<(), NativeArtifactValidationError> {
         let semantic = self.parts.psi_artifact.manifest().semantic();
         if self.parts.object.psi() != semantic || self.parts.image.psi() != semantic {
-            return Err("native artifact semantic identity disagrees with its object or image");
+            return Err(
+                "native artifact semantic identity disagrees with its object or image".into(),
+            );
         }
         if self.parts.object.target() != self.parts.target
             || self.parts.image.target() != self.parts.target
         {
-            return Err("native artifact target disagrees with its object or image");
+            return Err("native artifact target disagrees with its object or image".into());
         }
         if !self.parts.terminal_authority_closure_matches() {
-            return Err(
-                "native artifact terminal-authority closure receipt drifted from its exact realization inputs",
-            );
+            return Err("native artifact terminal-authority closure receipt drifted from its exact realization inputs".into());
         }
         image_emission::validate_direct_executable_image(&self.parts.object, &self.parts.image)
-            .map_err(|_| "native artifact image failed object-to-image replay")?;
+            .map_err(NativeArtifactValidationError::ImageReplay)?;
         let module = self.parts.psi_artifact.semantic_module();
         mixed_structural_scalar::validate(module, &self.parts.object)?;
         validate_boundary_application_coverage(
@@ -414,7 +419,9 @@ impl NativeArtifact {
             .object
             .validate_terminal_entry(&self.parts.psi_artifact)?;
         if self.parts.selected_provider_closure_report_identity == 0 {
-            return Err("native artifact selected provider closure has the reserved zero identity");
+            return Err(
+                "native artifact selected provider closure has the reserved zero identity".into(),
+            );
         }
 
         provider_execution::replay_provider_executions(
@@ -431,16 +438,18 @@ impl NativeArtifact {
             .replayed_evidence(self.parts.image.output(), final_image_symbol_digest)?;
         if self.parts.physical_evidence != expected_physical_evidence {
             return Err(
-                "native artifact physical children disagree with its validated identity projection",
+                "native artifact physical children disagree with its validated identity projection"
+                    .into(),
             );
         }
         if self.physical_evidence_gap != expected_physical_evidence_gap {
             return Err(
-                "native artifact physical evidence gap disagrees with exact derivation replay",
+                "native artifact physical evidence gap disagrees with exact derivation replay"
+                    .into(),
             );
         }
         if self.identity != self.recomputed_identity() {
-            return Err("native artifact identity disagrees with its retained authority");
+            return Err("native artifact identity disagrees with its retained authority".into());
         }
         Ok(())
     }
@@ -481,7 +490,8 @@ impl NativeArtifact {
     pub fn inspect_native_code_layouts(
         &self,
     ) -> Result<Vec<image_emission::LinkedNativeCodeLayout>, diagnostics::Diagnostic> {
-        self.validate().map_err(diagnostics::Diagnostic::error)?;
+        self.validate()
+            .map_err(NativeArtifactValidationError::into_diagnostic)?;
         image_emission::inspect_native_code_layouts(&self.parts.object, &self.parts.image)
     }
 

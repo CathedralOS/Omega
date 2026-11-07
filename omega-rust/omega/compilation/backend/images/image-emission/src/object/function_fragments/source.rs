@@ -6,6 +6,25 @@ mod installed_interrupts;
 mod privileged_termination;
 mod static_interrupts;
 
+pub(crate) fn invocation_input_sources(
+    source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
+    caller: semantic_vocabulary::MachineId,
+    site: target_operations::CallSiteOwner,
+    callee: semantic_vocabulary::MachineId,
+    origin: &terminal_semantics::descriptor_results::DescriptorSourceOrigin,
+) -> Result<Vec<terminal_semantics::descriptor_results::DescriptorSourceOrigin>, super::Error> {
+    let current = source.source().source().source().source();
+    placed_reference::backing_geometry::observe_inputs(
+        current.optimized_target().optimized().plan(),
+        current.optimized_target().target_operations(),
+        caller,
+        site,
+        callee,
+        origin,
+    )
+    .map_err(super::Error::Mismatch)
+}
+
 /// Query only the selected function retained by this admitted object source.
 pub(crate) fn selected_constant_operand(
     source: &object_file::StagedOptimizedRelocationFreeObjectContainer,

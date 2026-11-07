@@ -58,6 +58,7 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
+abstract-operations = { path = "../representations/abstract-operations" }
 image = { path = "../backend/images/image" }
 isa-aarch64 = { path = "../backend/instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../backend/instruction-set-architectures/isa-x86_64" }
