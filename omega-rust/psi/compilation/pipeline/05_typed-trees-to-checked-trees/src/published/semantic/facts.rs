@@ -47,7 +47,10 @@ pub(crate) fn build_semantic_facts(
     // Receivers and named inputs have the same caller-enforced declared domains.
     // Actual zero-initialized storage is established separately below.
     append_state_parameter_domain_facts(program, &mut facts);
-    append_state_parameter_predicates(program, operators, &mut facts);
+    phase_profile::scope(
+        "psi.05.build_check_facts.pre_flow_facts.semantic.parameter_predicates",
+        || append_state_parameter_predicates(program, operators, &mut facts),
+    );
     // ZII locals (`let room: Room;`): the zeroed storage already satisfies
     // every declared field domain that admits the empty byte sequence -- the
     // establishment gate -- so those fields are live evidence
@@ -66,29 +69,52 @@ fn append_state_parameter_predicates(
     operators: &checked_trees::CheckedOperatorFacts,
     facts: &mut FactPlan,
 ) {
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for row in validation::state_declaration_predicates(program, operators, state) {
-                let Some(predicate) = crate::published::facts::boolean_predicates::bind_parameters(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    program.state_parameters(state),
-                    None,
-                    row.predicate,
-                ) else {
-                    continue;
-                };
-                crate::published::facts::boolean_predicates::seed(
-                    facts,
-                    &predicate,
-                    facts::ProgramPoint::State {
-                        machine_symbol: machine.symbol,
-                        state_symbol: state.symbol,
-                    },
-                    FactOrigin::StatementTransfer,
-                );
-            }
+    use rayon::prelude::*;
+    // Spelling and binding a state's rows reads only declarations and the
+    // operator roster; only seeding writes the plan. Bind every state's rows
+    // on the checking pool, then seed them in roster order so each fact,
+    // place and context keeps the handle the one-state-at-a-time walk gave it.
+    let states = program
+        .machines()
+        .iter()
+        .flat_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .map(move |state| (machine, state))
+        })
+        .collect::<Vec<_>>();
+    let bound = validation::checking_thread_pool().install(|| {
+        states
+            .par_iter()
+            .map(|(machine, state)| {
+                validation::state_declaration_predicates(program, operators, state)
+                    .into_iter()
+                    .filter_map(|row| {
+                        crate::published::facts::boolean_predicates::bind_parameters(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            program.state_parameters(state),
+                            None,
+                            row.predicate,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+    });
+    for ((machine, state), predicates) in states.iter().zip(bound) {
+        for predicate in predicates {
+            crate::published::facts::boolean_predicates::seed(
+                facts,
+                &predicate,
+                facts::ProgramPoint::State {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                },
+                FactOrigin::StatementTransfer,
+            );
         }
     }
 }
