@@ -151,7 +151,8 @@ Missing, duplicate, extra, incomplete, unchecked, or wrong-reason rows fail even
 when a historical golden would consider them unchanged. Check-only or unrunnable
 CLI projects cannot count as runtime acceptance.
 
-The directory contains the exact request, source revision/tree and source archive,
+The directory contains the exact request, source revision/tree and a standard Git
+ZIP source archive (each file compresses independently),
 original runner rows, per-command stdout/stderr and exit receipts, parsed outcomes,
 producer Cargo artifacts and fingerprints, binary digests, relevant build inputs,
 and before/after source identities. Ordinary CLI evidence also retains the accepted
