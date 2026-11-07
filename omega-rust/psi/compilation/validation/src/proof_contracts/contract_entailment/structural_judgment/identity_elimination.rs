@@ -213,7 +213,7 @@ impl StructuralJudge<'_> {
                 | StructuralTerm::BoundProjection { .. },
                 _,
             ) if !term_contains(&right, &left) => {
-                Arc::make_mut(&mut self.rewrites).push((left, right));
+                Arc::make_mut(&mut self.rewrites).push_value_identity((left, right));
             }
             (
                 _,
@@ -223,7 +223,7 @@ impl StructuralJudge<'_> {
                 | StructuralTerm::Projection { .. }
                 | StructuralTerm::BoundProjection { .. },
             ) if !term_contains(&left, &right) => {
-                Arc::make_mut(&mut self.rewrites).push((right, left));
+                Arc::make_mut(&mut self.rewrites).push_value_identity((right, left));
             }
             _ => {}
         }

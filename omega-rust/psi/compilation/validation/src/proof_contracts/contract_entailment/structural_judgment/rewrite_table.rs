@@ -12,9 +12,16 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use typed_trees::expression::BinaryOperator;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RewriteMeaning {
+    ScalarEquation,
+    ValueIdentity,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct RewriteTable {
     entries: Vec<(StructuralTerm, StructuralTerm)>,
+    meanings: Vec<RewriteMeaning>,
     index: HashMap<(u8, u64), Vec<u32>>,
     potential_integer_premise_indices: Vec<u32>,
     deferred_collection_measures: Vec<(u32, u32)>,
@@ -105,9 +112,25 @@ impl RewriteTable {
                 }
             }
         }
-        let key = rewrite_key(&entry.0);
-        self.index.entry(key).or_default().push(index);
+        self.register(entry, RewriteMeaning::ScalarEquation);
+    }
+
+    /// Id substitutes the exact observed value, including its descriptors,
+    /// selected-map metadata and IEEE landing. It is not a scalar comparison
+    /// premise and must never enter that premise reader by semantic equality.
+    pub(super) fn push_value_identity(&mut self, entry: (StructuralTerm, StructuralTerm)) {
+        self.integer_premise_revision += 1;
+        self.register(entry, RewriteMeaning::ValueIdentity);
+    }
+
+    fn register(&mut self, entry: (StructuralTerm, StructuralTerm), meaning: RewriteMeaning) {
+        let index = self.entries.len() as u32;
+        self.index
+            .entry(rewrite_key(&entry.0))
+            .or_default()
+            .push(index);
         self.entries.push(entry);
+        self.meanings.push(meaning);
     }
 
     pub(super) fn has_potential_integer_premises(&self) -> bool {
@@ -155,7 +178,11 @@ impl RewriteTable {
         let indices = self.index.get(&rewrite_key(term))?;
         for &index in indices {
             let entry = &self.entries[index as usize];
-            if entry.0 == *term {
+            let matches = match self.meanings[index as usize] {
+                RewriteMeaning::ScalarEquation => entry.0 == *term,
+                RewriteMeaning::ValueIdentity => entry.0.same_resolution_payload(term),
+            };
+            if matches {
                 return Some(entry);
             }
         }
@@ -163,7 +190,12 @@ impl RewriteTable {
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = &(StructuralTerm, StructuralTerm)> {
-        self.entries.iter()
+        self.entries
+            .iter()
+            .zip(&self.meanings)
+            .filter_map(|(entry, meaning)| {
+                (*meaning == RewriteMeaning::ScalarEquation).then_some(entry)
+            })
     }
 
     pub(super) fn entries(&self) -> &[(StructuralTerm, StructuralTerm)] {
@@ -407,5 +439,39 @@ fn predicate_may_unwrap_to_integer_comparison(predicate: &StructuralTerm, depth:
             false
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn value_identity_keeps_descriptors_out_of_scalar_equations() {
+        let application = |descriptor: &str| StructuralTerm::Application {
+            result_type: Default::default(),
+            target: Default::default(),
+            selections: Vec::new(),
+            machine: "read".to_owned(),
+            arguments: vec![StructuralTerm::ObservedValue {
+                observed_type: Default::default(),
+                value: Box::new(StructuralTerm::Opaque("unobserved contents".to_owned())),
+                descriptor: Some(Box::new(StructuralTerm::Variable(descriptor.to_owned()))),
+            }],
+        };
+        let first = application("first");
+        let second = application("second");
+        assert_eq!(first, second);
+        assert!(!first.same_resolution_payload(&second));
+        let value = StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7));
+        let mut rewrites = RewriteTable::default();
+        rewrites.push_value_identity((first.clone(), value.clone()));
+        assert!(rewrites.find(&first).is_some());
+        assert!(rewrites.find(&second).is_none());
+        assert_eq!(rewrites.iter().count(), 0);
+        assert_eq!(rewrites.potential_integer_premises_len(), 0);
+        rewrites.push((second.clone(), value));
+        assert!(rewrites.find(&second).is_some());
+        assert_eq!(rewrites.iter().count(), 1);
     }
 }
