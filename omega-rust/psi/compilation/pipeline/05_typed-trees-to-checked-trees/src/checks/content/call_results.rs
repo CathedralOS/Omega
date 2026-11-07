@@ -428,13 +428,22 @@ pub(super) fn check_call_result_qualifications(
             if let Some(outcomes) = super::retained_custody::lifecycle_backing_transfers(
                 program, target_symbol, parameters, invocation.result_type(program)?, projection,
             ) {
-                let outcome = outcomes.iter().find(|outcome| outcome.iter().any(|transfer| transfer.output == *path))?;
+                let Some(outcome) = outcomes.iter().find(|outcome| outcome.iter().any(|transfer| transfer.output == *path)) else {
+                    failure_reason = Some("the placement contract has no exact outcome for this result path");
+                    return None;
+                };
                 let mut consumed = Vec::new();
                 let mut returned = Vec::new();
                 for transfer in outcome {
-                    let input = input_claim(program, facts, &invocation, parameters,
-                        transfer.parameter, &transfer.input, projection)?;
-                    let output = result_claim(program, facts, &invocation, &transfer.output)?;
+                    let Some(input) = input_claim(program, facts, &invocation, parameters,
+                        transfer.parameter, &transfer.input, projection) else {
+                            failure_reason = Some("the placement outcome has no exact consumed backing claim");
+                            return None;
+                        };
+                    let Some(output) = result_claim(program, facts, &invocation, &transfer.output) else {
+                        failure_reason = Some("the placement outcome has no exact returned backing claim");
+                        return None;
+                    };
                     if consumed.contains(&input) || returned.contains(&output) {
                         failure_reason = Some("the placement outcome duplicates an input or output backing claim");
                         return None;

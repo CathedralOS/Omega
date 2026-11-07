@@ -12,6 +12,52 @@ use typed_trees::typed_trees::{
 };
 use typed_trees::types::TypeReferenceHandle;
 
+/// All supply roles feed the same core profile representation. Establish that
+/// once during preparation, alongside the exact owner and content roles.
+pub(super) fn profile_carrier(
+    program: &TypedTrees,
+    callable: SymbolHandle,
+) -> Result<Option<TypeReferenceHandle>, Diagnostic> {
+    let Some(declaration) = AccessExecutionDeclaration::authenticate(program, callable)? else {
+        return Ok(None);
+    };
+    let state = program
+        .state_by_symbol(declaration.state())
+        .ok_or_else(|| Diagnostic::error("placement primitive entry is absent"))?;
+    let parameters = program.state_parameters(state);
+    let positions: &[usize] = match declaration.operation() {
+        AccessLifecycleOperation::Initialize => &[2],
+        AccessLifecycleOperation::MoveOut | AccessLifecycleOperation::View => &[1],
+        AccessLifecycleOperation::Relocate => &[2, 3],
+    };
+    let mut carrier = None;
+    for position in positions {
+        let parameter = parameters
+            .get(*position)
+            .ok_or_else(|| Diagnostic::error("placement primitive profile input is absent"))?;
+        let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return Err(Diagnostic::error(
+                "placement primitive must borrow its original profile result",
+            ));
+        };
+        if program.closed_data_definition(*referee).is_none()
+            || carrier.is_some_and(|previous| {
+                program.normalized_type_identity(previous)
+                    != program.normalized_type_identity(*referee)
+            })
+        {
+            return Err(Diagnostic::error(
+                "placement primitive profiles must have one closed core carrier",
+            ));
+        }
+        carrier = Some(*referee);
+    }
+    Ok(carrier)
+}
+
 pub(super) fn check(
     program: &TypedTrees,
     callable: SymbolHandle,

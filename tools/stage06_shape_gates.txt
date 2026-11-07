@@ -92,7 +92,7 @@
 17 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/outcome_specific_ensures.rs
 30 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/evidence_lowering/proof_output_calls.rs
 15 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/integer_predicates.rs
-31 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_lifecycles.rs
+28 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_lifecycles.rs
 9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_view_inputs.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/access_view_plans.rs
 60 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs

@@ -34,6 +34,9 @@ pub enum AccessLifecyclePlan {
         target: Option<layout_plans::LayoutTargetFacts>,
         placement: access_plans::ValidatedAccessPlan,
         storage: AccessLifecycleStorage,
+        /// Common profile carrier checked across every supply operand. Lowering
+        /// publishes this type instead of rechecking the source signature.
+        profile_carrier: Option<TypeReferenceHandle>,
     },
 }
 
