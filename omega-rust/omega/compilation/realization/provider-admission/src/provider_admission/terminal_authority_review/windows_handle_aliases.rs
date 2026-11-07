@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{ScalarType, ValueId};
+use semantic_vocabulary::{IdTable, ScalarType, ValueId};
 use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorLocation;
 
 use super::windows_handle_lifetimes::HandleInstance;
@@ -105,7 +105,8 @@ fn handle_word(scalar_type: ScalarType) -> bool {
 /// this activation. Caller/formal substitution belongs to the canonical owner.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct HandleAliases {
-    scalars: BTreeMap<ValueId, HandleWordAliases>,
+    // Outer Some is an original declared binder; inner Some is its current capture.
+    scalars: IdTable<ValueId, Option<Option<HandleWordAliases>>>,
     cells: BTreeMap<DescriptorLocation, HandleWordAliases>,
     regions: BTreeMap<DescriptorLocation, BTreeSet<HandleInstance>>,
 }
@@ -113,12 +114,41 @@ pub(super) struct HandleAliases {
 impl HandleAliases {
     pub(super) fn scalar(&self, value: ValueId) -> Result<&HandleWordAliases, String> {
         self.scalars
-            .get(&value)
+            .get(value)
+            .and_then(Option::as_ref)
+            .and_then(Option::as_ref)
             .ok_or_else(|| format!("handle alias census has no current scalar capture {value:?}"))
     }
 
-    pub(super) fn define_scalar(&mut self, value: ValueId, aliases: HandleWordAliases) {
-        self.scalars.insert(value, aliases);
+    pub(super) fn with_scalar_namespace(
+        values: impl IntoIterator<Item = ValueId>,
+    ) -> Result<Self, String> {
+        let mut rows = values
+            .into_iter()
+            .map(|value| (value, Some(None)))
+            .collect::<Vec<_>>();
+        rows.sort_by_key(|(value, _)| *value);
+        let scalars = IdTable::from_rows_with_gaps(rows, 65_536)
+            .map_err(|reason| format!("handle alias scalar inventory is invalid: {reason:?}"))?;
+        Ok(Self {
+            scalars,
+            cells: BTreeMap::new(),
+            regions: BTreeMap::new(),
+        })
+    }
+
+    pub(super) fn define_scalar(
+        &mut self,
+        value: ValueId,
+        aliases: HandleWordAliases,
+    ) -> Result<(), String> {
+        let target = self
+            .scalars
+            .get_mut(value)
+            .and_then(Option::as_mut)
+            .ok_or("handle alias definition has no original scalar binder")?;
+        *target = Some(aliases);
+        Ok(())
     }
 
     pub(super) fn assign_scalars(
@@ -132,17 +162,32 @@ impl HandleAliases {
             .iter()
             .map(|(formal, actual)| self.scalar(*actual).cloned().map(|word| (*formal, word)))
             .collect::<Result<Vec<_>, _>>()?;
-        let unique = captured
+        let mut targets = captured
             .iter()
             .map(|(formal, _)| *formal)
-            .collect::<BTreeSet<_>>();
-        if unique.len() != captured.len() {
+            .collect::<Vec<_>>();
+        targets.sort_unstable();
+        if targets.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err("handle alias arrival repeats a target scalar".into());
         }
-        for formal in retired {
-            self.scalars.remove(formal);
+        if captured
+            .iter()
+            .any(|(formal, _)| self.scalars.get(*formal).is_none_or(Option::is_none))
+        {
+            return Err("handle alias arrival has no original target binder".into());
         }
-        self.scalars.extend(captured);
+        for formal in retired {
+            if let Some(Some(target)) = self.scalars.get_mut(*formal) {
+                *target = None;
+            }
+        }
+        for (formal, word) in captured {
+            *self
+                .scalars
+                .get_mut(formal)
+                .and_then(Option::as_mut)
+                .expect("arrival target was checked before commit") = Some(word);
+        }
         Ok(())
     }
 
@@ -424,19 +469,52 @@ mod tests {
     }
 
     #[test]
+    fn high_base_scalar_namespace_keeps_ids_and_refuses_unknown_arrivals_atomically() {
+        let high = ValueId::new(u64::MAX).unwrap();
+        let absent = ValueId::new(u64::MAX - 1).unwrap();
+        let word = integer(IntegerSign::Unsigned, 64);
+        let mut aliases = HandleAliases::with_scalar_namespace([high]).unwrap();
+        aliases
+            .define_scalar(
+                high,
+                HandleWordAliases::acquired(word, HandleInstance(0)).unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            aliases.scalar(high).unwrap().exact_handle().unwrap(),
+            HandleInstance(0)
+        );
+        let before = aliases.clone();
+        assert!(aliases.assign_scalars(&[(absent, high)], &[high]).is_err());
+        assert_eq!(aliases, before);
+        assert!(
+            aliases
+                .define_scalar(absent, HandleWordAliases::untracked(word))
+                .is_err()
+        );
+        assert_eq!(aliases, before);
+        assert!(HandleAliases::with_scalar_namespace([high, high]).is_err());
+        assert!(HandleAliases::with_scalar_namespace([ValueId::new(1).unwrap(), high]).is_err());
+    }
+
+    #[test]
     fn scalar_arrivals_capture_simultaneously_and_refuse_atomically() {
         let word = integer(IntegerSign::Unsigned, 64);
         let first = ValueId::new(1).unwrap();
         let second = ValueId::new(2).unwrap();
-        let mut aliases = HandleAliases::default();
-        aliases.define_scalar(
-            first,
-            HandleWordAliases::acquired(word, HandleInstance(0)).unwrap(),
-        );
-        aliases.define_scalar(
-            second,
-            HandleWordAliases::acquired(word, HandleInstance(1)).unwrap(),
-        );
+        let mut aliases = HandleAliases::with_scalar_namespace([first, second]).unwrap();
+        aliases
+            .define_scalar(
+                first,
+                HandleWordAliases::acquired(word, HandleInstance(0)).unwrap(),
+            )
+            .unwrap();
+        aliases
+            .define_scalar(
+                second,
+                HandleWordAliases::acquired(word, HandleInstance(1)).unwrap(),
+            )
+            .unwrap();
         aliases
             .assign_scalars(&[(first, second), (second, first)], &[first, second])
             .unwrap();

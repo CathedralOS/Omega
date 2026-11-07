@@ -5,10 +5,12 @@
 //! machine edges stay finite graph edges; they are not expanded into invented
 //! activations or silently treated as a pure call.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use effects::TerminalMechanismIdentity;
-use semantic_vocabulary::{BlockId, BoundaryMachineId, EdgeId, InvocationSite, MachineId, ValueId};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, IdTable, InvocationSite, MachineId, ValueId,
+};
 use terminal_psi::{
     BoundaryInvocationCompletion, ModuleInvocationInputs, OperationKind, StructuralArgument,
     TargetMachineCallable, TerminalAffineCleanupAction, TerminalMachine,
@@ -69,10 +71,10 @@ pub(super) struct RuntimeCall<'a> {
 
 pub(super) struct HandleCallGraph<'a> {
     pub entry: MachineId,
-    pub machines: BTreeMap<MachineId, &'a TerminalMachine>,
+    machines: IdTable<MachineId, Option<&'a TerminalMachine>>,
     pub calls: BTreeMap<Caller, Vec<RuntimeCall<'a>>>,
-    pub callers: BTreeMap<MachineId, Vec<RuntimeCall<'a>>>,
-    callees: BTreeMap<MachineId, BTreeSet<MachineId>>,
+    pub callers: IdTable<MachineId, Vec<RuntimeCall<'a>>>,
+    callees: IdTable<MachineId, Vec<MachineId>>,
 }
 
 impl<'a> HandleCallGraph<'a> {
@@ -80,33 +82,58 @@ impl<'a> HandleCallGraph<'a> {
         let entry = context.input.plan().entry;
         let mut graph = Self {
             entry,
-            machines: BTreeMap::new(),
+            machines: IdTable::default(),
             calls: BTreeMap::new(),
-            callers: BTreeMap::new(),
-            callees: BTreeMap::new(),
+            callers: IdTable::default(),
+            callees: IdTable::default(),
         };
         let mut pending = vec![entry];
+        let mut machine_namespace = context
+            .input
+            .module()
+            .machines
+            .iter()
+            .map(|machine| (machine.id, Some(false)))
+            .collect::<Vec<_>>();
+        machine_namespace.sort_by_key(|(identity, _)| *identity);
+        let mut reached = IdTable::from_rows_with_gaps(machine_namespace, 65_536)
+            .map_err(|reason| format!("canonical machine namespace is invalid: {reason:?}"))?;
+        let mut machines = Vec::new();
         while let Some(identity) = pending.pop() {
-            if graph.machines.contains_key(&identity) {
-                continue;
-            }
             let machine = context.graph.machine(identity).ok_or_else(|| {
                 format!("native handle caller {identity:?} has no canonical body")
             })?;
-            graph.machines.insert(identity, machine);
+            let visited = reached
+                .get_mut(identity)
+                .and_then(Option::as_mut)
+                .ok_or("native handle caller is absent from its canonical namespace")?;
+            if *visited {
+                continue;
+            }
+            *visited = true;
+            machines.push((identity, Some(machine)));
             for block in &machine.blocks {
-                let operation_positions = block
+                let mut operation_positions = block
                     .operations
                     .iter()
                     .enumerate()
-                    .map(|(index, operation)| (operation.id, index))
-                    .collect::<BTreeMap<_, _>>();
+                    .map(|(index, operation)| (operation.id, Some(index)))
+                    .collect::<Vec<_>>();
+                operation_positions.sort_by_key(|(id, _)| *id);
+                let operation_positions = IdTable::from_rows_with_gaps(operation_positions, 65_536)
+                    .map_err(|reason| {
+                        format!(
+                            "native handle block has an invalid operation inventory: {reason:?}"
+                        )
+                    })?;
                 let position = |site: InvocationSite| match site.operation() {
-                    Some(operation) => {
-                        operation_positions.get(&operation).copied().ok_or_else(|| {
+                    Some(operation) => operation_positions
+                        .get(operation)
+                        .copied()
+                        .flatten()
+                        .ok_or_else(|| {
                             format!("native handle invocation {site:?} lost its operation position")
-                        })
-                    }
+                        }),
                     None => Ok(block.operations.len()),
                 };
                 for invocation in block.module_invocations() {
@@ -218,17 +245,52 @@ impl<'a> HandleCallGraph<'a> {
                 }
             }
         }
+        machines.sort_by_key(|(identity, _)| *identity);
+        graph.machines = IdTable::from_rows_with_gaps(machines, 65_536)
+            .map_err(|reason| format!("native handle machine inventory is invalid: {reason:?}"))?;
+        graph.callers = graph.machines.map(|_, _| Vec::new());
+        graph.callees = graph.machines.map(|_, _| Vec::new());
+        for alternatives in graph.calls.values() {
+            for call in alternatives {
+                if let CallTarget::Machine(callee) = call.target {
+                    graph
+                        .callers
+                        .get_mut(callee)
+                        .ok_or("native handle callee has no prepared machine coordinate")?
+                        .push(*call);
+                    graph
+                        .callees
+                        .get_mut(call.caller.machine)
+                        .ok_or("native handle caller has no prepared machine coordinate")?
+                        .push(callee);
+                }
+            }
+        }
+        let identities = graph.callees.keys().collect::<Vec<_>>();
+        for identity in identities {
+            let targets = graph
+                .callees
+                .get_mut(identity)
+                .ok_or("native handle callee table lost its coordinate")?;
+            targets.sort_unstable();
+            targets.dedup();
+        }
         Ok(graph)
+    }
+
+    pub(super) fn machine(&self, identity: MachineId) -> Option<&'a TerminalMachine> {
+        self.machines.get(identity).copied().flatten()
+    }
+
+    pub(super) fn machines(&self) -> impl Iterator<Item = (MachineId, &'a TerminalMachine)> + '_ {
+        self.machines
+            .iter()
+            .filter_map(|(identity, machine)| machine.map(|machine| (identity, machine)))
     }
 
     fn insert(&mut self, call: RuntimeCall<'a>, pending: &mut Vec<MachineId>) {
         self.calls.entry(call.caller).or_default().push(call);
         if let CallTarget::Machine(machine) = call.target {
-            self.callees
-                .entry(call.caller.machine)
-                .or_default()
-                .insert(machine);
-            self.callers.entry(machine).or_default().push(call);
             pending.push(machine);
         }
     }
@@ -238,17 +300,22 @@ impl<'a> HandleCallGraph<'a> {
     /// recursive caller has no effects merely because expansion revisited it.
     pub(super) fn components(&self) -> Vec<Vec<MachineId>> {
         let mut completed = Vec::new();
-        let mut visited = BTreeSet::new();
-        for root in self.machines.keys().copied() {
+        let mut visited = self.machines.map(|_, _| false);
+        for (root, _) in self.machines() {
             let mut pending = vec![(root, false)];
             while let Some((machine, returning)) = pending.pop() {
                 if returning {
                     completed.push(machine);
-                } else if visited.insert(machine) {
+                } else if !std::mem::replace(
+                    visited
+                        .get_mut(machine)
+                        .expect("reached machine coordinate"),
+                    true,
+                ) {
                     pending.push((machine, true));
                     pending.extend(
                         self.callees
-                            .get(&machine)
+                            .get(machine)
                             .into_iter()
                             .flatten()
                             .rev()
@@ -257,20 +324,25 @@ impl<'a> HandleCallGraph<'a> {
                 }
             }
         }
-        visited.clear();
+        visited = self.machines.map(|_, _| false);
         let mut components = Vec::new();
         while let Some(root) = completed.pop() {
-            if visited.contains(&root) {
+            if visited.get(root).copied().unwrap_or(false) {
                 continue;
             }
             let mut component = Vec::new();
             let mut pending = vec![root];
             while let Some(machine) = pending.pop() {
-                if visited.insert(machine) {
+                if !std::mem::replace(
+                    visited
+                        .get_mut(machine)
+                        .expect("reached machine coordinate"),
+                    true,
+                ) {
                     component.push(machine);
                     pending.extend(
                         self.callers
-                            .get(&machine)
+                            .get(machine)
                             .into_iter()
                             .flatten()
                             .map(|call| call.caller.machine),
@@ -302,7 +374,7 @@ fn boundary_target(
         return Ok(CallTarget::Machine(machine));
     }
     if let Some(TerminalMechanismIdentity::CompilerIntrinsic(intrinsic)) =
-        context.mechanisms.get(&boundary)
+        context.mechanism(boundary)
     {
         return Ok(CallTarget::Intrinsic(*intrinsic));
     }

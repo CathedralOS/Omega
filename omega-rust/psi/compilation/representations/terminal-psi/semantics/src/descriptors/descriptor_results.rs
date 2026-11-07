@@ -53,7 +53,8 @@ pub use payload_history::{
 };
 pub(crate) use payload_predicates::terminal_scalar_snapshots;
 pub use payload_predicates::{
-    PayloadEntryScalarIdentity, PayloadScalarObservation, scalar_payload_expression,
+    PayloadEntryScalarIdentity, PayloadScalarObservation, TerminalScalarExpressions,
+    scalar_payload_expression,
 };
 pub use payload_versions::{
     ProducedPayloadVersion, ScalarCaptureAnalysis, ScalarCaptureFailure,

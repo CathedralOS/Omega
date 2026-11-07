@@ -1580,9 +1580,13 @@ fn selected_effects_machine(
                     };
                     // Reuse the complete canonical writer roster. Unsupported
                     // projections provide no selector provenance.
-                    super::scalar_storage_writes(module, &selector_machine.place_types, operation)
-                        .and_then(Result::ok)
-                        .unwrap_or_default()
+                    super::scalar_storage_writes(
+                        module,
+                        |root| selector_machine.place_types.get(&root).copied(),
+                        operation,
+                    )
+                    .and_then(Result::ok)
+                    .unwrap_or_default()
                 },
             )?;
             return Some(crate::UnchangedScalarOrigin::Incoming(sources));

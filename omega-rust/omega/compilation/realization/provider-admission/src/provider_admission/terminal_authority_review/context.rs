@@ -13,6 +13,11 @@ use crate::provider_admission::{
     AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
+struct AdmittedMechanismRow<'a> {
+    mechanism: TerminalMechanismIdentity,
+    foreign: Option<&'a target_operations::NormalizedForeignCallBinding>,
+}
+
 pub(super) struct ReviewContext<'a> {
     pub(super) input: &'a crate::AdmissionSource<'a>,
     pub(super) graph: AuthorityGraph<'a>,
@@ -25,9 +30,7 @@ pub(super) struct ReviewContext<'a> {
     /// allow-all: leaves then record classification and exercised authority
     /// with no adjudicated permission.
     pub(super) permission_policy: Option<&'a TerminalAuthorityPermissionPolicy>,
-    pub(super) mechanisms: BTreeMap<BoundaryMachineId, TerminalMechanismIdentity>,
-    pub(super) foreign_bindings:
-        BTreeMap<BoundaryMachineId, &'a target_operations::NormalizedForeignCallBinding>,
+    mechanisms: BTreeMap<BoundaryMachineId, AdmittedMechanismRow<'a>>,
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
     components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
@@ -62,7 +65,13 @@ impl<'a> ReviewContext<'a> {
         let mut mechanism_map = BTreeMap::new();
         for admitted in mechanisms {
             if mechanism_map
-                .insert(admitted.boundary, admitted.mechanism)
+                .insert(
+                    admitted.boundary,
+                    AdmittedMechanismRow {
+                        mechanism: admitted.mechanism,
+                        foreign: None,
+                    },
+                )
                 .is_some()
             {
                 return Err(format!(
@@ -71,18 +80,26 @@ impl<'a> ReviewContext<'a> {
                 ));
             }
         }
-        let mut foreign_bindings = BTreeMap::new();
+        // The settlement belongs to the already indexed admitted mechanism.
+        // Carry that association on its row instead of allocating a second
+        // boundary-ID inventory or scanning settlements at each use.
         for settlement in settlements {
-            if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
-                &settlement.realization
-                && foreign_bindings
-                    .insert(settlement.boundary, binding)
-                    .is_some()
+            if let target_operations::BoundarySettlementRealization::NormalizedForeignCall(
+                binding,
+            ) = &settlement.realization
             {
-                return Err(format!(
-                    "native settlement repeats an admitted foreign execution for boundary {:?}",
-                    settlement.boundary
-                ));
+                let row = mechanism_map.get_mut(&settlement.boundary).ok_or_else(|| {
+                    format!(
+                        "foreign settlement {:?} has no admitted mechanism",
+                        settlement.boundary
+                    )
+                })?;
+                if row.foreign.replace(binding).is_some() {
+                    return Err(format!(
+                        "native settlement repeats an admitted foreign execution for boundary {:?}",
+                        settlement.boundary
+                    ));
+                }
             }
         }
         Ok(Self {
@@ -93,11 +110,24 @@ impl<'a> ReviewContext<'a> {
             physical_policy,
             permission_policy,
             mechanisms: mechanism_map,
-            foreign_bindings,
             installed_candidates,
             target_profile,
             components,
         })
+    }
+
+    pub(super) fn mechanism(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&TerminalMechanismIdentity> {
+        self.mechanisms.get(&boundary).map(|row| &row.mechanism)
+    }
+
+    pub(super) fn foreign_binding(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&'a target_operations::NormalizedForeignCallBinding> {
+        self.mechanisms.get(&boundary).and_then(|row| row.foreign)
     }
 
     pub(super) fn component_authority(
@@ -226,7 +256,7 @@ impl<'a> ReviewContext<'a> {
         boundary: BoundaryMachineId,
         binding: &ProviderBinding,
     ) -> Result<TerminalMechanismIdentity, String> {
-        let mechanism = self.mechanisms.get(&boundary).copied().ok_or_else(|| {
+        let mechanism = self.mechanism(boundary).copied().ok_or_else(|| {
             format!("reachable terminal boundary {boundary:?} has no admitted physical mechanism")
         })?;
         let role_matches = match (binding, mechanism) {

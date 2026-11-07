@@ -217,7 +217,7 @@ pub(super) fn reviewed_call<'a>(
     context: &'a ReviewContext<'_>,
     boundary: BoundaryMachineId,
 ) -> Result<Option<ReviewedHandleCall<'a>>, String> {
-    let Some(binding) = context.foreign_bindings.get(&boundary).copied() else {
+    let Some(binding) = context.foreign_binding(boundary) else {
         return Ok(None);
     };
     let NormalizedForeignCallMechanism::Import { locator, .. } = &binding.mechanism else {
@@ -229,7 +229,7 @@ pub(super) fn reviewed_call<'a>(
     let actual = crate::provider_admission::terminal_authority_policy::normalized_foreign_terminal_mechanism(
         locator, &binding.boundary_entry_plan,
     )?;
-    if context.mechanisms.get(&boundary) != Some(&actual) {
+    if context.mechanism(boundary) != Some(&actual) {
         return Err(format!(
             "Windows handle call {boundary:?} substitutes its complete admitted foreign key"
         ));

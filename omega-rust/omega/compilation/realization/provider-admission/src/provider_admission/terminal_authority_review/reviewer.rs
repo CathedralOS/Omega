@@ -95,7 +95,7 @@ impl<'a> Reviewer<'a> {
             // call and is reviewed separately. Do not invent a provider/service
             // identity for the primitive, or silently skip a missing settlement.
             let expected = TerminalMechanismIdentity::CompilerIntrinsic(intrinsic);
-            if self.context.mechanisms.get(&boundary) != Some(&expected) {
+            if self.context.mechanism(boundary) != Some(&expected) {
                 return Err(format!(
                     "private lifecycle {boundary:?} has no exact admitted execution"
                 ));

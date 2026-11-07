@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use super::windows_handle_values::LocalScalarExpressions;
-use semantic_vocabulary::{ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{IdTable, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{TerminalMachine, Terminator};
 use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPosition;
 use terminal_semantics::descriptors::descriptor_results::{
@@ -66,7 +66,9 @@ impl ScalarConditions {
     }
 
     fn retire(&mut self, definitions: &[ValueId]) {
-        let definitions = definitions.iter().copied().collect::<BTreeSet<_>>();
+        let mut definitions = definitions.to_vec();
+        definitions.sort_unstable();
+        definitions.dedup();
         self.facts
             .retain(|term, _| !mentions_any(term, &definitions));
     }
@@ -78,23 +80,38 @@ impl ScalarConditions {
         self.facts.len() != before
     }
 
-    fn arrival(&self, parameters: &[ValueId], bindings: &[(ValueId, ScalarTerm)]) -> Self {
+    fn arrival(
+        &self,
+        parameters: &[ValueId],
+        bindings: &[(ValueId, ScalarTerm)],
+    ) -> Result<Self, String> {
         let mut result = self.clone();
         result.retire(parameters);
-        let mut renamed = BTreeMap::new();
+        let mut renamed = Vec::new();
         for (parameter, actual) in bindings {
             if let ScalarTerm::Value { id, scalar_type } = actual {
-                renamed.entry(*id).or_insert(ScalarTerm::Value {
-                    id: *parameter,
-                    scalar_type: *scalar_type,
-                });
+                renamed.push((
+                    *id,
+                    Some(ScalarTerm::Value {
+                        id: *parameter,
+                        scalar_type: *scalar_type,
+                    }),
+                ));
             }
         }
-        let overwritten = parameters
+        // A repeated actual keeps the first target, as the previous ordered
+        // map did. Other copies remain conservative rather than invented.
+        renamed.sort_by_key(|(actual, _)| *actual);
+        renamed.dedup_by_key(|(actual, _)| *actual);
+        let renamed = IdTable::from_rows_with_gaps(renamed, 65_536)
+            .map_err(|reason| format!("guard arrival namespace is invalid: {reason:?}"))?;
+        let mut overwritten = parameters
             .iter()
-            .filter(|parameter| !renamed.contains_key(*parameter))
+            .filter(|parameter| renamed.get(**parameter).is_none_or(Option::is_none))
             .copied()
-            .collect::<BTreeSet<_>>();
+            .collect::<Vec<_>>();
+        overwritten.sort_unstable();
+        overwritten.dedup();
         for (term, &polarity) in &self.facts {
             // Capture all right-hand sides before installing any formal. Old
             // target instances with no exact actual transport are forgotten.
@@ -105,7 +122,7 @@ impl ScalarConditions {
             rename_values(&mut transported, &renamed);
             result.require(transported, polarity);
         }
-        result
+        Ok(result)
     }
 }
 
@@ -131,6 +148,7 @@ impl HandleFlowConditions {
         if !machine.flow.contains_key(&machine.entry) {
             return Err("native handle guard flow has no canonical entry".into());
         }
+        let mut active_expansion = expressions.definitions.map(|_, _| false);
         let mut condition_sites = BTreeMap::new();
         for block in &body.blocks {
             if let Terminator::Conditional {
@@ -191,6 +209,7 @@ impl HandleFlowConditions {
                         position,
                         expressions,
                         captures,
+                        &mut active_expansion,
                     )?;
                     if !arrival.require(condition, ordinal == 0) {
                         result.excluded_edges.insert((position, ordinal));
@@ -216,7 +235,7 @@ impl HandleFlowConditions {
                             operand.value_term().map(|actual| (*parameter, actual))
                         })
                         .collect::<Vec<_>>();
-                    arrival = arrival.arrival(parameters, &values);
+                    arrival = arrival.arrival(parameters, &values)?;
                 }
                 let changed = match result.snapshots.get_mut(&edge.target) {
                     Some(previous) => previous.intersect(&arrival),
@@ -239,6 +258,7 @@ fn expand(
     observation: DescriptorPosition,
     expressions: &LocalScalarExpressions,
     captures: &mut ScalarCaptureAnalysis,
+    active: &mut IdTable<ValueId, bool>,
 ) -> Result<ScalarTerm, String> {
     fn visit(
         term: &mut ScalarTerm,
@@ -246,7 +266,7 @@ fn expand(
         expressions: &LocalScalarExpressions,
         captures: &mut ScalarCaptureAnalysis,
         remaining: &mut usize,
-        active: &mut BTreeSet<ValueId>,
+        active: &mut IdTable<ValueId, bool>,
     ) -> Result<(), String> {
         *remaining = remaining
             .checked_sub(1)
@@ -260,7 +280,8 @@ fn expand(
             }
             let (actual, definition) = expressions
                 .definitions
-                .get(&identity)
+                .get(identity)
+                .and_then(Option::as_ref)
                 .ok_or("native guard scalar has no canonical declaration")?;
             if *actual != *scalar_type {
                 return Err("native guard scalar changes its declared carrier".into());
@@ -268,30 +289,36 @@ fn expand(
             if let Some(definition) = definition {
                 let source = *expressions
                     .producers
-                    .get(&identity)
+                    .get(identity)
+                    .and_then(Option::as_ref)
                     .ok_or("computed guard has no real producing operation")?;
-                let mut operands = BTreeSet::new();
+                let mut operands = Vec::new();
                 collect_values(definition, &mut operands);
+                operands.sort_unstable();
+                operands.dedup();
                 // Keep the saved boolean opaque if one of its captured operands
                 // renewed afterwards. Re-expanding against a new native status
                 // would otherwise change the meaning of this old snapshot.
-                match captures.require(
-                    source,
-                    observation,
-                    &operands.into_iter().collect::<Vec<_>>(),
-                ) {
+                match captures.require(source, observation, &operands) {
                     Ok(()) => {}
                     Err(ScalarCaptureFailure::MissingOrRenewed) => return Ok(()),
                     Err(reason) => {
                         return Err(format!("native guard capture analysis refused: {reason:?}"));
                     }
                 }
-                if !active.insert(identity) {
+                if std::mem::replace(
+                    active
+                        .get_mut(identity)
+                        .ok_or("guard operand is outside its prepared value namespace")?,
+                    true,
+                ) {
                     return Err("native guard has a cyclic scalar definition".into());
                 }
                 *term = definition.clone();
                 visit(term, observation, expressions, captures, remaining, active)?;
-                active.remove(&identity);
+                *active
+                    .get_mut(identity)
+                    .expect("expanded guard binder was validated") = false;
             }
         } else {
             for operand in term.operands_mut() {
@@ -314,22 +341,22 @@ fn expand(
         expressions,
         captures,
         &mut 4096,
-        &mut BTreeSet::new(),
+        active,
     )?;
     Ok(term)
 }
 
-fn collect_values(term: &ScalarTerm, values: &mut BTreeSet<ValueId>) {
+fn collect_values(term: &ScalarTerm, values: &mut Vec<ValueId>) {
     if let ScalarTerm::Value { id, .. } = term {
-        values.insert(*id);
+        values.push(*id);
     }
     for operand in term.operands() {
         collect_values(operand, values);
     }
 }
 
-fn mentions_any(term: &ScalarTerm, values: &BTreeSet<ValueId>) -> bool {
-    matches!(term, ScalarTerm::Value { id, .. } if values.contains(id))
+fn mentions_any(term: &ScalarTerm, values: &[ValueId]) -> bool {
+    matches!(term, ScalarTerm::Value { id, .. } if values.binary_search(id).is_ok())
         || term
             .operands()
             .into_iter()
@@ -348,9 +375,9 @@ fn has_storage_observation(term: &ScalarTerm) -> bool {
     ) || term.operands().into_iter().any(has_storage_observation)
 }
 
-fn rename_values(term: &mut ScalarTerm, values: &BTreeMap<ValueId, ScalarTerm>) {
+fn rename_values(term: &mut ScalarTerm, values: &IdTable<ValueId, Option<ScalarTerm>>) {
     if let ScalarTerm::Value { id, .. } = term {
-        if let Some(value) = values.get(id) {
+        if let Some(Some(value)) = values.get(*id) {
             *term = value.clone();
         }
     } else {
@@ -391,7 +418,9 @@ mod tests {
         let mut old = ScalarConditions::default();
         assert!(old.require(zero_test(1), false));
         assert!(old.proves(&zero_test(1), false));
-        let mut swapped = old.arrival(&[first, second], &[(first, value(2)), (second, value(1))]);
+        let mut swapped = old
+            .arrival(&[first, second], &[(first, value(2)), (second, value(1))])
+            .unwrap();
         assert!(swapped.proves(&zero_test(2), false));
         assert!(!swapped.proves(&zero_test(1), false));
         swapped.retire(&[second]);

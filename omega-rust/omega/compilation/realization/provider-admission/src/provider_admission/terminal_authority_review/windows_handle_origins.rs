@@ -178,7 +178,7 @@ fn definition_equation(
     let mut sources = Vec::new();
     match definition {
         ScalarDefinition::Parameter(parameter) => {
-            for call in calls.callers.get(&identity).into_iter().flatten() {
+            for call in calls.callers.get(identity).into_iter().flatten() {
                 sources.push(OriginEdge {
                     role: OriginEdgeRole::Actual {
                         caller: call.caller,
@@ -198,7 +198,7 @@ fn definition_equation(
             }
         }
         ScalarDefinition::EntryStorage(entry) => {
-            for call in calls.callers.get(&identity).into_iter().flatten() {
+            for call in calls.callers.get(identity).into_iter().flatten() {
                 sources.push(OriginEdge {
                     role: OriginEdgeRole::Actual {
                         caller: call.caller,
@@ -219,7 +219,7 @@ fn definition_equation(
             }
         }
         ScalarDefinition::BorrowedEntry(entry) => {
-            for call in calls.callers.get(&identity).into_iter().flatten() {
+            for call in calls.callers.get(identity).into_iter().flatten() {
                 sources.push(OriginEdge {
                     role: OriginEdgeRole::Actual {
                         caller: call.caller,
@@ -428,7 +428,9 @@ fn expression_equation(
         ScalarTerm::BooleanField { root, path }
         | ScalarTerm::IntegerField { root, path, .. }
         | ScalarTerm::IeeeFloatField { root, path, .. } => {
-            let root_type = calls.machines[&machine]
+            let root_type = calls
+                .machine(machine)
+                .ok_or("handle expression names an unreached machine")?
                 .structural_place_type(*root)
                 .ok_or("handle expression storage has no exact carrier")?;
             Some(ScalarSubject::Storage {
@@ -460,7 +462,9 @@ fn expression_equation(
                     sources: Vec::new(),
                 });
             };
-            let root_type = calls.machines[&machine]
+            let root_type = calls
+                .machine(machine)
+                .ok_or("handle expression names an unreached machine")?
                 .structural_place_type(*root)
                 .ok_or("handle read expression has no exact carrier")?;
             Some(ScalarSubject::Storage {

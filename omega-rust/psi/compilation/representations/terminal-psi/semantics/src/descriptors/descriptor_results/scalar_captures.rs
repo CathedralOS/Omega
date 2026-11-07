@@ -7,7 +7,8 @@
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{
-    PlaceId, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    IdTable, IdTableBuildError, PlaceId, ScalarTerm, ScalarType, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use terminal_psi::{
     Operation, OperationKind, RecordFieldValue, TerminalMachine, TerminalModule, Terminator,
@@ -48,7 +49,7 @@ pub struct TerminalScalarCaptures {
 impl TerminalScalarCaptures {
     pub fn new(module: &TerminalModule, machine: &TerminalMachine) -> Result<Self, &'static str> {
         let place_types = place_type_index(machine)?;
-        let mut types = BTreeMap::new();
+        let mut type_rows = Vec::new();
         for value in machine
             .parameters
             .iter()
@@ -59,25 +60,30 @@ impl TerminalScalarCaptures {
                     .filter_map(|operation| operation.result.scalar_ref()),
             )
         {
-            if types.insert(value.id, value.scalar_type).is_some() {
-                return Err("scalar capture roster repeats a scalar binder");
-            }
+            type_rows.push((value.id, Some(value.scalar_type)));
         }
-        let blocks = machine
+        type_rows.sort_by_key(|(id, _)| *id);
+        let types =
+            IdTable::from_rows_with_gaps(type_rows, 65_536).map_err(capture_inventory_failure)?;
+        let mut block_rows = machine
             .blocks
             .iter()
-            .map(|block| (block.id, block))
-            .collect::<BTreeMap<_, _>>();
-        if blocks.len() != machine.blocks.len() {
-            return Err("scalar capture roster repeats a block");
-        }
+            .map(|block| (block.id, Some(block)))
+            .collect::<Vec<_>>();
+        block_rows.sort_by_key(|(id, _)| *id);
+        let blocks =
+            IdTable::from_rows_with_gaps(block_rows, 65_536).map_err(capture_inventory_failure)?;
         let mut result = Self {
             writes: BTreeMap::new(),
             arrivals: BTreeMap::new(),
         };
         for block in &machine.blocks {
             for (ordinal, operation) in block.operations.iter().enumerate() {
-                if let Some(writes) = scalar_storage_writes(module, &place_types, operation) {
+                if let Some(writes) = scalar_storage_writes(
+                    module,
+                    |root| place_types.get(root).copied().flatten(),
+                    operation,
+                ) {
                     let position = (
                         block.id,
                         u32::try_from(ordinal)
@@ -86,8 +92,10 @@ impl TerminalScalarCaptures {
                     let writes = writes.and_then(|rows| {
                         rows.into_iter()
                             .map(|(location, actual)| {
-                                let scalar_type = *types
-                                    .get(&actual)
+                                let scalar_type = types
+                                    .get(actual)
+                                    .copied()
+                                    .flatten()
                                     .ok_or("scalar writer has no evaluated operand binder")?;
                                 Ok((location, ScalarTerm::value(actual, scalar_type)))
                             })
@@ -104,7 +112,9 @@ impl TerminalScalarCaptures {
             let mut arrivals = Vec::new();
             for (ordinal, binding) in crate::control_graph::forwarded_bindings(block).enumerate() {
                 let target = blocks
-                    .get(&binding.target)
+                    .get(binding.target)
+                    .copied()
+                    .flatten()
                     .ok_or("scalar arrival names an absent target block")?;
                 let operands = if let Some(arguments) = binding.arguments {
                     if arguments.len() != target.parameters.len() {
@@ -115,8 +125,10 @@ impl TerminalScalarCaptures {
                         .iter()
                         .zip(arguments)
                         .map(|(formal, actual)| {
-                            let scalar_type = *types
-                                .get(actual)
+                            let scalar_type = types
+                                .get(*actual)
+                                .copied()
+                                .flatten()
                                 .ok_or("scalar arrival has no actual operand binder")?;
                             if scalar_type != formal.scalar_type {
                                 return Err("scalar arrival changes its actual operand type");
@@ -149,8 +161,10 @@ impl TerminalScalarCaptures {
                             "scalar case arrival changes its original edge or parameter count",
                         );
                     }
-                    let root = *place_types
-                        .get(source)
+                    let root = place_types
+                        .get(*source)
+                        .copied()
+                        .flatten()
                         .ok_or("scalar case source has no declared carrier")?;
                     let captured_types = super::case_payload_scalar_types(
                         &module.structural_types,
@@ -294,53 +308,52 @@ pub fn terminal_resident_value_transfers(
 /// cannot select whichever carrier makes a later projection succeed.
 fn place_type_index(
     machine: &TerminalMachine,
-) -> Result<BTreeMap<PlaceId, StructuralTypeId>, &'static str> {
-    let mut types = BTreeMap::new();
-    let mut parameter_kinds = BTreeMap::new();
+) -> Result<IdTable<PlaceId, Option<StructuralTypeId>>, &'static str> {
+    let mut type_rows = Vec::new();
+    let mut parameter_rows = Vec::new();
     for (ordinal, parameter) in machine.structural_parameters.iter().enumerate() {
         if usize::try_from(parameter.position).ok() != Some(ordinal) {
             return Err("scalar capture signature parameter has no dense coordinate");
         }
-        if types
-            .insert(parameter.place, parameter.structural_type)
-            .is_some()
-        {
-            return Err("scalar capture roster repeats a structural parameter");
-        }
-        parameter_kinds.insert(
+        type_rows.push((parameter.place, Some(parameter.structural_type)));
+        parameter_rows.push((
             parameter.place,
-            StructuralPlaceKind::Parameter {
+            Some(StructuralPlaceKind::Parameter {
                 position: parameter.position,
-            },
-        );
+            }),
+        ));
     }
     for block in &machine.blocks {
         for (ordinal, parameter) in block.structural_parameters.iter().enumerate() {
             if usize::try_from(parameter.position).ok() != Some(ordinal) {
                 return Err("scalar capture block parameter has no dense coordinate");
             }
-            if types
-                .insert(parameter.place, parameter.structural_type)
-                .is_some()
-            {
-                return Err("scalar capture roster repeats a structural parameter");
-            }
-            parameter_kinds.insert(
+            type_rows.push((parameter.place, Some(parameter.structural_type)));
+            parameter_rows.push((
                 parameter.place,
-                StructuralPlaceKind::BlockParameter {
+                Some(StructuralPlaceKind::BlockParameter {
                     block: block.id,
                     position: parameter.position,
-                },
-            );
+                }),
+            ));
         }
     }
-    let mut declared = std::collections::BTreeSet::new();
+    parameter_rows.sort_by_key(|(id, _)| *id);
+    let parameter_kinds =
+        IdTable::from_rows_with_gaps(parameter_rows, 65_536).map_err(capture_inventory_failure)?;
+    let mut declared = machine
+        .structural_places
+        .iter()
+        .map(|place| place.id)
+        .collect::<Vec<_>>();
+    declared.sort_unstable();
+    if declared.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err("scalar capture roster repeats a structural place");
+    }
     for place in &machine.structural_places {
-        if !declared.insert(place.id) {
-            return Err("scalar capture roster repeats a structural place");
-        }
         if parameter_kinds
-            .get(&place.id)
+            .get(place.id)
+            .and_then(Option::as_ref)
             .is_some_and(|kind| *kind != place.kind)
         {
             return Err("scalar capture parameter changes its declared storage kind");
@@ -348,7 +361,7 @@ fn place_type_index(
         match place.kind {
             kind @ (StructuralPlaceKind::Parameter { .. }
             | StructuralPlaceKind::BlockParameter { .. }) => {
-                if parameter_kinds.get(&place.id) != Some(&kind) {
+                if parameter_kinds.get(place.id).and_then(Option::as_ref) != Some(&kind) {
                     return Err("scalar capture place changes its parameter coordinate");
                 }
             }
@@ -358,39 +371,51 @@ fn place_type_index(
                     .structural()
                     .filter(|result| result.place == place.id)
                     .ok_or("scalar capture result place has no matching result signature")?;
-                if types.insert(place.id, result.structural_type).is_some() {
-                    return Err("scalar capture result repeats an existing storage namespace");
-                }
+                type_rows.push((place.id, Some(result.structural_type)));
             }
             StructuralPlaceKind::ProviderAttachment { .. } => {}
             kind => {
                 let carrier = kind
                     .produced_structural_type()
                     .ok_or("scalar capture producer place has no carrier")?;
-                if types.insert(place.id, carrier).is_some() {
-                    return Err("scalar capture producer repeats an existing storage namespace");
-                }
+                type_rows.push((place.id, Some(carrier)));
             }
         }
     }
-    if types.keys().any(|place| !declared.contains(place)) {
+    if parameter_kinds
+        .iter()
+        .any(|(place, kind)| kind.is_some() && declared.binary_search(&place).is_err())
+    {
         return Err("scalar capture parameter has no declared storage place");
     }
-    Ok(types)
+    type_rows.sort_by_key(|(id, _)| *id);
+    IdTable::from_rows_with_gaps(type_rows, 65_536).map_err(capture_inventory_failure)
+}
+
+fn capture_inventory_failure(reason: IdTableBuildError) -> &'static str {
+    match reason {
+        IdTableBuildError::RepeatedOrUnordered { .. } => {
+            "scalar capture inventory has repeated or unordered identities"
+        }
+        IdTableBuildError::SpanOverflow => "scalar capture inventory identity span overflows",
+        IdTableBuildError::SpanLimit { .. } => {
+            "scalar capture inventory identity span exceeds its allocation bound"
+        }
+        IdTableBuildError::AllocationFailed => "scalar capture inventory allocation failed",
+    }
 }
 
 /// Enumerate only actual scalar-writing operands. Numeric postconditions and
 /// equalities from completed calls are not producing storage events.
 pub(super) fn scalar_storage_writes(
     module: &TerminalModule,
-    place_types: &BTreeMap<PlaceId, StructuralTypeId>,
+    place_type: impl Fn(PlaceId) -> Option<StructuralTypeId>,
     operation: &Operation,
 ) -> Option<Result<Vec<(DescriptorLocation, ValueId)>, &'static str>> {
     let mut writes = Vec::new();
     let mut write = |root, path: &[terminal_psi::StructuralPathSegment], field, value| {
-        let root_type = *place_types
-            .get(&root)
-            .ok_or("scalar writer has no declared destination carrier")?;
+        let root_type =
+            place_type(root).ok_or("scalar writer has no declared destination carrier")?;
         let location = descriptor_location(&module.structural_types, root, root_type, path, field)
             .ok_or("scalar writer has no exact supported destination projection")?;
         writes.push((location, value));

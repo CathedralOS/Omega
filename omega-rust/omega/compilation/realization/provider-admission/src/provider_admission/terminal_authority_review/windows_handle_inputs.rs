@@ -6,9 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{
-    BoundaryMachineId, IntegerValue, MachineId, ScalarTerm, ScalarType, ValueId,
-};
+use semantic_vocabulary::{IdTable, IntegerValue, MachineId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{BoundaryParameterKind, OperationKind};
 use terminal_semantics::descriptors::descriptor_lifetimes::DescriptorPosition;
 use terminal_semantics::descriptors::descriptor_results::{
@@ -43,8 +41,8 @@ pub(super) struct WindowsHandleInputs<'a> {
     pub intrinsic_calls: BTreeMap<Caller, RuntimeCall<'a>>,
     pub origins: HandleOrigins,
     pub activations: ActivationPaths,
-    pub conditions: BTreeMap<MachineId, HandleFlowConditions>,
-    scalar_captures: BTreeMap<MachineId, ScalarCaptureAnalysis>,
+    pub conditions: IdTable<MachineId, Option<HandleFlowConditions>>,
+    scalar_captures: IdTable<MachineId, Option<ScalarCaptureAnalysis>>,
     pub close_sites: BTreeSet<Caller>,
     pub duplicate_sites: BTreeSet<Caller>,
 }
@@ -85,7 +83,10 @@ impl<'a> WindowsHandleInputs<'a> {
         if input.reviewed.contract != expected {
             return Err("native success query changes the reviewed API result protocol".into());
         }
-        let machine = self.calls.machines[&caller.machine];
+        let machine = self
+            .calls
+            .machine(caller.machine)
+            .ok_or("native result has no reached canonical body")?;
         let operation = machine
             .block(&caller.block)
             .and_then(|block| block.operations.get(caller.operation_index))
@@ -117,7 +118,7 @@ impl<'a> WindowsHandleInputs<'a> {
             u32::try_from(caller.operation_index)
                 .map_err(|_| "native result ordinal exceeds its canonical position")?,
         );
-        self.scalar_captures.get_mut(&caller.machine)
+        self.scalar_captures.get_mut(caller.machine).and_then(Option::as_mut)
             .ok_or("native status has no prepared scalar-version context")?
             .require(source, observation, &[status.id])
         .map_err(|reason| {
@@ -135,7 +136,8 @@ impl<'a> WindowsHandleInputs<'a> {
         };
         let conditions = self
             .conditions
-            .get(&caller.machine)
+            .get(caller.machine)
+            .and_then(Option::as_ref)
             .and_then(|machine| machine.snapshots.get(&observation))
             .ok_or("native success observation has no actual reachable guard state")?;
         if !conditions.proves(&condition, polarity) {
@@ -155,7 +157,7 @@ impl<'a> WindowsHandleInputs<'a> {
     pub(super) fn prepare(context: &'a ReviewContext<'_>) -> Result<Self, String> {
         let calls = HandleCallGraph::new(context)?;
         let module = context.input.module();
-        let mut selected_bodies = BTreeMap::<BoundaryMachineId, MachineId>::new();
+        let mut selected_bodies = Vec::new();
         let mut natives = BTreeMap::new();
         let mut opaque_calls = BTreeMap::new();
         let mut intrinsic_calls = BTreeMap::new();
@@ -169,13 +171,7 @@ impl<'a> WindowsHandleInputs<'a> {
                         let Some(boundary) = call.boundary else {
                             continue;
                         };
-                        if let Some(previous) = selected_bodies.insert(boundary, callee)
-                            && previous != callee
-                        {
-                            return Err(format!(
-                                "handle storage graph substitutes selected body for {boundary:?}"
-                            ));
-                        }
+                        selected_bodies.push((boundary, callee));
                     }
                     CallTarget::Boundary(boundary) => {
                         let Some(reviewed) = reviewed_call(context, boundary)? else {
@@ -250,35 +246,55 @@ impl<'a> WindowsHandleInputs<'a> {
                 }
             }
         }
-        let selected_bodies = selected_bodies.into_iter().collect::<Vec<_>>();
+        selected_bodies.sort_unstable();
+        for pair in selected_bodies.windows(2) {
+            if pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1 {
+                return Err(format!(
+                    "handle storage graph substitutes selected body for {:?}",
+                    pair[0].0
+                ));
+            }
+        }
+        selected_bodies.dedup();
         let storage = terminal_borrowed_storage_graph_from(
             module,
-            calls.machines.keys().copied(),
+            calls.machines().map(|(identity, _)| identity),
             &selected_bodies,
         )
         .map_err(|reason| format!("handle replay cannot reconstruct actual storage: {reason}"))?;
         let (origins, conditions, scalar_captures) = {
             let mut reader = HandleValueReader::new(context, &calls, &storage, module)?;
-            let mut conditions = BTreeMap::new();
-            let mut scalar_captures = BTreeMap::new();
+            let mut conditions = Vec::new();
+            let mut scalar_captures = Vec::new();
             for machine in &storage {
-                if calls.machines.contains_key(&machine.id) {
+                if calls.machine(machine.id).is_some() {
                     let mut captures = ScalarCaptureAnalysis::new(machine).map_err(|reason| {
                         format!("native scalar-version context is unavailable: {reason}")
                     })?;
-                    conditions.insert(
+                    let local_expressions = reader.local_expressions(machine.id)?;
+                    conditions.push((
                         machine.id,
-                        HandleFlowConditions::derive(
+                        Some(HandleFlowConditions::derive(
                             machine,
-                            calls.machines[&machine.id],
-                            &reader.local_expressions(machine.id)?,
+                            calls
+                                .machine(machine.id)
+                                .ok_or("native guard has no reached canonical body")?,
+                            &local_expressions,
                             &mut captures,
                             reader.scalar_captures(machine.id)?,
-                        )?,
-                    );
-                    scalar_captures.insert(machine.id, captures);
+                        )?),
+                    ));
+                    scalar_captures.push((machine.id, Some(captures)));
                 }
             }
+            conditions.sort_by_key(|(identity, _)| *identity);
+            scalar_captures.sort_by_key(|(identity, _)| *identity);
+            let conditions = IdTable::from_rows_with_gaps(conditions, 65_536)
+                .map_err(|reason| format!("handle condition inventory is invalid: {reason:?}"))?;
+            let scalar_captures =
+                IdTable::from_rows_with_gaps(scalar_captures, 65_536).map_err(|reason| {
+                    format!("handle scalar-version inventory is invalid: {reason:?}")
+                })?;
             (
                 HandleOrigins::derive(module, &calls, &mut reader, roots)?,
                 conditions,

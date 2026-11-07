@@ -7,8 +7,8 @@
 
 use std::collections::BTreeMap;
 
-use semantic_vocabulary::{BlockId, MachineId, ScalarTerm, ScalarType, ValueId};
-use terminal_psi::{BoundaryParameterKind, Operation, OperationKind, TerminalModule, Terminator};
+use semantic_vocabulary::{BlockId, IdTable, MachineId, ScalarTerm, ScalarType, ValueId};
+use terminal_psi::{BoundaryParameterKind, Operation, TerminalModule, Terminator};
 use terminal_semantics::descriptors::descriptor_lifetimes::{
     DescriptorLocation, DescriptorPathSegment, DescriptorPosition, descriptor_location,
 };
@@ -16,7 +16,7 @@ use terminal_semantics::descriptors::descriptor_results::{
     CapturedScalarOperand, DescriptorAnalysis, DescriptorCasePredicate, DescriptorContentsQuery,
     DescriptorMachine, DescriptorPayloadTarget, FlowFeasibility, PayloadEntryScalarIdentity,
     PayloadMembershipHistory, ResidentValueCapture, ResidentValueCaptures, TerminalScalarCaptures,
-    projected_stored_sources_in, require_unchanged_entry_storage,
+    TerminalScalarExpressions, projected_stored_sources_in, require_unchanged_entry_storage,
     terminal_resident_value_transfers,
 };
 
@@ -28,24 +28,31 @@ use super::windows_handle_contracts::{WindowsHandleContract, reviewed_call};
 
 pub(super) struct LocalScalarExpressions {
     pub identity: MachineId,
-    pub definitions: BTreeMap<ValueId, (ScalarType, Option<ScalarTerm>)>,
-    pub producers: BTreeMap<ValueId, DescriptorPosition>,
-    parameters: BTreeMap<ValueId, Option<BlockId>>,
+    pub definitions: IdTable<ValueId, Option<(ScalarType, Option<ScalarTerm>)>>,
+    pub producers: IdTable<ValueId, Option<DescriptorPosition>>,
+    parameters: IdTable<ValueId, Option<ScalarParameterSite>>,
     dominators: terminal_semantics::control_graph::DominatorTree,
+}
+
+enum ScalarParameterSite {
+    Entry,
+    Block(BlockId),
 }
 
 impl LocalScalarExpressions {
     pub(super) fn available_at(&self, value: ValueId, observation: DescriptorPosition) -> bool {
-        if let Some(source) = self.producers.get(&value) {
+        if let Some(Some(source)) = self.producers.get(value) {
             return if source.0 == observation.0 {
                 source.1 < observation.1
             } else {
                 self.dominators.dominates(source.0, observation.0)
             };
         }
-        match self.parameters.get(&value) {
-            Some(None) => true,
-            Some(Some(block)) => self.dominators.dominates(*block, observation.0),
+        match self.parameters.get(value).and_then(Option::as_ref) {
+            Some(ScalarParameterSite::Entry) => true,
+            Some(ScalarParameterSite::Block(block)) => {
+                self.dominators.dominates(*block, observation.0)
+            }
             None => false,
         }
     }
@@ -122,14 +129,14 @@ pub(super) struct HandleValueReader<'a> {
     module: &'a TerminalModule,
     calls: &'a HandleCallGraph<'a>,
     graph: &'a [DescriptorMachine],
-    graph_index: BTreeMap<MachineId, usize>,
-    types: BTreeMap<MachineId, BTreeMap<ValueId, ScalarType>>,
+    graph_index: IdTable<MachineId, Option<usize>>,
+    types: IdTable<MachineId, Option<TerminalScalarExpressions<'a>>>,
     producers: BTreeMap<(MachineId, ValueId), ValueProducer<'a>>,
-    captured_scalars: BTreeMap<MachineId, TerminalScalarCaptures>,
-    resident_transfers: BTreeMap<MachineId, ResidentValueCaptures>,
+    captured_scalars: IdTable<MachineId, Option<TerminalScalarCaptures>>,
+    resident_transfers: IdTable<MachineId, Option<ResidentValueCaptures>>,
     native_writes:
         BTreeMap<(MachineId, DescriptorPosition), Vec<(DescriptorLocation, StoredScalarSource)>>,
-    histories: BTreeMap<MachineId, PayloadMembershipHistory<'a>>,
+    histories: IdTable<MachineId, Option<PayloadMembershipHistory<'a>>>,
     analysis: DescriptorAnalysis<'a>,
 }
 
@@ -143,57 +150,75 @@ impl<'a> HandleValueReader<'a> {
     ) -> Result<LocalScalarExpressions, String> {
         let types = self
             .types
-            .get(&identity)
+            .get(identity)
+            .and_then(Option::as_ref)
             .ok_or("scalar expression catalog names an unreached machine")?;
-        let machine = self.calls.machines[&identity];
-        let blocks = machine
+        let machine = self
+            .calls
+            .machine(identity)
+            .ok_or("handle machine has no reached canonical body")?;
+        let mut block_rows = machine
             .blocks
             .iter()
-            .map(|block| block.id)
-            .collect::<std::collections::BTreeSet<_>>();
-        if blocks.len() != machine.blocks.len() || !blocks.contains(&machine.entry) {
-            return Err("scalar expression control graph has repeated blocks or no entry".into());
+            .map(|block| (block.id, true))
+            .collect::<Vec<_>>();
+        block_rows.sort_by_key(|(identity, _)| *identity);
+        let block_count = block_rows.len();
+        let blocks = IdTable::from_rows_with_gaps(block_rows, 65_536).map_err(|reason| {
+            format!("scalar expression block namespace is invalid: {reason:?}")
+        })?;
+        if !blocks.get(machine.entry).copied().unwrap_or(false) {
+            return Err("scalar expression control graph has no entry".into());
         }
         let outgoing = terminal_semantics::control_graph::successors(machine);
         if outgoing
             .values()
             .flatten()
-            .any(|(_, target)| !blocks.contains(target))
-            || terminal_semantics::control_graph::reverse_postorder(machine).len() != blocks.len()
+            .any(|(_, target)| !blocks.get(*target).copied().unwrap_or(false))
+            || terminal_semantics::control_graph::reverse_postorder(machine).len() != block_count
         {
             return Err("scalar expression control graph has absent or unreachable blocks".into());
         }
         let definitions = types
-            .iter()
-            .map(|(&value, &scalar_type)| {
+            .scalar_types()
+            .map(|(value, scalar_type)| {
                 let expression = match self.producers.get(&(identity, value)) {
-                    Some(producer) => operation_expression(producer.operation, types)?,
+                    Some(producer) => types.unexpanded_operation(producer.operation)?,
                     None => None,
                 };
-                Ok((value, (scalar_type, expression)))
+                Ok((value, Some((scalar_type, expression))))
             })
-            .collect::<Result<_, String>>()?;
-        let producers = types
-            .keys()
-            .filter_map(|value| {
-                self.producers
-                    .get(&(identity, *value))
-                    .map(|producer| (*value, producer.position))
-            })
-            .collect();
+            .collect::<Result<Vec<_>, String>>()?;
+        let definitions = IdTable::from_rows_with_gaps(definitions, 65_536)
+            .map_err(|reason| format!("scalar definition inventory is invalid: {reason:?}"))?;
+        let producers = IdTable::from_rows_with_gaps(
+            types.scalar_types().map(|(value, _)| {
+                (
+                    value,
+                    self.producers
+                        .get(&(identity, value))
+                        .map(|producer| producer.position),
+                )
+            }),
+            65_536,
+        )
+        .map_err(|reason| format!("scalar producer inventory is invalid: {reason:?}"))?;
         let mut parameters = machine
             .parameters
             .iter()
-            .map(|parameter| (parameter.id, None))
-            .collect::<BTreeMap<_, _>>();
+            .map(|parameter| (parameter.id, Some(ScalarParameterSite::Entry)))
+            .collect::<Vec<_>>();
         for block in &machine.blocks {
             parameters.extend(
                 block
                     .parameters
                     .iter()
-                    .map(|parameter| (parameter.id, Some(block.id))),
+                    .map(|parameter| (parameter.id, Some(ScalarParameterSite::Block(block.id)))),
             );
         }
+        parameters.sort_by_key(|(value, _)| *value);
+        let parameters = IdTable::from_rows_with_gaps(parameters, 65_536)
+            .map_err(|reason| format!("scalar parameter inventory is invalid: {reason:?}"))?;
         Ok(LocalScalarExpressions {
             identity,
             definitions,
@@ -208,7 +233,8 @@ impl<'a> HandleValueReader<'a> {
         identity: MachineId,
     ) -> Result<&TerminalScalarCaptures, String> {
         self.captured_scalars
-            .get(&identity)
+            .get(identity)
+            .and_then(Option::as_ref)
             .ok_or("scalar captures name an unreached machine".into())
     }
 
@@ -252,8 +278,7 @@ impl<'a> HandleValueReader<'a> {
         }
         let machine = self
             .calls
-            .machines
-            .get(&identity)
+            .machine(identity)
             .ok_or("handle value position names an unreached machine")?;
         if machine
             .parameters
@@ -281,34 +306,25 @@ impl<'a> HandleValueReader<'a> {
         graph: &'a [DescriptorMachine],
         module: &'a TerminalModule,
     ) -> Result<Self, String> {
-        let mut graph_index = BTreeMap::new();
-        for (index, machine) in graph.iter().enumerate() {
-            if graph_index.insert(machine.id, index).is_some() {
-                return Err(format!(
-                    "handle storage graph repeats machine {:?}",
-                    machine.id
-                ));
-            }
-        }
-        let mut types = BTreeMap::new();
+        let mut graph_rows = graph
+            .iter()
+            .enumerate()
+            .map(|(index, machine)| (machine.id, Some(index)))
+            .collect::<Vec<_>>();
+        graph_rows.sort_by_key(|(identity, _)| *identity);
+        let graph_index = IdTable::from_rows_with_gaps(graph_rows, 65_536)
+            .map_err(|reason| format!("handle storage graph inventory is invalid: {reason:?}"))?;
+        let mut type_rows = Vec::new();
         let mut producers = BTreeMap::new();
-        for (&identity, machine) in &calls.machines {
-            if !graph_index.contains_key(&identity) {
+        for (identity, machine) in calls.machines() {
+            if graph_index.get(identity).and_then(Option::as_ref).is_none() {
                 return Err(format!(
                     "handle storage graph omits executable machine {identity:?}"
                 ));
             }
-            let mut value_types = BTreeMap::new();
+            let mut defined = Vec::new();
             for parameter in machine.parameters.iter().chain(machine.block_parameters()) {
-                if value_types
-                    .insert(parameter.id, parameter.scalar_type)
-                    .is_some()
-                {
-                    return Err(format!(
-                        "handle value {identity:?}/{:?} repeats a binder",
-                        parameter.id
-                    ));
-                }
+                defined.push(parameter.id);
             }
             for block in &machine.blocks {
                 for (ordinal, operation) in block.operations.iter().enumerate() {
@@ -321,16 +337,16 @@ impl<'a> HandleValueReader<'a> {
                             |_| "handle operation ordinal exceeds its canonical position",
                         )?,
                     );
-                    if value_types.insert(result.id, result.scalar_type).is_some()
-                        || producers
-                            .insert(
-                                (identity, result.id),
-                                ValueProducer {
-                                    position,
-                                    operation,
-                                },
-                            )
-                            .is_some()
+                    defined.push(result.id);
+                    if producers
+                        .insert(
+                            (identity, result.id),
+                            ValueProducer {
+                                position,
+                                operation,
+                            },
+                        )
+                        .is_some()
                     {
                         return Err(format!(
                             "handle value {identity:?}/{:?} repeats a producer",
@@ -339,32 +355,48 @@ impl<'a> HandleValueReader<'a> {
                     }
                 }
             }
-            types.insert(identity, value_types);
+            defined.sort_unstable();
+            if defined.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(format!("handle value {identity:?} repeats a scalar binder"));
+            }
+            type_rows.push((identity, Some(TerminalScalarExpressions::new(machine))));
         }
+        let types = IdTable::from_rows_with_gaps(type_rows, 65_536)
+            .map_err(|reason| format!("handle scalar typing inventory is invalid: {reason:?}"))?;
         let captured_scalars = calls
-            .machines
-            .iter()
-            .map(|(&identity, machine)| {
+            .machines()
+            .map(|(identity, machine)| {
                 TerminalScalarCaptures::new(module, machine)
-                    .map(|captures| (identity, captures))
+                    .map(|captures| (identity, Some(captures)))
                     .map_err(|reason| {
                         format!("handle scalar captures are incomplete for {identity:?}: {reason}")
                     })
             })
-            .collect::<Result<BTreeMap<_, _>, String>>()?;
+            .collect::<Result<Vec<_>, String>>()?;
+        let captured_scalars = IdTable::from_rows_with_gaps(captured_scalars, 65_536)
+            .map_err(|reason| format!("handle scalar capture inventory is invalid: {reason:?}"))?;
         let resident_transfers = calls
-            .machines
-            .iter()
-            .map(|(&identity, machine)| {
-                terminal_resident_value_transfers(machine, &graph[graph_index[&identity]])
-                    .map(|transfers| (identity, transfers))
+            .machines()
+            .map(|(identity, machine)| {
+                let index = graph_index
+                    .get(identity)
+                    .copied()
+                    .flatten()
+                    .ok_or("handle resident capture has no storage graph coordinate")?;
+                terminal_resident_value_transfers(machine, &graph[index])
+                    .map(|transfers| (identity, Some(transfers)))
                     .map_err(|reason| {
                         format!(
                             "handle resident captures are incomplete for {identity:?}: {reason}"
                         )
                     })
             })
-            .collect::<Result<_, String>>()?;
+            .collect::<Result<Vec<_>, String>>()?;
+        let resident_transfers =
+            IdTable::from_rows_with_gaps(resident_transfers, 65_536).map_err(|reason| {
+                format!("handle resident capture inventory is invalid: {reason:?}")
+            })?;
+        let histories = graph_index.map(|_, _| None);
         let mut native_writes = BTreeMap::new();
         for alternatives in calls.calls.values() {
             for call in alternatives {
@@ -398,7 +430,9 @@ impl<'a> HandleValueReader<'a> {
                     let argument = structural.get(structural_index).ok_or_else(|| {
                         format!("native output {boundary:?}/{parameter} has no actual storage")
                     })?;
-                    let machine = calls.machines[&call.caller.machine];
+                    let machine = calls
+                        .machine(call.caller.machine)
+                        .ok_or("native output caller has no reached canonical body")?;
                     let root_type = machine
                         .structural_place_type(argument.place)
                         .ok_or("native output storage has no canonical carrier")?;
@@ -439,7 +473,7 @@ impl<'a> HandleValueReader<'a> {
             native_writes,
             captured_scalars,
             resident_transfers,
-            histories: BTreeMap::new(),
+            histories,
             analysis: DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
                 graph,
@@ -454,8 +488,7 @@ impl<'a> HandleValueReader<'a> {
     ) -> Result<ScalarDefinition, String> {
         let machine = self
             .calls
-            .machines
-            .get(&identity)
+            .machine(identity)
             .ok_or_else(|| format!("handle scalar names unreached machine {identity:?}"))?;
         if let Some(index) = machine
             .parameters
@@ -466,11 +499,18 @@ impl<'a> HandleValueReader<'a> {
         }
         let descriptor = &self.graph[*self
             .graph_index
-            .get(&identity)
+            .get(identity)
+            .and_then(Option::as_ref)
             .ok_or("handle scalar has no descriptor graph")?];
         if let Some(producer) = self.producers.get(&(identity, value)) {
             let operation = producer.operation;
-            if let Some(expression) = operation_expression(operation, &self.types[&identity])? {
+            if let Some(expression) = self
+                .types
+                .get(identity)
+                .and_then(Option::as_ref)
+                .ok_or("handle scalar has no prepared type inventory")?
+                .unexpanded_operation(operation)?
+            {
                 return Ok(ScalarDefinition::Expression(expression));
             }
             let position = producer.position;
@@ -493,7 +533,7 @@ impl<'a> HandleValueReader<'a> {
             return self.read_storage(identity, position, observed);
         }
         let mut arrivals = Vec::new();
-        for (position, edges) in &self.captured_scalars[&identity].arrivals {
+        for (position, edges) in &self.scalar_captures(identity)?.arrivals {
             for (successor_ordinal, bindings) in edges.iter().enumerate() {
                 for (parameter, term) in bindings {
                     if *parameter == value {
@@ -562,7 +602,10 @@ impl<'a> HandleValueReader<'a> {
         entry: &DescriptorLocation,
     ) -> Result<DescriptorLocation, String> {
         self.require_machine_call(call, callee)?;
-        let machine = self.calls.machines[&callee];
+        let machine = self
+            .calls
+            .machine(callee)
+            .ok_or("handle callee has no reached canonical body")?;
         let parameter = machine
             .structural_parameters
             .iter()
@@ -588,7 +631,10 @@ impl<'a> HandleValueReader<'a> {
                 (cleanup.place, cleanup.path.as_slice())
             }
         };
-        let caller = self.calls.machines[&call.caller.machine];
+        let caller = self
+            .calls
+            .machine(call.caller.machine)
+            .ok_or("handle caller has no reached canonical body")?;
         let root_type = caller
             .structural_place_type(place)
             .ok_or("captured handle actual has no declared storage carrier")?;
@@ -605,7 +651,7 @@ impl<'a> HandleValueReader<'a> {
         callee: MachineId,
     ) -> Result<(), String> {
         if !matches!(call.target, CallTarget::Machine(actual) if actual == callee)
-            || !self.calls.machines.contains_key(&callee)
+            || self.calls.machine(callee).is_none()
             || !self.calls.calls.get(&call.caller).is_some_and(|originals| {
                 originals.iter().any(|original| {
                     matches!(original.target, CallTarget::Machine(actual) if actual == callee)
@@ -650,8 +696,7 @@ impl<'a> HandleValueReader<'a> {
     ) -> Result<Vec<ScalarReturn>, String> {
         let machine = self
             .calls
-            .machines
-            .get(&identity)
+            .machine(identity)
             .ok_or("handle return names an unreached machine")?;
         let mut returns = Vec::new();
         for block in &machine.blocks {
@@ -700,12 +745,12 @@ impl<'a> HandleValueReader<'a> {
     ) -> Result<ScalarDefinition, String> {
         let machine = self
             .calls
-            .machines
-            .get(&identity)
+            .machine(identity)
             .ok_or_else(|| format!("handle storage names unreached machine {identity:?}"))?;
         let descriptor = &self.graph[*self
             .graph_index
-            .get(&identity)
+            .get(identity)
+            .and_then(Option::as_ref)
             .ok_or("handle storage has no descriptor graph")?];
         for (ordinal, segment) in observed.path.iter().enumerate() {
             let DescriptorPathSegment::Case(case) = segment else {
@@ -726,14 +771,18 @@ impl<'a> HandleValueReader<'a> {
                 return Ok(ScalarDefinition::InactiveCase(predicate));
             }
         }
-        let history = self.histories.entry(identity).or_insert_with(|| {
-            PayloadMembershipHistory::new(
-                &self.module.structural_types,
-                &self.module.structural_domains,
-                self.graph,
-                machine,
-            )
-        });
+        let history = self
+            .histories
+            .get_mut(identity)
+            .ok_or("handle storage history has no prepared machine coordinate")?
+            .get_or_insert_with(|| {
+                PayloadMembershipHistory::new(
+                    &self.module.structural_types,
+                    &self.module.structural_domains,
+                    self.graph,
+                    machine,
+                )
+            });
         let (entry_snapshot, snapshot_detail) = match history.scalar_snapshot_in(
             &mut self.analysis,
             position,
@@ -748,8 +797,16 @@ impl<'a> HandleValueReader<'a> {
         };
         let writers = &self.native_writes;
         let calls = &self.calls.calls;
-        let captures = &self.captured_scalars[&identity];
-        let transfers = &self.resident_transfers[&identity];
+        let captures = self
+            .captured_scalars
+            .get(identity)
+            .and_then(Option::as_ref)
+            .ok_or("handle storage has no canonical scalar captures")?;
+        let transfers = self
+            .resident_transfers
+            .get(identity)
+            .and_then(Option::as_ref)
+            .ok_or("handle storage has no canonical resident captures")?;
         let sources = projected_stored_sources_in(
             &self.module.structural_types,
             self.graph,
@@ -868,44 +925,4 @@ impl<'a> HandleValueReader<'a> {
             }
         }
     }
-}
-
-fn operation_expression(
-    operation: &Operation,
-    value_types: &BTreeMap<ValueId, ScalarType>,
-) -> Result<Option<ScalarTerm>, String> {
-    let literal = match operation.kind {
-        OperationKind::IntegerConstant { value } => {
-            let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type
-            else {
-                return Err("canonical integer literal has a noninteger result".into());
-            };
-            Some(ScalarTerm::Integer { scalar_type, value })
-        }
-        OperationKind::BooleanConstant { value } => Some(ScalarTerm::Boolean(value)),
-        OperationKind::ReadScalarApplication { application } => Some(ScalarTerm::Application {
-            application,
-            scalar_type: operation.result.expect_scalar().scalar_type,
-        }),
-        _ => None,
-    };
-    if let Some(literal) = literal {
-        return Ok(Some(literal));
-    }
-    let equation = terminal_semantics::goal_free_scalar_leaf_semantics(operation, value_types)
-        .map_err(|error| {
-            format!("handle scalar operation has invalid canonical semantics: {error:?}")
-        })?
-        .map(|semantics| semantics.result_equation().clone())
-        .or(
-            terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, value_types)
-                .map_err(|error| {
-                    format!("handle scalar operation has invalid checked semantics: {error:?}")
-                })?
-                .map(|semantics| semantics.result_equation().clone()),
-        );
-    if let Some(semantic_vocabulary::Proposition::Equal(_, right)) = equation {
-        return Ok(Some(right));
-    }
-    Ok(None)
 }
