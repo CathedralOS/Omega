@@ -1,4 +1,4 @@
-//! Work-budget accounting across every bounded axis.
+// Unit tests for `OptimizationWorkUsage::within` across all 5 budget axes.
 
 use super::super::OptimizationWorkUsage;
 use super::OptimizationWorkBudget;

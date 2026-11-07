@@ -1,3 +1,6 @@
+// Unit tests for exact-name rollback parsing, duplicate/alias rejection, and
+// subtractive receipt settlement.
+
 use super::{OptimizationRollback, OptimizationRollbackInputError};
 use crate::{Optimization, OptimizationSelections};
 
