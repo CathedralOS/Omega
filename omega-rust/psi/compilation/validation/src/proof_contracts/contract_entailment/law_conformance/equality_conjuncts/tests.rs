@@ -561,7 +561,7 @@ fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
     };
     *target = f.other_entry;
     assert!(!matches(&wrong_target));
-    let mut wrong_selection = concrete_call;
+    let mut wrong_selection = concrete_call.clone();
     let StructuralTerm::Application { selections, .. } = &mut wrong_selection else {
         unreachable!()
     };
