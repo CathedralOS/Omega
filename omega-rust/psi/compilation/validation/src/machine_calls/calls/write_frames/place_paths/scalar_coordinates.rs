@@ -285,7 +285,7 @@ impl LocalWriteSource {
     }
 }
 
-pub(super) fn retained_view_predecessor(
+pub(in crate::machine_calls::calls::write_frames) fn retained_view_predecessor(
     program: &dyn crate::CheckingInput,
     state: &State,
     recast: &super::RecastSource,
