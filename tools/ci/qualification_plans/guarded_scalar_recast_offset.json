@@ -1,0 +1,47 @@
+{
+  "schema": "omega-compiler-pilot-plan-v1",
+  "producer": {
+    "revision": "6d175b77abdcd16c707c80865f13fd0cdbfef419",
+    "tree": "631c49d34d83b7ecd8596ed8c12601c2fb752e5e",
+    "target": "linux_x86_64",
+    "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
+    "input_objects": {
+      "omega-rust": "d7cc1885bb6173c45c19088488a32f9ee31a1abe",
+      "source/library": "8a07e2053ebdfd9e2d60a9d81ad9dcca9f7f5fd0",
+      "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
+      "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
+      "bootstrap": "72883e5a453b49a6ab888719e803ff2f69faee34",
+      "tools/benchmark": "58715a339b701d6e1efc1bf6a0916096ec4c697b",
+      "Cargo.toml": "c06b0404ca9785ddcf3c6204983cde4d731136ba",
+      "Cargo.lock": "d0f37155ce4cdf64b69f54a820e754c413a187f2",
+      "rust-toolchain.toml": "34677fc928123970d13e8b81641724e2a9e6f929",
+      ".cargo": "146a56dfde672dd04f4ac406d84fc64bdff84115"
+    },
+    "executables": {
+      "cli": {
+        "sha256": "ed59f41e4eceacdc5e28659e2adcfdb1e11aedc8e13e6971e8e669297523f29b",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      },
+      "runner": {
+        "sha256": "3ead6dd62b3f41735dd441c83ce5a09c33c8edb0924dcc3c2aa4385265c76fd2",
+        "profile": {
+          "schema": "omega-compiler-build-profile-v1",
+          "opt_level": "1"
+        }
+      }
+    },
+    "origin_run": 42407183694,
+    "cache_key": "compiler-regression-Linux-X64-54779b37cdcc0463407f621719b14211931a27023dd1271d3b18373fa511953b-6d175b77abdcd16c707c80865f13fd0cdbfef419-prepared-v1-with-runner"
+  },
+  "fixtures": [
+    "pass/recast/runtime_guarded_offset_recast_exit",
+    "pass/recast/runtime_integer_bit_view_recast_exit",
+    "fail/recast/incoming_offset_invalidated_before_capture"
+  ],
+  "source_only": true,
+  "samples": [],
+  "cli_fixtures": []
+}
