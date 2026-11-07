@@ -70,11 +70,21 @@ pub fn qualification_storage_path(
             facts::PlaceSegment::Index { .. } => {
                 return Err("qualification storage requires a statically captured index");
             }
+            extent if *extent == crate::field_domains::WHOLE_ELEMENT_EXTENT => {
+                (Segment::AllElements, None)
+            }
             facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => {
                 return Err("qualification storage has an unsupported collection window");
             }
         };
-        if cursor.advance(program, &checked)? != symbol {
+        // A declaration's whole-element obligation selects the element type;
+        // it does not introduce an executable index or widen a finite window.
+        let member = if matches!(checked, Segment::AllElements) {
+            cursor.advance_element(program)?
+        } else {
+            cursor.advance(program, &checked)?
+        };
+        if member != symbol {
             return Err("qualification member differs from its exact typed owner");
         }
         path.push(checked);
