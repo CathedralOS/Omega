@@ -146,7 +146,7 @@ pub(super) fn disposition_actions(
     disposition_handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
     source: SourcePlan,
     place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
-) -> Result<Vec<CleanupAction>, &'static str> {
+) -> Result<Vec<CleanupAction>, super::CleanupFailure> {
     let disposition = facts
         .contextual_cleanup
         .dispositions
@@ -247,7 +247,12 @@ pub(super) fn disposition_actions(
                 if removed.cause != checked_trees::ContextualCleanupExclusionCause::Unestablished
                     && !case_evidence.definitely_transferred(excluded)
                 {
-                    return Err("cleanup exclusion has no selected transfer custody");
+                    return Err(exclusion_failure(
+                        facts,
+                        disposition_handle,
+                        removed,
+                        excluded,
+                    ));
                 }
             }
         }
@@ -256,7 +261,9 @@ pub(super) fn disposition_actions(
         // an already removed ancestor cannot authorize another disposition.
         let Some(relative_segments) = excluded.strip_prefix(place.segments.as_slice()) else {
             if place.segments.starts_with(excluded) {
-                return Err("cleanup disposition overlaps a removed ancestor");
+                return Err(super::CleanupFailure::Borrowed(
+                    "cleanup disposition overlaps a removed ancestor",
+                ));
             }
             continue;
         };
@@ -268,7 +275,9 @@ pub(super) fn disposition_actions(
         if relative_segments.is_empty() {
             return (removed.root == disposition.root && selected.is_empty())
                 .then(Vec::new)
-                .ok_or("cleanup whole-region exclusion does not identify an empty owner");
+                .ok_or(super::CleanupFailure::Borrowed(
+                    "cleanup whole-region exclusion does not identify an empty owner",
+                ));
         }
         let ProjectedArgumentPath {
             storage_type: reference,
@@ -304,7 +313,9 @@ pub(super) fn disposition_actions(
             path: selected_path,
         } = leaf
         else {
-            return Err("cleanup has an uninstantiated symbolic hook");
+            return Err(super::CleanupFailure::Borrowed(
+                "cleanup has an uninstantiated symbolic hook",
+            ));
         };
         // The disposed value already fixes its receiver, including any view
         // range in that captured prefix. Expand only array children inside
@@ -494,9 +505,67 @@ pub(super) fn disposition_actions(
         })
         .collect::<Vec<_>>();
     if selected_hooks != hooks.len() {
-        return Err("cleanup region partition did not select every hook");
+        return Err(super::CleanupFailure::Borrowed(
+            "cleanup region partition did not select every hook",
+        ));
     }
     Ok(actions)
+}
+
+/// Retain the failed producer row in the actual diagnostic. Formatting runs
+/// only after the original custody check refuses and recomputes no judgment.
+fn exclusion_failure(
+    facts: &CheckFacts,
+    handle: arena::Handle<checked_trees::ContextualCleanupDisposition>,
+    removed: &checked_trees::ContextualCleanupExcludedRegion,
+    excluded: &[facts::PlaceSegment],
+) -> super::CleanupFailure {
+    use std::fmt::Write;
+    const PATH_LIMIT: usize = 16;
+    const ROW_LIMIT: usize = 4;
+    let cleanup = &facts.contextual_cleanup;
+    let disposition = cleanup.dispositions.get(handle);
+    let path = facts.flow.ownership.segments.span(disposition.path);
+    let mut message = String::from("cleanup exclusion has no selected transfer custody");
+    let _ = write!(
+        message,
+        "; disposition={handle:?} root={:?} source={:?} exit={:?} selection={:?} completion={:?} selected={} disposed_type={:?} disposed_path={:?} disposed_path_count={:?} excluded_cause={:?} excluded_path={:?} excluded_path_count={}",
+        disposition.root,
+        disposition.source,
+        disposition.exit,
+        disposition.selection,
+        disposition.completion,
+        cleanup.is_selected_disposition(handle),
+        disposition.disposed_type,
+        path.map(|path| &path[..path.len().min(PATH_LIMIT)]),
+        path.map(<[_]>::len),
+        removed.cause,
+        &excluded[..excluded.len().min(PATH_LIMIT)],
+        excluded.len(),
+    );
+    for (name, span) in [
+        ("excluded", disposition.exclusions),
+        ("definite", disposition.definite_exclusions),
+        ("inactive", disposition.inactive_cases),
+    ] {
+        let Some(rows) = cleanup.exclusions.span(span) else {
+            let _ = write!(message, "; {name}=invalid_span({span:?})");
+            continue;
+        };
+        let _ = write!(message, "; {name}_count={}", rows.len());
+        for (ordinal, row) in rows.iter().take(ROW_LIMIT).enumerate() {
+            let path = cleanup.segments.span(row.segments);
+            let _ = write!(
+                message,
+                "; {name}[{ordinal}]=({:?},{:?},{:?},path_count={:?})",
+                row.root,
+                row.cause,
+                path.map(|path| &path[..path.len().min(PATH_LIMIT)]),
+                path.map(<[_]>::len),
+            );
+        }
+    }
+    super::CleanupFailure::Owned(message)
 }
 
 /// Join normalized cleanup geometry back to the exact checked source place.

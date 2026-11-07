@@ -62,7 +62,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
-) -> Result<checked_trees::CheckedNormalExitCleanups, &'static str> {
+) -> Result<checked_trees::CheckedNormalExitCleanups, super::CleanupFailure> {
     let (machine, state) = program
         .machines()
         .iter()
@@ -192,14 +192,16 @@ fn cleanup_rows(
     mut source_for_owner: impl FnMut(
         PlaceRoot,
     ) -> Option<Option<CheckedUnitStructuralArgumentSourcePlan>>,
-) -> Result<Vec<NormalExitConstruction>, &'static str> {
+) -> Result<Vec<NormalExitConstruction>, super::CleanupFailure> {
     let flow_state = facts
         .flow
         .control
         .state(machine, state.symbol)
         .ok_or("normal cleanup state has no retained control flow")?;
     if selected_exit.is_some_and(|selected| !source_exits.contains(&selected)) {
-        return Err("selected normal cleanup has no exact source exit");
+        return Err(super::CleanupFailure::Borrowed(
+            "selected normal cleanup has no exact source exit",
+        ));
     }
     let mut rows = source_exits
         .iter()
@@ -225,14 +227,18 @@ fn cleanup_rows(
             continue;
         }
         if disposition.exit.state_symbol != state.symbol {
-            return Err("normal cleanup disposition belongs to another state");
+            return Err(super::CleanupFailure::Borrowed(
+                "normal cleanup disposition belongs to another state",
+            ));
         }
         if selected_exit.is_some_and(|selected| disposition.exit != selected) {
             // Preserve the full authored receipt roster. Only a different,
             // validated source exit is absent from this executable completion;
             // malformed or missing coordinates must not disappear here.
             if !source_exits.contains(&disposition.exit) {
-                return Err("normal cleanup disposition has no matching exit");
+                return Err(super::CleanupFailure::Borrowed(
+                    "normal cleanup disposition has no matching exit",
+                ));
             }
             continue;
         }
@@ -245,7 +251,9 @@ fn cleanup_rows(
                 .owned_selections
                 .get(disposition.selection);
             if receipt.state != state.symbol || receipt.machine != machine {
-                return Err("normal cleanup receipt belongs to another state or machine");
+                return Err(super::CleanupFailure::Borrowed(
+                    "normal cleanup receipt belongs to another state or machine",
+                ));
             }
             let mut sources = facts
                 .flow
@@ -259,7 +267,9 @@ fn cleanup_rows(
                 .next()
                 .ok_or("normal cleanup receipt has no source for its root")?;
             if sources.next().is_some() {
-                return Err("normal cleanup receipt has multiple sources for its root");
+                return Err(super::CleanupFailure::Borrowed(
+                    "normal cleanup receipt has multiple sources for its root",
+                ));
             }
             Some(CheckedUnitStructuralArgumentSourcePlan::CapturedStorage {
                 selection: disposition.selection,
@@ -336,7 +346,9 @@ fn cleanup_rows(
                         .collect::<Vec<_>>(),
                 );
             }
-            return Err("normal cleanup disposition has no matching exit");
+            return Err(super::CleanupFailure::Borrowed(
+                "normal cleanup disposition has no matching exit",
+            ));
         }
     }
     for (exit, retirement, root) in retirements {
