@@ -1232,3 +1232,26 @@ values and leaves their rejection paths unchanged.
 executes consumer `cc3dd85de6a3` with the authenticated optimized `413fb4703959`
 producer; all ten declared compiler input objects match. Execution on other
 hosts and the parent scalar migration remain open.
+
+
+## Field reads after selector writes
+
+The unchanged [selector-write program](../../../tests/omega/pass/proofs/scalar_field_snapshot_selector_writes_payload/main.omg)
+returned 0 in native and Terminal execution on Linux x86_64. Its direct read
+observes 7 and its stored-reference read observes 11 after each selector writes
+the selected payload. Each selector runs once. The checker preserves the field's
+complete declared type, then checks that every captured reference descriptor
+still names the same storage when the read occurs. Payload writes do not count
+as descriptor replacement. The existing changed-selector and replaced-collection
+controls still reject their equality obligations. Source, Build bindings, oracles
+and diagnostic pins are unchanged.
+
+[Source run 42352183267](https://github.com/CathedralOS/Omega/actions/runs/42352183267)
+records both affected positives and all three intended rejections at
+`7a71b2c1f2d4`, retaining the authored `macos_arm64` checking target.
+[Replay 42354136490](https://github.com/CathedralOS/Omega/actions/runs/42354136490)
+records the selector program's 0/0 agreement at consumer `e9feda3dd89d` using
+that same authenticated optimized producer; all ten compiler input objects
+match. The earlier captured-byte 0/0 execution remains applicable because its
+selector has no writes; its fresh source check covers the changed receiving-type
+validation. Other runtime hosts and the parent scalar migration remain open.

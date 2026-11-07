@@ -4789,7 +4789,7 @@ fail/domains/qualified_explicit_buffer_write_only_replacement rejected 1196ms ex
 	data `Buffer` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/domains/qualified_fixed_byte_array_borrowed_short_literal rejected 133ms expected @ccdb99ca2214
 	quoted byte literal has 5 source byte(s), but owned fixed byte array `[u8; 8][1 constraint]` requires exactly 8; fixed-array literal copying neither truncates nor pads
-fail/domains/qualified_fixed_byte_array_captured_invalid_write rejected 6727ms expected @413fb4703959
+fail/domains/qualified_fixed_byte_array_captured_invalid_write rejected 4846ms expected @7a71b2c1f2d4
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "write_selected", reason: "primitive write lost its exact logical byte preservation judgment", gap: None })
 fail/domains/qualified_fixed_byte_array_constructor_snapshot rejected 1870ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe_after from checked: row.bytes == [71, 97, 116, 101] (needs fact `bytes == "Gate"` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17105,7 +17105,7 @@ fail/proofs/scalar_field_snapshot_after_call rejected 1954ms expected @ccdb99ca2
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_field_snapshot_after_indexed_store rejected 2093ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/scalar_field_snapshot_after_selector_write rejected 2086ms expected @ccdb99ca2214
+fail/proofs/scalar_field_snapshot_after_selector_write rejected 4615ms expected @7a71b2c1f2d4
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_field_snapshot_after_store rejected 2268ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17117,7 +17117,7 @@ fail/proofs/scalar_field_snapshot_distinct_indexed_fields rejected 2621ms expect
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_field_snapshot_distinct_selectors rejected 2055ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/scalar_field_snapshot_selector_replaces_collection rejected 1917ms expected @ccdb99ca2214
+fail/proofs/scalar_field_snapshot_selector_replaces_collection rejected 4332ms expected @7a71b2c1f2d4
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_state_return_outside_byte_class rejected 1935ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::write_byte: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `write_byte`
@@ -26941,9 +26941,7 @@ pass/proofs/scalar_copy_guard_const_forwarding checked 2207ms @ccdb99ca2214
 pass/proofs/scalar_copy_guard_disjoint_write checked 11957ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/scalar_field_copy_guard checked 12267ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/scalar_field_snapshot_captures_replaced_collection checked 4174ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/scalar_field_snapshot_selector_writes_payload rejected 2369ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call demand_same from inspect: observed == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call demand_same from inspect_stored: observed == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/proofs/scalar_field_snapshot_selector_writes_payload checked 6010ms check-target:macos_arm64 @7a71b2c1f2d4
 pass/proofs/scalar_state_return_keeps_byte_class rejected 2042ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::main: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `main`
 	cannot prove default-domain field requirement for return from Main::main at statement 4: main.bytes requires [u8; N]::Utf8
@@ -28343,7 +28341,7 @@ run/domains/qualified_explicit_byte_buffer_append_exit checked 6166ms check-targ
 run/domains/qualified_explicit_byte_buffer_exit checked 30317ms check-target:macos_arm64 @911f6617ba9e
 run/domains/qualified_explicit_byte_buffer_field_source_exit checked 30294ms check-target:macos_arm64 @911f6617ba9e
 run/domains/qualified_explicit_utf8_buffer_exit checked 5036ms check-target:macos_arm64 @911f6617ba9e
-run/domains/qualified_fixed_byte_array_captured_destination_exit checked 8562ms check-target:macos_arm64 @413fb4703959
+run/domains/qualified_fixed_byte_array_captured_destination_exit checked 5473ms check-target:macos_arm64 @7a71b2c1f2d4
 run/domains/qualified_fixed_byte_array_carrier_exit checked 3370ms check-target:macos_arm64 @ccdb99ca2214
 run/domains/qualified_fixed_byte_array_explicit_buffer_count_exit checked 5747ms check-target:macos_arm64 @911f6617ba9e
 run/domains/qualified_fixed_byte_array_forwarding_exit rejected 2742ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

@@ -22,6 +22,7 @@ use typed_trees::types::TypeReferenceHandle;
 mod argument_reads;
 mod entry_reads;
 mod graph_versions;
+mod read_addresses;
 mod read_backing;
 mod stored_values;
 pub(in crate::proof_contracts::contract_entailment) use graph_versions::{
