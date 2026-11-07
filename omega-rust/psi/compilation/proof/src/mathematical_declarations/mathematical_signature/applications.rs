@@ -147,7 +147,7 @@ impl Elaborator<'_> {
         symbol: SymbolHandle,
         name: &Identifier,
         arguments: &[StaticMachineArgument],
-    ) -> Result<TermHandle, Vec<Diagnostic>> {
+    ) -> Result<(TermHandle, Vec<super::source_domains::SourceInput>), Vec<Diagnostic>> {
         if !arguments.is_empty() {
             if let Some(&index) = self.authored_index.get(&symbol) {
                 return self.instantiate_declaration(expression, index, arguments);
@@ -163,7 +163,7 @@ impl Elaborator<'_> {
         } else {
             return Err(self.refuse(format!("unresolved mathematical callee `{name}`")));
         };
-        Ok(term)
+        Ok((term, Vec::new()))
     }
 
     fn instantiate_declaration(
@@ -171,7 +171,7 @@ impl Elaborator<'_> {
         expression: ExpressionHandle,
         index: usize,
         arguments: &[StaticMachineArgument],
-    ) -> Result<TermHandle, Vec<Diagnostic>> {
+    ) -> Result<(TermHandle, Vec<super::source_domains::SourceInput>), Vec<Diagnostic>> {
         let definition = &self.program.mathematical_definitions()[index];
         let Some(&position) = self.authored_positions.get(&definition.symbol) else {
             return Err(self.refuse(format!(
@@ -204,6 +204,7 @@ impl Elaborator<'_> {
         let mut authored_levels = vec![None; level_binders.len()];
         let mut terms = Vec::new();
         let mut term_domains = Vec::new();
+        let mut term_requirements = Vec::new();
         let mut generalized = Vec::new();
         let mut constraints = Vec::new();
         let mut level_position = 0;
@@ -218,6 +219,7 @@ impl Elaborator<'_> {
                 continue;
             }
             let argument = slot.argument.expect("checked generic arity");
+            self.result_identity_requirements = super::identity::IdentityRequirements::default();
             let (term, domain) = if let Some(literal) = &argument.const_literal {
                 self.static_integer_literal(binder, argument, literal)?
             } else {
@@ -233,6 +235,10 @@ impl Elaborator<'_> {
             {
                 constraints.push((position, term, &binder.name));
             }
+            if let Term::Variable(_) = self.arena.get(term) {
+                self.retain_identity_parameter_value(term)?;
+            }
+            term_requirements.push(std::mem::take(&mut self.result_identity_requirements));
             terms.push(term);
             term_domains.push(domain);
         }
@@ -279,19 +285,23 @@ impl Elaborator<'_> {
             declaration: position,
             levels,
         });
-        let inputs = terms
+        let inputs: Vec<_> = terms
             .into_iter()
             .zip(term_domains)
-            .map(|(term, domain)| super::source_domains::SourceInput {
-                // Generic terms are already typed in the exact caller scope.
-                // No anonymous ordinary-expression landing is available here.
-                expression: ExpressionHandle::default(),
-                term,
-                domain,
-                identity_requirements: super::identity::IdentityRequirements::default(),
-            })
+            .zip(term_requirements)
+            .map(
+                |((term, domain), identity_requirements)| super::source_domains::SourceInput {
+                    // Generic terms are already typed in the exact caller scope.
+                    // No anonymous ordinary-expression landing is available here.
+                    expression: ExpressionHandle::default(),
+                    term,
+                    domain,
+                    identity_requirements,
+                },
+            )
             .collect();
-        Ok(self.apply_source_inputs(expression, callee, inputs))
+        let term = self.apply_source_inputs(expression, callee, inputs.clone());
+        Ok((term, inputs))
     }
 
     fn binder_is_level(&self, binder: &TypeParameter) -> bool {

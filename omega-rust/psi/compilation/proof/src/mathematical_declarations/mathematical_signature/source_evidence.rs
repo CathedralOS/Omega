@@ -490,7 +490,12 @@ impl Elaborator<'_> {
                     ));
                 }
             }
-            if telescope.len() > family.parameters.len() {
+            if !family.external_parameter_indices.is_empty() {
+                // Uniform declaration Types stay arbitrary outer carriers,
+                // not changing value indices of the induction invariant.
+                telescope.retain(|(_, _, reference)| reference.is_some());
+            }
+            if telescope.len() > family.index_parameter_indices.len() {
                 continue;
             }
             self.source_owner = machine.symbol;
@@ -510,10 +515,14 @@ impl Elaborator<'_> {
                 .zip(&family.parameters)
                 .map(|(argument, parameter)| self.index_operand(*argument, parameter, &[]))
                 .collect::<Result<Vec<_>, _>>()?;
+            let description = family
+                .description_at(&mut self.arena, &actuals)
+                .map_err(|reason| self.refuse(reason.into()))?;
+            let index_actuals = family.index_actuals(&actuals);
             let mut mapping = Vec::new();
             for ordinal in 0..telescope.len() {
                 let variable = self.scope_variable(ordinal);
-                let positions = actuals
+                let positions = index_actuals
                     .iter()
                     .enumerate()
                     .filter_map(|(position, &actual)| {
@@ -563,7 +572,7 @@ impl Elaborator<'_> {
                     for _ in 0..position {
                         projection = self.arena.insert(Term::Snd { pair: projection });
                     }
-                    if position + 1 < family.parameters.len() {
+                    if position + 1 < family.index_parameter_indices.len() {
                         projection = self.arena.insert(Term::Fst { pair: projection });
                     }
                     // Discharge only the telescope we just constructed. Its
@@ -579,7 +588,7 @@ impl Elaborator<'_> {
                     proposition = substitute(&mut self.arena, body, projection);
                 }
                 let invariant = self.arena.insert(Term::Lambda {
-                    domain: family.description.index,
+                    domain: description.index,
                     body: proposition,
                 });
                 self.scope.clear();

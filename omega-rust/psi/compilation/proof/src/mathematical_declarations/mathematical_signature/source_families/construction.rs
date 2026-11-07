@@ -419,6 +419,34 @@ impl Elaborator<'_> {
             .type_reference_handles(*arguments)
             .to_vec();
         let family = self.source_family(*base_symbol)?;
+        let actuals = family
+            .parameters
+            .iter()
+            .zip(&arguments)
+            .map(|(parameter, argument)| self.index_operand(*argument, parameter, &[]))
+            .collect::<Result<Vec<_>, _>>()?;
+        let description = family
+            .description_at(&mut self.arena, &actuals)
+            .map_err(|reason| self.refuse(reason.into()))?;
+        let type_actuals = family
+            .parameters
+            .iter()
+            .zip(&actuals)
+            .filter_map(|(parameter, &actual)| {
+                matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    .then_some(actual)
+            })
+            .collect::<Vec<_>>();
+        let stored_type_count = family
+            .index_parameter_indices
+            .iter()
+            .filter(|&&position| {
+                matches!(
+                    family.parameters[position].kind,
+                    typed_trees::data::TypeParameterKind::Type
+                )
+            })
+            .count();
         let case = if let Some(selected) = literal.case_symbol {
             let actual = self
                 .program
@@ -456,12 +484,17 @@ impl Elaborator<'_> {
                 self.refuse("source indexed constructor changed its exact field roster".into())
             );
         }
-        let mut common = Vec::new();
-        for (parameter, argument) in family.parameters.iter().zip(&arguments) {
-            if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
-                common.push(self.elaborate_type_reference(*argument)?);
-            }
-        }
+        let mut common = family
+            .index_parameter_indices
+            .iter()
+            .filter_map(|&position| {
+                matches!(
+                    family.parameters[position].kind,
+                    typed_trees::data::TypeParameterKind::Type
+                )
+                .then_some(actuals[position])
+            })
+            .collect::<Vec<_>>();
         let mut payload = Vec::new();
         let mut children = Vec::new();
         for field in &family.common {
@@ -521,13 +554,17 @@ impl Elaborator<'_> {
             let child = self.source_family_constructor(operand, actual, depth + 1)?;
             self.span = Some(self.program.expression_table.source_span(operand));
             let mut index = child_index;
-            for &argument in common.iter().chain(payload.iter()) {
+            for &argument in type_actuals
+                .iter()
+                .chain(common.iter().skip(stored_type_count))
+                .chain(payload.iter())
+            {
                 index = self.arena.insert(Term::Apply {
                     function: index,
                     argument,
                 });
             }
-            let expected = family.description.indexed_w(&mut self.arena, index);
+            let expected = description.indexed_w(&mut self.arena, index);
             let context = Context::empty()
                 .with_signature(Signature::from_declarations(self.declarations.clone()));
             match check_type(
@@ -556,7 +593,11 @@ impl Elaborator<'_> {
         }
         self.span = Some(self.program.expression_table.source_span(expression));
         let mut predicate = selected.constraints;
-        for &argument in common.iter().chain(payload.iter()) {
+        for &argument in type_actuals
+            .iter()
+            .chain(common.iter().skip(stored_type_count))
+            .chain(payload.iter())
+        {
             predicate = self.arena.insert(Term::Apply {
                 function: predicate,
                 argument,
@@ -640,7 +681,7 @@ impl Elaborator<'_> {
             &mut self.arena,
             &context,
             label,
-            family.description.carrier,
+            description.carrier,
             &mut Budget::new(DEFAULT_CONVERSION_STEPS),
         )
         .map_err(|error| {
@@ -651,18 +692,15 @@ impl Elaborator<'_> {
         // Projections must infer the declaration's dependent label telescope,
         // not the nondependent tuple type inferred for a raw pair literal.
         // Package the checked label as an ordinary transparent definition.
-        let parameters = self.source_constructor_dependencies(&[label, family.description.carrier]);
-        let (label_body, label_type) = abstract_parameters(
-            &mut self.arena,
-            label,
-            family.description.carrier,
-            &parameters,
-        )
-        .map_err(|error| {
-            self.refuse(format!(
-                "source constructor label abstraction failed: {error}"
-            ))
-        })?;
+        let parameters = self.source_constructor_dependencies(&[label, description.carrier]);
+        let (label_body, label_type) =
+            abstract_parameters(&mut self.arena, label, description.carrier, &parameters).map_err(
+                |error| {
+                    self.refuse(format!(
+                        "source constructor label abstraction failed: {error}"
+                    ))
+                },
+            )?;
         let label_position = self.declarations.len() as u32;
         self.declarations
             .push(Declaration::definition(0, label_type, label_body));
@@ -677,19 +715,17 @@ impl Elaborator<'_> {
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));
         let child_domain = self.arena.insert(Term::Apply {
-            function: family.description.children,
+            function: description.children,
             argument: label,
         });
-        let children_fn =
-            constructor_children(&mut self.arena, &family.description, label, &children).map_err(
-                |error| {
-                    self.refuse(format!(
-                        "source constructor child-function production failed: {error}"
-                    ))
-                },
-            )?;
+        let children_fn = constructor_children(&mut self.arena, &description, label, &children)
+            .map_err(|error| {
+                self.refuse(format!(
+                    "source constructor child-function production failed: {error}"
+                ))
+            })?;
         let next = self.arena.insert(Term::Apply {
-            function: family.description.next,
+            function: description.next,
             argument: label,
         });
         let p = self.arena.insert(Term::Variable(0));
@@ -697,7 +733,7 @@ impl Elaborator<'_> {
             function: next,
             argument: p,
         });
-        let codomain = family.description.indexed_w(&mut self.arena, index);
+        let codomain = description.indexed_w(&mut self.arena, index);
         let expected_children = self.arena.insert(Term::Pi {
             domain: child_domain,
             codomain,
@@ -714,7 +750,7 @@ impl Elaborator<'_> {
                 "generated source constructor child function fails kernel checking: {error:?}"
             ))
         })?;
-        let term = family.description.sup(&mut self.arena, label, children_fn);
+        let term = description.sup(&mut self.arena, label, children_fn);
         let expected = self.elaborate_type_reference(reference)?;
         let context = Context::empty()
             .with_signature(Signature::from_declarations(self.declarations.clone()));

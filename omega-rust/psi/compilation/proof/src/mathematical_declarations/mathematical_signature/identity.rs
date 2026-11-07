@@ -177,6 +177,7 @@ impl Elaborator<'_> {
         &mut self,
         call: &TableCallExpression,
         callee: TermHandle,
+        static_inputs: &[super::source_domains::SourceInput],
         inputs: &[super::source_domains::SourceInput],
     ) -> Result<(), Vec<Diagnostic>> {
         let actuals = self
@@ -188,6 +189,7 @@ impl Elaborator<'_> {
             &call.machine_arguments,
             actuals,
             callee,
+            static_inputs,
             inputs,
         )
     }
@@ -198,6 +200,7 @@ impl Elaborator<'_> {
         static_arguments: &[StaticMachineArgument],
         actuals: &[ExpressionHandle],
         callee: TermHandle,
+        static_inputs: &[super::source_domains::SourceInput],
         inputs: &[super::source_domains::SourceInput],
     ) -> Result<(), Vec<Diagnostic>> {
         let emission_start = self.identity_emissions.len();
@@ -207,6 +210,7 @@ impl Elaborator<'_> {
             static_arguments,
             actuals,
             callee,
+            static_inputs,
             inputs,
         )?;
         self.result_identity_requirements = IdentityRequirements {
@@ -223,12 +227,11 @@ impl Elaborator<'_> {
         static_arguments: &[StaticMachineArgument],
         actuals: &[ExpressionHandle],
         mut callee: TermHandle,
+        static_inputs: &[super::source_domains::SourceInput],
         inputs: &[super::source_domains::SourceInput],
     ) -> Result<(), Vec<Diagnostic>> {
         if !self.authored_index.contains_key(&target) {
-            if self.scope.iter().any(|entry| entry.symbol == Some(target))
-                && self.identity_function_value(callee)?
-            {
+            if self.scope.iter().any(|entry| entry.symbol == Some(target)) {
                 let mut value = callee;
                 for input in inputs {
                     value = self.arena.insert(Term::Apply {
@@ -270,22 +273,42 @@ impl Elaborator<'_> {
             .data_type_parameters
             .span_or_empty(definition.binders);
         let plan =
-            source_generic_argument_plan(self.program, binders, static_arguments, &self.fixed_core)
-                .ok_or_else(|| {
-                    self.refuse("Id value lost its checked generic application telescope".into())
-                })?;
+            source_generic_argument_plan(self.program, binders, static_arguments, &self.fixed_core);
         let mut arguments = Vec::new();
-        for slot in plan {
-            if matches!(slot.kind, MathematicalBinderKind::Level) {
-                continue;
+        let mut static_formals = Vec::new();
+        let mut pending_static = Vec::new();
+        if let Some(plan) = plan {
+            for slot in plan {
+                if matches!(slot.kind, MathematicalBinderKind::Level) {
+                    continue;
+                }
+                static_formals.push(slot.binder.symbol);
+                let actual = slot.argument.ok_or_else(|| {
+                    self.refuse("Id application lost a supplied generic operand".into())
+                })?;
+                arguments.push((
+                    slot.binder.symbol,
+                    IdentitySourceArgument::Static(actual.clone()),
+                ));
             }
-            let actual = slot.argument.ok_or_else(|| {
-                self.refuse("Id application lost a supplied generic operand".into())
-            })?;
-            arguments.push((
-                slot.binder.symbol,
-                IdentitySourceArgument::Static(actual.clone()),
-            ));
+        } else if static_arguments.is_empty()
+            && static_inputs.is_empty()
+            && actuals.is_empty()
+            && inputs.is_empty()
+        {
+            // A bare declaration value retains its whole unapplied Pi prefix.
+            // The ordinary application operation supplies these actuals later.
+            for binder in binders {
+                static_formals.push(binder.symbol);
+                pending_static.push(IdentitySourceParameter {
+                    declaration: definition.symbol,
+                    binder: binder.symbol,
+                });
+            }
+        } else {
+            return Err(
+                self.refuse("Id value lost its checked generic application telescope".into())
+            );
         }
         let formals = self.program.mathematical_parameters(definition.parameters);
         arguments.extend(
@@ -310,7 +333,15 @@ impl Elaborator<'_> {
         for row in emitted {
             let value =
                 self.instantiate_identity_requirement(row.abstraction, &levels, &operands)?;
-            self.retain_instantiated_identity(row, value, &scope, formals, actuals, &[])?;
+            self.retain_instantiated_identity(
+                row,
+                value,
+                &scope,
+                formals,
+                actuals,
+                &[],
+                &pending_static,
+            )?;
         }
         let static_arity = operands.len() - inputs.len();
         let applications = requirements
@@ -319,18 +350,30 @@ impl Elaborator<'_> {
             .map(|position| self.identity_applications[*position].clone())
             .collect::<Vec<_>>();
         for mut application in applications {
-            let ordinal = formals
+            let position = static_formals
                 .iter()
-                .position(|formal| formal.symbol == application.parameter)
+                .position(|formal| *formal == application.parameter)
+                .map(|position| (position, static_inputs.get(position)))
+                .or_else(|| {
+                    formals
+                        .iter()
+                        .position(|formal| formal.symbol == application.parameter)
+                        .map(|position| (static_arity + position, inputs.get(position)))
+                })
                 .or_else(|| {
                     application
                         .pending
                         .iter()
                         .position(|parameter| parameter.binder == application.parameter)
-                        .map(|position| formals.len() + position)
+                        .map(|position| {
+                            (
+                                static_arity + formals.len() + position,
+                                inputs.get(formals.len() + position),
+                            )
+                        })
                 });
-            let Some(ordinal) = ordinal else {
-                return Err(self.refuse("Id function application lost its exact formal".into()));
+            let Some((operand_position, input)) = position else {
+                return Err(self.refuse("Id value dependency lost its exact source formal".into()));
             };
             let trailing = actuals
                 .iter()
@@ -342,17 +385,20 @@ impl Elaborator<'_> {
                 &application.pending,
                 &trailing,
             )?;
-            let mut pending = formals
-                .iter()
-                .skip(actuals.len())
-                .map(|formal| IdentitySourceParameter {
-                    declaration: definition.symbol,
-                    binder: formal.symbol,
-                })
-                .collect::<Vec<_>>();
+            let mut pending = pending_static.clone();
+            pending.extend(
+                formals
+                    .iter()
+                    .skip(actuals.len())
+                    .map(|formal| IdentitySourceParameter {
+                        declaration: definition.symbol,
+                        binder: formal.symbol,
+                    })
+                    .collect::<Vec<_>>(),
+            );
             pending.extend(application.pending.iter().skip(trailing.len()).cloned());
             application.pending = pending;
-            let Some(input) = inputs.get(ordinal) else {
+            let Some(input) = input else {
                 // An unapplied function formal stays in the checked closure;
                 // the next prefix application will supply its requirements.
                 let value = self.instantiate_identity_requirement(
@@ -374,7 +420,7 @@ impl Elaborator<'_> {
                 .collect::<Vec<_>>();
             for row in rows {
                 let mut kernel_operands = operands.clone();
-                kernel_operands[static_arity + ordinal] = row.value;
+                kernel_operands[operand_position] = row.value;
                 let value = self.instantiate_identity_requirement(
                     application.abstraction,
                     &levels,
@@ -390,6 +436,7 @@ impl Elaborator<'_> {
                     formals,
                     actuals,
                     &application.arguments,
+                    &pending_static,
                 )?;
             }
             let deferred = input
@@ -400,7 +447,7 @@ impl Elaborator<'_> {
                 .collect::<Vec<_>>();
             for mut supplied in deferred {
                 let mut kernel_operands = operands.clone();
-                kernel_operands[static_arity + ordinal] = supplied.value;
+                kernel_operands[operand_position] = supplied.value;
                 let value = self.instantiate_identity_requirement(
                     application.abstraction,
                     &levels,
@@ -433,31 +480,22 @@ impl Elaborator<'_> {
         Ok(())
     }
 
-    fn identity_function_value(&mut self, value: TermHandle) -> Result<bool, Vec<Diagnostic>> {
-        let context = self.instantiation_context();
-        let ty = proof_admission::infer_type(
-            &mut self.arena,
-            &context,
-            value,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .map_err(|error| {
-            self.refuse(format!(
-                "mathematical function value fails formation: {error:?}"
-            ))
-        })?;
-        let head = proof_admission::weak_head_normalize(
-            &mut self.arena,
-            &proof_admission::Signature::from_declarations(self.declarations.clone()),
-            ty,
-            &mut Budget::new(DEFAULT_CONVERSION_STEPS),
-        )
-        .map_err(|error| {
-            self.refuse(format!(
-                "mathematical function carrier fails reduction: {error:?}"
-            ))
-        })?;
-        Ok(matches!(self.arena.get(head), Term::Pi { .. }))
+    pub(super) fn retain_identity_parameter_value(
+        &mut self,
+        value: TermHandle,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let Term::Variable(index) = self.arena.get(value) else {
+            return Ok(());
+        };
+        let Some(parameter) = self
+            .scope
+            .len()
+            .checked_sub(index as usize + 1)
+            .and_then(|position| self.scope[position].symbol)
+        else {
+            return Ok(());
+        };
+        self.transport_identity_value(parameter, &[], &[], value, &[], &[])
     }
 
     fn instantiate_identity_requirement(
@@ -487,6 +525,7 @@ impl Elaborator<'_> {
         formals: &[typed_trees::mathematical::MathematicalParameter],
         actuals: &[ExpressionHandle],
         function_arguments: &[ExpressionHandle],
+        pending_static: &[IdentitySourceParameter],
     ) -> Result<(), Vec<Diagnostic>> {
         let mut scopes = Vec::with_capacity(row.source_scopes.len() + 1);
         scopes.push(scope.clone());
@@ -502,14 +541,17 @@ impl Elaborator<'_> {
             .chain(trailing)
             .collect::<Vec<_>>();
         self.complete_identity_scopes(&mut scopes, &row.pending, &supplied)?;
-        let mut pending = formals
-            .iter()
-            .skip(actuals.len())
-            .map(|formal| IdentitySourceParameter {
-                declaration: scope.declaration,
-                binder: formal.symbol,
-            })
-            .collect::<Vec<_>>();
+        let mut pending = pending_static.to_vec();
+        pending.extend(
+            formals
+                .iter()
+                .skip(actuals.len())
+                .map(|formal| IdentitySourceParameter {
+                    declaration: scope.declaration,
+                    binder: formal.symbol,
+                })
+                .collect::<Vec<_>>(),
+        );
         pending.extend(row.pending.into_iter().skip(supplied.len()));
         self.record_identity_emission(value, row.source_type, row.source_owner, scopes, pending)
     }

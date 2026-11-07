@@ -65,22 +65,23 @@ mod tests {
                 ty: statement,
             },
             declarations: declarations.clone(),
+            parameter_actuals: Vec::new(),
         };
         let same_statement = arena.insert(Term::Id {
             ty: two,
             left: b,
             right: zero,
         });
-        assert!(cached.reusable(&arena, &declarations, same_statement));
+        assert!(cached.reusable(&arena, &declarations, same_statement, &[]));
         let mut extended = declarations.clone();
         extended.push(Declaration::definition(0, two, one));
-        assert!(cached.reusable(&arena, &extended, same_statement));
+        assert!(cached.reusable(&arena, &extended, same_statement, &[]));
         check(&mut arena, &extended, statement).unwrap();
 
         // The raw handles stay identical, but changing b's transparent body
         // makes the formerly checked proof invalid in a still-valid signature.
         let changed = vec![Declaration::definition(0, two, one)];
-        assert!(!cached.reusable(&arena, &changed, statement));
+        assert!(!cached.reusable(&arena, &changed, statement, &[]));
         assert!(check(&mut arena, &changed, statement).is_err());
 
         let changed_statement = arena.insert(Term::Id {
@@ -88,7 +89,7 @@ mod tests {
             left: b,
             right: one,
         });
-        assert!(!cached.reusable(&arena, &declarations, changed_statement));
+        assert!(!cached.reusable(&arena, &declarations, changed_statement, &[]));
         assert!(check(&mut arena, &declarations, changed_statement).is_err());
     }
 }
@@ -100,6 +101,7 @@ pub(in super::super) struct CheckedSourceInduction {
     raw_invariant: TermHandle,
     result: SourceInduction,
     declarations: Vec<Declaration>,
+    parameter_actuals: Vec<TermHandle>,
 }
 
 impl CheckedSourceInduction {
@@ -108,8 +110,15 @@ impl CheckedSourceInduction {
         arena: &proof_admission::TermArena,
         declarations: &[Declaration],
         raw_invariant: TermHandle,
+        parameter_actuals: &[TermHandle],
     ) -> bool {
         declarations.starts_with(&self.declarations)
+            && self.parameter_actuals.len() == parameter_actuals.len()
+            && self
+                .parameter_actuals
+                .iter()
+                .zip(parameter_actuals)
+                .all(|(&left, &right)| arena.structurally_equal(left, right))
             && arena.structurally_equal(self.raw_invariant, raw_invariant)
     }
 }
@@ -147,6 +156,20 @@ impl Elaborator<'_> {
         index_actuals: &[TermHandle],
     ) -> Result<SourceInduction, Vec<Diagnostic>> {
         let family = self.source_family(symbol)?;
+        let description = family
+            .description_at(&mut self.arena, index_actuals)
+            .map_err(|reason| self.refuse(reason.into()))?;
+        let external_actuals = family
+            .external_parameter_indices
+            .iter()
+            .map(|&position| (family.parameters[position].symbol, index_actuals[position]))
+            .collect::<Vec<_>>();
+        let parameter_actuals = external_actuals
+            .iter()
+            .map(|(_, actual)| *actual)
+            .collect::<Vec<_>>();
+        let all_parameter_actuals = index_actuals;
+        let index_actuals = family.index_actuals(index_actuals);
         let raw_invariant = invariant;
         // The family model is immutable after its first construction. Raw
         // structural identity retains every constant and universe argument;
@@ -155,25 +178,28 @@ impl Elaborator<'_> {
         // Appending declarations cannot change this checked judgment. Each
         // source occurrence still retains its own expression, carrier and
         // receiver-policy association at the caller.
-        if let Some(previous) = family
-            .checked_inductions
-            .iter()
-            .find(|previous| previous.reusable(&self.arena, &self.declarations, raw_invariant))
-        {
+        if let Some(previous) = family.checked_inductions.iter().find(|previous| {
+            previous.reusable(
+                &self.arena,
+                &self.declarations,
+                raw_invariant,
+                &parameter_actuals,
+            )
+        }) {
             return Ok(previous.result.clone());
         }
         let sort = self
             .arena
             .insert(Term::Sort(Sort::Type(Level::Constant(0))));
         let invariant_type = self.arena.insert(Term::Pi {
-            domain: family.description.index,
+            domain: description.index,
             codomain: sort,
         });
         self.check_induction_term(invariant, invariant_type, "index invariant")?;
         let invariant = terms::intern_invariant(
             &mut self.arena,
             &mut self.declarations,
-            &family.description,
+            &description,
             invariant,
         );
         // A source specialization may erase every index occurrence from its
@@ -212,8 +238,10 @@ impl Elaborator<'_> {
             // those indices. Instantiating it keeps the distributive law the
             // induction used. A fresh numeral equation would name a different
             // bodyless assumption and drop that law.
-            if let Some(result) = self.instantiated_open_induction(&family, index_actuals)? {
-                self.record_source_induction(symbol, raw_invariant, &result);
+            if let Some(result) =
+                self.instantiated_open_induction(&family, &index_actuals, &parameter_actuals)?
+            {
+                self.record_source_induction(symbol, raw_invariant, &result, &parameter_actuals);
                 return Ok(result);
             }
             let proof = if let Some(theory) = self.integer_theory.as_mut() {
@@ -230,13 +258,13 @@ impl Elaborator<'_> {
             if let Some(proof) = proof {
                 let (theorem, ty) = terms::constant_invariant_theorem(
                     &mut self.arena,
-                    &family.description,
+                    &description,
                     invariant,
                     proof,
                 );
                 self.check_induction_term(theorem, ty, "closed source invariant theorem")?;
                 let result = SourceInduction { theorem, ty };
-                self.record_source_induction(symbol, raw_invariant, &result);
+                self.record_source_induction(symbol, raw_invariant, &result, &parameter_actuals);
                 return Ok(result);
             }
         }
@@ -266,13 +294,27 @@ impl Elaborator<'_> {
         let type_sort = self
             .arena
             .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        common.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+        let stored_type_symbols = type_symbols
+            .iter()
+            .copied()
+            .filter(|symbol| {
+                !external_actuals
+                    .iter()
+                    .any(|(external, _)| external == symbol)
+            })
+            .collect::<Vec<_>>();
+        common.splice(
+            0..0,
+            stored_type_symbols
+                .iter()
+                .map(|symbol| (*symbol, type_sort)),
+        );
         let mut index_fields = self
             .program
             .data_value_parameter_fields(data)
             .map(|(_, field)| field.symbol)
             .collect::<Vec<_>>();
-        index_fields.splice(0..0, type_symbols.iter().copied());
+        index_fields.splice(0..0, stored_type_symbols.iter().copied());
         for case in &family.cases {
             let payload = case
                 .payload
@@ -289,9 +331,23 @@ impl Elaborator<'_> {
                 .collect::<Vec<_>>();
             let mut values = Vec::new();
             let mut parameters = Vec::new();
+            let mut type_actuals = family
+                .parameters
+                .iter()
+                .enumerate()
+                .filter_map(|(position, parameter)| {
+                    matches!(parameter.kind, TypeParameterKind::Type)
+                        .then_some(all_parameter_actuals[position])
+                })
+                .collect::<Vec<_>>();
+            let type_positions = type_symbols
+                .iter()
+                .enumerate()
+                .map(|(position, symbol)| (*symbol, position))
+                .collect::<std::collections::BTreeMap<_, _>>();
             for &(field, mut domain) in &fields {
                 if !type_symbols.contains(&field) {
-                    for actual in values.iter().take(type_symbols.len()) {
+                    for actual in &type_actuals {
                         domain = self.arena.insert(Term::Apply {
                             function: domain,
                             argument: *actual,
@@ -307,10 +363,17 @@ impl Elaborator<'_> {
                     body: None,
                 });
                 parameters.push((position, field, domain));
-                values.push(self.constant(position));
+                let value = self.constant(position);
+                if let Some(&type_position) = type_positions.get(&field) {
+                    type_actuals[type_position] = value;
+                }
+                values.push(value);
             }
             let mut predicate = case.constraints;
-            for &value in &values {
+            for &value in type_actuals
+                .iter()
+                .chain(values.iter().skip(stored_type_symbols.len()))
+            {
                 predicate = self.arena.insert(Term::Apply {
                     function: predicate,
                     argument: value,
@@ -333,7 +396,10 @@ impl Elaborator<'_> {
             let mut assumptions = vec![predicate];
             for &child in &case.child_indices {
                 let mut index = child;
-                for &value in &values {
+                for &value in type_actuals
+                    .iter()
+                    .chain(values.iter().skip(stored_type_symbols.len()))
+                {
                     index = self.arena.insert(Term::Apply {
                         function: index,
                         argument: value,
@@ -392,7 +458,7 @@ impl Elaborator<'_> {
         }
         let (theorem, ty, step, step_type) = terms::induction(
             &mut self.arena,
-            &family.description,
+            &description,
             &common,
             &index_fields,
             &schemes,
@@ -400,6 +466,7 @@ impl Elaborator<'_> {
             &lemmas,
             &mut self.declarations,
             &type_symbols,
+            &external_actuals,
         )
         .map_err(|error| self.refuse(error.into()))?;
         self.check_induction_term(step, step_type, "indexed-family induction step")?;
@@ -407,7 +474,7 @@ impl Elaborator<'_> {
         // The final mathematical-signature trust boundary checks every
         // retained definition once, including this step and arithmetic laws.
         let result = SourceInduction { theorem, ty };
-        self.record_source_induction(symbol, raw_invariant, &result);
+        self.record_source_induction(symbol, raw_invariant, &result, &parameter_actuals);
         Ok(result)
     }
 
@@ -415,8 +482,9 @@ impl Elaborator<'_> {
         &mut self,
         family: &super::SourceFamily,
         index_actuals: &[TermHandle],
+        parameter_actuals: &[TermHandle],
     ) -> Result<Option<SourceInduction>, Vec<Diagnostic>> {
-        if index_actuals.is_empty() || index_actuals.len() != family.parameters.len() {
+        if index_actuals.is_empty() || index_actuals.len() != family.index_parameter_indices.len() {
             return Ok(None);
         }
         let signature = Signature::from_declarations(self.declarations.clone());
@@ -429,6 +497,15 @@ impl Elaborator<'_> {
         }
         let open = {
             let Some(matched) = family.checked_inductions.iter().find(|previous| {
+                if previous.parameter_actuals.len() != parameter_actuals.len()
+                    || !previous
+                        .parameter_actuals
+                        .iter()
+                        .zip(parameter_actuals)
+                        .all(|(&left, &right)| self.arena.structurally_equal(left, right))
+                {
+                    return false;
+                }
                 let index = self.arena.insert(Term::Variable(0));
                 let applied = self.arena.insert(Term::Apply {
                     function: previous.raw_invariant,
@@ -479,6 +556,7 @@ impl Elaborator<'_> {
         symbol: SymbolHandle,
         raw_invariant: TermHandle,
         result: &SourceInduction,
+        parameter_actuals: &[TermHandle],
     ) {
         self.indexed_families
             .get_mut(&symbol)
@@ -488,6 +566,7 @@ impl Elaborator<'_> {
                 raw_invariant,
                 result: result.clone(),
                 declarations: self.declarations.clone(),
+                parameter_actuals: parameter_actuals.to_vec(),
             });
     }
 

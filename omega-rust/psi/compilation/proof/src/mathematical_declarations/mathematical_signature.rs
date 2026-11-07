@@ -548,7 +548,7 @@ impl<'a> Elaborator<'a> {
                 if symbol.is_valid() {
                     let name = members.last().cloned().unwrap_or_default();
                     let term = self.named_term(symbol, &name)?;
-                    self.transport_identity_value(symbol, &[], &[], term, &[])?;
+                    self.transport_identity_value(symbol, &[], &[], term, &[], &[])?;
                     return Ok(term);
                 }
                 match members.as_slice() {
@@ -612,7 +612,7 @@ impl<'a> Elaborator<'a> {
                 }
                 let target = call.target.clone();
                 let static_arguments = call.machine_arguments.clone();
-                let callee =
+                let (callee, static_inputs) =
                     self.elaborate_callee(handle, target_symbol, &target, &static_arguments)?;
                 let mut inputs = Vec::new();
                 let mut prefix = callee;
@@ -627,7 +627,7 @@ impl<'a> Elaborator<'a> {
                     });
                     inputs.push(input);
                 }
-                self.transport_identity_requirements(&call, callee, &inputs)?;
+                self.transport_identity_requirements(&call, callee, &static_inputs, &inputs)?;
                 Ok(self.apply_source_inputs(handle, callee, inputs))
             }
             ExpressionNode::Integer(literal) => {

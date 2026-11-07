@@ -66,7 +66,7 @@ pub(super) enum Key {
 #[derive(Clone)]
 enum S {
     Closed(TermHandle),
-    SourceDomain(TermHandle, Vec<Key>),
+    SourceDomain(TermHandle, Vec<S>),
     Var(Key),
     Type,
     Two,
@@ -129,11 +129,7 @@ impl S {
                 // body and exact source-keyed Type actual under inner binders.
                 let mut result = *function;
                 for parameter in parameters {
-                    let position = scope
-                        .iter()
-                        .rposition(|key| key == parameter)
-                        .ok_or("source payload domain lost its Type binder")?;
-                    let actual = arena.insert(Term::Variable((scope.len() - 1 - position) as u32));
+                    let actual = parameter.term(arena, scope)?;
                     let Term::Lambda { body, .. } = arena.get(result) else {
                         return Err("source payload domain lost its generated Type telescope");
                     };
@@ -254,6 +250,14 @@ impl SourceTerms {
         let u = self.unit_strict();
         S::Boxed(Box::new(u))
     }
+    fn unit_value(&mut self) -> S {
+        let domain = self.unit_strict();
+        let value = self.fresh();
+        S::BoxIntro(
+            Box::new(domain),
+            Box::new(lam(value, S::Empty, S::Var(value))),
+        )
+    }
     fn type_motive(&mut self) -> S {
         let k = self.fresh();
         lam(k, S::Two, S::Type)
@@ -324,8 +328,16 @@ struct Builder<'a> {
     index_fields: &'a [SymbolHandle],
     cases: &'a [Case],
     type_parameters: &'a [SymbolHandle],
+    external_actuals: &'a [(SymbolHandle, TermHandle)],
 }
 impl Builder<'_> {
+    fn type_actual(&self, symbol: SymbolHandle) -> S {
+        self.external_actuals
+            .iter()
+            .find(|(parameter, _)| *parameter == symbol)
+            .map(|(_, actual)| S::Closed(*actual))
+            .unwrap_or(S::Var(Key::Source(symbol)))
+    }
     fn domain(&self, symbol: SymbolHandle, ty: TermHandle) -> S {
         if self.type_parameters.is_empty() || self.type_parameters.contains(&symbol) {
             S::Closed(ty)
@@ -334,8 +346,7 @@ impl Builder<'_> {
                 ty,
                 self.type_parameters
                     .iter()
-                    .copied()
-                    .map(Key::Source)
+                    .map(|symbol| self.type_actual(*symbol))
                     .collect(),
             )
         }
@@ -361,7 +372,15 @@ impl Builder<'_> {
     }
     fn constraint_application(&self, case: usize) -> S {
         let mut term = S::Closed(self.cases[case].constraints);
-        for (symbol, _) in self.common.iter().chain(self.cases[case].payload.iter()) {
+        for symbol in self.type_parameters {
+            term = app(term, self.type_actual(*symbol));
+        }
+        for (symbol, _) in self
+            .common
+            .iter()
+            .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+            .chain(self.cases[case].payload.iter())
+        {
             term = app(term, S::Var(Key::Source(*symbol)));
         }
         term
@@ -401,7 +420,14 @@ impl Builder<'_> {
     }
     fn child_index(&self, case: usize, child: usize, payload: S) -> S {
         let mut term = S::Closed(self.cases[case].child_indices[child]);
-        for (symbol, _) in self.common {
+        for symbol in self.type_parameters {
+            term = app(term, self.type_actual(*symbol));
+        }
+        for (symbol, _) in self
+            .common
+            .iter()
+            .filter(|(symbol, _)| !self.type_parameters.contains(symbol))
+        {
             term = app(term, S::Var(Key::Source(*symbol)));
         }
         for ordinal in 0..self.cases[case].payload.len() {
@@ -485,7 +511,7 @@ impl Builder<'_> {
             indices.push(Self::projected(label.clone(), ordinal));
         }
         let Some(mut body) = indices.pop() else {
-            return Err("an indexed family requires an index telescope");
+            return Ok(self.terms.unit_value());
         };
         for index in indices.into_iter().rev() {
             body = pair(index, body);
@@ -526,6 +552,7 @@ pub(super) fn description(
     index_fields: &[SymbolHandle],
     cases: &[Case],
     type_parameters: &[SymbolHandle],
+    external_parameters: &[SymbolHandle],
 ) -> Result<IndexedFamily, &'static str> {
     let mut b = Builder {
         terms: SourceTerms::default(),
@@ -533,6 +560,7 @@ pub(super) fn description(
         index_fields,
         cases,
         type_parameters,
+        external_actuals: &[],
     };
     let carrier = b.carrier();
     let index = b.index_type()?;
@@ -545,54 +573,129 @@ pub(super) fn description(
     let a = b.terms.fresh();
     let next_body = b.unpack(S::Var(a), ResultKind::Next)?;
     let next = lam(a, carrier.clone(), next_body);
+    let has_stored_types = common
+        .iter()
+        .any(|(symbol, _)| type_parameters.contains(symbol));
+    let mut scope = external_parameters
+        .iter()
+        .copied()
+        .map(Key::Source)
+        .collect::<Vec<_>>();
     Ok(IndexedFamily {
         levels: [
-            Level::Constant(u32::from(!type_parameters.is_empty())),
-            Level::Constant(u32::from(!type_parameters.is_empty())),
+            Level::Constant(u32::from(has_stored_types)),
+            Level::Constant(u32::from(has_stored_types)),
             Level::Constant(0),
         ],
-        index: index.term(arena, &mut Vec::new())?,
-        carrier: carrier.term(arena, &mut Vec::new())?,
-        children: children.term(arena, &mut Vec::new())?,
-        out: out.term(arena, &mut Vec::new())?,
-        next: next.term(arena, &mut Vec::new())?,
+        index: index.term(arena, &mut scope)?,
+        carrier: carrier.term(arena, &mut scope)?,
+        children: children.term(arena, &mut scope)?,
+        out: out.term(arena, &mut scope)?,
+        next: next.term(arena, &mut scope)?,
     })
 }
 
-/// Share closed descriptions using ordinary typed transparent definitions.
-/// Index and label sorts retain their own inferred telescope levels; a Type0
-/// carrier parameter is an index value in Type1, never a Type0 universe axiom.
-/// The caller still checks every declaration body in the whole signature.
+/// Share a description under its declaration parameters. Type parameters
+/// outside the W label stay ordinary Pi/Lambda parameters of all five fields.
+/// Only the remaining true indices and stored payloads contribute to W levels.
 pub(super) fn intern_description(
     arena: &mut TermArena,
     declarations: &mut Vec<Declaration>,
     mut family: IndexedFamily,
+    parameter_count: usize,
 ) -> Result<IndexedFamily, &'static str> {
     fn retain(
         arena: &mut TermArena,
         declarations: &mut Vec<Declaration>,
-        ty: TermHandle,
-        body: TermHandle,
-    ) -> TermHandle {
+        mut ty: TermHandle,
+        mut body: TermHandle,
+        parameter_count: usize,
+    ) -> (TermHandle, TermHandle) {
+        let parameter_sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
+        for _ in 0..parameter_count {
+            body = arena.insert(Term::Lambda {
+                domain: parameter_sort,
+                body,
+            });
+            ty = arena.insert(Term::Pi {
+                domain: parameter_sort,
+                codomain: ty,
+            });
+        }
         let declaration = declarations.len() as u32;
         declarations.push(Declaration::definition(0, ty, body));
-        arena.insert(term!(Constant => declaration => vec![]))
+        let constant = arena.insert(term!(Constant => declaration => vec![]));
+        let mut applied = constant;
+        for ordinal in 0..parameter_count {
+            let argument = arena.insert(Term::Variable((parameter_count - ordinal - 1) as u32));
+            applied = arena.insert(Term::Apply {
+                function: applied,
+                argument,
+            });
+        }
+        (constant, applied)
     }
     let sort = arena.insert(Term::Sort(Sort::Type(Level::Constant(0))));
     let index_sort = arena.insert(Term::Sort(Sort::Type(family.levels[0].clone())));
     let carrier_sort = arena.insert(Term::Sort(Sort::Type(family.levels[1].clone())));
-    family.index = retain(arena, declarations, index_sort, family.index);
-    family.carrier = retain(arena, declarations, carrier_sort, family.carrier);
-    let ty = arena.insert(term!(Pi => family.carrier => sort));
-    family.children = retain(arena, declarations, ty, family.children);
-    let ty = arena.insert(term!(Pi => family.carrier => family.index));
-    family.out = retain(arena, declarations, ty, family.out);
+    let (index, applied_index) = retain(
+        arena,
+        declarations,
+        index_sort,
+        family.index,
+        parameter_count,
+    );
+    let (carrier, applied_carrier) = retain(
+        arena,
+        declarations,
+        carrier_sort,
+        family.carrier,
+        parameter_count,
+    );
+    let ty = arena.insert(term!(Pi => applied_carrier => sort));
+    let (children, applied_children) =
+        retain(arena, declarations, ty, family.children, parameter_count);
+    let index_under_label = shift(arena, applied_index, 0, 1);
+    let ty = arena.insert(term!(Pi => applied_carrier => index_under_label));
+    let (out, _) = retain(arena, declarations, ty, family.out, parameter_count);
     let a = arena.insert(Term::Variable(0));
-    let domain = arena.insert(term!(Apply => family.children => a));
-    let codomain = arena.insert(term!(Pi => domain => family.index));
-    let ty = arena.insert(term!(Pi => family.carrier => codomain));
-    family.next = retain(arena, declarations, ty, family.next);
+    let children_under_label = shift(arena, applied_children, 0, 1);
+    let domain = arena.insert(term!(Apply => children_under_label => a));
+    let index_under_position = shift(arena, applied_index, 0, 2);
+    let codomain = arena.insert(term!(Pi => domain => index_under_position));
+    let ty = arena.insert(term!(Pi => applied_carrier => codomain));
+    let (next, _) = retain(arena, declarations, ty, family.next, parameter_count);
+    family.index = index;
+    family.carrier = carrier;
+    family.children = children;
+    family.out = out;
+    family.next = next;
     Ok(family)
+}
+
+pub(super) fn apply_description(
+    arena: &mut TermArena,
+    template: &IndexedFamily,
+    parameters: &[TermHandle],
+) -> IndexedFamily {
+    fn apply(
+        arena: &mut TermArena,
+        mut function: TermHandle,
+        parameters: &[TermHandle],
+    ) -> TermHandle {
+        for &argument in parameters {
+            function = arena.insert(Term::Apply { function, argument });
+        }
+        function
+    }
+    IndexedFamily {
+        levels: template.levels.clone(),
+        index: apply(arena, template.index, parameters),
+        carrier: apply(arena, template.carrier, parameters),
+        children: apply(arena, template.children, parameters),
+        out: apply(arena, template.out, parameters),
+        next: apply(arena, template.next, parameters),
+    }
 }
 
 /// Abstract temporary scalar assumptions without capturing existing binders.
@@ -971,6 +1074,7 @@ pub(super) fn induction(
     lemmas: &[TermHandle],
     declarations: &mut Vec<Declaration>,
     type_parameters: &[SymbolHandle],
+    external_actuals: &[(SymbolHandle, TermHandle)],
 ) -> Result<(TermHandle, TermHandle, TermHandle, TermHandle), &'static str> {
     if cases.len() != lemmas.len() {
         return Err("source induction lemma roster differs from its exact cases");
@@ -1005,6 +1109,7 @@ pub(super) fn induction(
         index_fields,
         cases,
         type_parameters,
+        external_actuals,
     };
     let tail = builder.terms.fresh();
     let sum_type = builder.sum_type(0);
@@ -1052,6 +1157,7 @@ pub(super) fn induction(
             index_fields,
             cases,
             type_parameters,
+            external_actuals,
         },
         family,
         iw,

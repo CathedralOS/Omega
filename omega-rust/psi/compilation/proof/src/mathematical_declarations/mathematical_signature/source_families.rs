@@ -9,14 +9,9 @@
 //! does not turn legacy constructor-success verdicts into evidence: actual
 //! constructor applications additionally need their retained derivations.
 //!
-//! Ordinary source Type binders denote Type0 carriers, not scalar tags. They
-//! are retained in the dependent index and label telescope, so `marker: T`
-//! and a recursive child's Type actual remain tied to the same declaration.
-//! That telescope itself inhabits Type1; child positions and predicate proofs
-//! remain at their original levels. Every generated level and application is
-//! still checked by the kernel without cumulativity or a new admission rule.
-//! Higher-universe, const/machine and region-bearing source descriptions are
-//! not silently projected into this ordinary Type/Value fragment.
+//! Uniform declaration parameters stay outside the W tree. Nonuniform Type
+//! arguments are genuine family indices and retain their larger index sort.
+//! The checked description keeps parameter, index and payload roles distinct.
 
 mod construction;
 pub(super) use construction::SourceConstructorContext;
@@ -325,7 +320,9 @@ pub(super) struct SourceFamily {
     pub parameters: Vec<TypeParameter>,
     pub common: Vec<DataField>,
     pub cases: Vec<SourceCase>,
-    pub description: IndexedFamily,
+    description_template: IndexedFamily,
+    pub external_parameter_indices: Vec<usize>,
+    pub index_parameter_indices: Vec<usize>,
     pub checked_inductions: Vec<induction::CheckedSourceInduction>,
 }
 #[derive(Clone)]
@@ -336,6 +333,34 @@ pub(super) struct SourceCase {
     pub constraints: TermHandle,
     pub predicate_expressions: Vec<typed_trees::expression::ExpressionHandle>,
     pub child_indices: Vec<TermHandle>,
+}
+
+impl SourceFamily {
+    pub(super) fn description_at(
+        &self,
+        arena: &mut proof_admission::TermArena,
+        actuals: &[TermHandle],
+    ) -> Result<IndexedFamily, &'static str> {
+        if actuals.len() != self.parameters.len() {
+            return Err("source description lost its exact parameter telescope");
+        }
+        let parameters = self
+            .external_parameter_indices
+            .iter()
+            .map(|&position| actuals[position])
+            .collect::<Vec<_>>();
+        Ok(terms::apply_description(
+            arena,
+            &self.description_template,
+            &parameters,
+        ))
+    }
+    pub(super) fn index_actuals(&self, actuals: &[TermHandle]) -> Vec<TermHandle> {
+        self.index_parameter_indices
+            .iter()
+            .map(|&position| actuals[position])
+            .collect()
+    }
 }
 
 impl Elaborator<'_> {
@@ -466,6 +491,57 @@ impl Elaborator<'_> {
                 DataMember::Variant(case) => variants.push(case),
             }
         }
+        let mut uniform = parameters
+            .iter()
+            .map(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+            .collect::<Vec<_>>();
+        for field in common_children.iter().chain(
+            variants
+                .iter()
+                .flat_map(|case| self.program.data_payload_fields(case)),
+        ) {
+            if let Some(arguments) = self.direct_child(data.symbol, field.type_reference)? {
+                if arguments.len() != parameters.len() {
+                    return Err(
+                        self.refuse("source recursive child changed the family telescope".into())
+                    );
+                }
+                for (ordinal, (argument, parameter)) in
+                    arguments.iter().zip(&parameters).enumerate()
+                {
+                    uniform[ordinal] &= matches!(self.program.type_reference_table.type_reference(*argument), TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol);
+                }
+            }
+        }
+        if parameters.iter().enumerate().any(|(position, parameter)| {
+            matches!(parameter.kind, TypeParameterKind::Type) && !uniform[position]
+        }) {
+            // A changing Type child remains the existing fully indexed family.
+            // Do not erase its index or impose a new source uniformity rule.
+            uniform.fill(false);
+        }
+        let external_parameter_indices = uniform
+            .iter()
+            .enumerate()
+            .filter_map(|(position, uniform)| uniform.then_some(position))
+            .collect::<Vec<_>>();
+        let index_parameter_indices = parameters
+            .iter()
+            .enumerate()
+            .filter_map(|(position, parameter)| {
+                (matches!(parameter.kind, TypeParameterKind::Type) && !uniform[position])
+                    .then_some(position)
+            })
+            .chain(
+                parameters
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, parameter)| {
+                        matches!(parameter.kind, TypeParameterKind::Value { .. })
+                            .then_some(position)
+                    }),
+            )
+            .collect::<Vec<_>>();
         let index_fields = self
             .program
             .data_value_parameter_fields(data)
@@ -593,8 +669,12 @@ impl Elaborator<'_> {
                     );
                 }
                 let mut indices = Vec::new();
-                for (argument, parameter) in arguments.iter().zip(&parameters) {
-                    indices.push(self.index_operand(*argument, parameter, &index_fields)?);
+                for &position in &index_parameter_indices {
+                    indices.push(self.index_operand(
+                        arguments[position],
+                        &parameters[position],
+                        &index_fields,
+                    )?);
                 }
                 let index = self.index_tuple(indices)?;
                 child_indices.push(self.close_family_telescope(index));
@@ -629,23 +709,38 @@ impl Elaborator<'_> {
         let type_sort = self
             .arena
             .insert(Term::Sort(Sort::Type(Level::Constant(0))));
-        common_pairs.splice(0..0, type_symbols.iter().map(|symbol| (*symbol, type_sort)));
+        let external_symbols = external_parameter_indices
+            .iter()
+            .map(|&position| parameters[position].symbol)
+            .collect::<Vec<_>>();
+        let stored_types = type_symbols
+            .iter()
+            .copied()
+            .filter(|symbol| !external_symbols.contains(symbol))
+            .collect::<Vec<_>>();
+        common_pairs.splice(0..0, stored_types.iter().map(|symbol| (*symbol, type_sort)));
         let mut index_symbols = index_fields
             .iter()
             .map(|(_, field)| *field)
             .collect::<Vec<_>>();
-        index_symbols.splice(0..0, type_symbols.iter().copied());
+        index_symbols.splice(0..0, stored_types.iter().copied());
         let description = terms::description(
             &mut self.arena,
             &common_pairs,
             &index_symbols,
             &schemes,
             &type_symbols,
+            &external_symbols,
         )
         .map_err(|error| self.refuse(error.into()))?;
-        let description =
-            terms::intern_description(&mut self.arena, &mut self.declarations, description)
-                .map_err(|error| self.refuse(error.into()))?;
+        let description = terms::intern_description(
+            &mut self.arena,
+            &mut self.declarations,
+            description,
+            external_symbols.len(),
+        )
+        .map_err(|error| self.refuse(error.into()))?;
+        self.scope.clear();
         let mut domains = Vec::new();
         for parameter in &parameters {
             let domain = match parameter.kind {
@@ -655,21 +750,28 @@ impl Elaborator<'_> {
                 }
                 _ => unreachable!(),
             };
+            self.push_scope(Some(parameter.symbol), parameter.name.clone(), domain);
             domains.push(domain);
         }
-        let indices = (0..parameters.len())
-            .map(|ordinal| {
-                self.arena
-                    .insert(Term::Variable((parameters.len() - 1 - ordinal) as u32))
-            })
+        let actuals = (0..parameters.len())
+            .map(|ordinal| self.scope_variable(ordinal))
+            .collect::<Vec<_>>();
+        let external_actuals = external_parameter_indices
+            .iter()
+            .map(|&position| actuals[position])
+            .collect::<Vec<_>>();
+        let applied = terms::apply_description(&mut self.arena, &description, &external_actuals);
+        let indices = index_parameter_indices
+            .iter()
+            .map(|&position| actuals[position])
             .collect();
         let index = self.index_tuple(indices)?;
-        let mut body = description.indexed_w(&mut self.arena, index);
+        let mut body = applied.indexed_w(&mut self.arena, index);
         let mut ty = self.arena.insert(Term::Sort(Sort::Type(
-            description.levels[0]
+            applied.levels[0]
                 .clone()
-                .maximum(description.levels[1].clone())
-                .maximum(description.levels[2].clone()),
+                .maximum(applied.levels[1].clone())
+                .maximum(applied.levels[2].clone()),
         )));
         for domain in domains.into_iter().rev() {
             body = self.arena.insert(Term::Lambda { domain, body });
@@ -691,7 +793,9 @@ impl Elaborator<'_> {
             parameters,
             common,
             cases: source_cases,
-            description,
+            description_template: description,
+            external_parameter_indices,
+            index_parameter_indices,
             checked_inductions: Vec::new(),
         })
     }
@@ -837,7 +941,17 @@ impl Elaborator<'_> {
     }
     fn index_tuple(&mut self, mut indices: Vec<TermHandle>) -> Result<TermHandle, Vec<Diagnostic>> {
         let Some(mut tuple) = indices.pop() else {
-            return Err(self.refuse("indexed family has no index tuple".into()));
+            let empty = self.arena.insert(Term::Empty);
+            let domain = self.arena.insert(Term::Pi {
+                domain: empty,
+                codomain: empty,
+            });
+            let variable = self.arena.insert(Term::Variable(0));
+            let value = self.arena.insert(Term::Lambda {
+                domain: empty,
+                body: variable,
+            });
+            return Ok(self.arena.insert(Term::BoxIntro { ty: domain, value }));
         };
         for index in indices.into_iter().rev() {
             tuple = self.arena.insert(Term::Pair {
