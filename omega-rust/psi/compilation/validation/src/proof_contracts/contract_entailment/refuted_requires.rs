@@ -979,7 +979,6 @@ pub(crate) fn collect_instantiated_predicates(
     }
     if let Some(binary) = expression_table(program).binary_node(fact)
         && binary.operator == BinaryOperator::And
-        && crate::has_builtin_parameter_bound_expression_meaning(program, scope, parameters, fact)
     {
         collect_instantiated_predicates(program, scope, parameters, binary.left, map, predicates);
         collect_instantiated_predicates(program, scope, parameters, binary.right, map, predicates);

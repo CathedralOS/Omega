@@ -44,9 +44,7 @@ pub(super) use constructors::{
     case_value_term, constructor_literal_term, is_case_observation, zero_constructor_operands,
     zero_value_structural_term,
 };
-pub(super) use equality::{
-    builtin_identity_operand_references, has_identity_equality_meaning, identity_equality_terms,
-};
+pub(super) use equality::{builtin_identity_operand_references, has_identity_equality_meaning};
 pub(super) use scalar_operands::{
     completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
     term_is_unobserved_descriptor,

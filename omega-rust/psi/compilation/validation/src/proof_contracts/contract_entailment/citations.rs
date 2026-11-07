@@ -836,6 +836,14 @@ pub(crate) fn instantiated_fact_established(
                 StructuralJudgment::Proven
             );
     }
+    // Logical And has fixed meaning. Keep each case leaf with its exact
+    // observation judgment; the scalar/value reader cannot reinterpret it.
+    if let Some(binary) = program.expression_table.binary_node(fact)
+        && binary.operator == BinaryOperator::And
+    {
+        return instantiated_fact_established(program, judge, scope, parameters, binary.left, map)
+            && instantiated_fact_established(program, judge, scope, parameters, binary.right, map);
+    }
     let Some(predicate) = super::structural_terms::structural_predicate_for_parameters(
         program, scope, parameters, fact,
     ) else {

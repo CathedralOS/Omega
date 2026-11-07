@@ -402,18 +402,19 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     // reachable, so a ground refutation on any arm refutes the claim.
     // Preserve the relation of every IH conjunct. Its use below still owes
     // the exact self-call's established preconditions and checked descent.
-    let ensures_terms: Vec<Option<StructuralTerm>> = ensures
-        .iter()
-        .map(|fact| {
-            let entry = program.machine_states(machine).first()?;
-            structural_terms::structural_predicate_for_parameters(
+    let mut ensures_terms = Vec::new();
+    if let Some(entry) = program.machine_states(machine).first() {
+        for fact in &ensures {
+            refuted_requires::collect_instantiated_predicates(
                 program,
                 machine.symbol,
                 program.state_parameters(entry),
                 *fact,
-            )
-        })
-        .collect();
+                &[],
+                &mut ensures_terms,
+            );
+        }
+    }
     let case_arms: Option<Vec<StructuralCaseArm>> = recognize_structural_case_arms(
         program,
         machine,
@@ -672,10 +673,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     continue;
                 }
                 map.push((RESULT_BINDER.to_owned(), application.clone()));
-                for conjunct in &ensures_terms {
-                    let Some(predicate) = conjunct else {
-                        continue;
-                    };
+                for predicate in &ensures_terms {
                     bound.intake_observed_predicate(
                         StructuralJudge::substitute_term(predicate, &map),
                         0,
