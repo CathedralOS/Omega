@@ -244,6 +244,55 @@ fn accept_pending_decisions(review_bytes: &[u8]) -> Option<Vec<u8>> {
     changed.then(|| out.into_bytes())
 }
 
+fn retain_accepted_inputs(sample_dir: &Path, evidence: &Path) -> Result<(), String> {
+    let root = repo_root();
+    let output = Command::new("git")
+        .args([
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "-z",
+            "--",
+            "**/omega.lock",
+            "**/omega.admissions",
+        ])
+        .current_dir(&root)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("list accepted lock inputs: {e}"))?;
+    if !output.status.success() {
+        return Err("could not enumerate accepted lock inputs".to_owned());
+    }
+    let directory = evidence.join("accepted-inputs");
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let mut retained = Vec::new();
+    for name in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|name| !name.is_empty())
+    {
+        let relative = std::str::from_utf8(name).map_err(|e| e.to_string())?;
+        let source = root.join(relative);
+        let target = directory.join(relative);
+        fs::create_dir_all(target.parent().ok_or("lock input has no parent")?)
+            .map_err(|e| e.to_string())?;
+        let before = execution::digest(&source)?;
+        let metadata = fs::metadata(&source).map_err(|e| e.to_string())?;
+        fs::copy(&source, &target).map_err(|e| format!("retain {}: {e}", source.display()))?;
+        if execution::digest(&target)? != before || execution::digest(&source)? != before {
+            return Err(format!("accepted input changed while retained: {relative}"));
+        }
+        retained.push(serde_json::json!({"source_path": source, "relative_path": relative, "sha256": before, "bytes": metadata.len(),
+            "modified_unix_nanos": metadata.modified().map_err(|e| e.to_string())?.duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()}));
+    }
+    execution::write_json(
+        &directory.join("manifest.json"),
+        &serde_json::json!({"project": sample_dir, "inputs": retained,
+        "capture_scope": "Omega lock and admissions files materialized in this qualification checkout after project acceptance; copied state grants no authority in another checkout."}),
+    )
+}
+
 fn settle_review(
     cli: &Path,
     sample_dir: &Path,
@@ -265,8 +314,16 @@ fn settle_review(
     if let Ok(bytes) = fs::read(&review_path)
         && let Some(accepted) = accept_pending_decisions(&bytes)
     {
-        fs::write(&review_path, accepted)
+        fs::write(evidence.join("pending-review.txt"), &bytes).map_err(|e| e.to_string())?;
+        fs::write(&review_path, &accepted)
             .map_err(|e| format!("failed writing {}: {e}", review_path.display()))?;
+        fs::write(evidence.join("accepted-review.txt"), &accepted).map_err(|e| e.to_string())?;
+        execution::write_json(
+            &evidence.join("accepted-review.json"),
+            &serde_json::json!({"source_path": review_path,
+            "sha256": execution::digest(&review_path)?, "modified_unix_nanos": fs::metadata(&review_path).and_then(|m| m.modified()).map_err(|e| e.to_string())?
+                .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()}),
+        )?;
         let resume = execution::output(
             Command::new(cli)
                 .args(["update", "--project"])
@@ -290,7 +347,7 @@ fn settle_review(
             String::from_utf8_lossy(&out.stderr)
         ));
     }
-    Ok(())
+    retain_accepted_inputs(sample_dir, evidence)
 }
 
 pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
@@ -612,9 +669,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         );
         return Err(2);
     }
-    let evidence = repo
-        .join("build/sample-gate-runs")
-        .join(std::process::id().to_string());
+    let evidence =
+        execution::reserve_directory(&repo.join("build/sample-gate-runs")).map_err(|e| {
+            eprintln!("sample-gate: {e}");
+            4u8
+        })?;
     let producer =
         producer::prepare(&repo, &evidence.join("producer"), false, true).map_err(|e| {
             eprintln!("sample-gate: {e}");

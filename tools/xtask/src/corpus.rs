@@ -611,9 +611,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("corpus: selection matches no fixtures");
         return Err(2);
     }
-    let evidence = root
-        .join("build/corpus-runs")
-        .join(std::process::id().to_string());
+    let evidence = execution::reserve_directory(&root.join("build/corpus-runs")).map_err(|e| {
+        eprintln!("corpus: {e}");
+        4u8
+    })?;
     let producer =
         producer::prepare(&root, &evidence.join("producer"), true, false).map_err(|e| {
             eprintln!("corpus: {e}");

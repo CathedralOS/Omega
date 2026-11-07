@@ -11,6 +11,17 @@ pub fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<(), Stri
     fs::write(path, bytes).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
+pub fn reserve_directory(parent: &Path) -> Result<std::path::PathBuf, String> {
+    fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let path = parent.join(format!("{}-{nonce}", std::process::id()));
+    fs::create_dir(&path).map_err(|e| format!("reserve fresh run {}: {e}", path.display()))?;
+    Ok(path)
+}
+
 pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitStatus, String> {
     fs::create_dir_all(directory).map_err(|e| format!("create {}: {e}", directory.display()))?;
     let stdout = directory.join(format!("{name}.stdout"));
@@ -23,12 +34,14 @@ pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitSt
         "stdout": stdout, "stderr": stderr,
     });
     let receipt_path = directory.join(format!("{name}.json"));
-    write_json(&receipt_path, &receipt)?;
+    let receipt_file = fs::File::create_new(&receipt_path)
+        .map_err(|e| format!("reserve command receipt {}: {e}", receipt_path.display()))?;
+    serde_json::to_writer_pretty(receipt_file, &receipt).map_err(|e| e.to_string())?;
     command.stdout(Stdio::from(
-        fs::File::create(&stdout).map_err(|e| e.to_string())?,
+        fs::File::create_new(&stdout).map_err(|e| e.to_string())?,
     ));
     command.stderr(Stdio::from(
-        fs::File::create(&stderr).map_err(|e| e.to_string())?,
+        fs::File::create_new(&stderr).map_err(|e| e.to_string())?,
     ));
     let started = Instant::now();
     let result = (|| {
@@ -107,4 +120,29 @@ pub fn digest(path: &Path) -> Result<String, String> {
         .find(|word| word.len() == 64 && word.bytes().all(|c| c.is_ascii_hexdigit()))
         .map(str::to_ascii_lowercase)
         .ok_or_else(|| "SHA256 tool returned no digest".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn separate_runs_and_repeated_commands_cannot_overwrite_evidence() {
+        let parent = std::env::temp_dir().join(format!(
+            "omega-command-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let first = reserve_directory(&parent).unwrap();
+        let second = reserve_directory(&parent).unwrap();
+        assert_ne!(first, second);
+        let mut command = Command::new(parent.join("nonexistent-executable"));
+        assert!(run(&mut command, &first, "operation").is_err());
+        let receipt = fs::read(first.join("operation.json")).unwrap();
+        assert!(run(&mut command, &first, "operation").is_err());
+        assert_eq!(fs::read(first.join("operation.json")).unwrap(), receipt);
+        fs::remove_dir_all(parent).unwrap();
+    }
 }

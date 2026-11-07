@@ -87,7 +87,7 @@ fn expected_exit(directory: &Path, target: &str, interpreted: bool) -> Result<St
     let interpreter = directory.join("expected_interpreter_exit.txt");
     let path = if interpreted && interpreter.is_file() {
         interpreter
-    } else if !interpreted && host.is_file() {
+    } else if host.is_file() {
         host
     } else {
         portable
@@ -141,9 +141,22 @@ fn validate_record(
     if runtime {
         let native = expected_exit(&directory, target, false)?;
         let interpreted = expected_exit(&directory, target, true)?;
+        let actual_interpreted = facts
+            .get("interpreter-exit")
+            .and_then(|value| value.parse::<i32>().ok())
+            .map(|value| {
+                if !directory.join("expected_interpreter_exit.txt").is_file()
+                    && !target.starts_with("windows_")
+                {
+                    value & 255
+                } else {
+                    value
+                }
+            })
+            .map(|value| value.to_string());
         if row.status != "built"
             || facts.get("exit") != Some(&native.as_str())
-            || facts.get("interpreter-exit") != Some(&interpreted.as_str())
+            || actual_interpreted.as_deref() != Some(interpreted.as_str())
             || facts.get("interpreter") != Some(&"agrees")
         {
             return Err(format!(
@@ -151,12 +164,21 @@ fn validate_record(
                 row.fixture
             ));
         }
-        for (oracle, key) in [
+        for (oracle, stream) in [
             ("expected_stdout.txt", "stdout"),
             ("expected_stderr.txt", "stderr"),
+            ("expected_entry_ram.txt", "entry-ram"),
         ] {
-            if directory.join(oracle).is_file() && facts.get(key) != Some(&"match") {
-                return Err(format!("{} did not satisfy {oracle}", row.fixture));
+            if !directory.join(oracle).is_file() {
+                continue;
+            }
+            for key in [stream.to_owned(), format!("interpreter-{stream}")] {
+                if facts.get(key.as_str()) != Some(&"match") {
+                    return Err(format!(
+                        "{} did not satisfy {oracle} for {key}",
+                        row.fixture
+                    ));
+                }
             }
         }
     }
@@ -189,7 +211,7 @@ fn execute(
         return Err("could not retain exact source archive".to_owned());
     }
     execution::write_json(
-        &directory.join("source-archive.json"),
+        &directory.join("source-archive-metadata.json"),
         &json!({"source": source, "sha256": execution::digest(&archive)?}),
     )?;
     let prepared = producer::prepare(
@@ -281,6 +303,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let mut directory = None;
         let mut target = producer::host_target().to_owned();
         let mut i = 0;
+        let mut options = BTreeSet::new();
         while i < args.len() {
             if matches!(args[i].as_str(), "--help" | "-h") {
                 println!(
@@ -289,6 +312,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 return Ok(());
             }
             let option = args[i].as_str();
+            if !options.insert(option) {
+                return Err(format!("duplicate qualification option: {option}"));
+            }
             i += 1;
             let value = args
                 .get(i)
@@ -350,7 +376,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 if project.rejection.is_empty() && project.rejection_any.is_empty() {
                     return Err(format!("{path}: missing intended-rejection fragments"));
                 }
-            } else if !samples::bound_targets(&project.directory).contains(&target)
+            } else if !matches!(project.role.as_str(), "program" | "example")
+                || !samples::bound_targets(&project.directory).contains(&target)
                 || samples::parse_header_oracle(entry).0.is_none()
             {
                 return Err(format!(
@@ -370,7 +397,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 directory.display()
             ));
         }
-        fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+        fs::create_dir_all(directory.parent().ok_or("output has no parent")?)
+            .map_err(|e| e.to_string())?;
+        fs::create_dir(&directory)
+            .map_err(|e| format!("reserve new output {}: {e}", directory.display()))?;
         execution::write_json(
             &directory.join("request.json"),
             &json!({"target": target, "selection": selection}),
@@ -431,6 +461,33 @@ mod tests {
         assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
         row.facts.clear();
         row.status = "checked".to_owned();
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
+        row.status = "built".to_owned();
+        row.facts = vec![
+            ("exit".to_owned(), "70".to_owned()),
+            ("interpreter-exit".to_owned(), "70".to_owned()),
+            ("interpreter".to_owned(), "agrees".to_owned()),
+        ];
+        fs::write(directory.join("expected_stdout.txt"), "result\n").unwrap();
+        row.facts.push(("stdout".to_owned(), "match".to_owned()));
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
+        row.facts
+            .push(("interpreter-stdout".to_owned(), "differs".to_owned()));
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
+        row.facts.last_mut().unwrap().1 = "match".to_owned();
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_ok());
+        fs::remove_file(directory.join("expected_interpreter_exit.txt")).unwrap();
+        fs::write(
+            directory.join("expected_native_exit.linux_x86_64.txt"),
+            "255\n",
+        )
+        .unwrap();
+        row.facts[0].1 = "255".to_owned();
+        row.facts[1].1 = "-1".to_owned();
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_ok());
+        fs::write(directory.join("expected_interpreter_exit.txt"), "-1\n").unwrap();
+        assert!(validate_record(&row, &root, "linux_x86_64", true).is_ok());
+        row.facts[1].1 = "255".to_owned();
         assert!(validate_record(&row, &root, "linux_x86_64", true).is_err());
         fs::remove_dir_all(root).unwrap();
     }

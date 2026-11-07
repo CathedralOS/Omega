@@ -24,37 +24,8 @@ on:
         type: choice
         options: [all, linux_x86_64, windows_x86_64, macos_arm64, linux_arm64]
         default: all
-      cleanup:
-        description: Qualify ordered cleanup on Windows and Linux instead of the small smoke
-        type: boolean
-        default: false
-      foreign_records:
-        description: Qualify libc scalar-record results on Ubuntu and Windows
-        type: boolean
-        default: false
-      foreign_records_only:
-        description: Run only the scalar/opaque corpus and public CLI controls, omitting broader provider/backing sweeps
-        type: boolean
-        default: false
-      foreign_record_cohorts:
-        description: Comma-separated scalar-opaque,nested,arrays,zero-leaf,scalar-backing,darwin-stat (or all); applies to foreign_records
-        type: string
-        default: scalar-opaque
-      foreign_record_fixtures:
-        description: Optional exact comma-separated corpus IDs; diagnostic subset, not full cohort qualification
-        type: string
-        default: ''
-      foreign_record_target:
-        description: Native host for foreign_records; default preserves the existing host selection
-        type: choice
-        options: [default, linux_x86_64, windows_x86_64, linux_arm64, macos_arm64]
-        default: default
-      runtime_value_generics:
-        description: Qualify runtime Value indices on all four existing hosted targets
-        type: boolean
-        default: false
-      linux_arm64:
-        description: Run the selected cohort on native Linux ARM64
+      provider_tests:
+        description: Also run the existing focused Rust provider and ABI checks
         type: boolean
         default: false
 
@@ -64,7 +35,7 @@ permissions:
 # Finish the active observation. GitHub keeps only the newest pending run, so
 # a busy main does not start one cold executable build for every queued PR.
 concurrency:
-  group: compiler-regression-${{ github.ref }}-${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '') && github.run_id || 'ordinary' }}-${{ inputs.cleanup }}-${{ inputs.foreign_records }}-${{ inputs.linux_arm64 }}-${{ inputs.runtime_value_generics }}-${{ inputs.foreign_records_only }}-${{ inputs.foreign_record_cohorts }}-${{ inputs.foreign_record_target }}-${{ inputs.foreign_record_fixtures && github.run_id || 'full' }}
+  group: compiler-regression-${{ github.ref }}-${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '') && github.run_id || 'ordinary' }}-${{ inputs.provider_tests || false }}
   cancel-in-progress: false
 
 jobs:
@@ -72,17 +43,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # An explicit foreign host selects runner data for the same pipeline.
-        # It lets a corrected Linux observation proceed while a cold Windows
-        # build finishes, without starting another Windows build or canceling it.
         runner: >-
           ${{ (inputs.qualification_corpus != '' || inputs.qualification_runtime != '' || inputs.qualification_samples != '')
                  && (inputs.qualification_target == 'all' && fromJSON('["ubuntu-24.04","windows-2025","macos-15","ubuntu-24.04-arm"]')
                      || fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"],"macos_arm64":["macos-15"]}')[inputs.qualification_target])
-              || inputs.runtime_value_generics && fromJSON('["ubuntu-24.04", "windows-2025", "macos-15", "ubuntu-24.04-arm"]')
-              || inputs.foreign_records && inputs.foreign_record_target && inputs.foreign_record_target != 'default'
-                 && (fromJSON('{"linux_x86_64":["ubuntu-24.04"],"windows_x86_64":["windows-2025"],"linux_arm64":["ubuntu-24.04-arm"],"macos_arm64":["macos-15"]}')[inputs.foreign_record_target] || fromJSON('[]'))
-              || fromJSON(inputs.linux_arm64 && '["ubuntu-24.04-arm"]' || (inputs.cleanup || inputs.foreign_records) && '["ubuntu-24.04", "windows-2025"]' || '["ubuntu-24.04"]') }}
+              || inputs.provider_tests && fromJSON('["ubuntu-24.04","windows-2025"]')
+              || fromJSON('["ubuntu-24.04"]') }}
     runs-on: ${{ matrix.runner }}
     # Windows used 30 minutes building, completed both corpus legs, then hit
     # 45 minutes during public CLI controls. Keep time for those and cache upload.
@@ -141,15 +107,15 @@ jobs:
           if [ -n "$QUALIFICATION_SAMPLES" ]; then arguments+=(--samples "$QUALIFICATION_SAMPLES"); fi
           mbx xtask "${arguments[@]}"
       - name: Execute length sample with native/Psi agreement and rejection control
-        if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' && !inputs.cleanup && !inputs.foreign_records && !inputs.runtime_value_generics }}
+        if: ${{ inputs.qualification_corpus == '' && inputs.qualification_runtime == '' && inputs.qualification_samples == '' }}
         run: |
           mbx test --locked -p xtask samples::tests
           mbx xtask sample-gate --filter samples/cli/facts/length/local
       - name: Check native provider frames and retained mapped homes
-        if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
+        if: inputs.provider_tests
         run: mbx test --locked -p native-compiler -p machine-emission -p native-provider-runtime
       - name: Check typed scalar aggregate result boundaries
-        if: ${{ inputs.foreign_records && !inputs.foreign_records_only && !inputs.runtime_value_generics }}
+        if: inputs.provider_tests
         run: |
           mbx test --locked -p terminal-interpreter scalar_aggregate_tests
           mbx test --locked -p runtime-abi integer_division
@@ -157,7 +123,7 @@ jobs:
           mbx test --locked -p runtime-abi network_address
           mbx test --locked -p terminal-runtime network_address
       - name: Check native provider record correspondence
-        if: ${{ inputs.foreign_records && !inputs.foreign_records_only }}
+        if: inputs.provider_tests
         run: mbx test --locked -p terminal-runtime native_provider
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
@@ -165,11 +131,8 @@ jobs:
           name: compiler-regression-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             build/qualification/
-            build/compiler-pilot/
-            build/compiler-cleanup/
-            build/compiler-foreign-records/
-            build/compiler-retained-foreign/
-            build/compiler-runtime-value-generics/
+            build/sample-gate-runs/
+            build/corpus-runs/
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
