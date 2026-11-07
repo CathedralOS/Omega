@@ -17,7 +17,7 @@ use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::TypeReferenceHandle;
 
-use super::equality_conjuncts::{EqualityConjunct, equality_conjunct, matching_equality_conjuncts};
+use super::equality_conjuncts::{EqualityConjunct, SourceCorrespondence, equality_conjunct};
 
 pub(super) struct DeclarationCorrespondence<'program> {
     requirement: &'program StateSignature,
@@ -25,6 +25,7 @@ pub(super) struct DeclarationCorrespondence<'program> {
     requirement_binders: Vec<(SymbolHandle, String)>,
     provider_binders: Vec<(SymbolHandle, String)>,
     applied_clauses: Vec<(ExpressionHandle, ExpressionHandle)>,
+    source_correspondence: SourceCorrespondence,
 }
 
 impl<'program> DeclarationCorrespondence<'program> {
@@ -96,11 +97,12 @@ impl<'program> DeclarationCorrespondence<'program> {
                 provider_parameters,
             ),
             applied_clauses,
+            source_correspondence: SourceCorrespondence::default(),
         })
     }
 
     pub(super) fn matching_guarantee(
-        &self,
+        &mut self,
         program: &dyn crate::CheckingInput,
         original: ExpressionHandle,
         proven: &[(EqualityConjunct<'_>, ExpressionHandle)],
@@ -149,12 +151,12 @@ impl<'program> DeclarationCorrespondence<'program> {
     }
 
     pub(super) fn matching_conjuncts(
-        &self,
+        &mut self,
         program: &dyn crate::CheckingInput,
         required: EqualityConjunct<'_>,
         provided: EqualityConjunct<'_>,
     ) -> bool {
-        matching_equality_conjuncts(
+        self.source_correspondence.matching_conjuncts(
             program,
             required,
             &self.requirement_binders,

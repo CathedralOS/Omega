@@ -13,10 +13,29 @@ use typed_trees::{
     types::TypeReferenceNode,
 };
 
+fn matching_equality_conjuncts(
+    program: &dyn crate::CheckingInput,
+    required: EqualityConjunct<'_>,
+    required_binders: &[(SymbolHandle, String)],
+    provided: EqualityConjunct<'_>,
+    provided_binders: &[(SymbolHandle, String)],
+) -> bool {
+    SourceCorrespondence::default().matching_conjuncts(
+        program,
+        required,
+        required_binders,
+        provided,
+        provided_binders,
+    )
+}
+
 struct Fixture {
     program: TypedTrees,
     owner: SymbolHandle,
     impostor: SymbolHandle,
+    namespace: SymbolHandle,
+    entry: SymbolHandle,
+    generic_carrier: TypeReferenceHandle,
     parameters: [StateParameter; 2],
     subjects: [ExpressionHandle; 2],
     other_carrier: TypeReferenceHandle,
@@ -39,15 +58,20 @@ impl Fixture {
                         SymbolKind::MathematicalDefinition,
                         SymbolNameRef::Static("Identity"),
                     ),
+                    (SymbolKind::Conformance, SymbolNameRef::Static("Selected")),
+                    (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
                 ]),
         );
-        let owner = children.handle_at(u32::try_from(children.len() - 2).unwrap());
-        let impostor = children.handle_at(u32::try_from(children.len() - 1).unwrap());
+        let owner = children.handle_at(u32::try_from(children.len() - 4).unwrap());
+        let impostor = children.handle_at(u32::try_from(children.len() - 3).unwrap());
+        let namespace = children.handle_at(u32::try_from(children.len() - 2).unwrap());
+        let generic = children.handle_at(u32::try_from(children.len() - 1).unwrap());
         let params = symbols.insert_children(
             owner,
             [
                 (SymbolKind::Parameter, SymbolNameRef::Static("left")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("right")),
+                (SymbolKind::State, SymbolNameRef::Static("apply")),
             ],
         );
         let mut program = TypedTrees {
@@ -65,6 +89,12 @@ impl Fixture {
         let carrier = type_reference(carrier);
         let other_carrier = type_reference(other);
         let boolean_carrier = type_reference(BuiltinTypeAtom::Bool);
+        let generic_carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: generic,
+                name: Identifier::from("T"),
+            });
         let parameters = ["left", "right"].map(|name| StateParameter {
             name: Identifier::from(name),
             symbol: params.handle_at(u32::from(name == "right")),
@@ -84,11 +114,35 @@ impl Fixture {
             program,
             owner,
             impostor,
+            namespace,
+            entry: params.handle_at(2),
+            generic_carrier,
             parameters,
             subjects,
             other_carrier,
             boolean_carrier,
         }
+    }
+
+    fn install_machine(&mut self, result: TypeReferenceHandle) {
+        let mut machine = typed_trees::machine::Machine {
+            symbol: self.owner,
+            name: Identifier::from("selected"),
+            spelling: Some(language_core::OperatorSpelling::Equal),
+            ..Default::default()
+        };
+        let mut entry = typed_trees::state::State {
+            symbol: self.entry,
+            name: Identifier::from("apply"),
+            return_type: result,
+            ..Default::default()
+        };
+        for parameter in &self.parameters {
+            self.program
+                .push_state_parameter(&mut entry, parameter.clone());
+        }
+        self.program.push_machine_state(&mut machine, entry);
+        self.program.push_machine(machine);
     }
 
     fn binary(
@@ -329,4 +383,148 @@ fn identity_law_matching_preserves_distinct_parameter_roles() {
         f.read(repeated).unwrap(),
         &required_binders
     ));
+}
+
+#[test]
+fn comparison_namespace_keeps_both_explicit_borrowed_operands() {
+    let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
+    f.install_machine(f.boolean_carrier);
+    let receiver = f
+        .program
+        .expression_table
+        .insert_tree(&Expression::Name(NamePath::resolved(
+            vec![Identifier::from("Selected")],
+            f.namespace,
+            f.namespace,
+        )));
+    let borrowed = f.subjects.map(|target| {
+        f.program.expression_table.insert(ExpressionNode::Borrow(
+            typed_trees::expression::TableBorrowExpression {
+                target,
+                access: language_core::ReferenceAccess::Shared,
+            },
+        ))
+    });
+    let arguments = f
+        .program
+        .expression_table
+        .insert_expression_handles(borrowed);
+    let expression = f.identity(f.parameters[0].type_reference, f.subjects);
+    let ExpressionNode::Call(call) = f.program.expression_table.expression_mut(expression) else {
+        unreachable!()
+    };
+    call.receiver = receiver;
+    call.target_symbol = f.entry;
+    call.target = Identifier::from("apply");
+    call.machine_arguments = Box::new([]);
+    call.arguments = arguments;
+    let comparison = f.read(expression).unwrap();
+    assert!(comparison.identity().is_none());
+    assert_eq!(comparison.subjects, borrowed);
+    // A value receiver cannot masquerade as the selected declaration namespace.
+    let ExpressionNode::Call(call) = f.program.expression_table.expression_mut(expression) else {
+        unreachable!()
+    };
+    call.receiver = f.subjects[0];
+    assert!(f.read(expression).is_none());
+}
+
+#[test]
+fn selected_slot_rewrite_replaces_target_and_result_carrier_before_matching() {
+    use super::super::super::StructuralTerm;
+    use super::super::slot_bindings::{diagnostic_shape_match, rewrite_slot_applications};
+    let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
+    let carrier = f.parameters[0].type_reference;
+    f.install_machine(carrier);
+    let arguments = f
+        .parameters
+        .iter()
+        .map(|parameter| StructuralTerm::Variable(parameter.name.as_str().to_owned()))
+        .collect::<Vec<_>>();
+    let abstract_call = StructuralTerm::Application {
+        target: f.impostor,
+        result_type: f.generic_carrier,
+        selections: Vec::new(),
+        machine: "operation".to_owned(),
+        arguments: arguments.clone(),
+    };
+    let concrete_call = StructuralTerm::Application {
+        target: f.entry,
+        result_type: carrier,
+        selections: Vec::new(),
+        machine: "selected".to_owned(),
+        arguments,
+    };
+    let mut missing = Vec::new();
+    let rewritten = rewrite_slot_applications(
+        &f.program,
+        &abstract_call,
+        &["operation".to_owned()],
+        &[("operation".to_owned(), ("selected".to_owned(), f.entry))],
+        &mut missing,
+    );
+    assert!(missing.is_empty());
+    let matches =
+        |provided| diagnostic_shape_match(&f.program, &rewritten, provided, &[], &mut Vec::new());
+    assert!(!diagnostic_shape_match(
+        &f.program,
+        &abstract_call,
+        &concrete_call,
+        &[],
+        &mut Vec::new()
+    ));
+    assert!(matches(&concrete_call));
+    let mut wrong_target = concrete_call.clone();
+    let StructuralTerm::Application { target, .. } = &mut wrong_target else {
+        unreachable!()
+    };
+    *target = f.impostor;
+    assert!(!matches(&wrong_target));
+    let mut wrong_selection = concrete_call;
+    let StructuralTerm::Application { selections, .. } = &mut wrong_selection else {
+        unreachable!()
+    };
+    selections.push(StaticMachineArgument {
+        type_reference: f.other_carrier,
+        ..Default::default()
+    });
+    assert!(!matches(&wrong_selection));
+}
+
+#[test]
+fn source_correspondence_reuses_scope_without_accepting_cycles_or_stale_handles() {
+    let mut f = Fixture::new(BuiltinTypeAtom::U64, BuiltinTypeAtom::U16);
+    let value = f
+        .program
+        .expression_table
+        .insert(ExpressionNode::Boolean(true));
+    let conjunction = f.binary(BinaryOperator::And, [value; 2]);
+    let mut correspondence = SourceCorrespondence::default();
+    assert!(
+        correspondence
+            .canonical_source_value(&f.program, (f.owner, &f.parameters), conjunction, &[])
+            .is_some()
+    );
+    assert!(
+        correspondence
+            .canonical_source_value(&f.program, (f.owner, &f.parameters), conjunction, &[])
+            .is_some()
+    );
+    let stale =
+        ExpressionHandle::from_parts(conjunction.arena_index(), conjunction.generation() + 1);
+    assert!(
+        correspondence
+            .canonical_source_value(&f.program, (f.owner, &f.parameters), stale, &[])
+            .is_none()
+    );
+    let ExpressionNode::Binary(binary) = f.program.expression_table.expression_mut(conjunction)
+    else {
+        unreachable!()
+    };
+    binary.right = conjunction;
+    assert!(
+        correspondence
+            .canonical_source_value(&f.program, (f.owner, &f.parameters), conjunction, &[])
+            .is_none()
+    );
 }

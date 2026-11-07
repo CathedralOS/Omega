@@ -159,7 +159,7 @@ pub(crate) fn check_law_conformance(
     // Exact declaration correspondence needs no operation-slot rewriting.
     // Other laws still use the existing selected-slot and closed-constant
     // normalization below; these are distinct semantic judgments.
-    let correspondence = declaration_correspondence::DeclarationCorrespondence::new(
+    let mut correspondence = declaration_correspondence::DeclarationCorrespondence::new(
         program,
         machine,
         entry_state,
@@ -183,7 +183,7 @@ pub(crate) fn check_law_conformance(
             // them out of law matching; ordinary exit proof remains required.
             continue;
         }
-        if let Some(source) = correspondence.as_ref().and_then(|correspondence| {
+        if let Some(source) = correspondence.as_mut().and_then(|correspondence| {
             correspondence.matching_guarantee(program, law_expression, &proven_conjuncts)
         }) {
             matches.push((law_expression, source));
@@ -198,7 +198,7 @@ pub(crate) fn check_law_conformance(
             // guarantee. It supplies no identity substitution or algebra license.
             let matched = proven_conjuncts.iter().find_map(|(proven, source)| {
                 correspondence
-                    .as_ref()
+                    .as_mut()
                     .is_some_and(|correspondence| {
                         correspondence.matching_conjuncts(program, required, *proven)
                     })

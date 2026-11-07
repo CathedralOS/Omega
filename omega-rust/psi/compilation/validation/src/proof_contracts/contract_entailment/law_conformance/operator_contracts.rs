@@ -1,8 +1,7 @@
 //! Operator contract snapshots, conformance and crash contract refinement.
 
 use super::equality_conjuncts::{
-    EqualityConjunct, collect_equality_conjuncts, matching_equality_conjuncts,
-    matching_source_values,
+    EqualityConjunct, SourceCorrespondence, collect_equality_conjuncts,
 };
 use crate::proof_contracts::contract_entailment::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, SignatureContractKind,
@@ -69,8 +68,9 @@ pub(crate) fn check_operator_contract_conformance(
         &generic_binders(program.machine_type_parameters(machine)),
         program.state_parameters(entry_state),
     );
-    let matches = |requirement_fact, provider_fact| {
-        matching_equality_conjuncts(
+    let mut source_correspondence = SourceCorrespondence::default();
+    let mut matches = |requirement_fact, provider_fact| {
+        source_correspondence.matching_conjuncts(
             program,
             requirement_fact,
             &required_binders,
@@ -110,8 +110,8 @@ pub(crate) fn check_operator_contract_conformance(
         machine,
         operator,
         &operator_identity,
-        &required_binders,
-        &provided_binders,
+        (&required_binders, &provided_binders),
+        &mut source_correspondence,
         diagnostics,
     );
 }
@@ -121,8 +121,11 @@ fn check_operator_crash_contract_refinement(
     machine: &Machine,
     operator: &typed_trees::operator::OperatorDefinition,
     operator_identity: &str,
-    required_binders: &[(symbols::SymbolHandle, String)],
-    provided_binders: &[(symbols::SymbolHandle, String)],
+    binders: (
+        &[(symbols::SymbolHandle, String)],
+        &[(symbols::SymbolHandle, String)],
+    ),
+    source_correspondence: &mut SourceCorrespondence,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let requirement_contracts = program.operator_contracts(operator);
@@ -148,14 +151,14 @@ fn check_operator_crash_contract_refinement(
                             let Some(entry) = program.machine_states(machine).first() else {
                                 return false;
                             };
-                            matching_source_values(
+                            source_correspondence.matching_values(
                                 program,
                                 (operator.symbol, program.operator_parameters(operator)),
                                 *required,
-                                required_binders,
+                                binders.0,
                                 (machine.symbol, program.state_parameters(entry)),
                                 *provided,
-                                provided_binders,
+                                binders.1,
                             )
                         })
                     }))
