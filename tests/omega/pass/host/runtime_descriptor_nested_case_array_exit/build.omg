@@ -5,8 +5,8 @@ machine build(builder: &mut Build) {
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
 
-    Build::select_provider<byte_view_calling::ByteViewPlan, byte_view_calling::DarwinByteViewPlan>(builder, macos_arm64);
-    Build::select_provider<byte_view_calling::ByteViewPlan, byte_view_calling::LinuxByteViewPlan>(builder, linux_x86_64);
+    Build::select_provider<ByteViewPlan, DarwinByteViewPlan>(builder, macos_arm64);
+    Build::select_provider<ByteViewPlan, LinuxByteViewPlan>(builder, linux_x86_64);
     Build::bind<PacketIo::read>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
