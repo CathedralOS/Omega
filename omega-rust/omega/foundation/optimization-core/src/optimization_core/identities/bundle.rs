@@ -1,3 +1,11 @@
+// `OptimizationIdentityBundle` (`OMGIDB\0\0` v1) and its composite digest
+// (`OptimizationIdentityBundleIdentity`).
+//
+// Binds the complete identities required to replay or cache an optimization
+// result (`selections`, `rule_set`, `target_cost_model`, optional
+// `decision_log`, optional `workload_profile`, and `transformation_ledger`),
+// framing optional digests with an explicit `0`/`1` presence byte.
+
 use super::{
     IDENTITY_WIDTH, OptimizationDecisionLogIdentity, OptimizationRuleSetIdentity,
     OptimizationWorkloadProfileIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
@@ -10,19 +18,15 @@ const BUNDLE_MAGIC: &[u8; 8] = b"OMGIDB\0\0";
 const BUNDLE_VERSION: u32 = 1;
 
 s!(OptimizationIdentityBundleIdentity => b"omega.optimization-identity-bundle-identity.v1\0");
-/// Complete identities required to replay or cache one optimization result.
-///
-/// Report rendering policy is intentionally absent. Optional authoritative
-/// inputs carry explicit presence tags so absence cannot collide with an
-/// all-zero or otherwise valid digest.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizationIdentityBundle {
-    selections: OptimizationSelectionIdentity,
-    rule_set: OptimizationRuleSetIdentity,
-    target_cost_model: TargetCostModelIdentity,
-    decision_log: Option<OptimizationDecisionLogIdentity>,
-    workload_profile: Option<OptimizationWorkloadProfileIdentity>,
-    transformation_ledger: TransformationLedgerIdentity,
+    selections: OptimizationSelectionIdentity, // Complete authored optimization selection digest.
+    rule_set: OptimizationRuleSetIdentity,     // Normalized ordered rule-set digest.
+    target_cost_model: TargetCostModelIdentity, // Target cost model digest.
+    decision_log: Option<OptimizationDecisionLogIdentity>, // Optional replayable decision log digest.
+    workload_profile: Option<OptimizationWorkloadProfileIdentity>, // Optional workload profile digest.
+    transformation_ledger: TransformationLedgerIdentity, // Applied transformation ledger digest.
 }
 
 crate::record_views! {

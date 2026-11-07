@@ -25,9 +25,8 @@ cloud sessions:
    message the coordinator (`candidate_ready`).**
 2. **Workers controlled by a coordinator never mark a PR ready (`gh pr ready`),
    never arm auto-merge (`gh pr merge --auto`), and never run
-   `tools/landing.py land` themselves.**
-3. **Only the coordinator marks a PR ready and lands it** (`python3
-   tools/landing.py land <pr> --expected-head <sha>`) **after** completing the
+   `cargo xtask land` themselves.**
+3. **Only the coordinator marks a PR ready and lands it** (`cargo xtask land <pr> --expected-head <sha>`) **after** completing the
    5-point diff audit below.
 4. **Reactive wakeup only:** Neither the coordinator nor any worker schedules
    timers (`schedule`, cron, `send_later`, or polling loops). The worker's
@@ -35,7 +34,7 @@ cloud sessions:
 
 ## 2. The 5-Point Coordinator Review Checklist
 
-Before running `gh pr ready` or `tools/landing.py land` on any worker branch or
+Before running `gh pr ready` or `cargo xtask land` on any worker branch or
 PR, inspect the actual diff:
 
 ```bash
@@ -84,7 +83,7 @@ the five checks below fail:
 Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 - **Every `pass/` and `run/` row in the diff must be `checked` or `built`:**
   Never allow a worker to record a `pass/` or `run/` fixture as `rejected` just
-  to satisfy `check_rules.py` (for example, recording `pass/facts/<fact>/target_body`
+  to satisfy `cargo xtask check-rules` (for example, recording `pass/facts/<fact>/target_body`
   as `rejected` because `target_body` still used deprecated `Build::select_provider`
   or missed a `reaches` clause).
 - **Every `fail/` row in the diff must be `rejected ... expected`:**
@@ -98,7 +97,7 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 
 ### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & `tests/omega/` diff)
 - **No new `samples/cli/facts/<folder>/` or 18-fixture fact-matrix bloat:**
-  `samples/cli/facts/` is frozen against new folder creation (`tools/check_rules.py`
+  `samples/cli/facts/` is frozen against new folder creation (`cargo xtask check-rules`
   enforces this). Repairs must flip existing pinned regressions in
   `tests/omega/corpus_outcomes.txt` and `samples/` or add a focused
   positive/negative fixture pair under `tests/omega/{pass,fail,run}/<behavior>/`.
@@ -125,7 +124,7 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 - **Stage 05/06 ratchets:** Confirm no new shape gates or source-context reads
   were added in violation of stage ratchets, and no production boundary checks
   were bypassed.
-- **Capability notices:** `check_rules.py` prints a notice when compiler Rust
+- **Capability notices:** `cargo xtask check-rules` prints a notice when compiler Rust
   closes nothing that existed at the base (no row turned green, no control newly
   rejecting for its pin or changing its diagnostic, no `TASKS.md` line deleted).
   - `… pinned only on N row(s) it adds`: the PR body names the existing failing
@@ -144,7 +143,7 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
 
 - **If the candidate passes all 5 points:**
   1. The coordinator marks the PR ready and queues it for merge:
-     `python3 tools/landing.py land <pr> --expected-head <sha>`
+     `cargo xtask land <pr> --expected-head <sha>`
   2. The coordinator dispatches the next requirement of the parent capability
      to the worker on its warm worktree.
 - **If the candidate fails any point:**
@@ -173,5 +172,5 @@ recurring agent failure pattern along the path to compiler completion
    `coordinator-review`.
 3. **Prefer mechanical admission checks where possible:** When a recurring
    mistake can be detected deterministically (such as `+wt` stamps or `unexpected`
-   rows in `corpus_outcomes.txt`), enforce it in `tools/check_rules.py` as well as
+   rows in `corpus_outcomes.txt`), enforce it in `tools/xtask/src/rules.rs` as well as
    in `AGENTS.md`.

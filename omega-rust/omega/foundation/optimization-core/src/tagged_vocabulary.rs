@@ -1,17 +1,10 @@
-//! Shared closed-vocabulary expansions: one row per variant states its wire
-//! tag and canonical (declaration) order; a labelled vocabulary also states
-//! the stable name reports print. The enum, its `ALL` row, and the tag
-//! reading are generated from that single row list.
+// Closed wire-tagged enum macros (`tagged_vocabulary!`, `tag_from_all!`).
+//
+// `tagged_vocabulary!` declares a `#[repr(u8)]` enum alongside its canonical
+// declaration-order `ALL` array (and optional `name(self) -> &'static str`
+// projection) from one variant list so `ALL` can never omit a declared variant.
+// `tag_from_all!` generates `from_tag(u8)` by scanning `Self::ALL`.
 
-/// Expands one closed, wire-tagged vocabulary from its single row list.
-///
-/// `tagged_vocabulary!` keeps the variant rows: their declaration order is the
-/// canonical order, so the generated `ALL` row cannot drop a variant the enum
-/// declares while a hand-written array could. The labelled form adds the
-/// stable name projection from the same rows.
-///
-/// A row list that needs a tag reading adds [`tag_from_all!`], which walks the
-/// generated `ALL` and compares the same declared tags.
 #[macro_export]
 macro_rules! tagged_vocabulary {
     (
@@ -28,7 +21,6 @@ macro_rules! tagged_vocabulary {
         }
 
         impl $name {
-            /// Canonical declaration order.
             pub const ALL: [Self; $count] = [$(Self::$variant),+];
         }
     };
@@ -48,7 +40,6 @@ macro_rules! tagged_vocabulary {
         }
 
         impl $name {
-            /// The stable name reports and manifests print.
             pub const fn name(self) -> &'static str {
                 match self {
                     $(Self::$variant => $label),+
@@ -58,12 +49,6 @@ macro_rules! tagged_vocabulary {
     };
 }
 
-/// Expands the tag reading of one vocabulary over its generated `ALL` row.
-///
-/// The reading walks `ALL` in canonical order and compares the declared tags,
-/// so a tag the row list does not declare refuses through the caller's own
-/// unknown-tag constructor — the same owner pattern the exact-name
-/// optimization vocabulary uses.
 #[macro_export]
 macro_rules! tag_from_all {
     ($name:ty, $error:ty => $unknown:path) => {

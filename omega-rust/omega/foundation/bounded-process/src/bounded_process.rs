@@ -1,7 +1,28 @@
-//! Run one prepared child with bounded duplex I/O and process-tree cleanup.
-//!
-//! The run loop owns the deadline, worker completion, and failure cleanup.
-//! Capture contracts and aggregate output accounting live beneath this owner.
+/*
+Complete run loop (`run_bounded_process`, `capture_child`) for one bounded child
+with duplex I/O and process-container cleanup under a shared wall-clock
+deadline.
+
+We reserve `cleanup_timeout.min(timeout / 4)` at the end of the caller's
+wall-clock budget so an execution timeout still leaves time to terminate and
+reap the process container. Worker threads drain stdout and stderr against
+per-stream limits (`limits.stdout_bytes`, `limits.stderr_bytes`) and a shared
+atomic `BoundedCaptureBudget`, while an optional stdin worker transfers input
+bytes or file content.
+
+Two subtle completion invariants:
+1. When checking whether both stdout and stderr have completed in the main poll
+   loop, we match `(&mut stdout, &mut stderr)` by reference before calling
+   `std::mem::take` inside the body; taking the `Option`s inside the pattern
+   would consume the first stream when the second is still pending and falsely
+   trigger `WorkersEndedEarly`.
+2. In `terminate_before`, if `child.terminate()` returns POSIX `EPERM`
+   (`group_signal_refused`), macOS may be reporting a primary process that is
+   mid-exit and neither signallable nor reapable yet; we sleep for
+   `poll_interval` within `cleanup_deadline` and retry `terminate()` so the
+   exiting primary can reach zombie state, be reaped, and let any surviving
+   descendants be signalled.
+*/
 
 mod budget;
 mod capture_contract;
@@ -35,8 +56,6 @@ enum WorkerResult {
     Input(Result<(), String>),
 }
 
-/// Run a prepared command, closing its process container before returning output.
-/// All I/O and cleanup share the requested wall-clock budget.
 pub fn run_bounded_process(
     mut prepared: BoundedProcessPrepared,
     input: BoundedProcessInput,
@@ -153,10 +172,6 @@ pub(crate) fn capture_child(
             && input_complete
             && let (Some(stdout), Some(stderr)) = (&mut stdout, &mut stderr)
         {
-            // Match both completions before extracting either one. Taking the
-            // options inside the pattern consumes the first completed stream
-            // whenever the second is still pending and falsely reports that
-            // the workers ended early.
             let stdout = std::mem::take(stdout);
             let stderr = std::mem::take(stderr);
             let completion = child
@@ -316,8 +331,6 @@ where
     }
 }
 
-/// Names a failed spawn and routes the failure through child cleanup before
-/// the run fails, whatever the spawning call was.
 fn gate_worker_spawn(
     result: std::io::Result<()>,
     worker: &'static str,
@@ -359,9 +372,6 @@ fn terminate_before(
         match child.terminate() {
             Ok(()) => break,
             Err(error) if BoundedProcessChild::group_signal_refused(&error) => {
-                // A primary that is exiting at this instant is neither
-                // signallable nor reapable yet on macOS; give it the cleanup
-                // budget to become one, then let `terminate` reap and retry.
                 if Instant::now() >= cleanup_deadline {
                     return Err(BoundedProcessRunError::Cleanup(format!(
                         "could not terminate the process container: {error}"

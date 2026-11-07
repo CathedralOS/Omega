@@ -1,4 +1,5 @@
-//! Tests for projecting build declarations from source and syntax.
+// Unit tests for projecting `BuildDeclaration` roles and modifiers from source
+// text and syntax trees.
 
 use crate::syntax_projection::project_build_declaration_syntax;
 use crate::{
@@ -253,8 +254,6 @@ fn artifact_only_is_a_direct_application_modifier_not_a_role() {
             artifact_only: true,
         }))
     );
-    // Modifier order inside the root entry does not matter; the projection
-    // still yields the same single application declaration.
     assert_eq!(
         project(
             r#"machine build(builder: &mut Build) { Build::artifact_only(builder); Build::application(builder, "publisher"); }"#,
@@ -264,7 +263,6 @@ fn artifact_only_is_a_direct_application_modifier_not_a_role() {
             artifact_only: true,
         }))
     );
-    // An ordinary application declaration leaves the flag clear.
     assert_eq!(
         project(
             r#"machine build(builder: &mut Build) { Build::application(builder, "publisher"); }"#,
@@ -300,7 +298,6 @@ fn artifact_only_rejects_non_application_roles_and_repetition() {
         ),
         Err(BuildDeclarationError::DuplicateArtifactOnlyDeclarations { count: 2 })
     );
-    // The modifier alone never supplies the required role declaration.
     assert_eq!(
         project(r#"machine build(builder: &mut Build) { Build::artifact_only(builder); }"#),
         Err(BuildDeclarationError::MissingBuildDeclaration)

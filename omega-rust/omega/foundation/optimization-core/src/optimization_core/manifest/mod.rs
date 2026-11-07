@@ -1,9 +1,9 @@
-//! Optimizer module role: executable entrance. Canonical optimization-decision and pass-publication records.
-//!
-//! This entrance owns the closed wire-format registry and exposes the record
-//! vocabulary. Descend into `decision` for decision-v5 identity and evidence
-//! binding, `pass` for pass-v1 ordering and publication validation, and
-//! `work_usage` for budget accounting.
+// Canonical optimization-decision (`OMGDEC\0\0` v5) and pass-publication
+// (`OMGPAR\0\0` v1) manifest records.
+//
+// `DECISION_FIXED_WIDTH` (`155` bytes) is the minimum wire length of an
+// `OptimizationDecisionRecord` with zero consumed facts and no validator
+// identity, used by `pass.rs` to bound `cursor.counted` pre-flight checks.
 
 mod codec;
 mod decision;
@@ -36,11 +36,6 @@ pub(super) const PASS_WIRE_FORMAT: ManifestWireFormat = ManifestWireFormat {
     magic: b"OMGPAR\0\0",
     version: 1,
 };
-/// Fixed bytes of one decision record that consumes no facts and carries no
-/// validator: the wire header, the record identity, the three joined
-/// identities, the verdict, the analysis set, the fact count and the
-/// absent-validator tag. Each term is the width the field's own encoder
-/// returns, so a field that grows moves this with it.
 pub(super) const DECISION_FIXED_WIDTH: usize = 8
     + 4
     + IDENTITY_WIDTH

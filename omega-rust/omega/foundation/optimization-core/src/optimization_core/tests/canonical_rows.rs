@@ -1,7 +1,6 @@
-//! Canonical identity rows are a wire contract. These digests are what the
-//! released encoders produced; the row writers may be reorganized, but the
-//! bytes they hash — and therefore every identity already stored in an
-//! artifact — must not move.
+// Golden digest tests pinning the exact canonical identity row bytes of
+// `OptimizationDecisionRecord`, `BaselineDecisionLog`, `ExternalDecisionPoint`,
+// and `ExternalDecisionLog`.
 
 use crate::optimization_core::manifest::tests::fact;
 use crate::{

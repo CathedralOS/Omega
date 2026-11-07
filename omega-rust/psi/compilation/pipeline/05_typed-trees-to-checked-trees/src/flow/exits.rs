@@ -120,11 +120,36 @@ pub(super) fn append_state_exit_facts(
         // Named transfers still need storage evidence when they return no
         // value. Copy both from this exact outgoing occurrence; an absent or
         // ambiguous occurrence establishes neither association.
-        let (returned_value, completed_storage) = match outgoing.as_slice() {
+        let (returned_value, mut completed_storage) = match outgoing.as_slice() {
             [capture] => *capture,
             _ => (arena::Handle::invalid(), arena::Handle::invalid()),
         };
         if !transition_target.is_valid() && outgoing.is_empty() {
+            // Valueless completion still has an exact post-statement storage
+            // cut. A missing final-expression capture remains unknown; only
+            // the actual end-of-body exit may use the last completed statement.
+            if program.state_by_symbol(state_symbol).is_some_and(|state| {
+                contract_exit.statement_index
+                    == program
+                        .statement_table
+                        .statements(state.statement_nodes)
+                        .len()
+            }) {
+                completed_storage = build
+                    .control
+                    .statements
+                    .span_or_empty(
+                        build
+                            .control
+                            .statements
+                            .span_since(build.state_statements_start),
+                    )
+                    .last()
+                    .map(|statement| statement.storage_snapshot)
+                    .unwrap_or_else(|| {
+                        super::stored_values::append_state_entry(&mut build.control)
+                    });
+            }
             append_outgoing_state_fact(
                 build,
                 machine_symbol,
@@ -134,7 +159,7 @@ pub(super) fn append_state_exit_facts(
                 active_constraints,
                 active_constraints,
                 arena::Handle::invalid(),
-                arena::Handle::invalid(),
+                completed_storage,
                 false,
                 HandleSpan::empty(),
             );

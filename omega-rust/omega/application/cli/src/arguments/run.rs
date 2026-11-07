@@ -1,28 +1,34 @@
+// Parse arguments for `omega run`.
+//
+// `--both` is a differential comparison request (native vs. Terminal Psi), not
+// a third engine name, so combining `--engine` with `--both` is rejected up
+// front. Case runs (`--inputs` or `--input` paired with `--outputs`) always
+// execute on the host and therefore reject `--target`.
+
 use crate::execution::ExecutionSelection;
 
 pub(crate) struct RunArguments {
-    /// Native unless `--engine terminal` or the `--both` comparison was named.
-    pub(crate) selection: ExecutionSelection,
+    pub(crate) selection: ExecutionSelection, // Native unless --engine terminal or --both was named.
     pub(crate) terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
     pub(crate) target_name: Option<String>,
-    /// A directory of `*.stdin` cases run against one compilation.
-    pub(crate) inputs: Option<std::path::PathBuf>,
-    /// Explicit case files (`--input`, repeatable), named by file stem.
-    pub(crate) input_files: Vec<std::path::PathBuf>,
-    /// Where each case's streams and `results.tsv` are written.
-    pub(crate) outputs: Option<std::path::PathBuf>,
+    pub(crate) inputs: Option<std::path::PathBuf>, // Directory of *.stdin cases run against one compilation.
+    pub(crate) input_files: Vec<std::path::PathBuf>, // Explicit case files (--input, repeatable), named by file stem.
+    pub(crate) outputs: Option<std::path::PathBuf>, // Where each case's streams and results.tsv are written.
     pub(crate) main_path: std::path::PathBuf,
 }
 
+pub(super) const USAGE: &str = "usage: omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
+
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<RunArguments, String> {
+) -> Result<Option<RunArguments>, String> {
     let mut both = false;
     let mut engine = None;
     let mut terminal_fuel_allowance = None;
     let mut private_entry_ram = Vec::new();
+    let mut help = false;
     let mut keep = false;
     let mut target_name = None;
     let mut inputs = None;
@@ -31,6 +37,7 @@ pub(super) fn parse_arguments(
     let mut main_path = None;
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
+            Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
             Some("--engine") => {
@@ -111,8 +118,6 @@ pub(super) fn parse_arguments(
                 });
             }
             Some("--input") => {
-                // A missing path must not swallow --both and silently turn a
-                // compared case run into native-only execution.
                 let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;
                 input_files.push(std::path::PathBuf::from(file));
             }
@@ -162,9 +167,6 @@ pub(super) fn parse_arguments(
             }
         }
     }
-    let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
-    // `--both` is a comparison request, not a third engine; naming an engine
-    // beside it would leave one of the two compared executions unexplained.
     let selection = match (engine, both) {
         (Some(_), true) => {
             return Err("--engine and --both are mutually exclusive: --both already runs native and Terminal".into());
@@ -192,7 +194,11 @@ pub(super) fn parse_arguments(
             "--terminal-fuel-allowance requires --engine terminal or --both host execution".into(),
         );
     }
-    Ok(RunArguments {
+    if help {
+        return Ok(None);
+    }
+    let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
+    Ok(Some(RunArguments {
         private_entry_ram,
         selection,
         terminal_fuel_allowance,
@@ -202,7 +208,7 @@ pub(super) fn parse_arguments(
         input_files,
         outputs,
         main_path,
-    })
+    }))
 }
 
 #[cfg(test)]
@@ -211,7 +217,8 @@ mod tests {
     use crate::execution::ExecutionSelection;
 
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
-        parse_arguments(arguments.iter().map(std::ffi::OsString::from))
+        parse_arguments(arguments.iter().map(std::ffi::OsString::from))?
+            .ok_or_else(|| "unexpected --help".to_owned())
     }
 
     #[test]

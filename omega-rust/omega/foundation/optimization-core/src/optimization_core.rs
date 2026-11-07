@@ -1,15 +1,32 @@
-//! The optimization-core root: the authoritative exact-name registry of
-//! optimizations and the canonical selection codec every stage and report
-//! consumes. Beneath it, `post_terminal` projects the post-Terminal subset of
-//! a selection, `contracts` defines rule and budget contracts, `identities`
-//! owns the domain-separated identities carried between stages, `manifest`
-//! their common publication records, `decisions` the baseline logs and the
-//! external decision wire schema (not candidate selection),
-//! `rollback` the subtractive exact-rule overlay and its receipt,
-//! `report_request` the auxiliary human projection request,
-//! `refusal_site` the withheld compiler location of a stage's internal check,
-//! and `mutation_matrix` the test-support substitution matrix custody families
-//! reuse.
+/*
+Authoritative exact-name registry of source-visible optimizations, their
+execution phases, and the canonical selection codec (`OMGOPT\0\0` v15).
+
+We declare every optimization once in `optimization_vocabulary!`, binding its
+stable wire tag, exact `build.omg` case name, and `OptimizationExecutionPhase`.
+Descriptor order defines canonical selection order (`Optimization::ALL`), not an
+implicit optimization level or pass schedule. Build preludes and release
+rollback tooling consume this generated table directly so no second list of
+names or tags can drift out of sync.
+*/
+
+/*
+Phase projection (`project_phase`, `project_psi`, `project_post_terminal`)
+routes a stage's local subset of optimizations while retaining the full
+`OptimizationSelectionIdentity` of the complete authored policy:
+- `CheckedTrees` and `Psi` execute before sealed Terminal Psi publication; rows
+  in the `Psi` phase project 1-to-1 into `optimization::PsiOptimization` via
+  `psi_projection_value!`, while `From<optimization::PsiOptimization>` is
+  checked exhaustively by the compiler in the reverse direction.
+- `PostTerminalOptimizationSelections` (`post_terminal.rs`) admits only phases
+  where `is_post_terminal()` holds (`AbstractOperations` through
+  `FunctionRelativeLayout`), making pre-Terminal selections unrepresentable in
+  post-Terminal native lowering.
+- `CountFrame` and the 40-byte five-counter helpers (`encode_work_counters`,
+  `decode_work_counters`) are shared here so wire records (`u32` counts) and
+  canonical identity rows (`u64` counts) serialize their fields through a single
+  definition.
+*/
 
 pub(crate) mod contracts;
 pub(crate) mod decisions;
@@ -24,11 +41,6 @@ pub(crate) mod rollback;
 
 use std::fmt;
 
-/// Which width frames one counted row's length. A wire record frames its counts
-/// as u32; a canonical identity row frames them as u64. The row content is the
-/// same bytes either way, so a record family writes its row once and passes the
-/// frame, instead of keeping a second encoder beside the first that must agree
-/// on every field and field order.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum CountFrame {
     Wire,
@@ -44,8 +56,6 @@ impl CountFrame {
     }
 }
 
-/// The five-u64 work-counter row budget and usage encodings share:
-/// little-endian words in declaration order across a 40-byte wire row.
 pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
     let mut encoded = [0; 40];
     for (index, value) in fields.into_iter().enumerate() {
@@ -54,7 +64,6 @@ pub(crate) fn encode_work_counters(fields: [u64; 5]) -> [u8; 40] {
     encoded
 }
 
-/// Read the exact 40-byte five-counter row back in declaration order.
 pub(crate) fn decode_work_counters(encoded: &[u8]) -> Option<[u64; 5]> {
     let row: [u8; 40] = encoded.try_into().ok()?;
     let mut fields = [0; 5];
@@ -75,9 +84,6 @@ const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v15\0";
 
 crate::tagged_vocabulary! {
     9;
-    /// Closed execution phase for one explicitly named optimization. Phase
-    /// projection routes a complete source-visible suite; it never replaces that
-    /// suite's identity or creates an optimization-level alias.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OptimizationExecutionPhase {
         CheckedTrees = 1,
@@ -93,23 +99,11 @@ crate::tagged_vocabulary! {
 }
 
 impl OptimizationExecutionPhase {
-    /// Sealed Terminal Psi divides the phases a sealed artifact still admits
-    /// from the ones that already ran: `CheckedTrees` and `Psi` execute before
-    /// publication and are execution history afterwards. Every post-Terminal
-    /// projection reads this split rather than restating its own phase list.
     pub const fn is_post_terminal(self) -> bool {
         !matches!(self, Self::CheckedTrees | Self::Psi)
     }
 }
 
-/// One row's value in the unified-to-Psi projection: a row that executes in
-/// the `Psi` phase is source-visible to Psi under the same name, and every
-/// other row stays Omega-owned.
-///
-/// The declared phase is the whole predicate — there is no second visibility
-/// column to keep in step with the rows, and a `Psi`-phase row whose Psi
-/// spelling diverged fails to compile at the projection instead of silently
-/// mapping to nothing.
 macro_rules! psi_projection_value {
     ($variant:ident, Psi) => {
         Some(optimization::PsiOptimization::$variant)
@@ -129,10 +123,6 @@ macro_rules! optimization_vocabulary {
             }
         ),+ $(,)?
     ) => {
-        /// One source-visible, semantics-preserving optimization family.
-        ///
-        /// Descriptor order is the canonical selection order, not an implicit
-        /// optimization level or a promise about pass scheduling.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[repr(u8)]
         pub enum Optimization {
@@ -146,9 +136,6 @@ macro_rules! optimization_vocabulary {
                 match self { $(Self::$variant => $case),+ }
             }
 
-            /// Resolve one exact source-visible case name. Release tooling
-            /// shares this generated vocabulary rather than maintaining a
-            /// second rollback-name registry.
             pub fn from_build_case_name(name: &str) -> Option<Self> {
                 Self::ALL
                     .into_iter()
@@ -161,10 +148,6 @@ macro_rules! optimization_vocabulary {
                 }
             }
 
-            /// Project one unified build-visible selection into Psi's
-            /// independently owned pre-Terminal vocabulary. Physical
-            /// optimizations have no Psi identity and remain in their
-            /// Omega-owned phases.
             pub const fn optimization(self) -> Option<optimization::PsiOptimization> {
                 match self {
                     $( Self::$variant => psi_projection_value!($variant, $phase) ),+
@@ -181,9 +164,6 @@ macro_rules! optimization_vocabulary {
     };
 }
 
-// This is the only declaration of exact names, stable tags,
-// phases, and canonical order. Build preludes are exhaustively checked against
-// the generated `ALL` and `build_case_name` views.
 optimization_vocabulary! {
     55;
     ControlFlowCleanup = 1 => {
@@ -408,10 +388,6 @@ optimization_vocabulary! {
     },
 }
 
-/// The Psi-side half of the projection. It stays a stated match rather than
-/// row expansion: the rows generate the unified-to-Psi direction, while this
-/// direction names a foreign closed vocabulary and is checked exhaustive by
-/// the compiler, so a new Psi optimization cannot be forgotten here.
 impl From<optimization::PsiOptimization> for Optimization {
     fn from(optimization: optimization::PsiOptimization) -> Self {
         use optimization::PsiOptimization;
@@ -432,13 +408,10 @@ impl From<optimization::PsiOptimization> for Optimization {
     }
 }
 
-/// Common source-visible catalog header with a representation-specific
-/// payload. Target predicates, candidate constructors, validators, and route
-/// types remain owned by the stage that understands them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizationCatalogDescriptor<Payload> {
-    optimization: Optimization,
-    payload: Payload,
+    optimization: Optimization, // Authoritative source-visible optimization family.
+    payload: Payload, // Stage-owned descriptor payload (target predicates, constructors, validators).
 }
 
 impl<Payload> OptimizationCatalogDescriptor<Payload> {
@@ -458,38 +431,28 @@ impl<Payload> OptimizationCatalogDescriptor<Payload> {
     }
 }
 
-/// A canonical, duplicate-free set of explicitly selected optimizations.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OptimizationSelections {
-    selected: Vec<Optimization>,
+    selected: Vec<Optimization>, // Strictly ascending, duplicate-free list in canonical tag order.
 }
 
-/// Exact phase-local projection of one complete authored selection.
-///
-/// The projection may be empty. It retains the complete selection identity so
-/// a stage cannot present its local subset as though it were the complete
-/// build-owned policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationPhaseSelections {
-    phase: OptimizationExecutionPhase,
-    complete_selection: OptimizationSelectionIdentity,
-    selected: OptimizationSelections,
+    phase: OptimizationExecutionPhase, // Execution phase this projection targets.
+    complete_selection: OptimizationSelectionIdentity, // Digest of the full authored selection set.
+    selected: OptimizationSelections,  // Subset of optimizations routed to `phase`.
 }
 
-/// A phase-local selection was presented to the wrong executable stage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizationPhaseMismatch {
     pub expected: OptimizationExecutionPhase,
     pub actual: OptimizationExecutionPhase,
 }
 
-/// Omega-owned bridge from the complete build selection to the independently
-/// encoded target-neutral Psi selection. Coordinators retain the complete
-/// identity; Psi consumes only `selected`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationSelectionProjection {
-    complete_selection: OptimizationSelectionIdentity,
-    selected: optimization::PsiOptimizationSelections,
+    complete_selection: OptimizationSelectionIdentity, // Digest of the full authored selection set.
+    selected: optimization::PsiOptimizationSelections, // Target-neutral Psi-phase subset.
 }
 
 impl PsiOptimizationSelectionProjection {
@@ -515,7 +478,6 @@ impl OptimizationPhaseSelections {
         &self.selected
     }
 
-    /// Expose the local set only to the stage that owns this exact phase.
     pub fn require_phase(
         &self,
         expected: OptimizationExecutionPhase,
@@ -560,8 +522,6 @@ impl OptimizationSelections {
         self.selected.binary_search(&optimization).is_ok()
     }
 
-    /// Canonical subset routed to one execution phase. The complete selection
-    /// remains the identity-bearing optimizer input.
     pub fn for_phase(&self, phase: OptimizationExecutionPhase) -> Self {
         Self {
             selected: self
@@ -573,9 +533,6 @@ impl OptimizationSelections {
         }
     }
 
-    /// Bind one phase-local selection to the identity of the complete authored
-    /// set. This is the preferred stage input; `for_phase` remains the
-    /// compatibility projection for existing consumers.
     pub fn project_phase(&self, phase: OptimizationExecutionPhase) -> OptimizationPhaseSelections {
         OptimizationPhaseSelections {
             phase,
@@ -584,8 +541,6 @@ impl OptimizationSelections {
         }
     }
 
-    /// Exhaustively project the unified build selection into Psi's closed,
-    /// target-neutral pre-Terminal vocabulary.
     pub fn project_psi(&self) -> PsiOptimizationSelectionProjection {
         let selected = optimization::PsiOptimizationSelections::new(
             self.selected
@@ -599,9 +554,6 @@ impl OptimizationSelections {
         }
     }
 
-    /// Project the exact selected suite onto phases owned by the consumer of a
-    /// sealed Terminal artifact. Psi selections are execution history in that
-    /// artifact and may not be selected again by its lowerer.
     pub fn project_post_terminal(&self) -> PostTerminalOptimizationSelectionProjection {
         PostTerminalOptimizationSelectionProjection {
             complete_selection: self.identity(),
@@ -619,7 +571,6 @@ impl OptimizationSelections {
         }
     }
 
-    /// Canonical standalone encoding for cache, artifact, and replay inputs.
     pub fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(16 + self.selected.len());
         encoded.extend_from_slice(SELECTION_ENCODING_MAGIC);
@@ -669,7 +620,6 @@ impl OptimizationSelections {
         Ok(Self { selected })
     }
 
-    /// Domain-separated digest of the exact canonical selected set.
     pub fn identity(&self) -> OptimizationSelectionIdentity {
         let encoded = self.encode();
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(SELECTION_IDENTITY_DOMAIN);
@@ -751,11 +701,8 @@ impl std::error::Error for SelectionDecodeError {}
 #[cfg(test)]
 mod tests;
 
-/// Lowercase hex rendering for byte payloads in manifests and identities:
-/// the digest module's renderer is the crate's one hex implementation.
 pub use crate::digest_encoder::hex;
 
-/// Tagged optional u64 payload: 0 discriminant, or 1 followed by 8 LE bytes.
 pub fn encode_option_u64(bytes: &mut Vec<u8>, value: Option<u64>) {
     match value {
         Some(value) => {

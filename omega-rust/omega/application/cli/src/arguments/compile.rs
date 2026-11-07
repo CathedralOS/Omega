@@ -1,3 +1,11 @@
+// Parse arguments for the default `omega [path]` and `omega --check [path]` command.
+//
+// Repeated `--target` flags are deduplicated in first-seen order because the
+// target selection is a set (`wiki/spec/build/configuration.md#exact-target-requests`).
+// Any unrecognized `--` token is rejected before the positional `root_path`
+// slot is assigned so a misspelled flag never masquerades as a missing source
+// file.
+
 use super::{option_value, parse_build_input};
 use compiler::OptimizationRollback;
 use package_compilation::BuildSourceCaptureRequest;
@@ -7,30 +15,25 @@ pub(crate) struct CompileArguments {
     pub(crate) build_dir: Option<PathBuf>,
     pub(crate) build_inputs: Option<BuildSourceCaptureRequest>,
     pub(crate) check_only: bool,
-    /// With `--check`, withhold the lock's accepted checkpoint so the root
-    /// compiles under fresh verification rather than retained acceptance.
-    pub(crate) verify: bool,
+    pub(crate) verify: bool, // With --check, withhold the lock's accepted checkpoint to force fresh verification.
     pub(crate) offline: bool,
     pub(crate) timings: bool,
     pub(crate) report_file: Option<PathBuf>,
     pub(crate) root_path: PathBuf,
-    /// Every `--target` named, in the order given, repeats removed. Empty
-    /// means none was named.
-    pub(crate) target_names: Vec<String>,
+    pub(crate) target_names: Vec<String>, // Every --target named, in first-seen order, repeats removed; empty means host default.
     pub(crate) optimization_rollback: OptimizationRollback,
 }
 
-pub(crate) fn usage() -> &'static str {
-    "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both [--terminal-fuel-allowance <positive-u64>]] [--keep] [--entry-ram <position=hex>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path."
-}
+pub(super) const USAGE: &str = "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both [--terminal-fuel-allowance <positive-u64>]] [--keep] [--entry-ram <position=hex>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path.";
 
-pub(crate) fn parse_arguments(
+pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
-) -> Result<CompileArguments, String> {
+) -> Result<Option<CompileArguments>, String> {
     let mut build_dir = None;
     let mut build_inputs = Vec::new();
     let mut check_only = false;
     let mut disabled_optimizations = Vec::new();
+    let mut help = false;
     let mut offline = false;
     let mut timings = false;
     let mut verify = false;
@@ -39,6 +42,11 @@ pub(crate) fn parse_arguments(
     let mut target_names: Vec<String> = Vec::new();
 
     while let Some(argument) = arguments.next() {
+        if argument == "--help" || argument == "-h" {
+            super::set_flag(&mut help, &argument.to_string_lossy())?;
+            continue;
+        }
+
         if argument == "--offline" {
             super::set_flag(&mut offline, "--offline")?;
             continue;
@@ -82,8 +90,6 @@ pub(crate) fn parse_arguments(
             let target_name = option_value(&mut arguments)
                 .and_then(|target_name| target_name.into_string().ok())
                 .ok_or_else(|| "--target requires a UTF-8 target name".to_owned())?;
-            // The selection is a set: naming a target twice adds nothing
-            // (wiki/spec/build/configuration.md#exact-target-requests).
             if !target_names.contains(&target_name) {
                 target_names.push(target_name);
             }
@@ -109,9 +115,6 @@ pub(crate) fn parse_arguments(
             continue;
         }
 
-        // Falling through would assign this as the root path, so a misspelled flag
-        // surfaced as a package-resolution failure against a directory that does not
-        // exist, rather than as a rejected option.
         if argument.to_string_lossy().starts_with("--") {
             return Err(format!(
                 "unrecognized option `{}`",
@@ -140,7 +143,10 @@ pub(crate) fn parse_arguments(
     if verify && !check_only {
         return Err("--verify requires --check".into());
     }
-    Ok(CompileArguments {
+    if help {
+        return Ok(None);
+    }
+    Ok(Some(CompileArguments {
         build_dir,
         build_inputs,
         check_only,
@@ -151,5 +157,5 @@ pub(crate) fn parse_arguments(
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_names,
         optimization_rollback,
-    })
+    }))
 }
