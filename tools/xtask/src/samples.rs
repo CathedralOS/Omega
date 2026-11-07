@@ -223,7 +223,7 @@ pub fn discover_samples(
 }
 
 fn build_omega_cli(repo: &Path) -> Result<PathBuf, u8> {
-    let output = Command::new("cargo")
+    let output = Command::new("mbx")
         .args([
             "build",
             "--locked",
@@ -238,7 +238,7 @@ fn build_omega_cli(repo: &Path) -> Result<PathBuf, u8> {
         .stdin(Stdio::null())
         .output()
         .map_err(|e| {
-            eprintln!("sample-gate: failed to invoke cargo build: {e}");
+            eprintln!("sample-gate: failed to invoke mbx build (mbx is required; run `bash tools/agent_setup.sh`): {e}");
             1u8
         })?;
     if !output.status.success() {

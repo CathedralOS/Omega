@@ -351,7 +351,7 @@ fn selected_fixture_count(root: &Path, filter_text: &str, shard_text: &str) -> u
 }
 
 fn build_runner(root: &Path) -> Result<PathBuf, u8> {
-    let output = Command::new("cargo")
+    let output = Command::new("mbx")
         .args([
             "test",
             "--locked",
@@ -368,7 +368,7 @@ fn build_runner(root: &Path) -> Result<PathBuf, u8> {
         .stdin(Stdio::null())
         .output()
         .map_err(|e| {
-            eprintln!("corpus: failed to invoke cargo test: {e}");
+            eprintln!("corpus: failed to invoke mbx test (mbx is required; run `bash tools/agent_setup.sh`): {e}");
             4u8
         })?;
     if !output.status.success() {

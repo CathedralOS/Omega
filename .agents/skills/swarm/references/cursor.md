@@ -18,7 +18,7 @@ Inspect the `Task` schema from the `cursor` namespace before dispatch:
 
 - Pass `grok-4.7-medium` unless the user specifies another exposed model slug (never `-fast`).
 - Record slot assignments in `build/swarm/<wave>/inflight.json` before invoking `Task`, and attach each returned agent ID.
-- Each cloud VM has its own independent filesystem and builds in its checkout's `target/` with `cargo build -p omega`.
+- Each cloud VM runs `bash tools/agent_setup.sh` to install/update `mbx` and builds in its checkout's `target/` with `mbx build -p omega` (direct `cargo build` / `cargo test` fallback is forbidden).
 
 ## 2. Dispatch, Reactive Drain & Reuse
 

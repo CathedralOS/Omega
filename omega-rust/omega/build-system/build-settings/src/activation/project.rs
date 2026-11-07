@@ -1,4 +1,12 @@
-//! Normalize the role at normal return, before package identity is established.
+/*
+Normalize the authored project role (`BuildDeclaration`) from the activation's
+issued request ledger at normal return (`declaration`).
+
+An authored `build.omg` must declare exactly one role (`Build::package`,
+`Build::application`, or one or more `Build::member` workspace entries), and
+`Build::artifact_only` is permitted at most once and only on an `Application`
+role.
+*/
 
 use build_declarations::{
     ApplicationDeclaration, BuildDeclaration, BuildRequest, PackageDeclaration,

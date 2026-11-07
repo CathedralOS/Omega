@@ -64,8 +64,8 @@ different cloud executor.
    recursively change system ownership, or enable a bypass mode. An actual
    permission denial must be reported with its exact action and error; do not
    route around it.
-4. **Toolchain and limits (compiler work only).** Activate the environment's documented setup, then
-   run `cargo xtask doctor` and `mbx doctor` when available.
+4. **Toolchain and limits (compiler work only).** Run `bash tools/agent_setup.sh` so `mbx` is installed/updated, then
+   run `mbx xtask doctor` and `mbx doctor` (`mbx` is mandatory; direct `cargo` fallback is forbidden).
    Use the pinned Rust toolchain and nextest under
    [testing](../../../../tools/testing.md). Inspect CPU quota, available memory
    and disk as well as visible processors; size build jobs to the effective

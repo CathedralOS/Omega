@@ -175,9 +175,20 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 
 ## Commands
 
-On a fresh Linux host or cloud container, `bash tools/agent_setup.sh` installs
-the pinned toolchain, `mbx`, `cargo-nextest` and `zstd`, and fetches crates;
-`cargo xtask doctor` then confirms the host is ready.
+`mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
+all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
+`cargo clippy`, or `cargo run` fallback is forbidden. If `mbx` is missing or older
+than `1.29.0`, install or update it immediately before building:
+
+- **Linux / macOS / Cloud containers:**
+  ```bash
+  bash tools/agent_setup.sh && mbx xtask doctor
+  ```
+- **Windows PowerShell:**
+  ```powershell
+  $v = "1.29.2"; Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
+  ```
+
 See [tools/testing.md](tools/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` / `corpus_runner` invocations so
 background processes never hang on open stdin:
@@ -187,20 +198,20 @@ background processes never hang on open stdin:
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target mbx build -p omega < /dev/null
 
 # Run focused corpus verification & record (only on a clean committed worktree):
-cargo xtask corpus --filter <fixtures> < /dev/null
-cargo xtask corpus --record --filter <fixtures> < /dev/null
+mbx xtask corpus --filter <fixtures> < /dev/null
+mbx xtask corpus --record --filter <fixtures> < /dev/null
 
 # Run focused sample native + Psi gate:
-cargo xtask sample-gate --filter <sample_path> < /dev/null
+mbx xtask sample-gate --filter <sample_path> < /dev/null
 
 # Run repository rules, formatting, and boundary gates:
-cargo xtask check-rules --base origin/main --title "<lane>: <subject>"
-cargo xtask fmt --check
-cargo xtask check-boundary
+mbx xtask check-rules --base origin/main --title "<lane>: <subject>"
+mbx xtask fmt --check
+mbx xtask check-boundary
 ```
 
-Use `cargo` when `mbx` is unavailable. Never run an unfiltered corpus sweep
-locally (`cargo xtask corpus` enforces a 200-fixture local selection budget).
+Never run an unfiltered corpus sweep locally (`mbx xtask corpus` enforces a
+200-fixture local selection budget).
 
 ## The Psi/Omega firewall
 

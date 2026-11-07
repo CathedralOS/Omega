@@ -1,17 +1,33 @@
-//! Check the program that a Build activation will actually consume.
-//!
-//! Semantic admission is required with or without package inputs. Package
-//! authority is an additional obligation, not the switch that enables checking.
-//! Transfer the prepared and checked typed program: checking one clone and
-//! interpreting a separately specialized clone would not bind execution to
-//! the admitted bodies. Provider planning uses the Build declaration context,
-//! its completed defaults and admitted execution profile. The checked program
-//! and selected provider plans pass together to interpreter installation;
-//! host services still require this activation's own authority.
-//!
-//! Product declarations remain a frozen selection view. The complete Build
-//! dependency context goes through ordinary checking, including helper bodies;
-//! a declaration's visibility never substitutes for its contract proof.
+/*
+Check the `Build` program that a `TerminalBuildActivation` will actually consume
+(`prepare_checked_build`).
+
+Semantic admission is mandatory with or without package inputs; package authority
+adds declaration-selection restrictions on top of the semantic floor rather than
+toggling whether checking runs.
+
+How we project, fold, and check the `Build` slice without corrupting the Product
+continuation:
+1. Rejoin completed toolchain provider defaults (`toolchain_defaults.rejoin_build(typed)`)
+   against the canonical `TypedTrees` arena before projecting, and collect only
+   the `SymbolHandle`s of actually selected providers and boundary requirements
+   (describing an unselected implementation never imports its body).
+2. Project the `Build` slice (`project_build_program`) and verify that source
+   code cannot manufacture a counterfeit `Build` value
+   (`admit_toolchain_build_activation`) before ordinary borrow checking runs.
+3. Evaluate or defer pending type-dependent `PreCheckEvaluation` continuations
+   against the canonical `TypedTrees` arena (never a throwaway clone, which
+   would leave `Build` types unresolved in the continuation), then settle
+   `Build`-scope provider plans (`derive_satisfies_plans`,
+   `select_derived_provider_plans`) and fold any remaining deferred constant
+   evaluations (`SelectedConstantEvaluation::evaluate_pending`).
+4. Run `psi_compiler::CheckRequest` on the settled `Build` projection, reusing
+   `priors` only when the projected `Build` program matches, install
+   `Build`-specific comparison dispatch (`settle_selected_comparison_execution`)
+   on an owned copy of `CheckedTrees`, and discharge the completed `Build`
+   pre-checks from `pre_checks` so the subsequent Product compilation only
+   evaluates its complement.
+*/
 
 use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
 use build_time_evaluation::{
@@ -42,16 +58,10 @@ pub(crate) fn prepare_checked_build(
     ),
     Vec<Diagnostic>,
 > {
-    // Retained applications belong to the canonical typed owner. Rejoin before
-    // projecting so pending evaluation and every later projection retain the
-    // same exact closed declarations and type arguments.
     let completed_defaults = toolchain_defaults
         .map(|defaults| defaults.rejoin_build(typed))
         .transpose()?
         .unwrap_or_default();
-    // A completed choice names real Build work. Retain its exact requirements
-    // and provider; ordinary row references include the map's complete members.
-    // Describing an unselected implementation still imports no body.
     let mut selected_declarations = Vec::new();
     for selection in &completed_defaults {
         selected_declarations.push(selection.provider_type.symbol);
@@ -65,25 +75,11 @@ pub(crate) fn prepare_checked_build(
             }
         }
     }
-    // Pure compiler evaluation settles type-dependent storage before ordinary
-    // ownership and contract checking. Its existing admission floor forbids
-    // service effects and retains exact declaration-selection authority; it
-    // does not grant execution of the Build activation. Every retained helper
-    // body still owes the settled check below before filesystem or other
-    // sponsored Build execution can consume the prepared program.
-    // Settle the owned work in the canonical arenas. Evaluating only a clone
-    // would leave the continuation's Build types unresolved and make Product
-    // repeat their evaluation under unrelated provider selections. Projection
-    // selects work and later the executable judgment; it is not a copyback API.
     let projection = validation::execution_projection::project_build_program(
         typed,
         entry,
         &selected_declarations,
     )?;
-    // Source cannot manufacture the activation. Check that formation duty
-    // before ordinary access checking can report only the counterfeit place's
-    // incidental borrow error; runtime admission still rechecks the prepared
-    // program before issuing the original value.
     build_time_evaluation::admit_toolchain_build_activation(&projection)?;
     let mut pending = Vec::new();
     for continuation in pre_checks.iter() {
@@ -127,8 +123,6 @@ pub(crate) fn prepare_checked_build(
         packages,
     )?;
     let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
-    // This provisional Build owner stays immutable through provider planning
-    // and pending evaluation. A later re-projection creates its own census.
     let service_catalog = std::sync::Arc::new(
         typed_trees::service_declarations::PreparedServiceCatalog::prepare(context, &[]),
     );
@@ -171,11 +165,6 @@ pub(crate) fn prepare_checked_build(
         )?
         .evaluate_pending(typed, pending)?;
     }
-    // Carry the invocation's earlier language judgments only for the exact
-    // settled Build program this activation projects: its own slot's chain
-    // plus sibling rows whose projections arrived equal. Psi still admits
-    // this invocation's declaration authority; provider/comparison settlement
-    // and executor grants remain fresh below.
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
         let program = if had_pending {
@@ -212,8 +201,6 @@ pub(crate) fn prepare_checked_build(
         retained,
         ..
     } = outcome;
-    // Build installs execution-specific comparison facts in its own view;
-    // the shared language judgment stays unchanged for other activations.
     let mut checked =
         std::sync::Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
     selected_dispatch::settle_selected_comparison_execution(
@@ -221,8 +208,6 @@ pub(crate) fn prepare_checked_build(
         DependencyScope::Build,
         &provenance,
     )?;
-    // Only successful Build admission discharges this continuation's Build
-    // work. Product keeps its exact complement, not a second full evaluation.
     *pre_checks = pre_checks
         .iter()
         .map(|continuation| continuation.exclude_completed_work(typed, &checked))
