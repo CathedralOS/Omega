@@ -115,12 +115,6 @@ impl StructuralJudge<'_> {
         }) {
             StructuralJudgment::Proven
         } else {
-            if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-                eprintln!(
-                    "CALLREQ identity unknown owner={:?} left={left:?} right={right:?} equations={:?}",
-                    self.machine_symbol, self.captured_result_equations
-                );
-            }
             StructuralJudgment::Unknown
         }
     }
@@ -140,7 +134,15 @@ impl StructuralJudge<'_> {
         // Carry the remaining fields with each saved subject. Restarting a
         // recursive walk at every field revisits the same parent projections
         // and can exhaust the allowance before reaching their public identity.
-        let mut pending = vec![(value, Vec::<String>::new())];
+        let copied_source = self.completed_value_identity(value.clone());
+        let mut pending = Vec::new();
+        if !copied_source.same_resolution_payload(&value) {
+            // Keep the capture itself as well as its exact copied source.
+            // This also substitutes saved inputs inside selected applications
+            // without unfolding a body or adding a scalar equality rule.
+            pending.push((copied_source, Vec::<String>::new()));
+        }
+        pending.push((value, Vec::<String>::new()));
         let mut visited: Vec<(StructuralTerm, Vec<String>)> = Vec::new();
         let mut forms: Vec<StructuralTerm> = Vec::new();
         while let Some((value, fields)) = pending.pop() {

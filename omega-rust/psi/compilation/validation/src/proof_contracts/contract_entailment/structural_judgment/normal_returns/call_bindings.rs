@@ -296,7 +296,15 @@ impl StructuralJudge<'_> {
         &mut self,
         equations: Vec<CapturedResultEquation>,
     ) {
-        for equation in equations {
+        for mut equation in equations {
+            if !equation.is_completed_call_identity() {
+                // Declared guarantees name the values actually passed. Copies
+                // of one unchanged input share its saved source; they must not
+                // become unrelated arguments in successive law citations.
+                // Call-identity rows retain their exact executed occurrence.
+                equation.left = self.completed_value_identity(equation.left);
+                equation.right = self.completed_value_identity(equation.right);
+            }
             if equation.is_data_identity() {
                 // A public data Id relates complete values. Keep its meaning
                 // separate from equations that authorize scalar substitution.

@@ -460,7 +460,7 @@ impl<'program> StructuralJudge<'program> {
         &self,
         value: StructuralTerm,
     ) -> StructuralTerm {
-        if self.captured_result_equations.is_empty() {
+        if self.captured_result_equations.is_empty() && self.completed_nominal_values.is_empty() {
             return value;
         }
         self.completed_value_identity_at(
@@ -468,17 +468,28 @@ impl<'program> StructuralJudge<'program> {
             0,
             self.captured_result_equations
                 .iter()
-                .filter(|equation| !equation.is_data_identity()),
+                .filter(|equation| !equation.is_data_identity())
+                .map(|equation| (&equation.left, &equation.right))
+                // A completed owned read already records the exact value it
+                // copied. Later operands must retain that identity even when
+                // the value came from an opaque call. Storage admission and
+                // intervening writes remain with the read's producer.
+                .chain(
+                    self.completed_nominal_values
+                        .iter()
+                        .map(|read| (&read.value, &read.observed_value)),
+                ),
         )
     }
 
-    /// Both views borrow the same ordered facts; numeric projection excludes
-    /// only producer-marked call identities, never public recipe equations.
+    /// Resolve the ordered equations and completed reads without rebuilding
+    /// their rosters. Only a later capture can resolve to an earlier value.
     fn completed_value_identity_at<'equations>(
         &self,
         value: StructuralTerm,
         depth: usize,
-        equations: impl Iterator<Item = &'equations CapturedResultEquation> + Clone,
+        equations: impl Iterator<Item = (&'equations StructuralTerm, &'equations StructuralTerm)>
+        + Clone,
     ) -> StructuralTerm {
         if depth >= 64 {
             return value;
@@ -513,8 +524,7 @@ impl<'program> StructuralJudge<'program> {
         ) {
             return value;
         }
-        for equation in equations.clone() {
-            let (left, right) = (&equation.left, &equation.right);
+        for (left, right) in equations.clone() {
             // Orient captured results toward earlier source observations:
             // normalize a later captured call result toward an earlier
             // observation or input parameter, avoiding circular flips.
