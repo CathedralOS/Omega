@@ -2,7 +2,7 @@
 //! structural operand supplies captured projections, never a fresh observation
 //! of a same-named callee parameter or the caller's later storage version.
 
-use super::{CurrentScalarValues, field_storage_path};
+use super::{CurrentScalarValues, descriptor_storage_path, field_storage_path};
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use validation::{
@@ -51,8 +51,8 @@ impl CurrentScalarValues<'_> {
                     });
                 }
                 ExpressionNode::Member(member) => {
-                    let (root, mut path) = field_storage_path(self.program, member.receiver)?;
-                    path.push(member.member_symbol);
+                    let (root, receiver_path) =
+                        descriptor_storage_path(self.program, member.receiver)?;
                     let Some((_, actual)) = arguments.iter().find(|(formal, _)| *formal == root)
                     else {
                         bindings.push(ScopedArithmeticBinding {
@@ -76,16 +76,10 @@ impl CurrentScalarValues<'_> {
                     ) == Some(
                         language_semantics::declaration_selection::CollectionMeasure::Length,
                     ) {
-                        let (_, receiver_path) = field_storage_path(self.program, member.receiver)?;
-                        if receiver_path.is_empty() {
-                            self.collection_length(actual, 0)?
-                        } else {
-                            self.captured_field_lengths(actual, 0)
-                                .into_iter()
-                                .find(|field| field.path == receiver_path)?
-                                .value
-                        }
+                        self.projected_collection_length(actual, &receiver_path)?
                     } else {
+                        let (_, mut path) = field_storage_path(self.program, member.receiver)?;
+                        path.push(member.member_symbol);
                         self.captured_scalar_fields(actual, 0)
                             .into_iter()
                             .find(|field| {
