@@ -13,7 +13,7 @@ use crate::FixedViewCopyDecodeError;
 
 use super::{
     instruction::{decode_instruction, encode_instruction},
-    provenance::{decode_fuel, encode_fuel},
+    provenance::{decode_work, encode_work},
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_list, length},
@@ -271,7 +271,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             }
         }
     }
-    encode_fuel(bytes, &successor.fuel);
+    encode_work(bytes, &successor.work);
 }
 
 fn decode_successor(
@@ -420,7 +420,7 @@ fn decode_successor(
         bindings,
         structural_bindings,
         structural_case,
-        fuel: decode_fuel(cursor)?,
+        work: decode_work(cursor)?,
     })
 }
 

@@ -1,4 +1,8 @@
-//! Whole-source reuse of a pin issued earlier in the same acquisition operation.
+// Whole-repository Git resolution reusing an operation-local `GitAcquisitionPin`
+// (`resolve_git_source_from_pin_in_lane`).
+//
+// When `pin` is `Some`, it must match the exact request and retained commit/root
+// tree in the cache without fetching; `None` performs ordinary resolution.
 
 use super::acquisition::resolve_whole_git_source_from_retained_lanes;
 use super::selection::GitRevisionSelection;
@@ -9,11 +13,6 @@ use crate::limits::LocalSourceLimits;
 use crate::observations::resolved::{GitAcquisitionPin, ResolvedGitSource};
 use crate::storage::RetainedStorageLane;
 
-/// Reuse an operation-local acquisition for its whole repository root with the
-/// selected primary Git from `resolver.primary_git()?`.
-/// A supplied pin must match the exact request and retained commit/root tree;
-/// missing or invalid cache state fails without fetching. `None` has ordinary
-/// source-resolution behavior. This does not recover a persisted lock pin.
 pub fn resolve_git_source_from_pin_in_lane(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,

@@ -87,6 +87,6 @@ links the verified compiler's exact dependency units, performs normal accepted
 project preparation, compiles the complete Omega application, and executes its
 original canonical Terminal artifact and runtime provisions. It never accepts
 package decisions or interprets source trees. Each run retains actual streams,
-status and exit; unsupported execution, exhausted fuel and timeouts fail. The
+status and exit; unsupported execution, exhausted work and timeouts fail. The
 validator verifies compiler, sponsor, source and library hashes, then checks
 both actual native and Terminal numerical values against the frozen oracle.

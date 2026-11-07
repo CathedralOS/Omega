@@ -734,7 +734,7 @@ fn interpret_fixture(
     if checked_interpreter_leg() {
         return interpret_checked_fixture(root_path, fixture_dir, build_dir, &target, rollback);
     }
-    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
+    let work_budget = match terminal_execution::work_budget(fixture_dir) {
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
@@ -762,7 +762,7 @@ fn interpret_fixture(
         None,
         Some(&target),
         fixture_dir,
-        fuel_allowance,
+        work_budget,
         input,
     )
 }
@@ -955,7 +955,7 @@ fn observe_retained_terminal(
     fixture_dir: &Path,
     roots: &[&compilation_products::TerminalRuntimeProvisions],
 ) -> terminal_execution::Observation {
-    let fuel_allowance = match terminal_execution::fuel_allowance(fixture_dir) {
+    let work_budget = match terminal_execution::work_budget(fixture_dir) {
         Ok(allowance) => allowance,
         Err(error) => return terminal_execution::Observation::failure(error),
     };
@@ -967,7 +967,7 @@ fn observe_retained_terminal(
                 provisions,
                 target,
                 fixture_dir,
-                fuel_allowance,
+                work_budget,
                 input,
             ),
             Err(error) => terminal_execution::Observation::failure(error),
@@ -981,7 +981,7 @@ fn observe_retained_terminal(
             proposals,
             roots,
             fixture_dir,
-            fuel_allowance,
+            work_budget,
         );
         observation.facts.extend(installations.facts);
         observation.diagnostics.extend(installations.diagnostics);
@@ -1334,7 +1334,7 @@ fn check_fail_fixture(
     }
     // Authored host policy, not a source recognizer or production mode. Small
     // sponsor ceilings exercise the real request boundary without allocating
-    // hundreds of megabytes or executing the default fuel allowance.
+    // hundreds of megabytes or executing the default work budget.
     let fixture_root = root_path.parent().expect("fixture has a source directory");
     match fs::read_to_string(fixture_root.join("build_resource_limits.txt")) {
         Ok(contents) => {
@@ -1346,7 +1346,7 @@ fn check_fail_fixture(
                 .and_then(|values| values.try_into().ok())
                 .filter(|values: &[u64; 4]| values.iter().all(|value| *value != 0))
                 .ok_or_else(|| vec![diagnostics::Diagnostic::error(
-                    "build_resource_limits.txt requires four positive integers: fuel, entries, total bytes, object extent",
+                    "build_resource_limits.txt requires four positive integers: work, entries, total bytes, object extent",
                 )])?;
             let evaluation_limits = build_time_evaluation::BuildEvaluationSponsorLimits::new(
                 limits[0],
@@ -1358,12 +1358,12 @@ fn check_fail_fixture(
                 u64::MAX,
                 u64::MAX,
             )
-            .expect("positive authored fuel and resource ceilings");
+            .expect("positive authored work and resource ceilings");
             request.build.evaluation_sponsor = Some(
                 build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
                     evaluation_limits,
                     evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-                        fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
                         storage_schedule:
                             evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
                     },

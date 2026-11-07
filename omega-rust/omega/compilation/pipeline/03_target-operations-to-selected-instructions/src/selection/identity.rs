@@ -27,7 +27,7 @@ pub(super) fn receipt(
         legalized: legalized.receipt().identity(),
         legalization_validator: legalized.receipt().validator(),
         optimization_unit: legalized.receipt().optimization_unit(),
-        fuel_schedule: legalized.receipt().fuel_schedule(),
+        work_schedule: legalized.receipt().work_schedule(),
         function_count,
         block_count,
         virtual_register_count,

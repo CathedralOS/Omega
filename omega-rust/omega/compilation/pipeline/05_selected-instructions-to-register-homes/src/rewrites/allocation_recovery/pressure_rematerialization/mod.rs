@@ -25,9 +25,9 @@ use selected_instructions::{
     SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     VirtualRegisterId,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
+use semantic_vocabulary::{IntegerValue, MachineId, ValueId, WorkScheduleIdentity};
 
-/// Insert one value-lineage-only, zero-fuel rematerialization immediately
+/// Insert one value-lineage-only, zero-work rematerialization immediately
 /// before the supported future-use boundary while retaining the semantic
 /// source materialization and its charge.
 pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
@@ -101,7 +101,7 @@ pub struct PressureRematerializationPlan {
     pub register_environment: TargetRegisterEnvironmentIdentity,
     pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub policy: PressureRematerializationPolicy,
     pub budget: OptimizationWorkBudget,
     pub usage: OptimizationWorkUsage,
@@ -138,9 +138,9 @@ impl PressureRematerializationPlan {
         let register_environment = TargetRegisterEnvironmentIdentity::from_bytes(cursor.array()?);
         let allocator_availability = AllocatorAvailabilityIdentity::from_bytes(cursor.array()?);
         let optimization_unit = OptimizationUnitIdentity::from_bytes(cursor.array()?);
-        let raw_fuel = cursor.u32()?;
-        let fuel_schedule = FuelScheduleIdentity::new(raw_fuel).ok_or(
-            PressureRematerializationDecodeError::InvalidFuelSchedule(raw_fuel),
+        let raw_work = cursor.u32()?;
+        let work_schedule = WorkScheduleIdentity::new(raw_work).ok_or(
+            PressureRematerializationDecodeError::InvalidWorkSchedule(raw_work),
         )?;
         let policy = match cursor.byte()? {
             0 => PressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
@@ -217,7 +217,7 @@ impl PressureRematerializationPlan {
             register_environment,
             allocator_availability,
             optimization_unit,
-            fuel_schedule,
+            work_schedule,
             policy,
             budget,
             usage,
@@ -273,7 +273,7 @@ pub struct PressureRematerializationValidationReceipt {
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
-    pub(crate) fuel_schedule: FuelScheduleIdentity,
+    pub(crate) work_schedule: WorkScheduleIdentity,
     pub(crate) transformed_selected: SelectedInstructionPlanIdentity,
     pub(crate) policy: PressureRematerializationPolicy,
     pub(crate) usage: OptimizationWorkUsage,
@@ -369,7 +369,7 @@ pub enum PressureRematerializationDecodeError {
     UnknownOption(u8),
     UnknownConstraintFamily(u8),
     UnknownIntegerValue(u8),
-    InvalidFuelSchedule(u32),
+    InvalidWorkSchedule(u32),
     InvalidMachineId(u64),
     InvalidValueId,
     InvalidBudget,

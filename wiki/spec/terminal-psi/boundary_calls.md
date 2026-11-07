@@ -149,7 +149,7 @@ neither catalog admission nor result multiplicity manufactures claims.
 
 Execution transfers actual input custody through the ordinary structural-call
 continuation and establishes the caller's result only after the selected
-provider's successful, fuel-charged normal return. Suspension does not repeat the call
+provider's successful, work-charged normal return. Suspension does not repeat the call
 or invoke a host result fabricator. Projected consumers keep the same residual
 complement and cleanup obligations as ordinary calls.
 

@@ -1,9 +1,6 @@
-//! Recursive contract-expression projection by semantic expression family.
-//!
-//! This entrance retains recursion depth, substitutions, and checked-fact
-//! custody. Every family the reviewed format represents is projected in the
-//! one match below; names, members, and casts delegate to their sibling
-//! semantic projectors.
+// Recursive contract-expression projection by semantic expression family, tracking
+// recursion depth, substitutions, and checked-fact custody while delegating names,
+// members, calls, and casts to their sibling semantic projectors.
 
 mod call_expression;
 mod member_expression;

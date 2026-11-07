@@ -11,6 +11,7 @@ use serde::Serialize;
 use crate::repo_root;
 
 const CLAIMS_REF: &str = "refs/coordination/omega-claims/main";
+const MBX_MINIMUM: (u32, u32, u32) = (1, 29, 0);
 const NEXTEST_MINIMUM: (u32, u32, u32) = (0, 9, 140);
 
 #[derive(Debug, Clone, Serialize)]
@@ -205,18 +206,38 @@ fn check_rust_link_probe(root: &Path) -> CheckEntry {
     result
 }
 
-fn check_mbx(root: &Path) -> CheckEntry {
-    match run_cmd("mbx", &["--version"], root) {
-        Some((0, version, _)) => check("mbx", "ok", version, None),
-        _ => check(
-            "mbx",
-            "warn",
-            "mbx not on PATH",
-            Some(
-                "AGENTS.md prefers mbx over cargo; install it from https://mr-boxington.jdx.dev/installation or use cargo directly",
-            ),
-        ),
+fn mbx_install_fix() -> &'static str {
+    if cfg!(windows) {
+        r#"mbx is required (direct cargo fallback is forbidden); install/update via PowerShell: `$v = "1.29.2"; Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes`"#
+    } else {
+        "mbx is required (direct cargo fallback is forbidden); install/update via `bash tools/agent_setup.sh`"
     }
+}
+
+fn check_mbx(root: &Path) -> CheckEntry {
+    let Some((0, version, _)) = run_cmd("mbx", &["--version"], root) else {
+        return check("mbx", "fail", "mbx not on PATH", Some(mbx_install_fix()));
+    };
+    let Some(found) = parse_semver_triplet(&version) else {
+        return check(
+            "mbx",
+            "fail",
+            format!("could not parse mbx version from `{version}`"),
+            Some(mbx_install_fix()),
+        );
+    };
+    if found < MBX_MINIMUM {
+        return check(
+            "mbx",
+            "fail",
+            format!(
+                "mbx {}.{}.{} < {}.{}.{}",
+                found.0, found.1, found.2, MBX_MINIMUM.0, MBX_MINIMUM.1, MBX_MINIMUM.2
+            ),
+            Some(mbx_install_fix()),
+        );
+    }
+    check("mbx", "ok", version, None)
 }
 
 pub fn parse_semver_triplet(text: &str) -> Option<(u32, u32, u32)> {
@@ -233,27 +254,27 @@ pub fn parse_semver_triplet(text: &str) -> Option<(u32, u32, u32)> {
 }
 
 fn check_nextest(root: &Path) -> CheckEntry {
-    let Some((0, out, err)) = run_cmd("cargo", &["nextest", "--version"], root) else {
+    let Some((0, out, err)) = run_cmd("mbx", &["nextest", "--version"], root) else {
         return check(
             "nextest",
-            "warn",
-            "cargo nextest unavailable",
-            Some("cargo install cargo-nextest — needed for `mbx nextest run`"),
+            "fail",
+            "mbx nextest unavailable",
+            Some("run `bash tools/agent_setup.sh` — needed for `mbx nextest run`"),
         );
     };
     let text = if out.is_empty() { &err } else { &out };
     let Some(found) = parse_semver_triplet(text) else {
-        return check("nextest", "warn", "could not parse nextest version", None);
+        return check("nextest", "fail", "could not parse nextest version", None);
     };
     if found < NEXTEST_MINIMUM {
         return check(
             "nextest",
-            "warn",
+            "fail",
             format!(
                 "nextest {}.{}.{} < {}.{}.{}",
                 found.0, found.1, found.2, NEXTEST_MINIMUM.0, NEXTEST_MINIMUM.1, NEXTEST_MINIMUM.2
             ),
-            Some("cargo install cargo-nextest --locked"),
+            Some("run `bash tools/agent_setup.sh` to update cargo-nextest"),
         );
     }
     check(

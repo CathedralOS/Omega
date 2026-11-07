@@ -7,7 +7,7 @@ use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
     SelectedInstruction, SelectedInstructionProvenance, SelectedSelectionConstraints,
 };
-use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, OperationId};
+use semantic_vocabulary::{IntegerValue, MachineId, OperationId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
@@ -34,7 +34,7 @@ pub(super) fn with_builder(
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(
             b"placement-lifecycle test",
         ),
-        fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(1).unwrap(),
         target,
         entry: MachineId::new(1).unwrap(),
         scalar_functions: vec![],
@@ -71,7 +71,7 @@ pub(super) fn with_builder(
         operation: OperationId::new(71).unwrap(),
         result: None,
         kind: LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(0)),
-        fuel: vec![],
+        work: vec![],
         effect: optimization_unit::EffectLink {
             input: 0,
             output: 1,
@@ -349,7 +349,7 @@ fn failed_operation_assertion_traps_without_a_source_edge_or_continuation() {
                             assert_eq!(instruction.kind, SelectedInstructionKind::Crash);
                             assert!(
                                 instruction.provenance.edges.is_empty()
-                                    && instruction.provenance.fuel.is_empty()
+                                    && instruction.provenance.work.is_empty()
                             );
                             assert!(
                                 selected_instructions::terminator_successors(&block.terminator)
@@ -424,7 +424,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                 let preceding = OperationId::new(70).unwrap();
                 builder.pending_provenance = SelectedInstructionProvenance {
                     operations: vec![preceding],
-                    fuel: vec![optimization_unit::FuelSettlement {
+                    work: vec![optimization_unit::WorkSettlement {
                         site: optimization_unit::PsiProvenance::Operation(preceding),
                         units: 3,
                     }],
@@ -483,13 +483,13 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                     charged += block
                         .instructions
                         .iter()
-                        .flat_map(|instruction| &instruction.provenance.fuel)
+                        .flat_map(|instruction| &instruction.provenance.work)
                         .map(|settlement| settlement.units)
                         .sum::<u64>();
                     assert!(
                         selected_instructions::terminator_instruction(&block.terminator)
                             .provenance
-                            .fuel
+                            .work
                             .is_empty()
                     );
                     for successor in selected_instructions::terminator_successors(&block.terminator)
@@ -502,7 +502,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                         );
                         assert_eq!(successor.psi_edge, None);
                         assert!(
-                            successor.fuel.is_empty()
+                            successor.work.is_empty()
                                 && successor.bindings.is_empty()
                                 && successor.structural_bindings.is_empty()
                         );
@@ -537,7 +537,7 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                 assert_eq!(&bytes[32..], &[0xa7; 8]);
                 assert_eq!(
                     charged, 3,
-                    "preceding source fuel executes once, not once per native iteration"
+                    "preceding source work executes once, not once per native iteration"
                 );
             });
         }

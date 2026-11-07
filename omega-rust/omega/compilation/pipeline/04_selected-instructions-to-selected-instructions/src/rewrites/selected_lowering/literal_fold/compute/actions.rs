@@ -113,7 +113,7 @@ fn producer_victim(literal: &SelectedInstruction) -> Option<VirtualRegisterId> {
 /// clobber, or operand binding it declared — and the single-operation
 /// provenance shape the recovery classifier required, derived here from the
 /// record itself: one operation, one produced value, no edges or
-/// obligations, and fuel that settles only at that operation. A
+/// obligations, and work that settles only at that operation. A
 /// materialization failing any clause stays in the stream untouched.
 fn producer_record_admits(literal: &SelectedInstruction) -> bool {
     literal.implicit_uses.is_empty()
@@ -123,9 +123,9 @@ fn producer_record_admits(literal: &SelectedInstruction) -> bool {
         && literal.provenance.values.len() == 1
         && literal.provenance.edges.is_empty()
         && literal.provenance.obligations.is_empty()
-        && !literal.provenance.fuel.is_empty()
-        && literal.provenance.fuel.iter().all(|fuel| {
-            fuel.site
+        && !literal.provenance.work.is_empty()
+        && literal.provenance.work.iter().all(|work| {
+            work.site
                 == optimization_unit::PsiProvenance::Operation(literal.provenance.operations[0])
         })
 }

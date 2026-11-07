@@ -1,13 +1,13 @@
 use super::{
-    AcceptedObligationFactIdentity, Cursor, EdgeId, FuelSettlement, InstructionMachineEffects,
-    IntegerValue, MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
+    AcceptedObligationFactIdentity, Cursor, EdgeId, InstructionMachineEffects, IntegerValue,
+    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
     MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
     MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineId, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSizeKnowledge, MachineTrapBehavior, ObligationId, OperationId,
     PreAllocationMachineEffectDecodeError, PsiProvenance, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, decode_accepted_fact,
-    decode_constraint_key, decode_ids, decode_obligation, decode_units,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueId, WorkSettlement,
+    decode_accepted_fact, decode_constraint_key, decode_ids, decode_obligation, decode_units,
 };
 use crate::FrameStorageSlotId::Outgoing;
 use crate::{
@@ -501,9 +501,9 @@ pub fn decode_provenance(
     let values = decode_ids(cursor, ValueId::new)?;
     let edges = decode_ids(cursor, EdgeId::new)?;
     let obligations = decode_ids(cursor, ObligationId::new)?;
-    let fuel_count = cursor.length()?;
-    let mut fuel = Vec::with_capacity(fuel_count.min(cursor.remaining()));
-    for _ in 0..fuel_count {
+    let work_count = cursor.length()?;
+    let mut work = Vec::with_capacity(work_count.min(cursor.remaining()));
+    for _ in 0..work_count {
         let site_tag = cursor.byte()?;
         let raw = cursor.u64()?;
         let site = match site_tag {
@@ -515,7 +515,7 @@ pub fn decode_provenance(
             ),
             _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
         };
-        fuel.push(FuelSettlement {
+        work.push(WorkSettlement {
             site,
             units: cursor.u64()?,
         });
@@ -525,9 +525,9 @@ pub fn decode_provenance(
         values,
         edges,
         obligations,
-        fuel,
+        work,
     };
-    if !provenance.fuel_settles_only_claimed_sites() {
+    if !provenance.work_settles_only_claimed_sites() {
         return Err(PreAllocationMachineEffectDecodeError::InvalidField);
     }
     Ok(provenance)

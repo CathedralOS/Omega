@@ -101,7 +101,7 @@ source-produced artifact, requires missing and wrong-architecture memory-model
 supplies to refuse before entry effects, and executes under the explicitly
 selected private sequential model. A second instance pauses inside the sequence
 and funds exactly one refused site at a time; unfunded and completed retries must
-repeat neither events nor fuel charges. Exact completed event order, total fuel
+repeat neither events nor work charges. Exact completed event order, total work
 and unchanged artifact identity are execution oracles, independent of the
 program's scalar exit. They establish private-model interpretation, not live
 shared/device ordering or foreign native execution.
@@ -335,9 +335,9 @@ Uninstalled construction must refuse; catalog availability alone supplies no
 provider. It checks the authored `OPBA` line under unbounded execution and
 one retained instance funded one refused site at a time: before edge cleanup,
 inside the parent hook after `P`, and inside the child hook after `B`. Unfunded
-retries preserve output, effects and fuel; live close stays Busy, and completion
-matches the entire reference effect stream and per-site fuel usage. This is
-portable interpreter acceptance, not native Console or native fuel evidence.
+retries preserve output, effects and work; live close stays Busy, and completion
+matches the entire reference effect stream and per-site work usage. This is
+portable interpreter acceptance, not native Console or native work evidence.
 Without the opt-in it records `unrequested`; unknown portable provisions refuse.
 The ordinary immutable capture/verification environment also binds runtime
 inspection artifacts under `inspection/<program-fingerprint>/portable/terminal.psiart`
@@ -366,7 +366,7 @@ Provider entry binding reserves two logical cells, refuses with one cell of
 headroom while returning the original buffer, then succeeds on retry. Teardown
 releases the allocation and every transported descriptor/profile row.
 The read provision and `external-extent-write` execute borrowed and loaded
-artifacts across one-unit fuel pauses. Their eight-byte transfers fit exactly
+artifacts across one-unit work-budget pauses. Their eight-byte transfers fit exactly
 eight payload bytes; seven bytes and one byte refuse with sticky live-storage
 exhaustion, no published result and no additional charge on resume. Scratch
 retires before completion or refusal. These observations cover compiler-owned
@@ -381,7 +381,7 @@ extraction and original-buffer handback. Borrowed and loaded artifacts run with
 the exact ceilings, one cell less, one payload byte less, one payload byte total,
 and actual write-only supply despite the source provider's read/write description.
 A competing root reservation after the complete initialization image retires
-independently forces decoder refusal. Fuel pauses do not repeat effects;
+independently forces decoder refusal. Work pauses do not repeat effects;
 budget/authority refusal retains custody until teardown. Success preserves the
 unused tail, checks the extracted value in source and refuses repeated handback.
 Use the same opt-in and filters `pass/layouts/resident_whole_extraction` and
@@ -391,7 +391,7 @@ placement-image bytes, not codec metadata, host-owned backing capacity or RSS.
 `runtime portable mutable-boundary` supplies an observation-only host adapter
 to `build/receiver_view_writeback_exit`'s source-produced Build helper. It loads
 the external artifact, checks the three stored-view lifetime promises, and
-requires effects 1 and 2 exactly once across fuel pauses, original-receiver
+requires effects 1 and 2 exactly once across work-budget pauses, original-receiver
 identity, and final identifier readback `after`. A different receiver must
 reject without a normal-return observation. Run with
 `OMEGA_CORPUS_HOST_PROVISIONS=1`; without opt-in it records `unrequested`.
@@ -434,7 +434,7 @@ materialized record also crosses a real component and retains its exact contents
 `runtime portable build-bindings <slots> <entry> <identifier-or->` supplies the
 Build binding imports with source-issued designated operands. Slots are an
 ordered comma-separated list. Both borrowed and loaded artifacts must retain
-the original receiver, produce those inert selections exactly once through fuel
+the original receiver, produce those inert selections exactly once through work
 pauses, and preserve the requested identifier readback. Replayed tickets,
 unissued operation identities and a foreign receiver refuse. The conditional
 Build fixture checks that an unexecuted binding has no effect; the receiver
@@ -445,7 +445,7 @@ Description-query execution and production Build scheduling still use the tree
 engine and are not established by this provision.
 
 `runtime portable storage-cells <peak> <unsigned-result|unit>` runs an authored helper
-with its exact live-cell ceiling and with one cell less, replenishing fuel one
+with its exact live-cell ceiling and with one cell less, replenishing work one
 unit at a time. The sufficient run must return the authored scalar or Unit and report
 the exact peak. The short run must refuse for live storage, retain its activation
 without a result, and repeat the same refusal without changing usage. Teardown

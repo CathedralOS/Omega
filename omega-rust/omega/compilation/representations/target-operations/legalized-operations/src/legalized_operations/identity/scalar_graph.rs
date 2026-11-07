@@ -1,5 +1,5 @@
 use super::calling::{encode_call_plan, encode_placement};
-use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option};
+use super::encoding::{encode_ids, encode_len, encode_option, encode_work};
 use super::scalar::{encode_bindings, encode_integer, encode_integer_type, encode_scalar_type};
 use super::structural::{encode_effect, encode_ownership_roster};
 use crate::legalized_operations::{
@@ -1290,7 +1290,7 @@ pub(super) fn encode(
                     crate::codec_bytes::push_encoded(bytes, right.get().to_le_bytes());
                 }
             }
-            encode_fuel(bytes, &instruction.fuel);
+            encode_work(bytes, &instruction.work);
             encode_effect(bytes, instruction.effect);
             encode_ownership_roster(bytes, &instruction.ownership);
         }
@@ -1427,7 +1427,7 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
         super::structural_types::encode_structural_argument(bytes, &binding.semantic.argument);
         encode_runtime_indices(bytes, &binding.indices);
     }
-    encode_fuel(bytes, &successor.fuel);
+    encode_work(bytes, &successor.work);
 }
 
 fn encode_cleanup_calls(
@@ -1478,7 +1478,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             psi_edge,
             call,
             declared_result,
-            fuel,
+            work,
             effect,
             ownership,
         } => {
@@ -1499,7 +1499,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     super::structural_result::encode_result(bytes, result);
                 }
             }
-            encode_fuel(bytes, fuel);
+            encode_work(bytes, work);
             encode_effect(bytes, *effect);
             encode_ownership_roster(bytes, ownership);
         }
@@ -1512,7 +1512,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             structural_arguments,
             requirement_obligations,
             frontier_lower_bound,
-            fuel,
+            work,
             effect,
             ownership,
         } => {
@@ -1558,7 +1558,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 bytes,
                 frontier_lower_bound.iter().map(|identity| identity.get()),
             );
-            encode_fuel(bytes, fuel);
+            encode_work(bytes, work);
             encode_effect(bytes, *effect);
             encode_ownership_roster(bytes, ownership);
         }
@@ -1572,7 +1572,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             cause,
             site_guard,
             frontier_lower_bound,
-            fuel,
+            work,
             effect,
             ownership,
         } => {
@@ -1591,7 +1591,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                 bytes.extend_from_slice(&encoded);
             }
             encode_ids(bytes, frontier_lower_bound.iter().map(|claim| claim.get()));
-            encode_fuel(bytes, fuel);
+            encode_work(bytes, work);
             encode_effect(bytes, *effect);
             encode_ownership_roster(bytes, ownership);
         }
@@ -1639,7 +1639,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     super::structural::encode_cleanup_action(bytes, action);
                 }
                 encode_cleanup_calls(bytes, &case.cleanup_calls);
-                encode_fuel(bytes, &case.fuel);
+                encode_work(bytes, &case.work);
             }
             encode_effect(bytes, *effect);
             encode_ownership_roster(bytes, ownership);
@@ -1667,7 +1667,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     encode_scalar_type(bytes, *scalar_type);
                 }
             }
-            encode_fuel(bytes, &returned.fuel);
+            encode_work(bytes, &returned.work);
             encode_effect(bytes, returned.effect);
             encode_ownership_roster(bytes, &returned.ownership);
         }

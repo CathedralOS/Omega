@@ -72,7 +72,7 @@ admits a different lifecycle: reserve the exact static component slot before
 entry, retain the activation at its checked readiness crossing, install the
 independently admitted component, then resume that same activation. Reservation
 is not supply or a host-adapter permission. Calling the pending slot rejects;
-ordinary fuel exhaustion does not authorize installation, and installation
+ordinary work-budget exhaustion does not authorize installation, and installation
 cannot replace an existing binding. The component's whole callable closure is
 admitted before it executes. This is explicit scheduling, never speculation
 that an unbound branch will not run.
@@ -210,10 +210,10 @@ drives that same mechanism. Outcomes distinguish:
 
 Execution runs on the caller's thread unless the host supplies an appropriate
 executor. No automatic worker, global engine, event loop, JIT, or async runtime
-is required. Interpreter fuel cannot preempt a synchronous native call or bound
+is required. Interpreter work cannot preempt a synchronous native call or bound
 its wall time. Decoding, checking, and storage provision require their own bounds.
 
-A fuel pause is an interpreter-safe stop, not source `suspends`, a call return,
+A work-budget pause is an interpreter-safe stop, not source `suspends`, a call return,
 cancellation, or an invariant-restoring observation point. Live loans, facts,
 partially moved storage, invariant windows, and component pins remain attached to
 the activation. An external operation cannot inspect or mutate affected live
@@ -361,7 +361,7 @@ providers and OS policy in the interpreted application, not the compiler.
 
 Instruction coverage and environment compatibility are checked before execution
 and at component installation. Unknown/unsupported effects reject without native
-fallback. Halt and external entry obey the target model, not fuel-pause behavior;
+fallback. Halt and external entry obey the target model, not work-budget-pause behavior;
 the existing invocation/resource lifecycle retains pending effects and prevents
 re-execution on resume. The full [assembly contract](../language/assembly.md#interpreted-execution)
 also governs ordering, state observations, faults and realization evidence.
@@ -384,7 +384,7 @@ not native timing or actual hardware correctness.
 
 Assembly-bearing startup additionally exercises a device-interaction sequence
 and a processor idle/external-entry sequence against the selected environment,
-with authority, persistent state and once-only effects preserved across fuel
+with authority, persistent state and once-only effects preserved across work
 pauses.
 Do not replace the exercised OS sequence with a host routine, demand assembly
 removal, or report support for unimplemented instructions. Generic embedding and

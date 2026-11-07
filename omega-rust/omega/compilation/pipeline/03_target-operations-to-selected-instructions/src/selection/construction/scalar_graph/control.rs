@@ -64,7 +64,7 @@ pub(super) fn build(
             cause,
             site_guard,
             frontier_lower_bound,
-            fuel,
+            work,
             ..
         } => {
             let (kind, key) = builder.crash_form()?;
@@ -76,7 +76,7 @@ pub(super) fn build(
                     &[],
                     SelectedInstructionProvenance {
                         edges: vec![*psi_edge],
-                        fuel: fuel.clone(),
+                        work: work.clone(),
                         ..Default::default()
                     },
                 )?,
@@ -174,7 +174,7 @@ pub(super) fn build(
                 SelectedInstructionProvenance {
                     values,
                     edges: vec![returned.edge],
-                    fuel: returned.fuel.clone(),
+                    work: returned.work.clone(),
                     ..Default::default()
                 },
             )?;
@@ -275,9 +275,9 @@ pub(super) fn build(
                         )
                         .collect()
                 },
-                fuel: not_rows
+                work: not_rows
                     .iter()
-                    .flat_map(|row| row.fuel.iter().copied())
+                    .flat_map(|row| row.work.iter().copied())
                     .collect(),
                 ..Default::default()
             };
@@ -451,7 +451,7 @@ pub(super) fn successor(
                 })
             })
             .collect::<Result<Vec<_>, SelectedInstructionError>>()?,
-        fuel: next.fuel.clone(),
+        work: next.work.clone(),
     };
     let preparation = builder.instructions[preparation_start..].to_vec();
     if !preparation.is_empty() {

@@ -6,7 +6,7 @@ fixed operands and their symmetric tied components onto instruction-local
 carriers, using the target-admitted CopyI64 row. Resident semantic registers
 keep their original CFG transports. Homes are independently reanalysed after
 rewriting; no predecessor, fixed view, tie, early clobber, class, scalar type,
-fuel schedule, custody check or budget limit is removed.
+work schedule, custody check or budget limit is removed.
 
 The required recovery route now composes this realization after either home
 pressure or unresolved entry transitions. Optional fixed-segment tree policy

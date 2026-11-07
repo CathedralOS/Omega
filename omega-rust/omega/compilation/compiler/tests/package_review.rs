@@ -680,7 +680,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         artifact: artifact.psi_artifact(),
         target: None,
         provisions: windows.runtime_provisions(),
-        fuel_allowance: 100_000,
+        work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,

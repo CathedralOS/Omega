@@ -200,7 +200,7 @@ pub(in crate::selection) fn read(
 
 /// The exact-width load zero-extends raw bits. Restore a narrow signed value
 /// before any consumer, not only at a subsequent ABI boundary. Only the
-/// memory load carries the authored read's operation and fuel.
+/// memory load carries the authored read's operation and work.
 pub(super) fn normalize_signed_load(
     builder: &mut Builder<'_>,
     definition: legalized_operations::LegalizedValueDefinition,

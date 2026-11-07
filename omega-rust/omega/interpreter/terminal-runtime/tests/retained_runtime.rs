@@ -54,7 +54,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         provider_proposal: None,
         x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
         memory_ordering: None,
-        fuel_allowance: 100_000,
+        work_budget: 100_000,
         // This program returns normally; possession of its artifact does not
         // supply process-domain death authority.
         domain_exit: TerminalDomainExitDelegation::Unprovided,
@@ -87,6 +87,6 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
         assert!(observed.stdout.is_empty());
         assert!(observed.stderr.is_empty());
     }
-    assert!(sliced.fuel_suspensions > 0);
+    assert!(sliced.work_suspensions > 0);
     assert_eq!(terminal_codec::module_decode_count(), before);
 }

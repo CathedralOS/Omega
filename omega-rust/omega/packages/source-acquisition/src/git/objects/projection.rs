@@ -1,4 +1,11 @@
-//! Exact declaration selection and independently authenticated member re-rooting.
+// Exact declaration selection and independently authenticated workspace-member
+// subtree projection (`GitTreeProjectionPlan`, `AuthenticatedGitTreeProjection`).
+//
+// `project_member` validates each selected entry's original repository path
+// before stripping the member directory prefix so a forbidden component (such
+// as `.gitmodules`) in the prefix itself is still rejected, then re-roots the
+// member entries and independently authenticates the projected subtree against
+// the member's declared tree object ID.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -81,7 +88,6 @@ impl AuthenticatedGitMemberTree {
         &self.entries
     }
 
-    /// Transfer the authenticated rows to the materialization layer.
     pub(crate) fn into_entries(self) -> Vec<GitTreeEntry> {
         self.entries
     }
@@ -306,8 +312,6 @@ fn project_member(
         } else {
             continue;
         };
-        // Check the original path before stripping the member prefix: a
-        // forbidden component in that prefix is still selected source content.
         entry.validate_source_entry()?;
         let projected_depth = projected_path
             .split(|byte| *byte == b'/')

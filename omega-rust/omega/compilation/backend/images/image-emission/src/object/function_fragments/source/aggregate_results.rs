@@ -55,7 +55,7 @@ pub(super) fn operation(
     let graph = &target.graph;
     match source {
         // Physical source/selection replay owns the complete reserved backing,
-        // descriptor stores, unsigned admission comparison and retirement fuel.
+        // descriptor stores, unsigned admission comparison and retirement work.
         // The image boundary rejoins the exact current operation and operands;
         // requires_graph_storage_replay prevents a legacy mirror substituting
         // for that retained physical evidence.

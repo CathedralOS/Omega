@@ -28,7 +28,7 @@ pub use publication::{
 
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
 
@@ -36,7 +36,7 @@ use terminal_psi::TerminalPsiIdentity;
 pub struct FunctionFragmentEmissionPlan {
     pub identity: FunctionFragmentEmissionIdentity,
     pub psi: TerminalPsiIdentity,
-    pub fuel_schedule: FuelScheduleIdentity,
+    pub work_schedule: WorkScheduleIdentity,
     pub selected: SelectedInstructionPlanIdentity,
     pub target: NativeTarget,
     pub entry: MachineId,

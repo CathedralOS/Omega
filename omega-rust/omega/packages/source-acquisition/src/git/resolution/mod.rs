@@ -1,9 +1,29 @@
-//! Resolve a validated Git request into final immutable source custody.
-//!
-//! The lifecycle is visible in this directory: [`acquisition`] opens or creates
-//! the retained cache entry, [`repository`] authenticates the exact commit and
-//! tree, a materializer publishes either the whole source or one
-//! [`workspace_member`], and [`issuance`] revalidates custody before returning.
+/*
+Git source resolution lifecycle from validated request through authenticated
+immutable snapshot issuance.
+
+We coordinate Git acquisition across four stages: `acquisition` opens or creates
+the retained bare-repository cache entry under an entry lock and verifies lane
+path identities around the entire resolution; `repository` selects or fetches
+the target commit and authenticates the commit and root tree objects; a
+materializer (`materialization` for whole repositories, `workspace_member` for
+projected workspace packages, or `tree_session` for staged multi-step catalog
+discovery) authenticates and publishes the selected snapshot; and `issuance`
+re-verifies snapshot bytes and retained storage custody before returning
+`ResolvedGitSource`.
+*/
+
+/*
+Why selection intent is separated from authenticated source custody:
+
+Callers may resolve a floating selector (`resolve_git_source_in_lane`), reuse an
+operation-local acquisition pin (`resolve_git_source_from_pin_in_lane`), or
+reconstruct an exact recorded commit and tree from a lockfile
+(`resolve_git_source_at_revision_in_lane` with `Offline` or `AllowFetch`).
+`selection` and `recorded_objects` isolate when transport is permitted so an
+offline or pinned lookup never drifts to a new ref or mistakes a missing
+historical object for cache corruption.
+*/
 
 #[cfg(test)]
 use crate::SourceResolver;
@@ -46,8 +66,6 @@ pub(crate) use workspace_member::resolve_git_workspace_member;
 #[cfg(test)]
 mod tests;
 
-/// Resolve one Git source inside a retained lane with the selected primary Git.
-/// Callers pass the session selection from `resolver.primary_git()?`.
 pub fn resolve_git_source_in_lane(
     primary_git: &PrimaryGitSelection,
     request: &GitSourceRequest,
@@ -63,10 +81,6 @@ pub fn resolve_git_source_in_lane(
     )
 }
 
-/// Resolve a Git source through a caller-supplied resolver.
-///
-/// Test fixture entry: production callers pass an explicit lane to
-/// [`resolve_git_source_in_lane`] and proof their own custody.
 #[cfg(test)]
 pub(crate) fn resolve_git_source(
     request: &GitSourceRequest,

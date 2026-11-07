@@ -55,7 +55,7 @@ fn function(destinations: &[Option<u32>]) -> SelectedFunction {
                         bindings: vec![],
                         structural_bindings: vec![],
                         structural_case: None,
-                        fuel: vec![],
+                        work: vec![],
                     },
                 },
                 None => SelectedTerminator::Return {
@@ -201,7 +201,7 @@ fn matched_guard(bypass: bool) -> SelectedFunction {
             bindings: vec![],
             structural_bindings: vec![],
             structural_case: None,
-            fuel: vec![],
+            work: vec![],
         };
         let mut compare = instruction(1000 + block as u32, Kind::CompareI64Zero);
         compare.operands = vec![operand(register, RegisterOperandAccess::Use)];

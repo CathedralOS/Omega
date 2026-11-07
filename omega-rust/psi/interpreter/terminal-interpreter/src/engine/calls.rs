@@ -288,7 +288,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        meter: &mut terminal_fuel::TerminalFuelMeter,
+        meter: &mut psi_work::WorkMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         if let Some(pending) = self.awaiting_effect.as_ref() {

@@ -1730,7 +1730,8 @@ impl<'program> StructuralJudge<'program> {
                 program, scope.0, scope.1, expression,
             )
             .is_some();
-        let scalar_field_read = scalar_storage_read && matches!(node, ExpressionNode::Member(_));
+        let field_storage_read =
+            self.requires_value_preservation() && matches!(node, ExpressionNode::Member(_));
         let scalar_reference_read = self
             .scalar_reference_read_type(scope.0, scope.1, expression)
             .is_some();
@@ -1823,9 +1824,13 @@ impl<'program> StructuralJudge<'program> {
                     // unrequested result, never for discarding a requested input.
                     _ if entry_values_requested => operand_demand,
                     ExpressionNode::Member(member)
-                        if (scalar_field_read || matches!(demand, NormalValueDemand::Location))
+                        if (field_storage_read
+                            || matches!(demand, NormalValueDemand::Location))
                             && child == member.receiver =>
                     {
+                        // A field reads its exact storage, including a whole
+                        // returned record. An unknown parent snapshot must not
+                        // hide independently retained child observations.
                         NormalValueDemand::Location
                     }
                     ExpressionNode::Indexed(indexed)
@@ -2005,7 +2010,9 @@ impl<'program> StructuralJudge<'program> {
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
                     ]);
                 }
-                let receiver_changed = (scalar_storage_read || scalar_reference_read)
+                let receiver_changed = (field_storage_read
+                    || scalar_storage_read
+                    || scalar_reference_read)
                     && judge.storage_write_sequence != receiver_write_sequence
                     && !(scalar_storage_read
                         && judge.completed_read_address_is_current(scope.0, scope.1, expression));

@@ -218,7 +218,7 @@ must reestablish its own bounds and exact arithmetic proof. This supplies no
 termination or fixed-work certificate, and does not admit mutable reads,
 subslices, or scalar-result cycles.
 Snapshot scalar values and descriptors before replacing any
-destination or applying cleanup. Fuel exhaustion commits no bindings. Evaluate
+destination or applying cleanup. Work exhaustion commits no bindings. Evaluate
 only the selected conditional arm. Incoming descriptors bind the destination's
 own places; they need not share one static source. Structural-case transfers
 require additional vocabulary rather than guessed bindings. Borrowed descriptor returns use the independently reconstructed backing
@@ -227,7 +227,7 @@ uses and control transfers.
 
 Repeated slice-ranked execution may rebind a producer's own descriptor while
 other aliases retain their earlier views. Natural ranking is checked through
-component and per-edge evidence; it is not a fixed-fuel certificate or proof
+component and per-edge evidence; it is not a fixed-work certificate or proof
 that native descriptors have been realized.
 
 ## Source correspondence
@@ -405,7 +405,7 @@ a byte view's extent by an element width — admits nothing. A native consumer
 retains the element type and width through addressing; byte-count arithmetic
 on the descriptor does not substitute for element-count bounds evidence.
 
-## Fuel and native realization
+## Work and native realization
 
 Each executed length, read, write, or subslice operation costs one logical operation
 unit; an unselected operation costs none. Immutable backing and checked bounds
@@ -413,7 +413,7 @@ must survive suspension, calls, and state transfers. The value-independent
 edge schedule governs admitted acyclic transfers; natural-ranked execution
 does not inherit a fixed bound from it.
 
-Fuel is charged before mutation. Suspending before a write leaves the referent
+Work is charged before mutation. Suspending before a write leaves the referent
 unchanged; resuming after a committed write must not repeat it. Other bytes and
 independent immutable values remain unchanged, and the caller observes the
 write after the borrowed helper returns.
@@ -421,7 +421,7 @@ write after the borrowed helper returns.
 A native consumer must retain and independently realize the view descriptor,
 its indexed accesses, and its call/block placement. Until it does, it rejects
 these operations before projection rather than discarding their payload or
-treating fuel/proof evidence as native support.
+treating work/proof evidence as native support.
 
 ## Element views
 

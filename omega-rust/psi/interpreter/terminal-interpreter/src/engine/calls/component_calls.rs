@@ -1,7 +1,7 @@
 //! Checked cross-instance calls. Host adapters never enter this result lane.
 
+use psi_work::WorkMeter;
 use semantic_vocabulary::StructuralDomainId;
-use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult};
 
 use crate::boundary::effects::results::TerminalEffectResult;
@@ -17,7 +17,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
         arguments: &[TerminalScalarValue],
-        meter: &mut TerminalFuelMeter,
+        meter: &mut WorkMeter,
         components: &mut ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let reject = |reason| TerminalInterpretError::EffectRejected {

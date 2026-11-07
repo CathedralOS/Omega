@@ -61,7 +61,7 @@ pub(crate) struct PackagePolicyFilesystemSponsorLimits {
 /// caller-installed sponsor caps this activation's evaluator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyEvaluationSponsorLimits {
-    pub(crate) maximum_fuel_units: u64,
+    pub(crate) work_budget: u64,
     pub(crate) maximum_build_log_bytes: u64,
     pub(crate) maximum_filesystem_operation_attempts: u64,
     pub(crate) maximum_live_filesystem_handles: u64,
@@ -161,7 +161,7 @@ impl From<&RestrictedBuildBounds> for PackagePolicyRestrictedBuildBounds {
             }),
             evaluation_sponsor_limits: bounds.evaluation_sponsor_limits().map(|limits| {
                 PackagePolicyEvaluationSponsorLimits {
-                    maximum_fuel_units: limits.maximum_fuel_units(),
+                    work_budget: limits.work_budget(),
                     maximum_build_log_bytes: limits.maximum_build_log_bytes(),
                     maximum_filesystem_operation_attempts: limits
                         .maximum_filesystem_operation_attempts(),

@@ -341,13 +341,13 @@ host authority. Simulation establishes behavior under its stated model, not
 native timing or hardware correctness. Ordinary provider evidence/trust policy
 applies; a successful callback or matching signature proves no correspondence.
 
-Preserve persistent effects across blocks, helpers, normal code and fuel pauses.
+Preserve persistent effects across blocks, helpers, normal code and work-budget pauses.
 Interrupt recognition delays, synchronization, ordering and external-entry
 conditions follow the exact target contract; a source statement or interpreter
 step is not automatically one native instruction. Halt is the modeled processor
-state/control effect, not interpreter fuel exhaustion or a successful Unit return.
+state/control effect, not interpreter work-budget exhaustion or a successful Unit return.
 Resume/external entry follows its contracted route and retains installation,
-loan and acknowledgement custody. If a fuel pause occurs inside a block, retain
+loan and acknowledgement custody. If a work-budget pause occurs inside a block, retain
 its live scratch and progress too; completed instructions/effects are not replayed.
 External events may occur only at the model's admitted points, not merely because
 control returned to the host. A block is not implicitly atomic.

@@ -223,7 +223,7 @@ pub fn discover_samples(
 }
 
 fn build_omega_cli(repo: &Path) -> Result<PathBuf, u8> {
-    let output = Command::new("cargo")
+    let output = Command::new("mbx")
         .args([
             "build",
             "--locked",
@@ -238,7 +238,7 @@ fn build_omega_cli(repo: &Path) -> Result<PathBuf, u8> {
         .stdin(Stdio::null())
         .output()
         .map_err(|e| {
-            eprintln!("sample-gate: failed to invoke cargo build: {e}");
+            eprintln!("sample-gate: failed to invoke mbx build (mbx is required; run `bash tools/agent_setup.sh`): {e}");
             1u8
         })?;
     if !output.status.success() {
@@ -384,6 +384,20 @@ fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
     targets
 }
 
+fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
+    let host = host_target();
+    if target != host {
+        return Err(format!(
+            "native/Psi execution requires host target {host}, requested {target}"
+        ));
+    }
+    // An explicit CLI --target requests compilation without execution, even
+    // when it names this host. Both engines run only through the host request.
+    let mut command = Command::new(cli);
+    command.args(["run", "--both"]);
+    Ok(command)
+}
+
 fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<String, String> {
     let Some(entry) = &project.entry else {
         return Err("missing unambiguous entry".to_owned());
@@ -487,12 +501,10 @@ fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<St
         return Ok("no-oracle".to_owned());
     }
 
+    let mut cmd = compared_host_command(cli, target)?;
     let scratch = project.directory.join("build/gate-run");
     let _ = fs::create_dir_all(&scratch);
-    let mut cmd = Command::new(cli);
-    cmd.args(["run", "--both", "--target", target])
-        .arg(entry)
-        .current_dir(&scratch);
+    cmd.arg(entry).current_dir(&scratch);
     if has_input {
         let file = fs::File::open(&input_path)
             .map_err(|e| format!("failed opening {}: {e}", input_path.display()))?;
@@ -530,6 +542,14 @@ fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<St
             "engine disagreement: native exit {n_exit} != interp exit {i_exit}"
         ));
     }
+    // The CLI returns the program's exit on agreement, including authored
+    // nonzero exits. Require the CLI result to match the two observed engine exits.
+    if out.status.code() != Some(n_exit) {
+        return Err(format!(
+            "execution failed (exit {:?}, engines {n_exit}): {stdout}{stderr}",
+            out.status.code()
+        ));
+    }
     if let Some(exp) = expected_exit
         && n_exit != exp
     {
@@ -542,7 +562,7 @@ fn verify_sample(cli: &Path, project: &SampleProject, target: &str) -> Result<St
             "expected output containing {exp_out:?}, got {stdout:?}"
         ));
     }
-    Ok("pass".to_owned())
+    Ok(format!("pass (native exit {n_exit}, Psi exit {i_exit})"))
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
@@ -659,6 +679,24 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compared_host_request_executes_both_without_compile_only_target() {
+        let command = compared_host_command(Path::new("omega"), host_target()).unwrap();
+        assert_eq!(command.get_args().collect::<Vec<_>>(), ["run", "--both"]);
+    }
+
+    #[test]
+    fn compared_host_request_refuses_a_different_target() {
+        let other = if host_target() == "linux_x86_64" {
+            "windows_x86_64"
+        } else {
+            "linux_x86_64"
+        };
+        let error = compared_host_command(Path::new("omega"), other).unwrap_err();
+        assert!(error.contains(host_target()));
+        assert!(error.contains(other));
+    }
 
     #[test]
     fn rewrites_pending_decisions_to_accept_preserving_lf() {

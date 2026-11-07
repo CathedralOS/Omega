@@ -21,7 +21,7 @@ impl super::super::call_arguments::InvocationArgumentSource for Invocation<'_> {
     fn invocation_ownership(&self) -> &[optimization_unit::OwnershipEvent] {
         &[]
     }
-    fn invocation_fuel(&self) -> &[optimization_unit::FuelSettlement] {
+    fn invocation_work(&self) -> &[optimization_unit::WorkSettlement] {
         &[]
     }
     fn invocation_argument_place(&self, position: usize) -> Option<semantic_vocabulary::PlaceId> {

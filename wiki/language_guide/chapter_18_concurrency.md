@@ -169,7 +169,7 @@ cancellation response and replacement quiescence unbounded.
 
 Whole-call-graph WCSU bounds simultaneously live stack space, not work or time.
 Sequential work adds; sequential stack frames can reuse capacity after return.
-Logical-work bounds create no native fuel counter or fuel-induced suspension.
+Logical-work bounds create no native work counter or work-budget-induced suspension.
 Converting work to elapsed time requires a separate timing model. Hard-control
 profiles reject unknown or absent finite response guarantees rather than force-
 terminating a blocked holder. See [logical work](../spec/resources/logical_work.md).
@@ -262,6 +262,40 @@ runtime cannot close with dependent claims or leases. Fresh activation/lease
 eras prevent reuse of stale settlement evidence. The
 [task storage contract](../spec/build/task_runtime.md#three-owners) owns these
 relationships and their exact runtime-instance accounting.
+
+### Many waiting connections, bounded workers
+
+A task retains its whole stack plan while parked. A stack pool makes allocation
+and reuse predictable, but a parked activation still occupies its lease. That
+storage becomes reusable only after the activation has ended and its storage
+obligations have been reconciled. Pool capacity therefore accounts for parked
+activations as well as running ones.
+
+A task per connection is convenient when the connection count and per-task
+stack plans fit the provisioned capacity. For a large population of mostly idle
+connections, keep connection state and buffers in an arena and use a bounded
+set of workers to process events. For example, 100,000 connection records can
+share 32 worker activations. Their storage demand includes the records, buffers,
+pending operations and bounded queues, plus 32 worker stack plans. Queue capacity
+bounds waiting submissions; worker count separately bounds simultaneous deep
+execution. Limiting workers does not bound per-connection data by itself.
+
+The worker processes an event, records the connection's next state, submits any
+next I/O operation, and returns to the queue. It does not keep a call suspended
+for each connection. A sum can describe connection progress and an exhaustive
+transition can dispatch it; runtime machine values are not required. Each return
+to the queue must leave the connection state satisfying its default domain and
+any additional published handoff obligations. This explicit state management is
+the authoring cost of sharing execution stacks. A worker that instead suspends
+mid-operation continues to occupy its own stack and worker slot.
+
+Completion-based I/O lets the pending operation retain a linear claim and the
+storage custody it needs while no worker is processing that connection. The
+buffer must remain valid and unavailable for conflicting use until the completion
+protocol establishes that all external access has ended. Requesting cancellation
+alone does not establish that fact, and completing an unrelated worker task does
+not retire the I/O claim. See [foreign storage](../spec/build/foreign_storage.md)
+and [task cancellation](../spec/build/task_runtime.md#suspension-and-cancellation).
 
 ### Foreign execution
 

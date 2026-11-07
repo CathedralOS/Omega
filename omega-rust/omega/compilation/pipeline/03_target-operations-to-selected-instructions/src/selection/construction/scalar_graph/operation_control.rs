@@ -5,7 +5,7 @@
 //! this owner supplies only control. All bodies use ordinary selected forms
 //! and the existing allocator, branch relaxation, and target encoders. Internal
 //! branches retain their operation but cannot name an authored edge, bind source
-//! parameters, transfer custody, or settle additional logical fuel.
+//! parameters, transfer custody, or settle additional logical work.
 
 use super::{Builder, SelectedBlock, SelectedBlockId, SelectedInstructionKind, VirtualRegisterId};
 use crate::SelectedInstructionError;
@@ -76,7 +76,7 @@ fn settle_preceding_operations(builder: &mut Builder<'_>) -> Result<(), Selected
         return Ok(());
     }
     // A zero-payload producer still executes before this loop. Put its pending
-    // source/fuel attribution on a preheader instruction, never on the repeated
+    // source/work attribution on a preheader instruction, never on the repeated
     // condition or an internal edge. This register is not a new source value.
     let instruction = super::SelectedInstructionId(
         builder
@@ -116,7 +116,7 @@ fn successor(source: BlockId, operation: OperationId, block: SelectedBlockId) ->
         bindings: Vec::new(),
         structural_bindings: Vec::new(),
         structural_case: None,
-        fuel: Vec::new(),
+        work: Vec::new(),
     }
 }
 

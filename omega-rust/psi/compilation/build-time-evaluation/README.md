@@ -360,7 +360,7 @@ passing the common floor does not establish those artifacts.
 
 The interpreter's precursor step schedule charges entered states, executed
 statements, and evaluated expressions. Its invocation usage is not canonical
-Terminal fuel and cannot certify IR fixed work. Build reports retain it beside
+Terminal work and cannot certify IR fixed work. Build reports retain it beside
 configuration, not inside `BuildConfig`, Terminal semantics, or artifact identity.
 Usage schema and step-schedule identity are independent.
 

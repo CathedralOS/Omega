@@ -14,7 +14,7 @@ use evaluation_accounting::{
 use semantic_vocabulary::MachineId;
 use terminal_codec::CanonicalTerminalArtifact;
 
-const CALLING_EVALUATION_FUEL: u64 = 100_000;
+const CALLING_EVALUATION_WORK: u64 = 100_000;
 
 enum CallingStorageScope<'account> {
     Policy {
@@ -83,15 +83,15 @@ impl CallingProgram {
         )?;
         let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
         };
         // Pure compiler-run policies had a finite 100,000-step allowance.
-        // Terminal uses its own semantic fuel units, never relabelled tree
+        // Terminal uses its own semantic work units, never relabelled tree
         // charges. Logical storage/results are independently metered. No host
         // import is installed, regardless of the account's nonzero I/O limits.
         let limits = BuildEvaluationSponsorLimits::new(
-            CALLING_EVALUATION_FUEL,
+            CALLING_EVALUATION_WORK,
             1,
             1,
             1,
@@ -104,7 +104,7 @@ impl CallingProgram {
         let sponsor = BuildEvaluationSponsor::new_with_measurement(limits, measurement)
             .map_err(|error| error.to_string())?;
         let account = sponsor
-            .begin_invocation(measurement, limits.maximum_fuel_units())
+            .begin_invocation(measurement, limits.work_budget())
             .map_err(|error| error.to_string())?;
         let selected = terminal_installation::admit_target_machine_selections(
             self.artifact.view(),
@@ -256,13 +256,13 @@ impl CallingProgram {
                             declaration,
                             applications: demand.applications(),
                         },
-                        terminal_fuel::TerminalFuelMeter::with_invocation(account.clone(), None)
-                            .map_err(|error| format!("calling ABI scalar fuel: {error:?}"))?,
+                        psi_work::WorkMeter::with_invocation(account.clone(), None)
+                            .map_err(|error| format!("calling ABI scalar work: {error:?}"))?,
                     )
                 }
                 CallingStorageScope::Description => (
                     super::scalar_completion::CallingScalarScope::AbiStorage(demand),
-                    terminal_fuel::TerminalFuelMeter::with_allowance(CALLING_EVALUATION_FUEL),
+                    psi_work::WorkMeter::with_budget(CALLING_EVALUATION_WORK),
                 ),
             };
             let completed = super::scalar_completion::complete_calling_scalar_inputs(

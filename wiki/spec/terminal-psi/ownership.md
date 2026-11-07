@@ -242,7 +242,7 @@ region to an owned home's frontier, not to a borrowed referent's callee frame.
 Each jump or selected conditional successor has its own exact cleanup/transfer
 partition. The transaction validates the current frontier, charges the edge,
 materializes scalar successor arguments, disposes the named remainder, then
-binds successor parameters. Fuel exhaustion leaves disposal uncommitted.
+binds successor parameters. Work exhaustion leaves disposal uncommitted.
 Scalar arity/types/definitions and ownership are independently checked.
 Reconverging paths must establish the same ordered structural frontier; their
 scalar values need not be identical.

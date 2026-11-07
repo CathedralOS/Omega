@@ -161,7 +161,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             std::fs::read(project.join("omega.lock")).unwrap(),
             baseline_lock
         );
-        assert!(sponsor.consumed_fuel_units() > 0);
+        assert!(sponsor.consumed_work_units() > 0);
         options.targets.clear();
         if fixture == "executed_dependency_source_join_exit" {
             accept_decisions(&outcome.review_paths);
@@ -195,7 +195,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
         for _ in 0..3 {
             accept_decisions(&outcome.review_paths);
             let before = counters::build_execution_count();
-            let fuel_before = sponsor.consumed_fuel_units();
+            let work_before = sponsor.consumed_work_units();
             outcome = execute_package_command(
                 PackageCommand::Resume {
                     kind: PackageCommandKind::Update,
@@ -206,7 +206,7 @@ fn pure_build_reuse_preserves_review_discovery_and_changed_requests() {
             .unwrap();
             resumes += 1;
             assert!(
-                sponsor.consumed_fuel_units() > fuel_before,
+                sponsor.consumed_work_units() > work_before,
                 "{fixture}: consuming a retained result must charge the current occurrence"
             );
             assert_eq!(
@@ -276,7 +276,7 @@ fn execute_accepted_project(project: &Path) {
         artifact: &reloaded,
         target: Some(TargetProfile::host_if_supported().unwrap().target_name()),
         provisions: report.runtime_provisions(),
-        fuel_allowance: 100_000,
+        work_budget: 100_000,
         domain_exit: terminal_runtime::TerminalDomainExitDelegation::IsolatedContainingDomain,
         standard_input: None,
         clock: None,

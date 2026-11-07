@@ -419,7 +419,7 @@ fn fused_node(
                 uses: node_uses(&operation, first.predecessor),
                 operation,
                 provenance: predecessor.provenance.clone(),
-                fuel: predecessor.fuel.clone(),
+                work: predecessor.work.clone(),
                 effect: predecessor.effect,
                 definitions: predecessor.definitions.clone(),
                 successors: vec![fused_edge],
@@ -488,7 +488,7 @@ fn fused_node(
                 uses: node_uses(&operation, first.predecessor),
                 operation,
                 provenance: predecessor.provenance.clone(),
-                fuel: predecessor.fuel.clone(),
+                work: predecessor.work.clone(),
                 effect: predecessor.effect,
                 definitions: predecessor.definitions.clone(),
                 successors,
@@ -542,8 +542,8 @@ fn fused_edge(
     if provenance.first() != Some(&PsiProvenance::Edge(incoming.psi_edge)) {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
-    let mut fuel = incoming.fuel.clone();
-    fuel.extend_from_slice(&resolved.fuel);
+    let mut work = incoming.work.clone();
+    work.extend_from_slice(&resolved.work);
     Ok(OptimizationEdge {
         psi_edge: incoming.psi_edge,
         target: resolved.target,
@@ -551,7 +551,7 @@ fn fused_edge(
         structural_bindings: Vec::new(),
         cleanup_actions: Vec::new(),
         provenance,
-        fuel,
+        work,
     })
 }
 
@@ -618,13 +618,13 @@ fn accepted_provenance(
         provenance.push(realized_at_own_site(
             incoming_site,
             &incoming.provenance,
-            &incoming.fuel,
+            &incoming.work,
         ));
         provenance.push(provenance_realized_at(
             resolved_site,
             incoming_site,
             &resolved.provenance,
-            &resolved.fuel,
+            &resolved.work,
         ));
         resolved_edges.insert(row.taken_edge);
     }
@@ -637,7 +637,7 @@ fn accepted_provenance(
         provenance.push(realized_at_own_site(
             resolved_site,
             &resolved.provenance,
-            &resolved.fuel,
+            &resolved.work,
         ));
     }
     canonicalize_provenance(&mut provenance);

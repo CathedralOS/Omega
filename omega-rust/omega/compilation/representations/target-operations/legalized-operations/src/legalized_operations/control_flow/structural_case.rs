@@ -1,5 +1,5 @@
 //! Case edges define destination parameters after observing the selected payload.
-use optimization_unit::FuelSettlement;
+use optimization_unit::WorkSettlement;
 use semantic_vocabulary::{BlockId, EdgeId, StructuralCaseId, StructuralFieldId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,7 +12,7 @@ pub struct LegalizedStructuralCaseSuccessor {
     pub structural_bindings: Vec<super::LegalizedStructuralBinding>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
     pub cleanup_calls: Vec<(target_operations::CallSiteOwner, super::LegalizedScalarCall)>,
-    pub fuel: Vec<FuelSettlement>,
+    pub work: Vec<WorkSettlement>,
 }
 
 /// The definition belongs to the target block; the boundary producer defines

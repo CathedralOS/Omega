@@ -1,4 +1,10 @@
-//! Import occurrence custody and an I/O-free join to the loaded source frontier.
+// Import occurrence custody (`ImportOccurrence`, `ResolvedSourceImport`, `PendingPackageImport`)
+// and I/O-free joining to the loaded source frontier (`retain_module_import_bindings`).
+//
+// `retain_module_import_bindings` sorts loaded sources by `(path, scope)` once and
+// binary-searches each import's target path within the importer's exact `DependencyScope`,
+// preserving authored `(source_id, ordinal)` binding order independent of discovery waves
+// and verifying that non-direct imports resolve to a file declaring `module`.
 
 use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
@@ -45,16 +51,11 @@ pub(crate) struct ResolvedSourceImport {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub(crate) struct PendingPackageImport {
     pub(super) occurrence: ImportOccurrence,
-    /// The importer's checked instance. Retained so exact-target resolution
-    /// joins the resolved target under the same instance even when the
-    /// requesting path has a second instance.
-    pub(super) scope: DependencyScope,
+    pub(super) scope: DependencyScope, // Checked instance under which the import was discovered.
     pub(super) request: ReconciledPackageImportRequest,
 }
 
 impl PendingPackageImport {
-    /// The checked instance this request was discovered under. The exact
-    /// resolution joins its target under the importer's instance.
     pub(crate) fn importer_scope(&self) -> DependencyScope {
         self.scope
     }
@@ -74,8 +75,6 @@ impl PendingPackageImport {
             .request
             .resolve_for_exact_target(packages, self.scope)?;
         let direct = source_path_candidates(&self.request.relative_path);
-        // Generated paths are virtual; direct-candidate membership comes from
-        // the exact bundle, not filesystem existence.
         let generated = packages
             .generated_source_import_path(
                 self.request.package,
@@ -135,10 +134,6 @@ pub(crate) fn retain_module_import_bindings(
     if storage.resolved_imports.is_empty() {
         return Ok(Vec::new());
     }
-    // One borrowed path index replaces a full frontier scan per import.
-    // Binding order remains authored order, independent of discovery waves.
-    // The sort keys scope so each path's at-most-two instances sit in a
-    // deterministic order inside one contiguous run.
     let mut sources = storage
         .source_roots
         .iter()
@@ -176,8 +171,6 @@ pub(crate) fn retain_module_import_bindings(
             .map(|offset| position + offset)
             .unwrap_or(sources.len());
         let candidates = &sources[position..run_end];
-        // Physical and generated imports bind the exact checked scope. A
-        // missing instance cannot borrow the other scope's declaration.
         let (declaration, declares_module, _) = candidates
             .iter()
             .find(|(_, _, scope)| *scope == importer_scope)

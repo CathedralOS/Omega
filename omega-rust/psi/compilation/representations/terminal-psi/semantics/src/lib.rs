@@ -131,8 +131,8 @@ pub use bytes::byte_sequence_predicates::{
 };
 pub use calls::call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
-    CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallFuelPolicy,
-    CallOutcomeRule, CallRequirementRule, CallResultRule, CallTargetRule, CallTransferRule,
+    CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallOutcomeRule,
+    CallRequirementRule, CallResultRule, CallTargetRule, CallTransferRule, CallWorkPolicy,
     FixedCollectionWindow, borrowed_referent_matches, borrowed_referent_presentation,
     boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
@@ -170,8 +170,8 @@ pub use scalars::scalar_field_requirements::{
 };
 pub use scalars::scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,
-    ScalarLeafFrontierPolicy, ScalarLeafFuelPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape,
-    ScalarLeafResultShape, ScalarLeafSchema,
+    ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape, ScalarLeafResultShape,
+    ScalarLeafSchema, ScalarLeafWorkPolicy,
 };
 pub use scalars::scalar_leaf_semantics::{
     GoalFreeScalarLeafSemantics, ScalarLeafLiteral, constant_goal_free_scalar_leaf,
@@ -225,9 +225,9 @@ pub use structural::static_path::{
 };
 pub use structural::structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
-    StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,
-    StructuralEffectLeafSchema, StructuralEffectObservation, StructuralEffectResultShape,
-    StructuralEffectSemanticRow, byte_equal_equation, byte_predicate_equation,
+    StructuralEffectFrontierPolicy, StructuralEffectGoalShape, StructuralEffectLeafSchema,
+    StructuralEffectObservation, StructuralEffectResultShape, StructuralEffectSemanticRow,
+    StructuralEffectWorkPolicy, byte_equal_equation, byte_predicate_equation,
     element_establishment_length_equation, element_subslice_length_equation,
     element_view_leaf_scalar, exact_structural_effect_semantic_row_in, literal_length_equation,
     same_descriptor_coordinate, structural_effect_leaf_observation,

@@ -97,7 +97,7 @@ pub enum PsiRewriteCandidateError {
     NonCanonicalSubstitutions,
     EmptyProvenanceSource,
     NonCanonicalProvenance,
-    FuelProvenanceMismatch,
+    WorkProvenanceMismatch,
     PatchDecisionPointMismatch,
     EmptyIncomingBindings,
     NonCanonicalIncomingBindings,

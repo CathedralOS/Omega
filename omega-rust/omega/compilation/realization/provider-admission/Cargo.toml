@@ -32,4 +32,4 @@ target = { path = "../../backend/target" }
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
-terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
+psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }

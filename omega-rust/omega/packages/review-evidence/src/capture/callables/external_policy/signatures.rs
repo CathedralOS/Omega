@@ -1,7 +1,7 @@
-//! Exact external signatures borrow checked source unless their static
-//! telescope needs private instantiation. Requesting mutable projection storage
-//! clones the whole program, so an empty telescope must remain a read-only
-//! projection, just as it does for ordinary callable policy.
+// External callable signature projection. Exact external signatures borrow checked
+// source unless their static telescope needs private instantiation; requesting
+// mutable projection storage clones the whole program, so an empty telescope remains
+// a read-only projection just as it does for ordinary callable policy.
 
 use super::super::policy_parameters::prepare;
 use super::rejected;

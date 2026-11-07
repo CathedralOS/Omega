@@ -1,15 +1,15 @@
 use super::{
-    FuelScheduleIdentity, FunctionFragmentEmissionIdentity,
-    FunctionFragmentEmissionManifestIdentity, FunctionFragmentFrameApplicationIdentity,
-    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
-    FunctionFragmentTextSectionManifestIdentity, FunctionFragmentTextSectionStage,
-    FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
+    FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
+    FunctionFragmentFrameApplicationIdentity, FunctionFragmentTextSectionManifest,
+    FunctionFragmentTextSectionManifestDecodeError, FunctionFragmentTextSectionManifestIdentity,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData,
     FunctionRelativeOptimizationRealizationManifestIdentity, MachineId, NativeTarget,
     OptimizationSelectionIdentity, PostAllocationOptimizationManifestIdentity,
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity,
     SelectedInstructionPlanIdentity, TerminalPsiIdentity,
     TerminalRelocationFreeTextSectionIdentity, TextSectionPlacementPolicy,
-    TextSectionRelocationRequirements, WholeFunctionExitContractIdentity,
+    TextSectionRelocationRequirements, WholeFunctionExitContractIdentity, WorkScheduleIdentity,
 };
 #[test]
 fn prior_wire_versions_with_route_taxonomy_reject() {
@@ -40,7 +40,7 @@ fn record() -> FunctionFragmentTextSectionManifest {
             vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
             program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([4; 32]),
         },
-        fuel_schedule: FuelScheduleIdentity::new(5).unwrap(),
+        work_schedule: WorkScheduleIdentity::new(5).unwrap(),
         selected: SelectedInstructionPlanIdentity::from_bytes([6; 32]),
         post_allocation_manifest: PostAllocationOptimizationManifestIdentity::from_bytes([7; 32]),
         post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes(

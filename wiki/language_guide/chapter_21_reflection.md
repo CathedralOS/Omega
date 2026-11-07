@@ -213,7 +213,7 @@ address. Retaining names does not automatically retain setters or constructors.
 A decoded document is still a document. Migration, defaults, validation,
 construction, and resource acquisition use owner-defined operations before a
 valid `Player` exists. Live updates invoke selected checked operations with valid
-access; there is no arbitrary reflective field-write API. A fuel-paused invocation
+access; there is no arbitrary reflective field-write API. A work-budget-paused invocation
 can retain loans and temporarily unestablished invariants, so a pause does not
 permit even an otherwise invariant-preserving edit. See
 [embedding](chapter_24_embedding.md#calls-messages-and-editors).

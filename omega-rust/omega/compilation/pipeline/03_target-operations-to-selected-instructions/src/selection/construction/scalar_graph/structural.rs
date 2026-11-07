@@ -462,7 +462,7 @@ pub(super) fn operation(
             || row.operation != settlement.operation
             || row.effect != settlement.effect
             || row.ownership != settlement.ownership
-            || row.fuel != settlement.fuel
+            || row.work != settlement.work
         {
             return Err(invalid());
         }
@@ -511,9 +511,9 @@ pub(super) fn provenance(
 }
 
 /// Provenance for an instruction emitted from one legalized row that names the
-/// values it consumes or produces. The row's operation and the fuel that
+/// values it consumes or produces. The row's operation and the work that
 /// operation settles travel with those values; an emission site states the
-/// values and never re-lists the operation and fuel fields beside them.
+/// values and never re-lists the operation and work fields beside them.
 pub(super) fn operation_provenance(
     row: &LegalizedScalarInstruction,
     values: Vec<ValueId>,
@@ -521,13 +521,13 @@ pub(super) fn operation_provenance(
     SelectedInstructionProvenance {
         operations: vec![row.operation],
         values,
-        fuel: row.fuel.clone(),
+        work: row.work.clone(),
         ..Default::default()
     }
 }
 
 /// Provenance for an instruction that discharges obligations the row already
-/// names. Fuel stays off: only the row's one fuel-settling instruction states
+/// names. Work stays off: only the row's one work-settling instruction states
 /// the settlement, so every other emission records just its values and the
 /// obligations it carries.
 pub(super) fn obligation_provenance(

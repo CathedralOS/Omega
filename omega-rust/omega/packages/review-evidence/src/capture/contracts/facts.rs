@@ -1,3 +1,11 @@
+// Contract fact projection for callable and trait-requirement signatures. We consume
+// frontend declaration exposure (`interface_exposure` / `is_public`) rather than
+// audit inclusion or supply classification so private carrier-owned requirements
+// remain audited trust surfaces while external boundaries keep their exported
+// contracts. Typing expands `Carry` aliases to closed compiler permissions without
+// a nominal domain symbol, whereas symbol-backed declarations retain exact nominal
+// domain projection.
+
 use super::evidence::{
     checked_contract_fact, checked_outcome_specific_guarantee, validate_checked_contract_evidence,
     validate_checked_contract_evidence_components,
@@ -26,17 +34,12 @@ pub(crate) struct ContractProjectionContext<'a> {
     pub(crate) domain_symbol: Option<SymbolHandle>,
     pub(crate) data_symbol: Option<SymbolHandle>,
     pub(crate) lifetime_binders: &'a [typed_trees::name::Identifier],
-    /// Source names map to the normalized containing telescope. Later mappings
-    /// shadow earlier ones; checked expression and evidence handles stay intact.
     pub(crate) lifetime_substitutions:
         &'a [(typed_trees::name::Identifier, typed_trees::name::Identifier)],
     pub(crate) selection_exposure: AuthoredDeclarationSelectionExposure,
 }
 
 impl ContractProjectionContext<'_> {
-    /// The refusal sentence every contract projection states: the reviewed
-    /// subject first, then the caller's own exact detail. Each site keeps its
-    /// detail vocabulary and stops restating the subject prefix.
     pub(crate) fn rejected(&self, detail: impl std::fmt::Display) -> Vec<Diagnostic> {
         vec![Diagnostic::error(format!(
             "reviewed {} `{}` {detail}",
@@ -49,17 +52,12 @@ impl ContractProjectionContext<'_> {
     }
 }
 
-/// Consume frontend exposure, not audit inclusion or supply classification.
-/// Private carrier-owned requirements remain audited trust surfaces, while an
-/// external boundary keeps its exported contract despite ExternalRealization.
 pub(crate) fn callable_contract_exposure(
     machine: &typed_trees::machine::Machine,
 ) -> AuthoredDeclarationSelectionExposure {
     machine.interface_exposure
 }
 
-/// A service description does not change its declaration's source exposure.
-/// Private boundary traits remain audited without acquiring public visibility.
 pub(crate) fn trait_contract_exposure(
     declaration: &typed_trees::trait_definition::TraitDefinition,
 ) -> AuthoredDeclarationSelectionExposure {
@@ -117,9 +115,6 @@ pub(crate) fn project_trait_requirement_contracts(
     )
 }
 
-/// The reviewed package identity every contract projection states: a custody
-/// source set without one cannot name the package its facts belong to, so the
-/// refusal is one owner instead of a copy at each projection site.
 pub(crate) fn reviewed_package(
     compilation: &SourceDeclarationInput<'_>,
     subject: &str,
@@ -173,11 +168,6 @@ pub(crate) fn project_contracts(
                 }
                 ProofFact::Membership(membership) => {
                     require_declaration_membership(compilation.checking_input, membership)?;
-                    // Typing expands Carry aliases to one closed compiler
-                    // permission. Such a fact has no nominal domain symbol;
-                    // inventing one would lose its meaning and ownership.
-                    // Symbol-backed declarations retain the ordinary exact
-                    // nominal projection, even if their spelling resembles Carry.
                     let carry = (!membership.domain_symbol.is_valid())
                         .then(|| {
                             language_semantics::CarryPermission::from_name(

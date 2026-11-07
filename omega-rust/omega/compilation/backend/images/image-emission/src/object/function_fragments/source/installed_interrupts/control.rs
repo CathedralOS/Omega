@@ -509,7 +509,7 @@ impl<'a> Graph<'a> {
                 || !instruction.provenance.values.is_empty()
                 || !instruction.provenance.edges.is_empty()
                 || !instruction.provenance.obligations.is_empty()
-                || !instruction.provenance.fuel.is_empty()
+                || !instruction.provenance.work.is_empty()
                 || successor.role
                     != (selected_instructions::SelectedSuccessorRole::OperationContinuation {
                         operation: self.operation,
@@ -518,7 +518,7 @@ impl<'a> Graph<'a> {
                 || !successor.bindings.is_empty()
                 || !successor.structural_bindings.is_empty()
                 || successor.structural_case.is_some()
-                || !successor.fuel.is_empty()
+                || !successor.work.is_empty()
             {
                 return Ok(block);
             }

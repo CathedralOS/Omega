@@ -1,3 +1,16 @@
+/*
+We validate structural type references and array-extent index expressions
+before computing package-review type identities.
+
+A type argument carries a value only in a const or value parameter of its own
+declaration (domain applications use that declaration's index parameters, and
+generic-carrier families omit the carrier parameter). Declaration selection
+alone does not freeze arithmetic or call arguments: retained array recipes must
+preserve their exact original expression node, handle roster, and use edges,
+while builtin operator selection licenses only the exact operation without
+manufacturing conformance laws or algebraic rewrites.
+*/
+
 use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
@@ -45,9 +58,6 @@ pub(crate) fn validate_package_type_identity_input_inner(
             )
         };
     }
-    // A type argument carries a value only in a const or value parameter of
-    // its own declaration. Domain applications use that declaration's index
-    // parameters; generic-carrier families omit the carrier parameter.
     let validate_argument = |argument, parameters: Option<&[TypeParameter]>, index: usize| {
         let accepts_value = parameters
             .and_then(|parameters| parameters.get(index))
@@ -253,9 +263,6 @@ fn validate_package_index_expression(
         };
     }
 
-    // Declaration selection alone does not freeze arithmetic or call arguments.
-    // Retained array recipes must preserve their exact original node and edges;
-    // projection-local type substitutions are handled by the identity context.
     if builtin_exposure.is_some()
         && (!compilation
             .original_program
@@ -324,8 +331,6 @@ fn validate_package_index_expression(
                         "package review rejects an open index operation without exact checked builtin or algebra selection",
                     )]);
                 }
-                // Builtin selection licenses this exact operation only. No
-                // conformance laws or algebraic rewriting are manufactured.
             }
             index_expr!(binary.left => builtin_exposure)?;
             index_expr!(binary.right => builtin_exposure)
@@ -334,9 +339,6 @@ fn validate_package_index_expression(
             use language_semantics::declaration_selection::{
                 AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
             };
-            // The canonical call production carries an ordinary monomorphic
-            // target and value arguments. Other semantic applications must not
-            // collapse into that identity by dropping their static components.
             if call.authored_machine_application.is_valid()
                 || call.exact_coercion_target.is_valid()
                 || call.static_machine_parameter.is_valid()
@@ -365,7 +367,6 @@ fn validate_package_index_expression(
                     "package review array extent call differs from its retained exact declaration",
                 )]);
             }
-            // A HandleSpan is a roster address, not the roster's contents.
             if program.expression_table.expression_handles(call.arguments)
                 != compilation
                     .original_program

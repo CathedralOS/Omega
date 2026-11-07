@@ -1,4 +1,6 @@
-//! Precedence rules for joined command, boundary, and custody outcomes.
+// Error precedence rules when reconciling command outcomes with resolution
+// budgets and cache custody checks (`GitCleanupFailed` outranks budget expiry;
+// namespace and invalidation errors outrank operation results).
 
 use crate::SourceResolveError;
 

@@ -196,7 +196,7 @@ pub enum CallEvidenceRule {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CallFuelPolicy {
+pub enum CallWorkPolicy {
     ConsumeOne,
 }
 
@@ -217,7 +217,7 @@ pub struct CallCompositionSchema {
     outcomes: CallOutcomeRule,
     crash: CallCrashRule,
     evidence: CallEvidenceRule,
-    fuel: CallFuelPolicy,
+    work: CallWorkPolicy,
     frontier: CallFrontierRule,
 }
 
@@ -254,8 +254,8 @@ impl CallCompositionSchema {
         self.evidence
     }
 
-    pub const fn fuel(self) -> CallFuelPolicy {
-        self.fuel
+    pub const fn work(self) -> CallWorkPolicy {
+        self.work
     }
 
     pub const fn frontier(self) -> CallFrontierRule {
@@ -282,7 +282,7 @@ impl CallCompositionSemanticRow {
 /// `{ tag => (target, result, arguments, requirements, transfers,
 /// outcomes, crash, evidence, frontier) }` — the call-composition cohort
 /// rows and their operation-tag membership in one declarative table.
-/// `fuel` is uniform `ConsumeOne` and set by the row constructor.
+/// `work` is uniform `ConsumeOne` and set by the row constructor.
 macro_rules! call_composition_rows {
     ($( $tag:ident => ($target:ident, $result:ident, $arguments:ident,
         $requirements:ident, $transfers:ident, $outcomes:ident,
@@ -300,7 +300,7 @@ macro_rules! call_composition_rows {
                         outcomes: CallOutcomeRule::$outcomes,
                         crash: CallCrashRule::$crash,
                         evidence: CallEvidenceRule::$evidence,
-                        fuel: CallFuelPolicy::ConsumeOne,
+                        work: CallWorkPolicy::ConsumeOne,
                         frontier: CallFrontierRule::$frontier,
                     },
                 } ),+

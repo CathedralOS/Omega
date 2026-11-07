@@ -5,8 +5,8 @@ use crate::engine::calls::frames::tests::empty_program;
 use crate::engine::execution::SuspendedCallResult;
 use crate::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::{TerminalExecutionResult, TerminalExecutionStatus};
+use psi_work::WorkMeter;
 use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, OperationId};
-use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
     Operation, OperationKind, OperationResult, TerminalMachineResult, Terminator, ValueDeclaration,
 };
@@ -59,12 +59,12 @@ fn request(execution: &mut TerminalExecution<'_>) {
 }
 
 #[test]
-fn entry_results_capture_successful_operation_once_across_fuel_pauses() {
+fn entry_results_capture_successful_operation_once_across_work_pauses() {
     let mut execution = execution();
     request(&mut execution);
     let machine = execution.current_machine;
     let result = ValueId::new(1).unwrap();
-    let mut meter = TerminalFuelMeter::with_allowance(0);
+    let mut meter = WorkMeter::with_budget(0);
     assert!(matches!(
         execution.resume(&mut meter, &mut NoEffects).unwrap(),
         TerminalExecutionStatus::SponsorExhausted(_)
@@ -122,13 +122,13 @@ fn entry_results_ignore_recursive_activation_and_capture_restored_caller() {
         .unwrap();
     assert!(
         execution
-            .settle_return(&returned(), &mut TerminalFuelMeter::unbounded())
+            .settle_return(&returned(), &mut WorkMeter::unbounded())
             .is_ok()
     );
     execution.require_entry_results_complete().unwrap();
     assert!(
         execution
-            .settle_return(&returned(), &mut TerminalFuelMeter::unbounded())
+            .settle_return(&returned(), &mut WorkMeter::unbounded())
             .is_ok()
     );
     assert_eq!(
@@ -143,7 +143,7 @@ fn entry_results_ignore_recursive_activation_and_capture_restored_caller() {
 fn entry_results_repeated_completion_is_a_sticky_execution_failure() {
     let mut execution = execution();
     request(&mut execution);
-    let mut meter = TerminalFuelMeter::with_allowance(1);
+    let mut meter = WorkMeter::with_budget(1);
     execution.resume(&mut meter, &mut NoEffects).unwrap();
     // Model revisiting the same operation through a state backedge. Even the
     // identical value must not become last-writer-wins occurrence evidence.
@@ -154,7 +154,7 @@ fn entry_results_repeated_completion_is_a_sticky_execution_failure() {
     assert!(execution.failure.is_some());
     assert!(
         execution
-            .resume(&mut TerminalFuelMeter::unbounded(), &mut NoEffects)
+            .resume(&mut WorkMeter::unbounded(), &mut NoEffects)
             .is_err()
     );
     assert!(
@@ -175,7 +175,7 @@ fn entry_results_missing_occurrence_cannot_use_final_return() {
         .insert(ValueId::new(1).unwrap(), TerminalScalarValue::Boolean(true))
         .unwrap();
     let failure = execution
-        .resume(&mut TerminalFuelMeter::unbounded(), &mut NoEffects)
+        .resume(&mut WorkMeter::unbounded(), &mut NoEffects)
         .unwrap_err();
     assert!(format!("{failure:?}").contains("without completing"));
     assert!(execution.result.is_none());

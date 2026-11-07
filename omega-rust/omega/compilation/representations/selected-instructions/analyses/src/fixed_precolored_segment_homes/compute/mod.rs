@@ -74,7 +74,7 @@ pub fn compute(
         register_environment,
         allocator_availability: legality.receipt().allocator_availability(),
         optimization_unit: ranges.receipt().optimization_unit(),
-        fuel_schedule: ranges.receipt().fuel_schedule(),
+        work_schedule: ranges.receipt().work_schedule(),
         target: ranges.plan().target,
         policy,
         budget,

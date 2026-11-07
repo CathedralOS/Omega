@@ -30,7 +30,7 @@ pub(super) fn validate(
         || requirements.receipt().allocator_availability()
             != legality.receipt().allocator_availability()
         || requirements.receipt().optimization_unit() != ranges.receipt().optimization_unit()
-        || requirements.receipt().fuel_schedule() != ranges.receipt().fuel_schedule()
+        || requirements.receipt().work_schedule() != ranges.receipt().work_schedule()
         || requirements.receipt().target() != ranges.plan().target
         || requirements.receipt().policy()
             != FixedPrecoloredSplitRequirementPolicy::FixedUseBoundaryRequirementsV1

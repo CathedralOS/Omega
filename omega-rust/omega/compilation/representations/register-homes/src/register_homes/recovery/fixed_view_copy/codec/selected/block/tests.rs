@@ -30,7 +30,7 @@ fn successor() -> SelectedSuccessor {
                 parameter: VirtualRegisterId(29),
             },
         }],
-        fuel: vec![],
+        work: vec![],
     }
 }
 
@@ -241,7 +241,7 @@ fn operation_invocation_codec_keeps_nonreturn_and_exact_source_operation() {
 }
 
 #[test]
-fn crash_block_codec_retains_exact_cause_guards_frontier_and_fuel() {
+fn crash_block_codec_retains_exact_cause_guards_frontier_and_work() {
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use selected_instructions::{
         SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
@@ -270,7 +270,7 @@ fn crash_block_codec_retains_exact_cause_guards_frontier_and_fuel() {
                     clobbers: Vec::new(),
                     provenance: SelectedInstructionProvenance {
                         edges: vec![edge],
-                        fuel: vec![optimization_unit::FuelSettlement {
+                        work: vec![optimization_unit::WorkSettlement {
                             site: optimization_unit::PsiProvenance::Edge(edge),
                             units: 2,
                         }],

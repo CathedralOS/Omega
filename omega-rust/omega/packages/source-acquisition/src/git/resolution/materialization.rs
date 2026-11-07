@@ -1,4 +1,6 @@
-//! Internal result shared by whole-repository and member materializers.
+// Internal materialization result (`GitMaterializedSource`) shared by
+// whole-repository (`materialize_whole_git_source`) and workspace-member
+// materializers.
 
 use crate::git::cache::repository::VerifiedGitRepository;
 use crate::git::executable::executor::GitExecutor;

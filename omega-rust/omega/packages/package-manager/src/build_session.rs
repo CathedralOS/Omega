@@ -27,7 +27,7 @@ static PACKAGE_BUILD_SESSION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 /// Deterministic Terminal work granted to one complete package
 /// invocation. The sibling limits below bound retained compiler resources; none
 /// claims to bound CPU time or process memory.
-const PACKAGE_BUILD_FUEL_CEILING: u64 = 100_000_000;
+const PACKAGE_BUILD_WORK_CEILING: u64 = 100_000_000;
 /// Aggregate compiler-owned BuildLog bytes across all invocation passes.
 const PACKAGE_BUILD_LOG_CEILING: u64 = 16 * 1024 * 1024;
 /// Aggregate canonical filesystem operation attempts across all invocation passes.
@@ -100,7 +100,7 @@ impl PackageBuildSession {
                         }
                     })?;
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
-                        PACKAGE_BUILD_FUEL_CEILING,
+                        PACKAGE_BUILD_WORK_CEILING,
                         PACKAGE_BUILD_LOG_CEILING,
                         PACKAGE_FILESYSTEM_ATTEMPT_CEILING,
                         PACKAGE_LIVE_FILESYSTEM_HANDLE_CEILING,
@@ -115,7 +115,7 @@ impl PackageBuildSession {
                     let evaluation_sponsor = BuildEvaluationSponsor::new_with_measurement(
                         evaluation_limits,
                         EvaluationMeasurementIdentity::TerminalPsi {
-                            fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                            work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
                             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                         },
                     )

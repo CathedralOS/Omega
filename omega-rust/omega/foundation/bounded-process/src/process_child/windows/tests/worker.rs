@@ -1,3 +1,7 @@
+// Subprocess test worker entry point (`job_limit_worker`) exercising process
+// fanout, memory commit, aggregate descendant memory commit, and CPU spin under
+// a Windows Job Object.
+
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 

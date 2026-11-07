@@ -1,4 +1,12 @@
-//! Source instances acquire exact package and toolchain ownership before parsing.
+// Source frontier storage (`SourceStorage`, `ToolchainContractCustody`, `SourceRoots`)
+// and `SourceCatalogue` cohort selection.
+//
+// `SourceStorage` assigns exact package and toolchain ownership to every captured
+// source file before the parser stamps `SourceSpan` coordinates (`admit_source`).
+// It supports both reconciled package-graph compilation (`for_package_compilation`)
+// and unbound standalone capture (`for_compilation`), transitioning an unbound
+// `Build` capture to a sealed `Product` owner via `seal_product_owner` or
+// `join_package_inputs` and recreating fresh consumer cohorts via `reselect_current_sources`.
 
 use arena::Arena;
 use diagnostics::Diagnostic;
@@ -12,19 +20,18 @@ use syntax_trees::SyntaxTrees;
 
 #[derive(Clone, Default, compiler_storage::Record)]
 pub(crate) struct SourceStorage {
-    pub filesystem: source::SourceFileSystem,
-    pub source_roots: Arena<SourceRoots>,
-    pub sources: SourceMap,
-    pub syntax_trees: SyntaxTrees,
-    pub resolved_imports: Vec<super::ResolvedSourceImport>,
-    default_package_root: PathBuf,
-    default_package_identity: Option<PackageKeyIdentity>,
-    anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>,
-    anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>,
-    package_roots: Vec<RegisteredPackageRoot>,
-    toolchain_root: Option<PathBuf>,
-    // Import reconciliation borrows custody independently of its mutable results.
-    pub toolchain_contract_custody: ToolchainContractCustody,
+    pub filesystem: source::SourceFileSystem, // Captured virtual source filesystem.
+    pub source_roots: Arena<SourceRoots>,     // Per-source parsed root `ItemHandle` lists.
+    pub sources: SourceMap,                   // Active `SourceMap` selection cohort.
+    pub syntax_trees: SyntaxTrees,            // Parsed syntax forest for the active cohort.
+    pub resolved_imports: Vec<super::ResolvedSourceImport>, // Discovered imports resolved to paths.
+    default_package_root: PathBuf, // Root directory of the primary package or standalone project.
+    default_package_identity: Option<PackageKeyIdentity>, // Bound `PackageKeyIdentity` (`None` while an anonymous Build is unbound).
+    anonymous_capture: Option<std::sync::Arc<source::CapturedSourceTree>>, // Unbound standalone source capture tree.
+    anonymous_core_capture: Option<(PathBuf, std::sync::Arc<source::CapturedSourceTree>)>, // Captured `core` dependency tree for standalone owner derivation.
+    package_roots: Vec<RegisteredPackageRoot>, // Reconciled package roots sorted longest-first.
+    toolchain_root: Option<PathBuf>,           // Bundled toolchain root (`omega` or `core`).
+    pub toolchain_contract_custody: ToolchainContractCustody, // Closed toolchain contract roots and directories.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -34,8 +41,6 @@ struct RegisteredPackageRoot {
 }
 
 impl SourceStorage {
-    /// Derive post-Build ownership from captured custody, then admit a new
-    /// named cohort before parser coordinates or bindings leave this owner.
     pub(crate) fn seal_product_owner(
         &mut self,
         catalogue: &mut source::SourceCatalogue,
@@ -43,11 +48,6 @@ impl SourceStorage {
         let Some(capture) = self.retain_anonymous_owner(&[])? else {
             return Ok(None);
         };
-        // A toolchain-owned root already has declaration custody. Imported
-        // package sources do not create an anonymous User owner for that root.
-        // Retaining the capture above still checks unbound source containment.
-        // retain_anonymous_owner transfers this map into the capture. Inspect
-        // that map and restore it when no User owner needs to be established.
         if !capture.sources().selected_files().any(|file| {
             file.origin == SourceOrigin::User && file.package_root == self.default_package_root
         }) {
@@ -76,9 +76,6 @@ impl SourceStorage {
         self.reselect_current_sources(catalogue).map(Some)
     }
 
-    /// Admit one completed default supplier's immutable core into this source
-    /// namespace before Product typing. Existing parsed bytes and a previously
-    /// captured core must agree; the join never reopens physical source.
     pub(crate) fn admit_toolchain_capture(
         &mut self,
         capture: &crate::CapturedLocalSource,
@@ -125,8 +122,6 @@ impl SourceStorage {
                     "cannot retain default supplier capture: {error}"
                 ))]
             })?;
-        // Initial source capture may already include this core. Join the full
-        // snapshots, including missing entries, rather than replace or skip it.
         self.filesystem
             .join_captures(&supplier_filesystem)
             .map_err(|error| {
@@ -153,8 +148,6 @@ impl SourceStorage {
         &self.default_package_root
     }
 
-    /// Initialize exact package roots and product dependency authority before loading.
-    /// Build-only dependencies never authorize product source selection.
     pub fn prepare(
         root_path: &Path,
         package_inputs: Option<&crate::PackageCompilationInputs>,
@@ -183,19 +176,12 @@ impl SourceStorage {
                 for (identity, source_root) in package_inputs.packages() {
                     storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
                 }
-                // The authorized product dependency roster rides with the
-                // retained source map so later evaluator queries resolve
-                // `alias::path` under each query occurrence's own product scope.
-                // `dependencies()` yields product-purpose edges only; build edges
-                // never authorize product selection.
                 storage
                     .sources
                     .retain_product_dependency_scope(package_inputs.dependencies());
                 Ok(storage)
             }
             None => {
-                // The content owner and every compiler source read must see
-                // the same complete snapshot, including negative observations.
                 let captured = match source_capture {
                     Some(captured) => captured.clone(),
                     None => crate::capture_anonymous_compilation_source(root_path)?,
@@ -218,8 +204,6 @@ impl SourceStorage {
                     })?;
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
-                // Core is a closed toolchain dependency, not the subset of
-                // declarations demanded by one exported machine.
                 let core = package_source::local::operations::capture_local_source_input(
                     super::bundled_core_root()?,
                     package_source::LocalSourceLimits::default(),
@@ -249,8 +233,6 @@ impl SourceStorage {
         }
     }
 
-    /// Establish ownership on a separate parsed Product prefix, never on the
-    /// checked Build program. The original complete capture must survive the join.
     pub(crate) fn join_package_inputs(
         &mut self,
         inputs: &crate::PackageCompilationInputs,
@@ -308,9 +290,6 @@ impl SourceStorage {
         Ok(())
     }
 
-    /// Publish the newly sealed Product selection without changing coordinates
-    /// retained by its anonymous Build. Parser pages are recreated from these
-    /// captured bytes; the checked Build keeps its own immutable source map.
     pub(crate) fn reselect_current_sources(
         &mut self,
         catalogue: &mut source::SourceCatalogue,
@@ -352,8 +331,6 @@ impl SourceStorage {
             correspondence.push((file.source_id, current.source_id));
             admitted.push(current);
         }
-        // Preserve earlier Build-to-Product transitions when another assembly
-        // (for example final semantic binding after discovery) makes a cohort.
         for (original, preceding) in previous.source_rejoins() {
             let selected = correspondence
                 .iter()
@@ -385,8 +362,6 @@ impl SourceStorage {
         Ok(admitted)
     }
 
-    /// Retain the captured inputs without assigning a declaration owner while
-    /// an authored Build can still request dependencies.
     pub(crate) fn retain_anonymous_owner(
         &mut self,
         generated: &[(source::SourceId, build_output::PackageGeneratedSource)],
@@ -397,9 +372,6 @@ impl SourceStorage {
         let Some(capture) = &self.anonymous_capture else {
             return Ok(None);
         };
-        // SourceFile preserves the caller's diagnostic spelling, including
-        // relative paths. Resolve containment through this invocation's captured
-        // namespace, never by hashing or trusting that display spelling.
         for file in self
             .sources
             .selected_files()
@@ -409,7 +381,7 @@ impl SourceStorage {
                 .iter()
                 .any(|(source, _)| *source == file.source_id)
             {
-                continue; // exact compiler-generated unit custody keeps its generating owner
+                continue;
             }
             let path = self.filesystem.canonicalize(&file.path).map_err(|error| {
                 vec![Diagnostic::error(format!(
@@ -431,9 +403,6 @@ impl SourceStorage {
         })?;
         let core_identity = crate::source::anonymous_owner::core_snapshot_identity(core_snapshot)
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        // Virtual and closed toolchain-contract inputs outside core remain
-        // exact; checked-context duplication and core demand order do not
-        // rename this complete captured source owner.
         let contracts = crate::toolchain_source_identities(
             self.sources
                 .selected_files()
@@ -484,11 +453,6 @@ impl SourceStorage {
         self.register_package_source(package_root, Some(identity));
     }
 
-    /// Register one exact source path as closed toolchain contract custody.
-    /// Used only for the bundled hosted-entry fallback. The file keeps its
-    /// contract root so `package_relative_source` retains the canonical path.
-    /// A reconciled supplier must not be registered here: doing so would erase
-    /// its ordinary package identity and defeat accepted-binding replay.
     pub(crate) fn register_toolchain_contract_root(
         &mut self,
         path: PathBuf,
@@ -500,10 +464,6 @@ impl SourceStorage {
         );
     }
 
-    /// The bundled contract fallback owns an entire closed toolchain subtree:
-    /// its transitive `use` closure resolves inside the same root, so every
-    /// file under it inherits the contract's toolchain custody rather than a
-    /// package identity it cannot have.
     pub(crate) fn register_toolchain_contract_dir(&mut self, root: PathBuf) {
         let root = normalize_directory(root);
         if !self.toolchain_contract_custody.dirs.contains(&root) {
@@ -514,10 +474,6 @@ impl SourceStorage {
         }
     }
 
-    /// A path registered for toolchain contract custody clears the package
-    /// source frontier even when it sits outside every reconciled root: its
-    /// origin and identity are fixed toolchain by registration, so loading it
-    /// cannot launder package content into the compiled program.
     pub(crate) fn is_toolchain_contract_source(&self, path: &Path) -> bool {
         self.toolchain_contract_custody.root_for(path).is_some()
     }
@@ -541,9 +497,6 @@ impl SourceStorage {
         }
     }
 
-    /// Assign custody to captured bytes before the parser stamps source spans.
-    /// Retained exact instances keep their coordinates even when the current
-    /// import frontier visits them in a different order.
     pub fn admit_source(
         &mut self,
         contents: source::SourceContents,
@@ -574,12 +527,8 @@ impl SourceStorage {
         })
     }
 
-    /// Parser roots already name the admitted records. Attaching them allocates
-    /// no source coordinates and cannot change their custody.
     pub fn attach_parsed(&mut self, mut parsed: ParsedSources) {
         for parsed_source in parsed.sources.span_mut_or_empty(parsed.batch) {
-            // Import discovery has finished with this consumed batch. Keep its
-            // per-source associations without copying their owned buffers.
             self.source_roots.append(SourceRoots {
                 source_id: parsed_source.source_id,
                 root_items: std::mem::take(&mut parsed_source.root_items),
@@ -621,8 +570,6 @@ impl SourceStorage {
             }
         }
 
-        // Explicit parser-origin tags must not rebase core onto the broader
-        // library root. Implicit and explicit imports keep one core owner.
         if origin_override == Some(SourceOrigin::Toolchain) {
             return (
                 self.toolchain_root.clone().unwrap_or_default(),
@@ -650,10 +597,6 @@ fn normalize_directory(path: PathBuf) -> PathBuf {
     path.canonicalize().unwrap_or(path)
 }
 
-/// Closed toolchain contract custody shared by source metadata, the package
-/// source frontier, and import reconciliation: exact contract files map to
-/// their registered root, while bundled contract fallback roots admit their
-/// whole closed subtree.
 #[derive(Clone, Default, compiler_storage::Record)]
 pub(crate) struct ToolchainContractCustody {
     roots: BTreeMap<PathBuf, PathBuf>,
@@ -671,10 +614,7 @@ impl ToolchainContractCustody {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-/// Root associations borrow path and custody through the existing source id.
-/// SourceMap owns the only retained path for each checked source instance.
-#[derive(compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub(crate) struct SourceRoots {
     pub source_id: source::SourceId,
     pub root_items: Vec<syntax_trees::item::ItemHandle>,

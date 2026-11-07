@@ -305,7 +305,7 @@ arguments retain selected identity and contract commitment without duplicating
 the callee's dependency graph. Missing, differently typed, reordered, or changed
 tuples reject even if a stale commitment is unchanged. The original source
 projection remains producer-trusted without independently checkable openings.
-These contract records add no executable call variant or fuel rule.
+These contract records add no executable call variant or work rule.
 
 An unused selected family retains its selected identity, public contract
 commitment, reach row, and requirement bound without requiring an executable

@@ -21,7 +21,7 @@ use optimization_core::{
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions::StagedOptimizedCustodyCore;
-use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
+use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_fixed_view_copies(

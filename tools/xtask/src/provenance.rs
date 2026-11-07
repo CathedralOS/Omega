@@ -573,7 +573,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         if let Some((p, t)) = find_latest_codex_transcript(home_path) {
             candidates.push(("codex", p, t));
         }
-        candidates.sort_by(|a, b| b.2.cmp(&a.2));
+        candidates.sort_by_key(|a| std::cmp::Reverse(a.2));
         candidates
             .into_iter()
             .find_map(|(kind, path, _)| match kind {
