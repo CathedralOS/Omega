@@ -49,6 +49,41 @@ pub(super) struct CapturedHandleSequence {
 }
 
 impl CapturedHandleSequence {
+    /// The selected path must denote the complete declared array value.
+    /// Explicit byte windows have no element namespace and need a separate
+    /// checked interpretation; their presence is not a whole-array proof.
+    fn from_complete_array(
+        range: HandleStorageRange,
+        selected: ReferenceStorageRegion,
+        element: StructuralTypeId,
+        length: u64,
+        stride: u64,
+        element_size: u64,
+        dependencies: BTreeSet<HandleInstance>,
+    ) -> Result<Self, String> {
+        let complete_bytes = stride
+            .checked_mul(length)
+            .ok_or("handle array's complete extent overflows")?;
+        if selected.array.is_some()
+            || selected.scalar.is_some()
+            || stride < element_size
+            || selected.byte_length != complete_bytes
+            || range.byte_length() != complete_bytes
+        {
+            return Err(format!(
+                "handle array has no complete original element geometry: element {element:?}, count {length}, stride {stride}, element bytes {element_size}, selected {selected:?}, actual {range:?}"
+            ));
+        }
+        Ok(Self {
+            range,
+            element: Some(element),
+            stride,
+            length: Some(length),
+            precise: true,
+            dependencies,
+        })
+    }
+
     fn element_range(&self, ordinal: u64, byte_length: u64) -> Result<HandleStorageRange, String> {
         if !self.precise || self.length.is_none_or(|length| ordinal >= length) {
             return Err("handle collection has no exact selected element".into());
@@ -907,19 +942,15 @@ impl<'a> HandleStorageGeometry<'a> {
                 } else {
                     self.element_stride(*element)?
                 };
-                if selected.array.is_none() || stride < first.byte_length {
-                    return Err(
-                        "handle collection has no complete original element geometry".into(),
-                    );
-                }
-                Ok(CapturedHandleSequence {
+                CapturedHandleSequence::from_complete_array(
                     range,
-                    element: Some(*element),
+                    selected,
+                    *element,
+                    length,
                     stride,
-                    length: Some(length),
-                    precise: true,
-                    dependencies: address_dependencies,
-                })
+                    first.byte_length,
+                    address_dependencies,
+                )
             }
             StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. } => {
                 let mut captured = references
@@ -1680,6 +1711,101 @@ mod tests {
         };
         let byte = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
         let handle = HandleInstance(0);
+        let id = |value| StructuralTypeId::new(value).unwrap();
+        let wide = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
+        let types = [
+            (1, StructuralTypeShape::PrimitiveScalar(wide)),
+            (
+                2,
+                StructuralTypeShape::FixedArray {
+                    element: id(1),
+                    length: terminal_psi::ArrayExtent::Literal(3),
+                },
+            ),
+        ]
+        .map(|(value, shape)| terminal_psi::StructuralTypeDeclaration {
+            id: id(value),
+            identity: terminal_psi::TerminalIdentityIndex(value as u32),
+            shape,
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            no_code_affine_cleanup: true,
+            copyable: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+        });
+        let mut geometry = ReferenceStorageGeometry::new(types.iter(), |application| {
+            Err(StorageGeometryError::UnresolvedExtent(application))
+        });
+        let whole = geometry.region(id(2), &[]).unwrap();
+        assert_eq!(whole.array, None, "whole array is not an explicit window");
+        let array = CapturedHandleSequence::from_complete_array(
+            range(7, 40, 6),
+            whole,
+            id(1),
+            3,
+            2,
+            2,
+            BTreeSet::from([handle]),
+        )
+        .unwrap();
+        assert_eq!(array.element_range(2, 2).unwrap(), range(7, 44, 2));
+        assert_eq!(array.length, Some(3));
+        assert_eq!(array.dependencies, BTreeSet::from([handle]));
+        assert!(array.element_range(3, 2).is_err());
+        let window = geometry
+            .region(
+                id(2),
+                &[terminal_psi::StructuralPathSegment::FixedRange { start: 1, end: 3 }],
+            )
+            .unwrap();
+        assert!(window.array.is_some());
+        // Even an integral byte extent does not give a region an element
+        // namespace. A separately checked representation must establish it.
+        assert!(
+            CapturedHandleSequence::from_complete_array(
+                range(7, 42, 4),
+                window,
+                id(1),
+                2,
+                2,
+                2,
+                BTreeSet::new(),
+            )
+            .is_err()
+        );
+        for (actual, count, stride, element_size) in [
+            (range(7, 40, 8), 3, 2, 2),
+            (range(7, 40, 6), 3, 1, 2),
+            (range(7, 40, 6), 3, 2, 3),
+            (range(7, 40, 6), u64::MAX, 2, 2),
+        ] {
+            assert!(
+                CapturedHandleSequence::from_complete_array(
+                    actual,
+                    whole,
+                    id(1),
+                    count,
+                    stride,
+                    element_size,
+                    BTreeSet::new(),
+                )
+                .is_err()
+            );
+        }
+        let scalar = geometry.region(id(1), &[]).unwrap();
+        assert!(
+            CapturedHandleSequence::from_complete_array(
+                range(7, 40, 2),
+                scalar,
+                id(1),
+                1,
+                2,
+                2,
+                BTreeSet::new(),
+            )
+            .is_err()
+        );
         let source = CapturedHandleSequence {
             range: range(1, 32, 24),
             element: None,
