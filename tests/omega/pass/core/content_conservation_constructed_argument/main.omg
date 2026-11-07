@@ -14,8 +14,10 @@ public data Pair { left: Chunk in Held; right: Chunk in Held; }
 public boundary trait Join {
     machine merge(parts: Pair) -> Chunk in Held
     reaches
-    ensures separate(Held::content(old(&parts.left)), Held::content(old(&parts.right)))
-        == Held::content(&result);
+    ensures core::Identity<CountedQuantity<ByteUnit>>(
+        separate(Held::content(old(&parts.left)), Held::content(old(&parts.right))),
+        Held::content(&result)
+    );
 }
 public boundary trait Sink { machine accept(value: Chunk in Held) reaches; }
 public machine combine(left: Chunk in Held, right: Chunk in Held)
@@ -32,8 +34,10 @@ public data Shell { parts: Pair; }
 public boundary trait NestedJoin {
     machine merge(shell: Shell) -> Chunk in Held
     reaches
-    ensures separate(Held::content(old(&shell.parts.left)), Held::content(old(&shell.parts.right)))
-        == Held::content(&result);
+    ensures core::Identity<CountedQuantity<ByteUnit>>(
+        separate(Held::content(old(&shell.parts.left)), Held::content(old(&shell.parts.right))),
+        Held::content(&result)
+    );
 }
 public machine nested(left: Chunk in Held, right: Chunk in Held)
 reaches NestedJoin, Sink

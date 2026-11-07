@@ -29,10 +29,12 @@ public boundary trait RegionSplit {
     reaches
     requires head <= whole.remaining
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&whole)),
+            separate(
+                Owned::content(&result.left),
+                Owned::content(&result.right),
+            )
         );
 }
 
@@ -62,8 +64,10 @@ reaches RegionSplit
 machine Main::split_proved(main: &mut Main, whole: Region in Owned, head: u64) -> SplitResult
 requires head <= whole.remaining
 ensures
-    Owned::content(old(&whole))
-    == separate(Owned::content(&result.left), Owned::content(&result.right))
+    core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right))
+    )
 reaches RegionSplit
 {
     let mut pieces: SplitResult = RegionSplit::split(whole, head);
@@ -97,10 +101,12 @@ RegionSplitImplementation satisfies RegionSplit {
     machine split(whole: Region in Owned, head: u64) -> SplitResult
     requires head <= whole.remaining
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&whole)),
+            separate(
+                Owned::content(&result.left),
+                Owned::content(&result.right),
+            )
         )
     {
         let left: Region in Owned = Region { remaining: head };

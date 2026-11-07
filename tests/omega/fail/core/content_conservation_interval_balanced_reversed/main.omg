@@ -22,5 +22,8 @@ satisfies Content<Region, IntervalSet<ByteUnit>>::project
 
 machine retain(whole: Region in Owned) -> Region in Owned
 requires whole.start == 18 && whole.end == 10
-ensures Owned::content(old(&whole)) == Owned::content(&result)
+ensures core::Identity<IntervalSet<ByteUnit>>(
+    Owned::content(old(&whole)),
+    Owned::content(&result)
+)
 { whole }
