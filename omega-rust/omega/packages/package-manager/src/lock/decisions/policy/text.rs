@@ -1,4 +1,4 @@
-//! Version 2 stores full-comparison subjects, not source-graph row indices.
+// Canonical ASCII encoding and bounded recovery for version-2 policy decision history, storing full-comparison subjects rather than source-graph row indices.
 
 use super::super::HistoricalPackagePolicyRecoveryUsage;
 use super::super::text::{disposition_token, parse_digest, parse_disposition, parse_number};

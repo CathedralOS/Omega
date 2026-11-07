@@ -1,3 +1,5 @@
+// Error type (`PublishReviewedPackageChangeError`) for checked publication of reviewed package changes.
+
 use std::fmt;
 
 #[derive(Debug)]

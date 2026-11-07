@@ -1,3 +1,8 @@
+// We validate that a `CompilerIssuedPackageReviewSet` covers the exact
+// occurrence roster of its `CanonicalSourceClosureSubject` with matching
+// immutable source resolutions, targets, and build execution profiles, and
+// project each review's `PackagePolicyBaseline` into `PackageAcceptanceRow`s.
+
 use super::{PackagePolicyChangeError as Error, limits::Budget};
 use crate::declarations::PackageKey;
 use crate::lock::PackagePolicyAcceptance;

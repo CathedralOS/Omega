@@ -1,3 +1,9 @@
+// We assemble per-package policy change records (`PackagePolicyPackageChange`)
+// across the sorted union of baseline and candidate packages, joining each side
+// to its source-graph occurrence roster and comparing each purpose (`Product`
+// and `Build`) independently so adding a build role neither reuses nor
+// invalidates product consent.
+
 use super::{
     PackagePolicyChangeError, PackagePolicyChangeFingerprint, PackagePolicyPackageChange,
     fingerprints, limits::Budget, merge, paths, projection,
@@ -19,9 +25,6 @@ pub(super) fn packages(
         .map(|old| paths::Paths::new(old.source(), budget))
         .transpose()?;
     let new_paths = paths::Paths::new(source, budget)?;
-    // The recorded baseline and the candidate each join to their own source
-    // graph's occurrence roster; a package's authorized purposes can change
-    // without any consent row moving.
     let old_roster = accepted
         .map(|old| PackageOccurrenceRoster::derive(old.source()))
         .transpose()?;
@@ -88,9 +91,6 @@ pub(super) fn packages(
             baseline_occurrence_contexts != candidate_occurrence_contexts;
         let mut rows = Vec::new();
         let mut audit_present = false;
-        // At most two roles per package. Keep a single package audit summary,
-        // but compare each independently checked occurrence; adding a build
-        // role must neither reuse nor invalidate the product role's consent.
         for purpose in DependencyPurpose::ALL {
             let baseline = baselines
                 .iter()

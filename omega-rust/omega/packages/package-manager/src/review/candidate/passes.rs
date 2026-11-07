@@ -1,12 +1,20 @@
-//! Select discovery/bound policy passes and ask application Build to execute them.
-//!
-//! All products share discovery and final checking. The top-level invocation
-//! owns the sponsored session borrowed by every target, candidate and review pass;
-//! `occurrences` admits dependency work and joins compiler evidence to policy.
+/*
+    We select discovery and bound policy passes for an exact target closure and
+    ask application Build to execute them. All products share discovery and
+    final checking: `review_candidate` first runs a preliminary discovery pass
+    (`TargetEntryDiscovery::Dependencies`), derives non-authoritative semantic
+    binding proposals (`candidate_semantic_binding_inputs`), and when bindings
+    are discovered, runs a bound pass (`TargetEntryDiscovery::Disabled`) that
+    carries untouched occurrences forward and recompiles only occurrences whose
+    inputs changed.
+
+    The top-level invocation owns the sponsored session borrowed by every target,
+    candidate, and review pass; `occurrences` admits dependency work and joins
+    compiler evidence to policy.
+*/
 
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 mod occurrences;
-mod policy;
 
 use super::semantic_bindings::{candidate_semantic_binding_inputs, semantic_bindings_by_consumer};
 use super::{
@@ -26,22 +34,12 @@ pub use occurrences::{
 
 pub(crate) use crate::build_session::PackageSourceBindings;
 
-/// Observational review of an exact target closure and root Build inventory.
-/// It projects restricted requests for decisions but never exercises grants.
-/// Accepted production builds admit those grants through accepted_compilation.
 #[derive(Clone, Copy)]
 pub(crate) struct CandidateReview<'request, 'closure> {
     pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
     pub root_build_snapshot: Option<&'request build_settings::BuildSnapshotRequest>,
 }
 
-/// Review an explicit [`CandidateReview`] with resolved source bindings.
-/// The compiler session owns source preparation and exact language judgments;
-/// changed sources and selections still reject through the ordinary custody
-/// and checkpoint checks. Inspection must not derive policy
-/// from a broader input view than the invocation it is reviewing.
-/// The invocation's owner lends the same session to every target and round;
-/// this operation neither reserves a new sponsor nor disposes that owner.
 pub(crate) fn review_resolved_packages(
     candidate: CandidateReview<'_, '_>,
     session: &mut PackageBuildSession,
@@ -52,8 +50,6 @@ pub(crate) fn review_resolved_packages(
     review_candidate(candidate, source_bindings, execute).map(|compiled| compiled.reviews)
 }
 
-/// The candidate route shared by package commands and read-only audit;
-/// see [`CandidateReview`] for what the request carries.
 fn review_candidate(
     candidate: CandidateReview<'_, '_>,
     source_bindings: &mut PackageSourceBindings,
@@ -97,11 +93,6 @@ fn review_candidate(
     if discovered.is_empty() {
         return Ok(preliminary);
     }
-    // Discovery cannot survive as a checked product when it proposed bindings,
-    // but an occurrence whose inputs the discovered bindings leave untouched
-    // is the same checked product under the same inputs: this pass carries
-    // those compiles forward and only compiles what the bindings changed.
-    // Custody verification and consumer-scoped binding checks still run per pass.
     let _pass = timings::subject_stage(|| {
         format!(
             "review_pass bound root={} discovered_bindings={}",
@@ -127,14 +118,6 @@ fn review_candidate(
     })
 }
 
-/// Run one review pass, then attribute its checked work beside the pass's
-/// stage line when review timings are enabled: how many occurrences it
-/// holds, how many it actually compiled, how many a prior pass's identical
-/// compile carried forward untouched, how many typed frontiers a later
-/// occurrence reused instead of re-assembling identical source, and what the
-/// two whole-program checkpoints inside each compiled occurrence cost. The
-/// preliminary row is the pre-build declaration-authority check; every
-/// `*_checks` request to `lower_typed_trees` runs a check.
 fn note_pass_accounting(
     pass: &'static str,
     run: impl FnOnce() -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError>,

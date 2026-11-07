@@ -1,22 +1,36 @@
-//! Project choices for complete retained-policy comparisons.
-//!
-//! A comparison already owns checked findings and their source association.
-//! Resolving choices checks only their exact coverage and context, without
-//! reconstructing the compiler result or manufacturing evidence of review.
+/*
+    We resolve root-project policy choices (`resolve_package_policy_decisions`)
+    over a complete `PackagePolicyChangeSet` and delegate editable review
+    document rendering and recovery to `document`.
 
-use super::ReviewOnlyRootPolicyDisposition;
-use crate::review::timings;
-use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
-use std::fmt;
+    A comparison already owns checked findings and their source associations.
+    `resolve_package_policy_decisions` binds exactly one `PackagePolicyDecision`
+    (`AcceptCandidateChange` or `RejectCandidateChange`) to every required row,
+    source replacement, and root-role change in that comparison, rejecting
+    unknown, missing, duplicate, stale, or advisory-only choices.
+*/
+
+/*
+    Policy decision resolution belongs to the package review decision boundary
+    (`review/decision/mod.rs`).
+*/
 
 mod document;
+
 pub(crate) use document::{
     PackagePolicyReviewError, recover_package_policy_review, render_package_policy_review,
 };
 
-/// An exact row or source-replacement change, or the separately reported
-/// root-role compatibility change. Digests come from the comparison; they are
-/// identifiers, not authorization until checked against that comparison.
+use crate::review::timings;
+use crate::review::{PackagePolicyChangeFingerprint, PackagePolicyChangeSet};
+use std::fmt;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum ReviewOnlyRootPolicyDisposition {
+    AcceptCandidateChange,
+    RejectCandidateChange,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackagePolicyDecisionSubject {
     RootRole,
@@ -24,16 +38,12 @@ pub(crate) enum PackagePolicyDecisionSubject {
     Row([u8; 32]),
 }
 
-/// Caller-supplied project choice. A parser or UI may construct it directly;
-/// completeness and association are checked by `resolve_package_policy_decisions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PackagePolicyDecision {
     pub subject: PackagePolicyDecisionSubject,
     pub disposition: ReviewOnlyRootPolicyDisposition,
 }
 
-/// Complete choices for one comparison, not a proof, audit receipt, or file
-/// transaction. A rejection is retained and prevents permission to proceed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyResolution {
     comparison: PackagePolicyChangeFingerprint,
@@ -49,9 +59,6 @@ impl PackagePolicyResolution {
         &self.decisions
     }
 
-    /// All represented required choices accept their changes. This alone is
-    /// not permission to publish: compiler obligations, explicit command intent,
-    /// and source/project-file consistency need their own transaction checks.
     pub(crate) fn all_required_changes_accepted(&self) -> bool {
         self.decisions.iter().all(|decision| {
             decision.disposition == ReviewOnlyRootPolicyDisposition::AcceptCandidateChange
@@ -114,14 +121,6 @@ impl fmt::Display for PackagePolicyDecisionError {
 
 impl std::error::Error for PackagePolicyDecisionError {}
 
-/// Bind exactly one choice to every required row, source replacement, and
-/// root-role change in this comparison.
-///
-/// `comparison` is the digest retained with the user's decisions, not a digest
-/// substituted from the current report at resume time. It covers both source
-/// subjects and complete policy findings. Unknown, missing, duplicate, stale,
-/// and advisory-only choices reject. Removed packages remain ordinary row
-/// subjects: neither their checkout nor a candidate package index is needed.
 pub(crate) fn resolve_package_policy_decisions(
     changes: &PackagePolicyChangeSet,
     comparison: [u8; 32],
@@ -134,8 +133,6 @@ pub(crate) fn resolve_package_policy_decisions(
     if comparison != changes.fingerprint().digest() {
         return Err(Error::WrongComparison);
     }
-    // Comparison construction bounds the row count. No caller-provided count
-    // controls allocation until it has been checked against that actual set.
     let row_count = changes
         .packages()
         .iter()

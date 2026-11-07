@@ -1,12 +1,13 @@
-//! Source identity changes at established root or requester-local bindings.
+// We detect source identity replacements (`PackagePolicySourceReplacement`) at
+// the root or at shared `(requester, purpose, alias)` bindings in canonical
+// order. Neither package names nor authored row positions pair otherwise
+// unrelated graph changes.
 
 use super::{PackagePolicyChangeError as Error, PackagePolicyChangeFingerprint, limits::Budget};
 use crate::declarations::dependencies::DependencyPurpose;
 use crate::declarations::{AliasName, PackageKey};
 use crate::resolution::graph::{CanonicalDependencySourceSelection, CanonicalSourceClosureSubject};
 
-/// The existing binding whose selected package changed. Neither package names
-/// nor authored row positions pair otherwise unrelated graph changes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PackagePolicyReplacementSite {
     Root,
@@ -43,10 +44,6 @@ impl PackagePolicySourceReplacement {
     }
 }
 
-/// Root first, then shared requester/alias bindings in canonical order.
-/// Different aliases remain separate additions/removals: a command changing
-/// both identity and alias must retain its explicit replacement intent rather
-/// than asking graph comparison to guess a pairing.
 pub(super) fn compare(
     baseline: Option<&CanonicalSourceClosureSubject>,
     candidate: &CanonicalSourceClosureSubject,

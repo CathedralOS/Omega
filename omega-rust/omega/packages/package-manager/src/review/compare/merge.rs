@@ -1,3 +1,8 @@
+// We merge sorted baseline and candidate acceptance rows (`append_rows`) into
+// `PackagePolicyRowChange` records, keeping both sides visible when an
+// occurrence context (`baseline_context` vs `candidate_context`) changed even
+// if the row text is identical.
+
 use super::{
     PackagePolicyChangeError as Error, PackagePolicyChangeFingerprint, PackagePolicyChangeKind,
     PackagePolicyRowChange,
@@ -38,9 +43,6 @@ pub(super) fn append_rows(
         let order = compare(old.peek(), new.peek());
         let previous = if order.is_gt() { None } else { old.next() };
         let current = if order.is_lt() { None } else { new.next() };
-        // Row text describes permission/assumption meaning, not where that
-        // meaning was accepted. Keep both sides visible when a purpose change
-        // requires fresh consent even though their text is identical.
         if previous == current && !occurrence_changed {
             continue;
         }
@@ -62,8 +64,6 @@ pub(super) fn append_rows(
                 .as_ref()
                 .is_some_and(PackageAcceptanceRow::initial_requires_decision)
         };
-        // Changed retained consent warrants audit; fresh non-consent findings
-        // are accounted for separately by the package comparison.
         let audit_recommended = previous
             .as_ref()
             .is_some_and(PackageAcceptanceRow::audit_recommended_on_change)

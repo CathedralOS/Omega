@@ -1,3 +1,5 @@
+// Hermetic projection of `Source::Path`, `Source::Git`, `PackageSelection`, and alias literals in `build.omg`.
+
 use super::error::DependencyProjectionError;
 use super::{DependencySourceRequest, PackageSelection};
 use crate::declarations::{AliasName, PackageName};
@@ -8,7 +10,6 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLite
 pub(super) const SOURCE_TYPE_NAME: &str = "Source";
 pub(super) const PACKAGE_SELECTION_TYPE_NAME: &str = "PackageSelection";
 
-/// Hermetic dependency projection admits an exact toolchain constructor spelling.
 pub(super) fn constructor_parts<'syntax>(
     syntax_trees: &'syntax SyntaxTrees,
     literal: &'syntax TableStructLiteral,

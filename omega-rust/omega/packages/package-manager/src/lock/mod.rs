@@ -1,14 +1,19 @@
-//! Persistent project consent and its exact accepted compilation inputs.
-//!
-//! Exact target sections retain the immutable source graph, compact exact
-//! acceptance rows, occurrence-scoped bindings, compiler identity, and historical
-//! decisions. Recovery validates records without source or compiler execution;
-//! the ordinary compilation owner must verify source and compiler identity before
-//! using these inputs. Changed candidates require a new review.
-//! Explicit review also recovers version 3 history without compilation inputs;
-//! that history cannot be published as current acceptance without a fresh review.
-//! The preceding consent schema retains its opaque rows for comparison only;
-//! it cannot supply current compilation inputs or receiver permissions.
+/*
+Persistent project consent and its exact accepted compilation inputs.
+
+Each target section in `PackageLock` (`PackageLockTarget`) retains the immutable
+source graph, compact exact acceptance rows, occurrence-scoped semantic bindings,
+compiler identity, and historical policy decisions. Recovery validates these records
+without source acquisition or compiler execution; ordinary compilation must verify
+source and compiler identity before admitting the retained inputs.
+*/
+
+/*
+Explicit review also recovers version-3 history without compilation inputs for
+baseline comparison, and schema-4/5 consent rows remain opaque comparison baselines
+that cannot supply current compilation inputs or receiver permissions. No target
+section ever authorizes another target profile.
+*/
 
 mod acceptance;
 mod compilation;
@@ -37,7 +42,6 @@ pub(crate) use occurrences::{
 use package_evidence::record::PackagePolicyBaseline;
 use target::TargetProfile;
 
-/// Source pins and independently retained consent for every checked occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageLockTarget {
     source: CanonicalSourceClosureSubject,
@@ -46,7 +50,6 @@ pub(crate) struct PackageLockTarget {
 }
 
 impl PackageLockTarget {
-    /// Retain the exact binding inputs of each independently accepted review.
     pub(crate) fn from_accepted_policies(
         source: CanonicalSourceClosureSubject,
         policies: &[(
@@ -81,9 +84,6 @@ impl PackageLockTarget {
         Ok(value)
     }
 
-    /// Compose exact occurrence records, including historical review baselines.
-    /// This does not check current source or compiler identity; publication
-    /// additionally requires compilation inputs on every occurrence.
     pub(crate) fn from_occurrences(
         source: CanonicalSourceClosureSubject,
         occurrences: Vec<PackagePolicyOccurrence>,
@@ -108,7 +108,6 @@ impl PackageLockTarget {
         self.source.target_profile()
     }
 
-    /// All occurrence records have been checked to agree on this explicit profile.
     pub fn execution_profile(&self) -> Option<TargetProfile> {
         self.occurrences
             .first()
@@ -164,9 +163,6 @@ impl PackageLockTarget {
     }
 }
 
-/// Deterministic retained project state for explicitly listed targets. The
-/// immutable source graph is identical across sections; target-sensitive policy
-/// and decisions remain separate. No section authorizes another target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageLock {
     targets: Vec<PackageLockTarget>,

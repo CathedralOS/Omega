@@ -1,3 +1,5 @@
+// Length-plus-LF ASCII framing (`Writer` and `Reader`) for pending package proposal serialization and recovery.
+
 use crate::hex_digest;
 use std::fmt;
 
@@ -31,8 +33,6 @@ impl Writer {
     }
 
     pub(super) fn row(&mut self, label: &str, value: impl fmt::Display) -> Result<(), String> {
-        // Only fixed labels, digests, catalog identities and bounded numbers
-        // reach this temporary formatting allocation; payloads use append.
         self.append(&format!("{label} {value}\n"))
     }
 
