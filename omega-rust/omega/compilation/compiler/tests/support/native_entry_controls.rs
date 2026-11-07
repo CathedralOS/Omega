@@ -203,7 +203,10 @@ fn inspect_body_cpu_state(
                 .ok_or("MSR control lacks actual retained instruction rows")?;
             let mut selectors = std::collections::BTreeSet::new();
             let mut first = None;
+            let mut isolated = Vec::new();
             for function in &rows.selected.functions {
+                let mut local_selectors = std::collections::BTreeSet::new();
+                let mut has_call = false;
                 for instruction in function.instructions() {
                     match instruction.kind {
                         selected_instructions::SelectedInstructionKind::RegisterAccess {
@@ -218,13 +221,29 @@ fn inspect_body_cpu_state(
                             .map_err(|error| format!("actual MSR selector: {error}"))?
                             .ok_or("actual MSR selector is not constant")?;
                             selectors.insert(selector);
+                            local_selectors.insert(selector);
                             first.get_or_insert((function.machine, instruction.id));
                         }
                         selected_instructions::SelectedInstructionKind::RegisterAccess {
                             operation: selected_instructions::RegisterOperation::ModelSpecificWrite,
                         } => return Err("read-only MSR control contains a write".into()),
+                        selected_instructions::SelectedInstructionKind::CallScalar { .. }
+                        | selected_instructions::SelectedInstructionKind::CallAggregate {
+                            ..
+                        }
+                        | selected_instructions::SelectedInstructionKind::InvokeNoNormal {
+                            ..
+                        }
+                        | selected_instructions::SelectedInstructionKind::NormalizedForeignCall {
+                            ..
+                        } => has_call = true,
                         _ => {}
                     }
+                }
+                if !has_call
+                    && local_selectors == std::collections::BTreeSet::from([0x277, 0xc000_0080])
+                {
+                    isolated.push(function.machine);
                 }
             }
             if selectors != std::collections::BTreeSet::from([0x277, 0xc000_0080]) {
@@ -235,14 +254,32 @@ fn inspect_body_cpu_state(
             let control = calling_conventions::MachineStateSet::new([
                 calling_conventions::MachineState::ControlState,
             ]);
-            if !observed.effects().machine_state().contains_all(control)
-                || !observed
+            let [root] = isolated.as_slice() else {
+                return Err("MSR control requires one retained two-read scalar helper".into());
+            };
+            let isolated = image_emission::observe_native_function_cpu_state(
+                object,
+                *root,
+                calling_conventions::Preemption::NotApplicable,
+            )
+            .map_err(|error| format!("isolated MSR helper observation: {error}"))?;
+            if !isolated.effects().machine_state().contains_all(control)
+                || !isolated
                     .effects()
                     .clobbered_state()
                     .intersection(control)
                     .is_empty()
             {
                 return Err("MSR reads must use ControlState without clobbering it".into());
+            }
+            if image_emission::observe_native_function_cpu_state(
+                object,
+                semantic_vocabulary::MachineId::new(u64::MAX).unwrap(),
+                calling_conventions::Preemption::NotApplicable,
+            )
+            .is_ok()
+            {
+                return Err("function observation accepted an absent retained root".into());
             }
             let (machine, instruction) =
                 first.ok_or("MSR control has no actual read occurrence")?;

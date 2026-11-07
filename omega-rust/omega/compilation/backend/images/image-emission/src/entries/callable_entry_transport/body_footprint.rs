@@ -81,6 +81,14 @@ pub(super) fn collect(
     body: &ObjectArtifact,
     preemption: Preemption,
 ) -> Result<NativeBodyCpuState, Error> {
+    collect_from(body, body.entry, preemption)
+}
+
+pub(super) fn collect_from(
+    body: &ObjectArtifact,
+    entry: MachineId,
+    preemption: Preemption,
+) -> Result<NativeBodyCpuState, Error> {
     let replay = body.fragment_replay.as_ref().ok_or(Error::Mismatch(
         "interrupt body lacks retained emission custody",
     ))?;
@@ -112,7 +120,7 @@ pub(super) fn collect(
         MachineStateSet::empty(),
     );
     let mut visited = BTreeSet::new();
-    let mut pending = vec![body.entry];
+    let mut pending = vec![entry];
     let mut frame_floating_control = false;
     let mut opaque_control = false;
     while let Some(machine) = pending.pop() {

@@ -27,6 +27,21 @@ pub fn observe_native_body_cpu_state(
     )
 }
 
+/// Observe one retained function and its complete callee/frame closure.
+/// The root must exist in this object's checked native layout. This returns
+/// effects for that scope only, without changing the object's admitted entry.
+pub fn observe_native_function_cpu_state(
+    body: &ObjectArtifact,
+    entry: semantic_vocabulary::MachineId,
+    preemption: calling_conventions::Preemption,
+) -> Result<NativeBodyCpuState, Error> {
+    body_footprint::collect_from(
+        body.composition_source.as_deref().unwrap_or(body),
+        entry,
+        preemption,
+    )
+}
+
 /// Read an input constant at an exact original-body instruction occurrence.
 /// This is inspection data, not an allocation or execution permission.
 pub fn observe_native_constant_operand(
