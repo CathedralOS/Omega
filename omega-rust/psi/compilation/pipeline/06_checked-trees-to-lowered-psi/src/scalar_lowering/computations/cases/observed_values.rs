@@ -66,6 +66,7 @@ pub(super) fn lower(
             .terminal_unit_effects
             .cleanup_control;
         let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+            value_dependency: None,
             expression: root.expression,
             logical_root_type_identity: None,
         };

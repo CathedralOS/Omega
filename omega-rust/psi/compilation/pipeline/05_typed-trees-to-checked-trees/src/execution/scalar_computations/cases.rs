@@ -63,6 +63,7 @@ impl Builder<'_, '_> {
             };
             self.program.saved_value_source(saved)?;
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression,
                 logical_root_type_identity: None,
             }

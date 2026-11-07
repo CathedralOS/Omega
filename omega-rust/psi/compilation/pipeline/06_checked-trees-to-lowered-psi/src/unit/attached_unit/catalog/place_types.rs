@@ -452,7 +452,19 @@ fn source_type(
                 .filter(|result| result.binding_ordinal == binding_ordinal)
                 .map(|result| result.type_identity)
         }),
-        Source::StructuralExpression { expression, .. } => statement
+        Source::StructuralExpression {
+            value_dependency: Some(value),
+            ..
+        } => value_facts(checked)
+            .structural_values
+            .root_for_value(value)
+            .filter(|root| root.state == state && statement == Some(root.statement_ordinal))
+            .map(|root| stored_structural_identity(checked, root.type_reference)),
+        Source::StructuralExpression {
+            expression,
+            value_dependency: None,
+            ..
+        } => statement
             .and_then(|statement| {
                 value_facts(checked)
                     .structural_values

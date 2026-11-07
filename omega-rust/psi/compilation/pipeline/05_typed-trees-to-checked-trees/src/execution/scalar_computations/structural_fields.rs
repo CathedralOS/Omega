@@ -95,6 +95,7 @@ impl Builder<'_, '_> {
                 subject: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
                     source: SourcePlan::StructuralExpression {
+                        value_dependency: receiver_value.is_valid().then_some(receiver_value),
                         expression,
                         logical_root_type_identity: None,
                     },
@@ -231,6 +232,7 @@ impl Builder<'_, '_> {
             return arena::HandleSpan::empty();
         }
         let source = SourcePlan::StructuralExpression {
+            value_dependency: None,
             expression: receiver.expression,
             logical_root_type_identity: None,
         };
@@ -519,6 +521,7 @@ impl Builder<'_, '_> {
         let source = match field.root {
             facts::PlaceRoot::Symbol(symbol) => self.structural_source(symbol),
             facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression,
                 logical_root_type_identity: None,
             },

@@ -374,6 +374,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             }
         } else {
             SourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression,
                 logical_root_type_identity: None,
             }

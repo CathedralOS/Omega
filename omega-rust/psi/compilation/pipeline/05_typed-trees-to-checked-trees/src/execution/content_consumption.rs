@@ -98,6 +98,7 @@ pub(crate) fn attach(
                     }
                     facts::PlaceRoot::Expression(expression) => {
                         CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                            value_dependency: None,
                             expression,
                             logical_root_type_identity: None,
                         }

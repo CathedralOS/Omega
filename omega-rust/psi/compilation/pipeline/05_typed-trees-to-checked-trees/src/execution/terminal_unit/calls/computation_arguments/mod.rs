@@ -424,6 +424,7 @@ pub(crate) fn borrowed_storage_argument(
         (
             reference,
             CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                value_dependency: None,
                 expression,
                 // ProjectedArgumentPath omits only the inherited root shells.
                 // Keep that checked logical root beside the completed owner;

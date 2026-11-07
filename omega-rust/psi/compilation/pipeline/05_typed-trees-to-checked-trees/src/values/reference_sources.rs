@@ -295,6 +295,7 @@ pub(crate) fn capture_source(
         // Its captured path and storage interpretation are otherwise the same
         // as a named home's; source spelling does not select another planner.
         facts::PlaceRoot::Expression(expression) => SourcePlan::StructuralExpression {
+            value_dependency: None,
             expression,
             logical_root_type_identity: None,
         },
