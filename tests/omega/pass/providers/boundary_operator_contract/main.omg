@@ -21,3 +21,15 @@ machine Main::main(main: &mut Main) {
     let result: i32 = CheckedMath::offset_zero(70);
     main.out = result;
 }
+
+// The public promise and its provider retain the cast's arithmetic policy.
+// At 256, Wrapping yields 0 while Saturating yields 255.
+boundary operator CheckedMath::low_byte(value: u16) -> u8
+ensures result == (value as u8 in Wrapping);
+
+machine CheckedMathProvider::low_byte_impl(input: u16) -> u8
+satisfies CheckedMath::low_byte
+ensures result == (input as u8 in Wrapping)
+{
+    input as u8 in Wrapping
+}
