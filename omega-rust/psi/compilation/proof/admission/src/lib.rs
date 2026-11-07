@@ -3,17 +3,15 @@
 //! The checker never searches. It re-decides closed primitive judgments,
 //! checks explicit proof nodes, or validates an admission against an obligation
 //! site and installation-profile decision. Executable terminal-Psi lowering
-//! reconstructs obligations; a proof bundle cannot choose their class. This
+//! reconstructs obligations; supplied evidence cannot choose their class. This
 //! crate is distinct from the Gamma-written bootstrap derivation checker.
 //! The crate also owns the common mathematical core: the shared dependent
 //! term model and its independent checker for the reference predicative
 //! calculus with stratified relevant and strict universes.
 //!
-//! The producer-side certificate search and the supplied-certificate denotation
-//! replay were removed with the PCC verifier and certificate stack in
-//! `9718604e847`. Verification no longer consumes certificates produced by a
-//! search inside this crate; `admission/` keeps the evidence routes and the
-//! checker still re-decides every judgment it is given.
+//! Admission consumes supplied mathematical evidence rather than searching for
+//! a proof inside this crate. Its evidence routes re-decide every judgment.
+//! These source proof checks do not certify the compiler's translation.
 
 #![forbid(unsafe_code)]
 //!

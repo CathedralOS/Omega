@@ -64,8 +64,8 @@ callee content guarantees. This forwards a whole aggregate; it does not extract
 an indexed result or establish fresh claims. Those cases and returning claims
 from distinct owned inputs require further implementation. Native execution is not established
 by these source-free interpreter checks.
-These checks do not establish generic PCC or independently authenticated original
-contract projections.
+These checks rely on producer-checked source contracts; they do not authenticate
+the original contract projections independently.
 
 `projected_three.omg` carries the same whole-aggregate callback reach over
 `[Region in Owned; 3]`, pinning the source-level join at three indexed claims:

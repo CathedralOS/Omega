@@ -2,7 +2,8 @@
 use super::origins::{scalar_origin, whole_origin};
 use super::*;
 /// Reconstruct executable graph correspondence only. The producer separately
-/// checks theorem bodies and exact schemas; this is not independent PCC proof.
+/// checks theorem bodies and exact schemas; consumers rely on those source
+/// judgments.
 pub(super) fn validate_operation(
     module: &TerminalModule,
     index: usize,

@@ -1,5 +1,10 @@
 # NEW-PCM-PROPOSITION-SURFACE-INVENTORY — proposition declaration surface at 97be15c1b592
 
+Historical record of the cited revisions. Superseded gates, artifact formats
+and checker names below are not current requirements or work to resume.
+Use [verification placement](../../../omega-rust/pipeline.md#verification-placement)
+and the [current task board](../../../TASKS.md) for the maintained model.
+
 Status: retirement inventory for the dedicated `proposition` declaration under
 **PROOF-CONTRACT-MIGRATION** (TASKS.md:2605). The migration moves the proof
 surface to ordinary machine contracts and trait bundles elaborating to

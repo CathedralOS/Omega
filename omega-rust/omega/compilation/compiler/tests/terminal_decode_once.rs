@@ -212,7 +212,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     };
 
     // Replaying the finished artifact interrogates its retained Terminal
-    // module again — image replay, physical evidence, proof sidecar — and
+    // module again for image and physical-evidence checks, and
     // decodes nothing, because the artifact already holds that decoding.
     let before_replay = terminal_codec::module_decode_count();
     artifact
