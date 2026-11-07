@@ -34,6 +34,10 @@ pub enum FunctionFragmentObjectArtifactError {
         operation_description: String,
     },
     Mismatch(&'static str),
+    InstalledRelativeBranches {
+        machine: semantic_vocabulary::MachineId,
+        source: machine_emission::frame_application::FunctionFragmentFrameApplicationError,
+    },
     InstalledFaultSurface {
         machine: semantic_vocabulary::MachineId,
         instruction: selected_instructions::SelectedInstructionId,
@@ -95,6 +99,10 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
+            Self::InstalledRelativeBranches { machine, source } => write!(
+                formatter,
+                "installed handler {machine:?} relative control: {source}",
+            ),
             Self::InstalledFaultSurface {
                 machine,
                 instruction,

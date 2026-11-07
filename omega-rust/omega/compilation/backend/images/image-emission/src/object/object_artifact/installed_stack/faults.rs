@@ -76,7 +76,23 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
         &machines,
     )?;
     let mut correlated = correlated.into_iter();
+    let framed = replay.0.source().source();
     for function in &physical.functions {
+        let fragment = framed
+            .fragments()
+            .function(function.machine)
+            .ok_or(Error::Mismatch(
+                "installed fault analysis has no exact framed function",
+            ))?;
+        let relative_branches = framed
+            .validate_relative_branch_rows(
+                function.machine,
+                fragment.instructions().filter(|row| row.branch.is_some()),
+            )
+            .map_err(|error| Error::InstalledRelativeBranches {
+                machine: function.machine,
+                source: error,
+            })?;
         for instruction in function.instructions() {
             let (machine, source) = correlated.next().ok_or(Error::Mismatch(
                 "installed physical instruction has no exact selected source",
@@ -159,7 +175,13 @@ pub(super) fn derive(body: &ObjectArtifact) -> Result<Option<InstalledBodyFaultP
                             | terminal_psi::RegisterOperation::PortWrite),
                         _ => false,
                     };
-                    if !memory && !privileged && source.kind.call_target().is_none() {
+                    // The retained source CFG and target decoder establish the
+                    // destination inside this function after frame reflow.
+                    // Executable residence remains a separate installation duty.
+                    let relative = relative_branches
+                        .binary_search(&instruction.instruction)
+                        .is_ok();
+                    if !memory && !privileged && !relative && source.kind.call_target().is_none() {
                         return Err(fail(
                             "architectural fault source is not discharged by checked RAM/stack or CPL0",
                         ));

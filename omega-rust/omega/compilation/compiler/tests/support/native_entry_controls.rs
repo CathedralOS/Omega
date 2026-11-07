@@ -198,6 +198,7 @@ fn inspect_instruction_sources(
     let rows = object
         .native_instruction_source_rows()
         .ok_or("native instruction controls require retained source rows")?;
+    inspect_relative_branches(rows.frame_application)?;
     use image_emission::correlate_native_instruction_sources as correlate;
     let original = correlate(rows.selected, rows.physical.iter().copied())
         .map_err(|error| format!("unchanged native instruction correspondence: {error:?}"))?;
@@ -288,6 +289,96 @@ fn inspect_instruction_sources(
         correlate(rows.selected, wrong_owner),
         "installed physical instruction has no exact selected source",
     )?;
+    Ok(())
+}
+
+fn inspect_relative_branches(
+    framed: &machine_emission::frame_application::StagedFunctionFragmentFrameApplication,
+) -> Result<(), String> {
+    use machine_code::FunctionFragmentBranchEvidence as Branch;
+    use machine_emission::frame_application::FunctionFragmentFrameApplicationError as Error;
+    let mut observed = [false; 2];
+    for function in &framed.fragments().functions {
+        let rows: Vec<_> = function
+            .instructions()
+            .filter(|row| row.branch.is_some())
+            .cloned()
+            .collect();
+        let validate = |rows: &[machine_code::FunctionFragmentInstructionSpan]| {
+            framed.validate_relative_branch_rows(function.machine, rows)
+        };
+        let checked =
+            validate(&rows).map_err(|error| format!("unchanged relative branches: {error:?}"))?;
+        if checked.len() != rows.len() {
+            return Err("relative branch control omitted a source row".into());
+        }
+        for (position, row) in rows.iter().enumerate() {
+            let variant = match row.branch.as_deref() {
+                Some(Branch::Jump(_)) => 0,
+                Some(Branch::Conditional(_)) => 1,
+                None => return Err("relative branch control lost its evidence".into()),
+            };
+            if std::mem::replace(&mut observed[variant], true) {
+                continue;
+            }
+            let require = |result: Result<_, Error>, expected: Error| match result {
+                Err(actual) if actual == expected => Ok(()),
+                actual => Err(format!(
+                    "relative branch control expected {expected:?}, got {actual:?}"
+                )),
+            };
+            let mut omitted = rows.clone();
+            omitted.pop();
+            require(
+                validate(&omitted),
+                Error::SourceShapeMismatch(function.machine),
+            )?;
+            let mut duplicate = rows.clone();
+            duplicate.push(row.clone());
+            require(
+                validate(&duplicate),
+                Error::SourceShapeMismatch(function.machine),
+            )?;
+            let mut missing = rows.clone();
+            missing[position].branch = None;
+            require(validate(&missing), Error::ArtifactMismatch)?;
+            let mut outside = rows.clone();
+            match outside[position].branch.as_deref_mut() {
+                Some(Branch::Jump(branch)) => branch.target_offset = function.byte_count,
+                Some(Branch::Conditional(branch)) => branch.when_taken_offset = function.byte_count,
+                None => return Err("relative branch control lost its evidence".into()),
+            }
+            require(validate(&outside), Error::ArtifactMismatch)?;
+            let mut wrong_target = rows.clone();
+            let other = function
+                .blocks
+                .iter()
+                .find(|block| match row.branch.as_deref() {
+                    Some(Branch::Jump(branch)) => block.block != branch.target_block,
+                    Some(Branch::Conditional(branch)) => {
+                        block.block != branch.when_fallthrough_block
+                    }
+                    None => false,
+                })
+                .ok_or("relative branch control needs two actual blocks")?;
+            match wrong_target[position].branch.as_deref_mut() {
+                Some(Branch::Jump(branch)) => branch.target_block = other.block,
+                Some(Branch::Conditional(branch)) => branch.when_fallthrough_block = other.block,
+                None => return Err("relative branch control lost its evidence".into()),
+            }
+            require(validate(&wrong_target), Error::ArtifactMismatch)?;
+            let mut bad_bytes = rows.clone();
+            bad_bytes[position].bytes.fill(0);
+            match validate(&bad_bytes) {
+                Err(Error::X86_64Branch(id, _)) | Err(Error::Aarch64Branch(id, _))
+                    if id == row.instruction => {}
+                actual => return Err(format!("relative branch decoder control: {actual:?}")),
+            }
+        }
+    }
+    if observed != [true, true] {
+        return Err("relative branch control requires actual jump and conditional rows".into());
+    }
     Ok(())
 }
 

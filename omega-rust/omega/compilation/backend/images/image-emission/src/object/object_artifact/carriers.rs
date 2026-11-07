@@ -93,6 +93,7 @@ impl ObjectArtifact {
             .source()
             .source();
         Some(NativeInstructionSourceRows {
+            frame_application: source.fragment_replay.as_ref()?.0.source().source(),
             selected: current.selected_plan(),
             physical: current
                 .machine()
@@ -303,6 +304,8 @@ impl ObjectArtifact {
 
 /// Read-only source rows, separate from an admitted native object or image.
 pub struct NativeInstructionSourceRows<'a> {
+    pub frame_application:
+        &'a machine_emission::frame_application::StagedFunctionFragmentFrameApplication,
     pub selected: &'a selected_instructions::SelectedInstructionPlan,
     pub physical: Vec<(MachineId, selected_instructions::SelectedInstructionId)>,
 }
