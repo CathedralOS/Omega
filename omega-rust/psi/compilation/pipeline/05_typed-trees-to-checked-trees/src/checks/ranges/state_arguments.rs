@@ -234,7 +234,8 @@ pub(super) fn collect_state_argument_facts<'program>(
     program: &'program dyn ::validation::CheckingInput,
     field_lengths: &[(SymbolHandle, String, usize)],
     bound_lookup: &validation::ImmutableBoundLookup<'program>,
-    machine: &'program Machine,
+    families: &MachineFamilies,
+    root: usize,
     call_frames: Option<&'program validation::CallFrameResolver<'program>>,
     borrows: &'program checked_trees::BorrowFacts,
     flow: &'program checked_trees::FlowFacts,
@@ -244,9 +245,10 @@ pub(super) fn collect_state_argument_facts<'program>(
 ) -> Vec<StateArgumentFacts> {
     // Nested machines keep the transition-transfer their states had. Replay
     // the enclosing family together so a guard in one block can bound an
-    // index in a sibling block, and a cycle between them still meets.
-    let root = outermost_machine(program, machine);
-    let nodes = family_nodes(program, root);
+    // index in a sibling block, and a cycle between them still meets. Every
+    // member of a family gets the same result, so the caller runs this once
+    // per family root.
+    let nodes = families.nodes(program, root);
     if nodes.len() <= 1 {
         return Vec::new();
     }
@@ -372,59 +374,87 @@ pub(super) fn family_transition_state(
         .then_some(state)
 }
 
-fn outermost_machine<'a>(
-    program: &'a dyn ::validation::CheckingInput,
-    machine: &'a Machine,
-) -> &'a Machine {
-    let mut current = machine;
-    for _ in 0..32 {
-        let parent = program.symbols.get(current.symbol).parent;
-        if program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
-            break;
-        }
-        let Some(parent_machine) = program.machine_by_symbol(parent) else {
-            break;
-        };
-        current = parent_machine;
-    }
-    current
+/// Machine nesting as dense rows over `program.machines()` positions, built
+/// once per range pass so a family walk never rescans the whole roster.
+///
+/// `root` follows a machine's direct machine parent, as far as 32 levels, to
+/// the machine whose family it replays with. `children` lists, in roster
+/// order, the machines declared directly in a machine or in one of its
+/// states. Both are keyed the way the walk names machines: a parent symbol
+/// resolves to its first roster position.
+pub(super) struct MachineFamilies {
+    root: Vec<u32>,
+    children: Vec<Vec<u32>>,
 }
 
-fn family_nodes<'a>(
-    program: &'a dyn ::validation::CheckingInput,
-    root: &'a Machine,
-) -> Vec<(&'a Machine, &'a State)> {
-    let mut nodes = Vec::new();
-    fn walk<'a>(
-        program: &'a dyn ::validation::CheckingInput,
-        machine: &'a Machine,
-        nodes: &mut Vec<(&'a Machine, &'a State)>,
-    ) {
-        if nodes.iter().any(|(seen, _)| seen.symbol == machine.symbol) {
-            return;
-        }
-        for state in program.machine_states(machine) {
-            nodes.push((machine, state));
-        }
-        for child in program.machines() {
-            if directly_inside(program, machine.symbol, child.symbol) {
-                walk(program, child, nodes);
+impl MachineFamilies {
+    pub(super) fn new(program: &dyn ::validation::CheckingInput) -> Self {
+        let machines = program.machines();
+        let mut children = vec![Vec::new(); machines.len()];
+        for (position, machine) in machines.iter().enumerate() {
+            let enclosing = program.symbols.get(machine.symbol).parent;
+            if let Some(parent) = program.machine_position_by_symbol(enclosing) {
+                children[parent].push(position as u32);
+            }
+            let enclosing_symbol = program.symbols.get(enclosing);
+            if enclosing_symbol.kind == symbols::SymbolKind::State
+                && let Some(parent) = program.machine_position_by_symbol(enclosing_symbol.parent)
+            {
+                children[parent].push(position as u32);
             }
         }
+        let root = (0..machines.len())
+            .map(|position| {
+                let mut current = position;
+                for _ in 0..32 {
+                    let parent = program.symbols.get(machines[current].symbol).parent;
+                    if program.symbols.get(parent).kind != symbols::SymbolKind::Machine {
+                        break;
+                    }
+                    let Some(parent_position) = program.machine_position_by_symbol(parent) else {
+                        break;
+                    };
+                    current = parent_position;
+                }
+                current as u32
+            })
+            .collect();
+        Self { root, children }
     }
-    walk(program, root, &mut nodes);
-    nodes
-}
 
-fn directly_inside(
-    program: &dyn ::validation::CheckingInput,
-    parent: SymbolHandle,
-    child: SymbolHandle,
-) -> bool {
-    let enclosing = program.symbols.get(child).parent;
-    enclosing == parent
-        || (program.symbols.get(enclosing).kind == symbols::SymbolKind::State
-            && program.symbols.get(enclosing).parent == parent)
+    /// The roster position whose family `position` replays with.
+    pub(super) fn root(&self, position: usize) -> usize {
+        self.root[position] as usize
+    }
+
+    /// Every state of `root`'s family, the root's own states first, then
+    /// each nested machine depth-first in roster order.
+    fn nodes<'a>(
+        &self,
+        program: &'a dyn ::validation::CheckingInput,
+        root: usize,
+    ) -> Vec<(&'a Machine, &'a State)> {
+        let machines = program.machines();
+        let mut nodes = Vec::new();
+        let mut visited: Vec<SymbolHandle> = Vec::new();
+        let mut pending = vec![root];
+        while let Some(position) = pending.pop() {
+            let machine = &machines[position];
+            // The family is small; this guard only keeps a malformed symbol
+            // tree from revisiting a machine.
+            if visited.contains(&machine.symbol) {
+                continue;
+            }
+            visited.push(machine.symbol);
+            for state in program.machine_states(machine) {
+                nodes.push((machine, state));
+            }
+            if let Some(key) = program.machine_position_by_symbol(machine.symbol) {
+                pending.extend(self.children[key].iter().rev().map(|child| *child as usize));
+            }
+        }
+        nodes
+    }
 }
 
 /// `callee` is `caller`, a machine declared in `caller`, or an ancestor of
