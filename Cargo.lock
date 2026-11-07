@@ -1458,7 +1458,6 @@ dependencies = [
 name = "omega"
 version = "0.1.0"
 dependencies = [
- "allocation-observation",
  "artifacts",
  "bounded-process",
  "compilation-products",
@@ -3074,6 +3073,14 @@ dependencies = [
 [[package]]
 name = "x86-encoding"
 version = "0.1.0"
+
+[[package]]
+name = "xtask"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "zmij"

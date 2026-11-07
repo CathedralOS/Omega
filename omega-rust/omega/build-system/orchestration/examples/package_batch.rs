@@ -76,10 +76,6 @@ impl Product {
 }
 
 fn main() -> Result<(), String> {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return Ok(());
-    }
     // Match the shipped command worker: resolution precedes the compiler's
     // worker and still contains recursive tree walks.
     std::thread::Builder::new()

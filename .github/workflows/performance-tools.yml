@@ -22,8 +22,8 @@ jobs:
           persist-credentials: false
       - name: Check native measurement instruments
         # Hosted runners have Cargo and do not have mbx/nextest installed.
-        run: python tools/build_slot.py -- cargo test --locked -p omega-bench -p allocation-observation -p bounded-process --features omega-bench/fixtures,omega-bench/allocation-observation -- --test-threads=1
+        run: cargo test --locked -p omega-bench -p allocation-observation -p bounded-process --features omega-bench/fixtures,omega-bench/allocation-observation -- --test-threads=1
       - name: Check tooling lint
-        run: python tools/build_slot.py -- cargo clippy --locked -p omega-bench -p allocation-observation --all-targets --features omega-bench/fixtures,omega-bench/allocation-observation --no-deps -- -D warnings
+        run: cargo clippy --locked -p omega-bench -p allocation-observation --all-targets --features omega-bench/fixtures,omega-bench/allocation-observation --no-deps -- -D warnings
       - name: Check formatting
         run: cargo fmt -p omega-bench -p allocation-observation -p bounded-process -- --check

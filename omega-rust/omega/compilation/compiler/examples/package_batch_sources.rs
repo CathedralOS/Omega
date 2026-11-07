@@ -19,10 +19,6 @@ use target::TargetProfile;
 use terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy;
 
 fn main() {
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
-        println!("{}", compiler::compiler_build_profile());
-        return;
-    }
     compiler::checked::run_on_compile_thread(|| {
         measure();
         Ok::<_, Vec<diagnostics::Diagnostic>>(())
