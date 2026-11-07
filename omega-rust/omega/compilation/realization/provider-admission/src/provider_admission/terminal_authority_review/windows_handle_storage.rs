@@ -7,6 +7,7 @@
 //! address or turn a narrow stored representation into a whole HANDLE.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use semantic_vocabulary::{IdTable, PlaceId, ScalarType, StructuralTypeId};
 use terminal_psi::{
@@ -216,9 +217,11 @@ struct BorrowedStorageSlot {
 /// Borrowed signature/block roots already name their captured pointee. They
 /// do not require a Referent suffix, and must not acquire a callee-owned home.
 /// The slots come from the actual declarations, independently of input values.
+/// Execution snapshots share unchanged bindings. Only an actual formal bind
+/// copies the table; equality and ordering still compare every original slot.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct HandleStorageBindings {
-    rows: IdTable<PlaceId, Option<BorrowedStorageSlot>>,
+    rows: Arc<IdTable<PlaceId, Option<BorrowedStorageSlot>>>,
 }
 
 impl HandleStorageBindings {
@@ -244,9 +247,11 @@ impl HandleStorageBindings {
             .collect::<Vec<_>>();
         rows.sort_by_key(|(place, _)| *place);
         Ok(Self {
-            rows: IdTable::from_rows_with_gaps(rows, 65_536).map_err(|reason| {
-                format!("borrowed handle storage namespace is invalid: {reason:?}")
-            })?,
+            rows: Arc::new(
+                IdTable::from_rows_with_gaps(rows, 65_536).map_err(|reason| {
+                    format!("borrowed handle storage namespace is invalid: {reason:?}")
+                })?,
+            ),
         })
     }
 
@@ -258,12 +263,16 @@ impl HandleStorageBindings {
     ) -> Result<(), String> {
         let slot = self
             .rows
-            .get_mut(place)
-            .and_then(Option::as_mut)
+            .get(place)
+            .and_then(Option::as_ref)
             .ok_or("handle storage binding has no original borrowed formal")?;
         if slot.access != access {
             return Err("handle storage binding changes its original formal access".into());
         }
+        let slot = Arc::make_mut(&mut self.rows)
+            .get_mut(place)
+            .and_then(Option::as_mut)
+            .ok_or("handle storage binding lost its original borrowed formal")?;
         slot.value = Some(value);
         Ok(())
     }
@@ -1456,6 +1465,87 @@ mod tests {
             length,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn windows_handle_replay_borrowed_bindings_share_unchanged_slots_and_isolate_mutations() {
+        use terminal_psi::StructuralAccess;
+        let first = PlaceId::new(u64::MAX - 128).unwrap();
+        let last = PlaceId::new(u64::MAX).unwrap();
+        let hole = PlaceId::new(first.get() + 1).unwrap();
+        let rows = IdTable::from_rows_with_gaps(
+            [
+                (
+                    first,
+                    Some(BorrowedStorageSlot {
+                        access: StructuralAccess::SharedBorrow,
+                        value: None,
+                    }),
+                ),
+                (
+                    last,
+                    Some(BorrowedStorageSlot {
+                        access: StructuralAccess::MutableBorrow,
+                        value: None,
+                    }),
+                ),
+            ],
+            129,
+        )
+        .unwrap();
+        let mut original = HandleStorageBindings {
+            rows: Arc::new(rows),
+        };
+        let source = CapturedHandleStorage {
+            address_dependencies: BTreeSet::from([HandleInstance(7)]),
+            range: range(9, 8, 16),
+            stored_scalar: None,
+        };
+        assert!(original.get(first).is_err());
+        assert_eq!(original.get(hole).unwrap(), None);
+        original
+            .bind(first, StructuralAccess::SharedBorrow, source.clone())
+            .unwrap();
+        let mut sibling = original.clone();
+        assert!(Arc::ptr_eq(&original.rows, &sibling.rows));
+        assert_eq!(original, sibling);
+        assert!(
+            sibling
+                .bind(first, StructuralAccess::MutableBorrow, source.clone())
+                .is_err()
+        );
+        assert!(
+            sibling
+                .bind(hole, StructuralAccess::SharedBorrow, source.clone())
+                .is_err()
+        );
+        assert!(Arc::ptr_eq(&original.rows, &sibling.rows));
+        assert_eq!(
+            original, sibling,
+            "refusals preserve the complete binding state"
+        );
+        let other = CapturedHandleStorage {
+            range: range(10, 4, 8),
+            ..source.clone()
+        };
+        sibling
+            .bind(last, StructuralAccess::MutableBorrow, other.clone())
+            .unwrap();
+        assert!(!Arc::ptr_eq(&original.rows, &sibling.rows));
+        assert_ne!(original, sibling);
+        assert_eq!(sibling.get(first).unwrap(), Some(&source));
+        assert_eq!(sibling.get(last).unwrap(), Some(&other));
+        assert!(original.get(last).is_err());
+        assert_eq!(sibling.get(hole).unwrap(), None);
+        let independent = HandleStorageBindings {
+            rows: Arc::new((*original.rows).clone()),
+        };
+        assert!(!Arc::ptr_eq(&original.rows, &independent.rows));
+        assert_eq!(
+            original, independent,
+            "allocation identity is not semantic identity"
+        );
+        assert_eq!(original.cmp(&independent), std::cmp::Ordering::Equal);
     }
 
     #[test]
