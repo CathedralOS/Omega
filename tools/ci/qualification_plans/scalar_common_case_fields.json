@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "7fe83891ad50ce03fa1939ff76adca2ef4e91edf",
-    "tree": "6143cf423efed9645d8750fdd64e5e541f9e4bd5",
+    "revision": "16ffb061832269497406481027752c7220c41274",
+    "tree": "4ea078e4b83ebedefab113d60fe1880af90920d1",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "7f18cc226e25f99f6516cd68d206f4c03f1d0e13",
+      "omega-rust": "b1699e6824e931a4422b2bbd1bc083e46669e684",
       "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,27 +19,27 @@
     },
     "executables": {
       "cli": {
-        "sha256": "0a34f848b77384cc643e42dd6579e4861b2a83aa3232b618096da7ba58afd007",
+        "sha256": "53adf53fd7e5bf48e6101f84b71afe28797c27cab0e4e8b62eeda6c7f7efbaec",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "5304f0676c7f25dac37fb71fba9c9fc433a7820690e7aa5a38e9a3512e226dbd",
+        "sha256": "acf169296d932ff125a6721d17f7e14d8c51a755fa7c3ade2ddf9d236b8b4075",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42376480162,
-    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-7fe83891ad50ce03fa1939ff76adca2ef4e91edf-prepared-v1-with-runner"
+    "origin_run": 42387300057,
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-16ffb061832269497406481027752c7220c41274-prepared-v1-with-runner"
   },
   "fixtures": [],
   "source_only": false,
   "samples": [],
   "cli_fixtures": [
-    "pass/control_flow/runtime_scalar_case_arm_evaluation_exit"
+    "pass/cases/runtime_case_component_borrow_identity_exit"
   ]
 }
