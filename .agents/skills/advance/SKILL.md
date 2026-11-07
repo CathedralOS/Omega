@@ -33,18 +33,18 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    ```
    Local named branches are banned. Record the fixed base SHA (`git rev-parse HEAD`).
 2. **Check live work before selecting or coding:**
-   - Run `python3 tools/claims.py status` and `gh pr list --state open`.
+   - Run `cargo xtask claims status` and `gh pr list --state open`.
    - Select the capability and root-cause family using the priority order in
      [AGENTS.md](../../../AGENTS.md#the-sample-loop) (`TASKS.md` capability and
      migration items, pinned regression clusters in
      `tests/omega/corpus_outcomes.txt` via `--list-pinned-regressions`, and
-     failing representative programs in `samples/` via `sample_native_gate.py`).
+     failing representative programs in `samples/` via `cargo xtask sample-gate`).
    - Do **not** create new `samples/cli/facts/<fact>/` folders or 18-fixture
      `tests/omega/{pass,fail}/facts/` matrices (they are frozen by
-     `tools/check_rules.py` to prevent corpus bloat).
+     `cargo xtask check-rules` to prevent corpus bloat).
 3. **Register or update the claim:**
    ```bash
-   python3 tools/claims.py claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
+   cargo xtask claims claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
    ```
    Keep the claim note concise: parent task, remaining acceptance, current
    witness, observed failure, and next action. At initial dispatch, `--path`
@@ -57,9 +57,7 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    (`CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=<dir> mbx build -p omega`;
    close stdin with `< /dev/null` on manual background runs).
 2. **Witness the failure first:** Run the target witness (`omega run --both` or
-   `python3 tools/sample_native_gate.py --facts --filter <fact>`). If a proof
-   rejection is unclear, use `python3 tools/proof_advisor.py --omega <binary> <root.omg>`
-   as an advisory probe.
+   `cargo xtask sample-gate --facts --filter <fact>`).
 3. **Cut a refusal down with small probes:** Isolate the failing construct,
    decide from the governing spec in `wiki/spec/` whether the refusal is a
    language rule or a compiler precision/lowering gap, and check
@@ -95,18 +93,16 @@ that photograph: a different object, and a green check on it is not done.
 1. **Run focused validation & sweep the full root-cause family ([testing.md](../../../tools/testing.md)):**
    - Do not stop at a 1-off fixture win: identify all pinned regressions in
      `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
-     programs in `samples/` (`tools/sample_native_gate.py`) that were blocked by
+     programs in `samples/` (`cargo xtask sample-gate`) that were blocked by
      the same mechanism or migration gap, and validate the whole family together.
-   - Run affected crate unit tests and `python3 tools/corpus_gate.py --filter <fact_and_family_fixtures>`.
-   - Attribute any unexpected fixture movement against the fixed base commit with
-     `python3 tools/corpus_gate.py --compare <base> --filter <moved_fixtures>`.
+   - Run affected crate unit tests and `cargo xtask corpus --filter <fact_and_family_fixtures>`.
 2. **Commit code and fixture files BEFORE `--record`:**
    - Ensure no leftover `omega.lock` or `build/` directories sit inside
      `tests/omega/` fixtures (never delete `tests/omega/pass/build/`).
    - Commit all `.rs`, `.omg`, and `expected.txt` changes first so `git status`
      is clean, then run:
      ```bash
-     python3 tools/corpus_gate.py --record --filter <affected_fixtures>
+     cargo xtask corpus --record --filter <affected_fixtures>
      ```
    - Inspect `git diff -- tests/omega/corpus_outcomes.txt` and verify every
      `pass/` or `run/` row is `checked`/`built`, every `fail/` row is
@@ -114,24 +110,24 @@ that photograph: a different object, and a green check on it is not done.
      `regressed-from:` marker.
 3. **Update `TASKS.md` monotonically:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
-   passes"` history prose), and run `python3 tools/check_rules.py --base origin/main`.
+   passes"` history prose), and run `cargo xtask check-rules --base origin/main`.
 
 ## Step 5: Publish Draft PR & Continue or Land
 
 1. **Push HEAD to a remote `work/` ref and open a draft PR:**
    ```bash
    git push origin HEAD:refs/heads/work/<name>
-   python3 tools/check_rules.py --base origin/main --title "<title>" --body-file PR_BODY
+   cargo xtask check-rules --base origin/main --title "<title>" --body-file PR_BODY
    gh pr create --draft --title "<title>" --body-file PR_BODY  # ends with `Agent: <name>, <session>`
    ```
 2. **Follow the landing boundary ([AGENTS.md](../../../AGENTS.md#sessions-and-subagents)):**
    - **When controlled by a coordinator session:** Stop at the draft PR and
      message the coordinator (`candidate_ready`). The coordinator runs
      [coordinator-review](../coordinator-review/SKILL.md) before marking ready
-     and running `tools/landing.py land`.
+     and running `cargo xtask land`.
    - **When running standalone with no coordinator:** Self-audit the full diff
      against [coordinator-review](../coordinator-review/SKILL.md), then run
-     `python3 tools/landing.py land <pr> --expected-head $(git rev-parse HEAD)`.
+     `cargo xtask land <pr> --expected-head $(git rev-parse HEAD)`.
 3. **Chain the next requirement on the warm worktree:** Once landed, continue the
    parent capability's next remaining requirement on the same warm worktree
    (`git fetch origin main && git checkout --detach origin/main && git clean -fd`).
