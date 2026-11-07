@@ -1,35 +1,17 @@
-# Chapter 7: Contracts And Flow Facts
+# Chapter 7: Contracts and flow facts
 
-Contracts state what a machine assumes and guarantees. Domains describe static
-facts or meaning attached to values. Flow analysis tracks which facts still hold
-after a branch, call, or write. None of these requires runtime type tags.
+`requires` tells callers what to establish. `ensures` tells them what they get
+back. The compiler checks both, using facts from values, branches, and other
+calls.
 
-A data declaration's default domain is part of its static interface. Field
-constraints describe individual fields; a data-signature `requires` clause describes
-relationships such as `start <= end`. The same clause can state
-[case-conditional predicates](chapter_1_data_values_literals.md#constraints-on-individual-cases)
-over `self`, including guarded payload couplings and type equations.
-Construction proves them; matching derives their case-specific consequences.
-There is no case-local `requires` or separate authored `invariant` clause.
-See [dependent data](chapter_12_dependent_types.md).
-
-Omega uses these clauses as the canonical scalar-bound syntax. There is no
-`T [lo..=hi]` scalar type suffix: data and case relationships use data-level `requires`,
-parameters use `requires`, results use `ensures`, and locals retain facts from
-their producing expressions and guards. `T in D` is reserved for an intentionally
-named domain rather than anonymous range sugar.
-
-A write may temporarily leave default-domain facts unproved. That opens an
-[invariant window](chapter_11_invariant_windows.md): code must restore the facts
-before the next operation that consumes the value under them. Zeroed storage is
-similarly not an established value when zero fails its default domain.
+## State a requirement and a guarantee
 
 ```omega
 data Body {
     mass: i32;
 }
 
-machine Body::set_mass(body: &mut Body, mass: i32)
+machine set_mass(body: &mut Body, mass: i32)
     requires mass in 1..=100
     ensures body.mass in 1..=100
 {
@@ -44,7 +26,7 @@ an author does not get a runtime check merely by writing `requires`.
 [default domains](../spec/language/dependent_values.md#default-domains-and-zero-initialization)
 owns establishment gates.
 
-## Fact Propagation
+## Fact propagation
 
 Branches refine the facts available on their own paths:
 
@@ -56,14 +38,14 @@ requires
     health: i32;
 }
 
-machine Player::take_damage(player: &mut Player, amount: i32)
+machine take_damage(player: &mut Player, amount: i32)
     requires amount in 0..=100
     ensures player.health in 0..=100
 {
     let next: i32 = player.health - amount;
     transition next < 0 {
-        true -> floored(&mut player)
-        false -> settle(&mut player, next)
+        true -> floored(player)
+        false -> settle(player, next)
     }
 
     machine floored(player: &mut Player) {
@@ -84,18 +66,23 @@ therefore establish the field's range and the machine's postcondition.
 `next` is invocation-local scratch, passed only to the helper that needs it;
 it is not a persistent `Player` field. Both transitions pass `player` explicitly.
 
-Facts describe exact values or storage at particular program points. A copied
-scalar keeps its captured value even if the source changes later. A reference
-still denotes live storage, so an overlapping write can invalidate its facts.
-An owned scalar parameter initializes separate callee storage; mutating it does
-not mutate the caller's scalar. A borrowed parameter has no such separation.
+A copied scalar keeps its value after its source changes. A reference still
+points to live storage, so a write can invalidate facts about what it contains:
 
-A result fact describes the value returned by that invocation, not an expression
-to reevaluate against newer caller arguments. Unknown mutation cannot be treated
-as no mutation. See [subject identity](../spec/language/state_contracts.md#mutation-and-subject-identity)
-and the [current proof implementation](../../omega-rust/psi/compilation/validation/README.md).
+```omega
+machine example() -> u32 {
+    let mut current: u32 = 10;
+    let saved: u32 = current;
+    current = 20;
+    saved // Still 10.
+}
+```
 
-## Generic Contracts
+After a helper call, use its `ensures` and any facts preserved by its writes.
+[Chapter 12](chapter_12_dependent_types.md#facts-across-calls) explains this for
+borrowed data.
+
+## Generic contracts
 
 A contract may refer to symbolic parameters without enumerating their values:
 
@@ -113,7 +100,7 @@ and value parameters use this principle too; [generics](chapter_13_generics.md)
 explains their binders. A proof does not substitute guessed concrete values for
 an abstract parameter.
 
-## Range Forms
+## Range forms
 
 `a..b` excludes its end; `a..=b` includes it. For a slice of length `length`,
 an exclusive end may equal `length`, whereas an inclusive end must be smaller.
@@ -125,7 +112,7 @@ Range membership in a contract describes values. A range used for subslicing
 also creates a view and needs bounds, alignment where applicable, and a valid
 loan. See [numeric bounds](../spec/language/numeric_values.md#collection-bounds).
 
-## Window Facts
+## Window facts
 
 A window fact states an element-wise condition over a sequence prefix:
 
@@ -145,25 +132,11 @@ before increasing `loaded`. To use an element fact, prove the index is inside
 that prefix. A write to an earlier element must preserve or re-establish its
 condition too.
 
-This is the required reasoning, not a promise that one particular automation
-rule handles every quantified predicate. Relationships between elements, such
-as sortedness, need their own contracts and extraction lemmas. See
-[window and sequence facts](../spec/language/dependent_values.md) and
-[proofs](chapter_10_compile_time_proofs.md).
+For conditions relating several elements, such as sortedness, give helpers
+contracts that state how each update preserves the condition. [Chapter 10](chapter_10_compile_time_proofs.md)
+shows how to supply a proof when automatic checking needs help.
 
-## Local And Named Facts
-
-Branch conditions, selected transition arms, and prior call guarantees contribute
-local facts. A name does not make a fact true or extend its lifetime.
-
-Use a domain for a reusable qualification, a helper machine to establish a
-guarantee, and an explicit trait conformance to bundle operations and laws.
-General mathematics uses [typed term bindings, logical hypotheses and witness
-bundles](../spec/proofs/mathematical_bindings.md). A top-level mathematical `let`
-names a term, not its proof. Predicate-specific formula declarations remain an
-[optional proposal](../proposals/0001_proof_formula_syntax.md).
-
-## Type Properties
+## Type properties
 
 Properties describe checker laws for a type, rather than predicates about one
 value. They use lowercase bracket lists:
@@ -200,11 +173,9 @@ data Certified<T> {
 }
 ```
 
-The checker retains `proof` for static reasoning and identity but emits no runtime
-field for it. It cannot determine runtime data or control. An erased Type witness
-still owes its ordinary multiplicity and conservation; a logical conclusion
-does not become consumable authority. A zero-size Type value is not implicitly
-erased. See [explicit relevance](chapter_10_compile_time_proofs.md#explicit-relevance).
+The checker uses `proof` during checking and emits no runtime field for it.
+Runtime code therefore cannot branch on that field. Erasing a resource witness
+still leaves its ownership obligations to be satisfied. See [explicit relevance](chapter_10_compile_time_proofs.md#keep-evidence-without-runtime-storage).
 
 ### Carry policy
 
@@ -233,18 +204,8 @@ This admitted lease may survive suspension and thread changes, but the runtime
 must preserve its CPU. The policy's truth needs boundary evidence; the spelling
 alone does not force the host to behave that way.
 
-Transparent data derives carry from its contents. Admitted resource claims start
-strict and may receive exact positive permissions from their provider:
-`Carry::AcrossSuspend`, `Carry::AnyCpu`, `Carry::AnyThread`, and
-`Carry::MovableAddress`. `Carry::Portable` is the conjunction of all four.
-
-Forgetting a permission makes the policy stricter. Forgetting a domain cannot
-erase the underlying live resource's demand. Moves preserve provenance; combined
-origins must satisfy every retained restriction. At a suspension or transfer,
-checking joins those demands with what the selected runtime actually guarantees.
-Copyability alone is not concurrent shareability.
-
-The [carry contract](../spec/resources/carry.md) owns composition, permission
-inheritance, liveness and runtime admission. The remaining property vocabulary
-is not an open-ended attribute system; additional properties need their own
-specified checker meaning.
+Ordinary data derives its carry policy from its contents. At a suspension or
+thread/CPU transfer, the compiler checks live values against the selected
+runtime's guarantees. [Chapter 18](chapter_18_concurrency.md) shows the effect
+on task code; the [carry specification](../spec/resources/carry.md) defines the
+full composition rules.

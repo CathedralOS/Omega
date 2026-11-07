@@ -2,9 +2,7 @@
 
 Tests are ordinary machines. A project declares a machine requirement for each
 test group, registers it in `build.omg`, and the build runs its implementations.
-There is no test attribute or special `run` name. The
-[testing specification](../spec/build/testing.md) defines the contract;
-[implementation work](../../TASKS.md#requirement-based-tests) is tracked separately.
+The [testing specification](../spec/build/testing.md) defines registration and execution.
 
 ## Declare a group, then write tests
 
@@ -59,80 +57,34 @@ machine build(builder: &mut Build) {
 }
 ```
 
-Both tests are discovered automatically. Adding another satisfier needs no build
-edit. Registration names the exact product requirement; it does not import or
-execute that product code as a build helper. The runner collects the current
-package's implementations, not tests in every imported dependency.
-
-One trait can contain several groups. Register each desired requirement
-separately; its name has no special meaning. A wrapper inheriting the same
-requirement does not give that requirement a new identity. Open generic tests
-need concrete ordinary wrappers rather than guessed type arguments.
-
-Std may provide `testing::Test::run` as a convenient basic contract. Using it
-still requires an ordinary dependency and group registration. Your own traits
-work without std and can coexist with it; there is no built-in category list.
+Both tests are discovered automatically. Adding another implementation of
+`Tests::arithmetic` adds it to this package's group. Register each group you
+want to run. Generic tests use concrete wrappers to supply their arguments.
 
 ## Services and fixtures
 
-A group declares permitted behavior; the build selects compatible providers.
-For service-bearing tests, declare the group's permitted row and construct
-ordinary fixture state inside the test:
-
-```omega
-trait Tests {
-    machine memory()
-        reaches Filesystem
-        crashes Trap;
-}
-
-data ScanFixture { }
-
-machine empty_input()
-satisfies Tests::memory
-{
-    let mut fixture: ScanFixture;
-    check_empty_input(&mut fixture);
-}
-
-machine check_empty_input(fixture: &mut ScanFixture) {
-    // Filesystem operations call the selected static provider slot.
-    // Keep scratch buffers local to this invocation.
-}
-```
-
-Here `Filesystem` and `MemoryFilesystem` below stand for the selected library's
-service and compatible in-memory provider; the compiler does not recognize
-them by spelling. This is a separate example from the arithmetic-only trait.
+A group declares which services its tests may use. The build supplies a
+provider for each service, such as an in-memory filesystem. This configuration
+fragment assumes a group `Tests::memory` that reaches `Filesystem`:
 
 ```omega
 let memory: TestGroup = builder.tests.group<Tests::memory>();
 memory.service<Filesystem, MemoryFilesystem>();
 ```
 
-Each test invocation constructs its own fixture and runs with the configured
-mock-service state. The runner installs the selected group-scoped provider slot;
-registration does not allocate a context record or add service fields to data.
-Zero initialization is valid only when ordinary validity rules permit it;
-otherwise construct the fixture explicitly. Parameterized helpers receive
-ordinary explicit arguments. A runner may supply root arguments only through
-an explicitly installed call contract that establishes their backing and
-preconditions, never by discovering a mutable parameter.
+Construct fixture data inside each test and pass it to helpers as ordinary
+arguments. Each invocation receives fresh mock-service state.
 
-The root controls the actual authority. If it supplies a virtual filesystem,
-a dependency cannot obtain the host filesystem by selecting a different provider
-for its tests. Descendants may narrow grants, not enlarge them. Live host access
-needs both project acceptance and an actual scoped executor grant. Fresh memory
-does not undo writes to a real filesystem or make foreign code safe.
+The root still controls actual authority. A dependency's tests cannot upgrade
+a supplied virtual filesystem into host filesystem access. Tests using real
+external services must account for their effects; fresh fixture data does not
+undo a file write.
 
 ## Enablement and results
 
-Build-time tests cannot call a root-assumed binding relationship or rely on its
-assumptions, including through helpers, fixtures or providers. Runtime approval
-and a genuine host-service grant do not override this exclusion. An independently
-checked supplier may still be tested without the assumed relationship; otherwise
-use a separately executed runtime harness under its own acceptance. See
-[assumed contracts](../spec/build/assumed_binding_contracts.md#runtime-only).
+Build-time tests cannot rely on [root-assumed binding contracts](../spec/build/assumed_binding_contracts.md#runtime-only).
+Test an independently checked implementation, or use a separate runtime harness
+for an exceptional program that requires those assumptions.
 
 Registered groups are enabled by default. Build configuration may set
 `memory.disabled = true;` or `builder.tests.disabled = true;` using ordinary
@@ -171,27 +123,15 @@ guarantee; see [admissions and runtime diagnostics](../spec/proofs/contracts.md#
 Passing examples are not universal proofs. A bounds-safe scanner can still
 return the wrong matches unless its result behavior is proved or tested.
 
-## Application output and native testing
+## Keep tests separate from the application
 
-Registration adds runner roots, not application roots. Test-only code and mock
-providers therefore stay out of the application Psi and native image without
-depending on an optional optimizer. Application code may call a visible test
-machine normally; if it does, that reachable code can ship and must obey the
-application's ordinary contracts.
+The runner builds test roots separately from application roots. Mock providers
+and test-only code stay out of the shipped product. Calling a test helper from
+application code makes that helper ordinary reachable application code.
 
-Automatic native runs use a separate test executable; interpreted runs execute
-the test's Psi roots. Share compatible compilation work, but keep both
-test products separate from application outputs. An interpreted pass says nothing
-about native lowering; a native pass against a virtual device says nothing about
-real hardware behavior.
+For a custom runtime harness, build a separate executable with its own entry
+binding and call the helpers you need. Use external containment if the harness
+must continue after a native trap.
 
-For a custom runtime harness, build an ordinary separate executable with its own
-entry binding. Its main can call shared helpers or visible test machines without
-a test-mode flag. It does
-not automatically discover groups or acquire their private visibility, unlike
-the build runner operating in the owning package's test scope. A native trap
-requires real external containment if execution is to continue.
-
-The interpreter runner shares the ordinary
-[embedding lifecycle](chapter_24_embedding.md), rather than a separate test VM.
-Fresh instances isolate their guest state, not effects on shared genuine providers.
+An interpreted pass tests that execution route; a native pass also exercises
+native lowering. Neither makes a simulated device a test of real hardware.

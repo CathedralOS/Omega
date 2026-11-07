@@ -1,486 +1,166 @@
-# Chapter 17: Drops And Cleanup
+# Chapter 17: Drops and cleanup
 
-Owned values need deterministic cleanup. The
-[ownership specification](../spec/language/ownership.md#consumers-and-cleanup)
-and [Psi cleanup contract](../spec/terminal-psi/ownership.md) own the rules.
-Omega represents cleanup on graph edges, where ownership changes, rather than
-at lexical braces or in backend-invented drop flags.
+When an owned value reaches the end of its lifetime, Omega checks how it is
+disposed of. Moving it transfers that responsibility. Plain values need no
+cleanup; a resource may need a cleanup operation or an explicit consumer.
 
-The core rules are:
+## Select automatic cleanup
 
-- Plain values with no cleanup simply stop being live.
-- Affine values may have automatic cleanup.
-- Linear values require exactly one authorized terminal disposition. A
-  type-owned automatic disposition may serve as that consumer; otherwise the
-  value must reach an explicit consuming machine and rejects if it would die on
-  an edge.
-- Moving a value transfers its obligation.
-- Every ordinary outgoing edge carries a checked cleanup plan.
-- A crash is not an ownership-graph edge and performs no cleanup.
-- A canonical process exit abandons its domain without cleanup or discharge
-  claims; it does not weaken accounting on ordinary continuing/returning paths.
-- Cleanup remains visible in semantic, proof, debug, and resource artifacts.
-
-## Cleanup Machines
-
-The type owner selects an independent cleanup operation with `dropped by` on
-its default domain or a named domain. On a data declaration the clause belongs
-to the default domain. The operation's value parameter remains explicit:
+The type owner chooses a cleanup machine with `dropped by`. This guard releases
+its mutex when consumed; the sketch assumes the mutex's checked release API:
 
 ```omega
 data MutexGuard<T> dropped by cleanup_mutex_guard<T> {
     mutex: &Mutex<T>;
 }
 
-machine cleanup_mutex_guard<T>(guard: &mut MutexGuard<T>)
-    // The checked body must establish the mutex's published release contract.
-{
+machine cleanup_mutex_guard<T>(guard: &mut MutexGuard<T>) {
     unlock_raw(guard.mutex);
 }
 ```
 
-Only the data declaration's owning package may authorize that selection. The
-clause names the cleanup operation, not every caller allowed to discard a value.
-Source invocation of the selected edge-only hook still rejects; ordinary early
-disposal uses the consuming operation below. An unrelated machine named `drop`
-has no reserved meaning. This example describes the accepted source contract;
-the compiler migration remains on the task board.
+The compiler borrows the whole valid guard for the hook, then cleans up its
+remaining fields. The hook runs as part of consuming the owner. Use a consuming
+operation for early disposal rather than calling the hook directly.
 
-For the same owned subject, default, inherited and combined domains select zero
-or one distinct machine application. A child may add a dropper when its parent
-has none. Repeating the same resolved operation and generic arguments selects
-it once; naming a different operation or application conflicts. There is no
-override, most-specific search or automatic chaining. Fields have their own
-structural cleanup plans. Zero custom droppers permits structural cleanup only
-where disposal is legal; an unresolved linear obligation still rejects.
-Qualification erasure cannot remove the selected cleanup obligation. See
-[domain-selected cleanup](../spec/language/domains.md#domain-selected-automatic-cleanup).
+Automatic cleanup must return normally, without failure, suspension, blocking,
+trapping, aborting or process exit. It can use only authority and facts available
+at that point. Closing a resource that may wait or fail therefore needs an
+explicit operation.
 
-At a cleanup edge the compiler has already begun consuming the owning
-occurrence and temporarily lends the whole valid value as `value: &mut T` to the
-hook. The signature therefore remains honest: the hook borrows during an
-enclosing consumption; it does not turn an ordinary mutable call into a hidden
-move. When the hook returns, structural field cleanup completes the one
-consumption.
+A default domain or named domain may select cleanup. Combining domains must
+resolve to at most one distinct cleanup machine application; field cleanup
+then follows structurally. Removing a qualification does not remove cleanup
+that the value still owes. See [domain-selected cleanup](../spec/language/domains.md#domain-selected-automatic-cleanup).
 
-The hook may call ordinary machines and carry declared service reach, but
-automatic cleanup is always:
+## Dispose of a value early
 
-- guaranteed to return normally;
-- infallible;
-- non-suspending;
-- nonblocking; and
-- free of abort, trap, or another abnormal outcome.
-
-`terminates` alone is insufficient: the transitive cleanup contract must also
-exclude [process exit](../spec/language/process_exit.md). An exit could prevent
-the remaining cleanup sequence despite being terminating and non-crashing.
-
-These restrictions, not multiplicity alone, determine whether a linear type
-can authorize automatic cleanup. The disposition must be expressible using the
-value's owned authority and facts established at the edge, with no extra
-runtime argument, returned custody, failure, blocking, or suspension. Many
-linear protocols therefore remain explicit: unregistering may require
-quiescence evidence, returning storage may need allocator authority, and
-committing may fail. A valid owner-authorized hook is nevertheless a legitimate
-exact-once terminal disposition for a linear type.
-
-Current executable support is narrower than these rules; see
-[Terminal production](../../omega-rust/psi/compilation/psi-compiler/terminal-production/README.md#partial-ownership-and-cleanup)
-and [native cleanup](../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
-
-## Explicit Early Disposal
-
-Authored code ends a value's lifetime early through the ordinary consuming core
-machine, conceptually:
+Call the ordinary consuming core machine:
 
 ```omega
-public machine drop<T>(value: T) {
-    // `value` reaches its checked cleanup edge here.
-}
+omega::core::drop(guard);
+// `guard` has moved and cannot be used again.
 ```
 
-`omega::core::drop(value)` moves the whole value into that machine. The caller's
-occurrence is dead immediately, and the callee's return edge invokes the same
-cleanup plan that scope exit would use. This is not a direct call to
-the edge-only mutable hook and does not require a `Drop` or `Disposable` trait.
+This uses the same checked cleanup plan as an ordinary lifetime end. No `Drop`
+trait is needed. Generic containers compose their elements' cleanup plans;
+an application rejects if those elements cannot legally be disposed of there.
 
-The core machine is checked once against a symbolic contextual-cleanup row. At
-each application the concrete type supplies its exact structural plan,
-prerequisites, effects, reach, work, and guarantees. A concrete nongeneric
-machine that lets an owned parameter die produces the same row; the mechanism
-belongs to death edges, not to the core helper that first exposes it.
-
-`dropped by` directly selects the independent machine; cleanup requires no core
-trait or ambient satisfier search. Static generic code consumes symbolic cleanup rows,
-and dynamic code consumes the type descriptor described below, so neither needs
-a nominal `T: Drop` bound. The reserved data-owned hook spelling is retired;
-its source-selection migration belongs to `STATIC-MACHINE-MIGRATION` in
-[the task board](../../TASKS.md), without weakening unique disposition selection.
-
-Named consuming machines remain the source surface for protocols with results
-or stronger behavior. `close(file)`, `finish(task)`,
-`commit(transaction)`, `unregister(registration, ...)`,
-and `abandon(claim)` may fail, block, return authority,
-or promise more than the automatic fallback. They are distinct operations, not
-alternative spellings of the hook.
-
-A release that waits, suspends, may fail, or promises protocol completion is an
-explicit consuming machine such as `close`, `flush`, `commit`, `finish`, or
-`cancel`. A resource with no valid nonblocking terminal outcome must be linear.
-An affine resource may instead have an authorized nonblocking fallback, such as
-abandonment or transfer to a stable custodian.
-
-Sound abandonment does not make silent abandonment appropriate. When forgetting
-a claim permanently withholds external capacity, the claim remains linear and
-the terminal choice is explicit: a potentially failing or blocking `release`,
-or an infallible `abandon` that records the loss. Only resources whose contract
-declares implicit disposal harmless may use automatic scope-exit abandonment.
-Affine ownership permits that disposition by default; linear ownership
-additionally requires the type owner's exact authorization.
-Deployment profiles may reject explicit or implicit abandonment independently
-of memory safety.
-
-Such an explicit consumer uses the ordinary call acknowledgement required by
-its contract:
+For protocols with a result or waiting behavior, use their named consumer:
 
 ```omega
 let closed: CloseResult = block File::close(move file);
 let outcome: TaskOutcome<T> = suspend block Task::finish(move task);
 ```
 
-The marker makes the waiting site visible; explicit consumption, not the
-marker, discharges the linear obligation.
+Handle the result according to its contract. `finish` settles the task;
+`suspend block` only acknowledges how the call may wait.
 
-Enqueuing deferred reclamation transfers the obligation to the queue; it does
-not discharge it. The queue must publish capacity, servicing, progress, and
-resource bounds that cover eventual discharge. Without those contracts it is a
-declared leak with extra data structure.
+## Keep linear obligations accounted for
 
-## Edge Cleanup
+An affine resource may have an automatic fallback. A linear resource must reach
+exactly one authorized disposition. The type owner can authorize automatic
+cleanup when it meets the restrictions above; otherwise use an explicit
+consumer such as `commit`, `unregister`, `finish` or `abandon`.
 
-Cleanup is an edge property, not a node property. Every ordinary edge follows
-one semantic sequence:
+This matters when abandonment loses external capacity. A sound memory model
+does not make silently losing that capacity appropriate. Such a protocol can
+require an explicit `release` or `abandon` choice, with deployment policy
+restricting abandonment further.
 
-```text
-select the edge
-    ↓
-evaluate and materialize successor arguments or the return value
-    ↓
-commit the ownership transfer map
-    ↓
-apply eligible cleanup to the remaining dying places
-    ↓
-verify the resulting frontier
-    ↓
-hand control to the successor or caller
-```
+Putting reclamation work into a queue transfers the obligation to the queue.
+Its contract must account for capacity and eventual servicing. The original
+resource has not been released merely because it was enqueued.
 
-This sequence applies to:
+## Cleanup on branches and returns
 
-- explicit terminal transfers;
-- terminal returns;
-- ordinary success and failure edges;
-- natural invocation completion; and
-- compiler-synthesized call continuations.
-
-Argument evaluation may itself contain ordinary graph edges. Each such edge
-uses the frontier that exists after the evaluations preceding it. A crash
-has no successor in the ownership graph and therefore has no cleanup plan.
-
-For an edge `e`:
+Omega first evaluates outgoing arguments or a return value, then transfers
+their ownership and cleans up values that remain behind. Different branches
+can therefore have different cleanup:
 
 ```text
-Fₑ = permission frontier after outgoing values are materialized
-Mₑ = source-place → target-place ownership mapping
-
-transferred(e) = domain(Mₑ)
-dying(e)       = owned(Fₑ) \ domain(Mₑ)
-
-image(Mₑ) must fit EntryFrontier(target)
+branch A owns {file, scratch}     branch B owns {file}
+             |                               |
+        clean scratch                        |
+             +--------------+----------------+
+                            |
+                     successor owns {file}
 ```
 
-The target frontier describes its required shape, facts, multiplicity, access,
-and operational metadata. Different predecessors may supply different
-historical origins; they do not have to supply the same source-place identity.
-A required target place with no mapped live source is an error. Extra affine
-places are cleaned on their predecessor edges.
+The successor receives the same required state in either case. Nested machines
+spell their parameters and transfers explicitly; a transfer can reuse storage
+without copying bytes when the storage plan permits it.
 
-Example:
+If runtime alternatives require different cleanup, represent the difference
+with a sum or another explicit state value. For example, a resource held by
+two possible providers needs enough information to select the right release
+protocol. See [ownership joins](../spec/language/ownership.md).
+
+## Cleanup order
+
+Cleanup follows reverse declaration order. A whole-value hook runs first,
+then remaining fields are cleaned in reverse declaration order. Arrays clean
+remaining elements from highest index to lowest; sums clean their active
+payload. Locals precede by-value parameters declared before them.
 
 ```text
-        S1 {x, y, r}                S2 {x, r}
-             │                          │
-             │ e1: clean y              │ e2: no cleanup
-             └──────────┬───────────────┘
-                        ▼
-                   S3 {x, r}
+record fields: file, socket
+cleanup:       socket, file
+
+array slots:   0, 1, 2, 3
+cleanup:       3, 2, 1, 0
 ```
 
-No runtime flag is needed. The two predecessor edges already identify the
-different ownership situations.
+Borrow dependencies must fit that order. An owner cannot die before a cleanup
+action that still borrows it. If a protocol needs another sequence, express
+it in an explicit consumer.
 
-## Joins And Runtime Discrimination
+A partially evaluated literal differs from a completed record: only the fields
+already established exist. If construction leaves through an ordinary cleanup
+path, those fields are cleaned in reverse evaluation order. A crash performs
+no cleanup.
 
-Audit-only origin may remain path-sensitive. Operational metadata may join only
-when every alternative uses the same realization, or when the distinction is
-already carried by ordinary runtime representation or control state.
+## Move part of a value
 
-Examples of valid existing discriminators include:
-
-- a sum tag;
-- an era-bearing handle;
-- an admitted provider key; or
-- an author-visible state distinction.
-
-When cleanup or custody transfer differs and no discriminator exists, the
-author must normalize to a common custodian or represent the alternative
-explicitly. A sum contains the same runtime bit that a hidden drop flag would
-have contained, but makes it part of the type, layout, and report.
-
-The checker never duplicates a semantic control-flow node to make an invalid join
-typecheck. After checking, code generation may clone or share physical blocks
-when every realization maps back to the same typed edge plan. Physical layout
-cannot create a different frontier meaning.
-
-## Nested Machine Parameters Remain Explicit
-
-Machine parameters are roots owned by the activation, but that ownership does
-not make them ambient names in nested machines. Each machine receives the
-values, borrows, and authority named by its parameters, and transitions spell
-the corresponding mappings.
-
-The storage planner may coalesce an unchanged source and target place, so an
-explicit semantic transfer need not copy bytes or execute code. The permission
-ledger still records the transfer. This preserves machine signatures as
-source-visible proof and authority frontiers without imposing a runtime tax.
-
-## Cleanup Order
-
-Cleanup order is deterministic:
-
-1. Independent roots are cleaned in reverse declaration order.
-2. Locals therefore precede by-value machine parameters declared
-   before them.
-3. A whole value's domain-selected cleanup machine runs before structural field
-   cleanup.
-4. Remaining fields are cleaned in reverse declaration order.
-5. Fixed-array elements are established from lowest to highest index and the
-   remaining live elements are cleaned from highest to lowest index.
-6. A sum cleans only its active payload.
-
-The checker validates that cleanup-bearing borrow and ownership dependencies
-agree with this order. A borrowed owner cannot die before a dependent cleanup
-action.
-
-Reverse declaration order is stable at joins. Dynamic acquisition history is
-not. APIs needing a different release protocol express it through an explicit
-owner or consuming machine rather than asking cleanup to reconstruct history.
-Fixed-array cleanup is the same reverse-establishment rule with indices as its
-structural positions; authored element moves still occur in authored order.
-
-Complete-value cleanup and abandoned construction intentionally use different
-orders. A complete record or case owns its fields structurally and cleans them
-in recursive reverse declaration order. A record or case literal evaluates
-named fields in authored order; if an ordinary cleanup-bearing edge abandons
-that partial construction, only its established prefix exists and cleans in
-reverse establishment order. Partial call-argument staging follows the same
-rule. Physical layout and completed-value canonicalization determine neither
-schedule. A trap or abort remains a no-successor edge and cleans
-nothing.
-
-If fixed-array construction leaves through an ordinary cleanup-bearing edge,
-only the successfully established prefix exists and it is cleaned from its
-highest established index to its lowest. This is ordinary edge cleanup, not
-exception unwinding. A trap or abort is a no-successor edge and cleans
-nothing.
-
-## Partial Values
-
-The frontier ranges over canonical places, not just bindings:
+An aggregate with structural cleanup can keep track of its remaining fields:
 
 ```text
-resources before move:
-  .file   → live
-  .socket → live
-
-move resources.file
-
-resources after move:
-  .file   → moved
-  .socket → live
+before moving resources.file:   file live,  socket live
+after moving resources.file:    file moved, socket live
+remaining cleanup:             socket
 ```
 
-Transparent records, arrays, and active sum payloads retain the obligations of
-their live children. A nominal linear root is not duplicated into independent
-child claims. Extraction must identify one exact place and preserve its residual
-frontier; a second move of that place rejects.
+The moved field's recipient owns its cleanup. A second move of that same field
+rejects. Arrays follow the same rule for identified elements, cleaning the
+remaining indices in descending order.
 
-An aggregate with structural field cleanup may be partially moved. Its cleanup
-plan visits only the remaining live fields.
+A whole-value cleanup hook is entitled to receive the complete valid value.
+Such a type must provide an explicit consuming decomposition operation if users
+need to extract its fields. A dynamic index also needs enough evidence to
+identify the unique owned element being removed.
 
-For a partially moved fixed array, the compiler constructs one static cleanup
-sequence from the exact live index set: decreasing indices with every moved or
-otherwise discharged element absent. It does not emit a traversal with runtime
-liveness flags. Cleanup recurses structurally, so `[Record; 3]` cleans the live
-fields of element 2 before element 1 and element 0, while `[[T; 2]; 3]` applies
-decreasing-index order at both levels.
+## Prove cleanup is legal where it runs
 
-A type with a nominal whole-value `drop` body may not be partially moved:
-the body is entitled to receive one whole valid value. Such a type exposes an
-explicit consuming decomposition machine when field extraction is meaningful.
-The cleanup body must return with the value valid; its resulting field frontier
-then determines structural cleanup.
+A cleanup machine can have preconditions. They must hold at the point the
+value dies. For example, a release protocol may require that a transaction
+has transferred its outstanding work to a stable custodian.
 
-Dynamic-index owned extraction remains subject to the general requirement that
-the checker can name one unique place. No cleanup-specific runtime bitmap is
-introduced to compensate for an unnameable frontier.
+If the proof fails, keep the value live, establish the missing fact, or call
+an explicit consumer that handles the current state. A diagnostic names the
+cleanup operation, its missing premise and the outgoing edge.
 
-Partial array construction cleans only its established prefix. For example,
-if elements 0, 1, and 2 were established before an ordinary return, cleanup
-visits 2, 1, then 0. Unestablished elements have no value to dispose. A crash
-cleans none of them.
+Body analysis cannot silently add a new caller precondition to make cleanup
+legal. State required facts in the machine's contract. Generic code retains
+the corresponding obligations until its types are substituted.
 
-The [producer note](../../omega-rust/psi/compilation/psi-compiler/terminal-production/README.md#partial-ownership-and-cleanup)
-records current bounded admission; each new array length is not a new language
-rule.
+## Include cleanup in resource planning
 
-## Contextual Droppability
+Cleanup contributes service reach, work and stack demand to the machine that
+performs it. Cleanup on a loop backedge runs on every iteration, so include
+it in the iteration cost. Termination alone supplies no numeric work bound.
 
-Multiplicity is a type property; automatic droppability is checked at the
-particular edge. Every `requires` clause on `drop` must be established there.
-A value may therefore be automatically droppable in one state and require an
-explicit consumer or fact-preserving transfer in another.
-
-Diagnostics name both the edge and the missing cleanup premise:
-
-```text
-cannot leave edge Transaction::active -> done
-
-selected automatic cleanup requires:
-  custodied_by(transaction, stable_ledger)
-
-available:
-  custodied_by(transaction, PaymentProvider@v1)
-
-transfer custody or call an explicit consuming operation
-```
-
-Every owned occurrence reaching a death edge derives one internal contextual
-cleanup row. Its parts retain their distinct meanings:
-
-- Type-side eligibility checks whether the occurrence and its custody may be
-  discharged by that plan;
-- proposition prerequisites must be proved from local facts or already appear
-  in the machine's authored `requires` contract;
-- effects, reach, and work enter the checked operational summary; and
-- cleanup postconditions may contribute derived guarantees.
-
-Body analysis may derive guarantees and operational dependencies, but it never
-invents a caller-facing demand. This is why an acyclic body may derive a
-termination guarantee while a dying parameter cannot silently add a cleanup
-precondition: the former gives callers a fact, while the latter would make them
-owe an undeclared fact. The rule applies equally to public and private
-machines.
-
-For a generic checked body the row remains symbolic in its type parameters and
-is discharged after substitution; the body is not rechecked as an unrelated
-template. Containers require no nominal `Disposable` bound. Their structural
-plans compose from the plans of their live elements, and an instantiation whose
-elements lack a legal disposition rejects. Diagnostics expand synthesized rows
-back to their authored origin, naming the exact hook clause and cleanup edge
-rather than exposing an internal predicate such as `CleanupEligible<T>`.
-
-## Reach, Resources, And Cycles
-
-Cleanup contributes to the enclosing machine contract on the existing axes:
-
-- reach, inferred mutation summaries, and capabilities combine by their ordinary
-  union rules;
-- structural work sums actions along a path, then takes the maximum across
-  mutually exclusive acyclic paths;
-- stack uses peak composition within an edge, then takes the maximum across
-  alternatives;
-- every reachable cleanup action contributes its requirements and guarantees;
-  and
-- every cleanup action must satisfy termination and automatic-cleanup control
-  restrictions.
-
-For a measured cycle, cleanup on the backedge runs once per iteration. When
-analysis additionally establishes a quantitative iteration bound, work composes:
-
-```text
-total work
-  = entry work
-  + iteration bound × maximum total work per iteration
-  + exit work
-```
-
-The iteration term includes the whole iteration path and all its cleanup.
-Max-over-edges alone is not a valid
-bound for repeated backedges. Termination alone does not supply a numeric bound;
-see [logical work](../spec/resources/logical_work.md#composition-and-charged-work).
-
-## Conservation Witness
-
-The center of every cleanup artifact is one conservation theorem:
-
-> Every incoming owned obligation is assigned exactly once to transfer,
-> explicit terminal consumption, automatic cleanup (affine or an
-> owner-authorized linear terminal disposition), or validated no-code affine
-> discard.
-
-Nothing may appear in two categories or in none. The transfer map, ordered
-cleanup actions, contracts, and backend realization are evidence for that
-theorem.
-
-When an obligation carries decomposable content, this whole-claim theorem also
-contains the normalized content equation for its algebra: machine-entry content
-plus sealed introductions equals returned content plus content that left checked
-custody. `old(place)` names the callable-entry revision of a structural place,
-the exact owner-selected content projection machine projects its content, and
-`separate(...)` composes disjoint pieces. Here “left checked custody” does not
-mean destroyed, reclaimed, or reusable; it records only the frontier transfer.
-
-A linear place in the dying set is a compile error unless its exact type-owned
-cleanup plan is an authorized terminal disposition and all contextual
-requirements hold. A trivial affine discard is an explicit checked no-code
-action, not evidence that nothing was live.
-
-## Backend Realization
-
-The semantic transfer map gives storage planning information directly. The
-backend must not rediscover it from lexical scopes:
-
-- loop-carried source and target places may coalesce into one storage slot;
-- an address-stable borrow crossing an edge requires a storage realization
-  that actually preserves that address;
-- identical cleanup suffixes may share one physical block;
-- checked code may be cloned for optimization while retaining its semantic
-  state and edge identities; and
-- every cleanup or no-code action maps back to the permission ledger.
-
-An owned erased or dynamic value carries the same obligation after its concrete
-type is hidden. Its compiler-built descriptor therefore retains size,
-alignment, movement, and the exact structural cleanup plan. Moving the erased
-owner transfers payload custody and this disposition together; final
-consumption invokes the descriptor plan exactly once. A borrowed dynamic view
-carries dispatch metadata but never cleanup ownership for its referent.
-Manually destroying a heterogeneous collection remains ordinary:
-`omega::core::drop(collection)` consumes the collection, whose structural plan
-then invokes each owned element's descriptor cleanup.
-
-Erasure into an automatically cleaned owner is legal only when the concrete
-plan is eligible under the erased package's retained invariant, or when the
-package also carries the stable facts and authority needed by that plan. A
-linear value with no such automatic disposition cannot be placed in an
-auto-cleaned heterogeneous container; it needs an explicit consuming owner.
-This descriptor entry is lifecycle metadata, not trait evidence, and third
-parties cannot attach cleanup to a foreign type. They wrap it in a type they
-own when they need a different disposition.
-
-Preserving a promised stable address is a soundness requirement. Coalescing
-unchanged loop-carried large values also avoids unnecessary copies, but cannot
-make an invalid semantic transfer legal. The
-[physical contract](../spec/terminal-psi/ownership.md#physical-realization)
-owns that distinction.
+Crashes and canonical process exit abandon obligations instead of cleaning
+them. See [failure and recovery](chapter_16_errors_traps_failure.md).
+The [ownership reference](../spec/language/ownership.md#consumers-and-cleanup)
+and [cleanup representation](../spec/terminal-psi/ownership.md) describe the
+compiler's edge plans, conservation evidence and physical realization.

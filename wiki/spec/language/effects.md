@@ -458,7 +458,7 @@ identity does not exempt them from preservation checks.
 Authored generated code and adapters obey these rules. Compiler-synthesized
 adapters retain diagnostic/audit acknowledgement metadata without invented
 source tokens. A marker cannot bypass an execution context's operational floor:
-automatic [cleanup](../../language_guide/chapter_17_drops_and_cleanup.md#cleanup-machines)
+automatic [cleanup](../../language_guide/chapter_17_drops_and_cleanup.md#select-automatic-cleanup)
 and [hermetic semantic evaluation](evaluation.md#invocation-admission) forbid
 source suspension and blocking in the checked envelope. A redundant marker alone
 does not violate that floor.
