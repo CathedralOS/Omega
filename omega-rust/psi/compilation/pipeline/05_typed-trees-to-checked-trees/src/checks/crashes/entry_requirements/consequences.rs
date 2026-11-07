@@ -49,7 +49,6 @@ impl<'a> Consequences<'a> {
             self.program,
             expression,
             negated,
-            self.parameters,
             self.parameter_names,
             self.content_conservation,
         )

@@ -538,15 +538,6 @@ fn build_published_crash_buckets(
     }
 
     let mut buckets = BTreeMap::<checked_trees::CrashCause, Bucket>::new();
-    let parameters = match &owner {
-        CrashContractOwner::Machine(machine) => program
-            .machine_states(machine)
-            .first()
-            .map(|entry| program.state_parameters(entry))
-            .unwrap_or(&[]),
-        CrashContractOwner::Signature(signature) => program.state_signature_parameters(signature),
-        CrashContractOwner::Operator(operator) => program.operator_parameters(operator),
-    };
     let binders = match &owner {
         CrashContractOwner::Machine(machine) => {
             let generics = generic_binders(program.machine_type_parameters(machine));
@@ -580,10 +571,9 @@ fn build_published_crash_buckets(
         for fact in facts {
             let identity = match fact {
                 typed_trees::domain::ProofFact::Expression(expression) => {
-                    let structured = crash_calls::proof_crash_predicate_from_expression(
+                    let structured = crash_calls::crash_predicate_from_expression(
                         program,
                         *expression,
-                        parameters,
                         parameter_names,
                         Some(content_conservation),
                     );
@@ -763,14 +753,12 @@ pub(crate) fn canonical_crash_contract_predicate(
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     negated: bool,
-    parameters: &[typed_trees::signature::StateParameter],
     parameter_names: &[String],
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> checked_trees::CrashPredicateIdentity {
-    let expression = crash_calls::proof_crash_predicate_from_expression(
+    let expression = crash_calls::crash_predicate_from_expression(
         program,
         expression,
-        parameters,
         parameter_names,
         Some(content_conservation),
     );

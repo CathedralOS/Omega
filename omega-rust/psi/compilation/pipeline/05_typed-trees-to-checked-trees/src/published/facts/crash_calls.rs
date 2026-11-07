@@ -39,7 +39,6 @@ pub(crate) use private_summaries::{
     PreparedCrashSummaryGraph, prepare_crash_summary_graph, selected_invocation_target,
 };
 use symbols::SymbolHandle;
-use typed_trees::signature::StateParameter;
 
 pub(super) fn crash_predicate_from_expression(
     program: &dyn ::validation::CheckingInput,
@@ -48,18 +47,6 @@ pub(super) fn crash_predicate_from_expression(
     content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
 ) -> CrashPredicateExpression {
     predicate_expression(program, expression, parameter_names, content_conservation)
-}
-
-/// Contracts and runtime guards retain the same selected operation. The
-/// caller's declaration checks own the parameter telescope independently.
-pub(super) fn proof_crash_predicate_from_expression(
-    program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
-    _parameters: &[StateParameter],
-    parameter_names: &[String],
-    content_conservation: Option<&[validation::ContentConservationSourcePlan]>,
-) -> CrashPredicateExpression {
-    crash_predicate_from_expression(program, expression, parameter_names, content_conservation)
 }
 
 fn predicate_expression(

@@ -30,6 +30,7 @@ pub(super) use constructor_identity::ConstructorIdentity;
 mod data_identity;
 mod domain_premises;
 mod equations;
+mod identity_elimination;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
 mod integer_predicates;
 pub(super) use integer_predicates::{CapturedIntegerInput, CapturedIntegerRank, FormedIntegerRank};
@@ -1702,7 +1703,7 @@ impl<'program> StructuralJudge<'program> {
             .flatten()
             .map(|(captured, _, _)| captured);
             match term {
-                StructuralTerm::CapturedValue { .. } => {
+                StructuralTerm::CapturedValue { .. } | StructuralTerm::BoundValue(_) => {
                     let Some((_, replacement)) = self.rewrites.find(&term) else {
                         return term;
                     };

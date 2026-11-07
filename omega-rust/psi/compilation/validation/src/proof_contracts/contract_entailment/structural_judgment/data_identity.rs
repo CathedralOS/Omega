@@ -50,11 +50,7 @@ impl StructuralJudge<'_> {
             return;
         }
         if let Some(StructuralTerm::Identity { left, right, .. }) = self.declaration_term(fact) {
-            if self.data_identity_is_observed(&left) && self.data_identity_is_observed(&right) {
-                std::sync::Arc::make_mut(&mut self.captured_result_equations).push(
-                    super::normal_returns::CapturedResultEquation::data_identity((*left, *right)),
-                );
-            }
+            self.intake_identity(*left, *right);
             return;
         }
         let Some(binary) = self.program.expression_table.binary_node(fact) else {
@@ -68,8 +64,7 @@ impl StructuralJudge<'_> {
         } else if binary.operator == super::BinaryOperator::Equal
             && let Some([left, right]) = self.declaration_data_identity_terms(fact)
         {
-            std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                .push(super::normal_returns::CapturedResultEquation::data_identity((left, right)));
+            self.intake_identity(left, right);
         }
     }
 
@@ -90,8 +85,7 @@ impl StructuralJudge<'_> {
                     && known.left.same_resolution_payload(&equation.left)
                     && known.right.same_resolution_payload(&equation.right)
             }) {
-                std::sync::Arc::make_mut(&mut self.captured_result_equations)
-                    .push(equation.clone());
+                self.intake_identity(equation.left.clone(), equation.right.clone());
             }
         }
     }
@@ -113,7 +107,7 @@ impl StructuralJudge<'_> {
         }
         let left = self.resolve_at(left, depth + 1);
         let right = self.resolve_at(right, depth + 1);
-        if !self.data_identity_is_observed(&left) || !self.data_identity_is_observed(&right) {
+        if !self.identity_value_is_available(&left) || !self.identity_value_is_available(&right) {
             return StructuralJudgment::Unknown;
         }
         self.exact_identity_congruence(left, right, depth + 1)
@@ -356,8 +350,8 @@ impl StructuralJudge<'_> {
             return StructuralJudgment::Unknown;
         }
         if left.same_resolution_payload(&right)
-            && self.data_identity_is_observed(&left)
-            && self.data_identity_is_observed(&right)
+            && self.identity_value_is_available(&left)
+            && self.identity_value_is_available(&right)
         {
             return StructuralJudgment::Proven;
         }
@@ -366,9 +360,9 @@ impl StructuralJudge<'_> {
         let left = self.data_identity_forms(left, depth + 1, &mut left_remaining);
         let right = self.data_identity_forms(right, depth + 1, &mut right_remaining);
         if left.iter().any(|left| {
-            self.data_identity_is_observed(left)
+            self.identity_value_is_available(left)
                 && right.iter().any(|right| {
-                    self.data_identity_is_observed(right) && left.same_resolution_payload(right)
+                    self.identity_value_is_available(right) && left.same_resolution_payload(right)
                 })
         }) {
             StructuralJudgment::Proven

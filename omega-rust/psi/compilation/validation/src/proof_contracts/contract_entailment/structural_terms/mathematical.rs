@@ -37,6 +37,14 @@ pub(in crate::proof_contracts::contract_entailment) fn application_term(
                     reference: capture.source_type,
                     value: Box::new(value),
                 }
+            } else if crate::reference_shell(program, capture.source_type).is_none()
+                && crate::value_custody::places::data_definition_for_type(
+                    program,
+                    capture.source_type,
+                )
+                .is_some()
+            {
+                super::owned_projection_observation(program, capture.source_type, value)
             } else {
                 value
             };

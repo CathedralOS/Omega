@@ -1,6 +1,7 @@
-//! Capture-avoiding closure of source parameter telescopes through generated
-//! definition graphs. Parameterized copies preserve the immutable signature
-//! prefix and reuse shared definitions; dependent assumptions remain ungranted.
+//! Generated theorem definitions bind their source parameters so temporary
+//! assumptions cannot escape. Parameterized copies preserve the immutable
+//! signature prefix and reuse shared definitions; dependent assumptions remain
+//! ungranted.
 
 use proof_admission::{Declaration, Term, TermArena, TermHandle};
 use symbols::SymbolHandle;
@@ -23,7 +24,7 @@ impl ParameterAbstractions {
     }
 }
 
-/// Abstract temporary scalar assumptions without capturing existing binders.
+/// Abstract temporary parameter assumptions without capturing existing binders.
 pub(super) fn abstract_parameters(
     arena: &mut TermArena,
     proof: TermHandle,
@@ -430,7 +431,7 @@ fn collect_constant_references(
 mod outer_type_closure_tests {
     use super::*;
     use proof_admission::{
-        Budget, Context, check_signature, check_type, judgment_assumption_closure,
+        Budget, Context, Level, Sort, check_signature, check_type, judgment_assumption_closure,
     };
 
     #[test]

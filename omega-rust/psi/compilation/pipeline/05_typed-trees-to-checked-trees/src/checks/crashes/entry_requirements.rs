@@ -54,7 +54,6 @@ pub(super) fn collect(
                 program,
                 *expression,
                 false,
-                program.state_parameters(entry),
                 parameter_names,
                 content_conservation,
             ));
@@ -88,7 +87,6 @@ pub(super) fn collect(
                     program,
                     *expression,
                     false,
-                    program.state_parameters(entry),
                     parameter_names,
                     content_conservation,
                 ));

@@ -306,9 +306,11 @@ impl StructuralJudge<'_> {
                 equation.right = self.completed_value_identity(equation.right);
             }
             if equation.is_data_identity() {
-                // A public data Id relates complete values. Keep its meaning
-                // separate from equations that authorize scalar substitution.
-                std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
+                // The same typed Id operation consumes entry propositions,
+                // completed guarantees and established conditional results.
+                // It substitutes owned values without scalar comparison rules
+                // and stops at a reference's exact descriptor.
+                self.intake_identity(equation.left, equation.right);
                 continue;
             }
             // The producer retained this identity after the actual normal
