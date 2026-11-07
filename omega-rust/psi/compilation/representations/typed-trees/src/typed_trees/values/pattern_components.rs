@@ -8,12 +8,13 @@
 
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use language_core::PatternComponent;
+use std::collections::BTreeMap;
 
 impl crate::TypedTrees {
     pub fn pattern_component(&self, expression: ExpressionHandle) -> Option<PatternComponent> {
         Query {
             program: self,
-            visited: Vec::new(),
+            visited: BTreeMap::new(),
         }
         .read(expression)
     }
@@ -21,10 +22,10 @@ impl crate::TypedTrees {
 
 struct Query<'a> {
     program: &'a crate::TypedTrees,
-    // Only actual transparent dependencies enter these sorted request rows.
-    // Full handles retain their generations without allocating global ID gaps.
+    // Only actual transparent dependencies enter this request-local map.
+    // Full coordinates retain generations without allocating global ID gaps.
     // The initial None also refuses cycles, and shared aliases are read once.
-    visited: Vec<(ExpressionHandle, Option<PatternComponent>)>,
+    visited: BTreeMap<(u32, u32), Option<PatternComponent>>,
 }
 
 impl Query<'_> {
@@ -89,13 +90,11 @@ impl Query<'_> {
                 return self.read(source);
             }
         }
-        match self
-            .visited
-            .binary_search_by_key(&expression, |(expression, _)| *expression)
-        {
-            Ok(index) => return self.visited[index].1,
-            Err(index) => self.visited.insert(index, (expression, None)),
+        let coordinate = (expression.arena_index(), expression.generation());
+        if let Some(component) = self.visited.get(&coordinate) {
+            return *component;
         }
+        self.visited.insert(coordinate, None);
         let result = if let Some(source) = source {
             self.read(source)
         } else {
@@ -112,11 +111,7 @@ impl Query<'_> {
             }
             selected
         };
-        let index = self
-            .visited
-            .binary_search_by_key(&expression, |(expression, _)| *expression)
-            .ok()?;
-        self.visited[index].1 = result;
+        self.visited.insert(coordinate, result);
         result
     }
 }
