@@ -332,7 +332,11 @@ impl<'a> DescriptorReplay<'a> {
         })
     }
 
-    pub(super) fn validate(&self, source: &AbstractOperation) -> Result<(), String> {
+    pub(super) fn validate(
+        &self,
+        source: &AbstractOperation,
+        addresses: &mut super::placed_reference::AddressReplay<'_>,
+    ) -> Result<(), String> {
         let expected = source_operation(source).ok_or("operation is not a descriptor operation")?;
         let index = self
             .operations
@@ -355,13 +359,14 @@ impl<'a> DescriptorReplay<'a> {
         {
             return Err("descriptor hardware instruction differs from the source operation".into());
         }
-        self.validate_operands(&expected, instruction)
+        self.validate_operands(&expected, instruction, addresses)
     }
 
     fn validate_operands(
         &self,
         expected: &DescriptorOperation<'_>,
         instruction: &SelectedInstruction,
+        addresses: &mut super::placed_reference::AddressReplay<'_>,
     ) -> Result<(), String> {
         let (source_operands, selector_operand, extent_operand, result_operand, roles): (
             &[u16],
@@ -435,10 +440,9 @@ impl<'a> DescriptorReplay<'a> {
             let offset = super::placed_reference::borrowed_address_matches(
                 expected.operation,
                 argument,
-                self.target,
-                self.selected,
                 instruction,
                 pointer,
+                addresses,
             )?;
             let byte_count = if let Some(entries) = expected.entries.filter(|_| index == 0) {
                 u32::from(entries) * 8

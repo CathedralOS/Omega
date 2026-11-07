@@ -270,6 +270,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
             targeted,
             selected,
         )?;
+        let mut addresses = placed_reference::AddressReplay::new(targeted, selected);
         let descriptor_replay = descriptor_tables::DescriptorReplay::new(targeted, selected)
             .map_err(Error::Mismatch)?;
         let structural = selected.structural.as_ref();
@@ -372,7 +373,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ReloadSegmentDescriptors { .. }
                 | AbstractOperation::ActivateTaskRegister { .. }
                 | AbstractOperation::GlobalDescriptorTable { .. } => {
-                    descriptor_replay.validate(operation).map_err(|reason| Error::UnaccountedOperation {
+                    descriptor_replay.validate(operation, &mut addresses).map_err(|reason| Error::UnaccountedOperation {
                         machine: fragment.machine,
                         operation_ordinal,
                         operation_description: format!("{operation:?}: {reason}"),
@@ -467,9 +468,17 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
                 AbstractOperation::EstablishAccessReference { psi_operation, result, source, correspondence } => {
-                    geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
-                        *psi_operation, result, source, correspondence, targeted, selected, geometry,
-                    ).is_some())
+                    let retained = geometry.as_mut().is_some_and(|geometry| placed_reference::retained(
+                        *psi_operation, result, source, correspondence, geometry, &mut addresses,
+                    ).is_some());
+                    if !retained && let Some(reason) = addresses.failure_reason() {
+                        return Err(Error::UnaccountedOperation {
+                            machine: fragment.machine,
+                            operation_ordinal,
+                            operation_description: format!("{operation:?}: {reason}"),
+                        });
+                    }
+                    retained
                 }
                 AbstractOperation::StructuralCaseMembership { .. }
                 | abstract_operations::establish_record_or_case_pattern!(..)
