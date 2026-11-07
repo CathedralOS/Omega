@@ -180,7 +180,7 @@ fn machine_contract_plan<'a>(
         program
             .facts
             .contract_plans
-            .machines
+            .machines()
             .iter()
             .filter(|plan| plan.machine == machine.symbol),
         machine.name.as_str(),

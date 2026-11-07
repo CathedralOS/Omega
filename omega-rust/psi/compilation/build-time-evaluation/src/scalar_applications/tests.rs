@@ -379,7 +379,7 @@ fn retain_graph_proof_scope(module: &mut TerminalModule) {
         }
         if scope
             .calls
-            .machines
+            .machines()
             .iter()
             .any(|(_, row)| row.machine == declaration)
         {
@@ -402,7 +402,7 @@ fn retain_graph_proof_scope(module: &mut TerminalModule) {
             })
             .collect::<Vec<_>>();
         let calls = scope.calls.calls.insert_many(calls);
-        scope.calls.machines.insert(ProofCallMachine {
+        scope.calls.insert_machine(ProofCallMachine {
             machine: declaration,
             calls,
             ..Default::default()

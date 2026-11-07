@@ -81,8 +81,9 @@ use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct MachineContractPlans {
-    /// One entry per machine, in machine order.
-    pub machines: Vec<MachineContractPlan>,
+    /// One entry per machine, in machine order. Private so every mutation
+    /// goes through a method that keeps `machine_index` exact.
+    machines: Vec<MachineContractPlan>,
     /// Trait requirements and compile-time machine-parameter contracts do not
     /// own local machine plans. Their normalized callable identity and crash
     /// projection live here for modular call-site selection.
@@ -95,13 +96,12 @@ pub struct MachineContractPlans {
     /// producer (`index_machines`); ties keep row order. Every lowered machine
     /// asks for its own plan, and scanning all plans per question made that
     /// quadratic in the machine count. Derived from `machines`: never
-    /// recorded or compared, and read only while `machines` keeps the length
-    /// it was built at; a hit is checked against its row and a miss rereads
-    /// the rows, so a stale index can only cost time.
+    /// recorded or compared. `indexed` is cleared by every mutation that can
+    /// move a machine key, so a set index is exact for the current rows.
     #[record(skip)]
     machine_index: Vec<((u32, u32), usize)>,
     #[record(skip)]
-    indexed_len: Option<usize>,
+    indexed: bool,
 }
 
 impl PartialEq for MachineContractPlans {
@@ -116,8 +116,8 @@ impl Eq for MachineContractPlans {}
 
 impl MachineContractPlans {
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&MachineContractPlan> {
-        // A row set changed after publication reads the rows themselves.
-        if self.indexed_len != Some(self.machines.len()) {
+        // Rows decoded or edited without republication read the rows themselves.
+        if !self.indexed {
             return contract_plan_by_machine(&self.machines, machine);
         }
         let key = (machine.arena_index(), machine.generation());
@@ -127,7 +127,52 @@ impl MachineContractPlans {
             .take_while(|(row, _)| *row == key)
             .filter_map(|(_, position)| self.machines.get(*position))
             .find(|plan| plan.machine == machine)
-            .or_else(|| contract_plan_by_machine(&self.machines, machine))
+    }
+
+    /// Every plan, in machine order.
+    pub fn machines(&self) -> &[MachineContractPlan] {
+        &self.machines
+    }
+
+    /// The plan rows for an edit that may add, remove or rekey plans. The
+    /// index is retired: `for_machine` reads the rows until the caller runs
+    /// `index_machines` again.
+    pub fn machines_mut(&mut self) -> &mut Vec<MachineContractPlan> {
+        self.indexed = false;
+        &mut self.machines
+    }
+
+    /// The plans beside the realized envelopes they back, for a pass that
+    /// refreshes envelopes from plans.
+    pub fn machines_and_envelopes_mut(
+        &mut self,
+    ) -> (
+        &[MachineContractPlan],
+        &mut Vec<RealizedMachineContractEnvelope>,
+    ) {
+        (&self.machines, &mut self.realized_envelopes)
+    }
+
+    /// Edit every plan in order. An edit that changes a plan's machine
+    /// retires the index until `index_machines` runs again.
+    pub fn update_plans(&mut self, mut edit: impl FnMut(&mut MachineContractPlan)) {
+        for plan in &mut self.machines {
+            let machine = plan.machine;
+            edit(plan);
+            if plan.machine != machine {
+                self.indexed = false;
+            }
+        }
+    }
+
+    /// Edit the plan at `position`, with the same index rule as `update_plans`.
+    pub fn update_plan(&mut self, position: usize, edit: impl FnOnce(&mut MachineContractPlan)) {
+        let plan = &mut self.machines[position];
+        let machine = plan.machine;
+        edit(plan);
+        if plan.machine != machine {
+            self.indexed = false;
+        }
     }
 
     /// Publish `machine_index` over the finished `machines` rows.
@@ -145,7 +190,7 @@ impl MachineContractPlans {
             .collect::<Vec<_>>();
         index.sort_unstable();
         self.machine_index = index;
-        self.indexed_len = Some(self.machines.len());
+        self.indexed = true;
     }
 
     /// The published plans, indexed for `for_machine`.
@@ -159,7 +204,7 @@ impl MachineContractPlans {
             crash_capsules,
             realized_envelopes,
             machine_index: Vec::new(),
-            indexed_len: None,
+            indexed: false,
         };
         plans.index_machines();
         plans
