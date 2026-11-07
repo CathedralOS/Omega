@@ -1,12 +1,12 @@
 {
   "schema": "omega-compiler-pilot-plan-v1",
   "producer": {
-    "revision": "8b5d3bdc85e061ddd22063ced18b4bb0fa3ebb47",
-    "tree": "e957d91e4b2c356aa264a0ae4fc2a2b4b9f0dcb8",
+    "revision": "90bdd1803db1eaee5b316ee2584d83f0c546c824",
+    "tree": "925cc11d860cdc69fcb0642bd8441f1612d6d9a2",
     "target": "linux_x86_64",
     "toolchain": "rustc 1.100.0-nightly (a69a63265 2026-09-03)\nbinary: rustc\ncommit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\ncommit-date: 2026-09-03\nhost: x86_64-unknown-linux-gnu\nrelease: 1.100.0-nightly\nLLVM version: 23.1.1",
     "input_objects": {
-      "omega-rust": "b28d5a80c45e3ae5f75d27ffa25851f4b9b5af91",
+      "omega-rust": "09f7c81c9363a35a506cde82dc3aa426194265c5",
       "source/library": "46754f5f6584d158e0fb077d4ed89a83afd07230",
       "source/psi": "400feb4e6c0c556f0fd5d6b44043e92f93d7f30c",
       "source/omega": "96169168741fcd8265771a647ba3bfadd2bc7e8c",
@@ -19,22 +19,22 @@
     },
     "executables": {
       "cli": {
-        "sha256": "ac2d03f41c5c585210efd7762a668ad2f2ede08f060d428df52793f7741162f9",
+        "sha256": "5fc574f2bc4672473c9988f1732c1e4140399101bc3d38b845da82a4c9b5938c",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       },
       "runner": {
-        "sha256": "56b2be1b0c6750124707538a21410030e1ed479283e5c94af2c14aeca6edb03f",
+        "sha256": "053b69a8347a7c1691993bd524d08960b2656313023fabf26da05345c205327f",
         "profile": {
           "schema": "omega-compiler-build-profile-v1",
           "opt_level": "1"
         }
       }
     },
-    "origin_run": 42398396452,
-    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-8b5d3bdc85e061ddd22063ced18b4bb0fa3ebb47-prepared-v1-with-runner"
+    "origin_run": 42403085641,
+    "cache_key": "compiler-regression-Linux-X64-619be19a8e341c9422e0bbfdb9c702e2989ff767a7e78d51ff551da858c5fcb7-90bdd1803db1eaee5b316ee2584d83f0c546c824-prepared-v1-with-runner"
   },
   "fixtures": [
     "pass/host/runtime_descriptor_nested_case_array_exit"
