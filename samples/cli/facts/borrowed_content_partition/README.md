@@ -17,9 +17,9 @@ the two completed stores, including the partition call's returned-value facts.
 All nine transport places are executable: `local`, `field`, `parameter`,
 `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and `target_body`.
 Each uses the shared [borrowed-partition test package](../../../../tests/support/borrowed_partition_support/main.omg),
-keeps both detached owners alive, and consumes the static 16/8/24 facts through
-`finish`. Named constants
-provide request sizes, not a shared linear owner. Each `invalid` sibling changes
+keeps both detached owners alive, and calls `finish` using the proved lengths
+16 and 8 and remaining capacity 24. Named constants provide request sizes, not
+a shared linear owner. Each `invalid` sibling changes
 only the first request from 16 to 17; the unchanged consuming obligation rejects.
 
 The `match_join` place

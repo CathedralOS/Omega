@@ -1,4 +1,4 @@
-//! Transport a current exclusive-referent goal through terminal calls.
+//! Check guarantees about borrowed data after a terminal call.
 //! Each node retains the original proposition's complete projected subjects.
 //! Leaves read independently established current values, with the ordinary
 //! dependency checks for completed helper calls. Entry snapshots and the
