@@ -205,6 +205,97 @@ impl OwnerEnvironmentIndex {
             .unwrap_or_default()
     }
 
+    /// Temporary bounded diagnosis of an already refused source occurrence.
+    /// This observes existing typing rows and grants no fact or source scope.
+    pub fn trace_preparation_expression(
+        &self,
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) {
+        let table = &program.expression_table;
+        let constructed = table.constructed_value_type_reference(expression);
+        eprintln!(
+            "SOURCE-OWNER-TRACE expression={expression:?} indexed={} constructed={constructed:?}",
+            self.contains_expression(expression)
+        );
+        if constructed.is_valid() {
+            eprintln!(
+                "SOURCE-OWNER-TRACE constructed_node={:?}",
+                program.type_reference_table.type_reference(constructed)
+            );
+        }
+        eprintln!(
+            "SOURCE-OWNER-TRACE const_declaration={:?}",
+            program
+                .expression_const_declaration(expression)
+                .map(|declaration| (declaration.symbol, declaration.declared_type))
+        );
+        let call = table.call_node(expression);
+        if let Some(call) = call {
+            eprintln!(
+                "SOURCE-OWNER-TRACE call_target={:?} path={} requirement={:?} arguments={} receiver={:?}",
+                call.target_symbol,
+                program.symbols.display_path(call.target_symbol, "::"),
+                call.requirement_application,
+                call.arguments.len(),
+                call.receiver
+            );
+            eprintln!(
+                "SOURCE-OWNER-TRACE mathematical_result={:?}",
+                crate::mathematical_applications::result_type_reference(program, call)
+            );
+        }
+        let Some(entry) = self.index.entries.get(&expression) else {
+            return;
+        };
+        for id in entry.environments.iter().take(16) {
+            let environment = &self.index.environments[*id];
+            eprintln!(
+                "SOURCE-OWNER-TRACE environment={id} owner={:?} path={} result={:?} trait_scope={:?}",
+                environment.owner,
+                program.symbols.display_path(environment.owner, "::"),
+                environment.result_type,
+                environment.trait_scope
+            );
+            for binding in environment.bindings.iter().take(32) {
+                eprintln!(
+                    "SOURCE-OWNER-TRACE binding={:?} type={:?} node={:?}",
+                    binding.symbol,
+                    binding.type_reference,
+                    program
+                        .type_reference_table
+                        .type_reference(binding.type_reference)
+                );
+            }
+            if let Some(scope) = environment.trait_scope
+                && let Some(scope) = scope.scope(program.typed_program())
+            {
+                eprintln!(
+                    "SOURCE-OWNER-TRACE supplying_trait={:?} key={:?} substitutions={:?}",
+                    scope.declaration.symbol,
+                    scope.callable_contract_key(program.typed_program()),
+                    scope.substitutions
+                );
+            }
+            if let Some(call) = call {
+                let signature = match environment.trait_scope {
+                    Some(scope) => {
+                        program.requirement_call_signature_in_scope(environment.owner, call, scope)
+                    }
+                    None => program.requirement_call_signature(environment.owner, call),
+                };
+                eprintln!(
+                    "SOURCE-OWNER-TRACE scoped_result={:?}",
+                    signature.map(|signature| signature.return_type)
+                );
+            }
+            eprintln!(
+                "SOURCE-OWNER-TRACE inferred={:?}",
+                inference::infer_expression_type(program, expression, environment, &mut Vec::new())
+            );
+        }
+    }
+
     /// Every checked contract fact whose roots reach `expression`, in arena
     /// order.
     pub fn containing_contract_facts(

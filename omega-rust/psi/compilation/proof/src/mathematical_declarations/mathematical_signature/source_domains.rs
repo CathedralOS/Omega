@@ -496,6 +496,87 @@ impl Elaborator<'_> {
                 self.program.type_reference_table.type_reference(reference),
             );
         }
+        if let Some(owners) = self.source_owners.get() {
+            owners.trace_preparation_expression(self.program, invocation.expression);
+        }
+        let authored = self
+            .program
+            .traits()
+            .iter()
+            .flat_map(|declaration| self.program.trait_machine_signatures(declaration))
+            .map(|signature| ("authored", signature, None));
+        let prepared = self
+            .program
+            .prepared_callable_contracts()
+            .map(|contract| ("prepared", contract.signature, contract.trait_scope));
+        let mut matches = 0usize;
+        for (kind, signature, trait_scope) in authored.chain(prepared) {
+            for contract in self.program.state_signature_contracts(signature) {
+                for fact in self.program.proof_facts.span_or_empty(contract.facts) {
+                    let typed_trees::domain::ProofFact::Expression(root) = fact else {
+                        continue;
+                    };
+                    if !validation::expression_owners::expression_contains(
+                        self.program,
+                        *root,
+                        invocation.expression,
+                    ) {
+                        continue;
+                    }
+                    if matches == 16 {
+                        break;
+                    }
+                    matches += 1;
+                    eprintln!(
+                        "SOURCE-ROOT-TRACE kind={kind} signature={:?} root={root:?} parameters={:?} trait_scope={trait_scope:?}",
+                        signature.symbol, signature.parameters
+                    );
+                    if let Some(call) = self.program.expression_table.call_node(*root) {
+                        eprintln!(
+                            "SOURCE-ROOT-TRACE root_call_target={:?} arguments={:?}",
+                            call.target_symbol, call.machine_arguments
+                        );
+                        if let Ok(identity) =
+                            validation::mathematical_applications::identity_application(
+                                self.program,
+                                call,
+                            )
+                        {
+                            eprintln!(
+                                "SOURCE-ROOT-TRACE identity_carrier={:?} node={:?} subjects={:?}",
+                                identity.carrier,
+                                self.program
+                                    .type_reference_table
+                                    .type_reference(identity.carrier),
+                                identity.subjects
+                            );
+                        }
+                    }
+                    for parameter in self
+                        .program
+                        .state_signature_parameters(signature)
+                        .iter()
+                        .take(32)
+                    {
+                        eprintln!(
+                            "SOURCE-ROOT-TRACE parameter={:?} type={:?} node={:?}",
+                            parameter.symbol,
+                            parameter.type_reference,
+                            self.program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference)
+                        );
+                    }
+                }
+                if matches == 16 {
+                    break;
+                }
+            }
+            if matches == 16 {
+                break;
+            }
+        }
+        eprintln!("SOURCE-ROOT-TRACE matching_contract_rows={matches}");
         let mut pending = vec![("expected", expected), ("actual", actual)];
         let mut seen = Vec::new();
         while let Some((side, handle)) = pending.pop() {
