@@ -402,10 +402,13 @@ pub(in crate::execution::terminal_unit) fn call_owns_statement_computations(
         &mut consumed,
     )?;
     if selected.is_some() {
-        if selected
-            .as_deref()?
-            .operands_reschedule_producer(call, &consumed.calls)
-        {
+        if selected.as_deref()?.operands_reschedule_producer(
+            program,
+            facts,
+            call,
+            &consumed.calls,
+            predecessors,
+        )? {
             return None;
         }
         // Release the borrowed common prefix before joining branch-local work.

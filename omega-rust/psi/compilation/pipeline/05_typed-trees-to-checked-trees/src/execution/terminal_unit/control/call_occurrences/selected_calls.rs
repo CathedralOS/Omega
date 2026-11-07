@@ -2,7 +2,7 @@
 //! unscheduled work on the current branch. Each leaf still proves its complete
 //! operand custody. Only the final all-leaf join can cover the statement.
 
-use super::dispatch_producers::{CallOrder, DispatchProducers};
+use super::dispatch_producers::{DispatchProducers, PrefixProducers};
 use super::{CallOccurrenceLedger, CallOccurrencePrefix, CheckFacts, SymbolHandle};
 use arena::{Handle, HandleSpan};
 use checked_trees::{CheckedCompletionExpressionKind as Kind, FlowCallFact};
@@ -21,7 +21,7 @@ pub(in crate::execution::terminal_unit) struct SelectedInvocationAccounting {
     prefix: CallOccurrencePrefix,
     guard_maximum: Option<usize>,
     producers: DispatchProducers,
-    prefix_producer_minimum: Option<CallOrder>,
+    prefix_producers: PrefixProducers,
     first: Handle<FlowCallFact>,
     expression_calls: BTreeMap<(usize, u32, u32), Option<Handle<FlowCallFact>>>,
 }
@@ -138,13 +138,7 @@ impl SelectedInvocationAccounting {
             root.statement_ordinal as usize,
             predecessors,
         );
-        // Any prefix producer preceding this leaf is forbidden. Its minimum
-        // order answers that question without revisiting the shared prefix.
-        let prefix_producer_minimum = prefix
-            .calls
-            .iter()
-            .filter_map(|handle| producers.producer(*handle))
-            .min();
+        let prefix_producers = producers.prefix(&prefix.calls);
         let accounted = prefix.calls.iter().copied().map(key).collect();
         let computations = prefix
             .accounted_computations
@@ -177,7 +171,7 @@ impl SelectedInvocationAccounting {
             },
             guard_maximum,
             producers,
-            prefix_producer_minimum,
+            prefix_producers,
             first,
             expression_calls,
         })
@@ -224,14 +218,28 @@ impl SelectedInvocationAccounting {
 
     pub(super) fn operands_reschedule_producer(
         &self,
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
         call: &FlowCallFact,
         operands: &[Handle<FlowCallFact>],
-    ) -> bool {
-        self.prefix_producer_minimum
-            .is_some_and(|producer| producer < (call.statement_index, call.call_ordinal))
-            || operands
-                .iter()
-                .any(|handle| self.producers.before(*handle, call))
+        predecessors: &[checked_trees::CheckedUnitEffectOperationPlan],
+    ) -> Option<bool> {
+        let machine = program.machine_by_symbol(self.machine)?;
+        let state = program.state_in_machine(machine, self.state)?;
+        let local = self.producers.local_owners(
+            program,
+            facts,
+            machine,
+            state,
+            facts.flow.control.calls.span_or_empty(self.calls),
+            predecessors,
+        )?;
+        Some(local.rescheduled(
+            &self.producers,
+            &self.prefix_producers,
+            operands,
+            (call.statement_index, call.call_ordinal),
+        ))
     }
 
     pub(super) fn account(
