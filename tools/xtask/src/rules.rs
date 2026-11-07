@@ -1250,6 +1250,13 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
             violations.push(format!(
                 "{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/"
             ));
+        } else if path.starts_with("tools/")
+            && path.ends_with(".py")
+            && !path.starts_with("tools/bootstrap/")
+        {
+            violations.push(format!(
+                "{path}: Python repository tooling is retired; implement developer and CI tooling in Rust under `tools/xtask/` (`cargo xtask`)"
+            ));
         }
     }
     let net_added = added_omg - deleted_omg;

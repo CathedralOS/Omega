@@ -65,7 +65,7 @@ different cloud executor.
    permission denial must be reported with its exact action and error; do not
    route around it.
 4. **Toolchain and limits (compiler work only).** Activate the environment's documented setup, then
-   run [doctor](../../../../tools/doctor.py) and `mbx doctor` when available.
+   run `cargo xtask doctor` and `mbx doctor` when available.
    Use the pinned Rust toolchain and nextest under
    [testing](../../../../tools/testing.md). Inspect CPU quota, available memory
    and disk as well as visible processors; size build jobs to the effective

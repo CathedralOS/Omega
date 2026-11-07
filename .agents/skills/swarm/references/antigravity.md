@@ -4,10 +4,9 @@ This guide covers coordinating concurrent in-session subagents in an Antigravity
 
 ## 1. Subagent Invocation & Worktree Setup
 
-1. **One isolated detached worktree per worker:** Never edit in `/home/antigravity/CathedralOS/Omega`. Create a detached worktree per worker before calling `invoke_subagent`:
+1. **One isolated `worker-N` pool slot per worker:** Never edit in `/home/antigravity/CathedralOS/Omega`. Acquire a pool slot per worker before calling `invoke_subagent`:
    ```bash
-   git fetch origin main
-   git worktree add --detach .agents/worktree/<short-name> origin/main
+   cargo xtask worktree acquire <lane>-<topic>
    ```
    Local named branches (`git checkout -b` / `git switch -c`) are banned.
 2. **Invoke subagents with `Model: "inherit"` and `Workspace: "inherit"`:**
@@ -31,10 +30,9 @@ The Antigravity `exebox` container has no local `rustc`/`cargo` toolchain and ma
      -f samples='<optional comma-separated samples/cli/... paths>' \
      -f native_host=linux_x86_64
    ```
-   - `compiler-pilot.yml` runs `cargo check --locked -p omega` and executes `tools/ci/compiler_pilot.py` on a full Ubuntu runner (`linux_x86_64`, `linux_arm64`, `macos_arm64`, or `windows_x86_64`), uploading `compiler-pilot-records-<host>-<head_sha>-1` (`checking.json`, `both.json`, `samples.json`, `cli.json`).
-   - Note: `compiler_pilot.py` validates `fixtures` under `tests/omega/{pass,fail,run}/` (check-mode for `pass/` and `fail/`, both-mode for `run/` and `pass/*_exit`).
-3. **Download and splice golden records cleanly:**
+   - Run `cargo xtask corpus --filter <fixtures>` and `cargo xtask sample-gate --filter <samples>` on a full runner (`linux_x86_64`, `linux_arm64`, `macos_arm64`, or `windows_x86_64`).
+3. **Record and verify golden records cleanly:**
    ```bash
-   gh run download <run-id> -n compiler-pilot-records-linux_x86_64-<head_sha>-1 -D /tmp/pilot-<short-name>
+   cargo xtask corpus --record --filter <fixtures>
    ```
-   Splice `checking.json` into `tests/omega/corpus_outcomes.txt` and `both.json` into `tests/omega/corpus_both_linux_x86_64.txt` using `tools/corpus_records.py` (`corpus_records.splice`), commit the updated golden files and `TASKS.md`, push `HEAD:refs/heads/work/<short-name> --force-with-lease`, verify `python3 tools/check_rules.py --base origin/main --title "<title>"`, and open a draft PR (`gh pr create --draft --head work/<short-name>`).
+   Commit the updated golden files and `TASKS.md`, push `HEAD:refs/heads/work/<lane>-<topic> --force-with-lease`, verify `cargo xtask check-rules --base origin/main --title "<title>"`, and open a draft PR (`gh pr create --draft --head work/<lane>-<topic>`).
