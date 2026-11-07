@@ -169,7 +169,13 @@ pub(in crate::machine_calls::calls::write_frames::stored_calls) fn assignment_ad
                 {
                     observed.source.origin
                 }
-                ReferenceSource::Symbolic(origin) if !origin.source.root.is_valid() => origin,
+                ReferenceSource::Symbolic(origin)
+                    if origin.source.is_static()
+                        || origin.source.output_identity().is_some()
+                        || origin.source.result_home().is_some() =>
+                {
+                    origin
+                }
                 _ => return Err("destination descriptor retains an uncaptured spatial supplier"),
             };
             require_namespace(program, &origin)?;
@@ -228,14 +234,15 @@ fn require_namespace(
     if !origin.source.builtin_coordinates {
         return Err("destination has no checked primitive coordinates");
     }
-    if origin.source.root.is_valid() {
-        return Ok(());
-    }
     if !(origin.source.is_static()
         || origin.source.output_identity().is_some()
         || origin.source.result_home().is_some())
     {
-        return Err("destination has no authenticated storage namespace");
+        return if origin.source.root.is_valid() {
+            Ok(())
+        } else {
+            Err("destination has no authenticated storage namespace")
+        };
     }
     // Terminal namespaces are already completed origins, not declarations to
     // guess or descriptor homes to reload. This owner validates output types
