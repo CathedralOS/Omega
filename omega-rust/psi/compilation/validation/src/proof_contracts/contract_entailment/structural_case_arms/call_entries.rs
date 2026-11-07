@@ -310,8 +310,7 @@ fn expression_entries<'program>(
                 .expression_roots(statement)
                 .into_iter()
                 .map(|(_, root)| root)
-                .filter(|root| root.is_valid())
-                .next_back()?
+                .rfind(|root| root.is_valid())?
         }
         CallEntryScope::SelectedTarget(target) => {
             let typed_trees::statement::TransitionTargetNode::Value(expression) =

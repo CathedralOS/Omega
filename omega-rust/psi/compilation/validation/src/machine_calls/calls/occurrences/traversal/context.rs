@@ -86,13 +86,12 @@ impl<'program> CallSiteTraversal<'program, '_> {
         &mut self,
         site: super::super::CallSite<'program>,
     ) -> Option<super::super::CallSite<'program>> {
-        if let super::super::CallSite::Expression { expression, .. } = site {
-            if !self
+        if let super::super::CallSite::Expression { expression, .. } = site
+            && !self
                 .expressions
                 .insert((expression.arena_index(), expression.generation()))
-            {
-                return None;
-            }
+        {
+            return None;
         }
         if let Some(collected) = self.collected.as_mut() {
             match collected {
