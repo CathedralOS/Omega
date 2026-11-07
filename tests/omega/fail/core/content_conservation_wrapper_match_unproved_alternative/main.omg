@@ -34,10 +34,12 @@ public boundary trait RegionSplit {
     reaches
     requires head <= whole.remaining
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&whole)),
+            separate(
+                Owned::content(&result.left),
+                Owned::content(&result.right),
+            )
         );
 }
 
@@ -76,8 +78,10 @@ requires head <= whole.remaining
 machine Main::split_mixed(main: &mut Main, whole: Region in Owned, head: u64, left_arm: bool) -> SplitResult
 requires head <= whole.remaining
 ensures
-    Owned::content(old(&whole))
-    == separate(Owned::content(&result.left), Owned::content(&result.right))
+    core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right))
+    )
 reaches RegionSplit
 {
     match left_arm {
@@ -89,8 +93,10 @@ reaches RegionSplit
 machine Main::split_proved(main: &mut Main, whole: Region in Owned, head: u64) -> SplitResult
 requires head <= whole.remaining
 ensures
-    Owned::content(old(&whole))
-    == separate(Owned::content(&result.left), Owned::content(&result.right))
+    core::Identity<CountedQuantity<ByteUnit>>(
+        Owned::content(old(&whole)),
+        separate(Owned::content(&result.left), Owned::content(&result.right))
+    )
 reaches RegionSplit
 {
     Main::split_mixed(main, whole, head, head > 0)
@@ -122,10 +128,12 @@ RegionSplitImplementation satisfies RegionSplit {
     machine split(whole: Region in Owned, head: u64) -> SplitResult
     requires head <= whole.remaining
     ensures
-        Owned::content(old(&whole))
-        == separate(
-            Owned::content(&result.left),
-            Owned::content(&result.right),
+        core::Identity<CountedQuantity<ByteUnit>>(
+            Owned::content(old(&whole)),
+            separate(
+                Owned::content(&result.left),
+                Owned::content(&result.right),
+            )
         )
     {
         let left: Region in Owned = Region { remaining: head };
