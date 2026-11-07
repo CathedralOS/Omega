@@ -361,7 +361,7 @@ impl Builder<'_, '_> {
                 place: CheckedUnitStructuralArgumentPlan {
                     projection_evaluations: Default::default(),
                     source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        value_dependency: Some(value),
+                        value_dependency: None,
                         expression: if alias.is_valid() {
                             alias
                         } else {

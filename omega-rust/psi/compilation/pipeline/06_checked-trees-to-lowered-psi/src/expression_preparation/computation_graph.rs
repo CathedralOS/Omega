@@ -719,7 +719,7 @@ pub(crate) fn produced_value_root<'checked>(
     })?;
     let values = &checked.facts.values.structural_values;
     let root = values
-        .root_for_value(value)
+        .root_for_value_home(value, expression)
         .ok_or(LoweringError::Unsupported(
             "computed structural operand has no unique authenticated value dependency",
         ))?;
