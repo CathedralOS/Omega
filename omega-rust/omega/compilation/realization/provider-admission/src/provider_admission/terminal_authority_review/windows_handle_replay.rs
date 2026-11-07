@@ -14,12 +14,14 @@ use semantic_vocabulary::{
     EdgeId, IdTable, IntegerType, IntegerValue, InvocationSite, MachineId, ScalarTerm, ScalarType,
     StructuralCaseId, StructuralTypeId, ValueId,
 };
+use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{Operation, OperationKind};
 use terminal_semantics::descriptor_lifetimes::DescriptorLocation;
 use terminal_semantics::descriptor_results::{DescriptorMachine, ResidentValueCapture};
 
 use crate::digest_encoder::DomainDigestEncoder;
 
+use super::super::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use super::context::ReviewContext;
 use super::windows_handle_aliases::{
     CapturedHandleRegion, HandleAliases, HandleStorageBacking, HandleStorageOwner,
@@ -771,7 +773,7 @@ impl CanonicalHandleState {
                 .iter()
                 .find(|(actual, ..)| *actual == ordinal)
                 .map(|(_, location, range, _)| (location, *range))
-                .ok_or("native handle protocol has no original output storage".into())
+                .ok_or("native handle protocol has no original output storage".to_owned())
         };
         let integer_result =
             operation
@@ -1854,7 +1856,7 @@ impl CanonicalHandleState {
             } else if let OperationKind::ByteSequencePredicate { .. }
             | OperationKind::ByteSequenceEqual { .. } = &operation.kind
             {
-                let operands: &[&terminal_psi::ByteSequenceOperand] = match &operation.kind {
+                let operands: &[&ByteSequenceOperand] = match &operation.kind {
                     OperationKind::ByteSequencePredicate { operand, .. } => &[operand],
                     OperationKind::ByteSequenceEqual { left, right } => &[left, right],
                     _ => unreachable!(),
@@ -1863,7 +1865,7 @@ impl CanonicalHandleState {
                 for operand in operands {
                     let argument = operand.argument();
                     let mut source = geometry.location(argument.place, &argument.path)?;
-                    if let terminal_psi::ByteSequenceOperand::Field { field, .. } = operand {
+                    if let ByteSequenceOperand::Field { field, .. } = operand {
                         source.path.push(
                             terminal_semantics::descriptor_lifetimes::DescriptorPathSegment::Field(
                                 *field,
@@ -2565,7 +2567,7 @@ pub(super) struct CheckedHandleLeaf {
 #[derive(Default)]
 pub(super) struct CheckedHandleCalls {
     leaves: IdTable<semantic_vocabulary::BoundaryMachineId, Option<Vec<CheckedHandleLeaf>>>,
-    rows: Vec<crate::provider_admission::TerminalAuthorityPolicyRow>,
+    rows: Vec<TerminalAuthorityPolicyRow>,
 }
 
 impl CheckedHandleCalls {
@@ -2576,7 +2578,7 @@ impl CheckedHandleCalls {
         self.leaves.get(boundary).and_then(Option::as_deref)
     }
 
-    pub(super) fn physical_rows(&self) -> &[crate::provider_admission::TerminalAuthorityPolicyRow] {
+    pub(super) fn physical_rows(&self) -> &[TerminalAuthorityPolicyRow] {
         &self.rows
     }
 }
@@ -2736,7 +2738,7 @@ pub(super) fn checked_calls(
                 context: occurrence.context,
             },
         };
-        rows.push(crate::provider_admission::TerminalAuthorityPolicyRow::new(
+        rows.push(TerminalAuthorityPolicyRow::new(
             mechanism,
             TerminalAuthorityDisposition::from_classes([]),
         ));
