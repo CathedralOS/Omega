@@ -19,12 +19,14 @@ pub(crate) struct CompileArguments {
     pub(crate) offline: bool,
     pub(crate) timings: bool,
     pub(crate) report_file: Option<PathBuf>,
+    pub(crate) installation_assumptions:
+        Vec<compilation_products::InstallationEnvironmentAssumption>,
     pub(crate) root_path: PathBuf,
     pub(crate) target_names: Vec<String>, // Every --target named, in first-seen order, repeats removed; empty means host default.
     pub(crate) optimization_rollback: OptimizationRollback,
 }
 
-pub(super) const USAGE: &str = "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both [--terminal-fuel-allowance <positive-u64>]] [--keep] [--entry-ram <position=hex>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--report-file writes the produced compile report as a plain-text observation file at the named path.";
+pub(super) const USAGE: &str = "usage: omega [--check] [--verify] [--offline] [--timings] [--report-file <path>] [--bootstrap-assumptions <review-record>] [--interrupt-delivery-assumptions <review-record>] [--build-dir <dir>] [--build-input <path>]... [--optional-build-input <path>]... [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>\n       omega run [--both [--terminal-fuel-allowance <positive-u64>]] [--keep] [--entry-ram <position=hex>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>\n       omega audit source --kind <local|git> <locator> [--rev <rev>]\n       omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\n       omega install|update --resume [--project <dir>] [--offline]\n       omega install|update --discard-review [--project <dir>] [--offline]\n       omega --version\n--verify (with --check) withholds the accepted lock's checkpoint and recorded trust admissions so the package re-verifies under retained source pins instead of recorded acceptance.\n--offline disables package source network acquisition for this invocation.\nrun and inspect-terminal do not support --offline.\n--entry-ram constructs checked private scalar-record RAM for an exact placed entry parameter; it supplies no host address or authority.\n--build-input and --optional-build-input select the exact build input inventory relative to the source root.\nDirectories include their subtrees; required source files must be included explicitly.\n--bootstrap-assumptions and --interrupt-delivery-assumptions supply distinct exact-entry platform assumptions; neither proves physical truth.\n--report-file writes the produced compile report as a plain-text observation file at the named path.";
 
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
@@ -38,6 +40,8 @@ pub(super) fn parse_arguments(
     let mut timings = false;
     let mut verify = false;
     let mut report_file = None;
+    let mut bootstrap_assumptions = None;
+    let mut delivery_assumptions = None;
     let mut root_path = None;
     let mut target_names: Vec<String> = Vec::new();
 
@@ -64,6 +68,52 @@ pub(super) fn parse_arguments(
 
         if argument == "--timings" {
             super::set_flag(&mut timings, "--timings")?;
+            continue;
+        }
+
+        if argument == "--bootstrap-assumptions" || argument == "--interrupt-delivery-assumptions" {
+            let delivery = argument == "--interrupt-delivery-assumptions";
+            let option_name = if delivery {
+                "--interrupt-delivery-assumptions"
+            } else {
+                "--bootstrap-assumptions"
+            };
+            let destination = if delivery {
+                &mut delivery_assumptions
+            } else {
+                &mut bootstrap_assumptions
+            };
+            if destination.is_some() {
+                return Err(format!("duplicate {option_name}"));
+            }
+            let path = option_value(&mut arguments)
+                .map(PathBuf::from)
+                .ok_or("installation assumption option requires a review record path")?;
+            let metadata = std::fs::metadata(&path).map_err(|error| {
+                format!(
+                    "cannot inspect installation assumption record {}: {error}",
+                    path.display()
+                )
+            })?;
+            if metadata.len() > 1024 * 1024 {
+                return Err("installation assumption record exceeds 1 MiB".into());
+            }
+            let bytes = std::fs::read(&path).map_err(|error| {
+                format!(
+                    "cannot read installation assumption record {}: {error}",
+                    path.display()
+                )
+            })?;
+            let rows = compilation_products::decode_installation_assumptions(&bytes)?;
+            if rows
+                .iter()
+                .any(|row| row.interrupt_delivery().is_some() != delivery)
+            {
+                return Err(format!(
+                    "{option_name} contains another kind of environment condition"
+                ));
+            }
+            *destination = Some(rows);
             continue;
         }
 
@@ -140,6 +190,9 @@ pub(super) fn parse_arguments(
     } else {
         Some(BuildSourceCaptureRequest::new(build_inputs)?)
     };
+    if check_only && (bootstrap_assumptions.is_some() || delivery_assumptions.is_some()) {
+        return Err("installation assumptions apply only to native compilation".into());
+    }
     if verify && !check_only {
         return Err("--verify requires --check".into());
     }
@@ -154,6 +207,11 @@ pub(super) fn parse_arguments(
         offline,
         timings,
         report_file,
+        installation_assumptions: bootstrap_assumptions
+            .unwrap_or_default()
+            .into_iter()
+            .chain(delivery_assumptions.unwrap_or_default())
+            .collect(),
         root_path: root_path.ok_or_else(|| "missing root Omega source path".to_owned())?,
         target_names,
         optimization_rollback,

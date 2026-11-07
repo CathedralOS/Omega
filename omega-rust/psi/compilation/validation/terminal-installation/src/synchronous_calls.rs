@@ -1,6 +1,7 @@
 //! Synchronous executable closure of a canonical Terminal callable.
 //!
-//! Stop at provider boundaries; installation joins those boundaries separately.
+//! Stop at unresolved provider boundaries. A receiving owner may supply exact
+//! admitted boundary/body relations without changing the canonical module.
 //! Code-retention roots (callbacks, dynamic table addresses, native layout
 //! requests) are not calls. Ordinary helpers, invoked dynamic slots, selected
 //! target members and cleanup hooks are calls, regardless of result shape.
@@ -29,6 +30,7 @@ pub struct SynchronousCallGraph<'module> {
     machines: BTreeMap<MachineId, &'module terminal_psi::TerminalMachine>,
     target_members: Option<&'module AdmittedTargetMachineSelections>,
     entry_bridge: Option<(BoundaryMachineId, MachineId)>,
+    boundary_calls: Vec<(BoundaryMachineId, MachineId)>,
 }
 
 impl<'module> SynchronousCallGraph<'module> {
@@ -55,13 +57,72 @@ impl<'module> SynchronousCallGraph<'module> {
             machines,
             target_members,
             entry_bridge,
+            boundary_calls: Vec::new(),
         })
     }
 
+    /// Add receiver-resolved calls without choosing or admitting a provider.
+    /// The receiver owns the policy and its artifact/target joins. This neutral
+    /// graph checks coordinates and keeps each boundary as a reached demand.
+    pub fn with_boundary_calls(
+        mut self,
+        calls: impl IntoIterator<Item = (BoundaryMachineId, MachineId)>,
+    ) -> Result<Self, String> {
+        self.boundary_calls.extend(calls);
+        self.boundary_calls
+            .sort_unstable_by_key(|(boundary, _)| *boundary);
+        for &(boundary, machine) in &self.boundary_calls {
+            if self.module.boundary_machine(boundary).is_none()
+                || !self.machines.contains_key(&machine)
+            {
+                return Err("synchronous boundary call names an absent boundary or body".into());
+            }
+        }
+        if self
+            .boundary_calls
+            .windows(2)
+            .any(|rows| rows[0].0 == rows[1].0)
+        {
+            return Err("synchronous boundary call repeats a resolved boundary".into());
+        }
+        Ok(self)
+    }
+
+    /// The exact called body at this boundary, or an opaque requirement.
+    /// Per-invocation consumers use the same resolution as closure traversal.
+    pub fn boundary_callee(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Result<Option<MachineId>, String> {
+        self.boundary_call(boundary).map(|(machine, _)| machine)
+    }
+
+    fn boundary_call(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Result<(Option<MachineId>, bool), String> {
+        if self.module.boundary_machine(boundary).is_none() {
+            return Err(format!(
+                "synchronous call names absent boundary {boundary:?}"
+            ));
+        }
+        if let Some((_, entry)) = self.entry_bridge.filter(|(head, _)| *head == boundary) {
+            return Ok((Some(entry), true));
+        }
+        match crate::admitted_boundary_member(self.module, self.target_members, boundary)? {
+            Some(TargetMachineCallable::Machine(member)) => Ok((Some(member), false)),
+            Some(TargetMachineCallable::Boundary(_)) | None => {
+                let callee = self
+                    .boundary_calls
+                    .binary_search_by_key(&boundary, |(boundary, _)| *boundary)
+                    .ok()
+                    .map(|index| self.boundary_calls[index].1);
+                Ok((callee, true))
+            }
+        }
+    }
+
     pub fn from_root(&self, root: MachineId) -> Result<SynchronousCallClosure<'module>, String> {
-        let module = self.module;
-        let target_members = self.target_members;
-        let entry_bridge = self.entry_bridge;
         let mut pending = vec![TargetMachineCallable::Machine(root)];
         let mut visited = BTreeSet::new();
         let mut machines = Vec::new();
@@ -71,25 +132,12 @@ impl<'module> SynchronousCallGraph<'module> {
                 continue;
             }
             if let TargetMachineCallable::Boundary(boundary) = callable {
-                if module.boundary_machine(boundary).is_none() {
-                    return Err(format!(
-                        "synchronous call names absent boundary {boundary:?}"
-                    ));
-                }
-                if let Some((_, entry)) = entry_bridge.filter(|(head, _)| *head == boundary) {
+                let (callee, retain_boundary) = self.boundary_call(boundary)?;
+                if retain_boundary {
                     boundaries.insert(boundary);
-                    pending.push(TargetMachineCallable::Machine(entry));
-                    continue;
                 }
-                match crate::admitted_boundary_member(module, target_members, boundary)? {
-                    Some(TargetMachineCallable::Machine(member)) => {
-                        pending.push(TargetMachineCallable::Machine(member))
-                    }
-                    // Opaque members retain the original head as their admitted
-                    // requirement. Ordinary and legacy canonical members do too.
-                    Some(TargetMachineCallable::Boundary(_)) | None => {
-                        boundaries.insert(boundary);
-                    }
+                if let Some(callee) = callee {
+                    pending.push(TargetMachineCallable::Machine(callee));
                 }
                 continue;
             }
@@ -128,12 +176,15 @@ impl<'module> SynchronousCallGraph<'module> {
                             family_actuals,
                             ..
                         } => {
-                            self.append_dynamic_calls(
-                                *interface,
-                                *slot,
-                                !family_actuals.is_empty(),
-                                &mut pending,
-                            )?;
+                            pending.extend(
+                                self.dynamic_callees(
+                                    *interface,
+                                    *slot,
+                                    !family_actuals.is_empty(),
+                                )?
+                                .into_iter()
+                                .map(TargetMachineCallable::Machine),
+                            );
                         }
                         _ => {}
                     }
@@ -146,13 +197,15 @@ impl<'module> SynchronousCallGraph<'module> {
         })
     }
 
-    fn append_dynamic_calls(
+    /// All callable rows of this exact dynamic slot/family, in catalog order.
+    /// Address roots that are not invoked are deliberately absent.
+    pub fn dynamic_callees(
         &self,
         interface_id: u32,
         slot: u32,
         finite_family: bool,
-        pending: &mut Vec<TargetMachineCallable>,
-    ) -> Result<(), String> {
+    ) -> Result<Vec<MachineId>, String> {
+        let mut callees = Vec::new();
         let catalog = &self.module.dynamic_dispatch;
         let interface = catalog
             .interface(interface_id)
@@ -180,10 +233,10 @@ impl<'module> SynchronousCallGraph<'module> {
                     continue;
                 }
                 if let Some(callee) = table.rows.get(row.slot as usize).copied().flatten() {
-                    pending.push(TargetMachineCallable::Machine(callee));
+                    callees.push(callee);
                 }
             }
         }
-        Ok(())
+        Ok(callees)
     }
 }

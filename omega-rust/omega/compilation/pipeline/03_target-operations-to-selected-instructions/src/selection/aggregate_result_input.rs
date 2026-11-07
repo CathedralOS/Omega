@@ -152,6 +152,11 @@ LegalizedScalarInstructionKind::ReloadSegmentDescriptors { gdt, scratch, .. } =>
             | LegalizedScalarInstructionKind::EstablishElementView { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::AtomicAccess { location, .. }
                 | LegalizedScalarInstructionKind::AccessorScalarAccess { location, .. } => location.place == place,
+            // Token helpers read the complete retained value, and installation
+            // passes the original storage to its guards and selected calls.
+            LegalizedScalarInstructionKind::StaticInterrupt { token, .. } => token.place == place,
+            LegalizedScalarInstructionKind::InstallStaticInterrupt { arguments, .. } =>
+                arguments.iter().any(|argument| argument.place == place),
             // Byte operations read the owner's length and backing, not a
             // pointer encoded in its first incoming register fragment.
             LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,

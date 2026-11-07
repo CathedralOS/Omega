@@ -3,7 +3,10 @@
 //! Source realization and executable publication consume the same admitted
 //! products. Optional target observations retain each application's real root
 //! against the cohort's unchanged canonical Terminal artifact.
-use super::{entry_inputs, fixture_package_inputs, terminal_execution};
+use super::{
+    entry_inputs, fixture_package_inputs, incoming_backing_controls, native_entry_controls,
+    terminal_execution,
+};
 use compiler::{CompileRequest, OptimizationRollback, RequestedCompileProduct};
 use diagnostics::Diagnostic;
 use std::path::Path;
@@ -85,6 +88,8 @@ pub(super) fn produce(
         .collect::<Vec<_>>();
     let root_path = discovered.authored_root_path.clone();
     let native = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram: entry_inputs::load(&root_path)?,
         terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
@@ -151,6 +156,10 @@ pub(super) fn produce(
             "native cohort lost its requested target product",
         )]
     })?;
+    native_entry_controls::inspect(&primary, root_path.parent().unwrap_or(&root_path))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    incoming_backing_controls::inspect(&primary, root_path.parent().unwrap_or(&root_path))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     Ok(NativeFixtureCohort {
         primary,
         companions,

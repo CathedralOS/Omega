@@ -155,8 +155,12 @@ mod checked_interpreter_dispatch;
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/incoming_backing_controls.rs"]
+mod incoming_backing_controls;
 #[path = "support/native_component_descriptions.rs"]
 mod native_component_descriptions;
+#[path = "support/native_entry_controls.rs"]
+mod native_entry_controls;
 #[path = "support/native_fixture_cohort.rs"]
 mod native_fixture_cohort;
 use native_fixture_cohort::retained_native_terminal;
@@ -1431,6 +1435,8 @@ fn check_fail_fixture(
         )?;
         let target_name = discovered.targets.first().cloned();
         let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
+        installation_assumptions: Vec::new(),
+        retain_native_inputs: false,
         image: Default::default(),
         private_entry_ram,
         terminal_authority_policy:
@@ -1765,6 +1771,18 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                 };
                 let mut integrity_error = None;
                 if let Ok((executable, receipt, private_entry_ram)) = &built {
+                    if fixture_dir
+                        .join("expected_native_cpu_state_controls.txt")
+                        .is_file()
+                    {
+                        facts.push("native-cpu-state-controls:match".to_owned());
+                    }
+                    if fixture_dir
+                        .join("expected_native_input_backing_controls.txt")
+                        .is_file()
+                    {
+                        facts.push("native-input-backing-controls:match".to_owned());
+                    }
                     if let Some(receipt) = receipt {
                         facts.push(format!("rollback:{}", space_free(receipt)));
                     }

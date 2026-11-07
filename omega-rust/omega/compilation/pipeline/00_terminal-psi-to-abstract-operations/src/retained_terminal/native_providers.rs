@@ -155,6 +155,7 @@ impl PreparedRetainedNativeProviders<'_> {
         settlements: &'request [NativeProviderSettlement<'request>],
         terminal_authority_policy: &'request TerminalAuthorityPolicy,
         receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
+        installation_assumptions: &'request [installation_evidence::InstallationEnvironmentAssumption],
     ) -> crate::NativeAdmissionRequest<'request, 'request> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
@@ -166,12 +167,18 @@ impl PreparedRetainedNativeProviders<'_> {
             behavior_exclusions: proposal.behavior_exclusions(),
             providers: ProviderAdmissionRequest {
                 profile: proposal.target_profile(),
+                bootstrap_entry: proposal.program_entry().checked_entry().terminal_entry(),
+                program_provider_context: None,
+                installation_assumptions,
                 selected_provider_plans: &self.execution.selection,
                 checked_adapters: &self.execution.local_adapters,
                 external_binding_rows: &self.execution.external_bindings,
                 settlements,
                 compiler_builtins: &self.compiler_builtins,
                 native_callbacks: self.callbacks,
+                installed_interrupts: &proposal.occurrences().installed_interrupts,
+                installed_calling: &proposal.boundary_applications().calling,
+                callback_occurrences: &proposal.occurrences().callbacks,
                 terminal_authority_policy,
                 terminal_authority_permission_policy: receiving_permissions,
                 x86_scalar_fma_provider: proposal.providers().x86_scalar_fma,

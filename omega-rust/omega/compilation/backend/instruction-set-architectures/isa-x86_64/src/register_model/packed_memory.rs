@@ -12,7 +12,7 @@ pub(super) fn append_constraints(
     constraints: &mut Vec<RegisterInstructionConstraint>,
     model: &ValidatedPhysicalRegisterModel,
 ) {
-    let Some(flags) = model.model().view_named("rflags") else {
+    let Some(flags) = model.model().view_named("condition_flags") else {
         return;
     };
     for (key, load) in [(X86_64_LOAD_PACKED, true), (X86_64_STORE_PACKED, false)] {

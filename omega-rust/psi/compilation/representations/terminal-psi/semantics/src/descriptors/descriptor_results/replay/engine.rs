@@ -1268,6 +1268,19 @@ impl<'a> Replay<'a> {
         call: &DescriptorInvocation,
         origin: &DescriptorStoredOrigin,
     ) -> Value {
+        if let DescriptorStoredOrigin::Provider(provider) = origin {
+            return self.substitute_provider(machine, state, call, provider);
+        }
+        self.substitute_actuals(machine, state, call.actual_inputs(), origin)
+    }
+
+    pub(super) fn substitute_actuals(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        actuals: DescriptorActualInputs<'_>,
+        origin: &DescriptorStoredOrigin,
+    ) -> Value {
         match origin {
             DescriptorStoredOrigin::Invocation {
                 carrier_type,
@@ -1278,9 +1291,8 @@ impl<'a> Replay<'a> {
                     projection: projection.clone(),
                 },
             )])),
-            DescriptorStoredOrigin::Provider(provider) => {
-                self.substitute_provider(machine, state, call, provider)
-            }
+            // A pre-invocation input does not inherit a provider's return contract.
+            DescriptorStoredOrigin::Provider(_) => None,
             DescriptorStoredOrigin::AccessFormation {
                 machine,
                 operation,
@@ -1314,7 +1326,7 @@ impl<'a> Replay<'a> {
                 // The formal exported its address. That address is the actual's
                 // slot. Walking the pointee contents instead demands a resident
                 // descriptor, so an access view over ordinary RAM has no origin.
-                let address = call
+                let address = actuals
                     .arguments
                     .get(*position)
                     .and_then(Option::as_ref)
@@ -1324,13 +1336,13 @@ impl<'a> Replay<'a> {
                     _ => self.read_contents(
                         machine,
                         state,
-                        call.argument_contents.get(*position)?.as_ref()?,
+                        actuals.argument_contents.get(*position)?.as_ref()?,
                     ),
                 };
                 self.project(machine, value, Some(projection))
             }
             DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
+                let mut query = actuals.argument_contents.get(*position)?.as_ref()?.clone();
                 query
                     .steps
                     .extend(path.iter().cloned().map(DescriptorContentsStep::Address));
@@ -1341,7 +1353,7 @@ impl<'a> Replay<'a> {
                 steps,
                 projection,
             } => {
-                let mut query = call.argument_contents.get(*position)?.as_ref()?.clone();
+                let mut query = actuals.argument_contents.get(*position)?.as_ref()?.clone();
                 query.steps.extend_from_slice(steps);
                 self.project(
                     machine,

@@ -50,7 +50,7 @@ impl IndependentComponentProduct {
             artifact.view().identity(),
             description_bytes.to_vec(),
         );
-        let (retained, permissions) =
+        let (retained, permissions, installation_assumptions) =
             terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
                 Arc::new(artifact),
                 native_inputs,
@@ -62,6 +62,11 @@ impl IndependentComponentProduct {
                     .collect::<Vec<_>>()
                     .join("; ")
             })?;
+        if !installation_assumptions.is_empty() {
+            return Err(
+                "component inputs cannot accept application installation conditions".into(),
+            );
+        }
         Self::new(description, retained, permissions)
             .map_err(str::to_owned)
             .map(|product| product.with_native_derivation_inputs(Ok(native_inputs.to_vec())))

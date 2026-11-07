@@ -91,8 +91,36 @@ impl TargetFloatResultPolicy {
     }
 }
 
+/// One ordinary helper call made by the guarded installation operation.
+/// Its role is part of call identity; the source operation is never duplicated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetInstallationCall {
+    pub role: crate::InstallationCallRole,
+    pub callee: MachineId,
+    pub call_plan: CallPlan,
+    pub argument: TargetStructuralArgument,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// Guarded publication retains all borrowed operands and both selected
+    /// ordinary calls. Successful work has no normal return.
+    InstallStaticInterrupt {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        arguments: [StructuralArgument; 6],
+        calls: [TargetInstallationCall; 2],
+        result_home: TargetUnitScalarHomeRequirement,
+    },
+    /// Admitted compiler operation; token bytes retain ordinary structural custody.
+    StaticInterrupt {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        operation: language_core::static_interrupts::StaticInterruptOperation,
+        token: StructuralArgument,
+        result_home: Option<TargetStructuralHomeRequirement>,
+    },
+
     AccessLifecycle {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
@@ -709,6 +737,13 @@ pub struct TargetStructuralRuntimeIndex {
 }
 
 impl TargetUnitOperation {
+    pub fn installation_operation(&self) -> Option<OperationId> {
+        match self {
+            Self::InstallStaticInterrupt { psi_operation, .. } => Some(*psi_operation),
+            _ => None,
+        }
+    }
+
     /// Exact produced value, independent of whether its storage was allocated
     /// eagerly or its descriptor payload is materialized by a later consumer.
     /// This query carries no backing permission or lifetime authority.
@@ -846,6 +881,11 @@ impl TargetUnitOperation {
             | Self::MergeActivationClaim {
                 psi_operation,
                 result_home,
+                ..
+            }
+            | Self::StaticInterrupt {
+                psi_operation,
+                result_home: Some(result_home),
                 ..
             }
             | Self::AccessLifecycle {

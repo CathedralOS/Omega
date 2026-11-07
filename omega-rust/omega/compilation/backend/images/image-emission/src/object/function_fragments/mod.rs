@@ -10,10 +10,12 @@ mod imports;
 mod mixed_scalar_abi;
 pub(crate) mod native_code_layouts;
 mod port_effects;
+mod private_addresses;
 mod production;
 pub(crate) mod replay;
 pub(crate) mod reporting;
 mod source;
+pub(crate) use source::{invocation_input_sources, selected_constant_operand};
 mod structural;
 pub(crate) mod validation;
 
@@ -33,6 +35,51 @@ pub enum FunctionFragmentObjectArtifactError {
         operation_description: String,
     },
     Mismatch(&'static str),
+    InstalledRelativeBranches {
+        machine: semantic_vocabulary::MachineId,
+        source: machine_emission::FunctionFragmentFrameApplicationError,
+    },
+    InstalledFaultSurface {
+        machine: semantic_vocabulary::MachineId,
+        instruction: selected_instructions::SelectedInstructionId,
+        detail: String,
+    },
+    InstalledMemorySource {
+        machine: semantic_vocabulary::MachineId,
+        operation: Option<semantic_vocabulary::OperationId>,
+        reason: &'static str,
+    },
+    InstallationHelperReference {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        detail: String,
+    },
+    InstallationResultDefinition {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        detail: String,
+    },
+    InstallationInterval {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        detail: String,
+    },
+    InstallationGuard {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        detail: String,
+    },
+    StructuralSourceHome {
+        machine: semantic_vocabulary::MachineId,
+        place: semantic_vocabulary::PlaceId,
+        reason: &'static str,
+    },
+    InstallationBacking {
+        machine: semantic_vocabulary::MachineId,
+        operation: semantic_vocabulary::OperationId,
+        argument: Option<usize>,
+        reason: &'static str,
+    },
     AccessBackingGeometry {
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
@@ -53,6 +100,75 @@ impl std::fmt::Display for FunctionFragmentObjectArtifactError {
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),
             Self::Unsupported(reason) | Self::Mismatch(reason) => formatter.write_str(reason),
+            Self::InstalledRelativeBranches { machine, source } => write!(
+                formatter,
+                "installed handler {machine:?} relative control: {source}",
+            ),
+            Self::InstalledFaultSurface {
+                machine,
+                instruction,
+                detail,
+            } => write!(
+                formatter,
+                "installed handler {machine:?} instruction {instruction:?} has no software-fault exclusion: {detail}"
+            ),
+            Self::InstalledMemorySource {
+                machine,
+                operation,
+                reason,
+            } => write!(
+                formatter,
+                "installed handler {machine:?} operation {operation:?} has no closed RAM source: {reason}"
+            ),
+            Self::InstallationHelperReference {
+                machine,
+                operation,
+                detail,
+            } => write!(
+                formatter,
+                "installation checked helper receives a different runtime reference at {machine:?}/{operation:?}: {detail}",
+            ),
+            Self::InstallationResultDefinition {
+                machine,
+                operation,
+                detail,
+            } => write!(
+                formatter,
+                "installation refusal result is not preserved at {machine:?}/{operation:?}: {detail}",
+            ),
+            Self::InstallationInterval {
+                machine,
+                operation,
+                detail,
+            } => write!(
+                formatter,
+                "another source operation interrupts installation validation or publication at {machine:?}/{operation:?}: {detail}",
+            ),
+            Self::InstallationGuard {
+                machine,
+                operation,
+                detail,
+            } => write!(
+                formatter,
+                "installation is missing a dominating refusal guard at {machine:?}/{operation:?}: {detail}",
+            ),
+            Self::StructuralSourceHome {
+                machine,
+                place,
+                reason,
+            } => write!(
+                formatter,
+                "structural source home at {machine:?}/{place:?}: {reason}",
+            ),
+            Self::InstallationBacking {
+                machine,
+                operation,
+                argument,
+                reason,
+            } => write!(
+                formatter,
+                "installation activation backing at {machine:?}/{operation:?}, operand {argument:?}: {reason}",
+            ),
             Self::AccessBackingGeometry {
                 machine,
                 operation,

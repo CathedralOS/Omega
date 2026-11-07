@@ -12,6 +12,10 @@
 //! descriptor's type. The physical formation check still proves that the pointer
 //! loads the original owner's base field through its retained source loan.
 
+mod activation_residence;
+mod incoming_calls;
+pub(in crate::object::function_fragments::source) use activation_residence::validate as validate_activation_residence;
+
 use abstract_operations::AbstractOperationPlan;
 use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::{MachineId, PlaceId};
@@ -24,12 +28,21 @@ use terminal_semantics::descriptor_results::{
     DescriptorSourceOrigin, descriptor_machine,
 };
 
+/// Both questions use the same exact source/caller transport. The final leaf
+/// supplies geometry for a placed interpretation or an actual activation home.
+#[derive(Clone, Copy)]
+enum BackingRequirement<'a> {
+    Placed(&'a AccessRamCorrespondence),
+    Activation,
+}
+
 pub(in crate::object::function_fragments::source) struct BackingGeometry<'a> {
     abstracted: &'a AbstractOperationPlan,
     selected: &'a SelectedInstructionPlan,
     targeted: &'a target_operations::TargetOperationPlan,
     graph: &'a [DescriptorMachine],
     analysis: DescriptorAnalysis<'a>,
+    incoming: incoming_calls::IncomingCalls,
 }
 
 /// A selected machine call whose portable graph only kept the placed formation
@@ -196,6 +209,26 @@ pub(in crate::object::function_fragments::source) fn completed_graph(
     Some(graph)
 }
 
+/// Inspect current input sources without proving allocation size, lifetime or permission.
+pub(in crate::object::function_fragments::source) fn observe_inputs(
+    source: &AbstractOperationPlan,
+    targeted: &target_operations::TargetOperationPlan,
+    caller: MachineId,
+    site: target_operations::CallSiteOwner,
+    callee: MachineId,
+    origin: &DescriptorSourceOrigin,
+) -> Result<Vec<DescriptorSourceOrigin>, &'static str> {
+    let graph = activation_residence::graph(source, targeted)
+        .ok_or("invocation input has no complete borrowed-storage graph")?;
+    let incoming = incoming_calls::IncomingCalls::new(source, targeted, &graph);
+    let index = incoming.index(caller, site, callee)?;
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(source.structural_types.as_slice(), &graph);
+    incoming
+        .substitute(index, &mut analysis, origin)
+        .map(|(_, sources)| sources)
+}
+
 impl<'a> BackingGeometry<'a> {
     pub(in crate::object::function_fragments::source) fn new(
         abstracted: &'a AbstractOperationPlan,
@@ -208,6 +241,7 @@ impl<'a> BackingGeometry<'a> {
             selected,
             targeted,
             graph,
+            incoming: incoming_calls::IncomingCalls::new(abstracted, targeted, graph),
             analysis: DescriptorAnalysis::with_reference_slots(
                 abstracted.structural_types.as_slice(),
                 graph,
@@ -283,7 +317,12 @@ impl<'a> BackingGeometry<'a> {
                 return Err("formation source has no backing alternatives");
             }
             for origin in alternatives {
-                self.origin(machine, origin, required, &mut Vec::new())?;
+                self.origin(
+                    machine,
+                    origin,
+                    BackingRequirement::Placed(required),
+                    &mut Vec::new(),
+                )?;
             }
         }
         Ok(())
@@ -293,7 +332,7 @@ impl<'a> BackingGeometry<'a> {
         &mut self,
         machine: MachineId,
         origin: DescriptorSourceOrigin,
-        required: &AccessRamCorrespondence,
+        required: BackingRequirement<'_>,
         pending: &mut Vec<(MachineId, DescriptorSourceOrigin)>,
     ) -> Result<(), &'static str> {
         if pending
@@ -335,46 +374,15 @@ impl<'a> BackingGeometry<'a> {
             // alternative must reach a real allocation, never merely a cycle.
             pending.push((machine, origin.clone()));
             let mut incoming = false;
-            for caller in &self.targeted.functions {
-                for operation in caller.graph.operations() {
-                    let operation = match operation {
-                        target_operations::TargetUnitOperation::Call {
-                            target,
-                            psi_operation,
-                            ..
-                        } if target.machine() == Some(machine) => *psi_operation,
-                        target_operations::TargetUnitOperation::CleanupCall { callee, .. }
-                            if *callee == machine =>
-                        {
-                            return Err("cleanup arrival has no reconstructed backing observation");
-                        }
-                        _ => continue,
-                    };
-                    // Census selected callers first: a boundary call must not
-                    // disappear merely because its portable graph is opaque.
-                    let caller_graph = descriptor_machine(self.graph, caller.machine)
-                        .ok_or("selected caller has no reference-origin graph")?;
-                    let mut calls = caller_graph
-                        .calls
-                        .iter()
-                        .filter(|(_, call)| call.operation == operation);
-                    let (Some((position, call)), None) = (calls.next(), calls.next()) else {
-                        return Err("selected call has no unique reference-origin observation");
-                    };
-                    if call.callee() != Some(machine) {
-                        return Err("selected target differs from the reference-origin call");
-                    }
-                    incoming = true;
-                    let alternatives = self
-                        .analysis
-                        .substitute_call_source(caller.machine, *position, &origin)
-                        .ok_or("call argument has no complete backing substitution")?;
-                    if alternatives.is_empty() {
-                        return Err("call argument has no backing alternatives");
-                    }
-                    for alternative in alternatives {
-                        self.origin(caller.machine, alternative, required, pending)?;
-                    }
+            for index in self.incoming.range(machine) {
+                // Borrow the prepared row only for substitution. Recursion then
+                // follows its owned alternatives without cloning the caller roster.
+                let (caller, alternatives) =
+                    self.incoming
+                        .substitute(index, &mut self.analysis, &origin)?;
+                incoming = true;
+                for alternative in alternatives {
+                    self.origin(caller, alternative, required, pending)?;
                 }
             }
             pending.pop();
@@ -388,6 +396,32 @@ impl<'a> BackingGeometry<'a> {
             &origin
         else {
             return Err("incoming contents did not resolve to an actual backing");
+        };
+        let required = match required {
+            BackingRequirement::Activation => {
+                if !projection.exact || projection.indirect {
+                    return Err("activation backing has unresolved pointer traversal");
+                }
+                let target = self
+                    .targeted
+                    .functions
+                    .iter()
+                    .find(|row| row.machine == machine)
+                    .ok_or("activation origin has no selected target body")?;
+                let selected = self
+                    .selected
+                    .function(machine)
+                    .ok_or("activation origin has no physical allocation")?;
+                let (_, home) = super::super::structural_homes::resolve(target, selected, source)?;
+                return match home {
+                    super::super::structural_homes::SourceHome::Allocation {
+                        indirect: false,
+                        ..
+                    } => Ok(()),
+                    _ => Err("activation origin names a pointer carrier rather than owned backing"),
+                };
+            }
+            BackingRequirement::Placed(required) => required,
         };
         if !projection.exact
             || projection.indirect

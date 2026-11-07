@@ -11,7 +11,8 @@ public DescriptorCalling satisfies CallingPolicy {
             true -> accepted(signature)
             _ -> rejected()
         }
-        machine accepted(signature: BoundarySignature) -> BoundaryPlanResult {
+        machine accepted(signature: BoundarySignature) -> BoundaryPlanResult
+        requires signature.callback_demand_count <= 1 {
             let mut plan: BoundaryEntryPlan;
             plan.call.parameter_count = 1;
             plan.call.parameters[0] = CallbackPolicy::word();
@@ -20,7 +21,10 @@ public DescriptorCalling satisfies CallingPolicy {
             plan.call.callback_materialization_count = signature.callback_demand_count;
             plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
             plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
-            BoundaryPlanResult::Accepted { plan: CallbackPolicy::finish(plan) }
+            let mut selected: BoundaryEntryPlan = CallbackPolicy::finish(plan);
+            // Preserve v31 for callbacks; the registrar keeps all 42 native clobbers.
+            selected.call.ordinary_clobbers.register_count = 41u64 + signature.callback_demand_count;
+            BoundaryPlanResult::Accepted { plan: selected }
         }
         machine rejected() -> BoundaryPlanResult {
             BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one word parameter and result required" } }
@@ -115,6 +119,8 @@ machine CallbackPolicy::finish(output: BoundaryEntryPlan) -> BoundaryEntryPlan {
     plan.call.ordinary_clobbers.registers[41] = MachineRegister::Aarch64V { index: 31 };
     plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
     plan.state.permitted_transitive_use.general_registers = true;
+    plan.state.permitted_transitive_use.instruction_pointer = true;
+    plan.state.permitted_transitive_use.stack_pointer = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
     plan.state.stack = EntryStack::ProviderSelected;

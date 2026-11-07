@@ -52,7 +52,7 @@ pub use control_flow::{
 };
 pub mod provenance;
 mod reference_root;
-pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
+pub use provenance::{CallSiteOwner, InstallationCallRole, TerminalPsiProvenance};
 pub use reference_root::ReferenceRoot;
 pub mod boundary;
 mod boundary_origins;
@@ -76,7 +76,8 @@ pub use descriptor_input::{
 };
 pub mod operations;
 pub use operations::{
-    NativeCallOrigin, TargetFloatResultPolicy, TargetStructuralRuntimeIndex, TargetUnitOperation,
+    NativeCallOrigin, TargetFloatResultPolicy, TargetInstallationCall,
+    TargetStructuralRuntimeIndex, TargetUnitOperation,
 };
 pub mod values;
 pub use values::{

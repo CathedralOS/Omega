@@ -87,12 +87,28 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     /// admission needs no application-entry authority: private callback bodies
     /// consume the same operation without impersonating a ProgramEntry.
     pub profile: target::TargetProfile,
+    pub bootstrap_entry: semantic_vocabulary::MachineId,
+    /// The successful program admission's choices, used only to inspect the
+    /// original assumption entry during private-body realization. Executed
+    /// providers and authority continue to come from this invocation's plan.
+    pub program_provider_context:
+        Option<&'request std::sync::Arc<super::AdmittedProgramProviderContext>>,
+    pub installation_assumptions:
+        &'request [installation_evidence::InstallationEnvironmentAssumption],
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
     pub compiler_builtins: &'request [NativeCompilerBuiltinSettlement<'request>],
     pub native_callbacks: &'request [crate::NativeCallbackArgumentProposal],
+    /// Proposed installed code entries, separate from foreign-call arguments.
+    pub installed_interrupts: &'request [crate::InstalledInterruptNativeEntryProposal],
+    /// Complete original body/placement associations, including occurrences
+    /// outside the current private body's executable scope.
+    pub callback_occurrences: &'request [backend_plan::TerminalCallbackOccurrenceProposal],
+    /// Independently retained target Calling selections used to authenticate
+    /// installation proposals; a proposal cannot authenticate its own copy.
+    pub installed_calling: &'request [calling_conventions::BoundaryCallingApplication],
     pub terminal_authority_policy: &'request TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: &'request Option<TerminalAuthorityPermissionPolicy>,
     /// Build-admitted AVX+FMA3 provider for this exact profile, if any.

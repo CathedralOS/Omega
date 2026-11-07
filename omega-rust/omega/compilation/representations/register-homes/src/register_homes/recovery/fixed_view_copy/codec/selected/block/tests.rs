@@ -185,6 +185,62 @@ fn operation_trap_codec_retains_its_owner_without_an_authored_crash_edge() {
 }
 
 #[test]
+fn operation_invocation_codec_keeps_nonreturn_and_exact_source_operation() {
+    use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
+    use selected_instructions::{
+        SelectedBlock, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+        SelectedInstructionProvenance, SelectedTerminator,
+    };
+    let operation = semantic_vocabulary::OperationId::new(9).unwrap();
+    let mut block = SelectedBlock {
+        id: SelectedBlockId(2),
+        origin: SelectedBlockOrigin::Operation {
+            source: BlockId::new(1).unwrap(),
+            operation,
+        },
+        instructions: Vec::new(),
+        terminator: SelectedTerminator::OperationInvokeNoNormal {
+            operation,
+            instruction: SelectedInstruction {
+                id: SelectedInstructionId(3),
+                kind: SelectedInstructionKind::InvokeNoNormal {
+                    target: selected_instructions::SelectedCallTarget::Machine(
+                        semantic_vocabulary::MachineId::new(4).unwrap(),
+                    ),
+                },
+                constraint: RegisterConstraintKey {
+                    family: RegisterConstraintFamily::Instruction,
+                    variant: 0,
+                },
+                operands: Vec::new(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance {
+                    operations: vec![operation],
+                    ..Default::default()
+                },
+            },
+        },
+    };
+    let mut encoded = Vec::new();
+    encode_block(&mut encoded, &block);
+    let mut cursor = Cursor::new(&encoded);
+    let decoded = decode_block(&mut cursor).unwrap();
+    assert_eq!(decoded, block);
+    assert_eq!(cursor.remaining(), 0);
+    assert!(selected_instructions::terminator_successors(&decoded.terminator).is_empty());
+    let SelectedTerminator::OperationInvokeNoNormal { operation, .. } = &mut block.terminator
+    else {
+        panic!("work call");
+    };
+    *operation = semantic_vocabulary::OperationId::new(10).unwrap();
+    let mut changed = Vec::new();
+    encode_block(&mut changed, &block);
+    assert_ne!(encoded, changed);
+}
+
+#[test]
 fn crash_block_codec_retains_exact_cause_guards_frontier_and_fuel() {
     use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
     use selected_instructions::{

@@ -235,6 +235,40 @@ fn authorized_locations(
     if live.contains(&birth) {
         return BTreeMap::new();
     }
+    transported_locations(steps, birth, descriptor, false, false)
+}
+
+/// Reuse the must-transport relation for an independently authenticated value
+/// graph. The adapter owns identity edges; descriptor alias edges alone are
+/// insufficient. Value writes also retire identities of containing values.
+pub(crate) fn value_locations(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    establishment: DescriptorPosition,
+    value: &DescriptorLocation,
+    at_entry: bool,
+) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
+    if !at_entry {
+        let live = descriptor_location_live_positions(steps, establishment, value);
+        if live.contains(&establishment)
+            || !steps.get(&establishment).is_some_and(|step| {
+                step.definitions
+                    .iter()
+                    .any(|definition| definition.contains(value))
+            })
+        {
+            return BTreeMap::new();
+        }
+    }
+    transported_locations(steps, establishment, value, at_entry, true)
+}
+
+fn transported_locations(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    at_entry: bool,
+    invalidate_containers: bool,
+) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
     let mut predecessors =
         BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();
     for (position, step) in steps {
@@ -249,6 +283,9 @@ fn authorized_locations(
         .keys()
         .map(|position| (*position, BTreeSet::new()))
         .collect::<BTreeMap<_, _>>();
+    if at_entry {
+        established.insert(birth, BTreeSet::from([descriptor.clone()]));
+    }
     loop {
         let mut changed = false;
         for position in steps.keys().copied() {
@@ -269,11 +306,17 @@ fn authorized_locations(
                             step.authority_derivations
                                 .iter()
                                 .map(|(source, destination)| (source, destination)),
+                            invalidate_containers,
                         );
-                        if *predecessor == birth {
+                        if !at_entry && *predecessor == birth {
                             after.insert(descriptor.clone());
                         }
-                        transport_authority(&after, &edge.parameters, edge.derivations())
+                        transport_authority(
+                            &after,
+                            &edge.parameters,
+                            edge.derivations(),
+                            invalidate_containers,
+                        )
                     });
             let mut current = incoming.next().unwrap_or_default();
             for other in incoming {
@@ -300,13 +343,15 @@ fn transport_authority<'locations>(
             &'locations DescriptorLocation,
         ),
     >,
+    invalidate_containers: bool,
 ) -> BTreeSet<DescriptorLocation> {
     let mut after = before
         .iter()
         .filter(|location| {
-            !definitions
-                .iter()
-                .any(|definition| definition.contains(location))
+            !definitions.iter().any(|definition| {
+                definition.contains(location)
+                    || (invalidate_containers && location.contains(definition))
+            })
         })
         .cloned()
         .collect::<BTreeSet<_>>();

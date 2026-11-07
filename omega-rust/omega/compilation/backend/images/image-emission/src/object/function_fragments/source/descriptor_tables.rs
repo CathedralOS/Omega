@@ -237,7 +237,11 @@ impl<'a> DescriptorReplay<'a> {
         selected: &'a SelectedFunction,
     ) -> Result<Self, &'static str> {
         let mut operations = Vec::new();
+        let mut installations = Vec::new();
         for row in target.graph.operations() {
+            if let TargetUnitOperation::InstallStaticInterrupt { psi_operation, .. } = row {
+                installations.push(*psi_operation);
+            }
             if let Some(operation) = target_operation(row)? {
                 operations.push(operation);
             }
@@ -248,6 +252,14 @@ impl<'a> DescriptorReplay<'a> {
             .any(|pair| pair[0].operation == pair[1].operation)
         {
             return Err("descriptor operation has duplicate target rows");
+        }
+        installations.sort_unstable();
+        if installations.windows(2).any(|pair| pair[0] == pair[1])
+            || operations
+                .iter()
+                .any(|row| installations.binary_search(&row.operation).is_ok())
+        {
+            return Err("descriptor hardware owner has duplicate target operations");
         }
         let mut hardware = Vec::new();
         for row in selected.instructions() {
@@ -267,10 +279,8 @@ impl<'a> DescriptorReplay<'a> {
                 let dedicated = operations
                     .binary_search_by_key(operation, |row| row.operation)
                     .is_ok();
-                if !dedicated {
-                    return Err(
-                        "descriptor hardware instruction has no descriptor source operation",
-                    );
+                if !dedicated_descriptor_owner(dedicated, &installations, *operation)? {
+                    continue;
                 }
                 hardware.push((*operation, row));
             }
@@ -508,6 +518,22 @@ impl<'a> DescriptorReplay<'a> {
             Some(Definition::Unique(instruction)) => Ok(instruction),
             _ => Err("descriptor operand has no unique register definition"),
         }
+    }
+}
+
+/// Scope's descriptor instructions belong to its complete installation replay.
+/// Every other descriptor instruction needs its own dedicated source operation.
+fn dedicated_descriptor_owner(
+    dedicated: bool,
+    installations: &[OperationId],
+    operation: OperationId,
+) -> Result<bool, &'static str> {
+    if dedicated {
+        Ok(true)
+    } else if installations.binary_search(&operation).is_ok() {
+        Ok(false)
+    } else {
+        Err("descriptor hardware instruction has no descriptor or installation source operation")
     }
 }
 

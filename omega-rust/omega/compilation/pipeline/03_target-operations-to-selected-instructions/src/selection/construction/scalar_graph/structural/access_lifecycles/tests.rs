@@ -40,7 +40,15 @@ pub(super) fn with_builder(
         scalar_functions: vec![],
     };
     let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(&program);
+    let installed_interrupts =
+        provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
+    let interrupt_helpers =
+        crate::installed_interrupts::PreparedHelperCohort::new(&installed_interrupts);
     let mut builder = Builder {
+        installed_interrupts: &installed_interrupts,
+        installed_stack_requirements: &[],
+        installed_entry_execution: None,
+        interrupt_helpers: &interrupt_helpers,
         backings: &backings,
         environment: &environment,
         pending_provenance: SelectedInstructionProvenance::default(),
@@ -290,7 +298,10 @@ fn failed_operation_assertion_traps_without_a_source_edge_or_continuation() {
                     builder,
                     row,
                     ImageHome {
-                        storage: fragmented_scalar::StorageAccess::Place(&[]),
+                        storage: fragmented_scalar::StorageAccess::Place {
+                            indices: &[],
+                            byte_offset: 0,
+                        },
                         place,
                         pointer,
                         byte_offset: 0,
@@ -384,7 +395,10 @@ fn operation_owned_nested_loops_execute_without_semantic_edges() {
                 let place = PlaceId::new(19).unwrap();
                 let pointer = fragmented_scalar::constant(builder, row, place, 0).unwrap();
                 let home = ImageHome {
-                    storage: fragmented_scalar::StorageAccess::Place(&[]),
+                    storage: fragmented_scalar::StorageAccess::Place {
+                        indices: &[],
+                        byte_offset: 0,
+                    },
                     place,
                     pointer,
                     byte_offset: 0,
@@ -635,7 +649,10 @@ fn resident_fragment_transfer_preserves_unrelated_output_bits() {
                 pointer,
                 2,
                 &output,
-                fragmented_scalar::StorageAccess::Place(&[]),
+                fragmented_scalar::StorageAccess::Place {
+                    indices: &[],
+                    byte_offset: 0,
+                },
                 decoded,
                 None,
             )
@@ -969,7 +986,10 @@ fn resident_complete_image_stages_commits_and_decodes_without_touching_rejected_
                 let output = PlaceId::new(11).unwrap();
                 let value_pointer = fragmented_scalar::constant(builder, row, owner, 0).unwrap();
                 let value = ImageHome {
-                    storage: fragmented_scalar::StorageAccess::Place(&[]),
+                    storage: fragmented_scalar::StorageAccess::Place {
+                        indices: &[],
+                        byte_offset: 0,
+                    },
                     place: owner,
                     pointer: value_pointer,
                     byte_offset: 5,
@@ -995,13 +1015,19 @@ fn resident_complete_image_stages_commits_and_decodes_without_touching_rejected_
                         builder,
                         &plan,
                         ImageHome {
-                            storage: fragmented_scalar::StorageAccess::Place(&[]),
+                            storage: fragmented_scalar::StorageAccess::Place {
+                                indices: &[],
+                                byte_offset: 0,
+                            },
                             place: owner,
                             pointer: backing,
                             byte_offset: 0,
                         },
                         ImageHome {
-                            storage: fragmented_scalar::StorageAccess::Place(&[]),
+                            storage: fragmented_scalar::StorageAccess::Place {
+                                indices: &[],
+                                byte_offset: 0,
+                            },
                             place: output,
                             pointer: output_pointer,
                             byte_offset: 0,
@@ -1097,7 +1123,10 @@ fn resident_authored_value_codec_keeps_signed_fields_fragments_and_array_strides
             let scratch = owner;
             let result = PlaceId::new(11).unwrap();
             let value = ImageHome {
-                storage: fragmented_scalar::StorageAccess::Place(&[]),
+                storage: fragmented_scalar::StorageAccess::Place {
+                    indices: &[],
+                    byte_offset: 0,
+                },
                 place: owner,
                 pointer: fragmented_scalar::constant(builder, row, owner, 0).unwrap(),
                 byte_offset: 0,
@@ -1106,7 +1135,10 @@ fn resident_authored_value_codec_keeps_signed_fields_fragments_and_array_strides
             initialization::stage_image(&types, builder, row, &plan, value, staged).unwrap();
             let staged_end = builder.instructions.len();
             let restored = ImageHome {
-                storage: fragmented_scalar::StorageAccess::Place(&[]),
+                storage: fragmented_scalar::StorageAccess::Place {
+                    indices: &[],
+                    byte_offset: 0,
+                },
                 place: result,
                 pointer: fragmented_scalar::constant(builder, row, result, 128).unwrap(),
                 byte_offset: 0,

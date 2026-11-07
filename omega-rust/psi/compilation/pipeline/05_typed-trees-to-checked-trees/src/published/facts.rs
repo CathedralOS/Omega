@@ -547,6 +547,48 @@ fn finish_check_facts(
         static_machine_selections.nominal_uses,
         &contract_plans,
     )?;
+    let mut installed_interrupt_registrations = Vec::new();
+    let mut next_callback_index = nominal_machine_uses.uses.len();
+    for registration in static_machine_selections.installed_interrupt_registrations {
+        // Reuse the same envelope, crash-refinement and entry-resource sealing
+        // as ordinary callback arguments, but retain the installation subject.
+        let mut callbacks =
+            build_nominal_machine_use_facts(program, registration.nominal_uses, &contract_plans)?;
+        for callback in &mut callbacks.uses {
+            callback.application_index = u32::try_from(next_callback_index).map_err(|_| {
+                vec![diagnostics::Diagnostic::error(
+                    "installation callback count exceeds u32",
+                )]
+            })?;
+            next_callback_index += 1;
+        }
+        installed_interrupt_registrations.push(
+            checked_trees::CheckedInstalledInterruptRegistration {
+                site: match registration.site {
+                    validation::ValidatedNominalMachineUseSite::Statement(site) => {
+                        checked_trees::NominalMachineUseSite::Statement(site)
+                    }
+                    validation::ValidatedNominalMachineUseSite::Expression(site) => {
+                        checked_trees::NominalMachineUseSite::Expression(site)
+                    }
+                },
+                control_service: registration.control_service,
+                application: registration.application,
+                target: registration.target,
+                registrar_owner: registration.registrar_owner,
+                registrar_application_identity: registration.registrar_application_identity,
+                registrar_declaring_application: registration.registrar_declaring_application,
+                registrar_arguments: registration.registrar_arguments,
+                registrar_lifetimes: registration.registrar_lifetimes,
+                timer_slot: registration.timer_slot,
+                slot_application: registration.slot_application,
+                callbacks,
+                specializations: build_requirement_call_specialization_facts(
+                    registration.specializations,
+                )?,
+            },
+        );
+    }
     // A structural machine-parameter contract emits no nominal use row, so
     // the specialization MP2b derived at its call edge survives only here.
     let requirement_call_specializations = build_requirement_call_specialization_facts(
@@ -644,6 +686,7 @@ fn finish_check_facts(
             domains,
             dynamic_conformances,
             nominal_machine_uses,
+            installed_interrupt_registrations,
             requirement_call_specializations,
             operators,
             capabilities,

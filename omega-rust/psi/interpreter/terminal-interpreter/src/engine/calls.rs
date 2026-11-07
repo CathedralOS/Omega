@@ -320,6 +320,15 @@ impl<'artifact> TerminalExecution<'artifact> {
             self.release_empty_run(operation, boundary_declaration)?;
             return Ok(OperationFlow::Advance);
         }
+        if boundary_declaration
+            .declaration
+            .as_ref()
+            .is_some_and(|callable| callable.execution.static_interrupt_operation().is_some())
+        {
+            // CPU installation requires native admission of its exact roots
+            // and arrival; a host callback cannot substitute for it.
+            return Err(malformed());
+        }
         // A compiler primitive's completion is not a selectable assertion.
         // Until its execution binds the live extent, completed profile call
         // and actual backing, neither a checked adapter nor a host handler may

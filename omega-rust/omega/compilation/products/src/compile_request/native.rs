@@ -25,6 +25,11 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// against exact supplied rows.
 #[derive(Clone)]
 pub struct NativeProductRequest {
+    /// Save the original checked inputs for later source-free native compilation.
+    /// Ordinary compilation leaves this off and performs no serialization.
+    pub retain_native_inputs: bool,
+    /// Explicit caller assumptions for exact installation intervals.
+    pub installation_assumptions: Vec<crate::InstallationEnvironmentAssumption>,
     pub image: NativeImageDemand,
     pub private_entry_ram: Vec<terminal_installation::PrivateEntryRamInitialization>,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
@@ -42,4 +47,40 @@ pub enum NativeImageDemand {
     #[default]
     Emit,
     RuntimeAdmissionOnly,
+}
+
+/// Check the complete caller roster before projecting target-local requests.
+/// A row for an unrequested target is an error, never silently discarded.
+pub fn validate_installation_assumption_targets(
+    rows: &[crate::InstallationEnvironmentAssumption],
+    targets: &[target::TargetProfile],
+) -> Result<(), String> {
+    for row in rows {
+        row.validate_description()?;
+        if !targets.contains(&row.profile()) {
+            return Err(format!(
+                "installation assumption names unrequested target {}",
+                row.profile().target_name()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Partition the already typed request once, retaining caller order within each
+/// selected target. Exact artifact, entry and operation joins remain native work.
+pub fn partition_installation_assumptions(
+    rows: Vec<crate::InstallationEnvironmentAssumption>,
+    targets: &[target::TargetProfile],
+) -> Result<Vec<Vec<crate::InstallationEnvironmentAssumption>>, String> {
+    validate_installation_assumption_targets(&rows, targets)?;
+    let mut groups = vec![Vec::new(); targets.len()];
+    for row in rows {
+        let position = targets
+            .iter()
+            .position(|target| *target == row.profile())
+            .ok_or("installation assumption lost its validated target")?;
+        groups[position].push(row);
+    }
+    Ok(groups)
 }

@@ -17,6 +17,8 @@ target = { path = "../../../backend/target" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 optimization-unit = { path = "../../abstract-operations/optimization-unit" }
+target-operations = { path = "../../target-operations" }
 
 [dev-dependencies]
-target-operations = { path = "../../target-operations" }
+calling-conventions = { path = "../../../backend/calling-conventions" }
+legalized-operations = { path = "../../target-operations/legalized-operations" }

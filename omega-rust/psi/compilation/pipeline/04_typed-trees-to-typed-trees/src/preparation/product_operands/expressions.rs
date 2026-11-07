@@ -364,6 +364,7 @@ impl Lower<'_> {
                     static_requirement_dispatch: None,
                     quotient_operation: None,
                     private_layout_operation: None,
+                    installed_interrupt_operation: None,
                     layout_query: None,
                     native_code_layout: None,
                 })

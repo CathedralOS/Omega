@@ -17,6 +17,7 @@
 mod application;
 mod compile;
 mod components;
+mod installation_environment;
 mod observations;
 mod pipeline;
 mod preparation;
@@ -30,6 +31,10 @@ mod pipeline_boundary;
 pub use application::{TerminalApplication, admit_package_permissions};
 pub use compile::{admit_runtime, compile};
 pub use components::ComponentCompilation;
+pub use installation_evidence::{
+    BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
+    InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
+};
 pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
 pub use preparation::{PreparedNativeCompilation, prepare};
 pub use realization::RealizedNativeProduct;
@@ -39,5 +44,6 @@ pub use terminal_psi_to_abstract_operations::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
 };
 pub use terminal_psi_to_abstract_operations::{
-    ComponentExportInput, ComponentNativeInputs, retain_native_derivation_inputs,
+    ComponentExportInput, ComponentNativeInputs, decode_installation_assumptions,
+    encode_installation_assumptions, retain_native_derivation_inputs,
 };

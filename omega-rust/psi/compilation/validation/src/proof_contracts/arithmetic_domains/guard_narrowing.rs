@@ -203,6 +203,12 @@ pub(crate) fn requires_value_environment(
         }
     });
     for parameter in program.state_parameters(entry_state) {
+        super::record_admitted_integer_fields(
+            program,
+            &mut environment,
+            &ordered_values::Operand::parameter(parameter),
+            parameter.type_reference,
+        );
         super::record_declared_float_fields(
             program,
             &mut environment,

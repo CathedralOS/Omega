@@ -23,6 +23,7 @@ nominal_identity!(
     calling_conventions::LayoutPlanId,
     calling_conventions::LayoutSlotId,
     semantic_vocabulary::MachineId,
+    semantic_vocabulary::OperationId,
     semantic_vocabulary::BoundaryMachineId,
 );
 

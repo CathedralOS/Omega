@@ -196,6 +196,12 @@ pub enum SelectedTerminator {
         instruction: SelectedInstruction,
         psi_edge: EdgeId,
     },
+    /// An operation's admitted helper keeps this activation suspended. Its
+    /// exact role remains in the call contract; there is no authored edge.
+    OperationInvokeNoNormal {
+        instruction: SelectedInstruction,
+        operation: OperationId,
+    },
     /// Failed runtime assertion inside a native operation's implementation.
     /// This has no normal continuation, authored Crash edge, or custody exit.
     /// The containing operation owns the failure and its abandoned state.
@@ -361,6 +367,7 @@ macro_rules! terminator_instruction_match {
     ($terminator:expr) => {
         match $terminator {
             SelectedTerminator::InvokeNoNormal { instruction, .. }
+            | SelectedTerminator::OperationInvokeNoNormal { instruction, .. }
             | SelectedTerminator::ConditionalBranch { instruction, .. }
             | SelectedTerminator::ConditionalBranchU64LessThan { instruction, .. }
             | SelectedTerminator::ConditionalBranchI64LessThan { instruction, .. }
@@ -413,6 +420,7 @@ macro_rules! terminator_successors_match {
                 ..
             } => vec![when_less, when_not_less],
             SelectedTerminator::InvokeNoNormal { .. }
+            | SelectedTerminator::OperationInvokeNoNormal { .. }
             | SelectedTerminator::Return { .. }
             | SelectedTerminator::Crash { .. }
             | SelectedTerminator::OperationTrap { .. }
@@ -438,6 +446,7 @@ pub fn terminator_successors_mut(
 macro_rules! terminator_no_successor_pattern {
     ($($fields:tt)*) => {
         $crate::SelectedTerminator::InvokeNoNormal { $($fields)* }
+            | $crate::SelectedTerminator::OperationInvokeNoNormal { $($fields)* }
             | $crate::SelectedTerminator::Crash { $($fields)* }
             | $crate::SelectedTerminator::OperationTrap { $($fields)* }
             | $crate::SelectedTerminator::HostedExitProcess { $($fields)* }
