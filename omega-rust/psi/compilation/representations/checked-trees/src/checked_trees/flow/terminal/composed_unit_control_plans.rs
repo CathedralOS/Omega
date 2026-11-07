@@ -84,6 +84,7 @@ pub fn state_position(
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedGuardedReturnValue {
     pub statement_ordinal: u32,
+    pub is_continuation: bool,
     pub transition_target: typed_trees::statement::TransitionTargetHandle,
     pub operation: CheckedUnitEffectOperationPlan,
     pub copied_payloads: arena::HandleSpan<crate::FlowOperandFact>,
@@ -428,25 +429,32 @@ impl CheckedComposedUnitControlTerminatorPlan {
                 fallback,
                 return_values,
             } => {
-                let normal = |destination: &CheckedScalarBranchDestination| match destination {
-                    CheckedScalarBranchDestination::Crash { .. }
-                    | CheckedScalarBranchDestination::InvokeNoNormal { .. } => false,
-                    CheckedScalarBranchDestination::Return {
-                        statement_ordinal, ..
-                    } => return_values
-                        .iter()
-                        .find(|operation| {
-                            operation.operation.source_statement_index() == Some(*statement_ordinal)
-                        })
-                        .is_none_or(|returned| returned.operation.has_normal_continuation()),
-                    CheckedScalarBranchDestination::Jump(_) => true,
-                };
-                guarded_exits
-                    .exits
-                    .span(*arms)?
+                let arms = guarded_exits.exits.span(*arms)?;
+                if return_values.len() != arms.len() + usize::from(fallback.is_some()) {
+                    return None;
+                }
+                let destinations = arms
                     .iter()
-                    .any(|arm| normal(&arm.destination))
-                    || fallback.as_ref().is_some_and(normal)
+                    .map(|arm| &arm.destination)
+                    .chain(fallback.iter());
+                let mut normal = false;
+                for (destination, returned) in destinations.zip(return_values) {
+                    let CheckedScalarBranchDestination::Return {
+                        statement_ordinal,
+                        is_continuation,
+                    } = destination
+                    else {
+                        return None;
+                    };
+                    if returned.statement_ordinal != *statement_ordinal
+                        || returned.is_continuation != *is_continuation
+                        || returned.operation.source_statement_index() != Some(*statement_ordinal)
+                    {
+                        return None;
+                    }
+                    normal |= returned.operation.has_normal_continuation();
+                }
+                normal
             }
             Self::ConditionalCompletion {
                 when_true,

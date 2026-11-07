@@ -109,6 +109,22 @@ pub(super) fn guarded(
     if arms.first()?.guard_statement_ordinal as usize != start {
         return None;
     }
+    let flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let mut outgoing = std::collections::BTreeMap::new();
+    for row in facts.flow.control.outgoing.span(flow.outgoing)? {
+        if row.machine_symbol != machine.symbol || row.state_symbol != state.symbol {
+            return None;
+        }
+        let target = row.transition_target;
+        outgoing
+            .entry((
+                row.statement_index,
+                target.arena_index(),
+                target.generation(),
+            ))
+            .and_modify(|captured| *captured = None)
+            .or_insert(Some(row.copied_payloads));
+    }
     let mut count = next_result_ordinal(operations)?;
     let mut return_values = Vec::new();
     let mut preamble = Vec::new();
@@ -150,23 +166,14 @@ pub(super) fn guarded(
                 }
                 _ => return None,
             };
-        let flow = state_flow(facts, machine.symbol, state.symbol)?;
-        let mut outgoing = facts
-            .flow
-            .control
-            .outgoing
-            .span(flow.outgoing)?
-            .iter()
-            .filter(|row| {
-                row.machine_symbol == machine.symbol
-                    && row.state_symbol == state.symbol
-                    && row.statement_index == *statement_ordinal as usize
-                    && row.transition_target == target
-            });
-        let copied_payloads = outgoing.next()?.copied_payloads;
-        if outgoing.next().is_some() {
-            return None;
-        }
+        let copied_payloads = outgoing
+            .get(&(
+                *statement_ordinal as usize,
+                target.arena_index(),
+                target.generation(),
+            ))
+            .copied()
+            .flatten()?;
         for copy in facts.flow.control.operands.span(copied_payloads)? {
             if copy.state_symbol != state.symbol
                 || copy.statement_index != *statement_ordinal as usize
@@ -202,6 +209,7 @@ pub(super) fn guarded(
         )?;
         return_values.push(checked_trees::CheckedGuardedReturnValue {
             statement_ordinal: *statement_ordinal,
+            is_continuation: *is_continuation,
             transition_target: target,
             operation,
             copied_payloads,
