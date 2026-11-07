@@ -126,6 +126,12 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
         None
     }
 
+    /// Program-fixed statement positions of expressions, built once per
+    /// invocation. Callers check it with `StatementSites::for_program`.
+    fn statement_sites(&self) -> Option<&crate::statement_sites::StatementSites> {
+        None
+    }
+
     /// Cleanup-complete effects are an explicit input to the later checking
     /// phase. Source preparation has no such input and infers source effects.
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
@@ -260,6 +266,7 @@ pub struct CheckingContext<'program> {
     memos: Arc<CheckingMemos>,
     call_frame_tables:
         OnceLock<Option<Arc<crate::machine_calls::calls::CallFrameTables<'program>>>>,
+    statement_sites: OnceLock<Arc<crate::statement_sites::StatementSites>>,
 }
 
 impl<'program> CheckingContext<'program> {
@@ -309,6 +316,7 @@ impl<'program> CheckingContext<'program> {
             opaque_selections: None,
             memos: Arc::new(CheckingMemos::default()),
             call_frame_tables: OnceLock::new(),
+            statement_sites: OnceLock::new(),
         }
     }
 
@@ -362,6 +370,7 @@ impl<'program> CheckingContext<'program> {
             opaque_selections: self.opaque_selections,
             memos: Arc::new(self.memos.clone_typed_tree_memos()),
             call_frame_tables: self.call_frame_tables.clone(),
+            statement_sites: self.statement_sites.clone(),
         }
     }
 
@@ -387,6 +396,7 @@ impl<'program> CheckingContext<'program> {
             opaque_selections: self.opaque_selections,
             memos: Arc::new(self.memos.clone_typed_tree_memos()),
             call_frame_tables: self.call_frame_tables.clone(),
+            statement_sites: self.statement_sites.clone(),
         }
     }
 
@@ -432,6 +442,7 @@ impl<'program> CheckingContext<'program> {
             opaque_selections: self.opaque_selections,
             memos,
             call_frame_tables,
+            statement_sites: self.statement_sites.clone(),
         }
     }
 
@@ -499,6 +510,13 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
         Some(&self.memos)
+    }
+
+    fn statement_sites(&self) -> Option<&crate::statement_sites::StatementSites> {
+        Some(
+            self.statement_sites
+                .get_or_init(|| Arc::new(crate::statement_sites::StatementSites::build(self))),
+        )
     }
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
@@ -663,6 +681,10 @@ impl CheckingInput for CheckingProjection<'_> {
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
         self.memo_source()?.call_frame_tables()
+    }
+
+    fn statement_sites(&self) -> Option<&crate::statement_sites::StatementSites> {
+        self.memo_source()?.statement_sites()
     }
 
     fn prepared_mathematics(

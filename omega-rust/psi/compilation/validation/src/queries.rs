@@ -8,6 +8,7 @@
 
 pub mod execution_projection;
 pub mod expression_traversal;
+pub mod statement_sites;
 pub(crate) mod layout_checking;
 pub mod product_queries;
 pub mod substitutions;

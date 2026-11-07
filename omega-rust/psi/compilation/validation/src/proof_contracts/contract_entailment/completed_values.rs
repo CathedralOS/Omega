@@ -432,6 +432,33 @@ pub(crate) fn expression_statement_index(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<usize> {
+    if let Some(sites) =
+        crate::statement_sites::StatementSites::for_program(program.statement_sites(), program)
+        && let Some((machine_index, state_index)) =
+            program
+                .machines()
+                .iter()
+                .enumerate()
+                .find_map(|(machine_index, machine)| {
+                    program
+                        .machine_states(machine)
+                        .iter()
+                        .position(|candidate| std::ptr::eq(candidate, state))
+                        .map(|state_index| (machine_index, state_index))
+                })
+    {
+        // The same answer as the walk below: the unique statement of `state`
+        // whose value roots contain `expression`. A state outside this
+        // program keeps the walk.
+        let mut owners = sites
+            .containing_sites(expression)
+            .filter(|site| {
+                site.machine as usize == machine_index && site.state as usize == state_index
+            })
+            .map(|site| site.statement as usize);
+        let owner = owners.next()?;
+        return owners.next().is_none().then_some(owner);
+    }
     let mut owners = program
         .statement_table
         .indexed_statements(state.statement_nodes)

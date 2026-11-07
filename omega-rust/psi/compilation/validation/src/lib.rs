@@ -578,6 +578,7 @@ pub mod borrow_contracts;
 mod declarations;
 pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
+pub use queries::statement_sites;
 mod frozen_program;
 mod queries;
 pub(crate) use queries::layout_checking::layout_checking_targets;

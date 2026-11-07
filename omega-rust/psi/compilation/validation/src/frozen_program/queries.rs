@@ -160,6 +160,10 @@ impl CheckingInput for CheckingQuery<'_> {
         self.input.call_frame_tables()
     }
 
+    fn statement_sites(&self) -> Option<&crate::statement_sites::StatementSites> {
+        self.input.statement_sites()
+    }
+
     fn prepared_effect_plans(&self) -> Option<&crate::PreparedEffectPlans> {
         self.input.prepared_effect_plans()
     }

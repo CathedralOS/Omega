@@ -1429,6 +1429,30 @@ pub(super) fn caller_statement_owner<'program>(
     machine: &Machine,
     site: CallerWriteSite<'_>,
 ) -> Option<(&'program State, &'program StatementNode, usize)> {
+    if let CallerWriteSite::Expression(expression) = site
+        && let Some(sites) =
+            crate::statement_sites::StatementSites::for_program(program.statement_sites(), program)
+        && let Some(machine_index) = program
+            .machines()
+            .iter()
+            .position(|candidate| std::ptr::eq(candidate, machine))
+    {
+        // The same answer as the walk below: the unique statement of this
+        // machine, in program order, whose value roots reach `expression`.
+        let mut owners = sites
+            .owner_sites(expression)
+            .filter(|site| site.machine as usize == machine_index);
+        let site = owners.next()?;
+        if owners.next().is_some() {
+            return None;
+        }
+        let state = program.machine_states(machine).get(site.state as usize)?;
+        let statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(site.statement as usize)?;
+        return Some((state, statement, site.statement as usize));
+    }
     let mut owner = None;
     for state in program.machine_states(machine) {
         let statements = program.statement_table.statements(state.statement_nodes);
