@@ -12,6 +12,6 @@ trait Strong<Encode satisfies ValueConversion<Pair, Frame, Failure>> {
 }
 trait Weak<Encode satisfies TryFrom<Pair, Frame, Failure>> {
     machine unlicensed(value: Pair)
-    ensures Encode::try_from(value) == Encode::try_from(value);
+    ensures core::Identity<Result<Frame, Failure>>(Encode::try_from(value), Encode::try_from(value));
 }
 machine main() { }

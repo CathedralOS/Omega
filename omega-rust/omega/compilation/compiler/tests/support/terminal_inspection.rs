@@ -178,7 +178,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `identity-formation-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -246,6 +246,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             match conformance_controls {
                 Some(InspectionControls::IdentityFormations) => {
                     let _artifact = identity_formations::produce(&checked, machine)?;
+                    observations.push("identity-formation-controls:match".into());
                 }
                 Some(InspectionControls::MathematicalActuals) => {
                     let _artifact = mathematical_actuals::produce(&checked, machine)?;
@@ -410,6 +411,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 | InspectionControls::CallbackTelescope(_)
                 | InspectionControls::NativeLayouts
                 | InspectionControls::IndexedFamily
+                | InspectionControls::IdentityFormations
                 | InspectionControls::MathematicalActuals => {
                     unreachable!("handled before ordinary inspection")
                 }

@@ -2,7 +2,7 @@
 //! publication. Canonical receiving compares those independent inputs and
 //! rejects changed carriers, subjects and well-typed replacement propositions.
 
-use proof_admission::{Budget, MathematicalCertificate, Term};
+use proof_admission::{Budget, MathematicalCertificate, Signature, Term, weak_head_normalize};
 use psi_compiler::{TerminalMachineSelection, TerminalProductionRequest, UnmeasuredProduction};
 use terminal_codec::{
     CanonicalTerminalArtifact, ExpectedIdentityFormation, ExpectedIdentityFormations,
@@ -107,23 +107,9 @@ pub(super) fn produce(
         wrong_carrier.identity_formations.rows[0].source_owner;
     refuse_source(&wrong_carrier, &expected, "source carrier")?;
 
-    let position = module
-        .identity_formations
-        .rows
-        .iter()
-        .position(|row| {
-            row.subject_origins.len() >= 2 && row.subject_origins[0] != row.subject_origins[1]
-        })
-        .ok_or("Id inspection has no distinct ordered source subjects")?;
     let mut wrong_subject = module.clone();
-    wrong_subject.identity_formations.rows[position]
-        .subject_origins
-        .swap(0, 1);
-    refuse_source(
-        &wrong_subject,
-        &expected,
-        "source carrier or subject association",
-    )?;
+    let position = replace_endpoint(&mut wrong_subject)?;
+    refuse_source(&wrong_subject, &expected, "Id value differs")?;
 
     let mut wrong_value = module.clone();
     replace_family(&mut wrong_value, position, true)?;
@@ -169,6 +155,55 @@ fn refuse_source(
         ));
     }
     Ok(())
+}
+
+/// Change one actual Id endpoint while retaining its exact carrier, source
+/// association and subject domains. Ordinary receiving must still establish
+/// formation before the independent source authority rejects the changed Id.
+fn replace_endpoint(module: &mut terminal_psi::TerminalModule) -> Result<usize, String> {
+    let mut decoded =
+        terminal_codec::decode_mathematical_certificate(&module.identity_formations.certificate)
+            .map_err(|error| format!("Id subject mutant certificate: {error:?}"))?;
+    let signature = Signature::from_declarations(decoded.certificate.signature.clone());
+    for (position, row) in module.identity_formations.rows.iter().enumerate() {
+        if row.subject_carriers.len() != 2 {
+            continue;
+        }
+        let declaration = &decoded.certificate.signature[row.declaration as usize];
+        let mut body = declaration
+            .body
+            .ok_or("Id subject mutant has no definition")?;
+        let mut domains = Vec::new();
+        for _ in &row.subject_carriers {
+            let Term::Lambda { domain, body: next } = decoded.arena.get(body) else {
+                return Err("Id subject mutant lost its telescope".into());
+            };
+            domains.push(domain);
+            body = next;
+        }
+        body = weak_head_normalize(&mut decoded.arena, &signature, body, &mut Budget::default())
+            .map_err(|error| format!("Id subject mutant reduction: {error:?}"))?;
+        let Term::Id { ty, left, right } = decoded.arena.get(body) else {
+            continue;
+        };
+        if decoded.arena.structurally_equal(left, right) {
+            continue;
+        }
+        body = decoded.arena.insert(Term::Id {
+            ty,
+            left,
+            right: left,
+        });
+        for domain in domains.into_iter().rev() {
+            body = decoded.arena.insert(Term::Lambda { domain, body });
+        }
+        decoded.certificate.signature[row.declaration as usize].body = Some(body);
+        module.identity_formations.certificate =
+            terminal_codec::encode_mathematical_certificate(&decoded.arena, &decoded.certificate)
+                .map_err(|error| format!("Id subject mutant encoding: {error:?}"))?;
+        return Ok(position);
+    }
+    Err("Id inspection has no two-subject family with distinct kernel endpoints".into())
 }
 
 /// Both replacements are well-typed type-valued functions. One changes the

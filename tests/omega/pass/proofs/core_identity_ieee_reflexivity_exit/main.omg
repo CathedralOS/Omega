@@ -7,6 +7,15 @@ let same<A: core::Type<0>>(left: A, right: A): core::Type<0> = core::Identity<A>
 let same_box<A: core::Type<0>>(left: IdentityBox<A>, right: IdentityBox<A>): core::Type<0> = core::Identity<IdentityBox<A>>(left, right);
 let same_box_outer<A: core::Type<0>>(left: IdentityBox<A>, right: IdentityBox<A>): core::Type<0> = same_box<A>(left, right);
 let same_strict<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right);
+let partial<A: core::Type<0>>(left: A): A -> core::Type<0> = same<A>(left);
+let through_partial<A: core::Type<0>>(left: A, right: A): core::Type<0> = partial<A>(left, right);
+let both<A: core::Type<0>>(left: A, right: A): core::Strict<0> = core::Identity<A>(left, right) && core::Identity<A>(right, left);
+machine need_both(left: f64, right: f64)
+requires both<f64>(left, right)
+{ }
+machine require_both(left: f64, right: f64)
+requires core::Identity<f64>(left, right)
+{ need_both(left, right); }
 machine keep_constructed(value: IdentityBox<u8>) reaches terminates
 ensures same_box_outer<u8>(value, value)
 { }
@@ -20,7 +29,7 @@ machine keep_box(value: FloatBox) reaches terminates
 ensures core::Identity<FloatBox>(value, value)
 { }
 machine require_same(left: f64, right: f64)
-requires same<f64>(left, right)
+requires through_partial<f64>(left, right)
 { }
 machine main() crashes Trap {
     let nan: f64 = 0.0f64 / 0.0f64;
@@ -31,6 +40,7 @@ machine main() crashes Trap {
     keep(nan);
     keep_box(boxed);
     require_same(nan, nan);
+    require_both(nan, nan);
     require_same(-0.0f64, -0.0f64);
     transition nan == nan || !(-0.0f64 == 0.0f64) {
         true -> bad()
