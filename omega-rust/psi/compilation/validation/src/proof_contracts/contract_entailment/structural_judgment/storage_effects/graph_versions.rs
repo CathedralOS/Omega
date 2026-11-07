@@ -277,6 +277,12 @@ impl<'program> StructuralJudge<'program> {
             return;
         };
         let Some(path) = versions::followed_path(graph, from.snapshot, to.snapshot) else {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT storage-path-unavailable owner={} from={from:?} to={to:?}",
+                    self.program.symbols.display_path(self.machine_symbol, "::")
+                );
+            }
             return;
         };
         let retained = self

@@ -11,7 +11,7 @@ use super::{Header, ScopedArithmeticBinding, ScopedArithmeticExpression, ScopedA
 pub(super) const TRANSPORT_WORK: usize = 16_384;
 const SUBSTITUTION_DEPTH: usize = 64;
 
-fn charge(remaining: &mut usize) -> Option<()> {
+pub(super) fn charge(remaining: &mut usize) -> Option<()> {
     *remaining = remaining.checked_sub(1)?;
     Some(())
 }
