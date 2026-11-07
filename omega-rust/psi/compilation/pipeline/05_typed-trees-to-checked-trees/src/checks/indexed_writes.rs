@@ -1,4 +1,5 @@
-//! Join the bounds check with the byte classes the assignment transfer retained.
+//! Join the bounds check with the completed value's byte classes and the
+//! sequence predicates the assignment transfer retained.
 //! A write's Terminal obligation contains both; a bounds verdict alone cannot
 //! authorize overwriting an ASCII byte with 255. Read only the completed
 //! statement's live contexts, never a historical fact or a later restoration.
@@ -99,6 +100,8 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
             };
             let declared_domains =
                 validation::field_domains::domain_constraint_symbols(program, reference);
+            let stored_classes =
+                completed_byte_classes(program, facts, state, statement_flow, assignment);
             let preserved = carriers.iter().all(|carrier| {
                 let Some(candidate_type) = validation::canonical_place_type_reference(
                     program,
@@ -119,6 +122,17 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
                     else {
                         return false;
                     };
+                    // A pointwise class constrains the completed byte, not a
+                    // later read of the reference or index that named its
+                    // destination. This certifies the store without publishing
+                    // a fact on a carrier the RHS may already have retargeted.
+                    if required.is_subslice_preserving()
+                        && stored_classes
+                            .predicates()
+                            .any(|class| class.implies(required))
+                    {
+                        return true;
+                    }
                     facts
                         .flow
                         .contexts
@@ -164,6 +178,66 @@ pub(super) fn record(program: &dyn ::validation::CheckingInput, facts: &mut Chec
     proven.sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     proven.dedup();
     facts.proven_byte_writes = proven;
+}
+
+fn completed_byte_classes(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    statement: &checked_trees::FlowStatementFact,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> language_semantics::byte_predicates::ByteSequencePredicateSet {
+    use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
+
+    let observed = || {
+        if !facts.flow.control.operands.is_valid(statement.stored_value) {
+            return None;
+        }
+        let value = facts.flow.control.operands.get(statement.stored_value);
+        if value.expression != assignment.value
+            || value.state_symbol != state.symbol
+            || value.statement_index != statement.statement_index
+            || value.evaluation != checked_trees::FlowPermissionEvaluation::Statement
+            || program.primitive_type_reference(value.type_reference)
+                != Some(typed_trees::types::PrimitiveType::U8)
+        {
+            return None;
+        }
+        let contexts = || {
+            facts
+                .flow
+                .semantic_constraint_contexts(value.constraints)
+                .map(|context| facts.semantic.contexts.get(context))
+        };
+        let source = validation::CanonicalPlace {
+            root: facts::PlaceRoot::Expression(value.expression),
+            segments: Vec::new(),
+        };
+        if let Some(facts::ScalarValue::Integer(value)) =
+            crate::values::scalar_value_at_place(program, &facts.semantic, contexts(), &source)
+        {
+            let byte = u8::try_from(value.to_i64()?).ok()?;
+            return Some((byte, byte));
+        }
+        let bounds =
+            crate::values::integer_bounds_at_place(program, &facts.semantic, contexts(), &source)?;
+        let minimum = u8::try_from(bounds.minimum.to_i64()?).ok()?;
+        let maximum = u8::try_from(bounds.maximum.to_i64()?).ok()?;
+        (minimum <= maximum).then_some((minimum, maximum))
+    };
+    let mut classes = ByteSequencePredicateSet::EMPTY;
+    if let Some((minimum, maximum)) = observed() {
+        // A pointwise predicate need not describe one interval. The U8
+        // carrier bounds this complete check to at most 256 possible bytes.
+        for predicate in ByteSequencePredicate::ALL {
+            if predicate.is_subslice_preserving()
+                && (minimum..=maximum).all(|byte| predicate.holds_for(&[byte]))
+            {
+                classes.insert(predicate);
+            }
+        }
+    }
+    classes
 }
 
 /// Key each proven `[]` occurrence of an assignment target by the
