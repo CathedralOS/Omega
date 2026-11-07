@@ -136,6 +136,12 @@ pub(super) fn prepare_selected_value<'p>(
     let Some(owner) =
         super::specification_calls::selected_call_site_contract(program, machine.symbol, site)
     else {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-prefix declined caller={} reason=no-selected-contract",
+                machine.name
+            );
+        }
         return PreparedRequirement::Decided(false);
     };
     if inherited.is_none()
@@ -160,11 +166,23 @@ pub(super) fn prepare_selected_value<'p>(
                 false
             })
     {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-prefix declined caller={} reason=not-declared-requirement expression={expression:?}",
+                machine.name
+            );
+        }
         return PreparedRequirement::Decided(false);
     }
     let Some(parameter_scope) =
         super::specification_calls::call_parameter_scope(program, machine.symbol, &owner, site)
     else {
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT selected-prefix declined caller={} reason=no-parameter-scope expression={expression:?}",
+                machine.name
+            );
+        }
         return PreparedRequirement::Decided(false);
     };
     // Pure type obligations do not require a runtime observation of a generic
