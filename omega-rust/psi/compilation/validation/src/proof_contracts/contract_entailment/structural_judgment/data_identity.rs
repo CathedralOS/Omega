@@ -173,7 +173,37 @@ impl StructuralJudge<'_> {
         if right.is_empty() {
             return false;
         }
-        let mut pending = left.iter().rev().collect::<Vec<_>>();
+        let left = left
+            .iter()
+            .filter(|value| self.identity_value_is_available(value))
+            .collect::<Vec<_>>();
+        // Preserve the direct typed-pair query before spending its remaining
+        // allowance on transitive endpoint search. An unrelated early edge
+        // must not hide correspondence between later initial forms.
+        for left in &left {
+            for right in &right {
+                if *remaining == 0 {
+                    return false;
+                }
+                *remaining -= 1;
+                if matches!(
+                    self.exact_identity_congruence(
+                        (*left).clone(),
+                        (*right).clone(),
+                        depth + 1,
+                        remaining
+                    ),
+                    StructuralJudgment::Proven
+                ) {
+                    return true;
+                }
+            }
+        }
+        let mut pending = left
+            .into_iter()
+            .rev()
+            .map(|value| (value, false))
+            .collect::<Vec<_>>();
         let mut visited: Vec<&StructuralTerm> = Vec::new();
         // Borrow the bounded roster once. Eligibility is stable in this
         // immutable query context and is evaluated at most once per edge.
@@ -182,7 +212,7 @@ impl StructuralJudge<'_> {
             .take(*remaining)
             .map(|(left, right)| (left, right, None))
             .collect::<Vec<_>>();
-        while let Some(value) = pending.pop() {
+        while let Some((value, check_goal)) = pending.pop() {
             if *remaining == 0 || visited.len() >= 64 {
                 return false;
             }
@@ -197,21 +227,23 @@ impl StructuralJudge<'_> {
             if !self.identity_value_is_available(value) {
                 continue;
             }
-            for right in &right {
-                if *remaining == 0 {
-                    return false;
-                }
-                *remaining -= 1;
-                if matches!(
-                    self.exact_identity_congruence(
-                        value.clone(),
-                        (*right).clone(),
-                        depth + 1,
-                        remaining
-                    ),
-                    StructuralJudgment::Proven
-                ) {
-                    return true;
+            if check_goal {
+                for right in &right {
+                    if *remaining == 0 {
+                        return false;
+                    }
+                    *remaining -= 1;
+                    if matches!(
+                        self.exact_identity_congruence(
+                            value.clone(),
+                            (*right).clone(),
+                            depth + 1,
+                            remaining
+                        ),
+                        StructuralJudgment::Proven
+                    ) {
+                        return true;
+                    }
                 }
             }
             for (left, right, admitted) in &mut edges {
@@ -241,10 +273,11 @@ impl StructuralJudge<'_> {
                     ) && pending.len() < 64
                         && !visited
                             .iter()
-                            .chain(&pending)
+                            .copied()
+                            .chain(pending.iter().map(|(value, _)| *value))
                             .any(|known| known.same_resolution_payload(to))
                     {
-                        pending.push(to);
+                        pending.push((to, true));
                     }
                 }
             }
