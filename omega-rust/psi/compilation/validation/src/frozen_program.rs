@@ -74,6 +74,17 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
         false
     }
 
+    /// A retained view cannot establish its own formation through a later read.
+    /// The ancestry depth also bounds chains of distinct formation queries.
+    #[doc(hidden)]
+    fn has_active_recast_formation(
+        &self,
+        _expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        depth >= 64
+    }
+
     /// Preliminary source work cannot settle a pending representation's
     /// physical judgments. Strict checks and bare trees never defer them.
     fn defers_pending_layout_geometry(&self) -> bool {
@@ -633,6 +644,16 @@ impl Deref for CheckingProjection<'_> {
 impl CheckingInput for CheckingProjection<'_> {
     fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
         self.original.external_invocation_roots()
+    }
+
+    fn has_active_recast_formation(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        self.memo_source().map_or(depth >= 64, |input| {
+            input.has_active_recast_formation(expression, depth)
+        })
     }
 
     fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {

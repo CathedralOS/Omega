@@ -2037,6 +2037,12 @@ impl<'program> StructuralJudge<'program> {
                 } else {
                     None
                 };
+                let scalar_read_completed = alternatives.is_none()
+                    && !receiver_changed
+                    && scalar_reference_read
+                    && judge.frame_resolver().is_some_and(|frames| {
+                        frames.completed_scalar_read(scope.0, scope.1, expression)
+                    });
                 let alternatives = alternatives
                     .map(|values| values.into_iter().map(Some).collect::<Vec<_>>())
                     .unwrap_or_else(|| vec![None]);
@@ -2052,6 +2058,7 @@ impl<'program> StructuralJudge<'program> {
                             receiver_changed,
                             scalar_storage_read,
                             contents,
+                            scalar_read_completed,
                         )?,
                         ValueDelivery::RetainObservations => {
                             // Failure of provisional metadata never erases the
@@ -2067,6 +2074,7 @@ impl<'program> StructuralJudge<'program> {
                                     receiver_changed,
                                     scalar_storage_read,
                                     contents,
+                                    scalar_read_completed,
                                 )
                                 .unwrap_or_else(|| NormalReturnPath::unobserved(judge.clone()))
                         }

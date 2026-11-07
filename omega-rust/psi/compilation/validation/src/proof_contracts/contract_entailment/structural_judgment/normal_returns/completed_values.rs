@@ -18,6 +18,7 @@ impl<'program> StructuralJudge<'program> {
         receiver_changed: bool,
         scalar_storage_read: bool,
         reference_contents: Option<StructuralTerm>,
+        scalar_read_completed: bool,
     ) -> Option<NormalReturnPath<'program>> {
         let program = self.program;
         let node = expression_table(program).expression(expression);
@@ -25,7 +26,7 @@ impl<'program> StructuralJudge<'program> {
         // Complete scalar contents through the common storage owner before
         // descriptor projection can hide them. The captured operands select
         // this read; an intervening receiver write forbids address replay.
-        let completed_reference = if let Some(contents) = reference_contents {
+        let completed_reference = if reference_contents.is_some() || scalar_read_completed {
             let declared = judge.scalar_reference_read_type(scope.0, scope.1, expression)?;
             let result_type =
                 crate::value_custody::expression_types::readable_observation_type_reference(
@@ -39,14 +40,18 @@ impl<'program> StructuralJudge<'program> {
             } = &mut observed
             {
                 // This is a performed scalar read, not a descriptor cast.
-                // The read owner supplied every current-content alternative;
-                // each normal path proves its own independently captured value.
+                // A completed read retains its signed scalar carrier even when
+                // its bytes have no known equation. Only an independently
+                // supplied content value can contribute a narrower interval.
                 *carrier = result_type;
-                *integer_range = judge
-                    .completed_integer_range_recipe(&contents)
+                *integer_range = reference_contents
+                    .as_ref()
+                    .and_then(|contents| judge.completed_integer_range_recipe(contents))
                     .map(Arc::new);
             }
-            judge.assume_completed_value_equation(result_type, observed.clone(), contents);
+            if let Some(contents) = reference_contents {
+                judge.assume_completed_value_equation(result_type, observed.clone(), contents);
+            }
             if super::super::super::struct_trace() {
                 eprintln!(
                     "STRUCT completed-reference-contents expression={expression:?} descriptor_type={declared:?} scalar_type={result_type:?} observed={observed:?}"

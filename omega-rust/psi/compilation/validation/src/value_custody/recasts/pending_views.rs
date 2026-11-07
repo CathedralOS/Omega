@@ -105,7 +105,7 @@ fn formation_obligation<'program>(
 /// Declaration ownership of an exact formation occurrence. A checked callee's
 /// returned reference has already crossed its validity boundary; its original
 /// body must not be reinterpreted under the caller's premises.
-fn formation_owner(
+pub(super) fn formation_owner(
     program: &dyn crate::CheckingInput,
     formation: ExpressionHandle,
 ) -> Option<(&Machine, &State)> {

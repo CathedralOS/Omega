@@ -30,6 +30,9 @@ enum QueryKind {
     CompletedCases {
         machine: SymbolHandle,
     },
+    RecastFormation {
+        expression: typed_trees::expression::ExpressionHandle,
+    },
 }
 
 pub(crate) struct CheckingQuery<'input> {
@@ -57,6 +60,16 @@ impl std::fmt::Debug for CheckingQuery<'_> {
 }
 
 impl<'input> CheckingQuery<'input> {
+    pub(crate) fn recast_formation(
+        input: &'input dyn CheckingInput,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<Self> {
+        if input.has_active_recast_formation(expression, 0) {
+            return None;
+        }
+        Some(Self::new(input, QueryKind::RecastFormation { expression }))
+    }
+
     pub(crate) fn numeric_observation(
         input: &'input dyn CheckingInput,
         machine: SymbolHandle,
@@ -127,6 +140,22 @@ impl<'input> CheckingQuery<'input> {
 // Query ancestry changes no checking authority, geometry or selected meaning.
 // Forward every semantic input to its original owner; memos are the query's own.
 impl CheckingInput for CheckingQuery<'_> {
+    fn has_active_recast_formation(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        depth: usize,
+    ) -> bool {
+        let formation = matches!(self.query, QueryKind::RecastFormation { .. });
+        self.counted(
+            matches!(self.query, QueryKind::RecastFormation { expression: active }
+                if active == expression)
+                || self.enclosing_cut(
+                    self.input
+                        .has_active_recast_formation(expression, depth + usize::from(formation)),
+                ),
+        )
+    }
+
     fn external_invocation_roots(&self) -> Option<&[symbols::SymbolHandle]> {
         self.input.external_invocation_roots()
     }
