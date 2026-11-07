@@ -41,9 +41,5 @@
   ],
   "source_only": false,
   "samples": [],
-  "cli_fixtures": [
-    "pass/borrows/runtime_copied_range_record_domains_exit",
-    "pass/borrows/runtime_measured_range_record_domains_exit",
-    "pass/borrows/runtime_forwarded_view_field_domain_exit"
-  ]
+  "cli_fixtures": []
 }
